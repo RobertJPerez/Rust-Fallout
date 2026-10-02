@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "revision": "d195f7049f5a3307c1c8a32091088a2024dd8466",
+  "revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a",
   "working_tree_dirty": false,
-  "scope": "Rust/C++ source including headers, tooling, manifests, source pins and Cargo locks; files are bound by their individual hashes",
+  "scope": "Rust/C++ source, WGSL shaders, headers, tooling, manifests, source pins and Cargo locks; files are bound by their individual hashes",
   "digest_recipe": "SHA256 of UTF-8 JSON files array, sort_keys=True, separators=(',', ':')",
-  "sha256": "dece15de6f134530f911232825ee79cf009dbae4e637d391d790c58b9859c880",
+  "sha256": "a41487effabcd7850298d265a35562601a68ae59a13105283cb01697414d9d85",
   "files": [
     {
       "path": "Cargo.lock",
@@ -139,16 +139,28 @@
       "sha256": "fb6e40509a0a7af59358bf4f83c7f8dba136d7de97024e35df074d78b99b7e18"
     },
     {
+      "path": "crates/fallout-preview/src/fixture.rs",
+      "sha256": "c482b2a8eb8cb63e7c0589613305f534e1fb25f0ecd4c81069038c404afae6d3"
+    },
+    {
+      "path": "crates/fallout-preview/src/inspection.wgsl",
+      "sha256": "b627f136cb9dc855965152bd30d1fe3966b0047ac77e6d87cd803c81d8bc5428"
+    },
+    {
       "path": "crates/fallout-preview/src/main.rs",
-      "sha256": "74db161fd7f76dd16aa6cfd83f21d97319436565c3a9b7b60a8293648a30bb3f"
+      "sha256": "f739c7280167289b8d891be44a159d44891ffcf7f4f160a55fed9ee39d812385"
+    },
+    {
+      "path": "crates/fallout-preview/src/material.rs",
+      "sha256": "8785956f62726ab032a00852caf3988ff56d2ec9c33fc6c5c044231450ae36fd"
     },
     {
       "path": "crates/fallout-preview/src/model.rs",
-      "sha256": "29dd42ea67d3c640ed8138073f3677de93bdfaafa325739ad9e4b01ad9ed3aa8"
+      "sha256": "7cc353abb44dcb4154119f9d408a43d490ce17aa6fdf6e59fcb771e307495a6e"
     },
     {
       "path": "crates/fallout-preview/src/scene.rs",
-      "sha256": "250e735482cf2b7187c5a757e0ef7eeea7d760bd59a52e9d00f0fd40fb882578"
+      "sha256": "48636bb7466b2a2f16b2050ce0f1676c779bfce399b3fe28f8ea0f52a1b8d3b7"
     },
     {
       "path": "rust-toolchain.toml",
@@ -156,7 +168,7 @@
     },
     {
       "path": "sources.lock.json",
-      "sha256": "a383707fcea4e1eb4cc0bd892fe0c01481f15daa2977cb1d51138bdd3b7dedf1"
+      "sha256": "11a07b3ee04b08bf86a0ec212fc358d47af21ae326d1605a0517f23f5e039123"
     },
     {
       "path": "tools/archive-compare/Cargo.toml",
@@ -236,7 +248,7 @@
     },
     {
       "path": "tools/record-verification.py",
-      "sha256": "c931a18406f131cf244d51f0974f4dfc9f0baff048caea1aa90472614f1cfa9d"
+      "sha256": "513f5b5d4b239e928e078f4d46ff72b017c99868816350deaa7a34c5a433ebc6"
     },
     {
       "path": "tools/report-dependency-licenses.py",
@@ -244,11 +256,11 @@
     },
     {
       "path": "tools/report-interior.py",
-      "sha256": "bd9961165e317d84c9db6577b1f28938e74d1ae3f9926766ea8653cb88878f2a"
+      "sha256": "4917a0f1461d220afb2b6d33f50e49691169895b30e906b86d7de2e158c24f14"
     },
     {
       "path": "tools/report-model-preview.py",
-      "sha256": "baa681703e69125d8027471496e4f561ac8eb6aa37d286f4750bb2f59f223c2b"
+      "sha256": "c10f8fc4456553f2fd476614e7d6b4f7475f842d5f3600a6600f6d3654beebd3"
     },
     {
       "path": "tools/report-nif-materials.py",
@@ -280,7 +292,7 @@
     },
     {
       "path": "tools/snapshot-source.py",
-      "sha256": "28739c88d5d3ee821f0a6b00057983aea8fc4275bc5d2e55a1fb69b39f5161bd"
+      "sha256": "d11d40e915515cdeb1add39bf4d981a9c60253f70a45821eb1057f6e92f144b4"
     }
   ]
 }

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "d195f7049f5a3307c1c8a32091088a2024dd8466",
-  "revision_note": "Checkpoint 05 binds newly checked scopes to the implementation commit; prior corpus scopes retain their initial checkpoint revision.",
+  "last_verified_revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a",
+  "revision_note": "Checkpoint 06 binds presentation and synthetic GPU checks to its implementation commit; unchanged parser/corpus scopes retain their prior verified revision.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -593,7 +593,7 @@
         "Interactive orbit bindings implemented but not independently exercised with keyboard automation"
       ],
       "tolerance": "Successful GPU capture and visual smoke inspection only; no retail comparison tolerance defined",
-      "last_verified_revision": null
+      "last_verified_revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a"
     },
     {
       "id": "fnv.presentation.interior_preview",
@@ -623,7 +623,32 @@
         "Whole-corpus integrity defects and archive/loose precedence remain unresolved"
       ],
       "tolerance": "Exact selected source fields; successful GPU captures and visual inspection; no retail image tolerance",
-      "last_verified_revision": null
+      "last_verified_revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a"
+    },
+    {
+      "id": "fnv.presentation.source_material_states",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "presentation",
+      "requirement": "Honor supported authored untextured bindings and alpha/culling/depth states in the inspection adapter",
+      "status": "unit-tested",
+      "affected_content": "62 synthetic GPU checks; 31 authored-untextured shared meshes in Doc Mitchell house",
+      "evidence": [
+        "reports/material-states.json",
+        "reports/interior-preview.json",
+        "docs/material-states.md"
+      ],
+      "tests": [
+        "crates/fallout-preview/src/fixture.rs",
+        "crates/fallout-preview/src/material.rs",
+        "crates/fallout-preview/src/inspection.wgsl"
+      ],
+      "known_gaps": [
+        "Synthetic render-state checks do not establish retail shader/lighting parity",
+        "NoLighting falloff, emittance, inherited material properties and stencil operations remain incomplete",
+        "Retail transparency sorting, skinned meshes and controller effects are unverified"
+      ],
+      "tolerance": "Synthetic linear RGB converted to sRGB; center-pixel error at most two bytes per channel for GPU target quantization; no retail image tolerance",
+      "last_verified_revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a"
     }
   ]
 }

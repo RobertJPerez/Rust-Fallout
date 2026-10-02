@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "date": "2026-10-02",
-  "checkpoint": 5,
-  "engine_revision": "d195f7049f5a3307c1c8a32091088a2024dd8466",
-  "source_snapshot_sha256": "dece15de6f134530f911232825ee79cf009dbae4e637d391d790c58b9859c880",
+  "checkpoint": 6,
+  "engine_revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a",
+  "source_snapshot_sha256": "a41487effabcd7850298d265a35562601a68ae59a13105283cb01697414d9d85",
   "source_matches_implementation_commit": true,
   "release_cli_sha256": "51b50c4571b4f0fdf83c588980d025b4439981d0024d7874d669b22c34c6fa06",
-  "debug_preview_sha256": "28f2b717a8b9b7011196b1a611e405635f5e6419a55dcb6db0177352ecd3e6a1",
+  "debug_preview_sha256": "03c10a28e1762de1dcaf569b16c113cbda63ae985aee03a79a367fa3bbdc00a5",
   "raw_oracle_binary_sha256": "5817a14c1e6c47ad96141aa582355cfd1051c85da90d55fb9972e9b69718bfab",
   "check_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
   "check_exit_code": 0,
-  "check_log_sha256": "c8d8e16ee456eedc4d1e75c9b7b3d5bb83562caf321596bb28fdccf0152b8f77",
-  "tests_passed": 52,
-  "unit_tests_passed": 13,
+  "check_log_sha256": "19c0f500903ded2dbd7e4210f87a77230d70a646bca42776cea3330a1d2d7b92",
+  "tests_passed": 54,
+  "unit_tests_passed": 15,
   "integration_tests_passed": 39,
   "format_check": "passed",
   "clippy_warnings_denied": "passed",
@@ -27,12 +27,15 @@
     "integrity_failures": 0,
     "link_failures": 0,
     "index_payloads_deferred": 585196,
+    "selection_comparison_evidence_origin_checkpoint": 5,
     "full_and_deferred_selected_fields_equal": true,
     "whole_corpus_certified": false
   },
   "independent_payload_comparison": {
     "files": 218,
     "all_equal": true,
+    "evidence_origin_checkpoint": 5,
+    "unchanged_release_cli_evidence_reused": true,
     "objects": 751,
     "meshes": 403,
     "materials": 1127,
@@ -47,8 +50,14 @@
     "models": 2,
     "interior_views": 2,
     "all_exit_codes_zero": true,
+    "synthetic_material_checks": 62,
+    "synthetic_all_passed": true,
     "visually_inspected": true,
     "retail_image_comparison": false
+  },
+  "shared_mesh_diffuse_binding_counts": {
+    "archived-texture": 364,
+    "authored-untextured": 31
   },
   "interior": {
     "rendered_references": 400,
@@ -70,10 +79,11 @@
     "raw_oracle": "MSVC Release built"
   },
   "reports": {
-    "reports/interior-preview.json": "7b2d78087a8cd9f4029b0883c582eab083feab56531d477cde616d3a42f06adf",
-    "reports/model-preview.json": "09ffbe66694c1b6287038083380804c55dd97215c77972e729406741e711517b",
-    "sources.lock.json": "a383707fcea4e1eb4cc0bd892fe0c01481f15daa2977cb1d51138bdd3b7dedf1"
+    "reports/interior-preview.json": "f4d9dac2e68c7487d58ce5700fa59e91e1b2993a78da21305b8649c5160e581e",
+    "reports/model-preview.json": "e3965666a981d7c431e67034df26fb7bb437bcdeaa67bb64fa0d2f23cf56e8ee",
+    "reports/material-states.json": "1e50e1f697bfff5d3ac276c118e2b8c8362096018d558a26a6be5bf6dd5d434d",
+    "sources.lock.json": "11a07b3ee04b08bf86a0ec212fc358d47af21ae326d1605a0517f23f5e039123"
   },
   "gameplay_acceptance": "not implemented; no accepted scenarios",
-  "prior_verification": "reports/checkpoint-04-verification.json"
+  "prior_verification": "reports/checkpoint-05-verification.json"
 }

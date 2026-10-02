@@ -61,14 +61,18 @@ declares BSX bit 5, following the pinned
 Two such submeshes are omitted in the house. Standalone audio/heading marker models
 remain visible; no filename filter silently removes them.
 
-Unlit diffuse materials remain an approximation. The bedroom window contains visible
-magenta fallback surfaces, and transparent effects do not reproduce retail shading.
+Unlit diffuse materials remain an approximation. Checkpoint 06 fixes the authored
+untextured bindings and preserves source alpha, culling and depth states. The new
+bedroom capture shows window beams without the earlier magenta fallback. All 395
+shared rendered meshes have a supported diffuse binding: 364 textured and 31
+untextured. The [62 synthetic GPU checks](material-states.md) verify supported fixed
+states; angle falloff, emittance, controllers and retail effect shading remain open.
 The real geometry/textures and successful captures establish a working assembly/GPU
 path, not a visually complete interior. Collision, source camera measurements, retail
 lighting/material comparisons and player simulation are still acceptance gates.
 
 Preparation is synchronous and has explicit cell/model/geometry/texture budgets.
-Debug capture runs took approximately 42–43 seconds including loading and rendering
+Debug capture runs took approximately 41–44 seconds including loading and rendering
 on this machine. These are smoke-run durations, not a startup or frame-rate benchmark.
 Disk indexes, cancellable preparation, streaming and measured performance are open.
 

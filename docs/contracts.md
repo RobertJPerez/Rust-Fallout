@@ -89,6 +89,13 @@ and camera controls do not enter `fallout-data`. The current view supports BC1/2
 diffuse DDS with bounded dimensions and exact mip payload sizes. It reports skipped
 features and never changes the decoder's `runtime_ready` or gameplay acceptance.
 
+Authored untextured NoLighting type 33 and supported material-only bindings are
+distinct from unresolved diffuse bindings. The latter remain reported magenta.
+Raw alpha/culling/depth fields drive a separate extended-material adapter; embedded
+WGSL performs alpha testing before fixed-state blending. Synthetic GPU measurements
+are recorded separately from retail-derived scene captures and acceptance. They do
+not certify NoLighting falloff, emittance, lighting or stencil-buffer operations.
+
 Source reference math lives in the engine-independent `coordinates` module; Bevy
 conversion and ECS views remain in presentation. Static placement uses a provisional
 clockwise X/Y/Z convention, preserving source values and subtracting an f64 source

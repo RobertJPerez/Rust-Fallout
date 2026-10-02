@@ -23,6 +23,13 @@ source was ingested, and this work is not described as a clean-room implementati
 | [nifly](https://github.com/ousnius/nifly/tree/cca0a770094bb962fb28ea1fec5ea903e68fda8e) | GPL-3.0 library; header/factory/geometry/object/transform APIs; raw block loading; half MIT and Miniball GPL notices | Separate MSVC oracle: 218 containers / 4,582 block entries match; raw supported payloads also match for 751 objects, 403 meshes and 1,127 material blocks. Raw diagnostics confirm all 25 rejected model inputs. No rendering/animation/physics parity or file writes/conversions. |
 | [OpenMW](https://github.com/OpenMW/openmw/tree/63f6261b6e1fe1eb6170ad4e686de0edec836114) | GPL-3.0 root license; selected placement conversion, world/scene and NIF loader paths | Source reference only, no build/copy/link. Consulted static rotation order and declared marker names/flag. Original Rust math has analytic tests; this convention is provisional until measured NV retail comparisons. |
 
+Checkpoint 06 also consults the pinned nifxml alpha/stencil/shader bit fields and
+OpenMW's NoLighting loader/vertex/fragment paths for empty-texture and falloff facts.
+Our original Rust/WGSL inspection adapter now supports untextured bindings and
+alpha/culling/depth states. The pinned Bevy extended-material API hosts those states;
+62 synthetic GPU checks verify their numeric output. No OpenMW C++/GLSL implementation
+was copied or linked. Falloff, emittance and retail lighting remain unimplemented.
+
 Exact inspected path lists, build commands, language, license-file locations, and
 test-data provenance accompany those entries in the lock file. A candidate's README
 claims remain claims. The other unaudited atlas entries remain research leads at pinned

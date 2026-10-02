@@ -48,8 +48,10 @@ Keep the entire master brief in scope and progress through its dependency gates.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references
    through strict selected-record reads, sharing 203 models and 146 texture/sampler
    pairs. Two source-coordinate GPU views were captured and inspected. See
-   `docs/interior-preview.md`. Standalone marker models and magenta window surfaces
-   remain visible; alternate item/actor models, retail shaders and physics are open.
+   `docs/interior-preview.md`. Checkpoint 06 fixes the magenta window/shadow bindings
+   and verifies alpha/culling/depth states with 62 synthetic GPU checks. Standalone
+   marker models remain visible; NoLighting falloff/emittance, inherited properties,
+   alternate item/actor models, retail lighting and physics are open.
    Verify axes, units, placement rotation, winding, materials, collision, and
    camera movement against measured retail fixtures. No procedural replacement map or staged
    quest demo can satisfy M2/M3. Continue simulation, ObScript, saving, and campaign

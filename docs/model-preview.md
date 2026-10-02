@@ -39,20 +39,23 @@ source decoder never changes their presence or values.
 
 Bevy loads BC1/BC2/BC3 DDS pixels directly; the adapter checks dimensions, mip count
 and payload length before upload. Diffuse images use sRGB, source UVs and the shader
-clamp mode. The view uses unlit diffuse color and vertex colors, with approximate
-alpha blend/test modes. Unresolved material selection appears magenta and is named
-in the report. It does not evaluate normal/specular/environment maps, shader flags,
-retail lighting, animation, collision or gameplay.
+clamp mode. The view uses unlit diffuse color and vertex colors. Checkpoint 06 adds
+supported untextured materials and source alpha comparisons, blend factors, face
+culling and depth states, verified by 62 synthetic GPU cases. See
+[material states](material-states.md). Unresolved material selection appears magenta
+and is named in the report. Normal/specular/environment maps, most shader effects,
+retail lighting, animation, collision and gameplay remain incomplete.
 
 The chair and Vit-o-matic captures establish that the complete loading and GPU path
 works for those fixtures. They are not image comparisons against the original game.
-The cabinet has an unsupported diffuse binding explicitly reported by the preview.
+The cabinet's untextured shadow binding is now supported and explicitly reported.
 Retail visual parity and Goodsprings remain later gates.
 
 Checkpoint 05 adds a separate [placed interior preview](interior-preview.md), shared
 texture storage and an optional fly camera. The model mode still uses the same
 decoder and diffuse adapter. Two fresh model captures passed after these changes;
-neither the model nor interior view establishes retail shader or collision parity.
+Checkpoint 06 refreshes those captures after the material-state changes; neither the
+model nor interior view establishes retail shader or collision parity.
 
 Retail-derived PNGs and per-model reports stay under ignored `local/`. They are not
 bundled with the source or treated as redistributable art.

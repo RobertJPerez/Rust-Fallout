@@ -6,9 +6,9 @@
     "origin_plugin": "falloutnv.esm",
     "local_id": 1064441
   },
-  "binary_sha256": "03c10a28e1762de1dcaf569b16c113cbda63ae985aee03a79a367fa3bbdc00a5",
-  "capture_manifest_sha256": "fbf1df3781e861cf320ae3494b80113604e229961115373d403fcb503380f08d",
-  "captures_directory": "local\\interior-06-upload",
+  "binary_sha256": "28f2b717a8b9b7011196b1a611e405635f5e6419a55dcb6db0177352ecd3e6a1",
+  "capture_manifest_sha256": "326abe0eb62833796832ebe7e58a7acc5249b4b14be9c33ad8fc491fb8969247",
+  "captures_directory": "local\\interior-05-final",
   "captures": [
     {
       "view": "vigortester",
@@ -23,11 +23,11 @@
         7420
       ],
       "exit_code": 0,
-      "seconds": 44.5282242000103,
+      "seconds": 43.103486899985,
       "png": "vigortester.png",
-      "png_sha256": "3d143e0905c6373c1e168ac3d639af699928314619e6aade054727e592a4e929",
+      "png_sha256": "4d6d95f1326ba48c0f69dbbc6ab17da281c5cbac3fbccdcda15e6e39333386e5",
       "report": "vigortester.json",
-      "report_sha256": "68e5de571d61cfd16e16c5c230658528b9884fa7d358b7a49adcc5e318b21e5a"
+      "report_sha256": "c16b05ac149f98a66755fd205979e5ac657752a56ef92e59508939fd104134f8"
     },
     {
       "view": "bedroom",
@@ -42,27 +42,15 @@
         7420
       ],
       "exit_code": 0,
-      "seconds": 41.31500319999759,
+      "seconds": 41.96617650002008,
       "png": "bedroom.png",
-      "png_sha256": "79dc7c39759b02b950a1cd7bd558e961ae03eb759c9d8b9f0b0c919eb89c1861",
+      "png_sha256": "a5b0417661b9917892ae71ab10d1d425473fcb8f200ecffcf92702fc8c8febb2",
       "report": "bedroom.json",
-      "report_sha256": "68e5de571d61cfd16e16c5c230658528b9884fa7d358b7a49adcc5e318b21e5a"
+      "report_sha256": "c16b05ac149f98a66755fd205979e5ac657752a56ef92e59508939fd104134f8"
     }
   ],
   "all_exit_codes_zero": true,
-  "visual_review": "Both views inspected: textured rooms, cabinet, bed and window beams; no magenta fallback observed; source heading/audio markers remain visible",
-  "shared_mesh_diffuse_binding_counts": {
-    "archived-texture": 364,
-    "authored-untextured": 31
-  },
-  "shared_mesh_alpha_flags": {
-    "0x12ec": 57,
-    "0x10ed": 50,
-    "0x0000": 282,
-    "0x1043": 2,
-    "0x100d": 3,
-    "0x12ed": 1
-  },
+  "visual_review": "Both views inspected: recognizable textured room, furniture, cabinet and bed; diagnostic markers and unsupported magenta surfaces remain visible",
   "source_origin": [
     2130.0,
     1920.0,
@@ -230,8 +218,7 @@
   "declared_editor_marker_meshes_omitted": 2,
   "known_gaps": [
     "No measured retail placement/camera or image comparison; rotation convention is provisional",
-    "Unlit diffuse/vertex-color materials; NoLighting falloff, external emittance and inherited properties remain incomplete",
-    "Stencil buffer operations and retail transparency sorting remain unverified",
+    "Unlit diffuse materials; magenta fallback surfaces are visible in the bedroom window",
     "Standalone audio/heading marker models remain visible; only declared BSX marker submeshes are omitted",
     "Actor models, alternate item model selection, enable parents, controllers and skinning are incomplete",
     "No collision, player simulation, quests, scripts, saving or accepted gameplay scenarios",

@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-02",
+  "checkpoint": 5,
+  "engine_revision": "d195f7049f5a3307c1c8a32091088a2024dd8466",
+  "source_snapshot_sha256": "dece15de6f134530f911232825ee79cf009dbae4e637d391d790c58b9859c880",
+  "source_matches_implementation_commit": true,
+  "release_cli_sha256": "51b50c4571b4f0fdf83c588980d025b4439981d0024d7874d669b22c34c6fa06",
+  "debug_preview_sha256": "28f2b717a8b9b7011196b1a611e405635f5e6419a55dcb6db0177352ecd3e6a1",
+  "raw_oracle_binary_sha256": "5817a14c1e6c47ad96141aa582355cfd1051c85da90d55fb9972e9b69718bfab",
+  "check_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
+  "check_exit_code": 0,
+  "check_log_sha256": "c8d8e16ee456eedc4d1e75c9b7b3d5bb83562caf321596bb28fdccf0152b8f77",
+  "tests_passed": 52,
+  "unit_tests_passed": 13,
+  "integration_tests_passed": 39,
+  "format_check": "passed",
+  "clippy_warnings_denied": "passed",
+  "original_installation_matches_baseline": true,
+  "installation_files_checked": 464,
+  "installation_bytes_checked": 9907238722,
+  "content_fingerprint": "b1e54397ea2e900913c33feecbdb27b1bc33de95241cd5e0bcdd0250e79de007",
+  "baseline_report_sha256": "6ef887da38febc3881eadbc4a65592f938d52d62ac4fb2f3a0f9ff1154df2119",
+  "selected_cell": {
+    "references": 435,
+    "base_records": 222,
+    "integrity_failures": 0,
+    "link_failures": 0,
+    "index_payloads_deferred": 585196,
+    "full_and_deferred_selected_fields_equal": true,
+    "whole_corpus_certified": false
+  },
+  "independent_payload_comparison": {
+    "files": 218,
+    "all_equal": true,
+    "objects": 751,
+    "meshes": 403,
+    "materials": 1127,
+    "extra_flags": 175,
+    "vertices": 96707,
+    "triangles": 84661,
+    "tolerance": "source floats: identical f32 bits; topology and references: exact; composed f64 vs nifly f32: abs 1e-4 or rel 1e-5",
+    "oracle": "raw nifly factories cca0a770094bb962fb28ea1fec5ea903e68fda8e; no PrepareData"
+  },
+  "negative_comparison_checks_passed": 9,
+  "gpu_captures": {
+    "models": 2,
+    "interior_views": 2,
+    "all_exit_codes_zero": true,
+    "visually_inspected": true,
+    "retail_image_comparison": false
+  },
+  "interior": {
+    "rendered_references": 400,
+    "unique_render_models": 203,
+    "rendered_mesh_instances": 722,
+    "shared_geometry_vertices": 96394,
+    "shared_geometry_triangles": 84378,
+    "unique_texture_samplers": 146,
+    "placement_outcomes": {
+      "rendered-static-view": 400,
+      "no-supported-modl": 31,
+      "actor-model-selection-unimplemented": 1,
+      "initially-disabled": 3
+    }
+  },
+  "builds": {
+    "cli": "release built",
+    "preview": "debug built and exercised; release not built",
+    "raw_oracle": "MSVC Release built"
+  },
+  "reports": {
+    "reports/interior-preview.json": "7b2d78087a8cd9f4029b0883c582eab083feab56531d477cde616d3a42f06adf",
+    "reports/model-preview.json": "09ffbe66694c1b6287038083380804c55dd97215c77972e729406741e711517b",
+    "sources.lock.json": "a383707fcea4e1eb4cc0bd892fe0c01481f15daa2977cb1d51138bdd3b7dedf1"
+  },
+  "gameplay_acceptance": "not implemented; no accepted scenarios",
+  "prior_verification": "reports/checkpoint-04-verification.json"
+}

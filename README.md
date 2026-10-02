@@ -10,6 +10,8 @@ directly, decodes scene geometry and material fields, resolves archived textures
 and assembles Doc Mitchell's house from winning plugin references in Bevy. The CLI also provides corpus inspection,
 structural override resolution, script-reference inventory and a verified asset cache.
 The inspection view draws 400 of 435 references using shared models and textures.
+It now handles authored untextured materials and source alpha, culling and depth
+states; 62 synthetic GPU checks cover those render states.
 Retail rendering, collision, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -45,7 +47,7 @@ Open the real interior with a source-coordinate camera:
 Tab switches between orbit and fly. In fly mode, WASD moves, Q/E moves vertically,
 arrow keys look, and Shift increases speed. This camera passes through geometry;
 it is an inspection tool. [Interior preview](docs/interior-preview.md) records the
-captures, omissions, provisional placement convention and visible material gaps.
+captures, omissions, provisional placement convention and remaining material gaps.
 
 For a corpus-wide inspection, use these commands; change the output name if it already exists:
 
@@ -126,11 +128,14 @@ record the evidence and its limits:
   external texture references resolve to 312 unique textures with verified cached bytes.
 - Bevy GPU captures show the real chair, Vit-o-matic and two views inside the house.
   Its 400 rendered references share 203 models and 146 texture/sampler pairs.
-  Magenta material fallbacks and standalone editor markers remain visible.
+  Authored untextured window/shadow bindings now render without magenta fallback;
+  standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 52 synthetic tests pass, including malformed compression, forward/cyclic links,
+- 54 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
+- 62 asset-free GPU cases pass for source alpha comparisons, blend factors, face
+  culling and depth states. [Material states](docs/material-states.md) records their scope.
 
 ## Inspect a real interior and its models
 

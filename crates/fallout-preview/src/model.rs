@@ -1,5 +1,6 @@
 //! Adapt decoded source data for inspection. Bethesda shader behavior belongs in
 //! a separate renderer; this view uses diffuse textures and an unlit material.
+use crate::material::Raster;
 use bevy::{
     asset::RenderAssetUsages,
     image::{
@@ -43,17 +44,25 @@ pub struct Report {
     pub triangles: usize,
     pub textures: Vec<TextureEvidence>,
     pub warnings: Vec<String>,
+    pub bindings: Vec<BindingEvidence>,
     pub bounds: [[f32; 3]; 2],
     pub coordinates: &'static str,
     pub rendering: &'static str,
     pub retail_parity_accepted: bool,
 }
 
+#[derive(Serialize)]
+pub struct BindingEvidence {
+    pub mesh_block: u32,
+    pub diffuse_mode: &'static str,
+    pub raster: Raster,
+}
+
 pub struct Part {
     pub mesh: Mesh,
     pub texture: Option<usize>,
     pub color: Color,
-    pub alpha_mode: AlphaMode,
+    pub raster: Raster,
 }
 
 #[derive(Resource)]
@@ -133,7 +142,7 @@ pub fn load(
     let materials: BTreeMap<_, _> = scene.materials.iter().map(|v| (v.block, &v.data)).collect();
     let meshes: BTreeMap<_, _> = scene.meshes.iter().map(|v| (v.block, v)).collect();
     let mut report = Report {
-        schema_version: 1,
+        schema_version: 2,
         model: path.clone(),
         model_sha256: format!("{:x}", Sha256::digest(&bytes)),
         meshes: 0,
@@ -141,9 +150,10 @@ pub fn load(
         triangles: 0,
         textures: vec![],
         warnings: vec![],
+        bindings: vec![],
         bounds: [[0.; 3]; 2],
         coordinates: "source units; [x, y, z] -> [x, z, -y]; source UVs unchanged",
-        rendering: "unlit diffuse inspection; no shader, animation, collision or retail lighting parity",
+        rendering: "unlit diffuse/vertex-color inspection with source alpha, culling and depth states; no retail lighting, effects, animation or collision parity",
         retail_parity_accepted: false,
     };
     for (kind, blocks) in &scene.unsupported_blocks {
@@ -286,7 +296,11 @@ pub fn load(
         let mut diffuse = None;
         let mut clamp = 3;
         let mut alpha = 1.;
-        let mut alpha_mode = AlphaMode::Opaque;
+        let mut raster = Raster::default();
+        let mut untextured_shader = false;
+        let mut has_material = false;
+        let mut has_texture_property = false;
+        let mut unknown_property = false;
         for property in object.properties.iter().flatten() {
             match materials.get(property) {
                 Some(MaterialData::PerPixelLighting {
@@ -294,7 +308,10 @@ pub fn load(
                     shader,
                     ..
                 }) => {
+                    has_texture_property = true;
                     clamp = shader.clamp_mode;
+                    raster.depth_test = shader.flags & 0x8000_0000 != 0;
+                    raster.depth_write = shader.flags2 & 1 != 0;
                     if let Some(MaterialData::TextureSet { textures }) = materials.get(set) {
                         diffuse = textures
                             .first()
@@ -305,11 +322,23 @@ pub fn load(
                 }
                 Some(MaterialData::NoLighting {
                     texture, shader, ..
-                }) if !texture.is_empty() => {
+                }) => {
+                    has_texture_property = true;
                     clamp = shader.clamp_mode;
-                    diffuse = Some(texture_path(texture)?);
+                    raster.depth_test = shader.flags & 0x8000_0000 != 0;
+                    raster.depth_write = shader.flags2 & 1 != 0;
+                    if texture.is_empty() && shader.shader_type == 33 {
+                        untextured_shader = true;
+                    } else if !texture.is_empty() {
+                        diffuse = Some(texture_path(texture)?);
+                    }
+                    report.warnings.push(format!(
+                        "Mesh {}: NoLighting falloff/controllers are not evaluated",
+                        object.block
+                    ));
                 }
                 Some(MaterialData::Texturing { slots, .. }) => {
+                    has_texture_property = true;
                     if let Some(Some(slot)) = slots.first() {
                         diffuse = scene
                             .textures
@@ -322,25 +351,32 @@ pub fn load(
                         ));
                     }
                 }
-                Some(MaterialData::Material { alpha: value, .. }) => alpha = *value,
-                Some(MaterialData::Alpha { flags, threshold }) => {
-                    // Only the common source-alpha blend and greater-than test
-                    // fit these preview modes. Preserve the original bits in the decoder.
-                    alpha_mode = if flags & 1 != 0 {
-                        AlphaMode::Blend
-                    } else if flags & 0x200 != 0 {
-                        AlphaMode::Mask(f32::from(*threshold) / 255.)
-                    } else {
-                        AlphaMode::Opaque
-                    };
-                    report.warnings.push(format!(
-                        "Mesh {}: alpha flags 0x{flags:04x} mapped to preview mode",
-                        object.block
-                    ));
+                Some(MaterialData::Material { alpha: value, .. }) => {
+                    alpha = *value;
+                    has_material = true;
                 }
-                _ => {}
+                Some(MaterialData::Alpha { flags, threshold }) => {
+                    raster.alpha_flags = *flags;
+                    raster.alpha_threshold = *threshold;
+                }
+                Some(MaterialData::Stencil { flags, .. }) => {
+                    raster.draw_mode = ((flags >> 10) & 3) as u8;
+                    if flags & 1 != 0 {
+                        report.warnings.push(format!(
+                            "Mesh {}: stencil buffer operations are not evaluated",
+                            object.block
+                        ));
+                    }
+                }
+                Some(MaterialData::Shade { .. }) => {}
+                _ => {
+                    unknown_property = true;
+                }
             }
         }
+        raster.validate()?;
+        let untextured =
+            untextured_shader || (has_material && !has_texture_property && !unknown_property);
         let texture = if let Some(path) = diffuse {
             if source.uv_sets.is_empty() {
                 return Err(format!("textured mesh {} has no UVs", object.block).into());
@@ -348,6 +384,8 @@ pub fn load(
             let id = textures.load(assets, &path, clamp)?;
             used_textures.insert(id);
             Some(id)
+        } else if untextured {
+            None
         } else {
             report.warnings.push(format!(
                 "Mesh {} has no supported diffuse texture; shown magenta",
@@ -355,8 +393,8 @@ pub fn load(
             ));
             None
         };
-        let color = if texture.is_some() {
-            Color::srgba(1., 1., 1., alpha)
+        let color = if texture.is_some() || untextured {
+            Color::linear_rgba(1., 1., 1., alpha)
         } else {
             Color::srgba(1., 0., 1., alpha)
         };
@@ -364,7 +402,18 @@ pub fn load(
             mesh,
             texture,
             color,
-            alpha_mode,
+            raster,
+        });
+        report.bindings.push(BindingEvidence {
+            mesh_block: object.block,
+            diffuse_mode: if texture.is_some() {
+                "archived-texture"
+            } else if untextured {
+                "authored-untextured"
+            } else {
+                "unsupported-magenta"
+            },
+            raster,
         });
         report.meshes += 1;
         report.vertices += source.vertices.len();

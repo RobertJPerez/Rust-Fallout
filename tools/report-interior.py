@@ -46,8 +46,11 @@ for row in manifest['results']:
 if documents[0] != documents[1]:
     raise ValueError('Cell preparation differed between camera fixtures')
 cell = documents[0]
+bindings = Counter(b['diffuse_mode'] for m in cell['models'] if m['report'] for b in m['report']['bindings'])
+alpha_flags = Counter(f"0x{b['raster']['alpha_flags']:04x}" for m in cell['models'] if m['report'] for b in m['report']['bindings'])
 gaps = ['No measured retail placement/camera or image comparison; rotation convention is provisional',
-        'Unlit diffuse materials; magenta fallback surfaces are visible in the bedroom window',
+        'Unlit diffuse/vertex-color materials; NoLighting falloff, external emittance and inherited properties remain incomplete',
+        'Stencil buffer operations and retail transparency sorting remain unverified',
         'Standalone audio/heading marker models remain visible; only declared BSX marker submeshes are omitted',
         'Actor models, alternate item model selection, enable parents, controllers and skinning are incomplete',
         'No collision, player simulation, quests, scripts, saving or accepted gameplay scenarios',
@@ -57,7 +60,8 @@ gaps = ['No measured retail placement/camera or image comparison; rotation conve
 summary = {'schema_version': 1, 'cell_editor_id': manifest['cell_editor_id'], 'cell_key': cell['cell']['key'],
            'binary_sha256': manifest['binary_sha256'], 'capture_manifest_sha256': digest(args.captures/'manifest.json'),
            'captures_directory': str(args.captures), 'captures': captures, 'all_exit_codes_zero': True,
-           'visual_review': 'Both views inspected: recognizable textured room, furniture, cabinet and bed; diagnostic markers and unsupported magenta surfaces remain visible',
+           'visual_review': 'Both views inspected: textured rooms, cabinet, bed and window beams; no magenta fallback observed; source heading/audio markers remain visible',
+           'shared_mesh_diffuse_binding_counts': dict(bindings), 'shared_mesh_alpha_flags': dict(alpha_flags),
            'source_origin': cell['source_origin'], 'coordinates': cell['coordinates'],
            'load_order': cell['load_order'], 'load_order_sha256': cell['load_order_sha256'], 'plugin_sha256': cell['plugin_sha256'],
            'references_inspected': len(cell['placements']), 'placement_outcomes': dict(Counter(p['status'] for p in cell['placements'])),

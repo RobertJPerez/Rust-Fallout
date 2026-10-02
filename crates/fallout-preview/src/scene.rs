@@ -40,6 +40,7 @@ pub struct Prepared {
 pub enum Report {
     Model(model::Report),
     Cell(Box<CellReport>),
+    Fixture(crate::fixture::Report),
 }
 
 #[derive(Serialize)]
@@ -252,7 +253,7 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
     let center = (min + max) * 0.5;
     let radius = (max - min).length().max(1.) * 0.5;
     let report = CellReport {
-        schema_version: 1,
+        schema_version: 2,
         cell,
         load_order: names,
         load_order_sha256: baseline::digest_file(order_path)?.1,
@@ -268,7 +269,7 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
         source_origin: origin,
         relative_view_bounds: [min.to_array(), max.to_array()],
         coordinates: "source units; clockwise X then Y then Z; [x,y,z] -> [x,z,-y]; subtract source origin in f64",
-        rendering: "unlit static views; model failures and omitted references retained; no retail shader or collision parity",
+        rendering: "unlit static views with source alpha, culling and depth states; model failures and omitted references retained; no retail lighting/effects or collision parity",
         runtime_ready: false,
     };
     Ok((

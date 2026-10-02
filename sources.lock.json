@@ -90,7 +90,7 @@
     {
       "url": "https://github.com/bevyengine/bevy",
       "commit": "b56fc29d3016e641754765244b5ba3f9cc504671",
-      "build_result": "Bevy 0.19.1 linked into fallout-preview; Windows MSVC debug build and two real-model headless GPU captures completed",
+      "build_result": "Bevy 0.19.1 linked into fallout-preview; Windows MSVC debug build, real model/interior captures and synthetic render-state GPU checks completed",
       "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --locked -p fallout-preview",
       "inspected_paths": [
         "Cargo.toml",
@@ -100,7 +100,14 @@
         "crates/bevy_image/src/image.rs (buffer loading and sampler API)",
         "crates/bevy_image/src/dds.rs (DDS formats and upload layout)",
         "crates/bevy_render/src/view/window/screenshot.rs (capture and observer API)",
-        "crates/bevy_render/src/settings.rs (device settings)"
+        "crates/bevy_render/src/settings.rs (device settings)",
+        "examples/shader/extended_material.rs",
+        "assets/shaders/extended_material.wgsl",
+        "crates/bevy_pbr/src/extended_material.rs",
+        "crates/bevy_pbr/src/render/pbr_fragment.wgsl",
+        "crates/bevy_pbr/src/render/pbr_functions.wgsl",
+        "crates/bevy_pbr/src/material.rs",
+        "crates/bevy_asset/src/io/embedded/mod.rs"
       ],
       "license_status": "MIT OR Apache-2.0 in Cargo manifest; bundled license files",
       "language": "Rust",
@@ -109,10 +116,11 @@
         "LICENSE-MIT",
         "LICENSE-APACHE"
       ],
-      "notes": "Crates.io version pinned exactly and Cargo.lock records checksums; upstream source commit matches packaged VCS metadata. Unlit inspection only; checkpoint 05 shares model/texture handles and captures two actual placed-interior views; no retail parity acceptance",
+      "notes": "Crates.io version pinned exactly and Cargo.lock records checksums; upstream source commit matches packaged VCS metadata. Unlit inspection only; checkpoint 05 shares model/texture handles and captures two actual placed-interior views; no retail parity acceptance; checkpoint 06 adds original embedded WGSL alpha comparison and extended-material pipeline states, checked by 62 synthetic GPU cases",
       "test_data_provenance": "Authorized local chair01 and Vit-o-matic NIFs and DDS images; no Bevy example assets used",
       "supported_variants_verified": [
-        "BC1/BC2/BC3 source DDS validation fixtures; real textured model capture on this Windows host"
+        "BC1/BC2/BC3 source DDS validation fixtures; real textured model capture on this Windows host",
+        "All eight alpha comparisons; all eleven color blend factors in source/destination positions; authored darkening/additive/alpha blends; culling and depth synthetic GPU checks"
       ],
       "known_omissions": [
         "No retail shader, lighting, collision, animation or full-interior parity",
@@ -690,11 +698,12 @@
         "LICENSE (license identification)",
         "nif.xml (version declarations, SizedString, Header, BSStreamHeader, Footer)",
         "nif.xml (NiObjectNET/NiAVObject/NiNode/BSFadeNode/NiGeometry and triangle shape/data inheritance; MaterialData, NiBound, flags, MatchGroup, triangle/UV/matrix facts; selected shader/property/node layouts researched only)",
-        "nif.xml (NiMaterialProperty, NiAlphaProperty, NiStencilProperty, NiShadeProperty, BSShaderProperty/PPLighting/NoLighting, BSShaderTextureSet, NiSourceTexture, NiTexturingProperty and TexDesc version gates)"
+        "nif.xml (NiMaterialProperty, NiAlphaProperty, NiStencilProperty, NiShadeProperty, BSShaderProperty/PPLighting/NoLighting, BSShaderTextureSet, NiSourceTexture, NiTexturingProperty and TexDesc version gates)",
+        "nif.xml (AlphaFlags, AlphaFunction, TestFunction, StencilFlags/StencilDrawMode and BSShaderFlags/BSShaderFlags2 field facts)"
       ],
       "license_status": "GPL-3.0 root license; schema consulted as format evidence, not copied/generated into runtime",
       "build_result": "No build; no schema generator used",
-      "notes": "Container, six scene/mesh types and nine material/texture types independently implemented from format facts. No XML dependency or generated source copied into Rust; checkpoint 05 also consulted NiExtraData/NiIntegerExtraData/BSXFlags layout facts; no schema or generated code copied",
+      "notes": "Container, six scene/mesh types and nine material/texture types independently implemented from format facts. No XML dependency or generated source copied into Rust; checkpoint 05 also consulted NiExtraData/NiIntegerExtraData/BSXFlags layout facts; no schema or generated code copied; checkpoint 06 maps source alpha/culling/depth fields in the separate inspection renderer; no schema code copied",
       "language": "XML",
       "license_files": [
         "LICENSE"
@@ -753,12 +762,14 @@
         "apps/openmw/mwworld/worldimp.cpp",
         "apps/openmw/mwworld/scene.cpp",
         "components/misc/convert.hpp",
-        "components/nifosg/nifloader.cpp"
+        "components/nifosg/nifloader.cpp",
+        "files/shaders/compatibility/bs/nolighting.frag",
+        "files/shaders/compatibility/bs/nolighting.vert"
       ],
       "license_status": "GPL-3.0 root license inspected; no implementation copied or linked",
       "build_result": "not built",
-      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior.",
-      "language": "C++ source reference",
+      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied.",
+      "language": "C++ and GLSL source references",
       "license_files": [
         "LICENSE"
       ],

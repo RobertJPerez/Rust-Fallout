@@ -1,11 +1,13 @@
 //! A small inspection host for the production decoder, not a gameplay runtime.
+mod fixture;
+mod material;
 mod model;
 mod scene;
 
 use bevy::{
     app::{AppExit, ScheduleRunnerPlugin},
     asset::RenderAssetUsages,
-    camera::RenderTarget,
+    camera::{RenderTarget, ScalingMode},
     core_pipeline::tonemapping::Tonemapping,
     prelude::*,
     render::{
@@ -16,7 +18,7 @@ use bevy::{
     window::ExitCondition,
     winit::WinitPlugin,
 };
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 use fallout_data::vfs::AssetPath;
 use std::{
     fs::OpenOptions,
@@ -27,15 +29,19 @@ use std::{
 
 #[derive(Parser, Resource)]
 #[command(about = "Inspect archived New Vegas models or a placed interior")]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "cell", "material_fixture"])))]
 struct Options {
     #[arg(long)]
-    install: PathBuf,
+    install: Option<PathBuf>,
     /// Archive path, for example meshes/furniture/chair01.nif.
-    #[arg(long, required_unless_present = "cell", conflicts_with = "cell")]
+    #[arg(long, requires = "install")]
     model: Option<String>,
     /// Interior CELL editor ID, for example GSDocMitchellHouse.
-    #[arg(long, requires = "load_order")]
+    #[arg(long, requires_all = ["load_order", "install"])]
     cell: Option<String>,
+    /// Check synthetic material states on the GPU without reading game assets.
+    #[arg(long, requires_all = ["headless", "report"])]
+    material_fixture: bool,
     #[arg(long, requires = "cell")]
     load_order: Option<PathBuf>,
     /// Camera position in original source units (x,y,z).
@@ -89,14 +95,16 @@ struct Navigation {
     home: Transform,
 }
 
-fn output_path(path: &Path, install: &Path) -> model::Result<PathBuf> {
+fn output_path(path: &Path, install: Option<&Path>) -> model::Result<PathBuf> {
     let name = path.file_name().ok_or("output needs a file name")?;
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let result = parent.canonicalize()?.join(name);
-    if result.starts_with(install.canonicalize()?) {
+    if let Some(install) = install
+        && result.starts_with(install.canonicalize()?)
+    {
         return Err("output must be outside the installation".into());
     }
     if result.try_exists()? {
@@ -108,19 +116,25 @@ fn output_path(path: &Path, install: &Path) -> model::Result<PathBuf> {
 fn run() -> model::Result<AppExit> {
     let mut options = Options::parse();
     if let Some(path) = &options.capture {
-        options.capture = Some(output_path(path, &options.install)?);
+        options.capture = Some(output_path(path, options.install.as_deref())?);
     }
     if let Some(path) = &options.report {
-        options.report = Some(output_path(path, &options.install)?);
+        options.report = Some(output_path(path, options.install.as_deref())?);
     }
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
     }
-    let (prepared, report) = if let Some(name) = &options.model {
-        scene::load_model(&options.install, &AssetPath::new(name.as_bytes())?)?
+    let (prepared, report) = if options.material_fixture {
+        let (prepared, report) = fixture::prepare()?;
+        (prepared, scene::Report::Fixture(report))
+    } else if let Some(name) = &options.model {
+        scene::load_model(
+            options.install.as_deref().expect("clap requires install"),
+            &AssetPath::new(name.as_bytes())?,
+        )?
     } else {
         scene::load_cell(
-            &options.install,
+            options.install.as_deref().expect("clap requires install"),
             options
                 .load_order
                 .as_deref()
@@ -148,11 +162,16 @@ fn run() -> model::Result<AppExit> {
             report.unique_texture_samplers,
             report.placements.len() - report.rendered_references
         ),
+        scene::Report::Fixture(report) => {
+            eprintln!("{} synthetic material GPU cases", report.cases.len())
+        }
     }
     eprintln!(
         "Tab: orbit/fly; fly: WASD, Q/E vertical, arrows look, Shift faster; R: reset; Esc: close"
     );
-    if let Some(path) = &options.report {
+    if let Some(path) = &options.report
+        && !options.material_fixture
+    {
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         serde_json::to_writer_pretty(&mut file, &report)?;
         file.write_all(b"\n")?;
@@ -165,6 +184,9 @@ fn run() -> model::Result<AppExit> {
         distance: prepared.radius * 3.,
     };
     let home = match (&options.camera_position, &options.camera_look_at) {
+        _ if options.material_fixture => {
+            Transform::from_xyz(0., 0., 1000.).looking_at(Vec3::ZERO, Vec3::Y)
+        }
         (Some(position), Some(target)) => scene::source_camera(
             position.as_slice().try_into()?,
             target.as_slice().try_into()?,
@@ -182,7 +204,11 @@ fn run() -> model::Result<AppExit> {
             primary_window: (!headless).then(|| Window {
                 title: format!(
                     "Fallout Rust - inspection - {}",
-                    options.model.as_ref().or(options.cell.as_ref()).unwrap()
+                    options
+                        .model
+                        .as_deref()
+                        .or(options.cell.as_deref())
+                        .unwrap_or("synthetic material fixture")
                 ),
                 resolution: (1280, 900).into(),
                 ..default()
@@ -202,7 +228,11 @@ fn run() -> model::Result<AppExit> {
         plugins = plugins.disable::<WinitPlugin>();
     }
     let mut app = App::new();
+    if let scene::Report::Fixture(report) = report {
+        app.insert_resource(report);
+    }
     app.add_plugins(plugins)
+        .add_plugins(material::InspectionPlugin)
         .insert_resource(options)
         .insert_resource(prepared)
         .insert_resource(orbit)
@@ -222,7 +252,7 @@ fn setup(
     options: Res<Options>,
     navigation: Res<Navigation>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<material::InspectionMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     let textures: Vec<_> = prepared
@@ -241,13 +271,14 @@ fn setup(
                 .map(|part| {
                     (
                         meshes.add(part.mesh),
-                        materials.add(StandardMaterial {
-                            base_color: part.color,
-                            base_color_texture: part.texture.map(|i| textures[i].clone()),
-                            alpha_mode: part.alpha_mode,
-                            unlit: true,
-                            ..default()
-                        }),
+                        materials.add(material::adapt(
+                            StandardMaterial {
+                                base_color: part.color,
+                                base_color_texture: part.texture.map(|i| textures[i].clone()),
+                                ..default()
+                            },
+                            part.raster,
+                        )),
                     )
                 })
                 .collect()
@@ -276,11 +307,28 @@ fn setup(
             Camera3d::default(),
             Tonemapping::None,
             navigation.home,
-            Projection::Perspective(PerspectiveProjection {
-                near: (prepared.radius * 0.001).max(0.01),
-                far: prepared.radius * 100.,
-                ..default()
-            }),
+            if options.material_fixture {
+                Projection::Orthographic(OrthographicProjection {
+                    scaling_mode: ScalingMode::Fixed {
+                        width: 1280.,
+                        height: 900.,
+                    },
+                    near: 0.1,
+                    far: 2000.,
+                    ..OrthographicProjection::default_3d()
+                })
+            } else {
+                Projection::Perspective(PerspectiveProjection {
+                    near: (prepared.radius * 0.001).max(0.01),
+                    far: prepared.radius * 100.,
+                    ..default()
+                })
+            },
+            if options.material_fixture {
+                Msaa::Off
+            } else {
+                Msaa::default()
+            },
         ))
         .id();
     let target = if options.headless {
@@ -311,6 +359,7 @@ fn setup(
 }
 
 fn controls(
+    options: Res<Options>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut orbit: ResMut<Orbit>,
@@ -318,6 +367,9 @@ fn controls(
     mut cameras: Query<&mut Transform, With<Camera3d>>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    if options.material_fixture {
+        return;
+    }
     if keys.just_pressed(KeyCode::Escape) {
         exit.write(AppExit::Success);
     }
@@ -392,20 +444,31 @@ fn capture(
         .clone()
         .map(Screenshot::image)
         .unwrap_or_else(Screenshot::primary_window);
+    let report_path = options.report.clone();
     commands.spawn(screenshot).observe(
-        move |event: On<ScreenshotCaptured>, mut exit: MessageWriter<AppExit>| {
-            let save = || -> model::Result<()> {
+        move |event: On<ScreenshotCaptured>,
+              mut exit: MessageWriter<AppExit>,
+              mut fixture: Option<ResMut<fixture::Report>>| {
+            let mut save = || -> model::Result<()> {
                 let mut file = OpenOptions::new()
                     .write(true)
                     .create_new(true)
                     .open(&path)?;
-                event
-                    .image
-                    .clone()
-                    .try_into_dynamic()?
-                    .to_rgb8()
-                    .write_to(&mut file, image::ImageFormat::Png)?;
+                let image = event.image.clone().try_into_dynamic()?.to_rgb8();
+                image.write_to(&mut file, image::ImageFormat::Png)?;
                 file.sync_all()?;
+                if let Some(report) = fixture.as_mut() {
+                    let verification = report.verify(&image);
+                    // Keep failed measurements too, so a shader failure is reviewable.
+                    let mut report_file = OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(report_path.as_ref().expect("fixture requires report"))?;
+                    serde_json::to_writer_pretty(&mut report_file, &**report)?;
+                    report_file.write_all(b"\n")?;
+                    report_file.sync_all()?;
+                    verification?;
+                }
                 Ok(())
             };
             match save() {

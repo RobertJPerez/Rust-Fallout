@@ -13,6 +13,7 @@ pub mod identity;
 pub mod model_probe;
 pub mod nif;
 pub mod nif_census;
+pub mod nif_collision;
 pub mod nif_scene;
 pub mod parity;
 pub mod planning;

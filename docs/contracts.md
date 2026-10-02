@@ -96,6 +96,17 @@ WGSL performs alpha testing before fixed-state blending. Synthetic GPU measureme
 are recorded separately from retail-derived scene captures and acceptance. They do
 not certify NoLighting falloff, emittance, lighting or stencil-buffer operations.
 
+The separate nif_collision module preserves sixteen NV collision payload kinds
+without choosing physics units or a backend. Typed attachment/body/shape/constraint
+links are checked separately. Shape sharing is legal; shape cycles are not.
+Unsupported links retain whether their expected type family was verified.
+Packed triangles retain winding, degenerates and welding; MOPP remains opaque.
+Source float fields require finite values, while alignment words remain raw bits.
+Full-block consumption and payload-array budgets use the same bounded cursor as
+scene decoding. Original compressed vertex words are retained without an assumed
+half-float conversion. Every result remains physics_ready=false. See
+[collision decoding](nif-collisions.md) for evidence, limits and remaining work.
+
 Source reference math lives in the engine-independent `coordinates` module; Bevy
 conversion and ECS views remain in presentation. Static placement uses a provisional
 clockwise X/Y/Z convention, preserving source values and subtracting an f64 source

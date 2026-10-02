@@ -2,6 +2,7 @@
 // Independent offline oracle. This executable is never linked into fallout.exe.
 #include "NifFile.hpp"
 #include "scene.hpp"
+#include "collision.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <iomanip>
@@ -9,8 +10,8 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    if (argc != 2 && !(argc == 3 && (std::string(argv[2]) == "--scene" || std::string(argv[2]) == "--scene-diagnostics"))) {
-        std::cerr << "usage: nif-oracle CACHE_DIRECTORY_OR_FILE [--scene|--scene-diagnostics]\n";
+    if (argc != 2 && !(argc == 3 && (std::string(argv[2]) == "--scene" || std::string(argv[2]) == "--scene-diagnostics" || std::string(argv[2]) == "--collision"))) {
+        std::cerr << "usage: nif-oracle CACHE_DIRECTORY_OR_FILE [--scene|--scene-diagnostics|--collision]\n";
         return 2;
     }
     try {
@@ -26,9 +27,16 @@ int main(int argc, char** argv) {
         }
         std::sort(paths.begin(), paths.end());
         bool failed = paths.empty();
-        std::cout << '[';
+        const bool collision_mode = argc == 3 && std::string(argv[2]) == "--collision";
+        if (collision_mode) std::cout << "{\"float_encoding\":\"ieee754-binary32-bits\",\"oracle_binary_sha256\":"
+            << std::quoted(collision_oracle::file_sha256(argv[0])) << ",\"files\":[";
+        else std::cout << '[';
         for (size_t file_index = 0; file_index < paths.size(); ++file_index) {
             if (file_index) std::cout << ',';
+            if (argc == 3 && std::string(argv[2]) == "--collision") {
+                collision_oracle::write(paths[file_index]);
+                continue;
+            }
             nifly::NifFile file;
             const int result = file.Load(paths[file_index]);
             std::cout << "{\"file\":" << std::quoted(paths[file_index].filename().string())
@@ -60,7 +68,7 @@ int main(int argc, char** argv) {
             }
             std::cout << '}';
         }
-        std::cout << "]\n";
+        std::cout << (collision_mode ? "]}\n" : "]\n");
         return failed ? 1 : 0;
     } catch (const std::exception& error) {
         std::cerr << "nif-oracle: " << error.what() << '\n';

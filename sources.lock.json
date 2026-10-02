@@ -699,7 +699,8 @@
         "nif.xml (version declarations, SizedString, Header, BSStreamHeader, Footer)",
         "nif.xml (NiObjectNET/NiAVObject/NiNode/BSFadeNode/NiGeometry and triangle shape/data inheritance; MaterialData, NiBound, flags, MatchGroup, triangle/UV/matrix facts; selected shader/property/node layouts researched only)",
         "nif.xml (NiMaterialProperty, NiAlphaProperty, NiStencilProperty, NiShadeProperty, BSShaderProperty/PPLighting/NoLighting, BSShaderTextureSet, NiSourceTexture, NiTexturingProperty and TexDesc version gates)",
-        "nif.xml (AlphaFlags, AlphaFunction, TestFunction, StencilFlags/StencilDrawMode and BSShaderFlags/BSShaderFlags2 field facts)"
+        "nif.xml (AlphaFlags, AlphaFunction, TestFunction, StencilFlags/StencilDrawMode and BSShaderFlags/BSShaderFlags2 field facts)",
+        "nif.xml (collision inheritance, HavokFilter/HavokMaterial, WorldObjectCInfo/EntityCInfo/RigidBodyCInfo550_660, sphere/box/capsule/convex/transform/list/MOPP/packed-shape and TriangleData/hkSubPartData layouts)"
       ],
       "license_status": "GPL-3.0 root license; schema consulted as format evidence, not copied/generated into runtime",
       "build_result": "No build; no schema generator used",
@@ -935,10 +936,12 @@
         "src/Objects.cpp (serialized transform/flag boundaries)",
         "include/Shaders.hpp (property and texture field API)",
         "src/Shaders.cpp (material version gates and legacy slots)",
-        "include/ExtraData.hpp"
+        "include/ExtraData.hpp",
+        "include/bhk.hpp (collision, body, primitive and packed-triangle field APIs)",
+        "src/bhk.cpp (serialized pre-Skyrim body/shape layouts and compressed packed-vertex reader limitation)"
       ],
       "license_status": "GPL-3.0 library; half MIT notice; Miniball GPL-3.0-or-later notice",
-      "build_result": "Separate VS18/MSVC oracle: 218 containers/4582 block entries; raw supported payloads equal for 751 objects, 403 meshes, 96707 vertices and 84661 triangles; independent diagnostics confirm all 25 strict scene rejections; material projection matches 1127 blocks across the same 218 files",
+      "build_result": "Separate VS18/MSVC oracle: 218 containers/4582 block entries; raw supported payloads equal for 751 objects, 403 meshes, 96707 vertices and 84661 triangles; independent diagnostics confirm all 25 strict scene rejections; material projection matches 1127 blocks across the same 218 files; checkpoint 07 collision mode matches 734 supported blocks across 218 sampled files",
       "notes": "Standalone GPL executable only. Not linked into fallout.exe. Revision exactly matches lock; upstream header/source code not copied to Rust; checkpoint 05 adds raw BSXFlags projection compared on all 218 previous sample files; nine deliberate mismatches rejected",
       "language": "C++17",
       "license_files": [
@@ -954,7 +957,9 @@
         "Container mode uses NifFile::Load and its in-memory PrepareData; scene/diagnostic comparison bypasses PrepareData through raw factories",
         "Source arrays compare identical f32 bits; composed f64 Rust vs f32 nifly matrices use abs 1e-4 or rel 1e-5 tolerance",
         "No renderer, shader, animation or physics acceptance; source repair behavior not verified",
-        "No upstream fixtures imported or upstream tests claimed"
+        "No upstream fixtures imported or upstream tests claimed",
+        "Compressed packed vertices cannot be certified by this pinned reader",
+        "Constraint and blend-controller payloads, physics behavior and whole-corpus collision coverage remain open"
       ],
       "test_data_provenance": "Authorized local BSA members decoded to ignored cache; no upstream test models used"
     },
@@ -1329,6 +1334,7 @@
     }
   ],
   "other_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcrypthash",
     "https://docs.rs/ba2/latest/ba2/",
     "https://geckwiki.com/index.php?title=Category:User_Interface",
     "https://geckwiki.com/index.php?title=Hardcoded_UI_Shortcuts",

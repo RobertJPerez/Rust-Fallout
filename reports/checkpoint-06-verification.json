@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-02",
+  "checkpoint": 6,
+  "engine_revision": "b29c55bc43b2c3d5977d90fc32c5f1c5a46a041a",
+  "source_snapshot_sha256": "a41487effabcd7850298d265a35562601a68ae59a13105283cb01697414d9d85",
+  "source_matches_implementation_commit": true,
+  "release_cli_sha256": "51b50c4571b4f0fdf83c588980d025b4439981d0024d7874d669b22c34c6fa06",
+  "debug_preview_sha256": "03c10a28e1762de1dcaf569b16c113cbda63ae985aee03a79a367fa3bbdc00a5",
+  "raw_oracle_binary_sha256": "5817a14c1e6c47ad96141aa582355cfd1051c85da90d55fb9972e9b69718bfab",
+  "check_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
+  "check_exit_code": 0,
+  "check_log_sha256": "19c0f500903ded2dbd7e4210f87a77230d70a646bca42776cea3330a1d2d7b92",
+  "tests_passed": 54,
+  "unit_tests_passed": 15,
+  "integration_tests_passed": 39,
+  "format_check": "passed",
+  "clippy_warnings_denied": "passed",
+  "original_installation_matches_baseline": true,
+  "installation_files_checked": 464,
+  "installation_bytes_checked": 9907238722,
+  "content_fingerprint": "b1e54397ea2e900913c33feecbdb27b1bc33de95241cd5e0bcdd0250e79de007",
+  "baseline_report_sha256": "6ef887da38febc3881eadbc4a65592f938d52d62ac4fb2f3a0f9ff1154df2119",
+  "selected_cell": {
+    "references": 435,
+    "base_records": 222,
+    "integrity_failures": 0,
+    "link_failures": 0,
+    "index_payloads_deferred": 585196,
+    "selection_comparison_evidence_origin_checkpoint": 5,
+    "full_and_deferred_selected_fields_equal": true,
+    "whole_corpus_certified": false
+  },
+  "independent_payload_comparison": {
+    "files": 218,
+    "all_equal": true,
+    "evidence_origin_checkpoint": 5,
+    "unchanged_release_cli_evidence_reused": true,
+    "objects": 751,
+    "meshes": 403,
+    "materials": 1127,
+    "extra_flags": 175,
+    "vertices": 96707,
+    "triangles": 84661,
+    "tolerance": "source floats: identical f32 bits; topology and references: exact; composed f64 vs nifly f32: abs 1e-4 or rel 1e-5",
+    "oracle": "raw nifly factories cca0a770094bb962fb28ea1fec5ea903e68fda8e; no PrepareData"
+  },
+  "negative_comparison_checks_passed": 9,
+  "gpu_captures": {
+    "models": 2,
+    "interior_views": 2,
+    "all_exit_codes_zero": true,
+    "synthetic_material_checks": 62,
+    "synthetic_all_passed": true,
+    "visually_inspected": true,
+    "retail_image_comparison": false
+  },
+  "shared_mesh_diffuse_binding_counts": {
+    "archived-texture": 364,
+    "authored-untextured": 31
+  },
+  "interior": {
+    "rendered_references": 400,
+    "unique_render_models": 203,
+    "rendered_mesh_instances": 722,
+    "shared_geometry_vertices": 96394,
+    "shared_geometry_triangles": 84378,
+    "unique_texture_samplers": 146,
+    "placement_outcomes": {
+      "rendered-static-view": 400,
+      "no-supported-modl": 31,
+      "actor-model-selection-unimplemented": 1,
+      "initially-disabled": 3
+    }
+  },
+  "builds": {
+    "cli": "release built",
+    "preview": "debug built and exercised; release not built",
+    "raw_oracle": "MSVC Release built"
+  },
+  "reports": {
+    "reports/interior-preview.json": "f4d9dac2e68c7487d58ce5700fa59e91e1b2993a78da21305b8649c5160e581e",
+    "reports/model-preview.json": "e3965666a981d7c431e67034df26fb7bb437bcdeaa67bb64fa0d2f23cf56e8ee",
+    "reports/material-states.json": "1e50e1f697bfff5d3ac276c118e2b8c8362096018d558a26a6be5bf6dd5d434d",
+    "sources.lock.json": "11a07b3ee04b08bf86a0ec212fc358d47af21ae326d1605a0517f23f5e039123"
+  },
+  "gameplay_acceptance": "not implemented; no accepted scenarios",
+  "prior_verification": "reports/checkpoint-05-verification.json"
+}

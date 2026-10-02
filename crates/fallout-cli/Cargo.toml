@@ -9,6 +9,10 @@ publish.workspace = true
 name = "fallout"
 path = "src/main.rs"
 
+[[bin]]
+name = "fallout-evidence"
+path = "src/evidence.rs"
+
 [dependencies]
 fallout-data = { path = "../fallout-data" }
 serde.workspace = true

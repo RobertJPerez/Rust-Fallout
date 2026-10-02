@@ -1,7 +1,7 @@
 use crate::{Result, malformed, nif::NifIndex};
 
 /// Each reader is confined to one block, but errors point into the original file.
-pub(super) struct Reader<'a> {
+pub(crate) struct Reader<'a> {
     pub data: &'a [u8],
     pub base: usize,
     pub position: usize,
@@ -121,7 +121,7 @@ impl Reader<'_> {
         let bytes = count
             .checked_mul(std::mem::size_of::<T>())
             .and_then(|bytes| self.array_bytes_left.checked_sub(bytes))
-            .ok_or_else(|| self.fail("NIF scene array storage budget exceeded"))?;
+            .ok_or_else(|| self.fail("NIF payload array storage budget exceeded"))?;
         *self.array_bytes_left = bytes;
         Ok(())
     }

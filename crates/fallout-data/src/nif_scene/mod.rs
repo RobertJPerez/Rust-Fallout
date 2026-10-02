@@ -1,6 +1,6 @@
 //! NV scene and triangle payloads in source coordinates. This is a decoder, not
 //! a renderer: controller evaluation, skinning, shaders and collision stay explicit.
-mod cursor;
+pub(crate) mod cursor;
 mod graph;
 pub mod material;
 mod mesh;

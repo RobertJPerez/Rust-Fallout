@@ -30,7 +30,12 @@ Keep the entire master brief in scope and progress through its dependency gates.
    full asset dependency closure, and record-specific override rules.
 
 4. Continue NIF payload decoding with remaining scene-node kinds, skinning and
-   collision. Geometry and nine material/texture types now decode in Rust. The
+   collision. Sixteen authored collision block types now decode in Rust; the house's
+   731 supported collision blocks match the raw oracle exactly. Shape links are
+   checked as a DAG, allowing sharing. Constraints/controllers, measured Havok units,
+   body/placement conversion and physics queries remain open. See
+   [collision decoding](docs/nif-collisions.md). Geometry and nine material/texture types
+   also decode in Rust. The
    independent raw-factory comparison covers 218 files, 751 objects, 403 meshes
    and 1,127 material blocks. The full payload scan decodes 176,982 material blocks
    in 25,729 files; 25 additional files still fail float/index checks. Seven texture
@@ -51,7 +56,8 @@ Keep the entire master brief in scope and progress through its dependency gates.
    `docs/interior-preview.md`. Checkpoint 06 fixes the magenta window/shadow bindings
    and verifies alpha/culling/depth states with 62 synthetic GPU checks. Standalone
    marker models remain visible; NoLighting falloff/emittance, inherited properties,
-   alternate item/actor models, retail lighting and physics are open.
+   alternate item/actor models, retail lighting and physics are open. Checkpoint 07
+   decodes authored collision separately; it does not constrain the inspection camera.
    Verify axes, units, placement rotation, winding, materials, collision, and
    camera movement against measured retail fixtures. No procedural replacement map or staged
    quest demo can satisfy M2/M3. Continue simulation, ObScript, saving, and campaign

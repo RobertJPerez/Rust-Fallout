@@ -37,6 +37,15 @@ revisions. Checkpoint 05 adds exact BSXFlags field comparisons on all 218 prior 
 files and two real-interior GPU views. The selected OpenMW paths informed presentation
 research; no upstream runtime behavior is claimed as accepted Fallout compatibility.
 
+Checkpoint 07 reads nifxml collision inheritance and the pre-Skyrim body, primitive,
+wrapper and packed-triangle layouts. Nifly's bhk.hpp/bhk.cpp supply an independent
+raw oracle projection, including stored float bits and CNG source/block hashes.
+The house's 731 supported collision blocks match exactly across 207 files. New
+runtime parsing, shape graph validation and comparison/evidence tooling are original
+Rust. The GPL C++ oracle remains a separate executable. No upstream runtime code was
+copied into Rust, and parsed collision data is not physics acceptance. See
+[collision decoding](nif-collisions.md).
+
 ## Reproduce the component builds
 
 ```powershell

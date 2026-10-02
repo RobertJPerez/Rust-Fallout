@@ -1,3 +1,5 @@
+mod collision;
+
 use clap::{Parser, Subcommand};
 use fallout_data::{
     archive::NvArchive,
@@ -35,6 +37,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
+    NifCollision {
+        input: PathBuf,
+        #[arg(long)]
+        oracle_report: Option<PathBuf>,
+    },
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {
         input: PathBuf,
@@ -212,6 +220,18 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::NifCollision {
+            input,
+            oracle_report,
+        } => {
+            let report = collision::inspect(&input, oracle_report.as_deref())?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err(
+                    "collision decoding or independent comparison failed; see report".into(),
+                );
+            }
+        }
         Command::NifAssets {
             input,
             install,

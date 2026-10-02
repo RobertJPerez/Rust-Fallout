@@ -1,0 +1,17 @@
+/target/
+**/target/
+/.tools/
+/.research/
+/local/
+__pycache__/
+*.py[cod]
+*.fos
+*.nvse
+*.bsa
+*.ba2
+*.esm
+*.esp
+*.nif
+*.kf
+*.blob
+*.dds

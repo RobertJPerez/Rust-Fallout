@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-02",
+  "source_snapshot_sha256": "b42a889f5f68f47faa704263530c73096b478a2ce30935a3176861278bce4900",
+  "engine_revision": null,
+  "release_binary_sha256": "f4d3dca6d55d5be323fe3067c1f39d582faff4119350b6dc2062a5b84ad620bf",
+  "check_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
+  "check_exit_code": 0,
+  "unit_tests_passed": 9,
+  "integration_tests_passed": 12,
+  "format_check": "passed",
+  "clippy_warnings_denied": "passed",
+  "asset_cache_first_publication_and_reuse": "passed",
+  "existing_report_overwrite_refused_and_bytes_unchanged": "passed",
+  "readme_inspect_example": "passed",
+  "retail_data_acceptance": "not accepted: one plugin checksum mismatch and two archive decode disagreements",
+  "gameplay_acceptance": "not implemented; no accepted scenarios"
+}

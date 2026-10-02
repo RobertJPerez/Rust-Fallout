@@ -1,0 +1,393 @@
+{
+  "schema_version": 1,
+  "profile": "nv-original",
+  "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+  "last_verified_revision": null,
+  "revision_note": "Uncommitted checkpoint; no engine commit exists yet.",
+  "source_files_hashed": 464,
+  "source_bytes_hashed": 9907238722,
+  "content_fingerprint": "b1e54397ea2e900913c33feecbdb27b1bc33de95241cd5e0bcdd0250e79de007",
+  "plugin_comparisons": [
+    {
+      "plugin": "CaravanPack.esm",
+      "records": 7,
+      "groups": 7,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "ClassicPack.esm",
+      "records": 19,
+      "groups": 9,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "DeadMoney.esm",
+      "records": 40084,
+      "groups": 2533,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "FalloutNV.esm",
+      "records": 465016,
+      "groups": 77000,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 1
+    },
+    {
+      "plugin": "GunRunnersArsenal.esm",
+      "records": 778,
+      "groups": 51,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "HonestHearts.esm",
+      "records": 36201,
+      "groups": 9111,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "LonesomeRoad.esm",
+      "records": 34988,
+      "groups": 10432,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "MercenaryPack.esm",
+      "records": 7,
+      "groups": 7,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "OldWorldBlues.esm",
+      "records": 52683,
+      "groups": 9373,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    },
+    {
+      "plugin": "TribalPack.esm",
+      "records": 5,
+      "groups": 5,
+      "counts_masters_header_version_equal": true,
+      "integrity_failures": 0
+    }
+  ],
+  "all_plugin_comparisons_equal": true,
+  "archive_comparisons": [
+    {
+      "all_payloads": true,
+      "archive": "CaravanPack - Main.bsa",
+      "comparison_digest": "3f22767b7dab37311bb5fa965249f8397f0b5724c5ec07af217062c33567ba80",
+      "decoded_bytes_compared": 4234506,
+      "entries": 11,
+      "failures": [],
+      "paths_and_hashes_compared": 11,
+      "payloads_compared": 11,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "ClassicPack - Main.bsa",
+      "comparison_digest": "6e4cf1af7dca3bf55d4c95cb03bcec16d9e8f4f1a00f27408ea9fcfa45cd2bab",
+      "decoded_bytes_compared": 8444285,
+      "entries": 19,
+      "failures": [],
+      "paths_and_hashes_compared": 19,
+      "payloads_compared": 19,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "DeadMoney - Main.bsa",
+      "comparison_digest": "2ba662d9da918acffd93683c30265c86809f2b7346b405e3fb8eb55a8a0f070a",
+      "decoded_bytes_compared": 358486737,
+      "entries": 7207,
+      "failures": [],
+      "paths_and_hashes_compared": 7207,
+      "payloads_compared": 7207,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "DeadMoney - Sounds.bsa",
+      "comparison_digest": "c50a2c0604aadf419c1fb24740d77da164b75962095993f80774d717b1e40d39",
+      "decoded_bytes_compared": 105088569,
+      "entries": 146,
+      "failures": [],
+      "paths_and_hashes_compared": 146,
+      "payloads_compared": 146,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Fallout - Meshes.bsa",
+      "comparison_digest": "30eb8d95a318187c85d4315e89c9a9dc655ac21cd4015b9341bb7793160122ea",
+      "decoded_bytes_compared": 2315254617,
+      "entries": 19587,
+      "failures": [],
+      "paths_and_hashes_compared": 19587,
+      "payloads_compared": 19587,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Fallout - Misc.bsa",
+      "comparison_digest": "eaf5db219349bf8568e6e5679f247a06aabb66d1f17014b2acac32c8797ef80a",
+      "decoded_bytes_compared": 3555819,
+      "entries": 142,
+      "failures": [
+        {
+          "entry": 7,
+          "offset": 37120,
+          "oracle_decoded_bytes": 0,
+          "oracle_error": null,
+          "oracle_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path_bytes": [
+            109,
+            101,
+            110,
+            117,
+            115,
+            92,
+            100,
+            111,
+            95,
+            110,
+            111,
+            116,
+            95,
+            100,
+            101,
+            108,
+            101,
+            116,
+            101,
+            46,
+            116,
+            120,
+            116
+          ],
+          "primary_error": "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas\\Data\\Fallout - Misc.bsa at 0x9100: zlib decompression failed: zlib stream ended before its data did",
+          "stored_size": 4
+        },
+        {
+          "entry": 20,
+          "offset": 131260,
+          "oracle_decoded_bytes": 4,
+          "oracle_error": null,
+          "oracle_output_sha256": "1a483835bb7f2b2c7b82d42798b5c32c568082cddd880f0542ce75fee3bf05ce",
+          "path_bytes": [
+            109,
+            101,
+            110,
+            117,
+            115,
+            92,
+            115,
+            46,
+            116,
+            120,
+            116
+          ],
+          "primary_error": "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas\\Data\\Fallout - Misc.bsa at 0x200BC: zlib decompression failed: zlib stream ended before its data did",
+          "stored_size": 12
+        }
+      ],
+      "paths_and_hashes_compared": 142,
+      "payloads_compared": 140,
+      "result": "decode-failures"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Fallout - Sound.bsa",
+      "comparison_digest": "457af7a23fb34cad2f359a0994a1d77b7c6868eb72870a70e93c5e829c06fa24",
+      "decoded_bytes_compared": 850633720,
+      "entries": 6465,
+      "failures": [],
+      "paths_and_hashes_compared": 6465,
+      "payloads_compared": 6465,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Fallout - Textures.bsa",
+      "comparison_digest": "c437794398d1de9183ea813e368c1bac35d6617f8e5fd969a99abd5b7a70fad2",
+      "decoded_bytes_compared": 1900212685,
+      "entries": 11470,
+      "failures": [],
+      "paths_and_hashes_compared": 11470,
+      "payloads_compared": 11470,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Fallout - Textures2.bsa",
+      "comparison_digest": "86a9928b5e757f80d0b8a0d0064e90a2c25eaa7fd0a3be47d7bcccfcb09d7db4",
+      "decoded_bytes_compared": 1610094965,
+      "entries": 10605,
+      "failures": [],
+      "paths_and_hashes_compared": 10605,
+      "payloads_compared": 10605,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Fallout - Voices1.bsa",
+      "comparison_digest": "033fd31576a9724ee57c01596d952b961837504623800c6c0ed53b60d2a5d018",
+      "decoded_bytes_compared": 1596548674,
+      "entries": 105517,
+      "failures": [],
+      "paths_and_hashes_compared": 105517,
+      "payloads_compared": 105517,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "GunRunnersArsenal - Main.bsa",
+      "comparison_digest": "85b0ba3222d8d97a7c7d9c14592d4cf3e19bf36e61d4190f48a7e8ee417676e2",
+      "decoded_bytes_compared": 122552717,
+      "entries": 413,
+      "failures": [],
+      "paths_and_hashes_compared": 413,
+      "payloads_compared": 413,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "GunRunnersArsenal - Sounds.bsa",
+      "comparison_digest": "0ffea0b6f2ebd733602ec22d07e9e6c3e3749ae5b6822338382ba852f858fcf6",
+      "decoded_bytes_compared": 9712362,
+      "entries": 41,
+      "failures": [],
+      "paths_and_hashes_compared": 41,
+      "payloads_compared": 41,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "HonestHearts - Main.bsa",
+      "comparison_digest": "574f44ce0073b1e6abb8640af537aeebd4e4c0d36c077a5e76f3c5be70372b5e",
+      "decoded_bytes_compared": 393161845,
+      "entries": 6755,
+      "failures": [],
+      "paths_and_hashes_compared": 6755,
+      "payloads_compared": 6755,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "HonestHearts - Sounds.bsa",
+      "comparison_digest": "0f86e6ada8cf80f42867e1133c3bc6a824b17eb3f8fc3ea621e7620d6666377a",
+      "decoded_bytes_compared": 14264379,
+      "entries": 57,
+      "failures": [],
+      "paths_and_hashes_compared": 57,
+      "payloads_compared": 57,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "LonesomeRoad - Main.bsa",
+      "comparison_digest": "08b51ed5b016a120850b73d9d58d1ccec45f8b8b1bf25a20b5b31a7c68bd2a10",
+      "decoded_bytes_compared": 766876517,
+      "entries": 5781,
+      "failures": [],
+      "paths_and_hashes_compared": 5781,
+      "payloads_compared": 5781,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "LonesomeRoad - Sounds.bsa",
+      "comparison_digest": "f5996f66aa229598619402fe2e2b3a4a499ffbd2c98376b1ff9d6c136b7df893",
+      "decoded_bytes_compared": 28822543,
+      "entries": 77,
+      "failures": [],
+      "paths_and_hashes_compared": 77,
+      "payloads_compared": 77,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "MercenaryPack - Main.bsa",
+      "comparison_digest": "ea88c8a8a391593c05562d1580b4c7254d578db921fd13321c9d4ac06b9394b8",
+      "decoded_bytes_compared": 1834968,
+      "entries": 5,
+      "failures": [],
+      "paths_and_hashes_compared": 5,
+      "payloads_compared": 5,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "OldWorldBlues - Main.bsa",
+      "comparison_digest": "9b511dc71c8c9114d5211d7222c6d37625470b12d80c89947f3df085d4668600",
+      "decoded_bytes_compared": 680398957,
+      "entries": 7681,
+      "failures": [],
+      "paths_and_hashes_compared": 7681,
+      "payloads_compared": 7681,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "OldWorldBlues - Sounds.bsa",
+      "comparison_digest": "7432ccb4c88c9c23f8473aacce5c1f484b58d6d09e3bfa04dafa42f17605c77d",
+      "decoded_bytes_compared": 67201251,
+      "entries": 99,
+      "failures": [],
+      "paths_and_hashes_compared": 99,
+      "payloads_compared": 99,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "TribalPack - Main.bsa",
+      "comparison_digest": "ed9e578df520d21b7ab1e4732283baa33d7b5c682aabbbe127199c917de9836c",
+      "decoded_bytes_compared": 5839338,
+      "entries": 13,
+      "failures": [],
+      "paths_and_hashes_compared": 13,
+      "payloads_compared": 13,
+      "result": "equal"
+    },
+    {
+      "all_payloads": true,
+      "archive": "Update.bsa",
+      "comparison_digest": "b1826af679f2a9328d4c0f951a342c595417d1a57e3be21dda0792865086e841",
+      "decoded_bytes_compared": 17246071,
+      "entries": 86,
+      "failures": [],
+      "paths_and_hashes_compared": 86,
+      "payloads_compared": 86,
+      "result": "equal"
+    }
+  ],
+  "decoded_bytes_compared": 10860465525,
+  "plugin_integrity_issues": [
+    {
+      "plugin": "FalloutNV.esm",
+      "issues": [
+        {
+          "calculated_adler32": 1816153796,
+          "file_offset": 185401092,
+          "form_id": 1380288,
+          "stored_adler32": 1852853964
+        }
+      ]
+    }
+  ],
+  "plan": {
+    "jobs": 31,
+    "unsupported_inputs": 275,
+    "runtime_ready": false
+  },
+  "accepted": false
+}

@@ -1,0 +1,17 @@
+﻿{
+    "date":  "2026-10-02",
+    "cpu":  {
+                "Name":  "Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz",
+                "NumberOfCores":  8,
+                "NumberOfLogicalProcessors":  16
+            },
+    "gpu":  {
+                "Name":  "NVIDIA GeForce RTX 5090",
+                "DriverVersion":  "32.0.15.9186"
+            },
+    "ram_bytes":  42881798144,
+    "retail_file_version":  "1.4.0.525",
+    "rust":  "1.99.0 x86_64-pc-windows-msvc",
+    "retail_launched":  false,
+    "effective_settings_captured":  false
+}

@@ -1,0 +1,1518 @@
+{
+  "schema_version": 1,
+  "profile": "nv-original",
+  "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+  "source_report": "local/nif-census-expanded.json",
+  "archives_scanned": 21,
+  "nif_members": 20746,
+  "kf_members": 5014,
+  "containers_decoded": 25754,
+  "decoded_bytes": 3090348985,
+  "bethesda_stream_versions": {
+    "14": 9,
+    "21": 31,
+    "24": 8,
+    "25": 31,
+    "26": 13,
+    "27": 81,
+    "28": 2,
+    "30": 17,
+    "31": 37,
+    "32": 125,
+    "33": 310,
+    "34": 25090
+  },
+  "total_blocks": 1036203,
+  "unique_block_types": 159,
+  "block_types": [
+    {
+      "name": "BSAnimNotes",
+      "occurrences": 136,
+      "files": 134,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSBlastNode",
+      "occurrences": 81,
+      "files": 63,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSBound",
+      "occurrences": 66,
+      "files": 66,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSDamageStage",
+      "occurrences": 69,
+      "files": 51,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSDebrisNode",
+      "occurrences": 6,
+      "files": 6,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSDecalPlacementVectorExtraData",
+      "occurrences": 95,
+      "files": 95,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSDismemberSkinInstance",
+      "occurrences": 5157,
+      "files": 860,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSFadeNode",
+      "occurrences": 15121,
+      "files": 15121,
+      "container_status": "decoded",
+      "payload_semantics": "oracle-tested on samples; see nif-scene-coverage.json for scope"
+    },
+    {
+      "name": "BSFrustumFOVController",
+      "occurrences": 56,
+      "files": 56,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSFurnitureMarker",
+      "occurrences": 142,
+      "files": 142,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSMasterParticleSystem",
+      "occurrences": 38,
+      "files": 38,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSMaterialEmittanceMultController",
+      "occurrences": 471,
+      "files": 252,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSMultiBound",
+      "occurrences": 4137,
+      "files": 4137,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSMultiBoundAABB",
+      "occurrences": 4136,
+      "files": 4136,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSMultiBoundNode",
+      "occurrences": 4137,
+      "files": 4137,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSMultiBoundSphere",
+      "occurrences": 1,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSOrderedNode",
+      "occurrences": 81,
+      "files": 81,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSPSysMultiTargetEmitterCtlr",
+      "occurrences": 71,
+      "files": 42,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSPSysSimpleColorModifier",
+      "occurrences": 1270,
+      "files": 352,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSPSysStripUpdateModifier",
+      "occurrences": 12,
+      "files": 11,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSParentVelocityModifier",
+      "occurrences": 2,
+      "files": 2,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSRefractionFirePeriodController",
+      "occurrences": 30,
+      "files": 17,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSRefractionStrengthController",
+      "occurrences": 87,
+      "files": 66,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSRotAccumTransfInterpolator",
+      "occurrences": 38,
+      "files": 21,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSSegmentedTriShape",
+      "occurrences": 989,
+      "files": 849,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSShaderNoLightingProperty",
+      "occurrences": 9582,
+      "files": 3663,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "BSShaderPPLightingProperty",
+      "occurrences": 58706,
+      "files": 19578,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "BSShaderTextureSet",
+      "occurrences": 56789,
+      "files": 19578,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "BSStripPSysData",
+      "occurrences": 12,
+      "files": 11,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSStripParticleSystem",
+      "occurrences": 12,
+      "files": 11,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSTreadTransfInterpolator",
+      "occurrences": 5,
+      "files": 5,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSValueNode",
+      "occurrences": 482,
+      "files": 139,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSWArray",
+      "occurrences": 1,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSWindModifier",
+      "occurrences": 10,
+      "files": 6,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "BSXFlags",
+      "occurrences": 12577,
+      "files": 12577,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiAdditionalGeometryData",
+      "occurrences": 3567,
+      "files": 3567,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiAlphaController",
+      "occurrences": 843,
+      "files": 333,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiAlphaProperty",
+      "occurrences": 15253,
+      "files": 10422,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "NiAmbientLight",
+      "occurrences": 12,
+      "files": 12,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSBoneLODController",
+      "occurrences": 41,
+      "files": 41,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSplineBasisData",
+      "occurrences": 4112,
+      "files": 4045,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSplineCompFloatInterpolator",
+      "occurrences": 237,
+      "files": 154,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSplineCompPoint3Interpolator",
+      "occurrences": 447,
+      "files": 221,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSplineCompTransformInterpolator",
+      "occurrences": 105121,
+      "files": 4061,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSplineData",
+      "occurrences": 4120,
+      "files": 4098,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBSplineTransformInterpolator",
+      "occurrences": 148,
+      "files": 4,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBillboardNode",
+      "occurrences": 689,
+      "files": 280,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBinaryExtraData",
+      "occurrences": 8,
+      "files": 8,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBlendBoolInterpolator",
+      "occurrences": 4075,
+      "files": 259,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBlendFloatInterpolator",
+      "occurrences": 3708,
+      "files": 568,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBlendPoint3Interpolator",
+      "occurrences": 677,
+      "files": 342,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBoolData",
+      "occurrences": 6508,
+      "files": 1028,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBoolInterpolator",
+      "occurrences": 8696,
+      "files": 1516,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiBoolTimelineInterpolator",
+      "occurrences": 1691,
+      "files": 122,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiCamera",
+      "occurrences": 162,
+      "files": 162,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiColorData",
+      "occurrences": 94,
+      "files": 13,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiControllerManager",
+      "occurrences": 1164,
+      "files": 1164,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiControllerSequence",
+      "occurrences": 7478,
+      "files": 6173,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiDefaultAVObjectPalette",
+      "occurrences": 1164,
+      "files": 1164,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiFloatData",
+      "occurrences": 10379,
+      "files": 2652,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiFloatExtraData",
+      "occurrences": 94,
+      "files": 81,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiFloatExtraDataController",
+      "occurrences": 54,
+      "files": 42,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiFloatInterpolator",
+      "occurrences": 13427,
+      "files": 2852,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiGeomMorpherController",
+      "occurrences": 83,
+      "files": 55,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiIntegerExtraData",
+      "occurrences": 60,
+      "files": 60,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiLightColorController",
+      "occurrences": 13,
+      "files": 13,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiLightDimmerController",
+      "occurrences": 4,
+      "files": 4,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiLookAtInterpolator",
+      "occurrences": 21,
+      "files": 7,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiMaterialColorController",
+      "occurrences": 994,
+      "files": 535,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiMaterialProperty",
+      "occurrences": 30413,
+      "files": 16375,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "NiMorphData",
+      "occurrences": 83,
+      "files": 55,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiMultiTargetTransformController",
+      "occurrences": 1164,
+      "files": 1164,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiNode",
+      "occurrences": 51828,
+      "files": 5689,
+      "container_status": "decoded",
+      "payload_semantics": "oracle-tested on samples; see nif-scene-coverage.json for scope"
+    },
+    {
+      "name": "NiPSysAgeDeathModifier",
+      "occurrences": 1599,
+      "files": 392,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysBombModifier",
+      "occurrences": 231,
+      "files": 35,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysBoundUpdateModifier",
+      "occurrences": 1599,
+      "files": 392,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysBoxEmitter",
+      "occurrences": 1088,
+      "files": 266,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysColliderManager",
+      "occurrences": 126,
+      "files": 61,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysColorModifier",
+      "occurrences": 94,
+      "files": 13,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysCylinderEmitter",
+      "occurrences": 224,
+      "files": 92,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysData",
+      "occurrences": 1587,
+      "files": 388,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysDragModifier",
+      "occurrences": 917,
+      "files": 103,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterCtlr",
+      "occurrences": 1528,
+      "files": 353,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterDeclinationCtlr",
+      "occurrences": 2,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterDeclinationVarCtlr",
+      "occurrences": 3,
+      "files": 2,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterInitialRadiusCtlr",
+      "occurrences": 47,
+      "files": 23,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterLifeSpanCtlr",
+      "occurrences": 40,
+      "files": 25,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterPlanarAngleCtlr",
+      "occurrences": 2,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterPlanarAngleVarCtlr",
+      "occurrences": 3,
+      "files": 2,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysEmitterSpeedCtlr",
+      "occurrences": 75,
+      "files": 49,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysGravityModifier",
+      "occurrences": 889,
+      "files": 263,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysGravityStrengthCtlr",
+      "occurrences": 107,
+      "files": 27,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysGrowFadeModifier",
+      "occurrences": 1165,
+      "files": 299,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysInitialRotAngleCtlr",
+      "occurrences": 2,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysInitialRotSpeedCtlr",
+      "occurrences": 2,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysInitialRotSpeedVarCtlr",
+      "occurrences": 2,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysMeshEmitter",
+      "occurrences": 175,
+      "files": 74,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysModifierActiveCtlr",
+      "occurrences": 1150,
+      "files": 120,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysPlanarCollider",
+      "occurrences": 490,
+      "files": 60,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysPositionModifier",
+      "occurrences": 1599,
+      "files": 392,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysResetOnLoopCtlr",
+      "occurrences": 1,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysRotationModifier",
+      "occurrences": 1387,
+      "files": 343,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysSpawnModifier",
+      "occurrences": 1599,
+      "files": 392,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysSphereEmitter",
+      "occurrences": 112,
+      "files": 53,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysSphericalCollider",
+      "occurrences": 243,
+      "files": 10,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPSysUpdateCtlr",
+      "occurrences": 1599,
+      "files": 392,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiParticleSystem",
+      "occurrences": 1587,
+      "files": 388,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPathInterpolator",
+      "occurrences": 56,
+      "files": 19,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPoint3Interpolator",
+      "occurrences": 2252,
+      "files": 835,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPointLight",
+      "occurrences": 119,
+      "files": 58,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiPosData",
+      "occurrences": 2266,
+      "files": 852,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiSkinData",
+      "occurrences": 5396,
+      "files": 1038,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiSkinInstance",
+      "occurrences": 239,
+      "files": 178,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiSkinPartition",
+      "occurrences": 5396,
+      "files": 1038,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiSourceTexture",
+      "occurrences": 2854,
+      "files": 1616,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "NiStencilProperty",
+      "occurrences": 839,
+      "files": 823,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "NiStringExtraData",
+      "occurrences": 32158,
+      "files": 12691,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiTextKeyExtraData",
+      "occurrences": 7743,
+      "files": 6388,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiTextureTransformController",
+      "occurrences": 2077,
+      "files": 687,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiTexturingProperty",
+      "occurrences": 3018,
+      "files": 1616,
+      "container_status": "decoded",
+      "payload_semantics": "material fields decoded; see nif-material-coverage.json for independent sample coverage"
+    },
+    {
+      "name": "NiTransformController",
+      "occurrences": 7321,
+      "files": 1299,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiTransformData",
+      "occurrences": 110692,
+      "files": 6502,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiTransformInterpolator",
+      "occurrences": 169421,
+      "files": 6845,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "NiTriShape",
+      "occurrences": 9189,
+      "files": 4633,
+      "container_status": "decoded",
+      "payload_semantics": "oracle-tested on samples; see nif-scene-coverage.json for scope"
+    },
+    {
+      "name": "NiTriShapeData",
+      "occurrences": 10178,
+      "files": 5194,
+      "container_status": "decoded",
+      "payload_semantics": "oracle-tested on samples; see nif-scene-coverage.json for scope"
+    },
+    {
+      "name": "NiTriStrips",
+      "occurrences": 57795,
+      "files": 15277,
+      "container_status": "decoded",
+      "payload_semantics": "oracle-tested on samples; see nif-scene-coverage.json for scope"
+    },
+    {
+      "name": "NiTriStripsData",
+      "occurrences": 57793,
+      "files": 15277,
+      "container_status": "decoded",
+      "payload_semantics": "oracle-tested on samples; see nif-scene-coverage.json for scope"
+    },
+    {
+      "name": "NiVisController",
+      "occurrences": 2820,
+      "files": 370,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "SkyShaderProperty",
+      "occurrences": 9,
+      "files": 6,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "TallGrassShaderProperty",
+      "occurrences": 18,
+      "files": 18,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "TileShaderProperty",
+      "occurrences": 49,
+      "files": 5,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "WaterShaderProperty",
+      "occurrences": 8,
+      "files": 8,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkBlendCollisionObject",
+      "occurrences": 1165,
+      "files": 60,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkBlendController",
+      "occurrences": 1165,
+      "files": 60,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkBoxShape",
+      "occurrences": 1497,
+      "files": 907,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkBreakableConstraint",
+      "occurrences": 1,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkCapsuleShape",
+      "occurrences": 1363,
+      "files": 116,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkCollisionObject",
+      "occurrences": 15644,
+      "files": 11133,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkConvexTransformShape",
+      "occurrences": 109,
+      "files": 34,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkConvexVerticesShape",
+      "occurrences": 2793,
+      "files": 1980,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkHingeConstraint",
+      "occurrences": 4,
+      "files": 4,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkLimitedHingeConstraint",
+      "occurrences": 596,
+      "files": 190,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkLiquidAction",
+      "occurrences": 25,
+      "files": 3,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkListShape",
+      "occurrences": 162,
+      "files": 141,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkMalleableConstraint",
+      "occurrences": 143,
+      "files": 10,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkMoppBvTreeShape",
+      "occurrences": 9947,
+      "files": 8465,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkNiTriStripsShape",
+      "occurrences": 1,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkOrientHingedBodyAction",
+      "occurrences": 2,
+      "files": 2,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkPackedNiTriStripsShape",
+      "occurrences": 9914,
+      "files": 8465,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkPrismaticConstraint",
+      "occurrences": 3,
+      "files": 2,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkRagdollConstraint",
+      "occurrences": 708,
+      "files": 78,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkRigidBody",
+      "occurrences": 12109,
+      "files": 7926,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkRigidBodyT",
+      "occurrences": 4700,
+      "files": 3530,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkSPCollisionObject",
+      "occurrences": 40,
+      "files": 40,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkSimpleShapePhantom",
+      "occurrences": 40,
+      "files": 40,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkSphereShape",
+      "occurrences": 38,
+      "files": 23,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkStiffSpringConstraint",
+      "occurrences": 1,
+      "files": 1,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "bhkTransformShape",
+      "occurrences": 57,
+      "files": 47,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    },
+    {
+      "name": "hkPackedNiTriStripsData",
+      "occurrences": 9759,
+      "files": 8465,
+      "container_status": "decoded",
+      "payload_semantics": "unknown"
+    }
+  ],
+  "failures": [
+    {
+      "archive": "Fallout - Meshes.bsa",
+      "archive_sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a",
+      "file_offset": 302293009,
+      "path_bytes": [
+        109,
+        101,
+        115,
+        104,
+        101,
+        115,
+        92,
+        116,
+        114,
+        105,
+        103,
+        103,
+        101,
+        114,
+        115,
+        92,
+        99,
+        111,
+        108,
+        108,
+        105,
+        115,
+        105,
+        111,
+        110,
+        98,
+        111,
+        120,
+        115,
+        116,
+        97,
+        116,
+        105,
+        99,
+        46,
+        110,
+        105,
+        102
+      ],
+      "reason": "unsupported capability: meshes\\triggers\\collisionboxstatic.nif: NIF header is outside the NV adapter: \"Gamebryo File Format, Version 20.0.0.4\""
+    },
+    {
+      "archive": "Fallout - Meshes.bsa",
+      "archive_sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a",
+      "file_offset": 434686975,
+      "path_bytes": [
+        109,
+        101,
+        115,
+        104,
+        101,
+        115,
+        92,
+        99,
+        104,
+        97,
+        114,
+        97,
+        99,
+        116,
+        101,
+        114,
+        115,
+        92,
+        95,
+        109,
+        97,
+        108,
+        101,
+        92,
+        105,
+        100,
+        108,
+        101,
+        97,
+        110,
+        105,
+        109,
+        115,
+        92,
+        116,
+        97,
+        108,
+        107,
+        95,
+        104,
+        97,
+        110,
+        100,
+        115,
+        97,
+        116,
+        115,
+        105,
+        100,
+        101,
+        95,
+        109,
+        111,
+        118,
+        105,
+        110,
+        103,
+        50,
+        46,
+        107,
+        102
+      ],
+      "reason": "unsupported capability: meshes\\characters\\_male\\idleanims\\talk_handsatside_moving2.kf: NIF header is outside the NV adapter: \"Gamebryo File Format, Version 20.0.0.4\""
+    },
+    {
+      "archive": "Fallout - Meshes.bsa",
+      "archive_sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a",
+      "file_offset": 440830374,
+      "path_bytes": [
+        109,
+        101,
+        115,
+        104,
+        101,
+        115,
+        92,
+        99,
+        104,
+        97,
+        114,
+        97,
+        99,
+        116,
+        101,
+        114,
+        115,
+        92,
+        95,
+        109,
+        97,
+        108,
+        101,
+        92,
+        105,
+        100,
+        108,
+        101,
+        97,
+        110,
+        105,
+        109,
+        115,
+        92,
+        116,
+        97,
+        108,
+        107,
+        95,
+        104,
+        97,
+        110,
+        100,
+        115,
+        97,
+        116,
+        115,
+        105,
+        100,
+        101,
+        95,
+        109,
+        111,
+        118,
+        105,
+        110,
+        103,
+        46,
+        107,
+        102
+      ],
+      "reason": "unsupported capability: meshes\\characters\\_male\\idleanims\\talk_handsatside_moving.kf: NIF header is outside the NV adapter: \"Gamebryo File Format, Version 20.0.0.4\""
+    },
+    {
+      "archive": "Fallout - Meshes.bsa",
+      "archive_sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a",
+      "file_offset": 443442981,
+      "path_bytes": [
+        109,
+        101,
+        115,
+        104,
+        101,
+        115,
+        92,
+        99,
+        104,
+        97,
+        114,
+        97,
+        99,
+        116,
+        101,
+        114,
+        115,
+        92,
+        95,
+        109,
+        97,
+        108,
+        101,
+        92,
+        105,
+        100,
+        108,
+        101,
+        97,
+        110,
+        105,
+        109,
+        115,
+        92,
+        116,
+        97,
+        108,
+        107,
+        95,
+        104,
+        97,
+        110,
+        100,
+        115,
+        97,
+        116,
+        115,
+        105,
+        100,
+        101,
+        95,
+        115,
+        116,
+        105,
+        108,
+        108,
+        50,
+        46,
+        107,
+        102
+      ],
+      "reason": "unsupported capability: meshes\\characters\\_male\\idleanims\\talk_handsatside_still2.kf: NIF header is outside the NV adapter: \"Gamebryo File Format, Version 20.0.0.4\""
+    },
+    {
+      "archive": "Fallout - Meshes.bsa",
+      "archive_sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a",
+      "file_offset": 472553024,
+      "path_bytes": [
+        109,
+        101,
+        115,
+        104,
+        101,
+        115,
+        92,
+        99,
+        104,
+        97,
+        114,
+        97,
+        99,
+        116,
+        101,
+        114,
+        115,
+        92,
+        95,
+        109,
+        97,
+        108,
+        101,
+        92,
+        105,
+        100,
+        108,
+        101,
+        97,
+        110,
+        105,
+        109,
+        115,
+        92,
+        112,
+        105,
+        115,
+        116,
+        111,
+        108,
+        118,
+        97,
+        114,
+        105,
+        97,
+        110,
+        116,
+        48,
+        49,
+        46,
+        107,
+        102
+      ],
+      "reason": "unsupported capability: meshes\\characters\\_male\\idleanims\\pistolvariant01.kf: NIF header is outside the NV adapter: \"Gamebryo File Format, Version 20.0.0.4\""
+    },
+    {
+      "archive": "Fallout - Meshes.bsa",
+      "archive_sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a",
+      "file_offset": 476315212,
+      "path_bytes": [
+        109,
+        101,
+        115,
+        104,
+        101,
+        115,
+        92,
+        99,
+        104,
+        97,
+        114,
+        97,
+        99,
+        116,
+        101,
+        114,
+        115,
+        92,
+        95,
+        109,
+        97,
+        108,
+        101,
+        92,
+        105,
+        100,
+        108,
+        101,
+        97,
+        110,
+        105,
+        109,
+        115,
+        92,
+        101,
+        97,
+        116,
+        105,
+        100,
+        108,
+        101,
+        46,
+        107,
+        102
+      ],
+      "reason": "unsupported capability: meshes\\characters\\_male\\idleanims\\eatidle.kf: NIF header is outside the NV adapter: \"Gamebryo File Format, Version 20.0.0.4\""
+    }
+  ],
+  "all_failures_are_unsupported_20_0_0_4": true,
+  "independent_comparison": {
+    "cell_files": 207,
+    "cell_blocks": 3819,
+    "older_stream_samples": 11,
+    "older_stream_blocks": 763,
+    "all_equal": true,
+    "deliberate_block_size_mismatch_rejected": true,
+    "scope": "Exact version tuple, block type/index/size sequence, footer roots; cache bytes rehashed"
+  },
+  "geometry_animation_collision_accepted": false
+}

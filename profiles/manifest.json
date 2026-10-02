@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "id": "nv-original",
+      "data_status": "present-with-format-exceptions",
+      "content_fingerprint": "b1e54397ea2e900913c33feecbdb27b1bc33de95241cd5e0bcdd0250e79de007",
+      "executable_version": "1.4.0.525",
+      "formats_observed": [
+        "ESM HEDR 1.32/1.33/1.34",
+        "BSA 104",
+        "NIF/KF 20.2.0.7, user 11",
+        "NIF/KF 20.0.0.4: unsupported"
+      ],
+      "inputs": [
+        {
+          "path": "Data/CaravanPack - Main.bsa",
+          "bytes": 4235371,
+          "sha256": "c4ee871e4c5dcc6fe2206b81c85fb0d8715d060260b9d37738bbbafcd723fcea"
+        },
+        {
+          "path": "Data/CaravanPack.esm",
+          "bytes": 3007,
+          "sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+        },
+        {
+          "path": "Data/ClassicPack - Main.bsa",
+          "bytes": 8445542,
+          "sha256": "2d87957a795107eeaf9b4811a7ba29505ff0b7a0d03ec3e5dc2a928def0b78bd"
+        },
+        {
+          "path": "Data/ClassicPack.esm",
+          "bytes": 6523,
+          "sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+        },
+        {
+          "path": "Data/DeadMoney - Main.bsa",
+          "bytes": 358888134,
+          "sha256": "6a40698ea28c380b883a0a06ed42a4a6acd7b3c2513785e038d75d844d56a3a5"
+        },
+        {
+          "path": "Data/DeadMoney - Sounds.bsa",
+          "bytes": 105097622,
+          "sha256": "8a1c458106fb230a98b4b3e913aafc85e6d91a99471e4ef7220987ad8a8123a8"
+        },
+        {
+          "path": "Data/DeadMoney.esm",
+          "bytes": 6274851,
+          "sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+        },
+        {
+          "path": "Data/Fallout - Meshes.bsa",
+          "bytes": 1061624491,
+          "sha256": "054e299829ff24fd4bd4edf69f6424346b400c87379cee39bec02e4d082bf85a"
+        },
+        {
+          "path": "Data/Fallout - Misc.bsa",
+          "bytes": 1905069,
+          "sha256": "61a2fdcff07eda5a19ceea6bb9cf661b250d36a231818e33d3d23be94f9299c2"
+        },
+        {
+          "path": "Data/Fallout - Sound.bsa",
+          "bytes": 850985572,
+          "sha256": "b134e1e2381473e9a803fd3631b3de51184294b912e6120bc53dd3cde1c3d561"
+        },
+        {
+          "path": "Data/Fallout - Textures.bsa",
+          "bytes": 1196767196,
+          "sha256": "68c0f4beb00e07cc06361e3a5be0909873220731db3bd43bc013e85544b67578"
+        },
+        {
+          "path": "Data/Fallout - Textures2.bsa",
+          "bytes": 961249657,
+          "sha256": "bdaa85989b30a68c2c9ce79a07b167ecd72942df47f2e58c4a0299b016410dc2"
+        },
+        {
+          "path": "Data/Fallout - Voices1.bsa",
+          "bytes": 1602331889,
+          "sha256": "e6e24f4e4201fd1a31a5a00db492dfdf82274406660c2ecbfb1ade9b93e45460"
+        },
+        {
+          "path": "Data/FalloutNV.esm",
+          "bytes": 245650747,
+          "sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+        },
+        {
+          "path": "Data/GunRunnersArsenal - Main.bsa",
+          "bytes": 122572765,
+          "sha256": "b118999f87827c353664f8a99440fcea40d20a17eaffdcc1e78543d81fb51bc4"
+        },
+        {
+          "path": "Data/GunRunnersArsenal - Sounds.bsa",
+          "bytes": 9715305,
+          "sha256": "1c96ccadce4bccad61ba994dc1999609725b8dbe8eadaefe40901ff3eb975f3b"
+        },
+        {
+          "path": "Data/GunRunnersArsenal.esm",
+          "bytes": 252445,
+          "sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+        },
+        {
+          "path": "Data/HonestHearts - Main.bsa",
+          "bytes": 393526429,
+          "sha256": "282ef809845c09e08bdf0d49d8c3aa0f08ad64ba759d245fdfad35215c7f45df"
+        },
+        {
+          "path": "Data/HonestHearts - Sounds.bsa",
+          "bytes": 14267595,
+          "sha256": "4271b3fa8768def50613aa002711d0383082a73e0d2bad2cc2ea9df5830e82db"
+        },
+        {
+          "path": "Data/HonestHearts.esm",
+          "bytes": 17308500,
+          "sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+        },
+        {
+          "path": "Data/LonesomeRoad - Main.bsa",
+          "bytes": 767192969,
+          "sha256": "7a97c20e0356a58347928da010d06ff61698baac937775b63bc39c444994e8f4"
+        },
+        {
+          "path": "Data/LonesomeRoad - Sounds.bsa",
+          "bytes": 28827118,
+          "sha256": "e6e3676c0a9379317eb2ed4f8f490fc8054aef9e8733f418119d8e119960fe30"
+        },
+        {
+          "path": "Data/LonesomeRoad.esm",
+          "bytes": 25676818,
+          "sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+        },
+        {
+          "path": "Data/MercenaryPack - Main.bsa",
+          "bytes": 1835388,
+          "sha256": "75fa2a35d28fc6f124dc3ee9d49cf3810cbcc92ac3276dd2db59c6f48edb2325"
+        },
+        {
+          "path": "Data/MercenaryPack.esm",
+          "bytes": 3064,
+          "sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+        },
+        {
+          "path": "Data/OldWorldBlues - Main.bsa",
+          "bytes": 680808222,
+          "sha256": "09ce146ae06e382916dcb9fada5236e149e96991eaa3f677b083c862ee9f5cb3"
+        },
+        {
+          "path": "Data/OldWorldBlues - Sounds.bsa",
+          "bytes": 67207292,
+          "sha256": "9cc9902b838945ee700511b32405875e074590b7cb1dfa7fcf4e2962b410d045"
+        },
+        {
+          "path": "Data/OldWorldBlues.esm",
+          "bytes": 16202800,
+          "sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+        },
+        {
+          "path": "Data/TribalPack - Main.bsa",
+          "bytes": 5840168,
+          "sha256": "12e8f8bfef320374e054a7ebed6e3369696d65dd7ed39c6c19823c5adf864b4b"
+        },
+        {
+          "path": "Data/TribalPack.esm",
+          "bytes": 2323,
+          "sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+        },
+        {
+          "path": "Data/Update.bsa",
+          "bytes": 17250402,
+          "sha256": "8cbc13e9b47a73396b9c620a636da27dca6e8c715f6e98b4f263347baea4d92e"
+        },
+        {
+          "path": "FalloutNV.exe",
+          "bytes": 16549704,
+          "sha256": "3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d"
+        }
+      ],
+      "inspection_order": [
+        "FalloutNV.esm",
+        "DeadMoney.esm",
+        "HonestHearts.esm",
+        "OldWorldBlues.esm",
+        "LonesomeRoad.esm",
+        "GunRunnersArsenal.esm",
+        "CaravanPack.esm",
+        "ClassicPack.esm",
+        "MercenaryPack.esm",
+        "TribalPack.esm"
+      ],
+      "retail_active_order_verified": false,
+      "effective_language": null,
+      "effective_ini": null,
+      "difficulty": null,
+      "input_bindings": null,
+      "oracles": [
+        "ba2",
+        "esplugin",
+        "nifly standalone tool",
+        "xEdit source; no executable export yet"
+      ],
+      "supported_scenarios": [
+        "headless content inspection",
+        "single asset decoding/cache",
+        "preparation dry run",
+        "typed CELL/placement inspection",
+        "NIF/KF container census"
+      ],
+      "accepted_gameplay_scenarios": [],
+      "save_format": "not implemented"
+    },
+    {
+      "id": "fo3-original",
+      "data_status": "not-baselined",
+      "content_fingerprint": null,
+      "formats_to_investigate": [
+        "FO3 ESM/ESP",
+        "BSA",
+        "NIF/KF",
+        "ObScript"
+      ],
+      "rules": "separate profile; no NV semantic inheritance assumed",
+      "oracles": [
+        "retail FO3",
+        "xEdit"
+      ],
+      "supported_scenarios": [],
+      "save_format": "not implemented"
+    },
+    {
+      "id": "ttw-compatible",
+      "data_status": "not-baselined",
+      "content_fingerprint": null,
+      "formats_to_investigate": [
+        "TTW-generated NV plugins/assets",
+        "ObScript and extender dependencies"
+      ],
+      "rules": "separate profile; no NV semantic inheritance assumed",
+      "oracles": [
+        "pinned TTW installation"
+      ],
+      "supported_scenarios": [],
+      "save_format": "not implemented"
+    },
+    {
+      "id": "fo4-original",
+      "data_status": "not-baselined",
+      "content_fingerprint": null,
+      "formats_to_investigate": [
+        "FO4 ESM/ESP/ESL",
+        "BA2",
+        "NIF",
+        "PEX",
+        "HKX",
+        "BGSM/BGEM"
+      ],
+      "rules": "separate profile; no NV semantic inheritance assumed",
+      "oracles": [
+        "retail FO4",
+        "xEdit"
+      ],
+      "supported_scenarios": [],
+      "save_format": "not implemented"
+    },
+    {
+      "id": "fo76-research",
+      "data_status": "not-baselined",
+      "content_fingerprint": null,
+      "formats_to_investigate": [
+        "versioned FO76 client records/archives",
+        "client/server dependencies"
+      ],
+      "rules": "separate profile; no NV semantic inheritance assumed",
+      "oracles": [
+        "authorized observations and client data"
+      ],
+      "supported_scenarios": [],
+      "save_format": "not implemented"
+    },
+    {
+      "id": "starfield-probe",
+      "data_status": "not-baselined",
+      "content_fingerprint": null,
+      "formats_to_investigate": [
+        "Starfield records/BA2",
+        "mesh/material/animation formats"
+      ],
+      "rules": "separate profile; no NV semantic inheritance assumed",
+      "oracles": [
+        "retail bounded probes",
+        "xEdit"
+      ],
+      "supported_scenarios": [],
+      "save_format": "not implemented"
+    },
+    {
+      "id": "unified-crossover",
+      "data_status": "not-baselined",
+      "content_fingerprint": null,
+      "formats_to_investigate": [
+        "versioned canonical content and campaign-specific extensions"
+      ],
+      "rules": "separate profile; no NV semantic inheritance assumed",
+      "oracles": [
+        "explicit crossover policy; undecided"
+      ],
+      "supported_scenarios": [],
+      "save_format": "not implemented"
+    }
+  ]
+}

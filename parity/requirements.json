@@ -1,0 +1,598 @@
+{
+  "schema_version": 1,
+  "profile": "nv-original",
+  "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+  "last_verified_revision": null,
+  "revision_note": "Uncommitted checkpoint; no engine commit exists yet.",
+  "accepted_scenarios": [],
+  "requirements": [
+    {
+      "id": "fnv.plugin.bounds",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "formats",
+      "requirement": "Reject invalid parent extents, compressed sizes, checksums, depth, and truncated fields.",
+      "evidence": [
+        "crates/fallout-data/tests/framing.rs",
+        "docs/format-exceptions.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "truncation_and_bad_parent_bounds_return_errors",
+        "rejects_zlib_size_lies_trailing_bytes_and_checksum_damage",
+        "group_depth_limit_is_enforced_without_recursion",
+        "adversarial_small_inputs_never_panic"
+      ],
+      "known_gaps": [
+        "Mutation sweep is not sustained fuzzing",
+        "Known vanilla LAND requires a scoped compatibility decision"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.plugin.census",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "formats",
+      "requirement": "Official corpus record counts and master lists agree with independent esplugin.",
+      "evidence": [
+        "reports/corpus.json",
+        "sources.lock.json"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "oracle-tested",
+      "tests": [
+        "tools/plugin-oracle",
+        "tools/report.py"
+      ],
+      "known_gaps": [
+        "Compressed bodies are not checked by esplugin",
+        "Typed field reference exports still needed"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.archive.payloads",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "archives",
+      "requirement": "Compare every member path/hash and decoded payload against ba2.",
+      "evidence": [
+        "reports/corpus.json",
+        "docs/format-exceptions.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "oracle-tested",
+      "tests": [
+        "tools/archive-compare --all"
+      ],
+      "known_gaps": [
+        "Two malformed text payloads disagree",
+        "Only local BSA v104 corpus tested"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.content.identity",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content",
+      "requirement": "Resolve stable origin/local identities and explicit structural override chains.",
+      "evidence": [
+        "crates/fallout-data/src/identity.rs",
+        "sources.lock.json"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "identity_survives_rebasing_and_keeps_campaigns_separate",
+        "explicit_override_order_preserves_deletion_and_rejects_missing_masters",
+        "conflicting_noncanonical_self_ids_are_rejected"
+      ],
+      "known_gaps": [
+        "Record-specific merge exceptions and field links unimplemented"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.script.references",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content",
+      "requirement": "Two-pass SCRO links allow forward cycles and distinguish the NV player runtime dependency.",
+      "evidence": [
+        "parity/content-coverage.json",
+        "docs/format-exceptions.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "two_pass_script_links_allow_forward_cycles_and_report_missing_targets",
+        "player_reference_is_an_explicit_nv_runtime_dependency"
+      ],
+      "known_gaps": [
+        "No player object or script VM exists",
+        "No independent per-reference retail export"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.vfs.paths",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "vfs",
+      "requirement": "Normalize safe legacy paths while retaining original bytes and ambiguous candidates.",
+      "evidence": [
+        "crates/fallout-data/src/vfs.rs"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "normalizes_ascii_without_destroying_legacy_bytes",
+        "ambiguous_mount_never_silently_wins"
+      ],
+      "known_gaps": [
+        "Loose-file mounting and archive/invalidation precedence unimplemented"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.conditions.inventory",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "scripting",
+      "requirement": "Inventory CTDA function IDs with caller offsets independently of SCDA opcodes.",
+      "evidence": [
+        "parity/conditions.json",
+        "sources.lock.json"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "decoded",
+      "tests": [
+        "condition_inventory_keeps_function_ids_separate_from_script_opcodes"
+      ],
+      "known_gaps": [
+        "No condition evaluation",
+        "Names/parameter types not yet audited"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "r3.profile.identity",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "profiles",
+      "requirement": "Form and cache identities include the game profile.",
+      "evidence": [
+        "profiles/manifest.json",
+        "docs/profiles.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "identity_survives_rebasing_and_keeps_campaigns_separate",
+        "profiles_and_transform_revisions_cannot_share_a_cache_identity"
+      ],
+      "known_gaps": [
+        "Save loading and cross-profile rejection are unimplemented"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "r3.preparation.plan",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "import",
+      "requirement": "Preparation identities are independent of discovery order and include master digests.",
+      "evidence": [
+        "local/import-plan.json",
+        "crates/fallout-data/src/planning.rs"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "enumeration_order_does_not_change_the_plan",
+        "master_changes_invalidate_only_dependent_jobs"
+      ],
+      "known_gaps": [
+        "Only source indexing jobs planned",
+        "Typed per-asset conversions and dependency graphs incomplete"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "r3.asset.publication",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "import",
+      "requirement": "Publish a verified blob before its manifest; safely resume interrupted publication and reject corrupt reuse.",
+      "evidence": [
+        "local/asset-first.json",
+        "local/asset-reuse.json",
+        "crates/fallout-data/src/cache.rs"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unit-tested",
+      "tests": [
+        "interrupted_publication_resumes_and_corrupt_reuse_fails",
+        "cannot_publish_inside_source_tree"
+      ],
+      "known_gaps": [
+        "No full job scheduler/cancellation/journal",
+        "Failure injection is in-process, not OS termination",
+        "No save-grade durability claim"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.vfs.precedence",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "vfs",
+      "requirement": "Match effective retail loose/archive lookup and invalidation rules.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.script.execution",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "scripting",
+      "requirement": "Execute source-less ObScript with typed native calls, budgets, and state traces.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.conditions.execution",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "scripting",
+      "requirement": "Match condition parameters, targets, evaluation order, and results.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.world.interior",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "world",
+      "requirement": "Load and move through a real interior with measured rendering and collision.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.world.goodsprings",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "world",
+      "requirement": "Stream Goodsprings using actual records, geometry, terrain, materials, and collision.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.persistence",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "persistence",
+      "requirement": "Save and restore authoritative state, rejecting incompatible profiles.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.campaign",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "gameplay",
+      "requirement": "Complete required base-game and DLC routes with retail state comparisons.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "ttw.runtime.dependencies",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "ttw",
+      "requirement": "Census and implement a pinned TTW installation's required providers.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fo3.original",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "other-games",
+      "requirement": "Reproduce original FO3 under its own profile.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fo4.original",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "other-games",
+      "requirement": "Reproduce FO4 with its format and runtime adapters.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fo76.research",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "other-games",
+      "requirement": "Separate observed client behavior from unknown server responsibilities.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "crossover.travel",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "travel",
+      "requirement": "Preserve per-campaign identity/state through transactional round trips.",
+      "evidence": [
+        "docs/references/Fallout_Rust_Codex_Master_Brief.txt",
+        "NEXT_STEPS.md"
+      ],
+      "affected_content": "See content-coverage.json and local provenance reports",
+      "status": "unknown",
+      "tests": [],
+      "known_gaps": [
+        "Unimplemented; no passing acceptance scenario"
+      ],
+      "tolerance": "Exact for bytes/counts/identities; no gameplay tolerances established",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.content.indexed_reads",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content",
+      "requirement": "Indexed reads preserve raw bodies and reject changed headers.",
+      "evidence": [
+        "reports/world-inspection.json",
+        "parity/nif-coverage.json",
+        "sources.lock.json"
+      ],
+      "affected_content": "NV official corpus; see coverage denominators",
+      "status": "unit-tested",
+      "tests": [
+        "indexed_reads_match_streamed_payloads_and_reject_stale_headers"
+      ],
+      "known_gaps": [
+        "Index is rebuilt at startup; no serialized index cache yet"
+      ],
+      "tolerance": "Exact bytes/identities/counts; source transforms remain unconverted",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.world.cell_dependencies",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "world",
+      "requirement": "Resolve winning cell membership, placed transforms, and typed base/enable-parent/door links.",
+      "evidence": [
+        "reports/world-inspection.json",
+        "parity/nif-coverage.json",
+        "sources.lock.json"
+      ],
+      "affected_content": {
+        "profile": "nv-original",
+        "origin_plugin": "falloutnv.esm",
+        "local_id": 1064441
+      },
+      "status": "unit-tested",
+      "tests": [
+        "cell_membership_uses_winning_parent_and_does_not_resurrect_deleted_references",
+        "placed_field_validation_rejects_duplicate_truncated_and_nonfinite_transforms",
+        "present_but_wrong_kind_targets_do_not_count_as_resolved"
+      ],
+      "known_gaps": [
+        "No retail per-field export comparison",
+        "No activation, movement, enable-parent evaluation or teleport execution"
+      ],
+      "tolerance": "Exact bytes/identities/counts; source transforms remain unconverted",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.nif.container",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "formats",
+      "requirement": "Read bounded NIF/KF container tables and compare version, block type/index/size and roots with nifly.",
+      "evidence": [
+        "reports/world-inspection.json",
+        "parity/nif-coverage.json",
+        "sources.lock.json"
+      ],
+      "affected_content": "NV official corpus; see coverage denominators",
+      "status": "oracle-tested",
+      "tests": [
+        "inventories_unknown_blocks_without_discarding_their_bytes",
+        "all_truncated_prefixes_and_bad_roots_fail",
+        "version_dispatch_and_count_budgets_are_enforced",
+        "observed_nv_stream_revisions_keep_their_identity",
+        "tools/compare-nif.py"
+      ],
+      "known_gaps": [
+        "Six legacy 20.0.0.4 files unsupported",
+        "Oracle sample is 218 files, not every NIF/KF payload",
+        "Container evidence alone does not establish payload semantics; see the separate NIF scene ledger",
+        "No rendering, animation or physics parity"
+      ],
+      "tolerance": "Exact bytes/identities/counts; source transforms remain unconverted",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.nif.scene_mesh_payloads",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "formats",
+      "requirement": "Decode bounded scene graphs and source triangle payloads, preserving unknown blocks and unsupported edges",
+      "status": "oracle-tested",
+      "affected_content": "NV archived models; Doc Mitchell interior and older-stream samples",
+      "evidence": [
+        "reports/nif-scenes.json",
+        "parity/nif-scene-coverage.json",
+        "docs/nif-scenes.md"
+      ],
+      "tests": [
+        "crates/fallout-data/tests/nif_scene.rs",
+        "tools/compare-nif-scenes.py",
+        "tools/check-nif-scene-comparison.py"
+      ],
+      "known_gaps": [
+        "Unknown scene branches and the 25 strict payload failures remain open",
+        "Controller evaluation, skinning and collision are absent",
+        "Material decoding and model-only presentation are tracked separately; no retail behavior acceptance"
+      ],
+      "tolerance": "source floats: identical f32 bits; topology and references: exact; composed f64 vs nifly f32: abs 1e-4 or rel 1e-5",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.nif.material_texture_payloads",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "formats",
+      "requirement": "Decode material fields and follow authored external texture paths through unique immutable archive members",
+      "status": "oracle-tested",
+      "affected_content": "NV archived models; exact material comparisons on 218 sample files",
+      "evidence": [
+        "reports/nif-materials.json",
+        "parity/nif-material-coverage.json",
+        "docs/nif-materials.md"
+      ],
+      "tests": [
+        "crates/fallout-data/tests/nif_scene.rs",
+        "tools/compare-nif-scenes.py",
+        "tools/check-nif-scene-comparison.py"
+      ],
+      "known_gaps": [
+        "Retail shader evaluation, normal/specular/environment maps and property inheritance",
+        "Controller evaluation, skinning, collision and unsupported scene branches",
+        "Seven unsafe authored paths remain unresolved; no exporter-path repair is assumed",
+        "Archive/loose precedence and complete dependency closure",
+        "Six legacy containers and 25 prior strict geometry rejections remain open"
+      ],
+      "tolerance": "source floats: identical f32 bits; topology and references: exact; composed f64 vs nifly f32: abs 1e-4 or rel 1e-5",
+      "last_verified_revision": null
+    },
+    {
+      "id": "fnv.presentation.model_preview",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "presentation",
+      "requirement": "Render supported archived NIF geometry and diffuse DDS through a separate Bevy adapter",
+      "status": "unit-tested",
+      "affected_content": "Two real model smoke fixtures; not a complete cell",
+      "evidence": [
+        "reports/model-preview.json",
+        "docs/model-preview.md"
+      ],
+      "tests": [
+        "crates/fallout-preview/src/model.rs",
+        "tools/smoke-preview.py"
+      ],
+      "known_gaps": [
+        "No retail image comparison, lighting/shader parity or complete interior",
+        "Skinning, controllers, collision and gameplay are absent",
+        "Cabinet report records one unsupported diffuse binding; the chosen view does not prove that surface renders correctly",
+        "Interactive orbit bindings implemented but not independently exercised with keyboard automation"
+      ],
+      "tolerance": "Successful GPU capture and visual smoke inspection only; no retail comparison tolerance defined",
+      "last_verified_revision": null
+    }
+  ]
+}

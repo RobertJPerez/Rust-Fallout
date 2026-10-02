@@ -1,0 +1,2 @@
+# Keep published checkpoint hashes and reference copies byte-exact across clones.
+* -text

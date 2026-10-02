@@ -1,0 +1,2058 @@
+FALLOUT RUST ENGINE — CODEX MASTER IMPLEMENTATION BRIEF, REVISION 3
+Modern shared Rust runtime; New Vegas fidelity first; expanded Fallout 4 and Starfield engineering
+Research date: 2026-10-02
+Prepared for Robert Perez
+
+HOW TO USE THIS FILE
+
+Give Codex this entire file in the actual development repository. The instructions between BEGIN IMPLEMENTATION CONTRACT and END IMPLEMENTATION CONTRACT are the implementation assignment. The source atlas and research notes are supporting evidence, not proof that any reference project is complete.
+
+Revision 3 adds sections 27–34: Tale of Two Wastelands research and compatibility,
+Tales From Appalachia identification, a reproducible content conversion pipeline,
+cross-campaign persistence, Fallout 76 evidence gates, and implementation tickets.
+It retains the previous NV, FO3, FO4, FO76 and Starfield scope. This is the final
+expanded planning draft requested in this conversation, not a finished engine.
+Read every section; later additions refine earlier work rather than replacing it.
+
+Revision 2 retains the complete first brief and adds sections 17–26: modern-core
+requirements, a detailed Papyrus runtime contract, Fallout 4 implementation gates,
+Starfield materials/geometry/animation/world design, concrete conformance cases,
+and more primary repositories. Read the new sections together with the original
+NV contract. Full Starfield campaign support is described as a separately gated
+future target; selected Starfield features and a modern core do not require it.
+
+Correction to the earlier source list: the Starfield-Reverse-Engineering/CommonLibSF
+repository is archived and its README directs development to libxse/commonlibsf.
+Use the maintained destination as the primary candidate and the old repository
+only for historical comparisons. Always verify the target executable version.
+
+Suggested first message to Codex:
+
+“Read Fallout_Rust_Codex_Master_Brief.txt completely. Implement its New Vegas-first Rust engine plan in this repository. Inspect the existing code before changing anything. Begin with milestone M0, then build and validate M1 and proceed in dependency order for as long as the environment permits. Preserve working features. Use the linked primary sources, pin the revisions you inspect, and distinguish original behavior from guesses. Do not stop at a plan, scaffold, map viewer, or scripted showcase. Do not claim campaign parity without the specified evidence. If retail data or Windows runtime access is missing, complete the independent work and report the exact blocked acceptance checks and minimum input needed. Keep the project ready to resume with an honest parity ledger.”
+
+EXECUTIVE DECISION
+
+Build a standalone replacement runtime in Rust, loading user-supplied game data. Target Windows x64 first because that is the user's working platform and makes comparison with retail New Vegas practical. Keep portable boundaries for Linux later. The engine must ultimately play original content with original rules; visual improvements and cross-game features are optional profiles.
+
+Start with New Vegas, then Fallout 3. Do not reconstruct Starfield first. Newer engine ancestry does not automatically implement older scripting, menus, mechanics, save behavior, or content quirks. Add Fallout 4 through a separate adapter; treat Fallout 76 as a separate service-and-runtime research effort. Selected Starfield-style mechanics can be added as optional extensions without first implementing the entire Starfield campaign.
+
+One Rust codebase is feasible as an architectural goal. Complete 1:1 parity across all requested games is unproven and cannot be guaranteed by a prompt. This brief makes failure visible, prevents fabricated completion, and prioritizes reusable evidence. It is a research and implementation plan, not a claim that the engine has been built or that the referenced repositories have been run here.
+
+IMPORTANT RESEARCH FINDINGS
+
+1. Skate 3 Rust Engine explicitly credits years of prior reverse engineering and describes parity as unfinished. It is an example of the workflow, not a Bethesda compatibility dependency.
+2. SugarBombEngine is an older C++ hybrid. Inspected weapon and navigation parsers skip important Fallout fields, and inspected quest code is inherited OpenMW-style code. The root CMake configuration comments out the code/src directories containing those inspected files. Trace build reachability before calling them implemented.
+3. Modern OpenMW remains the major mature Bethesda replacement-engine reference. Its Morrowind success must not be confused with complete Fallout support; its official announcement describes later-game support as prototyping.
+4. ByroRedux is a newly found, unusually relevant Rust/C++/Vulkan reference. Its README and feature matrix describe substantial format/rendering/runtime work. The inspected ObScript interpreter explicitly says its initial framing was derived from Oblivion and describes some calls as traced no-ops. That is a concrete reason to audit FNV semantics rather than accept “seven games supported” as campaign parity. Its license/provenance must be established per component before reuse.
+5. Open Nevada (nikamigaming-create/OpenNV) currently describes a C#/Godot runtime, direct retail data loading, and a bounded FNV continuation path. It explicitly says full campaigns and complete extender compatibility are not implemented. It is different from the old OpenNV/OpenNV C# project and from 1x0DF0/OpenNewVegas.
+6. Mudcrab/Wah Krah Jol provides Rust/Bevy conversion and architecture ideas. Its README has ambitious feature claims while later roadmap phases remain incomplete. Papyrus-to-Luau conversion is not evidence of faithful Papyrus semantics. Benchmark and test actual code before relying on it.
+7. xNVSE, JIP LN, JohnnyGuitar, and xEdit are particularly valuable for New Vegas structures, command semantics, record formats, and behavior research. A function that calls a fixed address inside FalloutNV.exe is a hook/wrapper, not a portable implementation.
+8. New Vegas uses its older compiled scripting system and XML/tile menus. Do not use Papyrus or a Flash/Scaleform emulator as the NV compatibility solution. Later games need separate script and UI adapters.
+
+BEGIN IMPLEMENTATION CONTRACT
+
+1. ROLE, OUTCOME, AND NON-NEGOTIABLES
+
+Act as an experienced engine engineer, compatibility engineer, reverse-engineering researcher, and test engineer. Deliver working software in vertical increments. The deliverable is a standalone Rust application and its reusable Rust libraries, not an injected renderer, mod collection, launcher around FalloutNV.exe, or a C++ engine renamed as Rust.
+
+The primary acceptance target is Fallout: New Vegas base game plus its official content: Dead Money, Honest Hearts, Old World Blues, Lonesome Road, Gun Runners' Arsenal, and Courier's Stash. Track base-game parity and each DLC separately. Do not shrink the scope to Goodsprings; Goodsprings is only the first end-to-end gate.
+
+All newly authored runtime gameplay, parsers, save logic, compatibility adapters, and tooling should be Rust. Standard graphics/audio platform dependencies may contain native implementation code; enumerate them. External C++ or C# tools may be used as offline test oracles. Any native helper required to instrument the retail game must be an explicitly isolated research tool, not a hidden dependency of the replacement runtime. A pure-Rust-only restriction on every transitive dependency is not assumed; do not silently introduce a C++ gameplay engine.
+
+Never invent file layouts, function signatures, opcode values, damage formulas, engine units, record IDs, quest stages, or native addresses. Cite pinned source or attach a reproducible experiment. Mark uncertainty as unknown. Do not fill unknown behavior with unconditional success or arbitrary default results.
+
+Do not remove functionality to obtain performance numbers or passing tests. Fix underlying bottlenecks. Keep source data read-only and separate runtime caches and saves from retail files. User-owned data is supplied locally; do not bundle retail assets or obtain leaked commercial source. Public source availability alone does not establish permission to copy. Record licenses and provenance before copying or porting implementation code.
+
+Read local AGENTS.md and existing architecture. Preserve user changes. Avoid wholesale rewrites of working components. Inspect actual dependencies and APIs rather than writing against remembered crate versions. Pin Rust toolchain and Cargo.lock. Implement the smallest complete dependency slice, test it, and continue.
+
+2. WHAT “1:1” MEANS
+
+Parity is defined against a pinned retail executable, data/DLC fingerprints, language, INI settings, difficulty, and input profile. Begin with a known supported PC installation; detect its exact version rather than assuming Steam and GOG executables are byte-identical. Store an explicit baseline manifest.
+
+Define four independent statuses:
+  A. Data fidelity: decode every required record/asset and preserve its meaning.
+  B. Behavioral fidelity: scripts, AI, combat, quests, timing, and persistence reproduce observed behavior.
+  C. Presentation fidelity: animation events, voice timing, UI layout, input, lighting/material intent, and camera behavior are comparable.
+  D. Ecosystem compatibility: plugin load order, data mods, extender APIs, native DLL mods, and retail save import/export.
+
+Completing A does not complete B/C/D. A running camera in a rendered cell is not “playable FNV.” Compiling a script is not executing its native functions. Parsing a physics block while skipping its collision is not physics support. A green test suite composed only of synthetic fixtures is not retail parity.
+
+Exact pixels and physics trajectories may vary across backends. Set explicit, versioned tolerances for visual, temporal, and physical comparisons. Never relax a tolerance just to pass. Exact discrete state should match where justified; numerical comparisons must use measured absolute/relative tolerances. Preserve content-visible quirks needed by scripts, but do not intentionally reproduce memory corruption or security defects. Document optional fixes separately from the faithful baseline.
+
+“All quests” includes intended mutually exclusive branches, failure paths, prerequisites, interruptions, companion interactions, dialogue checks, reputation consequences, and relevant save/load boundaries. Exhaustive exploration of every possible global game state is infeasible. Use a declared test universe, enumerated quest/branch coverage, risk-based interactions, and clearly stated residual uncertainty. Never claim mathematical proof of every possible playthrough.
+
+3. SOURCE AUDIT BEFORE ARCHITECTURE COMMITMENT — M0
+
+Produce docs/source-audit.md, sources.lock.json, docs/baseline.md, and docs/decisions/0001-runtime.md.
+
+For each dependency/reference record: canonical URL, resolved commit SHA, language, license files and per-file notices, inspected paths, supported format/game variants, known omissions, test data provenance, build command, actual build/test result, and proposed use (dependency/reference/oracle/deferred).
+
+Do not infer a license from a search badge. If unclear, keep the component out of copied/linked code until resolved. Do not label work “clean room” if its process does not meet that description. A project claiming to consult commercial engine source is a provenance question to investigate, not automatic approval to ingest that source.
+
+Compare three routes in a bounded spike:
+  - New Rust runtime using Bevy services and independently owned compatibility crates.
+  - Reusing verified Rust components from candidates such as bsa-rs and, only after licensing/behavior audit, ByroRedux.
+  - Other reference projects as external behavior and format oracles, not automatic runtime dependencies.
+
+Default proposal: stable released Bevy for window/input/render integration; pure headless Rust simulation and compatibility crates; Rust archive reader; custom game-specific record/schema decoder; Rapier behind a physics abstraction. Choose actual versions after checking current upstream docs and MSRV. Do not launch a custom Vulkan renderer or GPU ray-tracing research project as a prerequisite for quest parity. Bevy is a replaceable service layer, not the owner of canonical game state.
+
+M0 exit: a reproducible empty application, headless test target, baseline/data discovery with explicit missing-data reports, source audit, and one concrete architecture decision. Do not spend the entire project endlessly evaluating frameworks.
+
+4. MODULE BOUNDARIES AND DATA OWNERSHIP
+
+Logical module layout, split into crates when useful rather than creating dozens of empty crates:
+  core_types: GameId, content namespace, FormKey, persistent instance IDs, clocks, errors.
+  io_vfs: path resolution, archive access, loose files, source provenance.
+  formats: ESM/ESP families, BSA/BA2, NIF/KF/DDS, audio and UI data.
+  content: raw record store, schema decoding, overrides, dependency graph, asset database.
+  simulation: authoritative state, entity lifecycle, events, deterministic command commit.
+  script_ob: NV/FO3 compiled script decoder/interpreter and typed native-call boundary.
+  rules_fnv: actor values, quests, dialogue, AI, combat, economy, minigames, survival.
+  animation: skeletons, clips, controllers, event markers, blends, attachments.
+  physics_adapter: units, shapes, motion, queries, character controller, ragdoll mapping.
+  ui_fnv: original XML/tile semantics and native menu bindings.
+  presentation: rendering, camera, audio, input devices; consumes state snapshots.
+  persistence: versioned snapshots, object deltas, migrations, durable saves.
+  tooling: inspect, census, coverage, trace diff, replay, benchmarking, packaging.
+  game_fo3/game_fo4/game_fo76: future adapters added only when backed by concrete work.
+
+Keep source decoding separate from canonical runtime representation. Preserve per-game extension data and raw unknown fields; do not force every game into NV's narrower schema. Canonicalization must not discard data required for behavior. Use explicit adapters and capability traits at boundaries, not hundreds of scattered if-game checks.
+
+A FormKey identifies origin plugin plus local record identity in a game/content namespace. Never persist transient load-order high bytes as the sole identity. Stable runtime instances use separately allocated IDs; distinguish base forms, placed references, dynamically spawned references, and inventory item instances. Keep reference IDs typed, never round-trip them through f32. Persistent IDs survive entity storage reuse and cell unload.
+
+Record definitions are immutable. Runtime changes live in instance state/delta overlays. An unloaded actor with quest significance retains authoritative state. The rendering ECS entity is not its identity. Use generational handles for transient object references and checked resolution for persistent handles.
+
+Use contiguous component storage for hot actor/transform data and indexed immutable stores for records. Avoid Arc<Mutex<World>> as the architecture. Parsing and asset preparation can be parallel; gameplay effects commit in a stable, observed order. Record source byte offsets and origin for every decoded behavior so diagnostics can explain a failing script or condition.
+
+5. ARCHIVES, PLUGINS, AND CONTENT RESOLUTION — M1
+
+Implement the virtual filesystem before converting whole worlds. Discover install paths with user selection fallback. Normalize slash direction and case according to the target game's lookup rules while preserving original path bytes/names for diagnostics. Detect collisions and encoding ambiguities. Never assume all legacy filenames/text are UTF-8.
+
+Archive handling must verify file bounds, offsets, compression sizes, supported versions, path traversal, integer overflow, and allocation limits. Read-on-demand or memory-map immutable files with documented lifetime assumptions. Decompress on bounded worker queues. Never decompress unbounded archives on the render thread.
+
+Prototype bsa-rs/ba2 and dream_archive against the same authorized local BSA corpus. Compare listing, path hashes, extraction bytes, and error behavior against an independent implementation. Select one default backend; do not ship two redundant production stacks without reason. Pin the tested version and license; dream_archive's README explicitly distinguishes older GPL releases from newer dual-licensed versions.
+
+For ESM/ESP implement record/group framing, compressed records, extended subrecord sizes, form references, master dependencies, deleted/disabled flags, persistent references, override chains, and game-specific version handling. Use xEdit's FNV schema and local exports as an oracle, not a blind text-to-Rust generator.
+
+Do not merge arbitrary subfields across overrides. Reproduce target-game record and special-case merge behavior. Archive precedence is separate from plugin record precedence and can depend on configuration/invalidation rules. Build fixtures for all supported precedence rules instead of assuming “last file wins” universally.
+
+Perform a census of every supplied official plugin/archive:
+  - record and subrecord kinds, versions, counts, and sizes;
+  - unresolved form references, master relationships, missing assets;
+  - script command IDs, event blocks, conditions, embedded result scripts;
+  - meshes, skeletons, clips, collision block types, material properties;
+  - UI templates/operators/fonts and audio codecs;
+  - semantic support status, not only parse success.
+
+Unknown optional presentation data may permit a labeled inspection preview. Unknown behavior-critical data must block a faithful test, with a precise capability error. Preserve bytes for later interpretation; do not silently discard them.
+
+M1 exit: independently verified content counts/references, deterministic override tests, bounded parsing/fuzz tests, real-data census, and a headless inspector that prints provenance. No gameplay claim yet.
+
+6. WORLD, RENDERING, AND STREAMING — M2
+
+Load one real interior through the production pipeline, then Goodsprings exterior. Resolve actual placed references, base models, transforms, scale, texture paths, materials, terrain, water, and lights. No procedural replacement of the Mojave in faithful mode. Debug geometry is permitted only in explicitly synthetic tests.
+
+Establish game-to-engine axes, angle conventions, winding, and unit scale using measured fixtures. Centralize conversions. Apply the same scale to rendering, animation, physics, audio distances, navigation, and saved transforms. Rendering large coordinates may use camera-relative origins; authoritative positions remain stable in world/cell coordinates.
+
+NIF parsing must dispatch on actual version/user-version and block layout. Validate block references and skin data. A glTF cache may accelerate rendering but cannot be the only representation of animation controllers, collision, extra data, furniture markers, or game-specific semantics. Preserve a versioned sidecar or richer intermediate representation and test fidelity.
+
+Stream cells with explicit lifecycle states: unrequested, IO pending, decoded, dependencies ready, simulation available, render resident, unloading. Use generation tokens to discard obsolete jobs, bounded queues for backpressure, ref-counted/pinned assets for active users, and memory budgets. Never activate a cell that lacks required collision/nav data. Prefetch likely travel direction and door destinations, with hysteresis to prevent thrashing near boundaries.
+
+Retain quest-owned actors and persistent changes when their cells unload. Separate visual residency from simulation residency and persistent existence. Door traversal must preserve activation scripts, arrival orientation, destination identity, companions, audio transitions, and save state.
+
+Start with frustum culling, shared mesh/material caches, instancing, and suitable LOD. Profile before adding hierarchical Z occlusion or GPU-driven indirect drawing. Keep faithful materials and optional enhanced lighting as different profiles. Do not require ray tracing to run the game. A brighter modern scene is not proof of visual parity.
+
+M2 exit: real interior/exterior traversal with correct static placement and collision, bounded streaming memory, reload stability, and tagged screenshots against matching retail cameras. Explicitly label all unimplemented simulation.
+
+7. NEW VEGAS SCRIPTING AND CONDITIONS — M3, CRITICAL PATH
+
+Implement the original compiled script format. Decode SCPT and embedded scripts wherever present in the pinned data schemas. Enumerate bytecode and operand variants from the corpus and compare with xNVSE, xEdit, GECK-generated microtests, and retail observations. Preserve source text when present for diagnostics; do not require SCTX to exist to execute a script.
+
+Never replace the game's scripting system with a collection of quest-name checks or generated Rust functions for selected quests. Do not substitute Papyrus, Lua, or Luau without a demonstrated semantics-preserving translation. The initial NV interpreter should directly execute a validated representation of the original bytecode.
+
+Typed values preserve numeric and reference behavior independently. Determine precision, integer conversion, null semantics, comparison, short-circuit behavior, variable lifetime, and expression evaluation order experimentally. Do not copy numeric assumptions from an Oblivion-derived prototype without FNV tests.
+
+Decode once into compact validated instructions with source offsets. Use a reference interpreter first. Consider optimized dispatch or JIT only after interpreter parity and profiling show a need. Optimization must pass the same oracle tests.
+
+Native-command registry requirements:
+  command ID and name; argument signature; allowed caller context; return type;
+  mutation/read behavior; observed errors; vanilla/extension provenance;
+  implementation state; tests; source evidence; affected content.
+
+Separate script statement opcodes, native command IDs, event block IDs, and condition-function identifiers. They are not necessarily interchangeable. Explicitly model owner, calling reference, target, containing object, and relevant event context.
+
+Conditions need their own evaluator: comparison flags, AND/OR grouping, run-on subject selection, global comparison values, faction/rank/perk/actor-value queries, inventory, distance, dialogue state, quest state, and time. Reuse tested primitive queries with commands where appropriate. Never treat every unknown condition as true or false to force progress.
+
+Quest scripts, object scripts, effect scripts, dialogue/quest result fragments, activation events, combat/death/container events, menu mode, and periodic updates require correct lifecycles and scheduling. Use explicit game/menu/real-time clocks. Do not invent the exact update order; first measure it with small instrumented scenarios.
+
+Deterministic internal scheduling is an engineering aid, not automatic retail fidelity. Record input ticks, RNG streams/seeds where controlled, event order, and state digests. Parallelize pure reads/planning; commit effects in a reproducible sequence consistent with the compatibility profile.
+
+Unknown command behavior produces UnsupportedCommand with game, plugin, script FormKey, byte offset, command, arguments, and caller. In developer faithful mode stop the affected scenario rather than corrupt its state. A preview mode may continue with visible incompleteness, but cannot generate a passing parity report. CPU budgets detect runaway scripts; never silently drop events to maintain frame rate.
+
+M3 exit: every opcode/command/condition needed by the first slice is behaviorally verified, with an explicit ledger of the remaining corpus. Source-less compiled scripts work. No hardcoded quest stage advancement or traced no-ops in accepted routes.
+
+8. AUTHORITATIVE GAMEPLAY — M4 THROUGH M7
+
+Actor and item model:
+  SPECIAL, skills, traits, perks and perk entry effects; XP/level progression;
+  base/current/modifier actor values; health/AP/limbs; effects, radiation,
+  addiction, withdrawal, hunger/thirst/sleep in Hardcore; death and resurrection
+  semantics where exposed; essential/protected behavior as applicable.
+  Item instances retain condition, count, ownership, equipped slots, ammo,
+  weapon modifications, quest flags, and script/extra data. Do not collapse
+  non-equivalent items into one stack. Leveled lists and respawn logic preserve
+  their authored probabilities and persistence rules.
+
+Quests and dialogue:
+  Preserve original conditions, topic ordering/selection, speaker constraints,
+  voice/subtitle resolution, greetings, goodbyes, topic follow-ups, skill checks,
+  barter/repair/training services where present, result fragments, objectives,
+  quest stages, start/stop/reset behavior, failure and completion distinctions.
+  A SetStage-style operation may trigger scripts and side effects; it is not
+  just changing a number. Save all state required to resume after interruption.
+  Preserve karma/reputation/faction/disguise/crime interactions. NPC death,
+  hostility, stolen ownership and companion state can alter dialogue and quests.
+
+AI:
+  Implement authored packages and conditions rather than replacing them with a
+  generic behavior tree that looks plausible. Include schedules, wander,
+  travel, follow/escort, use/eat/sleep, dialogue, sandbox behavior as applicable,
+  combat overrides, perception, investigation, hostility, fleeing and return.
+  Use source navigation triangles/links/doors where possible. Build coarse
+  cell/portal routing plus A* on the local nav graph; use admissible heuristics
+  for the chosen costs. Funnel smoothing is appropriate for valid polygon
+  corridors but must preserve jump/door/special links. Dynamic obstacles and
+  local avoidance must not push actors through collision or block scripted
+  destinations. Background simulation needs explicit reduced-detail semantics.
+
+Animation and physics:
+  Import actual skeletons and clips; support first/third-person variants,
+  creature rigs, keyframe interpolation, bone masks, sequence transitions,
+  root motion when authored, animation events, equipment attachments, face/
+  lip movement, furniture interactions, hit reactions and ragdolls.
+  Learn transition/event semantics from references and measurement. Do not fire
+  weapon damage just because an animation started; match relevant event timing.
+  A single shared humanoid walk loop is not enemy/animation parity.
+  Rapier is a candidate backend, not a Havok behavioral clone. Test collision
+  shape conversion, character step/slope behavior, contact/material response,
+  mass/inertia, joints, projectiles, explosions, dropped objects and ragdolls.
+  Keep body-part hit tests and dismemberment tied to authoritative combat state.
+
+Combat:
+  Implement weapon classes, attack/reload/jam/aim/scope states, ammo variants,
+  spread/recoil, projectile/hitscan behavior as authored, thrown weapons,
+  melee/unarmed, explosives, mines/traps, criticals, armor/DT/DR, limb damage,
+  condition degradation/repair, damage types, resistances, perks and effects.
+  Derive exact formulas/order from pinned evidence. Make formula tests cover
+  thresholds, rounding, clamping, difficulty, zero/negative inputs and stacking.
+  VATS includes target/body-part selection, displayed probabilities, AP cost,
+  queued attacks, camera/time behavior, actual resolution, interruptions and
+  return to real-time combat. A slowed camera overlay is not VATS parity.
+
+UI and input:
+  Implement original XML/tile tree semantics, includes/templates, traits,
+  expression operators/dependencies, fonts, localization, textures, clipping,
+  visibility, input focus, controller navigation and hardcoded menu bindings.
+  Use a dependency graph for trait invalidation; handle cycles according to
+  observed behavior with diagnostic limits. Do not assume one topological pass
+  solves every authored UI graph. Native debug egui/Bevy UI may coexist, but it
+  must not substitute for the player's original Pip-Boy/menu feature set.
+  Include HUD, compass, dialogue, inventory, barter, container, repair, stats,
+  skills/perks, quests/map, radio, terminals, lockpicking, hacking, crafting,
+  wait/sleep, character generation, pause/options, saving/loading and death.
+  Keyboard/mouse and controller are first-class. Test focus recovery, rebinding,
+  analog deadzones, device disconnect/reconnect, prompts, held-button leakage,
+  menu pause effects and input timing. No controller-only feature gaps.
+
+Audio and presentation:
+  Resolve original voice/audio paths and localization. Implement spatial audio,
+  attenuation, dialogue priority, music/radio scheduling, ambience, transitions,
+  subtitles and lip timing. Inventory and camera states drive Pip-Boy animations.
+  Audit codec/middleware requirements; no assumed redistribution of closed SDKs.
+  Include opening/ending movies or slide sequences with supported local media.
+
+World systems and minigames:
+  Ownership/crime, locks/keys, terminals, traps, destruction where authored,
+  furniture, sleep/wait, fast travel restrictions, map discovery, weather/time,
+  encounter/respawn rules, merchants/restocking, repair/crafting/recipes, companion
+  wheel and quests, caravan, casino games, challenges and achievements' in-game
+  conditions. Platform achievement-service integration is a separate adapter.
+
+9. PERSISTENCE IS AN EARLY DEPENDENCY, NOT A FINAL FEATURE
+
+Build engine-native saving in the first playable slice. Snapshot authoritative
+state at a defined boundary, then serialize off-thread. Use versioned chunks,
+integrity checks, atomic replacement appropriate to the OS/filesystem, previous
+slot recovery, and migration tests. Do not call a successful write durable until
+the intended persistence guarantees are met and documented.
+
+Persist campaign/content fingerprints, player creation/progression, reference
+deltas, inventory instances, equipped state, actor values/effects, death/disable
+flags, quest stages/objectives/locals, script locals and pending work, globals,
+factions/reputation, timers/clocks, RNG state where owned, companions, discoveries,
+respawn/merchant state and dynamic object IDs. Do not persist raw pointers or
+render-ECS indices. Rehydrate from immutable content plus deltas in a defined
+order; restore links before emitting callbacks that may observe them.
+
+Test quicksave/load, cold process restart, cell unload/reload, save inside a
+dialogue or combat state if retail permits it, mod/load-order changes, missing
+masters, truncated saves, interrupted writes, migrations and backup recovery.
+Never silently drop unsupported state on load.
+
+Retail .fos import/export is its own compatibility track with explicit milestones.
+Reliable engine-native saves do not prove retail-save compatibility. Inspect
+actual save-format references and construct fixtures before claiming import.
+Export to a format accepted by the retail engine requires independent round-trip
+proof; it must not overwrite original saves by default. Native NVSE cosaves and
+third-party DLL state are separate formats and contracts.
+
+10. FIRST PLAYABLE SLICE — PRECISE ACCEPTANCE
+
+Milestone target: a normal, source-driven Goodsprings route, not a debug console
+teleport that manually sets quest stages.
+
+Start a new game through the supported original opening/character-creation path.
+For early development an explicitly labeled direct-cell harness is allowed, but
+it cannot satisfy new-game acceptance. Resolve actual quest/record IDs from the
+installed data; this document does not guess them.
+
+Exercise Doc Mitchell's character creation, real inventory/equipment, house exit,
+Goodsprings traversal, Sunny Smiles dialogue/tutorial as applicable, a live enemy
+encounter, looting, a skill or dialogue condition, and a branching town quest such
+as Ghost Town Gunfight/Run Goodsprings Run. Maintain separate saves for mutually
+exclusive branches. Expand toward those routes as dependencies become ready.
+
+Required checkpoints:
+  - original forms and compiled scripts drive the flow;
+  - appropriate voiced dialogue and UI options appear;
+  - animation, collision, damage/ammo/AP and item ownership are correct;
+  - quest and faction consequences match the baseline;
+  - interior/exterior transitions work for player and companions where relevant;
+  - save, exit the application, restart and Continue preserve the consequences;
+  - both keyboard/mouse and controller can complete the route;
+  - unsupported-command/condition counts are zero for accepted paths;
+  - a retail-versus-replacement trace/report records what was actually compared.
+
+A shortcut that manufactures the expected final state fails even if screenshots
+look correct. No hardcoded Goodsprings exceptions as the general quest runtime.
+If an authentic content-specific compatibility fix is necessary, isolate it,
+explain the retail evidence, and add a regression test.
+
+11. ROADMAP WITH EXIT GATES
+
+M0 — Baseline and source audit.
+  Exit: pinned evidence, buildable Rust/headless targets, actual data availability,
+  runtime decision, license inventory, known-risk ledger.
+
+M1 — Content loading and census.
+  Exit: production BSA/ESM resolution and independent record/asset verification;
+  malformed input tests; full installed corpus enumerated without silent loss.
+
+M2 — World and actor representation.
+  Exit: real interior/exterior, static collision, visible correct actors/equipment,
+  streaming and input foundation; animation gaps clearly tracked.
+
+M3 — ObScript and conditions.
+  Exit: source-less bytecode works, native command registry, event/lifetime tests,
+  full first-slice command coverage; complete remaining-command inventory.
+
+M4 — Playable source-driven slice.
+  Exit: section 10's route including early native saves, dialogue, quest branching,
+  combat/loot, authored animation and both input methods.
+
+M5 — General FNV systems.
+  Exit: every section 8 subsystem has implementation and representative original-
+  game comparisons; no permanent “temporary” generic stand-ins.
+
+M6 — Main campaign and side content.
+  Exit: NCR, Legion, Mr. House and Yes Man campaign routes reach their appropriate
+  ending behavior; intended quest failures/alternatives and major companion,
+  faction and side-quest dependencies are represented in the coverage ledger.
+  Test long-session saves and revisiting earlier locations after major decisions.
+
+M7 — Full official DLC/content pass.
+  Exit: each named DLC/content pack has an independent matrix; campaign DLC start,
+  progression, special mechanics, equipment, world transitions and ending/re-entry
+  behavior match its own retail baseline. Test base-game integration afterward.
+  Dead Money's special hazards and equipment restrictions, Honest Hearts' routes,
+  Old World Blues' player-state changes, and Lonesome Road's scripted set pieces
+  are examples of targeted risk areas, not a substitute for complete enumeration.
+
+M8 — Compatibility and release hardening.
+  Exit: reliable packaging, clean-machine setup, configurable inputs, supported
+  locales/resolutions, accessibility settings inherited from the supported profile,
+  performance and endurance gates; published known gaps and traceable test results.
+  Data-mod compatibility, extender APIs, native binary mods and retail saves each
+  report their own status rather than being folded into one completion percentage.
+
+M9 — Fallout 3 adapter, then M10 Fallout 4, M11 Fallout 76 research/runtime,
+M12 optional cross-world travel and selected Starfield features.
+
+These are dependency gates, not a waterfall that delays saving/animation until
+the end. Deliver complete smaller paths within each gate. Never mark later
+milestones complete because crate names or traits exist.
+
+12. PARITY LEDGER, ORACLE HARNESS, AND FAILURE POLICY
+
+Create a machine-readable parity ledger with entries like:
+
+  id: fnv.script.<resolved-command-or-case>
+  game_profile: <pinned manifest hash>
+  subsystem: scripting
+  requirement: <observable behavior>
+  evidence: <source URL + SHA + path, or retail capture identifier>
+  affected_content: <locally resolved FormKeys>
+  status: unknown | decoded | implemented | unit-tested | oracle-tested | accepted
+  tests: <real runnable identifiers>
+  known_gaps: <explicit list>
+  tolerance: <exact or measured rule>
+  last_verified_revision: <actual engine commit>
+
+Define statuses in code and tooling; a README claim cannot directly set accepted.
+Aggregate by subsystem and content route. Show denominators, unknowns and blocked
+tests. Distinguish unique functions from observed calls, records from semantic
+fields, and parsed clips from supported transitions. Do not quote one misleading
+“99% complete” metric.
+
+Oracle strategy:
+  1. Minimal synthetic plugins/scripts authored for single semantics.
+  2. Execute on the pinned retail game with an isolated test profile.
+  3. Capture inputs, relevant state, event ordering, screenshots/audio/timing.
+  4. Run the same semantic scenario through the replacement.
+  5. Compare normalized state and bounded presentation metrics.
+
+An optional retail instrumentation helper may use xNVSE structures/hooks to
+observe behavior. Keep it separate from replacement runtime. Record whether
+instrumentation changes timing. Never confuse a call into retail code with an
+implemented replacement native. If native tooling needs non-Rust glue, disclose
+that limited research-tool exception rather than moving gameplay to C++.
+
+Add metamorphic tests: save/load preserves observable state; different render FPS
+does not change simulation outcomes outside documented retail quirks; load-order
+rebasing preserves content identity; unloading/reloading preserves persistent
+objects; cache rebuild yields identical resolved content; retrying interrupted
+asset jobs does not double-spawn actors. Add property tests/fuzzing for parsers,
+references, saves and bytecode verification. Test cycles, missing dependencies,
+invalid sizes and NaN/overflow inputs where relevant.
+
+For quest verification build a dependency graph from records, conditions and
+script references. Use static extraction to identify candidate dependencies, but
+account for dynamic script behavior through traces. Generate branch checklists
+and state setup fixtures. Do not equate static graph reachability with actual
+playthrough completion. Use interaction coverage for risky pairs such as companion
+death + quest dialogue, crime + disguise, fast travel + timed script, and
+save/load + pending event. Test all intended campaign ending families and DLC
+routes; enumerate the remaining untested combinations.
+
+Test hierarchy:
+  - Unit: parsing/math/conditions/VM instructions with independently derived data.
+  - Integration: actual pipeline from content to authoritative state and saves.
+  - Differential: compare retail/reference tool versus implementation.
+  - End-to-end: normal player flow, no hidden stage-setting shortcuts.
+  - Performance/endurance: release builds, fixed hardware/settings, warm/cold cache.
+
+CI without retail data runs synthetic fixtures. Private/local CI with owned data
+runs corpus and gameplay checks. Missing data means SKIPPED/BLOCKED, never PASS.
+Do not upload assets/saves containing retail material into public test artifacts.
+Publish original fixtures, tool versions, hashes, and non-content metrics as suitable.
+
+13. PERFORMANCE AND RUST ENGINEERING PRACTICES
+
+Set a declared initial target such as 60 FPS at 1080p on a documented reference PC,
+then measure CPU/GPU frame time, p95/p99, streaming stalls, memory/VRAM, script cost,
+navigation latency and save latency. This is a target, not a guarantee. A render
+benchmark with AI disabled cannot represent gameplay performance.
+
+Separate fixed simulation stepping from interpolated rendering, while modeling
+retail time-sensitive behavior explicitly. Start with a documented simulation
+step and validate against retail; do not assume 60 Hz itself guarantees fidelity.
+Bound catch-up work and report overruns. Do not discard time, quest ticks or
+critical events invisibly. Parallel worker jobs must never nondeterministically
+change gameplay decisions.
+
+Use stable ID ordering where replay depends on iteration order. Own RNG state and
+separate streams as justified; exact retail random sequences are a research target,
+not an assumed property of a new PRNG. Use statistical/distribution checks for
+uncontrolled random outcomes and exact tests where seeds/state can be controlled.
+
+Algorithms and data structures should follow measured needs:
+  - hash/indexed immutable record lookup with stable persistent keys;
+  - dependency DAGs and cycle detection for plugin/asset prerequisites;
+  - spatial broadphase/BVH or grids for queries; use backend facilities first;
+  - navmesh A*, portal routing and funnel paths where appropriate;
+  - bounded asynchronous IO/decompression and cache eviction with pinning;
+  - snapshot plus sparse deltas for state, not copying the whole immutable world;
+  - event-driven invalidation for UI/content state, plus required periodic scripts;
+  - SIMD/batching only after correctness and profiling justify complexity.
+
+Avoid premature distributed systems, microservices, GPU path tracing, a new shader
+language, or an editor as prerequisites. Do not replace authored logic with LLM-
+generated dialogue or probabilistic AI in faithful mode.
+
+Rust standards: typed errors and domain newtypes; checked binary reads; explicit
+ownership; safe Rust by default; isolate and document unsafe blocks; no panics on
+ordinary bad user input; bounded allocations; structured tracing; cancellation;
+resource cleanup; narrow public APIs. Do not create generic abstraction layers
+without at least one working consumer and a clear cross-game need.
+
+Use formatting/lints, reproducible release builds and meaningful tests. Evaluate
+Miri for unsafe-sensitive units, fuzzing for byte decoders, property tests for
+identity/state, and profilers for demonstrated bottlenecks. Third-party crate
+choices are implementation decisions to verify against current docs, not licenses
+to invent APIs. Pin dependencies and maintain third-party notices.
+
+14. MOD COMPATIBILITY WITHOUT FALSE PROMISES
+
+Layer A: original archives, assets and vanilla plugins.
+Layer B: ordinary data/quest/asset mods using implemented vanilla semantics.
+Layer C: xNVSE script functions, arrays/strings, user functions and event APIs.
+Layer D: selected JIP/JohnnyGuitar/animation/UI extension APIs.
+Layer E: native DLL plugins that patch the original executable or depend on its ABI.
+
+Layer E cannot be made compatible merely by sharing command names. Original
+32-bit addresses, layouts, hooks and machine code are not a 64-bit Rust API. Plan
+source ports or semantic adapters; any binary-emulation route is a separate major
+project. Never advertise universal NVSE DLL compatibility. A Rust extension API
+should be versioned and capability-scoped; it does not automatically run old DLLs.
+
+TTW is an explicit compatibility target with its own conversion and extension
+dependencies. Audit its corpus early; gate playable compatibility on the required
+NV functionality. Sections 27–34 specify the work. Do not use TTW compatibility to
+claim that independently faithful Fallout 3 support is finished. Never bundle
+another project's installers or data without establishing distribution permission.
+
+15. MULTI-GAME ROADMAP
+
+FALLOUT 3:
+  Reuse proven NV formats and runtime foundations where compatible; preserve
+  game-specific record versions, native commands, rules, UI, animations and
+  progression. Do not automatically impose NV's reputation, traits, DT or crafting
+  rules on FO3. Create a separate original-game baseline and save namespace.
+  Validate Vault 101 opening and character creation, then a Megaton route, then
+  the full main/side content and all official DLC: Operation: Anchorage, The Pitt,
+  Broken Steel, Point Lookout and Mothership Zeta. Test Broken Steel's consequences
+  for ending/continuation behavior. Cross-game reuse must pass NV regression gates.
+
+FALLOUT 4:
+  Add proper BA2/NIF/material variants, Papyrus PEX VM semantics and native API,
+  aliases/scenes/events/latent calls, animation/behavior formats, precombined
+  geometry and visibility data as applicable, and its menu runtime. A PEX parser
+  or decompiler is not a VM; a VM is not the entire native engine API.
+  Validate voiced protagonist/dialogue scenes, companions/affinity, VATS differences,
+  power armor, weapon/armor modifications, junk/components, workshops/settlements,
+  electricity/assignment/resources, crafting, survival options, radiants, combat,
+  weather, quests and persistent settlements. Compare exact target build/content.
+  First slice: supported new-game opening through an early exploration/combat/quest
+  route with a settlement interaction and cold Continue. Then campaign branches
+  and official DLC including Automatron, Far Harbor, Nuka-World and workshop packs.
+  Creation Club/Creations content belongs in a separately enumerated optional corpus.
+
+FALLOUT 76:
+  First deliver a client-data inventory and a service-dependency map. Identify which
+  world, quest, script, AI, event, inventory, progression and persistence behavior
+  is available locally and which behavior relies on services. Pin a specific game
+  build and content season/update; “all ever released content” is an evolving scope.
+  Separate two deliverables: faithful local asset/world interpretation, and a
+  standalone gameplay/service recreation. Neither automatically proves the other.
+  Build a local authoritative service boundary if evidence supports it; define
+  persistence, event schedules, instancing, replication/authority, economies and
+  solo behavior explicitly. Do not guess server outcomes from UI text.
+  Do not connect an unofficial runtime to production Bethesda services or modify
+  the user's live account as a development shortcut. Do not assume private worlds
+  are an offline server distribution. If required behavior is unavailable, preserve
+  a documented unknown rather than claiming parity. No reliable date for full 76
+  parity should be given before this investigation.
+
+STARFIELD:
+  Keep selected feature goals explicit: e.g. optional boost movement, scanning,
+  resource surveying, outpost mechanics, or ship-related systems if later requested.
+  Implement them as optional modes after specifying their desired behavior; they
+  are not required to run original NV content. Full Starfield compatibility would
+  need its own data, scripting, animation, world/planet, spaceflight, UI and save
+  work and separate acceptance corpus. CommonLibSF/SFSE and format tools are
+  references, not the Starfield engine source.
+
+CROSS-WORLD TRAVEL:
+  Stage 1: one launcher/runtime hosts separate faithful campaigns and saves.
+  Stage 2: optional travel between worlds with a shared meta-profile and explicit
+  transfer rules. Preserve original campaign state independently and namespace
+  every form/object/quest by game/content pack. Define item/stat/perk conversions,
+  ammunition, companions, time, death/respawn and return-trip semantics.
+  Use a durable transfer transaction: record outgoing snapshot and transfer intent,
+  validate destination compatibility, commit destination state, mark completion,
+  recover idempotently after crashes. Never duplicate or lose inventory on retry.
+  A crossover campaign is intentionally different from the originals. Keep it
+  separate from faithful campaign acceptance and save profiles.
+
+CLASSIC FALLOUT OPTIONAL:
+  Fallout 1/2 are not Bethesda Gamebryo games. Their community editions are useful
+  engine-reimplementation references, but require separate formats/rules/rendering
+  adapters if the user expands scope. Do not silently add a 3D remake of them.
+
+16. REQUIRED HANDOFF ARTIFACTS IN THE IMPLEMENTATION REPOSITORY
+
+Maintain:
+  README with exact build/run/setup and honestly supported scenarios.
+  sources.lock.json and third-party notices with inspected/pinned sources.
+  docs/baseline.md, architecture decisions, format/runtime contracts.
+  parity/requirements.json or equivalent machine-readable ledger.
+  parity/commands.json and conditions registry with evidence links.
+  parity/content-coverage.json generated from local corpus and tests.
+  tests/fixtures containing only distributable original/synthetic inputs.
+  tools for local census, state traces, comparisons and unsupported-feature reports.
+  reports with actual commands, environment, results and blocked checks.
+  NEXT_STEPS.md naming the next unmet dependency gate and reproducible failure.
+
+Report progress as: what now works, how it was verified, what remains unverified,
+and the next concrete blocked behavior. Never use lines of code, file count,
+README checkboxes or test count as proxies for parity. Avoid promising completion
+within one prompt or a fixed number of agent sessions.
+
+If a session ends, leave a runnable checkpoint and an exact resumption task. Do
+not mark remaining work done, remove scope, generate placeholder implementations,
+or end with only an abstract offer to continue. If assets/hardware are missing,
+finish independent work and state exactly which checks need the user's environment.
+
+17. MODERN CORE FROM DAY ONE — WHAT “MOST UPDATED ENGINE” MEANS
+
+Build an independent modern Rust runtime. Do not describe it as Creation Engine 2
+source or a complete port of Starfield's engine. CommonLibSF supplies useful type
+information and wrappers, not the implementation of every referenced function.
+The core should accommodate contemporary features without forcing older games
+to use newer rules. NV-first is an order of behavioral validation, not a limit on
+64-bit addressing, threading, rendering, input, persistence or future formats.
+
+Use two coordinated work streams in the milestone plan (not a requirement to use
+multiple agents): the primary NV compatibility path and a bounded cross-generation
+architecture probe. The probe loads a small, real FO4 asset/record and a small,
+real Starfield asset/record through format-specific adapters. It proves that the
+core representation can preserve newer data without making complete FO4/Starfield
+gameplay a prerequisite for finishing NV. Probe results must be labeled inspection
+or rendering, never campaign support. Missing local FO4/Starfield data blocks only
+those probes, not independent NV progress.
+
+Modern-core requirements and acceptance:
+
+MCORE-01 64-bit process and stable identity. No 32-bit pointer assumptions. Original
+record IDs retain their exact bit patterns in their source namespace; do not cast
+them into pointers or approximate floating point values. Assert all decoded sizes.
+
+MCORE-02 Renderer capability negotiation. Define a baseline raster renderer with
+portable feature requirements and optional advanced tiers. Request only supported
+GPU features, expose a clear fallback, and test low/high quality with the same
+gameplay. Ray tracing, mesh shaders, HDR output, upscaling and frame generation are
+optional separate capabilities. Do not promise them merely because an API name
+exists. Validate the pinned renderer/backend before writing integration code.
+
+MCORE-03 Material models are explicit. Preserve legacy shading alongside FO4
+BGSM/BGEM and Starfield material data. A common material interface may expose
+multiple shader families; it need not squeeze every game into one PBR equation.
+Texture color space, channel meaning, normal convention, alpha mode, UV transforms,
+two-sidedness and vertex-color use must be explicit. Modern lighting is an optional
+appearance profile; faithful appearance remains testable.
+
+MCORE-04 Asynchronous resource scheduling. Separate IO, decompression, CPU decode,
+GPU upload and readiness. Batch uploads using staging buffers/fences; never access
+resources before completion. Each job carries content/version/cell-generation
+identity. Bound queue depth and working memory; cancellation must release pins.
+
+MCORE-05 Scalable world coordinates. Use a WorldAddress describing game namespace,
+world/space identity, cell/region and local pose. Star-system and ship-local frames
+are additional frame types, not one enormous unstructured f32 map. Preserve source
+precision/units; f64 or integer-region-plus-local coordinates can be used where
+measurements justify it. Convert to render-local f32 at a clear boundary. Avoid
+adding astronomical magnitudes to local character positions every frame.
+
+MCORE-06 Temporal correctness. Render FPS, simulation time, paused menu time,
+animation playback time, physics substeps and wall clock are separate concepts.
+Slow motion must affect the right subsystems. Support source-specific clocks and
+time scaling; do not impose a universal global delta on every script and audio cue.
+
+MCORE-07 Safe persistence and versioning. A save contains game profile, content
+fingerprints, engine schema version and required capabilities. A new renderer
+version should not invalidate quest state. Content cache schemas and save schemas
+have independent version numbers and explicit migrations.
+
+MCORE-08 Multi-core execution with reproducible effects. Parallelize asset work,
+independent visibility and appropriate AI planning. Treat world mutations as
+transactions/commands with explicit ordering constraints. Do not reorder original
+script side effects merely to maximize thread count. Capture scheduling choices
+needed to reproduce observed bugs.
+
+MCORE-09 Input and accessibility. Controller, mouse and keyboard use action/context
+bindings with ownership of focus and pause state. Input latency measurements count
+actual simulation response; generated render frames do not count as simulation
+updates. New remapping/accessibility options must not erase original menu actions.
+
+MCORE-10 Long-term maintainability. Keep engine services, content dialects, behavior
+profiles and extensions independently versioned. Modernity means measured and
+maintainable architecture, not selecting every newest unstable dependency.
+
+18. FOUR DISTINCT COMPATIBILITY SURFACES PER GAME
+
+For each game keep four registries, with separate coverage numbers:
+  FormatDialect: archive/plugin/mesh/material/animation/save encodings.
+  ScriptDialect: language bytecode, data types, scheduler and native-call contract.
+  BehaviorProfile: actor rules, AI, quests, combat, crafting and world semantics.
+  PresentationProfile: menus, cameras, audio, authored visual/animation behavior.
+
+These are proposed architecture names, not Bethesda API names. Design actual Rust
+interfaces around verified consumers. Do not generate all four as empty traits and
+claim multi-game support. A game adapter is available only when real tests exercise
+its production paths.
+
+Suggested data flow:
+  User installation -> read-only VFS -> game-specific decode -> immutable content
+  and preserved source metadata -> profile-aware simulation -> presentation.
+Runtime deltas and script instances sit beside immutable definitions; they do not
+modify decoded base records in place. Optional converted render caches preserve
+source links and are rebuildable.
+
+Create a capabilities manifest describing exactly which record families, field
+semantics, script operations, animation nodes, menus and save-state categories are
+supported. Keep unsupported-but-preserved data separate from implemented data.
+Do not allow a loader for an unknown version to silently use the nearest old layout.
+
+19. PAPYRUS IN RUST — FALLOUT 4, FALLOUT 76 AND STARFIELD
+
+This is separate from the NV/FO3 ObScript implementation. Shared utilities may
+include typed form identities, tracing and persistence primitives. Do not mix opcode
+number spaces or assume matching instruction layouts across Papyrus generations.
+
+Phase P0: Corpus and dialect identification.
+Enumerate local PEX files, metadata versions/game identifiers, string tables,
+objects/classes, inheritance, states, properties, variables, functions, instructions
+and native declarations. Cross-check against Champollion, Caprica and source scripts
+provided by the installed tools where legitimately available. Preserve byte offsets,
+debug information and exact source hashes. Never require proprietary script sources
+to be checked into the repository.
+
+Phase P1: Verified decoding and linking.
+Validate operand counts/types, instruction bounds, branch targets, class/property/
+function references, inheritance and imports. Handle cyclic object graphs safely;
+reject malformed data with source context. Keep a raw representation plus validated
+executable form. Decompilation is a debugging aid, not the runtime's authoritative
+execution format. Source -> compiler -> PEX -> decompiler -> source round-trips can
+expose defects but do not alone prove semantic equivalence.
+
+Phase P2: Values and dispatch.
+Represent actual per-dialect primitive/reference/array/structure types where
+supported, including null/None, casts, property getters/setters, inheritance, state-
+specific methods, method resolution and default values. A newer dialect's types
+must not be accepted in an older profile without evidence. Derive numeric widths,
+overflow, string behavior and array mutation semantics with compiler/runtime tests.
+Keep engine object handles distinct from VM object instance IDs and array IDs.
+
+Phase P3: Continuations and scheduling.
+Implement stacks, frames, locals, argument binding, event dispatch, suspended calls,
+latent returns, timer registration, cancellation and object unbinding. Model an
+engine call as a typed outcome such as completed, suspended with a token, or failed;
+these are proposed Rust outcomes, not guessed native ABI constants. A sleeping
+script must resume with its state intact, not restart its function. A budget-exceeded
+script stays pending according to the supported scheduling semantics; it is not
+deleted. Study per-object ordering/locking and observed concurrency rather than
+assuming a single FIFO queue perfectly matches retail.
+
+Phase P4: Native API host.
+Maintain a versioned registry for each script class/function signature, defaults,
+caller restrictions, result type, side effects, latent behavior, event emissions and
+test evidence. Separate a Papyrus native from a C++ engine method and from an F4SE/
+SFSE extension. A native stub returning zero is not a supported API. Generate
+coverage from actual referenced natives in the local corpus and from live traces.
+Implement by dependency priority while keeping the complete remaining list visible.
+
+Phase P5: Game systems connected to the VM.
+Bind real actor/object state, quest aliases, scenes, packages, dialogue, location,
+inventory, workshops, audio, animation requests and input. Use original script
+logic and authored records. Quest alias filling must implement conditions and
+selection rules; it is not a preselected list of named NPCs. Story/radiant events
+need their actual dispatch and matching semantics. Block a scenario when an
+unsupported binding affects its result.
+
+Phase P6: Serialization and reload.
+Save object instances, properties, arrays/structures, active/suspended stacks,
+event registrations, timers, latent tokens and object links. Define safe snapshot
+boundaries and how waiting engine operations are restored without duplicate effects.
+Resolve links before callbacks. Test a latent movement/animation/timer operation
+across save/load, object unload and process restart. Do not serialize OS threads,
+raw pointers, or compiler-specific Rust layouts.
+
+Phase P7: Compatibility sweep.
+Run generated semantic microtests and representative authored scripts against each
+retail game profile. Report parse coverage, instruction coverage, native binding
+coverage and end-to-end outcomes separately. A mature Skyrim PEX VM can inform the
+design but cannot certify FO4 or Starfield behavior.
+
+Source reading targets:
+  libxse/commonlibf4 include/RE/B/BSScript_IVirtualMachine.h and
+  include/RE/B/BSScript_Internal_VirtualMachine.h;
+  libxse/commonlibsf include/RE/I/IVirtualMachine.h and
+  include/RE/V/VirtualMachine.h;
+  Orvid/Caprica compiler/game options and PEX code;
+  Orvid/Champollion PEX readers;
+  skyrim-multiplayer/papyrus-vm and the active VM path inside skymp.
+Verify every path/revision. Headers describe interfaces/state; abstract methods and
+relocated calls still require independent implementation in our standalone runtime.
+
+20. FALLOUT 4 — DETAILED IMPLEMENTATION AND ACCEPTANCE
+
+FO4-A Baseline and records.
+Pin exact executable/content versions, including updates and DLC. Detect record
+and archive versions independently; never select an entire parsing dialect from a
+marketing label such as next-gen. Extend identity resolution for supported plugin
+indexing schemes and test against xEdit. Decode VMAD script attachments/properties,
+quest/scene/alias data, packages, items, modifications, recipes and workshop records
+as documented by the exact schema. In-memory CommonLib layouts are not on-disk
+ESM layouts; keep those definitions in different modules.
+
+FO4-B Materials and geometry.
+Implement BA2 generic/texture handling, required NIF structures, BGSM/BGEM material
+versions, skinning/partitions, material swaps, decals and relevant shader features.
+Use Material-Editor, nifly/PyNifly, NifSkope and fo76utils for independent inspection.
+Build fixtures for opacity, normals, emissive, wetness and layered/custom cases
+actually found in the corpus. Rendering a diffuse texture on every object does
+not satisfy material fidelity.
+
+FO4-C Precombined geometry and visibility.
+Audit precombined mesh membership and relevant authored visibility data. Decide
+whether to consume supported original data or generate our own render clusters.
+Either route must retain each reference's identity, enable/disable state, material
+override and collision/activation role. Keep a mapping from cluster ranges to
+source references. An object disabled by a quest cannot remain visibly welded into
+a cached combined mesh. Invalidated regions must rebuild or fall back locally;
+do not solve one changed reference by permanently disabling all batching.
+Conservative visibility fallback must avoid hiding visible content. Replacing
+original visibility algorithms is acceptable only when scene correctness is kept
+and performance is measured. Never use stale visibility data from another load order.
+
+FO4-D Animation/behavior.
+Treat skeletons, compressed clips, character/project bindings, behavior graphs,
+ragdoll mapping and physics as distinct data. Enumerate actual Havok layouts and
+node classes from owned files. Implement supported readers plus a runtime for
+required state machines, blends, generators, modifiers, conditions, bindings,
+annotations and event ordering. A graph editor is not a behavior evaluator; a pose
+preview is not locomotion/combat integration. Use BGS, hkxpack, PyNifly and F4 OAR
+to understand structures, with their limitations and provenance retained.
+Test humanoids, creatures, power-armor variants, first-person weapon rigs, paired
+interactions and interrupted transitions. Clip duration, additive reference pose,
+root movement and event markers must survive conversion. Do not flatten graph
+semantics into one clip-name-to-animation lookup table.
+
+FO4-E Power armor and modular equipment.
+Represent the frame, attached pieces, piece condition, actor attachment, entry/
+exit sequence, power use, UI and movement effects as connected state. Test entering,
+exiting, losing a piece, damage, depleted power, save during supported transitions,
+NPC use and ownership. Modular weapons need attachment slots, compatibility rules,
+instance data, effective stats, meshes, animations and resource consumption. A
+workbench option is unavailable if its prerequisites are not actually satisfied.
+
+FO4-F Workshop settlements.
+Create transactional placement validation: recipe/perks/material availability,
+build boundary, collision/support/snap requirements, preview, commit, cancellation
+and refunds/scrapping. Match baseline consumption order and ownership. Placement
+preview must never consume materials or alter the world before commit.
+Model power nodes/links/components explicitly. A simple connected-component traversal
+can serve initial graph recomputation; splits/deletions need recomputation or a
+correct dynamic-connectivity strategy. Union-find alone cannot handle arbitrary
+edge deletions. Power availability and radius distribution must follow observed
+game rules, not general electrical circuit assumptions.
+Preserve object assignments, beds/resources, settlers, population, production,
+supply links, attacks, happiness and timers as applicable. Schedule background
+updates using game-time semantics and reconstruct them after unloaded periods.
+Do not invent production formulas. Separate placement/native behavior from the
+original Papyrus workshop scripts so both participate in execution.
+Test build -> assign -> connect power -> leave -> wait -> return -> save -> restart
+-> inspect, including removal of a power link and a moved/scrapped assigned object.
+
+FO4-G Dialogue, quests and actors.
+Implement scene phases/actions, voiced protagonist choices, interruption/re-entry,
+camera changes, alias lifecycles, story events and companion affinity. Test ordinary
+dialogue and combat interruption. Quests must resume after the player leaves and
+returns. Radius triggers, actor packages and script ownership cannot be replaced
+with stage-name-specific timers. Support faction consequences, settlement/radiant
+content and companion-specific reactions through original data.
+
+FO4-H UI, audio and progression.
+Audit the actual menu/movie formats and native data-binding protocol per movie.
+Evaluate Ruffle against real files rather than assuming all Scaleform extensions
+work. Provide required native host callbacks and game-to-menu state updates.
+Data-only conversion to generic widgets is not equivalent to original menu logic.
+Preserve Pip-Boy, perk chart, crafting, workshop, VATS, dialogue, maps, radio,
+container transfer and settings functionality on both input methods. Include
+survival-mode-specific save/travel rules and progression distinctions in profiles.
+
+FO4 exit sequence:
+  F4-0: corpus/format audit and material gallery.
+  F4-1: one interior and exterior with actor animation/collision.
+  F4-2: Papyrus native calls, aliases and a real branching dialogue/quest.
+  F4-3: combat, looting, modifications and power armor, with cold Continue.
+  F4-4: settlement placement/power/assignment loop survives unload and restart.
+  F4-5: supported new-game opening, main faction routes, companions and side content.
+  F4-6: each DLC/workshop pack independently tested, then integrated.
+  F4-7: performance/endurance, data mods, optional extender APIs and release gates.
+Use original-form discovery for route selection; do not guess FormIDs in this brief.
+
+21. STARFIELD — FORMATS AND ENGINE-SERVICE RESEARCH
+
+Treat Starfield support in three levels:
+  SF-I: inspect/import/render verified content and preserve its semantic metadata.
+  SF-F: optional selected mechanics adapted into a Fallout expanded profile.
+  SF-C: complete Starfield campaign compatibility, a separately accepted future scope.
+Delivering SF-I must not be advertised as SF-C. The current request justifies detailed
+research and planning for all three, but NV completion must not be blocked by SF-C.
+
+SF-A Records, archives and materials.
+Inspect the installed version's ESM/plugin indexing and BA2 variants. Use updated
+xEdit definitions and independently tested Rust archive readers. NIF references may
+lead to external geometry and material resources; follow the full graph rather than
+treating every NIF as a self-contained mesh. Preserve origin and fallback decisions.
+Investigate BSGeometry, .mesh, material .mat references and compiled component-
+database data using Starfield Geometry Bridge, the Starfield Blender extension,
+fo76utils/NifSkope and Gibbed's component-database code. Implement actual versioned
+formats; do not infer structures solely from a file extension.
+Material resolution needs identity, inheritance/components, overrides and texture
+roles. Use cycle detection and memoization for a dependency graph once those
+relationships are verified. A missing required parent/component must be a clear
+unsupported state, not a generic gray material counted as success. Keep authored
+material data separate from an evaluated shader representation so later fixes do
+not require reparsing every archive. Test the measured precedence of local/modded
+materials versus database definitions.
+
+SF-B Geometry, morphs and collision.
+Enumerate vertex/index layouts, external mesh versions, LODs, skinning/morph data,
+bounds and collision references. Validate index bounds, quantization, transforms,
+normal/tangent interpretation and skeleton mappings. Use reference tools to compare
+bounding boxes, vertex counts, shape topology and selected rendered views. An
+exporter supporting a subset of assets is not a universal importer/runtime.
+If using meshlets, preserve a conventional indexed-draw fallback; meshlet generation
+and GPU mesh-shader support are different capabilities. Do not require hardware
+features that the selected Rust renderer cannot reliably expose.
+
+SF-C Animation graphs are not FO4 HKX behavior graphs.
+The inspected Starfield Behavior Editor documents .agx and an in-house behavior
+solution; CALUMI.Motion also targets .agx and lists additional rig/animation work
+separately. Build a Starfield graph importer and evaluate actual node semantics,
+state transitions, variables, events, conditions and bindings. Identify the local
+clip/rig/auxiliary formats independently; no assumption that a FO4 .hkx decoder
+solves the entire animation stack. Shared pose blending/math is reusable only after
+per-format interpretation is correct. Keep node coverage and transition/event
+coverage visible separately from file parsing.
+
+SF-D Planet surfaces and procedural content.
+Define addresses for stellar system, planet/body, orbital region, surface region,
+interior and ship-local frame as necessary. Use the original records and reproducible
+surface inputs where available. CommonLib planet/surface type declarations expose
+some structure but do not provide a complete procedural-generation algorithm.
+If exact generation behavior is not recovered, mark surface parity blocked; do
+not silently substitute a procedural terrain generator with similar biomes.
+Record seed inputs, generated-region identity, persistence, landing-site selection,
+resource/scanner data, weather/environment and revisit behavior. Source-authored
+locations and generated placements must retain distinct identities.
+
+SF-E Space and ship topology.
+Separate ship assembly, interior room/door topology, local reference frame, flight
+body, inventory/cargo, crew assignment and persistent ownership. A ship-builder
+prototype needs attachment/compatibility validation, bounds/collision, connectivity,
+placement transactions and regeneration of affected topology. A visually assembled
+ship with inaccessible habs is not complete.
+Flight needs independent verified handling, propulsion/power allocation, shields,
+weapons/targeting, docking, boarding, transitions and relevant AI. Handle a dock/board
+transition as a versioned world-state transaction so crew/cargo/player positions
+do not duplicate or disappear. Source behavior may use discrete transitions; do
+not claim seamless planet-to-space flight is required by or inherited from the game.
+
+SF-F Gameplay and UI if full support is pursued.
+Implement the Starfield Papyrus dialect/native APIs, scene/dialogue/quest systems,
+skills/challenges/research, companions/crew, boosts/gravity/environment, equipment,
+scanning/surveying, outposts/resources, ships and crime/factions. Inventory and menus
+must represent each system's authoritative data. Outposts are not automatically
+FO4 settlements with new meshes; share primitives but verify rules separately.
+Quest resets/NG+ or other campaign-wide state changes require a reset policy for
+persistent objects, player/meta progression and imported content. Enumerate exact
+reset/preserve behavior from the target build rather than guessing it.
+
+SF exit sequence:
+  SF-0: installation/build fingerprint and source/tool capability audit.
+  SF-1: real interior -> external geometry -> materials -> collision, with reports.
+  SF-2: actor rig/clip -> .agx behavior -> movement and interaction -> cold Continue.
+  SF-3: compiled script -> native host -> voiced dialogue -> real quest consequence.
+  SF-4: bounded surface, scanning, resource and outpost persistence tests.
+  SF-5: a ship interior/flight/dock/board/cargo/crew persistence route.
+  SF-6: full campaign and expansion matrices only when the user pursues SF-C.
+Every level keeps unknowns visible; a data viewer cannot unlock a campaign badge.
+
+22. CONFORMANCE TESTS THAT CATCH THE MOST LIKELY IMPLEMENTATION ERRORS
+
+These are proposed test cases, not claims they have already been run. Add precise
+fixtures, expected values and source evidence during implementation. Keep tests
+independent of implementation logic; do not compute expected output with the same
+function being tested.
+
+CORE-IDENTITY-01: load two plugins with the same local record ID in different
+namespaces; override one; reorder unrelated plugins; save/reload. Objects must
+retain correct identity, source provenance and state without aliasing.
+
+CORE-STREAM-02: start an asset job, leave the cell, return after a newer request,
+then complete the old job. No stale spawn, double actor or leaked resource pin.
+
+CORE-TIME-03: repeat an observed input sequence at 30/60/120/144 render FPS and with
+simulated short stalls. Compare elapsed game time, firing cadence, animation events,
+script results and menu pause behavior using declared tolerances. A capped 60 FPS
+test alone does not prove render/simulation decoupling.
+
+NV-SCRIPT-04: compile equivalent microtests with source text present and absent;
+execute arithmetic, reference access, conditional control flow, events and native
+calls. Results agree with retail, including failure/null cases.
+
+NV-CONTEXT-05: execute a condition with subject/target/reference contexts that
+produce different answers. Verify AND/OR grouping, operand type and comparison
+source. This catches “all conditions run on player” implementations.
+
+NV-INVENTORY-06: two visually identical weapons with distinct condition/ownership/
+modification data are transferred, equipped, dropped and reloaded from a save.
+No instance-state loss or improper stack merge.
+
+NV-QUEST-07: complete an intended branch, fail another branch, interrupt dialogue,
+kill or disable an eligible actor where allowed, leave the area and cold Continue.
+Compare quest stages, topics, faction changes and objectives to retail. No debug
+stage setters may occur in the accepted player route.
+
+PAPYRUS-LATENT-08: a script awaits a native action; save; quit; reload; complete or
+cancel the action. Exactly the correct continuation resumes, without duplicated
+rewards or lost locals/event subscriptions.
+
+PAPYRUS-LIFETIME-09: script references an unloaded or deleted object, holds arrays
+and aliases, receives events and later unbinds. Match observed null/lifetime and
+registration behavior; do not dereference expired Rust entity slots.
+
+FO4-WORKSHOP-10: build a generator/link/consumer and assign an actor. Remove a middle
+link, move an object, unload, advance time, return and reload from disk. Observe
+correct power split, assignment, resources and object state, not just wiring visuals.
+
+FO4-PRECOMBINE-11: a scripted reference is hidden/changed in a combined region.
+Correct geometry disappears/changes, collision and activation agree, unrelated
+geometry remains, and the optimization rebuild stays bounded.
+
+FO4-ANIM-12: interrupt reload/attack with a state change and a camera change. Ensure
+ammo, damage, audio and animation markers occur at the correct counts/times.
+Test distinct compression/graph types rather than one successful humanoid clip.
+
+FO4-ARMOR-13: enter and exit power armor, change/damage a piece, deplete power,
+leave/revisit the frame and cold Continue. Ownership, attachments and player state
+must agree; no duplicate frame or permanently applied effect.
+
+SF-MATERIAL-14: two objects reference shared material data with different instance
+overrides. Resolve inherited/overridden components and textures; no cross-instance
+mutation or material cache collision. Missing required data blocks faithful rendering.
+
+SF-GEOMETRY-15: resolve a NIF with external .mesh data across archive/mod precedence.
+Verify correct bounds/LODs/collision and produce an actionable missing-dependency
+error when one required member is removed.
+
+SF-GRAPH-16: an .agx state change selects/blends clips and emits animation events.
+Test repeated events, interruption, save/load and unsupported node reporting. File
+import/export success is not sufficient for this case.
+
+SF-FRAME-17: walk inside a moving/docked ship or equivalent validated reference
+frame, transition through a door, save and reload. Local pose, world pose, gravity,
+audio and collision must remain consistent without floating-origin drift.
+
+SF-TRANSFER-18: interrupt a supported dock/board/travel operation before and after
+commit. Recover one consistent player/crew/cargo state with no duplicated items.
+
+ALL-FAULT-19: corrupt a cache/save chunk and remove a dependency. Diagnose the actual
+missing/corrupt input, retain prior good saves, and never overwrite retail content.
+
+ALL-COVERAGE-20: intentionally invoke an unimplemented native/condition/graph node.
+The runtime emits an unsupported capability, and the acceptance report cannot pass.
+
+23. IMPLEMENTATION WORK PACKETS AND REVIEW GATES
+
+Each task is a bounded behavioral change, with these fields:
+  requirement IDs; game/build profile; input fixtures; independent oracle;
+  production path touched; expected result/tolerances; failure modes;
+  parser/runtime/save/UI dependencies; performance budget if applicable;
+  source paths and pinned revisions; validation commands; unresolved questions.
+
+Before implementing, inspect existing code and tests. After implementing, review
+actual call reachability from player input/content loading to state changes. A new
+module that is never invoked is not delivered functionality. Record the test result
+and update only the requirements actually verified.
+
+Do not continually replace the engine stack when the next feature is difficult.
+Architecture changes need a measured blocker, migration plan, preservation tests
+and a small proven replacement slice. Bevy upgrades must be isolated from gameplay
+changes unless directly required. Maintain a supported baseline toolchain instead
+of following nightly or development branches by default.
+
+Bug triage policy:
+  A. Data decode/resolution mismatch: compare raw/typed forms with an independent tool.
+  B. Script mismatch: compare instruction/native traces and caller contexts.
+  C. State mismatch: inspect ownership, event order, clock and identity lifecycles.
+  D. Presentation mismatch: compare authoritative events before tuning graphics.
+  E. Performance mismatch: profile representative gameplay, then optimize the cause.
+Do not “fix” a broken state transition by changing a mesh, adding a delay, skipping
+an event, or disabling collision unless evidence identifies that as the actual cause.
+
+Require a precise distinction between implemented, tested, retail-compared and
+accepted. Missing prerequisites cannot be hidden by checking a box. If a function
+still reaches the original executable through REL::Relocation/interop hooks, classify
+it as a research bridge, never a standalone implementation.
+
+24. NEW SOURCE AUDIT: OPENFALLOUT4 AND COMMONLIBSF
+
+OpenFallout4:
+https://github.com/ZehMatt/OpenFallout4
+Inspected README, src/OpenFallout4/main.cpp, game/game.cpp and interop/hooks.cpp.
+The project is a DLL/hook experiment around Fallout4.exe, with frame-timing work
+and many calls into original functions. Its main.cpp patches a timing constant;
+that does not constitute complete framerate independence. Use the actual code as
+historical research for update ordering and timing assumptions, not as our engine
+base. Revalidate any inferred behavior on the current pinned retail build. Never
+copy old executable addresses into the standalone Rust runtime.
+
+CommonLibSF:
+Archived source: https://github.com/Starfield-Reverse-Engineering/CommonLibSF
+Maintained destination: https://github.com/libxse/commonlibsf
+The archived README explicitly points to libxse. Inspected current README,
+TESObjectREFR.cpp, BGSPlanetData.h and VirtualMachine.h. Some methods have ordinary
+helper code; many forward through REL::Relocation to Starfield. PlanetData includes
+unknown fields, and VM state declarations do not implement its execution semantics.
+This gives structure and observation points, not complete algorithms. The current
+README still requires SFSE's runtime. Check licenses/exceptions and target-version
+support before integrating research helpers or reusing implementation code.
+
+Precise source paths inspected or located in repository trees:
+  https://github.com/ZehMatt/OpenFallout4/blob/master/src/OpenFallout4/main.cpp
+  https://github.com/ZehMatt/OpenFallout4/blob/master/src/OpenFallout4/game/game.cpp
+  https://github.com/ZehMatt/OpenFallout4/blob/master/src/OpenFallout4/interop/hooks.cpp
+  https://github.com/libxse/commonlibsf/blob/main/src/RE/T/TESObjectREFR.cpp
+  https://github.com/libxse/commonlibsf/blob/main/include/RE/B/BGSPlanetData.h
+  https://github.com/libxse/commonlibsf/blob/main/include/RE/V/VirtualMachine.h
+  https://github.com/libxse/commonlibf4/blob/main/include/RE/W/Workshop.h
+These are moving branch links for discovery. Resolve and record actual commit SHAs
+in sources.lock.json before deriving an implementation or regression expectation.
+
+25. EXPANDED FO4/STARFIELD SOURCE ATLAS
+
+Evidence labels retain the definitions in the main atlas: CODE means selected files
+inspected; DOC means maintainer documentation inspected; META means metadata/tree
+only. No repository was built or executed during this brief's research.
+
+G01 libxse/CommonLibSF — CODE
+https://github.com/libxse/commonlibsf
+Primary Starfield type/interface reference replacing the archived organization path.
+See section 24. Keep its native helpers outside the standalone-runtime dependency
+path unless a component has been independently made portable and license-cleared.
+
+G02 libxse/CommonLibF4 — CODE upgrade to earlier atlas entry
+https://github.com/libxse/commonlibf4
+Workshop.h exposes placement status categories, context, extra data and power-grid
+references; some functions forward to the game. Use this to organize retail tests
+and investigate actual state transitions, not to invent placement/power algorithms.
+Scene/VM/quest header paths were also located in the repository tree.
+
+G03 OpenFallout4 — CODE
+https://github.com/ZehMatt/OpenFallout4
+Historical timing/hook research described in section 24. Not a full rewrite.
+
+G04 Gibbed.Starfield — CODE/TREE
+https://github.com/gibbed/Gibbed.Starfield
+https://github.com/gibbed/Gibbed.Starfield/tree/main/projects/Gibbed.Starfield.FileFormats
+https://github.com/gibbed/Gibbed.Starfield/blob/main/projects/DumpConditionFunctions/Program.cs
+Located ComponentDatabaseFile.cs and ComponentDatabase types; inspected the condition
+dump tool, which uses runtime/address-library information. Useful for data structure
+and command-table research. A dump extracts metadata from a compatible game build;
+it does not implement the engine functions represented by that metadata. Check
+current signatures and preconditions; do not run against arbitrary versions.
+
+G05 Material Editor — DOC/META
+https://github.com/ousnius/Material-Editor
+BGSM/BGEM material tool, with MaterialLib and tests in the repository. Use as an
+independent decode/reference candidate for Fallout 4 material versions.
+
+G06 PyNifly — DOC/META
+https://github.com/BadDogSkyrim/PyNifly
+Blender/NIF tooling for supported Skyrim/FO4 content. Useful meshes/skinning and
+animation investigation; verify exact format coverage and native dependencies.
+Do not require players to manually convert their game through Blender.
+
+G07 Behaviour Graph Studio — DOC/TREE
+https://github.com/G-A-R-D-E-N/BGS
+Standalone FO4 .hkx inspection/editor/preview tooling. The README explicitly limits
+some mapping, physics, cloth and ragdoll work. Use its graph validation concepts;
+do not mistake a preview for a complete Havok replacement. Audit fixture provenance
+before copying tests or example files from this or any other repository.
+
+G08 hkxpack — META
+https://github.com/Dexesttp/hkxpack
+HKX/TagXML tooling candidate for independent structural comparisons. Verify supported
+Havok versions, build dependencies and exact file families before use.
+
+G09 hkxanim — DOC/META
+https://github.com/Dexesttp/hkxanim
+FO4 animation conversion research. An authoring converter does not execute behavior
+graphs. Check dependencies and distribution constraints rather than bundling assumed
+SDK components.
+
+G10 Fallout 4 Open Animation Replacer — DOC
+https://github.com/DCCStudios/F4-OpenAnimationReplacer
+F4SE plugin handling clip replacements and animation annotations in the original
+runtime. Useful source for event/clip integration experiments; it still uses game
+runtime facilities and is not a portable complete animation engine.
+
+G11 High FPS Physics Fix — META
+https://github.com/qudix/f4se-high-fps-physics-fix
+FO4 timing/performance regression reference. Verify branch, runtime compatibility
+and per-fix rationale; do not assume every fork targets the same executable.
+
+G12 Buffout4 — DOC discovery
+https://github.com/alandtse/Buffout4
+Engine/crash-fix research and instrumentation lead. Check current branches, versions
+and source licenses. It patches the original runtime; fixes are not a full runtime.
+
+G13 Starfield Geometry Bridge / mesh converter — DOC/META
+https://github.com/SesamePaste233/StarfieldMeshConverter
+https://starfieldgeometrybridge.github.io/docs/tips/material/
+Mesh/morph/geometry/physics authoring reference and maintainer .mat documentation.
+Test individual formats; do not assume one exporter covers all retail content.
+
+G14 Starfield Blender Extension — DOC/TREE
+https://github.com/MrTrilB/StarfieldBlenderExtension
+Unified asset-tooling candidate with geometry/material/physics/animation-related
+paths. Trace its source lineage and supported operations before treating it as a
+dependency. Verify import, export and runtime interpretation separately.
+
+G15 Starfield Behavior Editor — DOC
+https://github.com/Monitor221hz/Starfield-Behavior-Editor
+WIP .agx graph editor. Its author explicitly distinguishes Starfield's behavior
+solution from earlier Havok behavior. Useful format/editor research, not a runtime.
+
+G16 CALUMI.Motion — DOC
+https://github.com/Calaverah/CALUMI.Motion
+.agx editor whose README describes an MVP and asks users to validate output. The
+roadmap lists additional animation/rig work. Useful comparison implementation;
+do not assume complete graph execution or clip support.
+
+G17 Caprica expanded target support — CODE
+https://github.com/Orvid/Caprica/blob/master/Caprica/main_options.cpp
+Inspected options enumerate Starfield, Skyrim, Fallout 4 and Fallout 76 targets.
+This improves its value for per-dialect compiler tests. Compiler target support
+does not prove our native APIs, scheduler, saves or full game work.
+
+G18 Existing later-game references retained
+https://github.com/ianpatt/f4se
+https://github.com/ianpatt/sfse
+https://github.com/Orvid/Champollion
+https://github.com/fo76utils/fo76utils
+https://github.com/fo76utils/nifskope
+https://github.com/TES5Edit/TES5Edit
+https://github.com/Mutagen-Modding/Mutagen
+Use the complete original atlas plus these new audit details. Do not discard the
+NV source foundations to chase newer game-specific tools.
+
+26. SCOPE, UPDATES, AND NEXT IMPLEMENTATION SESSION
+
+The product has one modern Rust core with separately measured game profiles. It
+does not need to be an exact internal clone of Bethesda's architecture to reproduce
+external behavior. Modern rendering, data structures and job scheduling are allowed;
+changes to gameplay remain explicit optional profiles. Shared code is earned by
+matching semantics, not by similar class names.
+
+Do not silently expand “latest engine” into mobile/VR/multiplayer support, a full
+world editor, new campaign writing or always-online services. Design reasonable
+extension boundaries, then finish the requested game functionality. Full Starfield
+campaign implementation is a future gate; selected Starfield systems can be specified
+and enabled independently after NV stability.
+
+When upstream or retail builds change, produce an impact report: content/format
+differences, broken research hooks, changed native signatures, schema migrations
+and failed regression cases. Keep existing supported profiles available. Do not
+automatically update the user's retail installs or mass-convert their original data.
+
+Next session order:
+  1. Read this complete revision and inspect the actual development workspace.
+  2. Identify available legal installations and target PC/GPU/toolchain.
+  3. Pin the selected reference revisions and check license/provenance paths.
+  4. Implement NV M0/M1 production loading, census and meaningful parser tests.
+  5. Run a bounded FO4/Starfield representation probe if their data is available.
+  6. Continue NV's behavior path; preserve later-game probes as regression fixtures.
+  7. Report real results, unsupported features and the next reproducible blocker.
+
+No guarantee of automatic success is possible. The engineering objective is to
+make every assumption inspectable, every compatibility gap visible, and every
+accepted feature reproducible. Keep the full scope; reject fabricated completion.
+
+27. TALE OF TWO WASTELANDS — RESEARCH AND PRODUCT DECISION
+
+Research checked 2026-10-02. Primary entry points:
+  https://mod.pub/ttw/133/docs/25-faq-frequently-asked-questions
+  https://thebestoftimes.moddinglinked.com/faq.html
+  https://thebestoftimes.moddinglinked.com/ttw.html
+  https://thebestoftimes.moddinglinked.com/essentials.html
+  https://github.com/ModdingLinked/The-Best-of-Times
+
+Verified documentation summary: TTW brings Fallout 3 and its DLC into New Vegas,
+applies NV mechanics, and includes its own balancing, fixes and additions. Its
+installer generates or patches content from local game files and performs audio
+transformations. The FAQ requires a fresh game rather than an existing vanilla NV
+save. The official installation guide identifies TTW NVSE as a hard requirement
+and includes xNVSE, JIP LN, JohnnyGuitar and other utilities. Audit the actual pinned
+installation: a guide's entire recommended list is not automatically a minimal
+semantic dependency list for a new runtime. The linked ModPub page showed 3.4.0;
+pin the chosen release and associated fixes rather than assuming this stays current.
+
+Engineering conclusion: TTW is strong evidence that carefully adapted content can
+share a runtime. It does not supply the independent Rust runtime. Treat its output
+as another supported content profile and a valuable cross-world test corpus.
+
+Maintain these independently named acceptance targets:
+  NV-original: New Vegas and enumerated DLC against the selected retail baseline.
+  FO3-original: Fallout 3 and enumerated DLC against its own original rules.
+  TTW-compatible: pinned TTW output against a pinned working TTW reference install.
+  Unified-crossover: this project's optional, explicitly specified transfer rules.
+
+These names are proposed project identifiers, not upstream modes or existing APIs.
+Do not satisfy FO3-original by silently selecting TTW-compatible. Also do not strip
+TTW's intended changes to make it look like vanilla: that would break TTW fidelity.
+The same source quest can legitimately have different expected behavior in each
+profile. Store expectations with the profile, not as one globally correct answer.
+
+TTW path A — preferred first compatibility experiment:
+  Let the user prepare a supported TTW installation using its own installer.
+  Ingest its resolved plugins/assets into the new runtime without rewriting them.
+  Record source provenance, patch set, script dependencies and effective overrides.
+  This reuses existing adaptation work while leaving runtime gaps measurable.
+
+TTW path B — subsequent independent import/conversion research:
+  Reproduce only justified transformations for a Rust-native pack pipeline.
+  Compare against the pinned TTW output where permissions and local data allow.
+  Never label independently generated output as official TTW or silently replace
+  its installer. Preserve identity of original records and every applied change.
+
+Do not make a user install TTW to play NV-original or FO3-original. TTW remains a
+separate selectable profile. Do not require FO3-original campaign completion just
+to run an early TTW data probe; do require actual dependency coverage before
+claiming a playable TTW campaign.
+
+Useful TTW source audit:
+  https://github.com/jzebedee/ttwinstaller
+  Archived on 2022-06-23; historical C# installer, GPL-3.0 as shown by repository.
+  Inspected revision: 782217cfe4579f11806ac0d8c8de9ec03d33c819.
+  CODE: Installer/Install/CheckingRequiredFilesStep.cs checks required ESM/BSA
+  presence; Installer/Patching/FileValidation.cs implements size/checksum metadata;
+  Installer/Install/BsaInstaller.cs handles archive extraction and patch invocation.
+  Its tree also contains PatchMaker and archive diff components, not audited here.
+  Use this as a historical workflow reference, not evidence of current 3.4 internals.
+  Do not copy its legacy checksum/native interop choices automatically into Rust.
+
+  https://github.com/TaleOfTwoWastelands/TaleOfTwoWastelands
+  DOC/tree: contains TTW-related optional components such as follower and speech
+  changes. No complete current-release source equivalence was established. Do not
+  assume this repository contains the whole modern conversion/runtime solution.
+
+  https://taleoftwowastelands.com/viewtopic.php@t=8616
+  Primary team tutorial: conversion databases map records using master-relative
+  identities; replacing references and replacing base records have different
+  consequences. It explains static-to-activator substitutions and cautions that
+  its original internal script lacks safeguards. Our implementation must add them.
+
+  https://geckwiki.com/index.php?title=TTW_Mod_Conversion_Package_and_Guidelines
+  Official-team material preserved by GECK Wiki, linked from current FAQ. Search
+  surfaced it; direct full-page retrieval was blocked here. Read and pin the full
+  current package before implementing its specific transformations.
+
+28. TTW COMPATIBILITY — DEPENDENCIES, TESTS AND MILESTONES
+
+First create a dependency report from the chosen installation, not a hardcoded
+list copied from this brief. For every script command, callback, injected change,
+UI extension and serialization feature record:
+  provider and version; call sites; observable contract; reference behavior;
+  required Rust subsystem; supported/partial/unknown status; executable test.
+
+Include engine patches that affect behavior without appearing as script calls.
+Separate compatibility requirements from conveniences such as a crash logger.
+Static command scanning alone misses dynamically selected functions, runtime
+scripts, registration callbacks, event handlers and native engine modifications.
+Combine static analysis, configuration inspection and authorized reference traces.
+
+Reimplement required semantics through a versioned host interface. A 32-bit NVSE
+DLL cannot simply be loaded as a Rust 64-bit plugin. Missing source does not permit
+inventing success: document and experimentally characterize the needed behavior,
+or leave that capability blocked. Implement no-op-free error paths that identify
+the requesting script, instruction and missing command. Do not crash on an unused
+optional mod feature, but do not report dependent content as supported either.
+
+TTW milestone gates:
+  TTW-0 — manifest, dependency census, original-vs-TTW difference ledger.
+  TTW-1 — all pinned plugins resolve with recorded override winners; critical
+          unknown fields/functions block their dependent scenarios visibly.
+  TTW-2 — representative Capital Wasteland and Mojave locations load with correct
+          references, collision, actors, sound and interaction, not just geometry.
+  TTW-3 — supported character start and one real quest branch in each wasteland;
+          objectives, dialogue conditions and consequences survive cold Continue.
+  TTW-4 — actual TTW travel conditions and transitions in both directions;
+          inventory, followers and world state match the reference profile.
+  TTW-5 — enumerated FO3 and NV campaign branches, DLC entry/exit, followers,
+          scripted sequences and ending/continuation behavior pass their matrices.
+  TTW-6 — chosen TTW mods, endurance, performance and migration/release gates.
+
+Concrete scenario contracts, with expected values measured from the pinned oracle:
+  - New-game initialization runs once; reload never grants starter state twice.
+  - A Capital Wasteland quest does not acquire Mojave faction/quest state merely
+    because numeric record IDs overlap in their source games.
+  - A converted activator performs its action and respawn behavior correctly;
+    rendering the former static model is insufficient.
+  - A follower recruits, waits, dismisses and follows travel restrictions correctly;
+    scripts, ownership, home marker and inventory survive multiple round trips.
+  - A radio segment and a voiced line retain timing, channel layout and lip sync;
+    transformed assets must not be transformed again on repeated import.
+  - Enter and leave one DLC with temporary inventory/state restrictions. Verify
+    restoration, quest items and followers after saving within the DLC.
+  - Travel under a quest restriction fails for the correct reason and leaves the
+    source state unchanged. Test the normal travel route without console teleport.
+  - Reordering compatible content preserves stable references, but changing
+    master/content identity requires validation rather than blind save loading.
+
+Generated coverage must enumerate the actual pinned corpus. A single travel test
+does not validate both campaigns, and an NPC roster is not AI package coverage.
+
+29. FALLOUT 76 IN FALLOUT 4 — IDENTIFIED PROJECT AND EVIDENCE LIMITS
+
+The likely project behind the user's tip is Bryant21's Tales From Appalachia.
+Primary author announcement:
+  https://www.youtube.com/watch?v=jtY2MTKNVjs
+  Title: Tales From Appalachia - Fallout 4 Script Mod.
+  Indexed author description, published 2026-07-04: a planned FO76-to-FO4 total
+  conversion script run locally, requiring Steam copies of both games, with no
+  game assets supplied by the author. This is direct author-description evidence.
+
+Related discovery links, not implementation specifications:
+  https://www.youtube.com/watch?v=0aNzHeD0KYw
+  https://www.youtube.com/watch?v=Kh3UAp6COzo
+  https://www.reddit.com/r/Fallout4Mods/comments/1un3998/madman_ports_all_of_fallout_76_to_fallout_4/
+
+Research limitation: video playback/transcripts were not successfully retrieved;
+the author description was available through search. No public source repository,
+reproducible complete build, comprehensive test report, or full quest parity was
+verified in this research. This is not a claim that the project cannot work, nor
+that no later release exists. Treat the project as a promising conversion lead.
+Do not infer its algorithms from its title or invent a GitHub URL for it.
+
+Before adopting any future release, inspect its exact version and manifest, then
+answer: which inputs, output formats, record types, assets, scripts and behaviors
+are processed? Which calls still require Fallout4.exe? Which transformations are
+lossy? What is genuinely preserved versus recreated or omitted? What survives a
+save/reload? Produce independent results for each, rather than repeating “ALL.”
+
+If it supplies working conversions, reuse the knowledge and compatible outputs
+where permitted. It could reduce the asset and content adaptation work. Its FO4
+host still supplies rendering, physics, animation, scripting services, AI and
+saving; those remain required implementations in a standalone Rust replacement.
+
+Important project disambiguation:
+  - Tales From Appalachia: Bryant21's local conversion-script announcement above.
+  - Fallout: Appalachia: UnleashOne's separate reimagining set in FO4's era. The
+    author's original announcement explicitly distinguishes it from asset porting:
+    https://www.reddit.com/r/FalloutMods/comments/bm4kvi/fo4_appalachia/
+  - Appalachia Commonwealth: selected recreated items/features, not the entire game:
+    https://www.nexusmods.com/fallout4/mods/40545
+  - Fallout 4-76: SKK's Commonwealth gameplay overhaul, not an Appalachia import:
+    https://skkmods.com/fallout4/
+  - Fallout 76 to Fallout 4 Conversion Toolkit, Nexus 108858: a separate mesh and
+    texture/material utility by private0516. Indexed description names selected
+    supported assets and does not establish campaign support. Direct page currently
+    says removed by author. Do not treat it as a dependable available dependency:
+    https://www.nexusmods.com/fallout4/mods/108858
+
+Keep these identities distinct in sources.lock.json. Do not merge claims from
+different authors into one imagined complete converter.
+
+Additional primary sources with bounded uses:
+  https://github.com/fo76utils/fo76utils
+    DOC: FO4/FO76 rendering, worldspace and data inspection tools; use for independent
+    geometry/material/terrain comparisons, not as a quest or server implementation.
+  https://github.com/fo76utils/nifskope
+    Retain the earlier atlas entry; inspect relevant FO76 mesh/material dialects.
+  https://github.com/suglasp/fallout4_fallout76_sfx_conversionkit
+    DOC: local archive/audio extraction and conversion workflow. Audit external
+    codec dependencies; audible output alone does not validate cues or spatial audio.
+  https://github.com/SebboHN/hkxImport
+    DOC/tree: 3ds Max HKX import workflow with external Havok/tool dependencies;
+    useful offline animation reference, not a standalone animation runtime.
+  https://github.com/MGuffin/xTranslator
+    DOC: localization and dialogue/string inspection. Use to check resolved text
+    and aliases rather than translating story content with an LLM.
+  https://github.com/Pouya69/F76_Overhaul_Fallout4
+    LEAD ONLY: linked in the author listing for Fallout 76 - NV Mechanics for
+    Fallout 4, https://www.nexusmods.com/fallout4/mods/107110 . Direct repository
+    retrieval failed here. Do not assume availability, license or implementation.
+
+30. CONTENT IMPORT AND CONVERSION AS A REPRODUCIBLE RUST BUILD PIPELINE
+
+This section proposes our architecture. It is not a description of TTW or Tales
+From Appalachia internals. Share this machinery across games without assuming
+their source formats or gameplay rules are interchangeable.
+
+Support two inputs to the same runtime:
+  A. Original game data -> game-specific reader -> preserved semantic representation.
+  B. Known converted content -> converter-specific reader/profile -> representation.
+Both feed the shared runtime with explicit game/profile semantics. Do not force
+everything through NV or FO4 export formats. A lowest-common-denominator format
+can permanently discard information that the Rust runtime could otherwise retain.
+
+Use distinct identities for source game, content namespace, plugin, local form,
+installed version and dynamic runtime instance. Namespace plus plugin/local form
+identifies a record; the content-version fingerprint validates its definition.
+Do not turn every asset rebuild into a new gameplay identity. Record import history
+and use explicit migrations when the actual identity changes.
+
+Proposed pipeline stages:
+  1. DISCOVER: enumerate only selected installations and configured mod roots.
+     Identify build/language/DLC, hashes, file sizes and archive variants. Report
+     missing inputs precisely. Never overwrite the original Data directory.
+  2. RESOLVE: mount archives and loose files with profile-specific precedence;
+     resolve master dependencies and the effective plugin override stack.
+     Preserve both winning values and their source chains for diagnostics.
+  3. PARSE: decode with bounded reads and typed dialects. Keep unknown raw data,
+     parser version and source location; preserving bytes does not mean supporting
+     their behavior. Reject malformed critical dependencies with context.
+  4. PLAN: produce a dry-run transform graph with inputs, output ownership,
+     capability requirements, lossy changes and estimated storage/memory.
+  5. TRANSFORM: apply versioned rules to an isolated staging area. Distinguish
+     structural decoding, identity relocation, asset adaptation and rule changes.
+     Do not hide gameplay changes inside a format parser.
+  6. VALIDATE: check schema, links, material/mesh bindings, scripts, nav connectivity,
+     collision and known semantics. Attach warnings to dependent records/scenarios.
+  7. COMMIT: publish one complete pack manifest only after required validation.
+     Write a durable completion marker last; recovery must ignore partial outputs.
+  8. EXECUTE: run behavioral conformance against the declared reference profile.
+     Successful conversion is an input to this gate, never a substitute for it.
+
+Model transform jobs as a dependency graph. Topologically schedule acyclic jobs;
+use strongly connected components to detect cyclic reference groups. Allocate
+stable symbols first and resolve cyclic content links in a subsequent pass rather
+than treating every cyclic world reference as corrupt. Report actual impossible
+build dependencies separately from legitimate mutually referencing records.
+
+Cache a job by its transformation version, source digests, options, target profile
+and dependency digests. Use a modern content digest such as BLAKE3 or SHA-256;
+check current crate documentation before selecting an implementation. Verify output
+digest/length on reuse. A filename or modification timestamp is not a reliable key.
+Never use a noncryptographic hash as proof that downloaded code is trusted.
+
+Use bounded workers, bounded queues, cancellation checkpoints and per-task memory
+budgets. Chunk large archives and stream where formats permit. Avoid decompressing
+all games into RAM. Pin live assets, evict rebuildable caches first and prevent
+cancellation from publishing half-valid packs. Persist the job journal so retries
+reuse verified results, not unverified files with matching names.
+
+Represent reference relocation with a typed mapping table:
+  source namespace/plugin/local ID/type -> destination identity/type;
+  transformation ID; preconditions; reason; evidence; reversibility classification.
+Reject conflicting mappings, unresolved destinations and unsupported type changes.
+Do not remap arbitrary byte patterns or replace textual hex strings globally.
+Walk typed record fields and decoded script operands; strings only receive a rule
+when their semantics explicitly require it. Follow each dialect's ID encoding.
+
+Preserve an origin chain for every generated object. Deduplicating identical mesh
+bytes is different from merging two quest objects with different gameplay identity.
+Use content-addressed asset storage where useful, but never merge stateful records
+merely because they look identical. Keep save-state identity stable across imports.
+
+Audio/visual conversion rules must state their precision and intent. Preserve
+original sources, animation annotations, skeleton mapping, texture channel meaning,
+material alpha modes, collision units and voice timing. When Rust directly supports
+a source representation, do not add a lossy intermediate conversion just because
+the original FO4/NV host needed one. A measured approximation is opt-in and reported.
+
+Distribution package: code, reproducible rules and permitted fixtures. Local build
+outputs may contain game content and stay local by default. Audit source licenses
+before incorporating code; public visibility is not permission to redistribute
+everything in a repository. This is a provenance requirement, not a claim that
+owning both games automatically grants every form of redistribution permission.
+
+31. CROSS-CAMPAIGN IDENTITY, TRAVEL AND SAVE MIGRATION
+
+TTW compatibility should follow TTW's measured transfer rules. Unified-crossover
+needs a separate explicit policy. Do not automatically apply the custom crossover
+transaction model as a claimed description of TTW's implementation.
+
+Each campaign owns quests, world changes, time rules and persistent actors. A
+shared traveler may carry transferable state, but campaign state remains namespaced.
+Specify the policy for every item/stat/perk/companion category: carry exactly,
+translate with a reversible mapping, store in source escrow, or deny transfer with
+a reason. A FO4 weapon modification graph cannot silently become an NV weapon with
+the same display name. An unsupported companion must not become a generic actor.
+
+Track transfer identity, source snapshot, destination snapshot and policy version.
+Within one local transactional store, commit all related changes atomically. If
+worlds use separate save stores, use a durable journal and recovery protocol with
+idempotent operations. Do not claim two filesystem renames on separate files are
+one atomic transaction. Handle disk-full and power-loss failures explicitly.
+
+Recovery invariants:
+  - exactly one active traveler authority after recovery;
+  - inventory represented exactly once across active state and explicit escrow;
+  - transfer rewards and quest callbacks execute at most once;
+  - retrying the same transfer ID cannot mint items or replay introduction quests;
+  - source and destination campaign deltas remain recoverable;
+  - no new campaign is marked available solely because its map was imported.
+
+Save header should record runtime schema, game/profile ID, content-set fingerprint,
+behavior policy version and migrations applied. Validate it before loading objects.
+Keep original saves untouched. Native Rust saves, retail-save import and cross-profile
+migration are three separate deliverables with separate evidence requirements.
+When a profile changes incompatibly, explain why migration is blocked; never discard
+unknown quest state to force a save to load. Back up before a supported migration.
+
+32. FALLOUT 76 ACCEPTANCE — LOCAL DATA, GAMEPLAY AND SERVICE BEHAVIOR
+
+Conversion research raises confidence in some content paths. It does not establish
+where every quest's logic lives. Determine that from the selected build and specific
+features. Do not assert “all scripts are server-only” or “all behavior is in client
+files” without evidence. A named quest record, objective text or terminal entry does
+not by itself supply trigger, reward, scheduling and persistence behavior.
+
+Create a feature-by-feature evidence table with these origins:
+  local declarative data; local compiled logic; native host behavior;
+  measured service-dependent behavior; inferred behavior; unknown.
+Record client build, observation date, content pack and dependencies. Distinguish
+what a converter reconstructed from what original data directly represents.
+
+Progress ladder for the selected FO76 content baseline:
+  76-0: readable client corpus, dependency map and versioned unknowns report.
+  76-1: inspect/render representative world regions, interiors and assets.
+  76-2: traverse those regions with correct collision, navigation and streaming.
+  76-3: actors fight, animate, equip/drop items and persist under specified rules.
+  76-4: a genuine quest branch completes with conditions/rewards and cold Continue.
+  76-5: enumerated campaign, side-content and event scenarios pass, including reset,
+        interruption, instancing and persistence. Report unresolved service gaps.
+  76-6: full declared release matrix and long-run verification; no blanket claims
+        about retired or future content outside the pinned scope.
+
+Treat offline adaptation and original online parity as different profiles. For
+offline adaptation, specify scheduling, difficulty, event participation, loot,
+vendors, crafting unlocks and reset rules; mark deliberate changes clearly. Keep
+an internal authoritative-state boundary so later networking can reuse the rules,
+but do not make multiplayer infrastructure a prerequisite for the solo prototype.
+For multiplayer parity, replication, parties, sessions, disconnect recovery and
+authority need their own later acceptance suite. Do not hide those gaps in a map
+conversion percentage. Do not use production accounts/services as a shortcut.
+
+Require scenario evidence for an event location, an event script and an event's
+actual end-to-end behavior separately. The existence of a raid room is not evidence
+that encounter phases, rewards or resets work. For rewards, journal decisions and
+grant operations so crashes/reloads cannot grant twice or consume inputs twice.
+
+If an upstream converter becomes available, compare three independently recorded
+paths where feasible: original observed behavior, conversion running in its FO4
+host, and the Rust runtime. Differences between the first two are conversion/profile
+differences; differences between the latter two may expose Rust compatibility bugs.
+Do not use a converter's behavior as an original-game oracle without that distinction.
+
+33. IMMEDIATE IMPLEMENTATION TICKETS AND REVIEW CRITERIA
+
+These tickets extend M0/M1; they do not replace the previous campaign milestones.
+Use the existing workspace structure when one exists. The file names below are
+proposed deliverables, not claims that they already exist.
+
+TICKET R3-01 — profile and baseline manifest
+  Deliver docs/profiles.md and a machine-readable profile manifest naming original
+  NV, original FO3, TTW, FO4, FO76 and optional Starfield probes. Each identifies
+  formats, rules, inputs, versions, oracle and supported scenarios. Missing data
+  remains explicit. Acceptance: a save cannot accidentally load under another
+  profile because its files happen to use similar names.
+
+TICKET R3-02 — corpus and transform planning
+  Deliver a dry-run importer with deterministic manifests, source digests,
+  provenance, dependencies and unsupported-item reports. Start with real NV inputs
+  when available and synthetic fixtures in public tests. Acceptance: output includes
+  the same identities regardless of directory enumeration/worker completion order.
+
+TICKET R3-03 — relocation and cyclic references
+  Implement typed mappings and two-pass link resolution. Acceptance: synthetic
+  master collisions, load-order changes, legitimate cycles, conflicting mappings
+  and unresolved masters each produce correct results or specific diagnostics.
+  Include a real bounded TTW comparison only when that installation is available.
+
+TICKET R3-04 — resumable transformation jobs
+  Deliver staging, content-keyed cache, cancellation, journal and manifest commit.
+  Acceptance: terminate during extraction, conversion and publication; resume
+  without touching sources or declaring partial output valid. Changing a rule
+  invalidates dependent outputs and leaves unrelated verified cache entries usable.
+
+TICKET R3-05 — TTW runtime dependency census
+  Deliver parity/ttw-dependencies.json and classified required/optional providers.
+  Acceptance: each reached unsupported command has a caller and a blocked scenario;
+  no native DLL is counted as compatible merely because its filename is detected.
+  Implement requirements in NV runtime dependency order; do not replace quests.
+
+TICKET R3-06 — source and converted behavior comparison
+  Deliver trace export and state comparison with exact fields, controlled inputs
+  and documented tolerances. Acceptance: a deliberately altered quest reward or
+  save-restored variable causes a failure. Screenshots alone cannot pass this gate.
+
+TICKET R3-07 — FO4/76 conversion reconnaissance
+  Inspect available primary tools and bounded authorized sample data. Produce an
+  explicit matrix for geometry, materials, rigs, clips, collision, records, scripts
+  and runtime dependencies. Preserve Tales From Appalachia as an unverified source
+  lead until its actual release can be inspected. Never stall NV waiting for it.
+
+TICKET R3-08 — travel and profile persistence
+  After the required gameplay works, implement travel rules and save transactions.
+  Acceptance: repeated round trips and injected failures preserve campaign quests,
+  follower state, item identity and exactly-once grants. Measure TTW travel against
+  TTW; measure custom crossover against its separately approved policy.
+
+Each completed ticket must include reachable implementation, commands actually
+run, observed results, unresolved limitations and the next dependency. Code review
+must trace a real input to a real state/output. Synthetic tests validate mechanisms;
+only declared retail/reference scenarios validate the corresponding compatibility.
+
+34. FINAL CODEX EXECUTION DIRECTIVE
+
+Keep the user's complete objective: a modern standalone Rust runtime for faithful
+NV, then FO3 and TTW compatibility, followed by FO4 and measured FO76 expansion,
+with the earlier Starfield research and optional feature path retained. A shared
+runtime is not permission to erase game differences. A conversion tool is not a
+substitute for the engine systems that execute the converted content.
+
+Begin with the actual repository. Preserve working functionality, inspect its
+instructions, then implement the first unmet milestone rather than regenerating
+another plan. Integrate R3-01 through R3-04 with existing foundations instead of
+creating a second importer beside them. Run TTW and later-game probes only when
+their inputs are available, while continuing independent NV implementation.
+
+Read and pin actual sources before using them. Never invent API calls, binary
+layouts, completed features, source licenses, release availability or test results.
+If a reference is unavailable, label that dependency and use the other verified
+sources. Ask for the minimum missing file or environment only after completing
+the independent authorized work. Do not remove scope to manufacture a green report.
+
+The next handoff must be a runnable implementation checkpoint and evidence-backed
+parity report. It must distinguish implemented, observed, inferred, untested and
+blocked behavior. A full world visible on screen is a valuable milestone; all quests,
+enemies, animations, features and saves working is a separate, much larger claim.
+
+END IMPLEMENTATION CONTRACT
+
+SOURCE ATLAS — PRIMARY REPOSITORIES AND HOW TO USE THEM
+
+Evidence levels below:
+  CODE = selected implementation files inspected in this research/conversation.
+  DOC = repository README/status/docs inspected; its capability claims remain claims.
+  META = repository existence/description/metadata verified, not implementation audit.
+None of these means built or run. All capabilities must be revalidated at pinned
+revisions before integration. Licenses can vary by file, dependency and revision.
+
+A. REPLACEMENT ENGINES AND DIRECTLY RELATED PROJECTS
+
+A01 OpenMW — DOC
+https://github.com/OpenMW/openmw
+Canonical development: https://gitlab.com/OpenMW/openmw/
+Official later-game status: https://openmw.org/2025/openmw-0-49-0-released/
+Use: mature engine architecture, assets, persistence, navigation, tooling and
+later-format work. Study current components/esm4 and relevant format/render code
+after confirming paths at the pinned revision. Morrowind gameplay code is not
+automatically NV behavior. Avoid blindly porting the whole C++ engine to Rust.
+
+A02 SugarBombEngine — CODE
+https://github.com/the-big-mt/SugarBombEngine
+https://github.com/the-big-mt/SugarBombEngine/blob/master/src/components/esm4/weap.cpp
+https://github.com/the-big-mt/SugarBombEngine/blob/master/src/components/esm4/navm.cpp
+https://github.com/the-big-mt/SugarBombEngine/blob/master/CMakeLists.txt
+Use: historical FO3/NV experiment and source lineage map. Weapon reader handles
+some basic fields but skips VATS/mod-related subrecords; FO3 nav subrecords are
+skipped. Follow its README's upstream pointers and compare newer sources. Do not
+infer working gameplay from inherited directories. GitHub copy inspected had a
+latest returned commit dated 2020-01-03.
+
+A03 ByroRedux — CODE
+https://github.com/matiaszanolli/ByroRedux
+https://github.com/matiaszanolli/ByroRedux/blob/main/docs/feature-matrix.md
+https://github.com/matiaszanolli/ByroRedux/blob/main/crates/scripting/src/obscript_vm.rs
+Use: Rust-side design and implementation candidates; distinguish recovered parsing,
+rendering, bounded gameplay and full compatibility. Inspected interpreter comments
+describe Oblivion-derived bytecode research and traced no-op residues. Independently
+verify FNV commands, numeric semantics and unsupported handling. License/provenance
+needs resolution before copying; no adoption recommendation is implied by inclusion.
+
+A04 Open Nevada / OpenNV — DOC
+https://github.com/nikamigaming-create/OpenNV
+https://opennevada.com/
+Use: contemporary C#/Godot direct-data runtime and bounded FNV/FO3 scenarios.
+README explicitly excludes complete retail campaigns and complete extender
+behavior. Read current-work/status and runtime tests. Different from A05/A06.
+
+A05 OpenNewVegas — DOC
+https://github.com/1x0DF0/OpenNewVegas
+Use: early C++ BSA/ESM/NIF/world streaming implementation and test fixtures.
+README puts gameplay and complete campaign in the roadmap. Some status passages
+are inconsistent about texturing; resolve using code/build evidence. Its remaster
+mod guide is a different product from its replacement-engine work.
+
+A06 Historical OpenNV — DOC
+https://github.com/OpenNV/OpenNV
+Use: historical C# reimplementation attempt; low priority until a useful component
+is demonstrated. Do not confuse it with Open Nevada because the names match.
+
+A07 Mudcrab / Wah Krah Jol — DOC
+https://github.com/Mudcrab-Team/mudcrab
+Use: Rust/Bevy architecture and asset conversion ideas. README roadmap leaves
+runtime sign-off and later gameplay phases incomplete. Do not inherit unverified
+FPS, seamless-world, script translation or UI conversion claims. Not an NV runtime.
+
+A08 recreation — DOC
+https://github.com/Force67/recreation
+Use: modern Bethesda-content loading, ECS organization and tool ideas. Project
+explicitly describes itself as NOT a Creation reimplementation. Its goals are
+not proof of original behavior; do not use its generic UI descriptions for NV.
+
+A09 Skate 3 Rust Engine — DOC
+https://github.com/SK8-ENGINE/skate-3-rust-engine
+Use: project workflow, asset preparation, input and physics comparison techniques.
+Not Bethesda format/script code. README emphasizes prior research and incomplete
+parity. Do not count its development timeline as the Fallout project's timeline.
+
+B. NEW VEGAS STRUCTURES, COMMANDS, AND ENGINE BEHAVIOR
+
+B01 xNVSE — CODE
+https://github.com/xNVSE/NVSE
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/GameScript.h
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/CommandTable.cpp
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/GameForms.h
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/GameObjects.h
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/GameProcess.h
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/GameBSExtraData.h
+https://github.com/xNVSE/NVSE/blob/master/nvse/nvse/GameTiles.h
+Use: script structures, command tables, forms, actors, extra data, tile operators
+and retail instrumentation. Inspected GameScript.h includes executable addresses:
+those functions still live in the original game. Do not call them in standalone
+Rust and declare them reimplemented. Check source permissions per component.
+
+B02 JIP LN NVSE — META plus tree inspection
+https://github.com/jazzisparis/JIP-LN-NVSE
+https://github.com/jazzisparis/JIP-LN-NVSE/blob/main/internal/netimmerse.h
+Use: detailed engine structures, behavioral extensions/fixes, animation and
+NetImmerse research. Separate vanilla observations from JIP-added behavior.
+
+B03 JohnnyGuitar NVSE — DOC/META
+https://github.com/carxt/JohnnyGuitarNVSE
+Use: native structures, engine fixes and extension APIs. Default branch observed
+was dev; pin a revision and distinguish additions from retail requirements.
+
+B04 New Vegas Tick Fix — DOC/META
+https://github.com/carxt/New-Vegas-Tick-Fix
+Use: timing/performance issue research and regression scenario ideas. An injected
+patch is not a direct replacement-runtime component.
+
+B05 GECK community documentation — DOC
+https://geckwiki.com/index.php?title=Main_Page
+https://geckwiki.com/index.php?title=Category:User_Interface
+https://geckwiki.com/index.php?title=Hardcoded_UI_Shortcuts
+https://geckwiki.com/index.php?title=NVSEScript
+Use: command behavior, editor-authored tests, XML UI and extension distinctions.
+Community documentation should be corroborated when precision affects compatibility.
+
+C. FILE FORMATS, LOAD ORDER, AND AUTHORING/INSPECTION
+
+C01 xEdit — CODE
+https://github.com/TES5Edit/TES5Edit
+https://github.com/TES5Edit/TES5Edit/blob/dev-4.1.6/Core/wbDefinitionsFNV.pas
+Use: FNV record/subrecord definitions, conditions, cross-game variants, validation
+and conflict inspection. This is a record tool, not a gameplay VM. Inspect license
+headers before porting schema definitions. Default branch may change.
+
+C02 Mutagen — DOC
+https://github.com/Mutagen-Modding/Mutagen
+Use: independent .NET record model/serialization reference and possible oracle.
+Check exact current game support before choosing it for NV; do not assume one
+Bethesda library supports every title equally. Keep the shipping runtime Rust.
+
+C03 esplugin — DOC
+https://github.com/Ortham/esplugin
+Use: Rust plugin structure/metadata work. Its README explicitly focuses on APIs
+for libloadorder/LOOT rather than general-purpose full semantic record decoding.
+It cannot replace the complete FNV record schema by itself.
+
+C04 libloadorder — META
+https://github.com/Ortham/libloadorder
+Use: Rust load-order/active-plugin behavior and format-specific rules. Version and
+configuration differences still require testing with the target installation.
+
+C05 LOOT — META
+https://github.com/loot/loot
+Use: dependency/load-order ecosystem reference. Do not automatically reorder the
+user's baseline to make tests pass; baseline ordering must remain explicit.
+
+C06 bsa-rs / ba2 — DOC
+https://github.com/Ryan-rsm-McKenzie/bsa-rs
+https://docs.rs/ba2/latest/ba2/
+Use: Rust BSA/BA2 candidate. README describes broad archive coverage and less
+maturity than its C++ counterpart. Test required FNV archives, not just examples.
+
+C07 C++ bsa — META
+https://github.com/Ryan-rsm-McKenzie/bsa
+Use: independent comparison backend for archive extraction/path behavior.
+
+C08 dream_archive — DOC
+https://github.com/DreamWeave-MP/dream_archive
+Use: alternative pure-Rust BSA/BA2 implementation. README lists supported families
+and explicit unsupported console layouts. Check version-specific license; evaluate
+against bsa-rs with the same fixtures instead of adopting both without purpose.
+
+C09 NIF XML definitions — DOC
+https://github.com/niftools/nifxml
+Use: machine-readable block/version definitions and primary format research.
+Parsing all known blocks is not equivalent to rendering/animating/colliding them.
+
+C10 NifSkope — META
+https://github.com/niftools/nifskope
+Use: inspect model/block/texture structure as an independent visual reference.
+
+C11 nifly — META
+https://github.com/ousnius/nifly
+Use: C++ NIF reader/writer reference. Validate exact NV/KF coverage before relying
+on it; library existence does not guarantee every target variant is supported.
+
+C12 PyFFI — META
+https://github.com/niftools/pyffi
+Use: older Python binary-format tooling and an additional fixture/reference path.
+
+C13 Blender Niftools Addon — DOC/META
+https://github.com/niftools/blender_niftools_addon
+Use: asset inspection/import/export behavior for NIF/KF/EGM. The player must not
+need manual Blender conversion to start the game.
+
+C14 BodySlide and Outfit Studio — META
+https://github.com/ousnius/BodySlide-and-Outfit-Studio
+Use: later-game mesh/skin/outfit tooling reference; not runtime animation parity.
+
+C15 Mod Organizer 2 — META
+https://github.com/ModOrganizer2/modorganizer
+Use: isolated mod profiles and conflict/virtual-file concepts. Do not couple the
+runtime to its Windows virtual filesystem without a deliberate integration need.
+
+D. LATER-GAME SCRIPTING AND REVERSE-ENGINEERED APIS
+
+D01 F4SE
+https://github.com/ianpatt/f4se
+META. Fallout 4 native interfaces/structures and optional retail test instrumentation.
+Not the Fallout 4 engine source or a standalone Papyrus host.
+
+D02 CommonLibF4
+https://github.com/libxse/commonlibf4
+DOC/META. Fallout 4 reverse-engineered type/API information. Its purpose as a
+plugin development library must not be mistaken for a standalone runtime.
+
+D03 SFSE
+https://github.com/ianpatt/sfse
+META. Starfield script extender and native-interface research.
+
+D04 CommonLibSF
+https://github.com/Starfield-Reverse-Engineering/CommonLibSF
+Historical/archived reference. Revision 2 verified that its README directs users to
+https://github.com/libxse/commonlibsf for updates. Use the maintained destination
+as primary. Both interface knowledge and runtime SFSE dependencies must be treated
+as research context, not a ready-made standalone engine. See sections 24–25.
+
+D05 CommonLibSSE-NG
+https://github.com/CharmedBaryon/CommonLibSSE-NG
+META. Skyrim reverse-engineered library; useful comparative structures and API
+design, but Skyrim behavior is not automatically FO4 or NV behavior.
+
+D06 Champollion
+https://github.com/Orvid/Champollion
+DOC. PEX decompiler with later-game support described by its maintainer. Useful
+for inspection and controlled tests; decompiled source may not preserve every
+detail. Do not replace authoritative compiled execution with unchecked output.
+
+D07 Caprica
+https://github.com/Orvid/Caprica
+DOC. Papyrus compiler; useful test generation/compiler comparison. Compiling a
+corpus does not prove the native APIs or runtime semantics work.
+
+D08 Papyrus VM / Skyrim Multiplayer
+https://github.com/skyrim-multiplayer/papyrus-vm
+https://github.com/skyrim-multiplayer/skymp
+DOC. Skyrim PEX execution and multiplayer runtime research. Check where active
+code currently lives and pin it. Do not assume full FO4/76/Starfield VM compatibility.
+
+D09 fo76utils
+https://github.com/fo76utils/fo76utils
+https://github.com/fo76utils/fo76utils/blob/main/doc/main.md
+DOC. FO4/76 world rendering and data extraction/visualization. Useful BA2/material/
+terrain oracle; a rendered Appalachia is not an offline Fallout 76 server.
+
+D10 fo76utils NifSkope fork
+https://github.com/fo76utils/nifskope
+DOC from maintainer release page. Later-game/Starfield inspection candidate; verify
+chosen game-build support. Distinct from the older upstream NifSkope branch.
+
+E. RUST IMPLEMENTATION BUILDING BLOCKS
+
+E01 Bevy
+https://github.com/bevyengine/bevy
+META. Candidate application/render/input/ECS services. Use a stable pinned release,
+verify current APIs and rendering capabilities, keep authoritative semantics separate.
+
+E02 wgpu
+https://github.com/gfx-rs/wgpu
+META. Cross-platform Rust graphics abstraction. Prefer the engine's supported path
+before introducing a separate graphics stack.
+
+E03 Rapier
+https://github.com/dimforge/rapier
+META. Rust physics candidate. Requires a compatibility layer and comparisons for
+Havok-authored shapes/motion; cannot promise identical physics by substitution.
+
+E04 Ruffle
+https://github.com/ruffle-rs/ruffle
+META. Rust Flash emulator; later-game UI research only. Validate actual Scaleform
+extensions/native bindings before adopting. It does not implement NV XML menus.
+
+F. CLASSIC FALLOUT AND REIMPLEMENTATION PRECEDENTS
+
+F01 Fallout Community Edition
+https://github.com/alexbatalov/fallout1-ce
+DOC. Working-reimplementation precedent and optional classic-game reference.
+
+F02 Fallout 2 Community Edition
+https://github.com/alexbatalov/fallout2-ce
+DOC. Gameplay preservation, portability and testing reference for a different engine
+family. Neither classic project solves New Vegas/Gamebryo compatibility.
+
+ADDITIONAL DISCOVERED LEADS, LOWER CONFIDENCE / NOT RECOMMENDED AS FOUNDATIONS
+
+https://github.com/SulfurNitride/Rust-BSA-BA2-Handler
+Search-discovered Rust archive tool. Inspect actual tests/license/variants before use.
+
+https://github.com/slfx77/bethesda-multitool
+Search-discovered data viewer/conversion tool. Its description mentions prototype/
+dump research; audit provenance and restrict any use to appropriately sourced code
+and authorized local data. Not needed for the initial retail-PC implementation.
+
+https://github.com/Tzeentchnet/NifBlend
+Search-discovered NIF/KF Blender tooling; evaluate only if it fills a measured gap.
+
+RESEARCH LIMITATIONS AND WHAT CODEX MUST VERIFY NEXT
+
+This brief reviewed primary repository descriptions/docs, current metadata for
+many candidates, directory trees, and selected actual files. It did not clone/build
+all repositories, benchmark them, inspect every license, or execute retail games.
+No official complete source release for the requested modern Fallout engines was
+established by this research. Most useful public sources are community tools,
+reverse-engineered interfaces and incomplete replacement implementations.
+
+Some current repositories are moving quickly and their names/status/docs differ
+across mirrors. Pin revisions at implementation time. Claims such as “100% parse,”
+“seven games supported,” “all scripts compile,” and “60 FPS” need their actual
+denominators, configuration and reproducible evidence. Do not repeat them as full
+campaign support. Current repository descriptions are not substitutes for tests.
+
+The first implementation session should therefore produce the source audit and
+baseline, build the Rust application and data inspector, then implement the first
+verified format/behavior dependency. The long-term target remains full NV fidelity
+and the multi-game roadmap above, with scope preserved and progress measured by
+observable behavior.

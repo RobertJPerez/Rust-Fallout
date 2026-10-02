@@ -1,0 +1,1336 @@
+{
+  "schema_version": 1,
+  "research_date": "2026-10-02",
+  "references": [
+    {
+      "url": "https://github.com/1x0DF0/OpenNewVegas",
+      "commit": "2945b1645946156d0681aa028430780e9079ea41",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/alandtse/Buffout4",
+      "commit": "27945883793fa959e16d88e266f08dc58fad09d2",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/alexbatalov/fallout1-ce",
+      "commit": "0609bcfd0ec40ff0571d0f57fab2821eb461dc8b",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/alexbatalov/fallout2-ce",
+      "commit": "e97087b9582f37075db347a89898887320753f8b",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/BadDogSkyrim/PyNifly",
+      "commit": "bcb723aba2ca4a80e976d957efbde69b33f2e56f",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/bevyengine/bevy",
+      "commit": "b56fc29d3016e641754765244b5ba3f9cc504671",
+      "build_result": "Bevy 0.19.1 linked into fallout-preview; Windows MSVC debug build and two real-model headless GPU captures completed",
+      "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --locked -p fallout-preview",
+      "inspected_paths": [
+        "Cargo.toml",
+        "examples/3d/generate_custom_mesh.rs",
+        "examples/3d/3d_scene.rs",
+        "examples/app/externally_driven_headless_renderer.rs",
+        "crates/bevy_image/src/image.rs (buffer loading and sampler API)",
+        "crates/bevy_image/src/dds.rs (DDS formats and upload layout)",
+        "crates/bevy_render/src/view/window/screenshot.rs (capture and observer API)",
+        "crates/bevy_render/src/settings.rs (device settings)"
+      ],
+      "license_status": "MIT OR Apache-2.0 in Cargo manifest; bundled license files",
+      "language": "Rust",
+      "role": "presentation service in separate model inspection crate",
+      "license_files": [
+        "LICENSE-MIT",
+        "LICENSE-APACHE"
+      ],
+      "notes": "Crates.io version pinned exactly and Cargo.lock records checksums; upstream source commit matches packaged VCS metadata. Unlit inspection only.",
+      "test_data_provenance": "Authorized local chair01 and Vit-o-matic NIFs and DDS images; no Bevy example assets used",
+      "supported_variants_verified": [
+        "BC1/BC2/BC3 source DDS validation fixtures; real textured model capture on this Windows host"
+      ],
+      "known_omissions": [
+        "No retail shader, lighting, collision, animation or full-interior parity",
+        "Orbit controls implemented; interactive keyboard behavior not separately automated",
+        "Preview release configuration not built; debug executable exercised"
+      ]
+    },
+    {
+      "url": "https://github.com/Calaverah/CALUMI.Motion",
+      "commit": "ad349467df938041d5af790042c0316ec944b44e",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/carxt/JohnnyGuitarNVSE",
+      "commit": "6aa02bbfbe74d1ef1733fe7e73453f25c40ddbfa",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/carxt/New-Vegas-Tick-Fix",
+      "commit": "f442e43d5b82cd229d5ea84ff181142e8a233ec6",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/CharmedBaryon/CommonLibSSE-NG",
+      "commit": "b93280e832f263dbef44e44cbe2936622a02f91a",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/DCCStudios/F4-OpenAnimationReplacer",
+      "commit": "909e1bae2d50bbfa107ae1478f3ad0f40b288476",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Dexesttp/hkxanim",
+      "commit": "77ac57395d0456076e1cdf567ad8da1380cda3c2",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Dexesttp/hkxpack",
+      "commit": "659f1f03185aac7c48272809b9d05270b58b73fa",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/dimforge/rapier",
+      "commit": "846c463e47ef654d6a6ce6fa0e455f3a1e98c2ec",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/DreamWeave-MP/dream_archive",
+      "commit": "a6ba4c9416e5c7bc211e7a3762420e5bf5c9c049",
+      "build_result": "Built through fallout-cli and archive-compare; all 182177 retail entries compared, two malformed text payloads rejected",
+      "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --release -p fallout-cli",
+      "inspected_paths": [
+        "Cargo.toml",
+        "README.md",
+        "LICENSE-MIT",
+        "src/storage.rs",
+        "src/bsa/tes4/parser.rs",
+        "src/bsa/tes4/archive.rs",
+        "src/bsa/tes4/hash.rs",
+        "src/inflate.rs"
+      ],
+      "license_status": "MIT OR Apache-2.0; MIT file inspected",
+      "language": "Rust",
+      "role": "runtime dependency",
+      "license_files": [
+        "LICENSE-MIT",
+        "LICENSE-APACHE"
+      ],
+      "notes": "Only bsa-tes4 enabled. README MSRV 1.88 differs from manifest 1.92; manifest wins. No Luau feature or gameplay dependency.",
+      "test_data_provenance": "Authorized local Steam FNV corpus and original synthetic fixtures; no upstream test assets copied",
+      "supported_variants_verified": [
+        "FNV BSA v104 in this pinned Steam corpus"
+      ],
+      "known_omissions": [
+        "Two malformed text payloads differ between readers",
+        "Other archive/game variants untested"
+      ]
+    },
+    {
+      "url": "https://github.com/fo76utils/fo76utils",
+      "commit": "c52da18cbe0b7529673bb1c373a89ee5efa37260",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/fo76utils/nifskope",
+      "commit": "9f21af214f60734d83403003317100c6bf615789",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Force67/recreation",
+      "commit": "99e26108e6982190533b2226e7e50b4b839bb32b",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/G-A-R-D-E-N/BGS",
+      "commit": "c92a9f5b664efe469f6cff5ebb96ab46aca2eff3",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/gfx-rs/wgpu",
+      "commit": "dd033bfb7fb3690eb2e80a971877a1ef8ecabe59",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/gibbed/Gibbed.Starfield",
+      "commit": "a053b6a78822fafb30f991d4e08770aefda9e647",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ianpatt/f4se",
+      "commit": "6f6a7caa9aeaebc957a70d934b6ab6b80eb768b2",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ianpatt/sfse",
+      "commit": "48535cc4306ab345252bf740c20a1c6194929b0e",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/jazzisparis/JIP-LN-NVSE",
+      "commit": "5a30ac4356ea0e93b9ff357b5031b1e420240a4d",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/jzebedee/ttwinstaller",
+      "commit": "782217cfe4579f11806ac0d8c8de9ec03d33c819",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/libxse/commonlibf4",
+      "commit": "7c8c6f8a349ac85abf6fc8a7e5a71732d9339954",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/libxse/commonlibsf",
+      "commit": "b511f6e7145645965bfcee44cbab65c1f1e3463b",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/loot/loot",
+      "commit": "17d4fa94ade1d2f4ce16ce7fa70ef48f3c76ec53",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/matiaszanolli/ByroRedux",
+      "commit": "273692be5638bd9c20f63ec022d659d1d832956e",
+      "build_result": "Not built",
+      "build_command": "Not selected for build",
+      "inspected_paths": [
+        "README.md",
+        "THIRD_PARTY_NOTICES.md"
+      ],
+      "license_status": "README says MIT; no root license file in inspected checkout; per-component provenance unresolved",
+      "language": "Rust/C++",
+      "role": "deferred after bounded audit",
+      "license_files": [],
+      "notes": "README refers to a commercial engine source tree. No implementation or proprietary-source material ingested. Excluded from copied/linked code pending provenance review.",
+      "test_data_provenance": "No project build/tests performed; source inspection only",
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ]
+    },
+    {
+      "url": "https://github.com/MGuffin/xTranslator",
+      "commit": "9aa38d60860273401f8bb0dd1557c82a295c41b3",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ModdingLinked/The-Best-of-Times",
+      "commit": "bc92ebf67e252bd90b23118ea68de342b0d26b33",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ModOrganizer2/modorganizer",
+      "commit": "efe2a02d5dc641946baaa8db1440800f38d07837",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Monitor221hz/Starfield-Behavior-Editor",
+      "commit": "8ebe518f5e19c176faec51bba15e7b70ec75c3a5",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/MrTrilB/StarfieldBlenderExtension",
+      "commit": "8c57d8f68145dce0b814337c399df6910000f48a",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Mudcrab-Team/mudcrab",
+      "commit": "a9f2310ccfc691eebb97fde18df1e8d334b7d744",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Mutagen-Modding/Mutagen",
+      "commit": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/niftools/blender_niftools_addon",
+      "commit": "0305c8d50edd342d5e4b1cb5aad3da70ee5bc209",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/niftools/nifskope",
+      "commit": "3a85ac55e65cc60abc3434cc4aaca2a5cc712eef",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/niftools/nifxml",
+      "commit": "970a6238218a106daaeb89a61bcda0eeaf9d08c4",
+      "role": "format reference",
+      "inspected_paths": [
+        "LICENSE (license identification)",
+        "nif.xml (version declarations, SizedString, Header, BSStreamHeader, Footer)",
+        "nif.xml (NiObjectNET/NiAVObject/NiNode/BSFadeNode/NiGeometry and triangle shape/data inheritance; MaterialData, NiBound, flags, MatchGroup, triangle/UV/matrix facts; selected shader/property/node layouts researched only)",
+        "nif.xml (NiMaterialProperty, NiAlphaProperty, NiStencilProperty, NiShadeProperty, BSShaderProperty/PPLighting/NoLighting, BSShaderTextureSet, NiSourceTexture, NiTexturingProperty and TexDesc version gates)"
+      ],
+      "license_status": "GPL-3.0 root license; schema consulted as format evidence, not copied/generated into runtime",
+      "build_result": "No build; no schema generator used",
+      "notes": "Container, six scene/mesh types and nine material/texture types independently implemented from format facts. No XML dependency or generated source copied into Rust.",
+      "language": "XML",
+      "license_files": [
+        "LICENSE"
+      ],
+      "build_command": null,
+      "supported_variants_verified": [
+        "NV 20.2.0.7 user 11 stream revisions observed in local corpus"
+      ],
+      "known_omissions": [
+        "Only selected schemas inspected; behavior, controllers, skinning and collision remain open",
+        "Full game-to-renderer axes/units and placement conventions not validated against retail"
+      ],
+      "test_data_provenance": "No upstream assets used; original Rust fixtures and authorized local corpus"
+    },
+    {
+      "url": "https://github.com/niftools/pyffi",
+      "commit": "7f4404dbb8cf832dadd4b3150819340b8764f9b0",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/nikamigaming-create/OpenNV",
+      "commit": "67d55434eb61a7f0f773aa34677c6124fb53ad03",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/OpenMW/openmw",
+      "commit": "63f6261b6e1fe1eb6170ad4e686de0edec836114",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/OpenNV/OpenNV",
+      "commit": "e1a9b1947f6811965aaa01c065fa4bb1e28404df",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Ortham/esplugin",
+      "commit": "b33bd81aae02dd5cc797769705b093e407cd4a66",
+      "build_result": "Built separate plugin-oracle; record counts and master lists agree for all ten plugins; payload integrity not checked by this oracle",
+      "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 run --release --manifest-path tools/plugin-oracle/Cargo.toml -- DATA_DIRECTORY",
+      "inspected_paths": [
+        "Cargo.toml",
+        "README.md",
+        "src/record.rs",
+        "src/subrecord.rs",
+        "src/group.rs",
+        "src/record_id.rs",
+        "src/plugin.rs"
+      ],
+      "license_status": "GPL-3.0-or-later in source notices; package metadata GPL-3.0",
+      "language": "Rust",
+      "role": "separate offline oracle",
+      "license_files": [
+        "LICENSE"
+      ],
+      "notes": "Not linked to fallout-data or fallout-cli. Driver is independently authored GPL-3.0-or-later. Only format facts inform our parser.",
+      "test_data_provenance": "Authorized local Steam FNV corpus and original synthetic fixtures; no upstream test assets copied",
+      "supported_variants_verified": [
+        "FNV plugin record counts/master metadata for all ten official ESM files"
+      ],
+      "known_omissions": [
+        "Compressed payload integrity is not checked by this oracle",
+        "Typed fields and gameplay behavior are not compared"
+      ]
+    },
+    {
+      "url": "https://github.com/Ortham/libloadorder",
+      "commit": "743e8c9fcc37ff27808f0d392ce49dac5d948843",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Orvid/Caprica",
+      "commit": "e4dee0860914d75e770d3f9ab374f7aba474b701",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Orvid/Champollion",
+      "commit": "bc961a0bdfb4831f8240e6dacee0818b4bf81e00",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ousnius/BodySlide-and-Outfit-Studio",
+      "commit": "802a7a5f87f5e1dcb7b55a2b716b9a17c8d9390c",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ousnius/Material-Editor",
+      "commit": "21411873f17454a2442d6785d533499e14c63adb",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ousnius/nifly",
+      "commit": "cca0a770094bb962fb28ea1fec5ea903e68fda8e",
+      "role": "separate offline oracle",
+      "inspected_paths": [
+        "README.md",
+        "LICENSE (license identification)",
+        "CMakeLists.txt",
+        "src/CMakeLists.txt",
+        "include/NifFile.hpp (load/header API)",
+        "include/BasicTypes.hpp (version/header API)",
+        "src/NifFile.cpp (Load/PrepareData boundary)",
+        "src/BasicTypes.cpp (NiHeader::Get)",
+        "external/half.hpp (license notice)",
+        "external/Miniball.hpp (license notice)",
+        "include/Objects.hpp (object field API)",
+        "include/Nodes.hpp (node references)",
+        "include/Geometry.hpp (source attribute/topology API)",
+        "include/Object3d.hpp (matrix storage and transform semantics)",
+        "include/Factory.hpp (raw factory API)",
+        "src/Objects.cpp (serialized transform/flag boundaries)",
+        "include/Shaders.hpp (property and texture field API)",
+        "src/Shaders.cpp (material version gates and legacy slots)"
+      ],
+      "license_status": "GPL-3.0 library; half MIT notice; Miniball GPL-3.0-or-later notice",
+      "build_result": "Separate VS18/MSVC oracle: 218 containers/4582 block entries; raw supported payloads equal for 751 objects, 403 meshes, 96707 vertices and 84661 triangles; independent diagnostics confirm all 25 strict scene rejections; material projection matches 1127 blocks across the same 218 files",
+      "notes": "Standalone GPL executable only. Not linked into fallout.exe. Revision exactly matches lock; upstream header/source code not copied to Rust.",
+      "language": "C++17",
+      "license_files": [
+        "LICENSE",
+        "external/half.hpp",
+        "external/Miniball.hpp"
+      ],
+      "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-nif-oracle.ps1",
+      "supported_variants_verified": [
+        "NV 20.2.0.7 user 11; observed stream revisions 14,21,24,25,26,27,28,30,31,32,33,34"
+      ],
+      "known_omissions": [
+        "Container mode uses NifFile::Load and its in-memory PrepareData; scene/diagnostic comparison bypasses PrepareData through raw factories",
+        "Source arrays compare identical f32 bits; composed f64 Rust vs f32 nifly matrices use abs 1e-4 or rel 1e-5 tolerance",
+        "No renderer, shader, animation or physics acceptance; source repair behavior not verified",
+        "No upstream fixtures imported or upstream tests claimed"
+      ],
+      "test_data_provenance": "Authorized local BSA members decoded to ignored cache; no upstream test models used"
+    },
+    {
+      "url": "https://github.com/Pouya69/F76_Overhaul_Fallout4",
+      "commit": "6770e8656f08639b6d5458ea171ed80625ac7216",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/qudix/f4se-high-fps-physics-fix",
+      "commit": "1b44073f7f174c4d27d74a60b39347a66116a293",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/ruffle-rs/ruffle",
+      "commit": "e092c78c26fa419d1ebf8601c9a0a9b761638e94",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Ryan-rsm-McKenzie/bsa",
+      "commit": "2c7280d5c9199f90b7338d70425181029c9bb2f2",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Ryan-rsm-McKenzie/bsa-rs",
+      "commit": "7b90ce145d5de8e1dda280f10b2b0e0b5aa067f9",
+      "build_result": "Built; 182175 decoded payloads byte-equal, two malformed entries accepted by oracle but rejected by strict backend",
+      "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --release -p archive-compare",
+      "inspected_paths": [
+        "Cargo.toml",
+        "README.md",
+        "LICENSE",
+        "src/lib.rs",
+        "src/derive.rs",
+        "src/tes4/mod.rs",
+        "src/tes4/archive.rs",
+        "src/tes4/file.rs",
+        "src/tes4/hashing.rs"
+      ],
+      "license_status": "0BSD file inspected",
+      "language": "Rust with native dependencies",
+      "role": "offline oracle",
+      "license_files": [
+        "LICENSE"
+      ],
+      "notes": "DirectXTex C++, lz4 C, zlib C only in offline comparison graph. Format knowledge not copied implementation.",
+      "test_data_provenance": "Authorized local Steam FNV corpus and original synthetic fixtures; no upstream test assets copied",
+      "supported_variants_verified": [
+        "FNV BSA v104 in this pinned Steam corpus"
+      ],
+      "known_omissions": [
+        "Two malformed text payloads differ between readers",
+        "Other archive/game variants untested"
+      ]
+    },
+    {
+      "url": "https://github.com/SebboHN/hkxImport",
+      "commit": "f21376aeac14df0b8699a095d86a8f01ceaa88aa",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/SesamePaste233/StarfieldMeshConverter",
+      "commit": "00e55292c56da5d10f7d30824e938b8183992962",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/SK8-ENGINE/skate-3-rust-engine",
+      "commit": "7ae67f269c024ed0b1aa945701e04fa5bf419848",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/skyrim-multiplayer/papyrus-vm",
+      "commit": "54500907281a0862e7dba854bbb763b16733fbe8",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/skyrim-multiplayer/skymp",
+      "commit": "f926944b18e3aed4bc3864ce668626c05ec2545f",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/slfx77/bethesda-multitool",
+      "commit": "2dde41de7ffded074cb9a3f3c33c1cdd76e1afb8",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Starfield-Reverse-Engineering/CommonLibSF",
+      "commit": "9caec209f0a3662dbaa94baeeadc37b6aba7a42b",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/suglasp/fallout4_fallout76_sfx_conversionkit",
+      "commit": "c5ef48df99dd9512e59057da80280c3a67c69906",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/SulfurNitride/Rust-BSA-BA2-Handler",
+      "commit": "8a3fc61528a5b8daf40a518598c47fddcc72ad23",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/TaleOfTwoWastelands/TaleOfTwoWastelands",
+      "commit": "105d6f3264bf1112c132c27322e7176fb656cd70",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/TES5Edit/TES5Edit",
+      "commit": "9fb016884bec138ea6c7b872cec831537d464c3e",
+      "build_result": "Not built; Delphi oracle integration remains pending",
+      "build_command": "Delphi build per upstream README",
+      "inspected_paths": [
+        "README.md",
+        "LICENSE.txt",
+        "Core/wbDefinitionsFNV.pas",
+        "Core/wbDefinitionsCommon.pas",
+        "Core/wbImplementation.pas",
+        "Core/wbCompression.pas"
+      ],
+      "license_status": "MPL-2.0 root and FNV schema notices inspected",
+      "language": "Delphi/Pascal",
+      "role": "format reference",
+      "license_files": [
+        "LICENSE.txt"
+      ],
+      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection.",
+      "test_data_provenance": "No project build/tests performed; source inspection only",
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ]
+    },
+    {
+      "url": "https://github.com/the-big-mt/SugarBombEngine",
+      "commit": "a3c2bae6b6186f004a7edcaa301e75372d8bee25",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/Tzeentchnet/NifBlend",
+      "commit": "e245e4785db8bcc551922d5c55adbe246c191ff2",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/xNVSE/NVSE",
+      "commit": "0ccd23ad885ddae533c1790a3fc56cd073e38de3",
+      "build_result": "Not built",
+      "build_command": "Not yet instrumenting retail",
+      "inspected_paths": [
+        "nvse/nvse/GameScript.h"
+      ],
+      "license_status": "per-component audit incomplete; no code reuse",
+      "language": "C++",
+      "role": "future behavior research",
+      "license_files": [
+        "common/common_license.txt",
+        "nvse/Algohol/license.txt"
+      ],
+      "notes": "ScriptInfo and fixed-address wrappers inspected; in-memory layouts kept separate from on-disk schema. No native addresses used.",
+      "test_data_provenance": "No project build/tests performed; source inspection only",
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ]
+    },
+    {
+      "url": "https://github.com/ZehMatt/OpenFallout4",
+      "commit": "ad28539760403c31ade1d15eb2aa8cb4eec41a87",
+      "role": "deferred",
+      "inspected_paths": [],
+      "license_status": "not audited",
+      "build_result": "not built",
+      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
+      "language": "not audited",
+      "license_files": [],
+      "build_command": null,
+      "supported_variants_verified": [],
+      "known_omissions": [
+        "Implementation and behavior not audited in this checkpoint"
+      ],
+      "test_data_provenance": "No build or test performed for this catalog entry"
+    }
+  ],
+  "other_references": [
+    "https://docs.rs/ba2/latest/ba2/",
+    "https://geckwiki.com/index.php?title=Category:User_Interface",
+    "https://geckwiki.com/index.php?title=Hardcoded_UI_Shortcuts",
+    "https://geckwiki.com/index.php?title=Main_Page",
+    "https://geckwiki.com/index.php?title=NVSEScript",
+    "https://geckwiki.com/index.php?title=TTW_Mod_Conversion_Package_and_Guidelines",
+    "https://gitlab.com/OpenMW/openmw/",
+    "https://mod.pub/ttw/133/docs/25-faq-frequently-asked-questions",
+    "https://openmw.org/2025/openmw-0-49-0-released/",
+    "https://opennevada.com/",
+    "https://skkmods.com/fallout4/",
+    "https://starfieldgeometrybridge.github.io/docs/tips/material/",
+    "https://taleoftwowastelands.com/viewtopic.php@t=8616",
+    "https://thebestoftimes.moddinglinked.com/essentials.html",
+    "https://thebestoftimes.moddinglinked.com/faq.html",
+    "https://thebestoftimes.moddinglinked.com/ttw.html",
+    "https://www.nexusmods.com/fallout4/mods/107110",
+    "https://www.nexusmods.com/fallout4/mods/108858",
+    "https://www.nexusmods.com/fallout4/mods/40545",
+    "https://www.reddit.com/r/Fallout4Mods/comments/1un3998/madman_ports_all_of_fallout_76_to_fallout_4/",
+    "https://www.reddit.com/r/FalloutMods/comments/bm4kvi/fo4_appalachia/",
+    "https://www.youtube.com/watch?v=0aNzHeD0KYw",
+    "https://www.youtube.com/watch?v=jtY2MTKNVjs",
+    "https://www.youtube.com/watch?v=Kh3UAp6COzo"
+  ]
+}

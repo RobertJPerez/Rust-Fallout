@@ -1,0 +1,16 @@
+[package]
+name = "archive-compare"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+fallout-data = { path = "../../crates/fallout-data" }
+ba2 = { git = "https://github.com/Ryan-rsm-McKenzie/bsa-rs", rev = "7b90ce145d5de8e1dda280f10b2b0e0b5aa067f9" }
+serde_json.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true
+

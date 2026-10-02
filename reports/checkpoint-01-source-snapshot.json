@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "revision": null,
+  "scope": "Source/tooling files and Cargo locks; uncommitted working tree",
+  "sha256": "b42a889f5f68f47faa704263530c73096b478a2ce30935a3176861278bce4900",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "5fbc3d0e3a6698bafb09dfd89b54bd3c6877895ffa14736573cc009565cbbdc9"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "8abcdc4acb462004afe94a885e95388d29317a2941ff9e45a22f207bfe6ae052"
+    },
+    {
+      "path": "crates/fallout-cli/Cargo.toml",
+      "sha256": "b256941e36eff5c5e16f0607bb3f6cca28efb64942357c85d2fb3b2d4ad0fe21"
+    },
+    {
+      "path": "crates/fallout-cli/src/main.rs",
+      "sha256": "89650d80df8ca7bc9b2b10cbcd4eb3f07eb7c2cd293faf95b46871d11d580216"
+    },
+    {
+      "path": "crates/fallout-data/Cargo.toml",
+      "sha256": "0d3c27170d470926fc99ef435c599afae237b58308efe1fa204b04e28749ea6c"
+    },
+    {
+      "path": "crates/fallout-data/src/archive.rs",
+      "sha256": "8834226620d978637130bb3bdf157090b1fe616f9faf5732c4feda02f21d19c2"
+    },
+    {
+      "path": "crates/fallout-data/src/baseline.rs",
+      "sha256": "038dfbd78f188220fdb46a4f0da8c07cdd22974be81cd92347c7018ff7942a96"
+    },
+    {
+      "path": "crates/fallout-data/src/cache.rs",
+      "sha256": "b3481cc4bdfc1f04544007c60083fc9969efd704e97f056cc52d98d7191e0fdc"
+    },
+    {
+      "path": "crates/fallout-data/src/content.rs",
+      "sha256": "0ecdad81ee5f520a93a70399c063bbb667abfa167f029bace991465f4fcfa455"
+    },
+    {
+      "path": "crates/fallout-data/src/identity.rs",
+      "sha256": "106cf0ef198459dd959eb497e3784947de693199941e1c0fd9cf6ddb4f228367"
+    },
+    {
+      "path": "crates/fallout-data/src/lib.rs",
+      "sha256": "d444fc1e3960b7153fb5e91a106304cdbe2d0136590434958097a4049dddd4b1"
+    },
+    {
+      "path": "crates/fallout-data/src/parity.rs",
+      "sha256": "25e974509543903e4cd6b5b437ee21e844a55ae94306c6920284bc4950132c28"
+    },
+    {
+      "path": "crates/fallout-data/src/planning.rs",
+      "sha256": "9484b6f1e0030621b5b68d5c8b5bae541cb22f3deeb325733c7a64baa8e4a676"
+    },
+    {
+      "path": "crates/fallout-data/src/plugin.rs",
+      "sha256": "31c115127bae5e0c1c0557275365dc0c040087fec639611b462c5cd76a8839f8"
+    },
+    {
+      "path": "crates/fallout-data/src/script_inventory.rs",
+      "sha256": "3fa70c2511e5a7c866d6df8d78a707749b2382e90d55cd8841d1f60b48c7d950"
+    },
+    {
+      "path": "crates/fallout-data/src/vfs.rs",
+      "sha256": "534cec07e9e5286de3fc6c3d429f7ee32bf5df495048e5998ab3519d09a36284"
+    },
+    {
+      "path": "crates/fallout-data/tests/framing.rs",
+      "sha256": "2ebf2c910e53210ad350733ee8c021e5160558cbfc33484eff8a43aad4dda047"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "e362c278544e2ba95a852f356eaa0e7446ac37b79f8250dbb8db2d3a997b6fbd"
+    },
+    {
+      "path": "tools/archive-compare/Cargo.toml",
+      "sha256": "3af253f562aea15a8d07205c4b0613921e0e566dae58f7f7345acc5d9b247566"
+    },
+    {
+      "path": "tools/archive-compare/src/main.rs",
+      "sha256": "ecd9faa8e1455fb32bac0e81207d0d9403a3b03b44419062cb58707d372f751b"
+    },
+    {
+      "path": "tools/bootstrap.ps1",
+      "sha256": "aa4152e9d0097caa633edc27036385b1727e75d94274747a3c0405ad1b0b9ef4"
+    },
+    {
+      "path": "tools/cargo.ps1",
+      "sha256": "4ffddf5827014abe24475581d82baec12c9d66d21b21833b9866d1f3ba4722a6"
+    },
+    {
+      "path": "tools/check.ps1",
+      "sha256": "8ea63e5fdf5cb6d4e0435d0682b3377d9de24e667919d1bd511f79db0d857a53"
+    },
+    {
+      "path": "tools/compare-corpus.ps1",
+      "sha256": "6bcb17e35c3d9f4c2cc9d0ed68a85bf35be80e82b7190a069c70f31834c65e74"
+    },
+    {
+      "path": "tools/plugin-oracle/Cargo.lock",
+      "sha256": "5e38333dd7c6ffa3ddd3ea9bc3a50055b181e66e48a93d3ac8b1a602f9d63a22"
+    },
+    {
+      "path": "tools/plugin-oracle/Cargo.toml",
+      "sha256": "856f4fe7213dd74dda29ff86627fff36d8dafbee4079e69c2358bd5deaf13425"
+    },
+    {
+      "path": "tools/plugin-oracle/src/main.rs",
+      "sha256": "8de108fd2bc58041e40b793f578af4c42d3bb72ea848b0546358d1c7fa8e358f"
+    },
+    {
+      "path": "tools/report.py",
+      "sha256": "38d9a08da80b571fc05613a185e8abacaf52fd2350fe3e49a32fe2a76c670123"
+    }
+  ]
+}

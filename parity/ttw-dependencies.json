@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile": "ttw-compatible",
+  "status": "unknown",
+  "installation_baselined": false,
+  "providers": [],
+  "required_provider_denominator": null,
+  "blocked_scenarios": ["All TTW scenarios: no pinned TTW corpus or runtime dependency census yet"],
+  "notes": "NV official DLC presence does not establish TTW support. Native DLL detection is not standalone compatibility."
+}

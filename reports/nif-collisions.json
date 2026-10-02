@@ -1,16 +1,6 @@
 {
-  "baseline_report_sha256": "6ef887da38febc3881eadbc4a65592f938d52d62ac4fb2f3a0f9ff1154df2119",
-  "check_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
-  "check_exit_code": 0,
-  "check_log_sha256": "5ee46be2bc451e17946391caeece24aa6365af5457318a3b0c8174065808c3c5",
   "checkpoint": 7,
-  "clippy_warnings_denied": "passed",
-  "content_fingerprint": "b1e54397ea2e900913c33feecbdb27b1bc33de95241cd5e0bcdd0250e79de007",
-  "date": "2026-10-02",
-  "engine_revision": "fc6fb1b821094edda7b53d65d12c4849f64d394f",
-  "evidence_runner_sha256": "ea6ae300c6cc38fa292ebf4e86ad5a26dc49fa06cc6f37e32c9eba504d75a8c0",
-  "format_check": "passed",
-  "fresh_collision_comparison": {
+  "datasets": {
     "house": {
       "all_equal": true,
       "block_counts": {
@@ -2706,18 +2696,16 @@
       }
     }
   },
-  "gameplay_acceptance": "not implemented; no accepted scenarios",
-  "installation_bytes_checked": 9907238722,
-  "installation_files_checked": 464,
-  "local_evidence_directory": "local\\collision-07-verified",
-  "original_installation_matches_baseline": true,
-  "presentation_evidence_origin_checkpoint": 6,
-  "presentation_reexecuted": false,
-  "prior_verification": "reports/checkpoint-06-verification.json",
-  "raw_oracle_binary_sha256": "bf0806d24d26081dde80cecd7930644da0cf2318b85f69cc44c39ce9b3006f35",
-  "release_cli_sha256": "024f0d40533824b27a56ff4851cc21c6918ee669807a4e3783ad07d672a45ed7",
+  "engine_revision": "fc6fb1b821094edda7b53d65d12c4849f64d394f",
+  "known_gaps": [
+    "Coordinates, units, body activation and motion behavior are not measured against retail",
+    "Constraint and blend-controller payloads remain unsupported",
+    "MOPP bytecode is opaque; no interpreter or physics backend is implemented",
+    "Compressed packed vertices retain source words only; pinned nifly cannot certify this branch",
+    "bhkPCollisionObject has synthetic coverage only; this is not a whole-corpus collision scan"
+  ],
+  "oracle": "raw nifly factories cca0a770094bb962fb28ea1fec5ea903e68fda8e; no PrepareData",
+  "physics_ready": false,
   "schema_version": 1,
-  "source_matches_implementation_commit": true,
-  "source_snapshot_sha256": "586e73c7cecb3bcd3f3cb6b4af800095a68cb330304ef0d8018076d0bd6be2fd",
-  "tests_passed": 68
+  "source_snapshot_sha256": "586e73c7cecb3bcd3f3cb6b4af800095a68cb330304ef0d8018076d0bd6be2fd"
 }

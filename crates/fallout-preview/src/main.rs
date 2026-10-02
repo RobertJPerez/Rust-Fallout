@@ -1,5 +1,6 @@
 //! A small inspection host for the production decoder, not a gameplay runtime.
 mod model;
+mod scene;
 
 use bevy::{
     app::{AppExit, ScheduleRunnerPlugin},
@@ -25,13 +26,25 @@ use std::{
 };
 
 #[derive(Parser, Resource)]
-#[command(about = "Inspect one archived New Vegas model with unlit diffuse textures")]
+#[command(about = "Inspect archived New Vegas models or a placed interior")]
 struct Options {
     #[arg(long)]
     install: PathBuf,
     /// Archive path, for example meshes/furniture/chair01.nif.
-    #[arg(long)]
-    model: String,
+    #[arg(long, required_unless_present = "cell", conflicts_with = "cell")]
+    model: Option<String>,
+    /// Interior CELL editor ID, for example GSDocMitchellHouse.
+    #[arg(long, requires = "load_order")]
+    cell: Option<String>,
+    #[arg(long, requires = "cell")]
+    load_order: Option<PathBuf>,
+    /// Camera position in original source units (x,y,z).
+    #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
+        requires_all = ["camera_look_at", "cell"])]
+    camera_position: Option<Vec<f64>>,
+    #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
+        requires_all = ["camera_position", "cell"])]
+    camera_look_at: Option<Vec<f64>>,
     /// Write a PNG and exit after the GPU capture completes. Existing files are refused.
     #[arg(long)]
     capture: Option<PathBuf>,
@@ -70,6 +83,12 @@ struct Capture {
     started: Instant,
 }
 
+#[derive(Resource)]
+struct Navigation {
+    fly: bool,
+    home: Transform,
+}
+
 fn output_path(path: &Path, install: &Path) -> model::Result<PathBuf> {
     let name = path.file_name().ok_or("output needs a file name")?;
     let parent = path
@@ -97,34 +116,74 @@ fn run() -> model::Result<AppExit> {
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
     }
-    let path = AssetPath::new(options.model.as_bytes())?;
-    let (model, report) = model::load(&options.install, &path)?;
+    let (prepared, report) = if let Some(name) = &options.model {
+        scene::load_model(&options.install, &AssetPath::new(name.as_bytes())?)?
+    } else {
+        scene::load_cell(
+            &options.install,
+            options
+                .load_order
+                .as_deref()
+                .expect("clap requires load order"),
+            options
+                .cell
+                .as_deref()
+                .expect("clap requires model or cell"),
+        )?
+    };
+    match &report {
+        scene::Report::Model(report) => eprintln!(
+            "{} meshes, {} vertices, {} triangles, {} diffuse textures; {} recorded limitations",
+            report.meshes,
+            report.vertices,
+            report.triangles,
+            report.textures.len(),
+            report.warnings.len()
+        ),
+        scene::Report::Cell(report) => eprintln!(
+            "{} placed references, {} shared models, {} mesh instances, {} texture samplers; {} omitted references",
+            report.rendered_references,
+            report.unique_render_models,
+            report.rendered_mesh_instances,
+            report.unique_texture_samplers,
+            report.placements.len() - report.rendered_references
+        ),
+    }
     eprintln!(
-        "{} meshes, {} vertices, {} triangles, {} diffuse textures; {} recorded limitations",
-        report.meshes,
-        report.vertices,
-        report.triangles,
-        report.textures.len(),
-        report.warnings.len()
+        "Tab: orbit/fly; fly: WASD, Q/E vertical, arrows look, Shift faster; R: reset; Esc: close"
     );
-    eprintln!("A/D or arrows: orbit; W/S: tilt; Q/E: zoom; R: reset; Esc: close");
     if let Some(path) = &options.report {
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         serde_json::to_writer_pretty(&mut file, &report)?;
         file.write_all(b"\n")?;
     }
     let orbit = Orbit {
-        center: model.center,
-        radius: model.radius,
+        center: prepared.center,
+        radius: prepared.radius,
         yaw: 2.5,
         pitch: 0.3,
-        distance: model.radius * 3.,
+        distance: prepared.radius * 3.,
+    };
+    let home = match (&options.camera_position, &options.camera_look_at) {
+        (Some(position), Some(target)) => scene::source_camera(
+            position.as_slice().try_into()?,
+            target.as_slice().try_into()?,
+            prepared.origin,
+        )?,
+        _ => orbit.transform(),
+    };
+    let navigation = Navigation {
+        fly: options.camera_position.is_some(),
+        home,
     };
     let headless = options.headless;
     let mut plugins = DefaultPlugins
         .set(WindowPlugin {
             primary_window: (!headless).then(|| Window {
-                title: format!("Fallout Rust — model inspection — {}", options.model),
+                title: format!(
+                    "Fallout Rust - inspection - {}",
+                    options.model.as_ref().or(options.cell.as_ref()).unwrap()
+                ),
                 resolution: (1280, 900).into(),
                 ..default()
             }),
@@ -145,8 +204,9 @@ fn run() -> model::Result<AppExit> {
     let mut app = App::new();
     app.add_plugins(plugins)
         .insert_resource(options)
-        .insert_resource(model)
+        .insert_resource(prepared)
         .insert_resource(orbit)
+        .insert_resource(navigation)
         .insert_resource(ClearColor(Color::srgb(0.035, 0.045, 0.055)))
         .add_systems(Startup, setup)
         .add_systems(Update, (controls, capture));
@@ -158,38 +218,67 @@ fn run() -> model::Result<AppExit> {
 
 fn setup(
     mut commands: Commands,
-    mut model: ResMut<model::Model>,
+    mut prepared: ResMut<scene::Prepared>,
     options: Res<Options>,
-    orbit: Res<Orbit>,
+    navigation: Res<Navigation>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let textures: Vec<_> = model
+    let textures: Vec<_> = prepared
         .images
         .drain(..)
         .map(|image| images.add(image))
         .collect();
-    for part in model.parts.drain(..) {
-        commands.spawn((
-            Mesh3d(meshes.add(part.mesh)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: part.color,
-                base_color_texture: part.texture.map(|i| textures[i].clone()),
-                alpha_mode: part.alpha_mode,
-                unlit: true,
-                ..default()
-            })),
-        ));
+    // Upload each model once. Repeated references share mesh/material handles.
+    let templates: Vec<Vec<_>> = prepared
+        .models
+        .iter_mut()
+        .map(|model| {
+            model
+                .parts
+                .drain(..)
+                .map(|part| {
+                    (
+                        meshes.add(part.mesh),
+                        materials.add(StandardMaterial {
+                            base_color: part.color,
+                            base_color_texture: part.texture.map(|i| textures[i].clone()),
+                            alpha_mode: part.alpha_mode,
+                            unlit: true,
+                            ..default()
+                        }),
+                    )
+                })
+                .collect()
+        })
+        .collect();
+    for instance in prepared.instances.drain(..) {
+        let mut parent = commands.spawn((instance.transform, Visibility::default()));
+        if let Some(key) = instance.key {
+            let view = scene::ReferenceView { key };
+            parent.insert((
+                Name::new(format!(
+                    "{}:{:06X}",
+                    view.key.origin_plugin, view.key.local_id
+                )),
+                view,
+            ));
+        }
+        parent.with_children(|parent| {
+            for (mesh, material) in &templates[instance.model] {
+                parent.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(material.clone())));
+            }
+        });
     }
     let camera = commands
         .spawn((
             Camera3d::default(),
             Tonemapping::None,
-            orbit.transform(),
+            navigation.home,
             Projection::Perspective(PerspectiveProjection {
-                near: (orbit.radius * 0.001).max(0.01),
-                far: orbit.radius * 100.,
+                near: (prepared.radius * 0.001).max(0.01),
+                far: prepared.radius * 100.,
                 ..default()
             }),
         ))
@@ -225,6 +314,7 @@ fn controls(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut orbit: ResMut<Orbit>,
+    mut navigation: ResMut<Navigation>,
     mut cameras: Query<&mut Transform, With<Camera3d>>,
     mut exit: MessageWriter<AppExit>,
 ) {
@@ -235,6 +325,32 @@ fn controls(
     let direction = |positive, negative| {
         f32::from(u8::from(keys.pressed(positive))) - f32::from(u8::from(keys.pressed(negative)))
     };
+    if keys.just_pressed(KeyCode::Tab) {
+        navigation.fly = !navigation.fly;
+    }
+    if navigation.fly {
+        for mut transform in &mut cameras {
+            if keys.just_pressed(KeyCode::KeyR) {
+                *transform = navigation.home;
+            }
+            let yaw = direction(KeyCode::ArrowLeft, KeyCode::ArrowRight) * delta;
+            let pitch = direction(KeyCode::ArrowUp, KeyCode::ArrowDown) * delta;
+            transform.rotate_y(yaw);
+            // Keep a small margin from vertical to avoid an ambiguous up direction.
+            let current_pitch = transform.forward().y.asin();
+            transform.rotate_local_x((current_pitch + pitch).clamp(-1.5, 1.5) - current_pitch);
+            let movement = transform.forward().as_vec3() * direction(KeyCode::KeyW, KeyCode::KeyS)
+                + transform.right().as_vec3() * direction(KeyCode::KeyD, KeyCode::KeyA)
+                + Vec3::Y * direction(KeyCode::KeyE, KeyCode::KeyQ);
+            let speed = if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) {
+                600.
+            } else {
+                180.
+            };
+            transform.translation += movement.normalize_or_zero() * speed * delta;
+        }
+        return;
+    }
     orbit.yaw += (direction(KeyCode::KeyD, KeyCode::KeyA)
         + direction(KeyCode::ArrowRight, KeyCode::ArrowLeft))
         * delta;

@@ -179,6 +179,17 @@ inline void write(const std::filesystem::path& path, bool diagnostics = false) {
         }
         std::cout << "}}";
     }
+    std::cout << "],\"extra_flags\":[";
+    first = true;
+    for (uint32_t id = 0; id < blocks.size(); ++id) {
+        if (header.GetBlockTypeStringById(id) != "BSXFlags") continue;
+        auto flags = header.GetBlock<BSXFlags>(id);
+        if (!first) std::cout << ',';
+        first = false;
+        std::cout << "{\"block\":" << id << ",\"name\":";
+        ref(flags->name.GetIndex());
+        std::cout << ",\"value\":" << flags->integerData << '}';
+    }
     std::cout << "],\"meshes\":[";
     first = true;
     for (uint32_t id = 0; id < blocks.size(); ++id) {

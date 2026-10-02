@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "binary": "target\\debug\\fallout-preview.exe",
-  "binary_sha256": "562afcf862e7086f0ad078757a5b2691c38c3dd5ed80a62ac8309b633f4a1d6b",
-  "captures_directory": "local\\preview-final",
-  "captures_manifest_sha256": "ec7650cf7b591a421b990b950215e2c12aab6fb81691e5844d025c376bd6c04f",
+  "binary_sha256": "28f2b717a8b9b7011196b1a611e405635f5e6419a55dcb6db0177352ecd3e6a1",
+  "captures_directory": "local\\model-05-final",
+  "captures_manifest_sha256": "0a3ef35e12bfe7f0f94c73f4880315ce885ad4bf08e982f771e87b3640311ee0",
   "captures": [
     {
       "model": "meshes/furniture/chair01.nif",
       "exit_code": 0,
-      "seconds": 9.65914000000339,
+      "seconds": 7.154336499981582,
       "png": "chair.png",
       "png_sha256": "a8712b5c374e61d4b5dd4b1dee4dc6799458cba6bd33494fbcc76fe4de2b5bb6",
       "report": "chair.json",
-      "report_sha256": "6659fbffeda81272298c4e351b648b4ee31b8861647a8f35db5122d2465185a6",
+      "report_sha256": "0c18af097ddfe350c5ba5bd77954abdaf7682e9f41caf90ee2977a8bb0b6c1c9",
       "model_sha256": "6e45d90b14cce19c7845180d8d3e5a07ad0b7177df0487989ea8ca9d29076f45",
       "meshes": 1,
       "vertices": 268,
@@ -60,7 +60,6 @@
       ],
       "warnings": [
         "1 unsupported BSFurnitureMarker blocks",
-        "1 unsupported BSXFlags blocks",
         "1 unsupported bhkCollisionObject blocks",
         "1 unsupported bhkMoppBvTreeShape blocks",
         "1 unsupported bhkPackedNiTriStripsShape blocks",
@@ -71,11 +70,11 @@
     {
       "model": "meshes/architecture/goodsprings/nv_vitomaticvigortester_cabinet02.nif",
       "exit_code": 0,
-      "seconds": 8.422617700009141,
+      "seconds": 7.920408000005409,
       "png": "vitomatic.png",
       "png_sha256": "8ee6658162de810f388aaf8a5d0438ba176c808e71b73de134207abeba9a65ee",
       "report": "vitomatic.json",
-      "report_sha256": "fc39cbefb7713a7e9fdab3ca6f1fdbff8af564da981257b6ad550d4ee53ba23c",
+      "report_sha256": "db9a172383ed0a5cb476ab61d2d345d8fc91820e5388f8fcaab0f6fc7b915e66",
       "model_sha256": "d4e55b00e7508c603e257d06106eb1aeb903e4c82cdc55286d63767983651c78",
       "meshes": 28,
       "vertices": 8297,
@@ -419,7 +418,6 @@
         }
       ],
       "warnings": [
-        "1 unsupported BSXFlags blocks",
         "2 unsupported NiStringExtraData blocks",
         "1 unsupported bhkCollisionObject blocks",
         "1 unsupported bhkConvexVerticesShape blocks",
@@ -436,7 +434,7 @@
   "backend": "Bevy 0.19.1 / wgpu; headless image target and asynchronous GPU readback",
   "rendering": "unlit diffuse; source UVs and source units; [x,y,z] -> [x,z,-y]",
   "known_gaps": [
-    "No retail image comparison, lighting/shader parity or complete interior",
+    "No retail image comparison or lighting/shader parity; interior assembly is tracked separately",
     "Skinning, controllers, collision and gameplay are absent",
     "Cabinet report records one unsupported diffuse binding; the chosen view does not prove that surface renders correctly",
     "Interactive orbit bindings implemented but not independently exercised with keyboard automation"

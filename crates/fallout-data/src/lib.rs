@@ -8,6 +8,7 @@ pub mod assets;
 pub mod baseline;
 pub mod cache;
 pub mod content;
+pub mod coordinates;
 pub mod identity;
 pub mod model_probe;
 pub mod nif;

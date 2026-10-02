@@ -29,6 +29,21 @@ impl RecordStore {
     }
 
     pub fn open_nv(data: &Path, names: &[String], limits: Limits) -> Result<Self> {
+        Self::open_selected(data, names, limits, false)
+    }
+
+    /// Startup validates framing, identities and CELL metadata. Every later read
+    /// still checks the exact indexed header and strictly validates its payload.
+    pub fn open_nv_headers(data: &Path, names: &[String], limits: Limits) -> Result<Self> {
+        Self::open_selected(data, names, limits, true)
+    }
+
+    fn open_selected(
+        data: &Path,
+        names: &[String],
+        limits: Limits,
+        headers_only: bool,
+    ) -> Result<Self> {
         if names.is_empty() {
             return Err(Error::Resolution("load order is empty".into()));
         }
@@ -38,7 +53,11 @@ impl RecordStore {
             plugin_name(name)?;
             let path = data.join(name);
             files.push(open_source(&path)?);
-            indices.push(content::index_plugin_with_limits(&path, limits)?);
+            indices.push(if headers_only {
+                content::index_plugin_headers(&path, limits)?
+            } else {
+                content::index_plugin_with_limits(&path, limits)?
+            });
         }
         // Keep the same missing-master, duplicate-identity and taint rules as the
         // headless resolver. Inspection can carry taint, never erase it.
@@ -72,6 +91,13 @@ impl RecordStore {
         self.indices
             .iter()
             .map(|p| p.census.integrity_issues.len())
+            .sum()
+    }
+
+    pub fn deferred_payloads(&self) -> u64 {
+        self.indices
+            .iter()
+            .map(|p| p.census.record_payloads_deferred)
             .sum()
     }
 

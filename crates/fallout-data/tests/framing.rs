@@ -366,53 +366,155 @@ fn cell_membership_uses_winning_parent_and_does_not_resurrect_deleted_references
     ));
     std::fs::write(dir.path().join("Base.esm"), base).unwrap();
     std::fs::write(dir.path().join("Patch.esp"), patch).unwrap();
-    let mut store = RecordStore::open_nv(
-        dir.path(),
-        &["Base.esm".into(), "Patch.esp".into()],
+    for open in [RecordStore::open_nv, RecordStore::open_nv_headers] {
+        let mut store = open(
+            dir.path(),
+            &["Base.esm".into(), "Patch.esp".into()],
+            Limits::default(),
+        )
+        .unwrap();
+        let a = world::inspect_cell(&mut store, b"RoomA", &MountIndex::default()).unwrap();
+        assert_eq!(a.references.len(), 1);
+        assert_eq!(a.references[0].key.local_id, 0x1001);
+        assert!(a.references[0].placement.is_none());
+        assert_eq!(a.references[0].record_flags, plugin::DELETED);
+        let b = world::inspect_cell(&mut store, b"RoomB", &MountIndex::default()).unwrap();
+        assert_eq!(b.references.len(), 1);
+        assert_eq!(
+            b.references[0]
+                .placement
+                .as_ref()
+                .unwrap()
+                .transform
+                .value
+                .position[0],
+            42.0
+        );
+        assert_eq!(
+            b.references[0]
+                .base
+                .as_ref()
+                .unwrap()
+                .key
+                .as_ref()
+                .unwrap()
+                .origin_plugin,
+            "base.esm"
+        );
+        assert_eq!(
+            b.models[0].asset_path.as_ref().unwrap().bytes(),
+            b"meshes/fixture.nif"
+        );
+        assert!(
+            store.indices()[0]
+                .records
+                .last()
+                .unwrap()
+                .parent
+                .cell
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn deferred_corruption_is_rejected_on_access_and_never_claimed_as_validated() {
+    use fallout_data::{store::RecordStore, vfs::MountIndex, world};
+    let dir = tempfile::tempdir().unwrap();
+    let mut bytes = header(&[]);
+    let mut cell = sub(b"EDID", b"DeferredRoom\0");
+    cell.extend(sub(b"DATA", &[1]));
+    bytes.extend(record(b"CELL", 0x900, 0, &cell));
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&sub(b"MODL", b"fixture.nif\0")).unwrap();
+    let mut packed = (18u32).to_le_bytes().to_vec();
+    let mut compressed = encoder.finish().unwrap();
+    *compressed.last_mut().unwrap() ^= 1;
+    packed.extend(compressed);
+    bytes.extend(record(b"STAT", 0x800, plugin::COMPRESSED, &packed));
+    bytes.extend(cell_group(
+        0x900,
+        &record(b"REFR", 0x1000, 0, &placed(0x800, 1.)),
+    ));
+    let path = dir.path().join("Deferred.esm");
+    std::fs::write(&path, &bytes).unwrap();
+    assert!(content::index_plugin(&path).is_err());
+    let index = content::index_plugin_headers(&path, Limits::default()).unwrap();
+    assert_eq!(index.census.record_payloads_deferred, 2);
+    assert_eq!(index.census.record_payloads_decoded, 2);
+    assert_eq!(
+        index.census.payload_scope,
+        content::PayloadScope::CellMetadata
+    );
+    assert!(index.census.integrity_issues.is_empty());
+    let mut store =
+        RecordStore::open_nv_headers(dir.path(), &["Deferred.esm".into()], Limits::default())
+            .unwrap();
+    let error = world::inspect_cell(&mut store, b"DeferredRoom", &MountIndex::default())
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("strict integrity check failed"));
+    assert!(
+        content::index_plugin_headers(
+            &path,
+            Limits {
+                inspect_checksum_mismatches: true,
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn selected_walk_keeps_all_bounds_and_count_checks_for_deferred_bodies() {
+    let mut bytes = header(&[]);
+    bytes.extend(group(&record(b"MISC", 0x800, 0, &[9; 80])));
+    for end in 0..bytes.len() {
+        assert!(
+            plugin::visit_selected(
+                &mut &bytes[..end],
+                bytes.len() as u64,
+                "fixture",
+                Limits::default(),
+                |_| false,
+                |_| Ok(())
+            )
+            .is_err(),
+            "truncated at {end}"
+        );
+    }
+    assert!(
+        plugin::visit_selected(
+            &mut &bytes[..],
+            bytes.len() as u64,
+            "fixture",
+            Limits {
+                max_records: 1,
+                ..Default::default()
+            },
+            |_| false,
+            |_| Ok(())
+        )
+        .is_err()
+    );
+    let mut deferred = 0;
+    plugin::visit_selected(
+        &mut &bytes[..],
+        bytes.len() as u64,
+        "fixture",
         Limits::default(),
+        |_| false,
+        |event| {
+            if let plugin::SelectedEvent::Deferred(h) = event {
+                assert_eq!(h.kind, *b"MISC");
+                deferred += 1;
+            }
+            Ok(())
+        },
     )
     .unwrap();
-    let a = world::inspect_cell(&mut store, b"RoomA", &MountIndex::default()).unwrap();
-    assert_eq!(a.references.len(), 1);
-    assert_eq!(a.references[0].key.local_id, 0x1001);
-    assert!(a.references[0].placement.is_none());
-    assert_eq!(a.references[0].record_flags, plugin::DELETED);
-    let b = world::inspect_cell(&mut store, b"RoomB", &MountIndex::default()).unwrap();
-    assert_eq!(b.references.len(), 1);
-    assert_eq!(
-        b.references[0]
-            .placement
-            .as_ref()
-            .unwrap()
-            .transform
-            .value
-            .position[0],
-        42.0
-    );
-    assert_eq!(
-        b.references[0]
-            .base
-            .as_ref()
-            .unwrap()
-            .key
-            .as_ref()
-            .unwrap()
-            .origin_plugin,
-        "base.esm"
-    );
-    assert_eq!(
-        b.models[0].asset_path.as_ref().unwrap().bytes(),
-        b"meshes/fixture.nif"
-    );
-    assert!(
-        store.indices()[0]
-            .records
-            .last()
-            .unwrap()
-            .parent
-            .cell
-            .is_none()
-    );
+    assert_eq!(deferred, 1);
 }
 
 #[test]

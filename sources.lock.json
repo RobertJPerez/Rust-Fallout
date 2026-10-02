@@ -109,7 +109,7 @@
         "LICENSE-MIT",
         "LICENSE-APACHE"
       ],
-      "notes": "Crates.io version pinned exactly and Cargo.lock records checksums; upstream source commit matches packaged VCS metadata. Unlit inspection only.",
+      "notes": "Crates.io version pinned exactly and Cargo.lock records checksums; upstream source commit matches packaged VCS metadata. Unlit inspection only; checkpoint 05 shares model/texture handles and captures two actual placed-interior views; no retail parity acceptance",
       "test_data_provenance": "Authorized local chair01 and Vit-o-matic NIFs and DDS images; no Bevy example assets used",
       "supported_variants_verified": [
         "BC1/BC2/BC3 source DDS validation fixtures; real textured model capture on this Windows host"
@@ -694,7 +694,7 @@
       ],
       "license_status": "GPL-3.0 root license; schema consulted as format evidence, not copied/generated into runtime",
       "build_result": "No build; no schema generator used",
-      "notes": "Container, six scene/mesh types and nine material/texture types independently implemented from format facts. No XML dependency or generated source copied into Rust.",
+      "notes": "Container, six scene/mesh types and nine material/texture types independently implemented from format facts. No XML dependency or generated source copied into Rust; checkpoint 05 also consulted NiExtraData/NiIntegerExtraData/BSXFlags layout facts; no schema or generated code copied",
       "language": "XML",
       "license_files": [
         "LICENSE"
@@ -746,19 +746,28 @@
     {
       "url": "https://github.com/OpenMW/openmw",
       "commit": "63f6261b6e1fe1eb6170ad4e686de0edec836114",
-      "role": "deferred",
-      "inspected_paths": [],
-      "license_status": "not audited",
+      "role": "format and presentation reference only",
+      "inspected_paths": [
+        "LICENSE",
+        "apps/openmw/mwrender/objects.cpp",
+        "apps/openmw/mwworld/worldimp.cpp",
+        "apps/openmw/mwworld/scene.cpp",
+        "components/misc/convert.hpp",
+        "components/nifosg/nifloader.cpp"
+      ],
+      "license_status": "GPL-3.0 root license inspected; no implementation copied or linked",
       "build_result": "not built",
-      "notes": "Catalogued from Robert Perez master brief; metadata is not implementation evidence",
-      "language": "not audited",
-      "license_files": [],
+      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior.",
+      "language": "C++ source reference",
+      "license_files": [
+        "LICENSE"
+      ],
       "build_command": null,
       "supported_variants_verified": [],
       "known_omissions": [
-        "Implementation and behavior not audited in this checkpoint"
+        "No local build, runtime reuse or measured NV retail comparison"
       ],
-      "test_data_provenance": "No build or test performed for this catalog entry"
+      "test_data_provenance": "Source reference only; synthetic analytic transform tests and local NV GPU inspection are separate evidence"
     },
     {
       "url": "https://github.com/OpenNV/OpenNV",
@@ -914,11 +923,12 @@
         "include/Factory.hpp (raw factory API)",
         "src/Objects.cpp (serialized transform/flag boundaries)",
         "include/Shaders.hpp (property and texture field API)",
-        "src/Shaders.cpp (material version gates and legacy slots)"
+        "src/Shaders.cpp (material version gates and legacy slots)",
+        "include/ExtraData.hpp"
       ],
       "license_status": "GPL-3.0 library; half MIT notice; Miniball GPL-3.0-or-later notice",
       "build_result": "Separate VS18/MSVC oracle: 218 containers/4582 block entries; raw supported payloads equal for 751 objects, 403 meshes, 96707 vertices and 84661 triangles; independent diagnostics confirm all 25 strict scene rejections; material projection matches 1127 blocks across the same 218 files",
-      "notes": "Standalone GPL executable only. Not linked into fallout.exe. Revision exactly matches lock; upstream header/source code not copied to Rust.",
+      "notes": "Standalone GPL executable only. Not linked into fallout.exe. Revision exactly matches lock; upstream header/source code not copied to Rust; checkpoint 05 adds raw BSXFlags projection compared on all 218 previous sample files; nine deliberate mismatches rejected",
       "language": "C++17",
       "license_files": [
         "LICENSE",

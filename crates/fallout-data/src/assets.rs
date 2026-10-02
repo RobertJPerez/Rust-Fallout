@@ -57,6 +57,10 @@ impl ArchiveAssets {
         self.mounts.candidates(path.bytes())
     }
 
+    pub fn mounts(&self) -> &MountIndex {
+        &self.mounts
+    }
+
     pub fn read_unique(&self, path: &AssetPath) -> Result<(AssetSource, Vec<u8>)> {
         let source = self.mounts.unique(path.bytes())?.ok_or_else(|| {
             Error::Resolution(format!(

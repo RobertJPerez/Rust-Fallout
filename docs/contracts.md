@@ -50,6 +50,12 @@ transforms, and checks decoded base/enable-parent/door links against target kind
 Its metadata index is rebuilt at startup; disk index persistence remains future work.
 See [world inspection](world-inspection.md) for the supported fields and limits.
 
+The opt-in header index validates TES4/CELL metadata and defers other bodies.
+Record/header bounds, IDs, master order and parent groups remain checked. Strict
+on-demand decompression is mandatory; deferred bytes are never counted as validated
+payloads. Census scope and decoded/deferred counts distinguish this path from a full
+payload scan. Diagnostic recovery is refused by the deferred store constructor.
+
 The NIF reader validates 20.2.0.7/user-11 outer container tables for the twelve
 observed NV stream revisions, with exact block ranges and footer roots. It caps
 input at 256 MiB, blocks/strings at 1,000,000 each, and string payloads at 16 MiB.
@@ -82,6 +88,20 @@ Presentation stays in `fallout-preview`: Bevy-specific meshes, images, axis conv
 and camera controls do not enter `fallout-data`. The current view supports BC1/2/3
 diffuse DDS with bounded dimensions and exact mip payload sizes. It reports skipped
 features and never changes the decoder's `runtime_ready` or gameplay acceptance.
+
+Source reference math lives in the engine-independent `coordinates` module; Bevy
+conversion and ECS views remain in presentation. Static placement uses a provisional
+clockwise X/Y/Z convention, preserving source values and subtracting an f64 source
+origin before narrowing to relative f32. Actor rotations need a separate adapter.
+Retail measurements still gate this convention. Models and texture/sampler pairs
+are shared across references; interior preparation caps 10,000 references, 2,048
+models, 256 MiB estimated prepared geometry, 4,096 texture/sampler pairs and 256 MiB
+encoded DDS storage. Per-decoder limits also apply. Preparation is synchronous.
+
+BSXFlags name/value fields now decode with exact payload consumption; unknown flag
+bits remain intact. Presentation omits named EditorMarker/VisibilityEditorMarker
+mesh branches only when their decoded root declares BSX bit 5. This does not hide
+standalone marker models, evaluate collision flags or change canonical source data.
 
 ## Jobs and publication
 

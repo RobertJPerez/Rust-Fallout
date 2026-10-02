@@ -47,7 +47,12 @@ retail lighting, animation, collision or gameplay.
 The chair and Vit-o-matic captures establish that the complete loading and GPU path
 works for those fixtures. They are not image comparisons against the original game.
 The cabinet has an unsupported diffuse binding explicitly reported by the preview.
-Retail visual parity, a complete interior, and Goodsprings remain later gates.
+Retail visual parity and Goodsprings remain later gates.
+
+Checkpoint 05 adds a separate [placed interior preview](interior-preview.md), shared
+texture storage and an optional fly camera. The model mode still uses the same
+decoder and diffuse adapter. Two fresh model captures passed after these changes;
+neither the model nor interior view establishes retail shader or collision parity.
 
 Retail-derived PNGs and per-model reports stay under ignored `local/`. They are not
 bundled with the source or treated as redistributable art.

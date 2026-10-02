@@ -5,12 +5,15 @@ The full direction is preserved in [the master brief](docs/references/Fallout_Ru
 Original-game profiles come first; FO3/TTW, FO4, FO76 research, and a separate crossover
 profile remain in scope. Their runtime support is not implemented yet.
 
-**The content pipeline now has a real model preview.** It reads the installation
+**The content pipeline now renders a real interior.** It reads the installation
 directly, decodes scene geometry and material fields, resolves archived textures,
-and renders individual models with Bevy. The CLI also provides corpus inspection,
+and assembles Doc Mitchell's house from winning plugin references in Bevy. The CLI also provides corpus inspection,
 structural override resolution, script-reference inventory and a verified asset cache.
-Full interiors, player movement, combat, dialogue, the script VM and saves remain
-unimplemented. No campaign or gameplay scenario has passed acceptance.
+The inspection view draws 400 of 435 references using shared models and textures.
+Retail rendering, collision, player simulation, combat, dialogue, the script VM and
+saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
+
+The source is published to [RobertJPerez/Rust-Fallout](https://github.com/RobertJPerez/Rust-Fallout).
 
 ## Run it
 
@@ -32,6 +35,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\cargo.ps1 build --lo
 A/D orbit, W/S tilt, Q/E zoom, R resets and Escape closes. See
 [model preview](docs/model-preview.md) for GPU captures and the current rendering
 limits. It uses unlit diffuse materials; retail lighting and shader parity are open.
+
+Open the real interior with a source-coordinate camera:
+
+```powershell
+.\target\debug\fallout-preview.exe --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas' --cell GSDocMitchellHouse --load-order profiles/nv-inspection-order.json --camera-position 2130 2130 7440 --camera-look-at 1883 1763 7420
+```
+
+Tab switches between orbit and fly. In fly mode, WASD moves, Q/E moves vertically,
+arrow keys look, and Shift increases speed. This camera passes through geometry;
+it is an inspection tool. [Interior preview](docs/interior-preview.md) records the
+captures, omissions, provisional placement convention and visible material gaps.
 
 For a corpus-wide inspection, use these commands; change the output name if it already exists:
 
@@ -110,9 +124,12 @@ record the evidence and its limits:
   shader, animation, collision, or rendering support.
 - 1,127 material blocks match the raw oracle across 218 models. The house's 854
   external texture references resolve to 312 unique textures with verified cached bytes.
-- Bevy GPU captures show the real chair and Vit-o-matic using archived diffuse textures.
-  This is a model inspection view; complete interior and retail visual parity remain open.
-- 47 synthetic tests pass, including malformed compression, forward/cyclic links,
+- Bevy GPU captures show the real chair, Vit-o-matic and two views inside the house.
+  Its 400 rendered references share 203 models and 146 texture/sampler pairs.
+  Magenta material fallbacks and standalone editor markers remain visible.
+- Strict deferred indexing reproduces all selected cell fields while leaving 585,196
+  other record bodies explicitly unvalidated. Access still enforces normal strict checks.
+- 52 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 
 ## Inspect a real interior and its models
@@ -121,12 +138,15 @@ record the evidence and its limits:
 $install = 'G:\SteamLibrary\steamapps\common\Fallout New Vegas'
 New-Item -ItemType Directory -Force .\local\docmitchell-models | Out-Null
 .\target\release\fallout.exe cell --install $install --load-order .\profiles\nv-inspection-order.json --editor-id GSDocMitchellHouse --inspect-checksum-mismatches --inspect-models --model-cache .\local\docmitchell-models --output .\local\cell-new.json
+.\target\release\fallout.exe cell --install $install --load-order .\profiles\nv-inspection-order.json --editor-id GSDocMitchellHouse --defer-unread-payloads --output .\local\cell-strict-new.json
 .\target\release\fallout.exe nif-census --install $install --output .\local\nif-census-new.json
 ```
 
 The cell command reads winning records on demand and reports original transforms,
 source offsets, flags, typed links, and model candidates. It returns 1 for the existing
-LAND integrity issue; the NIF census returns 1 for six unsupported legacy files.
+LAND integrity issue when fully indexing payloads. The deferred command returns 0
+for this cell's strict selected reads; it does not certify unread LAND data or repair
+the installation. The NIF census returns 1 for six unsupported legacy files.
 Neither command activates a cell or modifies the original game. Exact comparison
 commands and limits are in [world inspection](docs/world-inspection.md).
 

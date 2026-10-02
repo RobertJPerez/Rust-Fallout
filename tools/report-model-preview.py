@@ -41,7 +41,7 @@ summary = {
     'visual_review': 'Both PNGs inspected: recognizable textured models, fully framed; no blank frame or magenta surface visible in these views',
     'backend': 'Bevy 0.19.1 / wgpu; headless image target and asynchronous GPU readback',
     'rendering': 'unlit diffuse; source UVs and source units; [x,y,z] -> [x,z,-y]',
-    'known_gaps': ['No retail image comparison, lighting/shader parity or complete interior',
+    'known_gaps': ['No retail image comparison or lighting/shader parity; interior assembly is tracked separately',
         'Skinning, controllers, collision and gameplay are absent',
         'Cabinet report records one unsupported diffuse binding; the chosen view does not prove that surface renders correctly',
         'Interactive orbit bindings implemented but not independently exercised with keyboard automation'],

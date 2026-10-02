@@ -19,11 +19,11 @@ use fallout_data::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, path::Path};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct TextureEvidence {
     pub path: AssetPath,
     pub sha256: String,
@@ -59,9 +59,48 @@ pub struct Part {
 #[derive(Resource)]
 pub struct Model {
     pub parts: Vec<Part>,
-    pub images: Vec<Image>,
     pub center: Vec3,
     pub radius: f32,
+}
+
+/// A texture is shared across every model using the same path and sampler.
+/// The scene has an aggregate budget in addition to each decoder's input limits.
+#[derive(Default)]
+pub struct Textures {
+    pub images: Vec<Image>,
+    pub evidence: Vec<TextureEvidence>,
+    ids: BTreeMap<(AssetPath, u32), usize>,
+    bytes: usize,
+}
+
+impl Textures {
+    fn load(&mut self, assets: &ArchiveAssets, path: &AssetPath, clamp: u32) -> Result<usize> {
+        let key = (path.clone(), clamp);
+        if let Some(id) = self.ids.get(&key) {
+            return Ok(*id);
+        }
+        let (_, data) = assets.read_unique(path)?;
+        if self.images.len() >= 4096
+            || data.len() > (256 * 1024 * 1024usize).saturating_sub(self.bytes)
+        {
+            return Err("scene texture budget exceeded".into());
+        }
+        let image = decode_diffuse(&data, clamp)?;
+        let size = image.texture_descriptor.size;
+        self.evidence.push(TextureEvidence {
+            path: path.clone(),
+            sha256: format!("{:x}", Sha256::digest(&data)),
+            width: size.width,
+            height: size.height,
+            mip_levels: image.texture_descriptor.mip_level_count,
+            format: format!("{:?}", image.texture_descriptor.format),
+        });
+        let id = self.images.len();
+        self.images.push(image);
+        self.ids.insert(key, id);
+        self.bytes += data.len();
+        Ok(id)
+    }
 }
 
 /// Rotate source Z-up into Bevy Y-up without changing handedness or source units.
@@ -69,7 +108,7 @@ fn basis(v: Vec3) -> Vec3 {
     Vec3::new(v.x, v.z, -v.y)
 }
 
-fn affine(rows: [[f64; 4]; 3]) -> Mat4 {
+pub(super) fn affine(rows: [[f64; 4]; 3]) -> Mat4 {
     Mat4::from_cols(
         Vec4::new(rows[0][0] as f32, rows[1][0] as f32, rows[2][0] as f32, 0.),
         Vec4::new(rows[0][1] as f32, rows[1][1] as f32, rows[2][1] as f32, 0.),
@@ -78,10 +117,13 @@ fn affine(rows: [[f64; 4]; 3]) -> Mat4 {
     )
 }
 
-pub fn load(install: &Path, path: &AssetPath) -> Result<(Model, Report)> {
-    let assets = ArchiveAssets::open_nv(install)?;
+pub fn load(
+    assets: &ArchiveAssets,
+    path: &AssetPath,
+    textures: &mut Textures,
+) -> Result<(Model, Report)> {
     let (_, bytes) = assets.read_unique(path)?;
-    let (_, scene) = nif_scene::decode(&bytes, &String::from_utf8_lossy(path.bytes()))?;
+    let (index, scene) = nif_scene::decode(&bytes, &String::from_utf8_lossy(path.bytes()))?;
     let objects: BTreeMap<_, _> = scene.objects.iter().map(|v| (v.block, v)).collect();
     let worlds: BTreeMap<_, _> = scene
         .world_transforms
@@ -110,8 +152,7 @@ pub fn load(install: &Path, path: &AssetPath) -> Result<(Model, Report)> {
             .push(format!("{} unsupported {kind} blocks", blocks.len()));
     }
     let mut parts = Vec::new();
-    let mut images = Vec::new();
-    let mut image_ids = BTreeMap::new();
+    let mut used_textures = BTreeSet::new();
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = Vec3::splat(f32::NEG_INFINITY);
     for object in &scene.objects {
@@ -136,7 +177,9 @@ pub fn load(install: &Path, path: &AssetPath) -> Result<(Model, Report)> {
         }
         let mut ancestor = Some(object.block);
         let mut hidden = false;
+        let mut root = object.block;
         while let Some(id) = ancestor {
+            root = id;
             hidden |= objects[&id].flags & 1 != 0;
             if id != object.block && !objects[&id].properties.is_empty() {
                 report.warnings.push(format!(
@@ -147,6 +190,34 @@ pub fn load(install: &Path, path: &AssetPath) -> Result<(Model, Report)> {
             ancestor = worlds[&id].parent;
         }
         if hidden {
+            continue;
+        }
+        let has_markers = objects[&root].extra_data.iter().flatten().any(|id| {
+            scene
+                .extra_flags
+                .iter()
+                .any(|extra| extra.block == *id && extra.value & 32 != 0)
+        });
+        let name = object
+            .name
+            .map(|id| index.strings[id as usize].as_slice())
+            .unwrap_or_default();
+        if has_markers
+            && [
+                b"EditorMarker".as_slice(),
+                b"VisibilityEditorMarker".as_slice(),
+            ]
+            .iter()
+            .any(|prefix| {
+                name.get(..prefix.len())
+                    .is_some_and(|v| v.eq_ignore_ascii_case(prefix))
+            })
+        {
+            report.warnings.push(format!(
+                "Omitted declared editor marker mesh {} ({})",
+                object.block,
+                String::from_utf8_lossy(name)
+            ));
             continue;
         }
         let Some(source) = meshes.get(&data) else {
@@ -274,27 +345,9 @@ pub fn load(install: &Path, path: &AssetPath) -> Result<(Model, Report)> {
             if source.uv_sets.is_empty() {
                 return Err(format!("textured mesh {} has no UVs", object.block).into());
             }
-            let key = (path.clone(), clamp);
-            if let Some(id) = image_ids.get(&key) {
-                Some(*id)
-            } else {
-                let (_, data) = assets.read_unique(&path)?;
-                let mut image = decode_diffuse(&data, clamp)?;
-                image.asset_usage = RenderAssetUsages::RENDER_WORLD;
-                let size = image.texture_descriptor.size;
-                report.textures.push(TextureEvidence {
-                    path,
-                    sha256: format!("{:x}", Sha256::digest(&data)),
-                    width: size.width,
-                    height: size.height,
-                    mip_levels: image.texture_descriptor.mip_level_count,
-                    format: format!("{:?}", image.texture_descriptor.format),
-                });
-                let id = images.len();
-                images.push(image);
-                image_ids.insert(key, id);
-                Some(id)
-            }
+            let id = textures.load(assets, &path, clamp)?;
+            used_textures.insert(id);
+            Some(id)
         } else {
             report.warnings.push(format!(
                 "Mesh {} has no supported diffuse texture; shown magenta",
@@ -321,12 +374,15 @@ pub fn load(install: &Path, path: &AssetPath) -> Result<(Model, Report)> {
         return Err("model has no supported visible, unskinned triangle meshes".into());
     }
     report.bounds = [min.to_array(), max.to_array()];
+    report.textures = used_textures
+        .into_iter()
+        .map(|id| textures.evidence[id].clone())
+        .collect();
     let center = (min + max) * 0.5;
     let radius = (max - min).length().max(1.) * 0.5;
     Ok((
         Model {
             parts,
-            images,
             center,
             radius,
         },

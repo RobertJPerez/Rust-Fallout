@@ -84,6 +84,27 @@ pub enum Event<'a> {
     Record(&'a Record),
 }
 
+/// A bounded index can retain a header without decoding its body. Such a header
+/// establishes an extent and identity, never payload integrity or field semantics.
+pub enum SelectedEvent<'a> {
+    Group(&'a Group),
+    Record(&'a Record),
+    Deferred(&'a RecordHeader),
+}
+
+fn record_header(h: &[u8; 24], offset: u64) -> RecordHeader {
+    RecordHeader {
+        kind: h[..4].try_into().expect("fixed header"),
+        offset,
+        stored_size: u32_at(h, 4),
+        flags: u32_at(h, 8),
+        form_id: u32_at(h, 12),
+        revision: h[16..20].try_into().expect("fixed header"),
+        version: u16::from_le_bytes([h[20], h[21]]),
+        trailing_bytes: [h[22], h[23]],
+    }
+}
+
 fn u32_at(bytes: &[u8], pos: usize) -> u32 {
     u32::from_le_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]])
 }
@@ -95,6 +116,30 @@ pub fn visit(
     name: &str,
     limits: Limits,
     mut visitor: impl FnMut(Event<'_>) -> Result<()>,
+) -> Result<()> {
+    visit_selected(
+        reader,
+        length,
+        name,
+        limits,
+        |_| true,
+        |event| match event {
+            SelectedEvent::Group(group) => visitor(Event::Group(group)),
+            SelectedEvent::Record(record) => visitor(Event::Record(record)),
+            SelectedEvent::Deferred(_) => unreachable!("full visitor selects every body"),
+        },
+    )
+}
+
+/// Walk every record/group boundary, decoding only selected bodies. TES4 is always
+/// selected. Deferred bytes are consumed without allocation, even on a plain Read.
+pub fn visit_selected(
+    reader: &mut impl Read,
+    length: u64,
+    name: &str,
+    limits: Limits,
+    mut select: impl FnMut(&RecordHeader) -> bool,
+    mut visitor: impl FnMut(SelectedEvent<'_>) -> Result<()>,
 ) -> Result<()> {
     if length < HEADER_SIZE {
         return Err(malformed(name, 0, "missing TES4 header"));
@@ -138,7 +183,7 @@ pub fn visit(
                 kind: i32::from_le_bytes(h[12..16].try_into().expect("fixed slice")),
                 trailing_bytes: h[16..24].try_into().expect("fixed slice"),
             };
-            visitor(Event::Group(&group))?;
+            visitor(SelectedEvent::Group(&group))?;
             ends.push(offset + u64::from(size));
             offset += HEADER_SIZE;
             continue;
@@ -159,9 +204,22 @@ pub fn visit(
         if offset != 0 && kind == *b"TES4" {
             return Err(malformed(name, offset, "duplicate TES4 header"));
         }
-        let record = read_body(reader, &h, offset, name, limits, decoded)?;
-        decoded += record.payload.len() as u64;
-        visitor(Event::Record(&record))?;
+        let header = record_header(&h, offset);
+        if offset == 0 || select(&header) {
+            let record = read_body(reader, &h, offset, name, limits, decoded)?;
+            decoded += record.payload.len() as u64;
+            visitor(SelectedEvent::Record(&record))?;
+        } else {
+            let copied = std::io::copy(
+                &mut (&mut *reader).take(u64::from(size)),
+                &mut std::io::sink(),
+            )
+            .map_err(|e| malformed(name, offset, e.to_string()))?;
+            if copied != u64::from(size) {
+                return Err(malformed(name, offset, "truncated deferred record body"));
+            }
+            visitor(SelectedEvent::Deferred(&header))?;
+        }
         offset += HEADER_SIZE + u64::from(size);
     }
     Ok(())
@@ -195,16 +253,7 @@ pub fn read_indexed(
     reader
         .read_exact(&mut h)
         .map_err(|e| malformed(name, expected.offset, e.to_string()))?;
-    let actual = RecordHeader {
-        kind: h[..4].try_into().expect("fixed header"),
-        offset: expected.offset,
-        stored_size: u32_at(&h, 4),
-        flags: u32_at(&h, 8),
-        form_id: u32_at(&h, 12),
-        revision: h[16..20].try_into().expect("fixed header"),
-        version: u16::from_le_bytes([h[20], h[21]]),
-        trailing_bytes: [h[22], h[23]],
-    };
+    let actual = record_header(&h, expected.offset);
     if &actual != expected {
         return Err(malformed(
             name,

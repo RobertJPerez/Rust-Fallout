@@ -63,6 +63,9 @@ enum Command {
         editor_id: String,
         #[arg(long)]
         inspect_checksum_mismatches: bool,
+        /// Validate headers/CELL metadata now and other record bodies on access.
+        #[arg(long, conflicts_with = "inspect_checksum_mismatches")]
+        defer_unread_payloads: bool,
         /// Decode unambiguous model candidates and inspect their NIF containers.
         #[arg(long)]
         inspect_models: bool,
@@ -279,11 +282,17 @@ fn run(args: Args) -> Result<()> {
             load_order,
             editor_id,
             inspect_checksum_mismatches,
+            defer_unread_payloads,
             inspect_models,
             model_cache,
         } => {
             let names: Vec<String> = serde_json::from_reader(baseline::open_source(&load_order)?)?;
-            let mut store = fallout_data::store::RecordStore::open_nv(
+            let open = if defer_unread_payloads {
+                fallout_data::store::RecordStore::open_nv_headers
+            } else {
+                fallout_data::store::RecordStore::open_nv
+            };
+            let mut store = open(
                 &install.join("Data"),
                 &names,
                 plugin::Limits {

@@ -78,11 +78,20 @@ pub struct UnsupportedEdge {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ExtraFlags {
+    pub block: u32,
+    pub name: Option<u32>,
+    /// Preserve every bit; interpreting animation/collision flags is separate work.
+    pub value: u32,
+}
+
+#[derive(Debug, Serialize)]
 pub struct Scene {
     pub objects: Vec<Object>,
     pub meshes: Vec<MeshData>,
     pub materials: Vec<material::MaterialBlock>,
     pub textures: Vec<material::TextureReference>,
+    pub extra_flags: Vec<ExtraFlags>,
     pub world_transforms: Vec<WorldTransform>,
     pub unsupported_blocks: BTreeMap<String, Vec<u32>>,
     pub unsupported_scene_edges: Vec<UnsupportedEdge>,
@@ -173,6 +182,7 @@ pub fn decode_with_limits(
         meshes: Vec::new(),
         materials: Vec::new(),
         textures: Vec::new(),
+        extra_flags: Vec::new(),
         world_transforms: Vec::new(),
         unsupported_blocks: BTreeMap::new(),
         unsupported_scene_edges: Vec::new(),
@@ -190,6 +200,11 @@ pub fn decode_with_limits(
         };
         let name = index.block_types[block.type_index as usize].as_str();
         match name {
+            "BSXFlags" => scene.extra_flags.push(ExtraFlags {
+                block: id as u32,
+                name: r.string()?,
+                value: r.u32()?,
+            }),
             "NiNode" | "BSFadeNode" => scene.objects.push(object(&mut r, id as u32, true)?),
             "NiTriShape" | "NiTriStrips" => scene.objects.push(object(&mut r, id as u32, false)?),
             "NiTriShapeData" | "NiTriStripsData" => {

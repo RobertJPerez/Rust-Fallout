@@ -18,6 +18,20 @@ match, and reuse the same bounded decompressor as sequential scans. Unknown fiel
 remain available in the original record body. This index is in memory; a reusable
 serialized index cache is not implemented yet.
 
+`--defer-unread-payloads` builds the same header/identity/parent index while decoding
+TES4 and CELL bodies for metadata. It reads other body ranges without allocating
+or inflating them. Every later requested body passes the existing strict decoder
+and indexed-header check. Diagnostic checksum recovery cannot be combined with this
+mode. The report's `index_payloads_deferred` is the number deferred at indexing time;
+it is not a count of bodies still unread after cell inspection.
+
+The strict house fixture returns 0 with zero selected integrity/link failures. All
+ten compared source-field groups, including 435 references and 222 base candidates,
+match the previous full diagnostic inspection exactly. The 585,196 bodies deferred
+at indexing are not certified. The known LAND still fails a full strict scan; no
+exception or checksum repair was added. Synthetic corrupt deferred bodies fail when
+accessed, and truncated input/group/count checks still apply during indexing.
+
 Decoded fields are CELL DATA/XCLC/FULL and REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL.
 Transform components must be finite; singleton fields reject duplicates. Links check
 the expected target record kinds from the pinned xEdit FNV schema. A present SCPT is
@@ -72,8 +86,9 @@ altered block-size result produced a failed comparison and exit code 1.
 The separate [scene decoder](nif-scenes.md) now reads supported node links,
 transforms, and triangle vertex/index buffers, with raw independent comparisons.
 The [material extension](nif-materials.md) now follows external texture paths, and
-the [model preview](model-preview.md) renders individual supported models. Skinning,
-controllers, collision shapes and complete cell assembly remain unimplemented.
+the [model preview](model-preview.md) renders individual supported models. The
+[interior preview](interior-preview.md) assembles supported static views by reference
+identity. Skinning, controllers, collision shapes and retail cell acceptance remain open.
 A block type in the census does not imply support for that block's runtime behavior.
 
 ## Reproduce the independent comparison

@@ -24,6 +24,23 @@ fn net() -> Vec<u8> {
     b
 }
 
+#[test]
+fn extra_flags_preserve_unknown_bits_and_require_valid_name_and_exact_payload() {
+    let mut flags = Vec::new();
+    u32s(&mut flags, &[0, 0x8000_0020]);
+    let bytes = container(&[("BSXFlags", flags.clone())], &[], 34);
+    let (_, scene) = nif_scene::decode(&bytes, "flags").unwrap();
+    assert_eq!(scene.extra_flags[0].value, 0x8000_0020);
+    assert_eq!(scene.extra_flags[0].name, Some(0));
+    for invalid in [
+        flags[..7].to_vec(),
+        [flags.as_slice(), &[0]].concat(),
+        [2u32.to_le_bytes(), 32u32.to_le_bytes()].concat(),
+    ] {
+        assert!(nif_scene::decode(&container(&[("BSXFlags", invalid)], &[], 34), "flags").is_err());
+    }
+}
+
 fn shader_header() -> Vec<u8> {
     let mut b = net();
     u16s(&mut b, &[1]);

@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "cell_editor_id": "GSDocMitchellHouse",
+  "cell_key": {
+    "profile": "nv-original",
+    "origin_plugin": "falloutnv.esm",
+    "local_id": 1064441
+  },
+  "binary_sha256": "28f2b717a8b9b7011196b1a611e405635f5e6419a55dcb6db0177352ecd3e6a1",
+  "capture_manifest_sha256": "326abe0eb62833796832ebe7e58a7acc5249b4b14be9c33ad8fc491fb8969247",
+  "captures_directory": "local\\interior-05-final",
+  "captures": [
+    {
+      "view": "vigortester",
+      "source_position": [
+        2130,
+        2130,
+        7440
+      ],
+      "source_target": [
+        1883,
+        1763,
+        7420
+      ],
+      "exit_code": 0,
+      "seconds": 43.103486899985,
+      "png": "vigortester.png",
+      "png_sha256": "4d6d95f1326ba48c0f69dbbc6ab17da281c5cbac3fbccdcda15e6e39333386e5",
+      "report": "vigortester.json",
+      "report_sha256": "c16b05ac149f98a66755fd205979e5ac657752a56ef92e59508939fd104134f8"
+    },
+    {
+      "view": "bedroom",
+      "source_position": [
+        2030,
+        1250,
+        7450
+      ],
+      "source_target": [
+        2312,
+        951,
+        7420
+      ],
+      "exit_code": 0,
+      "seconds": 41.96617650002008,
+      "png": "bedroom.png",
+      "png_sha256": "a5b0417661b9917892ae71ab10d1d425473fcb8f200ecffcf92702fc8c8febb2",
+      "report": "bedroom.json",
+      "report_sha256": "c16b05ac149f98a66755fd205979e5ac657752a56ef92e59508939fd104134f8"
+    }
+  ],
+  "all_exit_codes_zero": true,
+  "visual_review": "Both views inspected: recognizable textured room, furniture, cabinet and bed; diagnostic markers and unsupported magenta surfaces remain visible",
+  "source_origin": [
+    2130.0,
+    1920.0,
+    7360.0
+  ],
+  "coordinates": "source units; clockwise X then Y then Z; [x,y,z] -> [x,z,-y]; subtract source origin in f64",
+  "load_order": [
+    "FalloutNV.esm",
+    "DeadMoney.esm",
+    "HonestHearts.esm",
+    "OldWorldBlues.esm",
+    "LonesomeRoad.esm",
+    "GunRunnersArsenal.esm",
+    "CaravanPack.esm",
+    "ClassicPack.esm",
+    "MercenaryPack.esm",
+    "TribalPack.esm"
+  ],
+  "load_order_sha256": "af684297f2e6287f1afea0a8901db6f1c7664fb341e8817d3ec6af82d4e41be5",
+  "plugin_sha256": {
+    "CaravanPack.esm": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82",
+    "ClassicPack.esm": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b",
+    "DeadMoney.esm": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329",
+    "FalloutNV.esm": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+    "GunRunnersArsenal.esm": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e",
+    "HonestHearts.esm": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368",
+    "LonesomeRoad.esm": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+    "MercenaryPack.esm": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59",
+    "OldWorldBlues.esm": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295",
+    "TribalPack.esm": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+  },
+  "references_inspected": 435,
+  "placement_outcomes": {
+    "rendered-static-view": 400,
+    "no-supported-modl": 31,
+    "actor-model-selection-unimplemented": 1,
+    "initially-disabled": 3
+  },
+  "unique_render_models": 203,
+  "rendered_references": 400,
+  "rendered_mesh_instances": 722,
+  "shared_geometry_vertices": 96394,
+  "shared_geometry_triangles": 84378,
+  "unique_texture_samplers": 146,
+  "selected_records_integrity_failures": 0,
+  "selected_records_link_failures": 0,
+  "index_payloads_deferred": 585196,
+  "selection_comparison": {
+    "schema_version": 1,
+    "fields": [
+      {
+        "field": "schema_version",
+        "equal": true
+      },
+      {
+        "field": "key",
+        "equal": true
+      },
+      {
+        "field": "editor_id",
+        "equal": true
+      },
+      {
+        "field": "source_plugin",
+        "equal": true
+      },
+      {
+        "field": "record_offset",
+        "equal": true
+      },
+      {
+        "field": "cell",
+        "equal": true
+      },
+      {
+        "field": "link_failures",
+        "equal": true
+      },
+      {
+        "field": "references",
+        "equal": true
+      },
+      {
+        "field": "models",
+        "equal": true
+      },
+      {
+        "field": "other_child_records",
+        "equal": true
+      }
+    ],
+    "all_equal": true,
+    "full_report_sha256": "361913df6dfea41bf9b94c5a36ea7d1b4a6fabb179de70deaa9e2f4283f8b47c",
+    "deferred_report_sha256": "9ff8cfe99dc4f5f2077df174ef00464206d142718331a6d2ed7563edddb2a28c",
+    "strict_selected_records": true,
+    "index_payloads_deferred": 585196,
+    "references": 435,
+    "base_records": 222,
+    "scope": "Selected cell source fields only; full diagnostic input remains tainted; unread bodies are unvalidated"
+  },
+  "independent_model_comparison": {
+    "files": 218,
+    "all_equal": true,
+    "extra_flag_blocks": 175,
+    "report_sha256": [
+      "ea434670fc5e9a06c7f00fd8ff92c3ef08863e7cf8b53e03c80b6cbe9c27c9fe",
+      "9dd08be35dbb175fd9250384ddb01b094a33c9a12046a484113c8687998c6287"
+    ]
+  },
+  "negative_comparison_checks": {
+    "schema_version": 1,
+    "unmodified_equal": true,
+    "source_file": "0074e252acf524ab3f41e82df5ffd08ab9e7c362d1227bc1ef60c5bd2323daee.blob",
+    "original_files_modified": false,
+    "results": [
+      {
+        "mutation": "vertex_float_bit",
+        "rejected": true,
+        "difference": "meshes[0].vertices[0][0]: f32 bits differ (-45.643924713134766 vs -45.6439208984375)"
+      },
+      {
+        "mutation": "triangle_winding",
+        "rejected": true,
+        "difference": "meshes[0].triangles[0][1]: values differ (1 vs 2)"
+      },
+      {
+        "mutation": "composed_translation",
+        "rejected": true,
+        "difference": "composed transform differs at block 0"
+      },
+      {
+        "mutation": "source_digest",
+        "rejected": true,
+        "difference": "input hash or length differs"
+      },
+      {
+        "mutation": "material_alpha",
+        "rejected": true,
+        "difference": "materials[2].data.alpha: f32 bits differ (1.0 vs 1.5)"
+      },
+      {
+        "mutation": "texture_path",
+        "rejected": true,
+        "difference": "materials[1].data.textures[0][0]: values differ (116 vs 117)"
+      },
+      {
+        "mutation": "missing_material_projection",
+        "rejected": true,
+        "difference": "material projection missing"
+      },
+      {
+        "mutation": "extra_flag_bit",
+        "rejected": true,
+        "difference": "extra_flags[0].value: values differ (2 vs 2147483650)"
+      },
+      {
+        "mutation": "missing_extra_flag_projection",
+        "rejected": true,
+        "difference": "extra flag projection missing"
+      }
+    ],
+    "all_rejected": true
+  },
+  "model_failures": 0,
+  "declared_editor_marker_meshes_omitted": 2,
+  "known_gaps": [
+    "No measured retail placement/camera or image comparison; rotation convention is provisional",
+    "Unlit diffuse materials; magenta fallback surfaces are visible in the bedroom window",
+    "Standalone audio/heading marker models remain visible; only declared BSX marker submeshes are omitted",
+    "Actor models, alternate item model selection, enable parents, controllers and skinning are incomplete",
+    "No collision, player simulation, quests, scripts, saving or accepted gameplay scenarios",
+    "Fly/orbit keyboard bindings are implemented but not independently exercised by keyboard automation",
+    "Startup work is synchronous; disk indexes, streaming and startup performance remain open",
+    "Whole-corpus integrity defects and archive/loose precedence remain unresolved"
+  ],
+  "runtime_ready": false,
+  "retail_parity_accepted": false
+}

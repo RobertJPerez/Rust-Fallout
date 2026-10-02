@@ -68,6 +68,10 @@ def compare(probes, oracle, directory, cache):
             difference = difference or "material projection missing"
         else:
             difference = difference or first_difference(actual["materials"], reference["materials"], "materials")
+        if "extra_flags" not in actual or "extra_flags" not in reference:
+            difference = difference or "extra flag projection missing"
+        else:
+            difference = difference or first_difference(actual["extra_flags"], reference["extra_flags"], "extra_flags")
         actual_meshes = []
         for mesh in actual["meshes"]:
             projected = dict(mesh)
@@ -93,6 +97,7 @@ def compare(probes, oracle, directory, cache):
         row.update(equal=difference is None, difference=difference,
                    objects=len(actual["objects"]), meshes=len(actual["meshes"]),
                    materials=len(actual.get("materials", [])),
+                   extra_flags=len(actual.get("extra_flags", [])),
                    vertices=sum(len(m["vertices"]) for m in actual["meshes"]),
                    triangles=sum(len(m["triangles"]) for m in actual["meshes"]),
                    max_world_transform_absolute_error=max_absolute_error)

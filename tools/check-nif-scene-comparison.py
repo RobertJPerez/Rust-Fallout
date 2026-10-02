@@ -21,6 +21,7 @@ def main():
     probes = comparison.read(args.scenes / "manifest.json")
     oracle = comparison.read(args.oracle)
     target = next(row for row in oracle if row["raw_scene"]["meshes"] and row["raw_scene"]["meshes"][0]["triangles"]
+                  and row['raw_scene']['extra_flags']
                   and any(m['data']['kind'] == 'material' for m in row['raw_scene']['materials'])
                   and any(m['data']['kind'] == 'texture_set' and any(m['data']['textures']) for m in row['raw_scene']['materials']))
     probe = next(row for row in probes["results"] if row["file"] == target["file"])
@@ -32,7 +33,7 @@ def main():
     if not baseline["all_equal"]:
         raise ValueError("The unmodified comparison must pass before negative checks")
     results = []
-    for mutation in ["vertex_float_bit", "triangle_winding", "composed_translation", "source_digest", "material_alpha", "texture_path", "missing_material_projection"]:
+    for mutation in ["vertex_float_bit", "triangle_winding", "composed_translation", "source_digest", "material_alpha", "texture_path", "missing_material_projection", "extra_flag_bit", "missing_extra_flag_projection"]:
         changed, changed_probe = copy.deepcopy(target), copy.deepcopy(probe)
         mesh = changed["raw_scene"]["meshes"][0]
         if mutation == "vertex_float_bit":
@@ -52,8 +53,12 @@ def main():
         elif mutation == "texture_path":
             material = next(m['data'] for m in changed['raw_scene']['materials'] if m['data']['kind'] == 'texture_set' and any(m['data']['textures']))
             next(t for t in material['textures'] if t)[0] ^= 1
-        else:
+        elif mutation == "missing_material_projection":
             del changed['raw_scene']['materials']
+        elif mutation == "extra_flag_bit":
+            changed['raw_scene']['extra_flags'][0]['value'] ^= 0x80000000
+        else:
+            del changed['raw_scene']['extra_flags']
         report = run(changed, changed_probe)
         results.append({"mutation": mutation, "rejected": not report["all_equal"], "difference": report["results"][0].get("difference")})
     output = {"schema_version": 1, "unmodified_equal": True, "source_file": target["file"],

@@ -44,10 +44,12 @@ Keep the entire master brief in scope and progress through its dependency gates.
    Extend census to UI operators, audio codecs, and actual SCDA instructions/events.
    There are 14,514 compiled bodies and 148 observed condition IDs; execution is absent.
 
-5. Extend the working Bevy model preview to one real interior through the production
-   pipeline, then Goodsprings. `fallout-preview` builds and has captured the real
-   chair and Vit-o-matic with archived diffuse DDS textures. It reports unsupported
-   material behavior, uses an orbit camera, and skips skinning. See `docs/model-preview.md`.
+5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
+   `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references
+   through strict selected-record reads, sharing 203 models and 146 texture/sampler
+   pairs. Two source-coordinate GPU views were captured and inspected. See
+   `docs/interior-preview.md`. Standalone marker models and magenta window surfaces
+   remain visible; alternate item/actor models, retail shaders and physics are open.
    Verify axes, units, placement rotation, winding, materials, collision, and
    camera movement against measured retail fixtures. No procedural replacement map or staged
    quest demo can satisfy M2/M3. Continue simulation, ObScript, saving, and campaign
@@ -59,7 +61,10 @@ Keep the entire master brief in scope and progress through its dependency gates.
    texture references resolve to 312 unique archived textures, cached and hash-verified.
    Use `fallout cell --inspect-models` as documented in
    [world inspection](docs/world-inspection.md). Its report still returns 1 for the
-   known base-plugin integrity issue. Full cell assembly and physics are not implemented.
+   known base-plugin integrity issue when fully scanning payloads. The new
+   `--defer-unread-payloads` option validates selected reads without decoding unrelated
+   bodies; 585,196 deferred bodies are explicitly unvalidated. It reproduces all
+   selected source fields and returns 0 for this fixture. Physics is not implemented.
 
 6. Extend the existing R3 preparation/cache modules into bounded, cancellable jobs with
    a journal and transitive dependency invalidation. Test process termination during
@@ -69,5 +74,7 @@ Keep the entire master brief in scope and progress through its dependency gates.
 Use `tools/check.ps1` after code changes. The raw local evidence is under `local/`;
 the public summary is [reports/checkpoint.md](reports/checkpoint.md). Update the parity
 ledger and source pins with concrete evidence. All gameplay milestones and other-game
-adapters remain open. The source tree has no verified engine commit yet; record a real
-revision when a checkpoint is committed instead of inventing one.
+adapters remain open. Checkpoint 04 was uploaded as commit
+`d33c7a11d3288a321604fad43b3021f28a7ed43b` to
+[RobertJPerez/Rust-Fallout](https://github.com/RobertJPerez/Rust-Fallout). The current
+verification report binds the tested implementation revision and source/binary hashes.

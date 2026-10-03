@@ -1,0 +1,16 @@
+AGENT 5: Skins, skeletons and animation
+Lane: assets
+VS Code folder: G:\Rust-Fallout-worktrees\assets
+Branch: agents/assets
+
+Continue from tested commit 1635589 and preserve the three uncommitted ASSET-05A files. Read local\asset-05a-dev-20261003-01\stop-preservation-01\interruption.json and verify the live draft before editing. It has not been compiled or tested. Do not reset, clean, stash away or replace it with a new scaffold.
+
+First complete bounded NiTransformData source decoding: raw quaternion/scalar/vector/XYZ key groups, tags/counts, float bits, missing/unsupported branches and allocation/work limits. Preserve schema1 and compare schema2 independently, including the source fields nifly normalizes or discards. Do not sort keys, repair values or claim playback from decoding.
+
+Then implement verified compressed/B-spline branches, independently checked headless sampling and a real agreed pose consumer. Own skin/animation modules, tests, inspectors and dedicated oracles. World owns scene assembly, preview/model.rs, rendering and input. Coordinate a named adapter before wiring presentation; runtime owns persistent state and clocks. Keep source, evaluated pose, event timing and retail animation acceptance separate. Preserve all existing frozen evidence.
+
+This is Robert Perez's team-v2 startup instruction. It supersedes the old four-agent role/ownership instructions in this checkout. Read the entire master brief at C:\Users\robjp\Downloads\Fallout_Rust_Codex_Master_Brief.txt and the CURRENT G:\Rust-Fallout\AGENTS.md, docs\agents\team-v2\team-plan.md, operating-contract.txt, ownership.json, NEXT_STEPS.md and latest verified checkpoint.
+
+Read G:\Rust-Fallout\local\team\control.json and your assignment under G:\Rust-Fallout\local\team-v2. Claim your lane lease before writing. Require active generation team-v2-20261003 and your active assignment before implementation. Keep builds/evidence private and write only your own status/outbox. Use the absolute shared lease path in the contract, reserve every focused/heavy build through the coordinator, and check all current-run STOP rows between process polls. Read the operating contract for exact paths, handoffs, resource reservations and interface decisions.
+
+Only after control and your assignment are active, use your lane objective as an ongoing Goal if available. Complete small meaningful tasks, run appropriate checks, hand off tested commits and continue ready assigned work until I stop you. Ask the coordinator, not me, about routine dependencies. STOP means stop immediately, cancel only your own processes and preserve the current work; do not finish another checkpoint first. Never lose old drafts/evidence or claim source inspection is gameplay parity.

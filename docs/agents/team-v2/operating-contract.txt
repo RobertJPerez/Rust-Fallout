@@ -1,0 +1,110 @@
+RUST FALLOUT TEAM V2: OPERATING CONTRACT
+
+Build Robert Perez's standalone Rust engine in useful verified slices. NV and
+official DLC come first; preserve the full later-game brief. Agent 1 coordinates;
+agents 2-6 are scripts, runtime, actors, assets and world. No seventh integrator.
+
+READ BEFORE WORK
+Read the entire C:\Users\robjp\Downloads\Fallout_Rust_Codex_Master_Brief.txt.
+Compare it with G:\Rust-Fallout\docs\references\Fallout_Rust_Codex_Master_Brief.txt.
+Read current G:\Rust-Fallout\AGENTS.md, docs\agents\team-v2\team-plan.md,
+ownership.json, NEXT_STEPS.md, reports\checkpoint.md and the relevant old handoffs.
+Read needed pinned source files completely. A reference project's claims or a
+wrapper calling retail code do not establish a replacement implementation.
+Use pinned dependencies, small modules and readable comments about constraints.
+
+AUTHORIZATION
+Global control: G:\Rust-Fallout\local\team\control.json
+Current assignments/mailboxes: G:\Rust-Fallout\local\team-v2
+Expected generation: team-v2-20261003
+Check control and your <lane>.assignment.json before edits, commands, commits and
+task transitions. Engine implementation requires matching generation, mode active,
+stop_requested=false and an active assignment. Planning mode permits setup and
+read-only investigation, not engine edits/builds. Missing/malformed coordination
+permits read-only investigation until the coordinator repairs it. Missing status
+/outbox files for a lane that has not started are normal; missing control or
+assignment files are not.
+Submitting the coordinator startup prompt authorizes it to activate the team.
+On each explicit resumption, coordinator creates a new run_id and activates only
+ready assignments. Creating/resuming an ongoing Goal also requires active matching
+control and assignment; an early worker must not create an active Goal while paused.
+Worker prompts do not activate global control. If launched early, state that once
+and wait or return according to session capabilities; do not repeatedly poll/busywork.
+
+ONE WRITER
+Use only your assigned worktree/branch. Before source or mailbox writes, claim
+G:\Rust-Fallout\local\team-v2\leases\<lane>.json by exclusive file creation with a new session
+UUID, lane, worktree, branch and timestamp. Keep the UUID during the session.
+Never overwrite another lease or assume it expired from age. The coordinator
+retires a stale lease only after confirming its writer stopped and preserving it.
+This is a coordination guard, not OS isolation. Do not spawn duplicate writers.
+
+Each worker writes only <lane>.status.json and <lane>.outbox.jsonl. Replace status
+atomically using a temporary file in the same directory. Append numbered JSON
+outbox rows with generation, current run_id, session UUID, task ID, timestamp and message. Preserve
+history. Coordinator owns assignments, board.json, coordinator.status.json and
+global control; it does not rewrite a live worker's status. Separate chats are
+not assumed to share messages. Read mailboxes; announce startup, contracts,
+blockers, tested handoffs and stopping. Use agent messaging only where connected.
+An immediate stop is an outbox row with type stop_requested and Robert's exact
+instruction. Every session checks ALL current-run stop rows before each command
+and during each short process poll, so stopping does not depend on coordinator
+availability. Coordinator also sets global stop_requested=true immediately when
+it observes a stop row. Old-run stop rows remain preserved, not silently deleted.
+
+OWNERSHIP
+Follow ownership.json and the narrower task assignment. Minimal exports and CLI
+flags needed for your slice can be wired in your private branch and declared in
+the handoff. Shared semantic APIs, dependencies, source pins, persistent identity,
+canonical mutation or save formats need a recorded coordinator decision first.
+Continue independent assigned work while waiting. The coordinator handles routine
+decisions without asking Robert. Never edit another worker's tree.
+
+CONTINUOUS WORK
+When active, work through dependency-ready assigned tasks until Robert stops or
+all defensible assigned work is blocked. Startup prompts explicitly request a
+persistent Goal when available. Goals support continuation/resumption but do not
+promise unlimited session/service lifetime. Never spin on identical failing checks.
+Keep one active task and at most two new unmerged handoffs. Review fixes come first.
+Inherited tested handoffs are consumed, not reimplemented. Every task needs a real
+consumer or a demonstrated dependency/failure. Avoid empty frameworks and duplicate
+parsers. Preserve exact resumption state before interruption or compaction.
+
+BUILDS
+Set an explicit working directory and CARGO_TARGET_DIR=<your worktree>\target.
+Use G:\Rust-Fallout\tools\cargo.ps1 with --locked and normally --jobs 2.
+Do not assume the worker checkout has a .tools directory. Main's .research is
+read-only. Pass explicit research and private build paths to native wrappers.
+Keep caches, binaries and raw evidence in your own local directories. Never
+rebuild a binary or change an input used by a running proof.
+Run focused tests, formatting and affected-package Clippy with warnings denied.
+Every focused Cargo build/test/Clippy command needs the focused slot reserved by
+coordinator in board.json, even if no other build appears active. Heavy full
+proofs and GPU/retail captures need the separate heavy slot. Do not infer a free
+slot from observing no process. Reservations name owner/task and are released at
+completion or interruption. Check control and current-run stop messages between
+short process polls (normally no more than 10 seconds). Use new
+evidence directories and exact commit/source/binary/input hashes. Negative tests
+must fail for the intended reason, not just return a nonzero code.
+
+HANDOFF
+Commit only owned paths plus declared shared wiring on your assigned branch.
+Provide task/requirement, base/parent/commit range, owned/shared paths, dependency
+commits, interface approval, source pins, actual commands/results, evidence paths
+and hashes, reachable consumer, unsupported behavior and exact next action.
+Only coordinator assigns checkpoints and promotes/pushes main. No force push,
+reset/clean/rebase/removal of another tree. Do not blindly pull/merge main: use the
+approved base at a clean boundary and preserve drafts before reconciliation.
+Earlier reports stay immutable. Decoded, engineered, retail-compared and accepted
+are distinct claims. Unknown behavior must remain explicitly unsupported.
+
+PRESERVATION AND STOP
+Original install G:\SteamLibrary\steamapps\common\Fallout New Vegas, existing
+saves and settings stay untouched. No retail payloads in Git. Backup manifest:
+G:\Rust-Fallout-preservation\team-v1-20261003\manifest.json
+Old mailboxes and incomplete45 evidence remain available read-only.
+STOP means stop taking work immediately, safely cancel only owned processes,
+preserve draft/head/evidence/next action, mark paused and return. Do not finish
+another test, fix, commit, proof or upload first. Notify coordinator immediately;
+it sets the global stop flag. Elapsed time is not approval. Resume only on
+Robert's instruction and reconciled current-generation control/assignments.

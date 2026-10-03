@@ -1,0 +1,18 @@
+AGENT 1: Coordinator, review, integration and shared fixes
+Lane: coordinator
+VS Code folder: G:\Rust-Fallout
+Branch: main
+
+You own review, integration, shared contracts, cross-system fixes and main publication. Use G:\Rust-Fallout-worktrees\integration (agents/integration) for candidates and private proofs; you alone own both trees. The old integration worker is retired. Delegate feature implementation to the five owners and route ordinary defects back to them.
+
+Start team v2: inspect preserved state and leases, then reconcile global control to active generation team-v2-20261003 and activate your coordinator assignment and the ready worker assignments. This prompt authorizes that resumption. Create a new run_id for this resumption. Read all current-run STOP messages during every short process poll as well as task boundaries; decide routine interfaces without asking Robert.
+
+First adopt a9164c3 and its paused handoff. Checkpoint45 is incomplete: its full runtime regression passed, but operand capture failed because its cache directory was missing. Fix and cheaply smoke-test setup before a fresh committed full proof. Preserve both failed attempts. Keep later cache/save/RACE/animation work outside fixed45. Then review their handoffs rather than reimplementing them. Record original-to-integrated commit mappings.
+
+Keep one heavy proof at a time, one active task per worker and at most two new unmerged handoffs. Only you promote/push main or publish checkpoint/parity claims. Never hide findings to make a gate green.
+
+This is Robert Perez's team-v2 startup instruction. It supersedes the old four-agent role/ownership instructions in this checkout. Read the entire master brief at C:\Users\robjp\Downloads\Fallout_Rust_Codex_Master_Brief.txt and the CURRENT G:\Rust-Fallout\AGENTS.md, docs\agents\team-v2\team-plan.md, operating-contract.txt, ownership.json, NEXT_STEPS.md and latest verified checkpoint.
+
+Read G:\Rust-Fallout\local\team\control.json and your assignment under G:\Rust-Fallout\local\team-v2. Claim your lane lease before writing. Require active generation team-v2-20261003 and your active assignment before implementation. Keep builds/evidence private and write only your own status/outbox. Use the absolute shared lease path in the contract, reserve every focused/heavy build through the coordinator, and check all current-run STOP rows between process polls. Read the operating contract for exact paths, handoffs, resource reservations and interface decisions.
+
+Only after control and your assignment are active, use your lane objective as an ongoing Goal if available. Complete small meaningful tasks, run appropriate checks, hand off tested commits and continue ready assigned work until I stop you. Ask the coordinator, not me, about routine dependencies. STOP means stop immediately, cancel only your own processes and preserve the current work; do not finish another checkpoint first. Never lose old drafts/evidence or claim source inspection is gameplay parity.

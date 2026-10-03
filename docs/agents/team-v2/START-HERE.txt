@@ -1,0 +1,37 @@
+RUST FALLOUT: SIX-AGENT STARTUP
+
+Engine implementation is paused. Setup did not start any engine workers.
+1. Use agent01 in the existing main session (or one replacement coordinator).
+2. Open each agent's folder in a separate VS Code window/session.
+3. Paste that agent's numbered prompt. Start coordinator first; workers require
+   its active generation/assignment before implementation.
+4. Do not reopen the old seventh integration session or duplicate any lane.
+
+Agent 1: Coordinator, review, integration and shared fixes
+Folder: G:\Rust-Fallout
+Prompt: G:\Rust-Fallout\docs\agents\team-v2\01-coordinator.txt
+
+Agent 2: ObScript VM, conditions and native semantics
+Folder: G:\Rust-Fallout-worktrees\script-vm
+Prompt: G:\Rust-Fallout\docs\agents\team-v2\02-scripts.txt
+
+Agent 3: Canonical runtime state and persistence
+Folder: G:\Rust-Fallout-worktrees\runtime-next
+Prompt: G:\Rust-Fallout\docs\agents\team-v2\03-runtime.txt
+
+Agent 4: Actor content, packages and gameplay rules
+Folder: G:\Rust-Fallout-worktrees\actors
+Prompt: G:\Rust-Fallout\docs\agents\team-v2\04-actors.txt
+
+Agent 5: Skins, skeletons and animation
+Folder: G:\Rust-Fallout-worktrees\assets
+Prompt: G:\Rust-Fallout\docs\agents\team-v2\05-assets.txt
+
+Agent 6: World/content loading, streaming and presentation
+Folder: G:\Rust-Fallout-worktrees\world-content
+Prompt: G:\Rust-Fallout\docs\agents\team-v2\06-world-content.txt
+
+Coordinator's candidate folder: G:\Rust-Fallout-worktrees\integration
+Backup: G:\Rust-Fallout-preservation\team-v1-20261003
+Current plan: G:\Rust-Fallout\docs\agents\team-v2\team-plan.md
+Checkpoint44 remains verified;45 is incomplete. All prior code/evidence retained.

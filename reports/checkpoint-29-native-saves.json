@@ -1,0 +1,444 @@
+{
+  "accepted_scenarios": [],
+  "checkpoint": 29,
+  "cold_process_state_equal": true,
+  "cold_report_sha256": "3bc0650e273c2b3b4fe629dc2eb92298d27e0e6e4507844fd7d7e182ef57a6e5",
+  "engine_revision": "a8db01da0ae082f38893454d39620795241958e3",
+  "explicit_recovery_equal": true,
+  "fresh_schema_regression": {
+    "accepted_scenarios": [],
+    "all_original_compiled_schemas_equal": true,
+    "bytecode_execution_ready": false,
+    "canonical_state_probe": {
+      "bytecode_executed": false,
+      "canonical_bytes_equal": true,
+      "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+      "instances": 2483,
+      "numeric_values": 9144,
+      "old_handles_rejected": true,
+      "original_state_captured": false,
+      "pending_events": 2160,
+      "persistent_ids_preserved": true,
+      "retail_parity_accepted": false,
+      "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+      "snapshot_bytes": 2381528,
+      "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+      "typed_reference_values": 2028,
+      "unsupported_slots_retained_uninitialized": 0
+    },
+    "catalogue_source_findings": 3,
+    "constructor_defaults_verified": false,
+    "counts": {
+      "candidate_records": 466287,
+      "decoded_candidate_bytes": 43295423,
+      "deleted_candidate_records": 67,
+      "duplicate_declarations": 11,
+      "local_kinds": {
+        "float": 1077,
+        "integer": 8067,
+        "reference": 2028
+      },
+      "scripts": 80627,
+      "unique_locals": 11172
+    },
+    "known_gaps": [
+      "Original live initialization, lifecycle, scheduling and quest-delay timing",
+      "Native query/command execution and original numeric coercion",
+      "Original save import and full mutable world state",
+      "Cross-owner event-list resolution and retail differential traces"
+    ],
+    "malformed_cases_rejected": [
+      "short-declaration",
+      "unnamed-declaration",
+      "orphan-name",
+      "unterminated-name",
+      "duplicate-compiled-body",
+      "short-begin",
+      "unowned-compiled-field",
+      "partial-field-header",
+      "orphan-extended-field",
+      "compressed-checksum"
+    ],
+    "metadata": {
+      "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+      "definitions": 629788,
+      "winning_definitions": 628464,
+      "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+    },
+    "native_report_sha256": "590a8800bdf22d44811690cd074eee57272fbe42d857aa868d0d5f63e6c3f63c",
+    "oracle_binary_sha256": "7948ef9d4cde7f018f2481c0eb4579ce488673154eec79d1e4d9788205439310",
+    "prior_winning_source_coverage": {
+      "all_winning_source_units_accounted_for": true,
+      "bound_report_sha256": "9c539f800bc786a912a0df09ff1c51dc280cfab3623b2673a051803ad5468441",
+      "receipt_sha256": "e7ce51df450a0ed87f20fc1c7cc937abaaf90ad7f136eaaa02eb1a5d4e028a2a",
+      "units": 80627
+    },
+    "profile": "nv-original",
+    "retail_parity_accepted": false,
+    "rust_report_sha256": "b96de929e6e69b9ed8d41ebb6bd98f2968a35d091b2ed2fa9cbc286f515d7e6a",
+    "schema_version": 1,
+    "scope": "Independent original compiled schemas and native canonical state engineering checks; no captured retail live values",
+    "sources": [
+      {
+        "source_bytes": 245650747,
+        "source_name": "FalloutNV.esm",
+        "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+      },
+      {
+        "source_bytes": 6274851,
+        "source_name": "DeadMoney.esm",
+        "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+      },
+      {
+        "source_bytes": 17308500,
+        "source_name": "HonestHearts.esm",
+        "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+      },
+      {
+        "source_bytes": 16202800,
+        "source_name": "OldWorldBlues.esm",
+        "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+      },
+      {
+        "source_bytes": 25676818,
+        "source_name": "LonesomeRoad.esm",
+        "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+      },
+      {
+        "source_bytes": 252445,
+        "source_name": "GunRunnersArsenal.esm",
+        "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+      },
+      {
+        "source_bytes": 3007,
+        "source_name": "CaravanPack.esm",
+        "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+      },
+      {
+        "source_bytes": 6523,
+        "source_name": "ClassicPack.esm",
+        "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+      },
+      {
+        "source_bytes": 3064,
+        "source_name": "MercenaryPack.esm",
+        "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+      },
+      {
+        "source_bytes": 2323,
+        "source_name": "TribalPack.esm",
+        "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+      }
+    ],
+    "synthetic_fixtures": {
+      "cache_and_reordering_keep_canonical_state_equal": true,
+      "phases": [
+        {
+          "cache_reused": [
+            false,
+            false
+          ],
+          "counts": {
+            "candidate_records": 1,
+            "decoded_candidate_bytes": 384,
+            "deleted_candidate_records": 0,
+            "duplicate_declarations": 1,
+            "local_kinds": {
+              "float": 1,
+              "integer": 2,
+              "reference": 1,
+              "unsupported": 1,
+              "unverified_zero_index": 1
+            },
+            "scripts": 1,
+            "unique_locals": 6
+          },
+          "name": "schema-fixture-cold",
+          "native_report_sha256": "be95e13f9367e414542bcfe81523a0d84e4d4654fcb51904ce930132d868f3ed",
+          "rust_report_sha256": "993645d2721798cf11b74d75aa9af29b624da326b9dcc289f976de98a0f2538b",
+          "state_probe": {
+            "bytecode_executed": false,
+            "canonical_bytes_equal": true,
+            "catalogue_sha256": "f5a63c33cc6bcae52596e1d1bda649126d0750fdd5c230000327261299ff0dea",
+            "instances": 1,
+            "numeric_values": 3,
+            "old_handles_rejected": true,
+            "original_state_captured": false,
+            "pending_events": 1,
+            "persistent_ids_preserved": true,
+            "retail_parity_accepted": false,
+            "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+            "snapshot_bytes": 1465,
+            "snapshot_sha256": "563bef4a094a4cb1477ee948dfa56b49980ff9b6791e209dfd43c1a2d57fce1f",
+            "typed_reference_values": 1,
+            "unsupported_slots_retained_uninitialized": 2
+          }
+        },
+        {
+          "cache_reused": [
+            true,
+            true
+          ],
+          "counts": {
+            "candidate_records": 1,
+            "decoded_candidate_bytes": 384,
+            "deleted_candidate_records": 0,
+            "duplicate_declarations": 1,
+            "local_kinds": {
+              "float": 1,
+              "integer": 2,
+              "reference": 1,
+              "unsupported": 1,
+              "unverified_zero_index": 1
+            },
+            "scripts": 1,
+            "unique_locals": 6
+          },
+          "name": "schema-fixture-warm",
+          "native_report_sha256": "be95e13f9367e414542bcfe81523a0d84e4d4654fcb51904ce930132d868f3ed",
+          "rust_report_sha256": "5a4acf1515d25922917a070e84458d0138123d0a33c32d98b6abf96175c9e8d9",
+          "state_probe": {
+            "bytecode_executed": false,
+            "canonical_bytes_equal": true,
+            "catalogue_sha256": "f5a63c33cc6bcae52596e1d1bda649126d0750fdd5c230000327261299ff0dea",
+            "instances": 1,
+            "numeric_values": 3,
+            "old_handles_rejected": true,
+            "original_state_captured": false,
+            "pending_events": 1,
+            "persistent_ids_preserved": true,
+            "retail_parity_accepted": false,
+            "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+            "snapshot_bytes": 1465,
+            "snapshot_sha256": "563bef4a094a4cb1477ee948dfa56b49980ff9b6791e209dfd43c1a2d57fce1f",
+            "typed_reference_values": 1,
+            "unsupported_slots_retained_uninitialized": 2
+          }
+        },
+        {
+          "cache_reused": [],
+          "counts": {
+            "candidate_records": 1,
+            "decoded_candidate_bytes": 384,
+            "deleted_candidate_records": 0,
+            "duplicate_declarations": 1,
+            "local_kinds": {
+              "float": 1,
+              "integer": 2,
+              "reference": 1,
+              "unsupported": 1,
+              "unverified_zero_index": 1
+            },
+            "scripts": 1,
+            "unique_locals": 6
+          },
+          "name": "schema-fixture-reordered",
+          "native_report_sha256": "1d99de6f01d3236932d239a20385fa8a333418827e62aadd53ad0ada4a941fda",
+          "rust_report_sha256": "499549d03d2ae8cc62d5c6402baf7392ab08c95438e45c2a15687b99a6541362",
+          "state_probe": {
+            "bytecode_executed": false,
+            "canonical_bytes_equal": true,
+            "catalogue_sha256": "f5a63c33cc6bcae52596e1d1bda649126d0750fdd5c230000327261299ff0dea",
+            "instances": 1,
+            "numeric_values": 3,
+            "old_handles_rejected": true,
+            "original_state_captured": false,
+            "pending_events": 1,
+            "persistent_ids_preserved": true,
+            "retail_parity_accepted": false,
+            "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+            "snapshot_bytes": 1465,
+            "snapshot_sha256": "563bef4a094a4cb1477ee948dfa56b49980ff9b6791e209dfd43c1a2d57fce1f",
+            "typed_reference_values": 1,
+            "unsupported_slots_retained_uninitialized": 2
+          }
+        }
+      ],
+      "scope": "Authored sparse/duplicate/reference/unknown/zero/full-width declarations without SCTX; missing SCRV declaration is retained as a dependency"
+    }
+  },
+  "independent_containers": [
+    {
+      "file_sha256": "47e9df4e5ea9ce91046733f42ec60f8175dc9ecdecf3b488595abe4d1f9d4bcc",
+      "metadata": {
+        "boundary_tick": 1,
+        "campaign": [
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40
+        ],
+        "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+        "container_bytes": 2381778,
+        "container_sha256": "47e9df4e5ea9ce91046733f42ec60f8175dc9ecdecf3b488595abe4d1f9d4bcc",
+        "generation": 2,
+        "snapshot_bytes": 2381546,
+        "snapshot_sha256": "f0655cb269a06daf8106fe408c7b4d0be167b0904e9c0952cc56bee6df556ed0",
+        "state_revision": 7129
+      },
+      "name": "golden-current",
+      "native_report_sha256": "2560394c96dd256cc682b3bc3756e612dfdddb897665f3f51a4ae158dd1453ba"
+    },
+    {
+      "file_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+      "metadata": {
+        "boundary_tick": 1,
+        "campaign": [
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40
+        ],
+        "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+        "container_bytes": 2381760,
+        "container_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+        "generation": 1,
+        "snapshot_bytes": 2381528,
+        "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+        "state_revision": 7128
+      },
+      "name": "golden-previous",
+      "native_report_sha256": "d8ab7844d2d04de37a9e3bf910ad7fa1b15914cd56c23320e804cb8f9887c64d"
+    }
+  ],
+  "instances": 2483,
+  "known_gaps": [
+    "Full mutable player/inventory/actor/quest/world state is not implemented",
+    "Original live initialization and execution behavior remain unmeasured",
+    "Native filesystem tests do not prove power-loss durability or remote filesystem semantics",
+    "Retail .fos, NVSE cosaves, third-party DLL state and campaign compatibility remain separate tracks"
+  ],
+  "malformed_container_cases_rejected": [
+    "truncated-0",
+    "truncated-7",
+    "truncated-15",
+    "truncated-63",
+    "truncated-151",
+    "truncated-199",
+    "truncated-231",
+    "truncated-2381777",
+    "magic",
+    "container-version",
+    "reserved-header",
+    "chunk-count",
+    "metadata-tag",
+    "metadata-version",
+    "metadata-extent",
+    "state-tag",
+    "state-version",
+    "state-extent",
+    "profile",
+    "state-schema",
+    "zero-generation",
+    "zero-campaign",
+    "metadata-checksum",
+    "state-checksum",
+    "whole-checksum",
+    "trailing-bytes",
+    "file-budget"
+  ],
+  "oracle_binary_sha256": "527e48ceada972df4f5b128530bbe673570e964934fe42d6c4b2223fc8ee3802",
+  "pending_events": 2160,
+  "persistence_guarantees": "File sync and same-directory replacement; Windows NTFS process interruption tested; Windows directory/power-loss durability not verified",
+  "process_interruption": "Workspace native save tests kill a real child at five write/sync/publication stages and verify old/new complete slots and released locks",
+  "profile": "nv-original",
+  "recovery": {
+    "current_failure": "native save format: container byte budget/extent",
+    "current_repaired": false,
+    "metadata": {
+      "boundary_tick": 1,
+      "campaign": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+      "container_bytes": 2381760,
+      "container_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+      "generation": 1,
+      "snapshot_bytes": 2381528,
+      "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+      "state_revision": 7128
+    },
+    "slot": "previous"
+  },
+  "repair": {
+    "current_failure": "native save format: container byte budget/extent",
+    "current_repaired": true,
+    "metadata": {
+      "boundary_tick": 1,
+      "campaign": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+      "container_bytes": 2381760,
+      "container_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+      "generation": 1,
+      "snapshot_bytes": 2381528,
+      "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+      "state_revision": 7128
+    },
+    "slot": "previous"
+  },
+  "retail_parity_accepted": false,
+  "retail_save_compatibility": false,
+  "rust_report_sha256": "2606c945743178c381de21f117ead95bc66b150fbdeca6d9f879f370ed6895cc",
+  "schema_oracle_binary_sha256": "7948ef9d4cde7f018f2481c0eb4579ce488673154eec79d1e4d9788205439310",
+  "schema_version": 1,
+  "scope": "Engine-native script/reference/event persistence; engineering inputs, not original live-state capture or .fos compatibility",
+  "snapshot_migration": "Version 1 to 2 requires explicit campaign identity; unit-tested; no automatic migration or retail-save import",
+  "source_snapshot_sha256": "a6e4ec5931024f8165a0e41fe68d6054e0d97ed5f85c0b5bab482deaa9fa3b16",
+  "worker_capture_isolated": true
+}

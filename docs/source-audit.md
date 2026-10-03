@@ -232,3 +232,15 @@ frames exercise all block kinds, backreferences and malformed boundaries. The
 existing original header reader supplies source namespaces and metadata; its
 implementation is unchanged in this checkpoint. Strict production checksum policy
 is unchanged. See [compressed records](compressed-records.md).
+
+Checkpoint 27 reads the complete pinned xEdit condition function table, parameter
+type declarations, parameter unions, VATS selector union, variable-name lookup,
+run-on/reference deciders and legacy target after-load migration. It also reads
+xNVSE's parameter enum and in-memory Condition structure. Original CTDA word
+classification is separate from native argument extraction. An original offline
+C++ reader now extracts winning condition payloads directly, using the unchanged
+checkpoint 26 RFC decoder for compressed bytes. It independently compares every
+typed word, source namespace, static dependency and binding digest. No upstream
+condition implementation is imported; editor migration, runtime target-kind
+acceptance, live values and query evaluation stay unimplemented. See
+[condition dependencies](condition-dependencies.md).

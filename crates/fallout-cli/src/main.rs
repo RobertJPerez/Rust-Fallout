@@ -2,6 +2,7 @@ mod argument_inspection;
 mod collision;
 mod command_catalogue;
 mod compressed_record_inspection;
+mod condition_dependency_inspection;
 mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
@@ -71,6 +72,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Bind authored winning CTDA operands and static form dependencies.
+    ConditionDependencies {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+    },
     /// Hash original compressed record inputs and exact decoded outputs.
     CompressedRecords {
         #[arg(long)]
@@ -427,6 +437,26 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::ConditionDependencies {
+            install,
+            load_order,
+            index_cache,
+        } => {
+            let report = condition_dependency_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+            )?;
+            emit(&report, args.output.as_deref(), &protected_tree(&install)?)?;
+            if report["counts"]["source_findings"] != 0
+                || report["counts"]["unknown_parameters"] != 0
+            {
+                return Err(
+                    "condition dependency inspection retains source or schema findings; see report"
+                        .into(),
+                );
+            }
+        }
         Command::CompressedRecords {
             install,
             load_order,

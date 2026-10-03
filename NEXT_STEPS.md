@@ -174,3 +174,10 @@ Both strict readers still reject it. See [compressed records](docs/compressed-re
 Next: typed condition operands and subject dependencies, then the first canonical
 script event/runtime state slice. Retail checksum handling is still unmeasured;
 keep diagnostic extraction separate from runtime admission.
+
+Checkpoint 27 adds typed winning condition words, VATS selector unions and static
+form dependency bindings. Short layouts, unused words, tombstones and runtime
+subject/value requests remain explicit; see [condition dependencies](docs/condition-dependencies.md).
+Next: canonical script-instance/event state and version-bound persistence, then
+primitive queries and observable execution. Unknown runtime defaults and native
+behavior must remain unresolved instead of becoming successful no-ops.

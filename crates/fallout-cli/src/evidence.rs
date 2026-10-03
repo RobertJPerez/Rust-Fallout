@@ -4,6 +4,7 @@ mod argument_evidence;
 mod binding_evidence;
 mod catalogue_evidence;
 mod compressed_record_evidence;
+mod condition_dependency_evidence;
 mod condition_evidence;
 mod dialogue_evidence;
 mod expression_evidence;
@@ -45,7 +46,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=26))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=27))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -333,7 +334,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25) {
+    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25 | 27) {
         Some(digest(&command_oracle)?)
     } else {
         None
@@ -398,6 +399,13 @@ fn run(args: Args) -> Result<()> {
     let zlib_oracle = root.join("local/zlib-oracle-build/Release/zlib-oracle.exe");
     let zlib_digest = if args.checkpoint == 26 {
         Some(digest(&zlib_oracle)?)
+    } else {
+        None
+    };
+    let condition_operand_oracle =
+        root.join("local/condition-operand-oracle-build/Release/condition-operand-oracle.exe");
+    let condition_operand_digest = if args.checkpoint == 27 {
+        Some(digest(&condition_operand_oracle)?)
     } else {
         None
     };
@@ -556,6 +564,18 @@ fn run(args: Args) -> Result<()> {
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
             },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let condition_dependency_evidence = if args.checkpoint == 27 {
+        Some(condition_dependency_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &condition_operand_oracle,
+            &command_oracle,
             &args.install,
         )?)
     } else {
@@ -806,6 +826,9 @@ fn run(args: Args) -> Result<()> {
         || loaded_script_digest
             .as_ref()
             .is_some_and(|expected| digest(&loaded_script_oracle).as_ref().ok() != Some(expected))
+        || condition_operand_digest.as_ref().is_some_and(|expected| {
+            digest(&condition_operand_oracle).as_ref().ok() != Some(expected)
+        })
         || zlib_digest
             .as_ref()
             .is_some_and(|expected| digest(&zlib_oracle).as_ref().ok() != Some(expected))
@@ -1004,6 +1027,23 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut dependencies) = condition_dependency_evidence {
+        dependencies["checkpoint"] = args.checkpoint.into();
+        dependencies["engine_revision"] = revision.clone().into();
+        dependencies["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["condition_dependencies"] = dependencies.clone();
+        verification["condition_operand_oracle_binary_sha256"] = condition_operand_digest.into();
+        verification["command_oracle_binary_sha256"] = command_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separate startup fix; neither reexecuted in this condition-dependency checkpoint; executable descriptors freshly compared".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "condition-dependencies"),
+            dependencies,
         ));
     } else if let Some(mut compressed) = compressed_record_evidence {
         compressed["checkpoint"] = args.checkpoint.into();

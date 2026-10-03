@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 195 tests pass, including malformed compression, forward/cyclic links,
+- 200 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -227,6 +227,10 @@ Independent [compressed record extraction](docs/compressed-records.md) now compa
 every stored and decoded payload hash with an original RFC-based offline reader.
 The known LAND checksum finding remains diagnostic-only; strict runtime loading
 is unchanged.
+
+[Typed condition dependencies](docs/condition-dependencies.md) now preserve CTDA
+word domains, VATS selector unions and source-bound target states. Live values,
+subject selection and query evaluation remain unfinished.
 
 ## Code layout
 

@@ -59,6 +59,10 @@ Static quest SCRI attachments now support foreign declaration associations; see
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
+The [October 3 overnight report](reports/overnight-2026-10-03.md) covers checkpoints
+15–37, canonical script/item state, native saves and the checked release launcher.
+These are scoped engineering proofs; original gameplay acceptance remains open.
+
 The source is published to [RobertJPerez/Rust-Fallout](https://github.com/RobertJPerez/Rust-Fallout).
 
 ## Run it

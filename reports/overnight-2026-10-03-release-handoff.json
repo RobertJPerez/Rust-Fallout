@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "checked_at_utc": "2026-10-03T17:19:43.439805+00:00",
+  "overnight_goal_started_at_utc": "2026-10-03T05:04:47+00:00",
+  "elapsed_seconds_since_goal_start": 44096,
+  "checkpoint_range_advanced": [
+    15,
+    37
+  ],
+  "source_revision": "ee0c67bb3b019bc316c22abd75e32b996508a586",
+  "source_files_checked": 263,
+  "source_snapshot_sha256": "263bebddd9a92d7585693e9f0c5cd8810e2bc4188074e54bf5f46dac2bfac2b1",
+  "rust_tests_passed": 283,
+  "python_publication_tests_passed": 5,
+  "release_launcher_ready": true,
+  "release_preview_sha256": "7920085af860661fc664c364238b0165e5e5a40a0dcfbfa9ebcdfe602d8910b5",
+  "release_launcher_sha256": "587bf65ea3f8c681bf1dba02c0de4aae8ee50793a5b35f57ad07624621b58a05",
+  "offscreen_launcher_exit_code": 0,
+  "offscreen_capture": {
+    "terrain": "Goodsprings",
+    "width": 1280,
+    "height": 900,
+    "source_vertices": 1089,
+    "source_triangles": 2048,
+    "layer_draws": 27,
+    "diffuse_textures": 7,
+    "capture_sha256": "9a4faa5b8bd1415a0c0ffc0b4b051b44eb210a26594247f2b437fe92e11df27e",
+    "report_sha256": "481568972e3eadaf7696e31beaa399ca92470e9aed2c9213b4c7bda23e08c4b4",
+    "log_sha256": "70108ee0d109f3de5824bdfa6113a60458110627e171b6329649819a0ade1f37",
+    "local_directory": "local\\playtest-114524-1791047931004601100",
+    "visual_review": "The retained capture was inspected: textured terrain is visible and framed; this is not a retail image comparison."
+  },
+  "scope": "Local release build and one Goodsprings launcher/renderer startup check; all source files still match checkpoint 37. This does not rerun the full checkpoint 14 GPU suite or test desktop input.",
+  "original_assets_and_captures_kept_local": true,
+  "retail_parity_accepted": false,
+  "accepted_gameplay_scenarios": []
+}

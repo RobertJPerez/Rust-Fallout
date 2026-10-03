@@ -46,6 +46,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --lock
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --locked -p fallout-cli --bin fallout-playtest
 ```
 
+For a release launcher, build both packages in the same profile:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --release --locked -p fallout-cli -p fallout-preview
+.\target\release\fallout-playtest.exe --check
+.\target\release\fallout-playtest.exe
+```
+
+The launcher requires `fallout-preview.exe` beside it. Building only the CLI does
+not produce the renderer. The October 3 release handoff passed its configuration
+check and a Goodsprings offscreen startup; see [the scoped receipt](../reports/overnight-2026-10-03-release-handoff.json).
+
 The repetition value is an explicit preview setting, measured per quadrant. Four
 repeats is the automated fixture's setting, not an established retail scale.
 GoodspringsSource and NVDLC02PineCreek also have fully authored nonnull material

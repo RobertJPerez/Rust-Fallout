@@ -3,9 +3,11 @@
 //! are separate from original `.fos` compatibility and power-loss guarantees.
 pub mod format;
 mod repository;
+mod worker;
 
 use crate::{Limits, World, snapshot::Snapshot};
 pub use repository::{LoadReceipt, Recovery, Repository, Slot, Stage, WriteReceipt};
+pub use worker::{CompletionError, Rejection, SaveTicket, SaveWorker, SubmitFailure, WorkerError};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

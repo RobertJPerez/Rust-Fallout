@@ -42,6 +42,58 @@ older revisions, backward clocks/allocators and different states at the same
 revision. Identical repeated captures are allowed. A writer lock serializes
 publication across processes; contention returns a busy error.
 
+## Background writer
+
+`SaveWorker` publishes accepted captures in submission order on one named thread.
+Its capacity includes the snapshot being written and every queued snapshot. Choose
+between one and 64 outstanding requests; two is a reasonable starting point for
+the host. This bounds request count, not total process memory. Each capture keeps
+its runtime limits, and encoding still enforces the snapshot byte limit on the
+worker. Capture itself copies canonical state at the host boundary.
+
+```rust,ignore
+let mut saves = SaveWorker::start(repository, 2)?;
+let capture = Captured::at_boundary(&world);
+let mut ticket = match saves.try_submit(capture) {
+    Ok(ticket) => ticket,
+    Err(rejected) => {
+        // Keep rejected.capture if this exact boundary should be retried.
+        // Admission is not a write receipt; report the rejection to the host.
+        return Err(rejected.into());
+    }
+};
+
+// Poll on later frames. None means that filesystem work is still pending.
+if let Some(receipt) = ticket.try_wait()? {
+    // A receipt confirms this request's publication, including its generation.
+    report_save(receipt);
+}
+```
+
+Keep each ticket until its terminal success or error has been handled. Results
+are delivered once; polling a consumed ticket reports `AlreadyCollected`.
+Saturation or a stopped worker returns the original capture to the caller.
+Accepted requests are neither combined nor automatically retried. A busy
+repository, stale revision or disk failure is returned on that request's ticket;
+the writer continues to the next request. A stopped writer reports an explicit
+completion error rather than claiming that the state was saved.
+
+Call `finish` outside the frame loop to close admission, drain accepted work and
+join the writer. Successful shutdown confirms draining and joining; individual
+write results still come from their tickets. Tickets remain usable afterward. Dropping a ticket does not
+cancel its write. Dropping the worker also drains and joins, so early returns
+cannot detach a writer that is still changing save slots. This can wait on a
+slow filesystem; explicit shutdown provides the worker-panic result. Process
+termination and filesystem recovery retain the separate repository guarantees
+described below.
+
+The installed-content `native-save-probe` uses this writer without changing its
+report or container schemas. Seven additional worker tests cover active/queued
+saturation, exact returned captures, FIFO generations, dropped tickets, drain on
+drop, worker panic, consumed results, independent world/catalogue lifetimes,
+script/reference/item/event restoration and request-error recovery. These are
+native host tests, not measurements of Bethesda quicksave timing or behavior.
+
 ## Container contract
 
 All integers use little endian. `FRSAVE01` has a 16-byte header: eight magic bytes,

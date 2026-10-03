@@ -3,7 +3,7 @@ use fallout_data::{baseline, loaded_scripts};
 use fallout_runtime::{
     Limits,
     identity::Value as LocalValue,
-    save::{Captured, Recovery, Repository, format},
+    save::{Captured, Recovery, Repository, SaveWorker, format},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -66,8 +66,8 @@ pub(super) fn probe(install: &Path, order_path: &Path, root: &Path) -> Result<Va
     let repository = Repository::create(root, &[install.into()], engineering.world.campaign())?;
     let capture = Captured::at_boundary(&engineering.world);
     let first = capture.snapshot().clone();
-    let worker_repository = repository.clone();
-    let worker = std::thread::spawn(move || worker_repository.commit(&capture));
+    let mut worker = SaveWorker::start(repository.clone(), 2)?;
+    let ticket = worker.try_submit(capture)?;
     let instance = first
         .instances
         .iter()
@@ -92,13 +92,16 @@ pub(super) fn probe(install: &Path, order_path: &Path, root: &Path) -> Result<Va
             },
         )],
     )?;
-    let first_receipt = worker.join().map_err(|_| "Native save worker panicked")??;
+    let first_receipt = ticket.wait()?;
     let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
     if restored.snapshot() != first {
         return Err("Worker capture included later state mutations".into());
     }
     let second = engineering.world.snapshot();
-    let second_receipt = repository.commit(&Captured::at_boundary(&engineering.world))?;
+    let second_receipt = worker
+        .try_submit(Captured::at_boundary(&engineering.world))?
+        .wait()?;
+    worker.finish()?;
     let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
     if restored.snapshot() != second {
         return Err("Native current-slot round trip differs".into());

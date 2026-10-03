@@ -8,6 +8,7 @@ mod control_flow_inspection;
 mod definition_plan_inspection;
 mod dialogue_inspection;
 mod event_frame_inspection;
+mod event_operand_inspection;
 mod expression_inspection;
 mod expression_plan_inspection;
 mod foreign_context_inspection;
@@ -255,6 +256,18 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+    },
+    /// Inspect source operands against explicit live engineering storage.
+    EventOperands {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Explicit identity already present in the engineering world.
+        #[arg(long)]
+        player_id: Option<u64>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -865,6 +878,28 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &protected_tree(&install)?)?;
             if report["prepared_frames"] != report["pending_events_checked"] {
                 return Err("Pending events retain unresolved source findings; see report".into());
+            }
+        }
+        Command::EventOperands {
+            install,
+            load_order,
+            index_cache,
+            player_id,
+        } => {
+            let report = event_operand_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                player_id,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["prepared_probes"] != report["pending_events_checked"]
+                || report["unresolved_operands"] != 0
+            {
+                return Err(
+                    "Pending operands retain unresolved source or storage findings; see report"
+                        .into(),
+                );
             }
         }
         Command::SharedRuntime {

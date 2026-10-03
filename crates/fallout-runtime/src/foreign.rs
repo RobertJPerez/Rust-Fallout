@@ -182,12 +182,18 @@ impl Content {
     pub fn report(&self) -> &Report {
         &self.report
     }
-    /// Shared immutable header facts. This does not read deferred record bodies
-    /// or invent a runtime binding for a form absent from the source headers.
-    pub fn source_form(&self, world: &World<'_>, key: &FormKey) -> Result<SourceForm> {
+    /// A probe may contain only local operands, so validate the whole cohort
+    /// independently of whether any particular foreign lookup occurs.
+    pub fn validate_world(&self, world: &World<'_>) -> Result<()> {
         if self.cohort != world.cohort {
             return Err(Failure::ContentChanged);
         }
+        Ok(())
+    }
+    /// Shared immutable header facts. This does not read deferred record bodies
+    /// or invent a runtime binding for a form absent from the source headers.
+    pub fn source_form(&self, world: &World<'_>, key: &FormKey) -> Result<SourceForm> {
+        self.validate_world(world)?;
         crate::identity::valid_form(key)?;
         Ok(*self.form(key)?)
     }

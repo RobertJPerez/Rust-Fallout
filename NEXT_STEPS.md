@@ -268,3 +268,14 @@ tombstones, malformed/tainted input, duplicates, cycles, closure and budgets.
 See [form lists](docs/form-lists.md). Next: measured original list expansion,
 argument/return coercion and observable VM execution. Loading authored members
 does not initialize runtime script-added lists or accept GetItemCount expansion.
+
+Checkpoint 39 adds bounded vanilla postfix plans over retained source tokens,
+ordered children and contiguous semantic subtree ranges. Independent forward Rust
+and backward C++ construction agree on 53,401 complete expressions and three
+authored residual-stack findings across all 14,514 bodies. Strict loading rejects
+those findings; diagnostic reports retain them and still return 1. The expanded
+debug CLI now starts with an explicit inspector worker stack. See
+[expression plans](docs/expression-plans.md). Next: measure original handling of
+the three source expressions and numeric/short-circuit/native coercion, then
+source-bound control flow and bounded observable execution. This structural
+model does not establish retail effects or accept gameplay.

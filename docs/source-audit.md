@@ -340,3 +340,16 @@ read original source independently and compare every member binding and structur
 edge. Shared Rust Kosaraju and independent C++ Tarjan remain iterative and bounded.
 No upstream implementation is copied or linked. See [form lists](form-lists.md)
 and source-lock ranges/hashes. GetItemCount expansion and retail execution stay open.
+
+Checkpoint 39 reinspects selected ScriptAnalyzer operand arity/order, prefix
+consumption and residual-stack diagnostics, plus GameScript operator declarations.
+Own Rust constructs a flat plan with a forward operand stack; the independently
+owned C++ tool scans backward with pending child slots. Exact executable descriptor
+identities constrain the model. All source expression/body hashes and structural
+findings agree in the development corpus comparison, including three residual
+stacks which remain blocked pending retail measurements. No upstream code is
+copied or linked; selected scopes/full-file hashes are retained in the source lock.
+Source extraction is inherited from the independently checked existing pipeline;
+the new C++ tool does not independently extract plugins or execute scripts.
+See [expression plans](expression-plans.md). Numeric effects and VM acceptance
+remain unfinished.

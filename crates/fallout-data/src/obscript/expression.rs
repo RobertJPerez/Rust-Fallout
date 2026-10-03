@@ -20,6 +20,10 @@ pub struct Operators {
 }
 
 impl Operators {
+    pub fn entries(&self) -> &[Operator] {
+        &self.entries
+    }
+
     pub fn new(entries: Vec<Operator>) -> Result<Self, DecodeError> {
         if entries.is_empty() || entries.len() > 64 {
             return Err(DecodeError::OperatorTable);

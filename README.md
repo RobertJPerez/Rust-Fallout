@@ -180,7 +180,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 291 Rust tests and five publication checks pass, including malformed compression, forward/cyclic links,
+- 300 Rust tests and five publication checks are required, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -308,3 +308,8 @@ census generator. Its seven historical outputs require a new local directory.
 duplicate occurrences and unresolved/tombstone bindings. Bounded structural graphs
 and cache comparisons match an independent direct source reader. Runtime list
 mutation and original GetItemCount list expansion remain unverified.
+
+[Expression plans](docs/expression-plans.md) now validate ordered postfix
+relationships in a bounded iterative arena. Independent forward/backward planners
+agree on 53,401 complete structures and retain three authored residual-stack
+findings. Original numeric/short-circuit behavior and VM execution remain open.

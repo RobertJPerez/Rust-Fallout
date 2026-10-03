@@ -10,6 +10,8 @@ pub mod argument_census;
 pub mod arguments;
 pub mod expression;
 pub mod expression_census;
+pub mod expression_plan;
+pub mod expression_plan_bundle;
 pub mod operand_binding;
 
 pub const REFERENCE_CALL: u16 = 0x1c;

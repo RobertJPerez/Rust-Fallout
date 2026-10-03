@@ -6,6 +6,7 @@ mod condition_dependency_inspection;
 mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
+mod expression_plan_inspection;
 mod foreign_context_inspection;
 mod form_list_inspection;
 mod inspection_input;
@@ -327,6 +328,16 @@ enum Command {
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
     },
+    /// Validate vanilla postfix relationships in an offline SCDA comparison bundle.
+    ExpressionPlans {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        bundle: PathBuf,
+        /// Preserve structural findings in a diagnostic report; still returns 1.
+        #[arg(long)]
+        diagnose_structure: bool,
+    },
     /// Inspect vanilla expression tokens without evaluating or executing them.
     Expressions {
         #[arg(long)]
@@ -521,7 +532,27 @@ fn parse_form(raw: &str) -> std::result::Result<u32, String> {
 }
 
 fn main() -> ExitCode {
-    match run(Args::parse()) {
+    // Clap's generated command builder has a large debug frame as the inspector
+    // grows. Windows gives the initial thread a smaller stack than our tool needs.
+    // Keep this explicit allowance in the CLI, away from simulation and parsers.
+    let worker = std::thread::Builder::new()
+        .name("fallout-inspector".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| execute(Args::parse()));
+    match worker {
+        Ok(worker) => match worker.join() {
+            Ok(code) => code,
+            Err(panic) => std::panic::resume_unwind(panic),
+        },
+        Err(error) => {
+            eprintln!("error: could not start inspector: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn execute(args: Args) -> ExitCode {
+    match run(args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -952,6 +983,22 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if failed {
                 return Err("native argument inspection has issues; see report".into());
+            }
+        }
+        Command::ExpressionPlans {
+            install,
+            bundle,
+            diagnose_structure,
+        } => {
+            let report =
+                expression_plan_inspection::inspect(&install, &bundle, diagnose_structure)?;
+            let failed = report["plans"]["counts"]["structural_issues"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err(
+                    "expression structural findings remain unverified; see diagnostic report"
+                        .into(),
+                );
             }
         }
         Command::Expressions {

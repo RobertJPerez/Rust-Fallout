@@ -1,0 +1,3175 @@
+{
+  "accepted_scenarios": [],
+  "all_original_fields_and_graph_equal": true,
+  "checkpoint": 32,
+  "counts": {
+    "absent_counts": 0,
+    "binding_statuses": {
+      "defined": 21210,
+      "null": 2480
+    },
+    "decoded_bytes": 690863,
+    "deleted_records": 0,
+    "entries": 21169,
+    "extra_fields": 2480,
+    "fields": 40925,
+    "high_bit_counts": 0,
+    "high_bit_levels": 0,
+    "record_kinds": {
+      "LVLC": 437,
+      "LVLI": 3479,
+      "LVLN": 397
+    },
+    "records": 4313,
+    "source_findings": 0,
+    "zero_counts": 0
+  },
+  "engine_revision": "3265e7cb9bbb6353ad6092a2f4c2bdd6fb2f8385",
+  "fresh_base_inventory_regression": {
+    "accepted_scenarios": [],
+    "all_original_inventory_fields_equal": true,
+    "counts": {
+      "binding_statuses": {
+        "defined": 35026,
+        "null": 1660
+      },
+      "decoded_bytes": 5957430,
+      "deleted_records": 0,
+      "extra_fields": 1660,
+      "fields": 235001,
+      "items": 30414,
+      "non_positive_counts": 105,
+      "record_kinds": {
+        "CONT": 3417,
+        "CREA": 2235,
+        "NPC_": 4220
+      },
+      "records": 9872,
+      "source_findings": 0,
+      "template_fields": 4610
+    },
+    "fresh_foreign_runtime_regression": {
+      "accepted_scenarios": [],
+      "all_cold_lookup_results_equal": true,
+      "all_compiled_request_identities_equal": true,
+      "all_lookup_results_equal_after_restore": true,
+      "bound_statuses": {
+        "missing_local": 3677,
+        "resolved": 21872
+      },
+      "bytecode_execution_ready": false,
+      "cold_report_sha256": "666a959c1c26b6a5e10206327654ebe4b3238aabf5c2db4614fcb676e9e29aa4",
+      "compiled_units_compared": 14476,
+      "context_content": {
+        "classification_sha256": "e0df9a9807184fcc81511887fbd1fd76db86c81b28e76f5a9f581fa029b466e1",
+        "counts": {
+          "deleted": 68,
+          "forms": 628464,
+          "other": 200437,
+          "placed": 427387,
+          "quests": 640
+        },
+        "winning_headers_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+      },
+      "engineering_inputs": {
+        "placed_definition": {
+          "key": {
+            "header_decoded_offset": 32,
+            "record": {
+              "local_id": 4874,
+              "origin_plugin": "deadmoney.esm",
+              "profile": "nv-original"
+            }
+          },
+          "version_sha256": "80dccf2c8b80454a51b559665d0f89073d8bc37a9f41e24a5da8ac5d90842c01"
+        },
+        "placed_definition_scope": "Explicit host template; does not claim original placed-reference script attachment",
+        "placed_instances": 438,
+        "player_instances": 1,
+        "player_reference": 439,
+        "quest_definition_scope": "Authored SCRI selected as explicit harness input; retail live list not captured",
+        "quest_instances": 465,
+        "reference_values": "Explicit null; no original SCRV values captured",
+        "source_instances": 7392,
+        "source_numeric_bits": 4607182418800017408,
+        "target_numeric_bits": 4621819117588971520
+      },
+      "foreign_requests_compared": 25549,
+      "fresh_native_save_regression": {
+        "accepted_scenarios": [],
+        "cold_process_state_equal": true,
+        "cold_report_sha256": "3bc0650e273c2b3b4fe629dc2eb92298d27e0e6e4507844fd7d7e182ef57a6e5",
+        "explicit_recovery_equal": true,
+        "fresh_schema_regression": {
+          "accepted_scenarios": [],
+          "all_original_compiled_schemas_equal": true,
+          "bytecode_execution_ready": false,
+          "canonical_state_probe": {
+            "bytecode_executed": false,
+            "canonical_bytes_equal": true,
+            "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+            "instances": 2483,
+            "numeric_values": 9144,
+            "old_handles_rejected": true,
+            "original_state_captured": false,
+            "pending_events": 2160,
+            "persistent_ids_preserved": true,
+            "retail_parity_accepted": false,
+            "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+            "snapshot_bytes": 2381528,
+            "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+            "typed_reference_values": 2028,
+            "unsupported_slots_retained_uninitialized": 0
+          },
+          "catalogue_source_findings": 3,
+          "constructor_defaults_verified": false,
+          "counts": {
+            "candidate_records": 466287,
+            "decoded_candidate_bytes": 43295423,
+            "deleted_candidate_records": 67,
+            "duplicate_declarations": 11,
+            "local_kinds": {
+              "float": 1077,
+              "integer": 8067,
+              "reference": 2028
+            },
+            "scripts": 80627,
+            "unique_locals": 11172
+          },
+          "known_gaps": [
+            "Original live initialization, lifecycle, scheduling and quest-delay timing",
+            "Native query/command execution and original numeric coercion",
+            "Original save import and full mutable world state",
+            "Cross-owner event-list resolution and retail differential traces"
+          ],
+          "malformed_cases_rejected": [
+            "short-declaration",
+            "unnamed-declaration",
+            "orphan-name",
+            "unterminated-name",
+            "duplicate-compiled-body",
+            "short-begin",
+            "unowned-compiled-field",
+            "partial-field-header",
+            "orphan-extended-field",
+            "compressed-checksum"
+          ],
+          "metadata": {
+            "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+            "definitions": 629788,
+            "winning_definitions": 628464,
+            "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+          },
+          "native_report_sha256": "590a8800bdf22d44811690cd074eee57272fbe42d857aa868d0d5f63e6c3f63c",
+          "oracle_binary_sha256": "7948ef9d4cde7f018f2481c0eb4579ce488673154eec79d1e4d9788205439310",
+          "prior_winning_source_coverage": {
+            "all_winning_source_units_accounted_for": true,
+            "bound_report_sha256": "9c539f800bc786a912a0df09ff1c51dc280cfab3623b2673a051803ad5468441",
+            "receipt_sha256": "e7ce51df450a0ed87f20fc1c7cc937abaaf90ad7f136eaaa02eb1a5d4e028a2a",
+            "units": 80627
+          },
+          "profile": "nv-original",
+          "retail_parity_accepted": false,
+          "rust_report_sha256": "b96de929e6e69b9ed8d41ebb6bd98f2968a35d091b2ed2fa9cbc286f515d7e6a",
+          "schema_version": 1,
+          "scope": "Independent original compiled schemas and native canonical state engineering checks; no captured retail live values",
+          "sources": [
+            {
+              "source_bytes": 245650747,
+              "source_name": "FalloutNV.esm",
+              "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            },
+            {
+              "source_bytes": 6274851,
+              "source_name": "DeadMoney.esm",
+              "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+            },
+            {
+              "source_bytes": 17308500,
+              "source_name": "HonestHearts.esm",
+              "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+            },
+            {
+              "source_bytes": 16202800,
+              "source_name": "OldWorldBlues.esm",
+              "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+            },
+            {
+              "source_bytes": 25676818,
+              "source_name": "LonesomeRoad.esm",
+              "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+            },
+            {
+              "source_bytes": 252445,
+              "source_name": "GunRunnersArsenal.esm",
+              "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+            },
+            {
+              "source_bytes": 3007,
+              "source_name": "CaravanPack.esm",
+              "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+            },
+            {
+              "source_bytes": 6523,
+              "source_name": "ClassicPack.esm",
+              "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+            },
+            {
+              "source_bytes": 3064,
+              "source_name": "MercenaryPack.esm",
+              "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+            },
+            {
+              "source_bytes": 2323,
+              "source_name": "TribalPack.esm",
+              "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+            }
+          ],
+          "synthetic_fixtures": {
+            "cache_and_reordering_keep_canonical_state_equal": true,
+            "phases": [
+              {
+                "cache_reused": [
+                  false,
+                  false
+                ],
+                "counts": {
+                  "candidate_records": 1,
+                  "decoded_candidate_bytes": 384,
+                  "deleted_candidate_records": 0,
+                  "duplicate_declarations": 1,
+                  "local_kinds": {
+                    "float": 1,
+                    "integer": 2,
+                    "reference": 1,
+                    "unsupported": 1,
+                    "unverified_zero_index": 1
+                  },
+                  "scripts": 1,
+                  "unique_locals": 6
+                },
+                "name": "schema-fixture-cold",
+                "native_report_sha256": "be95e13f9367e414542bcfe81523a0d84e4d4654fcb51904ce930132d868f3ed",
+                "rust_report_sha256": "993645d2721798cf11b74d75aa9af29b624da326b9dcc289f976de98a0f2538b",
+                "state_probe": {
+                  "bytecode_executed": false,
+                  "canonical_bytes_equal": true,
+                  "catalogue_sha256": "f5a63c33cc6bcae52596e1d1bda649126d0750fdd5c230000327261299ff0dea",
+                  "instances": 1,
+                  "numeric_values": 3,
+                  "old_handles_rejected": true,
+                  "original_state_captured": false,
+                  "pending_events": 1,
+                  "persistent_ids_preserved": true,
+                  "retail_parity_accepted": false,
+                  "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+                  "snapshot_bytes": 1465,
+                  "snapshot_sha256": "563bef4a094a4cb1477ee948dfa56b49980ff9b6791e209dfd43c1a2d57fce1f",
+                  "typed_reference_values": 1,
+                  "unsupported_slots_retained_uninitialized": 2
+                }
+              },
+              {
+                "cache_reused": [
+                  true,
+                  true
+                ],
+                "counts": {
+                  "candidate_records": 1,
+                  "decoded_candidate_bytes": 384,
+                  "deleted_candidate_records": 0,
+                  "duplicate_declarations": 1,
+                  "local_kinds": {
+                    "float": 1,
+                    "integer": 2,
+                    "reference": 1,
+                    "unsupported": 1,
+                    "unverified_zero_index": 1
+                  },
+                  "scripts": 1,
+                  "unique_locals": 6
+                },
+                "name": "schema-fixture-warm",
+                "native_report_sha256": "be95e13f9367e414542bcfe81523a0d84e4d4654fcb51904ce930132d868f3ed",
+                "rust_report_sha256": "5a4acf1515d25922917a070e84458d0138123d0a33c32d98b6abf96175c9e8d9",
+                "state_probe": {
+                  "bytecode_executed": false,
+                  "canonical_bytes_equal": true,
+                  "catalogue_sha256": "f5a63c33cc6bcae52596e1d1bda649126d0750fdd5c230000327261299ff0dea",
+                  "instances": 1,
+                  "numeric_values": 3,
+                  "old_handles_rejected": true,
+                  "original_state_captured": false,
+                  "pending_events": 1,
+                  "persistent_ids_preserved": true,
+                  "retail_parity_accepted": false,
+                  "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+                  "snapshot_bytes": 1465,
+                  "snapshot_sha256": "563bef4a094a4cb1477ee948dfa56b49980ff9b6791e209dfd43c1a2d57fce1f",
+                  "typed_reference_values": 1,
+                  "unsupported_slots_retained_uninitialized": 2
+                }
+              },
+              {
+                "cache_reused": [],
+                "counts": {
+                  "candidate_records": 1,
+                  "decoded_candidate_bytes": 384,
+                  "deleted_candidate_records": 0,
+                  "duplicate_declarations": 1,
+                  "local_kinds": {
+                    "float": 1,
+                    "integer": 2,
+                    "reference": 1,
+                    "unsupported": 1,
+                    "unverified_zero_index": 1
+                  },
+                  "scripts": 1,
+                  "unique_locals": 6
+                },
+                "name": "schema-fixture-reordered",
+                "native_report_sha256": "1d99de6f01d3236932d239a20385fa8a333418827e62aadd53ad0ada4a941fda",
+                "rust_report_sha256": "499549d03d2ae8cc62d5c6402baf7392ab08c95438e45c2a15687b99a6541362",
+                "state_probe": {
+                  "bytecode_executed": false,
+                  "canonical_bytes_equal": true,
+                  "catalogue_sha256": "f5a63c33cc6bcae52596e1d1bda649126d0750fdd5c230000327261299ff0dea",
+                  "instances": 1,
+                  "numeric_values": 3,
+                  "old_handles_rejected": true,
+                  "original_state_captured": false,
+                  "pending_events": 1,
+                  "persistent_ids_preserved": true,
+                  "retail_parity_accepted": false,
+                  "scope": "Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+                  "snapshot_bytes": 1465,
+                  "snapshot_sha256": "563bef4a094a4cb1477ee948dfa56b49980ff9b6791e209dfd43c1a2d57fce1f",
+                  "typed_reference_values": 1,
+                  "unsupported_slots_retained_uninitialized": 2
+                }
+              }
+            ],
+            "scope": "Authored sparse/duplicate/reference/unknown/zero/full-width declarations without SCTX; missing SCRV declaration is retained as a dependency"
+          }
+        },
+        "independent_containers": [
+          {
+            "file_sha256": "47e9df4e5ea9ce91046733f42ec60f8175dc9ecdecf3b488595abe4d1f9d4bcc",
+            "metadata": {
+              "boundary_tick": 1,
+              "campaign": [
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40
+              ],
+              "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+              "container_bytes": 2381778,
+              "container_sha256": "47e9df4e5ea9ce91046733f42ec60f8175dc9ecdecf3b488595abe4d1f9d4bcc",
+              "generation": 2,
+              "snapshot_bytes": 2381546,
+              "snapshot_sha256": "f0655cb269a06daf8106fe408c7b4d0be167b0904e9c0952cc56bee6df556ed0",
+              "state_revision": 7129
+            },
+            "name": "golden-current",
+            "native_report_sha256": "2560394c96dd256cc682b3bc3756e612dfdddb897665f3f51a4ae158dd1453ba"
+          },
+          {
+            "file_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+            "metadata": {
+              "boundary_tick": 1,
+              "campaign": [
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40,
+                40
+              ],
+              "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+              "container_bytes": 2381760,
+              "container_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+              "generation": 1,
+              "snapshot_bytes": 2381528,
+              "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+              "state_revision": 7128
+            },
+            "name": "golden-previous",
+            "native_report_sha256": "d8ab7844d2d04de37a9e3bf910ad7fa1b15914cd56c23320e804cb8f9887c64d"
+          }
+        ],
+        "instances": 2483,
+        "known_gaps": [
+          "Full mutable player/inventory/actor/quest/world state is not implemented",
+          "Original live initialization and execution behavior remain unmeasured",
+          "Native filesystem tests do not prove power-loss durability or remote filesystem semantics",
+          "Retail .fos, NVSE cosaves, third-party DLL state and campaign compatibility remain separate tracks"
+        ],
+        "malformed_container_cases_rejected": [
+          "truncated-0",
+          "truncated-7",
+          "truncated-15",
+          "truncated-63",
+          "truncated-151",
+          "truncated-199",
+          "truncated-231",
+          "truncated-2381777",
+          "magic",
+          "container-version",
+          "reserved-header",
+          "chunk-count",
+          "metadata-tag",
+          "metadata-version",
+          "metadata-extent",
+          "state-tag",
+          "state-version",
+          "state-extent",
+          "profile",
+          "state-schema",
+          "zero-generation",
+          "zero-campaign",
+          "metadata-checksum",
+          "state-checksum",
+          "whole-checksum",
+          "trailing-bytes",
+          "file-budget"
+        ],
+        "oracle_binary_sha256": "527e48ceada972df4f5b128530bbe673570e964934fe42d6c4b2223fc8ee3802",
+        "pending_events": 2160,
+        "persistence_guarantees": "File sync and same-directory replacement; Windows NTFS process interruption tested; Windows directory/power-loss durability not verified",
+        "process_interruption": "Workspace native save tests kill a real child at five write/sync/publication stages and verify old/new complete slots and released locks",
+        "profile": "nv-original",
+        "recovery": {
+          "current_failure": "native save format: container byte budget/extent",
+          "current_repaired": false,
+          "metadata": {
+            "boundary_tick": 1,
+            "campaign": [
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+            "container_bytes": 2381760,
+            "container_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+            "generation": 1,
+            "snapshot_bytes": 2381528,
+            "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+            "state_revision": 7128
+          },
+          "slot": "previous"
+        },
+        "repair": {
+          "current_failure": "native save format: container byte budget/extent",
+          "current_repaired": true,
+          "metadata": {
+            "boundary_tick": 1,
+            "campaign": [
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40,
+              40
+            ],
+            "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+            "container_bytes": 2381760,
+            "container_sha256": "c95216394055c5869be32fc10975e603ed149e64bbe8f4f61fdb6af3edfcd4a1",
+            "generation": 1,
+            "snapshot_bytes": 2381528,
+            "snapshot_sha256": "60b3feff288e46e9cdd4f3602236c5c2868cc448bf10323e60fd7688b207023e",
+            "state_revision": 7128
+          },
+          "slot": "previous"
+        },
+        "retail_parity_accepted": false,
+        "retail_save_compatibility": false,
+        "rust_report_sha256": "2606c945743178c381de21f117ead95bc66b150fbdeca6d9f879f370ed6895cc",
+        "schema_oracle_binary_sha256": "7948ef9d4cde7f018f2481c0eb4579ce488673154eec79d1e4d9788205439310",
+        "schema_version": 1,
+        "scope": "Engine-native script/reference/event persistence; engineering inputs, not original live-state capture or .fos compatibility",
+        "snapshot_migration": "Version 1 to 2 requires explicit campaign identity; unit-tested; no automatic migration or retail-save import",
+        "worker_capture_isolated": true
+      },
+      "fresh_quest_operand_regression": {
+        "all_foreign_operands_equal": true,
+        "all_static_attachments_equal": true,
+        "all_winning_operand_digests_match_full_scan": true,
+        "catalogue_counts": {
+          "candidate_records_read": 466220,
+          "compiled_bodies": 14476,
+          "compiled_bytes": 1962333,
+          "deleted_candidates_skipped": 67,
+          "duplicate_variable_indices": 11,
+          "owners": {
+            "dialogue_begin": 28896,
+            "dialogue_end": 28896,
+            "quest_log_entry": 1341,
+            "standalone": 3707,
+            "unverified_embedded": 17787
+          },
+          "payload_bytes_retained": 22469823,
+          "payload_bytes_scanned": 43295423,
+          "record_kinds": {
+            "INFO": 57792,
+            "PACK": 14616,
+            "PERK": 7,
+            "QUST": 1341,
+            "REFR": 1814,
+            "SCPT": 3707,
+            "TERM": 1350
+          },
+          "records_retained": 39981,
+          "reference_statuses": {
+            "defined_form": 44447,
+            "dynamic_variable": 2028,
+            "runtime_dependency": 4559
+          },
+          "references": 51034,
+          "scripts": 80627,
+          "scripts_with_issues": 3,
+          "source_ownership_findings": 0,
+          "variables": 11183
+        },
+        "comparison_scope": "original winning quest/header identities, authored SCRI attachments, versioned script handles and first-match foreign declarations; every compiled operand association independently repeated",
+        "compiled_units_compared": 14476,
+        "executable_sha256": "3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d",
+        "execution_ready": false,
+        "fresh_loaded_definition_regression": {
+          "all_loaded_definitions_equal": true,
+          "all_source_reference_states_equal": true,
+          "all_version_digests_equal": true,
+          "bound_full_scan": {
+            "full_bundle_sha256": "242e848e22ccb56a7716a77caa9f22bda112d56bd517dc5868928238fce8fed0",
+            "full_report_sha256": "22225761e7deb98df3f4f763d5c3a9c10f87bc35be8dc81f587c5fc86aba215f",
+            "receipt_sha256": "a79c22adbba171fcd528aeb3393705194461d862961a34eab2aa209ae01c0d8c",
+            "records": 40030,
+            "source_checkpoint": 17,
+            "units": 80736
+          },
+          "comparison_bundle_sha256": "afee8424320ba45a450626389d01da3a95f82e7da958320530a4648efff11f45",
+          "comparison_scope": "direct original header identities and whole-record winners; decoded script fields, owners, ordered references, declarations and version digests; completeness filtered independently from the bound full source scan",
+          "completeness": {
+            "excluded_units": 109,
+            "full_source_records": 40030,
+            "full_source_units": 80736,
+            "winning_metadata_sha256": "e454dfd982e0fee60a87edca4526be655a0a217dc9b76b000273ef007993dd35",
+            "winning_records": 39981,
+            "winning_units": 80627
+          },
+          "counts": {
+            "candidate_records_read": 466220,
+            "compiled_bodies": 14476,
+            "compiled_bytes": 1962333,
+            "deleted_candidates_skipped": 67,
+            "duplicate_variable_indices": 11,
+            "owners": {
+              "dialogue_begin": 28896,
+              "dialogue_end": 28896,
+              "quest_log_entry": 1341,
+              "standalone": 3707,
+              "unverified_embedded": 17787
+            },
+            "payload_bytes_retained": 22469823,
+            "payload_bytes_scanned": 43295423,
+            "record_kinds": {
+              "INFO": 57792,
+              "PACK": 14616,
+              "PERK": 7,
+              "QUST": 1341,
+              "REFR": 1814,
+              "SCPT": 3707,
+              "TERM": 1350
+            },
+            "records_retained": 39981,
+            "reference_statuses": {
+              "defined_form": 44447,
+              "dynamic_variable": 2028,
+              "runtime_dependency": 4559
+            },
+            "references": 51034,
+            "scripts": 80627,
+            "scripts_with_issues": 3,
+            "source_ownership_findings": 0,
+            "variables": 11183
+          },
+          "coverage_bundle_sha256": "586b14941994104b4d8ae0c40e3303f417fbf92b3fa1c61431e9956772245ea7",
+          "coverage_report_sha256": "7312c00cc04c05fdaf22069a4a5756b92cbaf8152e5de2cfdf8ac50215f25027",
+          "execution_ready": false,
+          "fresh_header_membership_regression": {
+            "all_direct_source_headers_keys_and_parent_contexts_equal": true,
+            "all_winning_info_memberships_equal": true,
+            "cache_receipts": [
+              {
+                "index_bytes": 24668063,
+                "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+                "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+                "plugin": "FalloutNV.esm",
+                "records": 465016,
+                "reused": true,
+                "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+              },
+              {
+                "index_bytes": 2131144,
+                "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+                "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+                "plugin": "DeadMoney.esm",
+                "records": 40084,
+                "reused": true,
+                "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+              },
+              {
+                "index_bytes": 1925901,
+                "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+                "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+                "plugin": "HonestHearts.esm",
+                "records": 36201,
+                "reused": true,
+                "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+              },
+              {
+                "index_bytes": 2800058,
+                "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+                "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+                "plugin": "OldWorldBlues.esm",
+                "records": 52683,
+                "reused": true,
+                "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+              },
+              {
+                "index_bytes": 1860691,
+                "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+                "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+                "plugin": "LonesomeRoad.esm",
+                "records": 34988,
+                "reused": true,
+                "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+              },
+              {
+                "index_bytes": 44496,
+                "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+                "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+                "plugin": "GunRunnersArsenal.esm",
+                "records": 778,
+                "reused": true,
+                "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+              },
+              {
+                "index_bytes": 1924,
+                "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+                "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+                "plugin": "CaravanPack.esm",
+                "records": 7,
+                "reused": true,
+                "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+              },
+              {
+                "index_bytes": 2649,
+                "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+                "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+                "plugin": "ClassicPack.esm",
+                "records": 19,
+                "reused": true,
+                "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+              },
+              {
+                "index_bytes": 1926,
+                "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+                "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+                "plugin": "MercenaryPack.esm",
+                "records": 7,
+                "reused": true,
+                "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+              },
+              {
+                "index_bytes": 1731,
+                "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+                "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+                "plugin": "TribalPack.esm",
+                "records": 5,
+                "reused": true,
+                "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+              }
+            ],
+            "cached_uncached_equal": true,
+            "cold_entries_built": 10,
+            "comparison_scope": "independent direct original plugin-header framing, master-relative canonical keys, all record parent contexts and whole-record winning INFO topic membership",
+            "corrupt_cache_rejected_without_report": true,
+            "encoded_index_bytes": 33438583,
+            "explicit_load_order": [
+              "FalloutNV.esm",
+              "DeadMoney.esm",
+              "HonestHearts.esm",
+              "OldWorldBlues.esm",
+              "LonesomeRoad.esm",
+              "GunRunnersArsenal.esm",
+              "CaravanPack.esm",
+              "ClassicPack.esm",
+              "MercenaryPack.esm",
+              "TribalPack.esm"
+            ],
+            "index_format": "nv-header-index-v2",
+            "known_gaps": [
+              "Original effective load order remains unmeasured; this is the supplied inspection order",
+              "Record-specific override exceptions and retail INFO ordering/selection",
+              "Deferred payload integrity and typed narrative/runtime state",
+              "Condition subjects/queries, embedded-script scheduling and native effects"
+            ],
+            "load_order_sha256": "af684297f2e6287f1afea0a8901db6f1c7664fb341e8817d3ec6af82d4e41be5",
+            "membership_counts": {
+              "deleted_infos": 0,
+              "deleted_topics": 0,
+              "linked_infos": 28896,
+              "missing_parents": 0,
+              "missing_topics": 0,
+              "null_parents": 0,
+              "topics_with_linked_infos": 11994,
+              "winning_infos": 28896,
+              "wrong_topic_kinds": 0
+            },
+            "metadata": {
+              "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+              "definitions": 629788,
+              "winning_definitions": 628464,
+              "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+            },
+            "native_report_sha256": "71376fca37540f279f4de33dc67acfc70bd8997a90324d138528c62526739877",
+            "negative_order_cases_rejected": [
+              "short_magic",
+              "wrong_magic",
+              "zero_count",
+              "large_count",
+              "short_name",
+              "unsafe_name",
+              "duplicate_names",
+              "later_master",
+              "surplus_order"
+            ],
+            "negative_source_cases_rejected": [
+              "missing_tes4",
+              "duplicate_tes4",
+              "bad_hedr_version",
+              "later_missing_master",
+              "truncated_header",
+              "group_extent",
+              "duplicate_raw_id",
+              "null_definition",
+              "cell_child_label"
+            ],
+            "order_bundle_sha256": "0fefdb2ff05169333d7f15f7c1730db7376aa5f8fb4b5cfac991d4774d424007",
+            "plugins": [
+              {
+                "source_bytes": 245650747,
+                "source_name": "FalloutNV.esm",
+                "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+              },
+              {
+                "source_bytes": 6274851,
+                "source_name": "DeadMoney.esm",
+                "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+              },
+              {
+                "source_bytes": 17308500,
+                "source_name": "HonestHearts.esm",
+                "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+              },
+              {
+                "source_bytes": 16202800,
+                "source_name": "OldWorldBlues.esm",
+                "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+              },
+              {
+                "source_bytes": 25676818,
+                "source_name": "LonesomeRoad.esm",
+                "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+              },
+              {
+                "source_bytes": 252445,
+                "source_name": "GunRunnersArsenal.esm",
+                "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+              },
+              {
+                "source_bytes": 3007,
+                "source_name": "CaravanPack.esm",
+                "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+              },
+              {
+                "source_bytes": 6523,
+                "source_name": "ClassicPack.esm",
+                "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+              },
+              {
+                "source_bytes": 3064,
+                "source_name": "MercenaryPack.esm",
+                "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+              },
+              {
+                "source_bytes": 2323,
+                "source_name": "TribalPack.esm",
+                "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+              }
+            ],
+            "profile": "nv-original",
+            "record_payloads_validated": false,
+            "retail_parity_accepted": false,
+            "retail_selection_order_verified": false,
+            "runtime_ready": false,
+            "rust_report_sha256": {
+              "cold": "f1f8987b275a10b17bbc027b082ca279badc2258bf591a62f2eedcd30f4dbaa9",
+              "uncached": "a088b7193fdb3e259ff3f468886bca5ecdc58ab4cb50cec6932991c28991b016",
+              "warm": "905f61af9d8b0ce9e6e27d7e7980f3039813d8d3d80bc2ac1992a3770d7cb69a"
+            },
+            "schema_version": 1,
+            "selected_cell_cache_regression": {
+              "acceptance": "Metadata caching verified; no gameplay scenario accepted",
+              "all_selected_fields_equal": true,
+              "base_records": 222,
+              "cached_record_definitions": 629788,
+              "cell": "GSDocMitchellHouse",
+              "checkpoint": 8,
+              "cold_entries_built": 10,
+              "comparison": "Every serialized selected field exact after removing only the cache receipt; no tolerance",
+              "encoded_index_bytes": 33438583,
+              "index_payloads_deferred": 585196,
+              "inspection_order": [
+                "FalloutNV.esm",
+                "DeadMoney.esm",
+                "HonestHearts.esm",
+                "OldWorldBlues.esm",
+                "LonesomeRoad.esm",
+                "GunRunnersArsenal.esm",
+                "CaravanPack.esm",
+                "ClassicPack.esm",
+                "MercenaryPack.esm",
+                "TribalPack.esm"
+              ],
+              "integrity_failures": 0,
+              "known_gaps": [
+                "Every source is fully hashed on each cached open; no timestamp-only shortcut",
+                "Winning identities are rebuilt; no persisted linked or canonical content store",
+                "Other record bodies stay deferred and unvalidated until strict access",
+                "Rebuildable cache durability does not establish save or job-journal durability",
+                "Archive/loose precedence, real physics, script execution and gameplay remain open"
+              ],
+              "link_failures": 0,
+              "local_report_sha256": {
+                "cold": "fcfa081a3970bfdc617e621795562e8ed5c0f33c6d065aa80d3c7123b4c769f5",
+                "uncached": "9ff8cfe99dc4f5f2077df174ef00464206d142718331a6d2ed7563edddb2a28c",
+                "warm": "bb753053efdd8f58de47439141fc446b140345d488a9f7dea2b5b984b084303e"
+              },
+              "ordered_source_sha256": "20faafbbe68d4e5b86599c4bbd4f7a5231c67cbaf8c5b2c897002b221814dcd6",
+              "plugins": [
+                {
+                  "index_bytes": 24668063,
+                  "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+                  "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+                  "plugin": "FalloutNV.esm",
+                  "records": 465016,
+                  "reused": true,
+                  "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+                },
+                {
+                  "index_bytes": 2131144,
+                  "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+                  "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+                  "plugin": "DeadMoney.esm",
+                  "records": 40084,
+                  "reused": true,
+                  "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+                },
+                {
+                  "index_bytes": 1925901,
+                  "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+                  "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+                  "plugin": "HonestHearts.esm",
+                  "records": 36201,
+                  "reused": true,
+                  "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+                },
+                {
+                  "index_bytes": 2800058,
+                  "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+                  "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+                  "plugin": "OldWorldBlues.esm",
+                  "records": 52683,
+                  "reused": true,
+                  "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+                },
+                {
+                  "index_bytes": 1860691,
+                  "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+                  "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+                  "plugin": "LonesomeRoad.esm",
+                  "records": 34988,
+                  "reused": true,
+                  "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+                },
+                {
+                  "index_bytes": 44496,
+                  "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+                  "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+                  "plugin": "GunRunnersArsenal.esm",
+                  "records": 778,
+                  "reused": true,
+                  "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+                },
+                {
+                  "index_bytes": 1924,
+                  "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+                  "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+                  "plugin": "CaravanPack.esm",
+                  "records": 7,
+                  "reused": true,
+                  "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+                },
+                {
+                  "index_bytes": 2649,
+                  "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+                  "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+                  "plugin": "ClassicPack.esm",
+                  "records": 19,
+                  "reused": true,
+                  "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+                },
+                {
+                  "index_bytes": 1926,
+                  "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+                  "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+                  "plugin": "MercenaryPack.esm",
+                  "records": 7,
+                  "reused": true,
+                  "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+                },
+                {
+                  "index_bytes": 1731,
+                  "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+                  "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+                  "plugin": "TribalPack.esm",
+                  "records": 5,
+                  "reused": true,
+                  "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+                }
+              ],
+              "process_termination_tests": "Workspace unit test kills publication children after blob staging, blob publication and marker staging; recovery verifies bytes and keeps sources unchanged",
+              "references": 435,
+              "release_cli_sha256": "0deae05a8b24511504adc213a303a9c14afe8bc560d442e03ad18b9acb831845",
+              "schema_version": 1,
+              "source_bytes_hashed_per_cached_open": 311381078,
+              "timing_samples_per_phase": 1,
+              "timing_scope": "Sequential wall-clock samples for complete CLI cell inspection, including archive indexes and dependency reads; not a startup SLA or sustained benchmark",
+              "warm_entries_reused": 10,
+              "whole_cell_cli_seconds": {
+                "cold": 3.6999537,
+                "uncached": 4.4419655,
+                "warm": 2.8967738
+              }
+            },
+            "source_fixtures": {
+              "all_statuses_source_rebasing_moved_overrides_and_deleted_topics_compared": true,
+              "cases": [
+                {
+                  "all_equal": true,
+                  "membership_counts": {
+                    "deleted_infos": 1,
+                    "deleted_topics": 0,
+                    "linked_infos": 1,
+                    "missing_parents": 1,
+                    "missing_topics": 1,
+                    "null_parents": 1,
+                    "topics_with_linked_infos": 1,
+                    "winning_infos": 6,
+                    "wrong_topic_kinds": 1
+                  },
+                  "metadata": {
+                    "all_definitions_sha256": "2e94425fba12a2e551d5392d5242d7ec1d25470f64557a20a6c17252d94177b8",
+                    "definitions": 12,
+                    "winning_definitions": 12,
+                    "winning_definitions_sha256": "fde08a3d3c40248d8b478271b9c3d6888242db111e70a6aae127412b652eac75"
+                  },
+                  "order": [
+                    "Base.esm"
+                  ]
+                },
+                {
+                  "all_equal": true,
+                  "membership_counts": {
+                    "deleted_infos": 1,
+                    "deleted_topics": 0,
+                    "linked_infos": 1,
+                    "missing_parents": 1,
+                    "missing_topics": 1,
+                    "null_parents": 1,
+                    "topics_with_linked_infos": 1,
+                    "winning_infos": 6,
+                    "wrong_topic_kinds": 1
+                  },
+                  "metadata": {
+                    "all_definitions_sha256": "94ff9ec1c2c47746b2cf5c027576936760078cff9040738daaad26b531187e97",
+                    "definitions": 13,
+                    "winning_definitions": 12,
+                    "winning_definitions_sha256": "8163ff50f916469d234e79d69890e9ef398f0663a01670acff9d9316405491dc"
+                  },
+                  "order": [
+                    "Other.esm",
+                    "Base.esm",
+                    "Move.esp"
+                  ]
+                },
+                {
+                  "all_equal": true,
+                  "membership_counts": {
+                    "deleted_infos": 1,
+                    "deleted_topics": 0,
+                    "linked_infos": 1,
+                    "missing_parents": 1,
+                    "missing_topics": 1,
+                    "null_parents": 1,
+                    "topics_with_linked_infos": 1,
+                    "winning_infos": 6,
+                    "wrong_topic_kinds": 1
+                  },
+                  "metadata": {
+                    "all_definitions_sha256": "94ff9ec1c2c47746b2cf5c027576936760078cff9040738daaad26b531187e97",
+                    "definitions": 13,
+                    "winning_definitions": 12,
+                    "winning_definitions_sha256": "8163ff50f916469d234e79d69890e9ef398f0663a01670acff9d9316405491dc"
+                  },
+                  "order": [
+                    "Base.esm",
+                    "Other.esm",
+                    "Move.esp"
+                  ]
+                },
+                {
+                  "all_equal": true,
+                  "membership_counts": {
+                    "deleted_infos": 1,
+                    "deleted_topics": 1,
+                    "linked_infos": 0,
+                    "missing_parents": 1,
+                    "missing_topics": 1,
+                    "null_parents": 1,
+                    "topics_with_linked_infos": 0,
+                    "winning_infos": 6,
+                    "wrong_topic_kinds": 1
+                  },
+                  "metadata": {
+                    "all_definitions_sha256": "685f1e057f6154aa4135b705c669a186fcaeea80cc84fa9869cbb324ffcbc043",
+                    "definitions": 14,
+                    "winning_definitions": 12,
+                    "winning_definitions_sha256": "a887d788cda2c6cfd2a9f92f14c5fab00e5529e11aa12c1a4ad95095686ed6ca"
+                  },
+                  "order": [
+                    "Base.esm",
+                    "Other.esm",
+                    "Move.esp",
+                    "Delete.esp"
+                  ]
+                }
+              ]
+            },
+            "warm_entries_reused": 10
+          },
+          "known_gaps": [
+            "compressed payload extraction remains Rust-owned; native reads original compressed decoded-size prefixes and compares previously bound decoded table coverage",
+            "source-defined winner policy is not retail record-specific merge certification",
+            "PACK, TERM, PERK and placed-reference script owner roles remain unverified",
+            "SCRV values and the hardcoded player reference need live runtime bindings",
+            "no script scheduling, evaluation, command effects or quest behavior"
+          ],
+          "known_source_issues": [
+            {
+              "issues": [
+                "SCHR reference count differs from ordered table length"
+              ],
+              "key": {
+                "header_decoded_offset": 241,
+                "record": {
+                  "local_id": 37437,
+                  "origin_plugin": "deadmoney.esm",
+                  "profile": "nv-original"
+                }
+              },
+              "record_file_offset": 884410,
+              "source_plugin": "DeadMoney.esm"
+            },
+            {
+              "issues": [
+                "SCHR reference count differs from ordered table length"
+              ],
+              "key": {
+                "header_decoded_offset": 264,
+                "record": {
+                  "local_id": 1420557,
+                  "origin_plugin": "falloutnv.esm",
+                  "profile": "nv-original"
+                }
+              },
+              "record_file_offset": 228955087,
+              "source_plugin": "FalloutNV.esm"
+            },
+            {
+              "issues": [
+                "SCHR reference count differs from ordered table length"
+              ],
+              "key": {
+                "header_decoded_offset": 458,
+                "record": {
+                  "local_id": 18690,
+                  "origin_plugin": "oldworldblues.esm",
+                  "profile": "nv-original"
+                }
+              },
+              "record_file_offset": 1068231,
+              "source_plugin": "OldWorldBlues.esm"
+            }
+          ],
+          "live_event_lists_loaded": false,
+          "metadata": {
+            "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+            "definitions": 629788,
+            "winning_definitions": 628464,
+            "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+          },
+          "native_negative_cases_rejected": [
+            "short_magic",
+            "wrong_magic",
+            "short_record",
+            "invalid_source",
+            "unsupported_kind",
+            "null_form",
+            "different_flags",
+            "different_offset",
+            "record_budget",
+            "truncated_payload",
+            "duplicate_record",
+            "surplus_byte"
+          ],
+          "native_report_sha256": "e7065f5ae0ec3e2cd9f9d73569f844ddfe60fb0291e33face46f287169ef1dc3",
+          "plugins": [
+            {
+              "source_bytes": 245650747,
+              "source_name": "FalloutNV.esm",
+              "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            },
+            {
+              "source_bytes": 6274851,
+              "source_name": "DeadMoney.esm",
+              "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+            },
+            {
+              "source_bytes": 17308500,
+              "source_name": "HonestHearts.esm",
+              "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+            },
+            {
+              "source_bytes": 16202800,
+              "source_name": "OldWorldBlues.esm",
+              "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+            },
+            {
+              "source_bytes": 25676818,
+              "source_name": "LonesomeRoad.esm",
+              "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+            },
+            {
+              "source_bytes": 252445,
+              "source_name": "GunRunnersArsenal.esm",
+              "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+            },
+            {
+              "source_bytes": 3007,
+              "source_name": "CaravanPack.esm",
+              "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+            },
+            {
+              "source_bytes": 6523,
+              "source_name": "ClassicPack.esm",
+              "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+            },
+            {
+              "source_bytes": 3064,
+              "source_name": "MercenaryPack.esm",
+              "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+            },
+            {
+              "source_bytes": 2323,
+              "source_name": "TribalPack.esm",
+              "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+            }
+          ],
+          "profile": "nv-original",
+          "retail_parity_accepted": false,
+          "rust_report_sha256": "9c539f800bc786a912a0df09ff1c51dc280cfab3623b2673a051803ad5468441",
+          "schema_version": 1,
+          "source_fixtures": {
+            "all_fields_equal": true,
+            "begin_end_and_log_entry_owners_compared": true,
+            "deleted_winner_skipped": true,
+            "duplicate_sparse_and_zero_variables_preserved": true,
+            "native_report_sha256": "2e7f1b938166a3641cfee1b4658866af6619f1325958fde9f930c3cf4cdff6cb",
+            "resolution_states_compared": 7,
+            "rust_report_sha256": "bb00bda1883d58fdc3b32f5249e9dc467a00ecfa4c47230dadf65e41fb3554b8",
+            "scripts_compared": 5,
+            "unknown_package_owner_retained": true
+          }
+        },
+        "fresh_operand_table_regression": {
+          "all_prior_native_call_coverage_equal": true,
+          "all_unit_metadata_and_operand_binding_digests_equal": true,
+          "comparison_bundle_sha256": "242e848e22ccb56a7716a77caa9f22bda112d56bd517dc5868928238fce8fed0",
+          "comparison_scope": "independent owning tables, every encoded index association and metadata/SCDA hashes from Rust-extracted records; no loaded target/value or execution comparison",
+          "compiled_units_compared": 14514,
+          "counts": {
+            "deferred_foreign_locals": 25560,
+            "expression_calls": 16320,
+            "expressions": 53404,
+            "instruction_calls": 51611,
+            "message_arguments": 75,
+            "missing_bindings": 0,
+            "regular_arguments": 80377,
+            "roles": {
+              "1": 28463,
+              "10": 41334,
+              "12": 216,
+              "2": 29840,
+              "3": 782,
+              "4": 22016,
+              "5": 1499,
+              "6": 2608,
+              "7": 31701,
+              "8": 592,
+              "9": 60
+            },
+            "statuses": {
+              "1": 26888,
+              "2": 102895,
+              "3": 3768,
+              "4": 25560
+            },
+            "uses": 159111
+          },
+          "deferred_foreign_local_scope": "reference context associated; declaration in loaded target script and runtime value remain unverified",
+          "executable_source_sha256": "3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d",
+          "execution_ready": false,
+          "form_variable_fixture_equal": true,
+          "fresh_argument_regression": {
+            "all_call_extents_and_typed_argument_digests_equal": true,
+            "compiled_bodies_compared": 14514,
+            "counts": {
+              "arguments": 80377,
+              "command_calls": {
+                "4097": 360,
+                "4098": 1721,
+                "4099": 37,
+                "4100": 4,
+                "4101": 59,
+                "4102": 82,
+                "4103": 148,
+                "4104": 10,
+                "4105": 50,
+                "4108": 821,
+                "4109": 1309,
+                "4110": 515,
+                "4111": 730,
+                "4112": 62,
+                "4114": 137,
+                "4115": 864,
+                "4118": 938,
+                "4119": 282,
+                "4120": 1,
+                "4123": 49,
+                "4124": 40,
+                "4125": 146,
+                "4127": 219,
+                "4128": 99,
+                "4129": 3324,
+                "4130": 3337,
+                "4131": 827,
+                "4132": 18,
+                "4133": 468,
+                "4134": 502,
+                "4141": 97,
+                "4142": 1512,
+                "4143": 838,
+                "4145": 7,
+                "4146": 22,
+                "4147": 623,
+                "4148": 994,
+                "4150": 423,
+                "4151": 466,
+                "4152": 370,
+                "4153": 2449,
+                "4154": 777,
+                "4155": 367,
+                "4157": 1,
+                "4158": 6,
+                "4160": 1,
+                "4161": 5,
+                "4162": 7,
+                "4163": 323,
+                "4166": 6,
+                "4167": 201,
+                "4168": 157,
+                "4170": 11,
+                "4173": 459,
+                "4176": 46,
+                "4177": 1,
+                "4178": 1459,
+                "4180": 43,
+                "4181": 244,
+                "4182": 135,
+                "4183": 4,
+                "4184": 11,
+                "4185": 1717,
+                "4186": 39,
+                "4187": 14,
+                "4188": 159,
+                "4189": 242,
+                "4190": 2285,
+                "4191": 93,
+                "4192": 177,
+                "4193": 220,
+                "4194": 5,
+                "4195": 12,
+                "4196": 2,
+                "4197": 19,
+                "4200": 1,
+                "4201": 616,
+                "4203": 5,
+                "4204": 15,
+                "4206": 16,
+                "4208": 11,
+                "4209": 124,
+                "4210": 303,
+                "4211": 450,
+                "4216": 478,
+                "4217": 127,
+                "4220": 1,
+                "4222": 4,
+                "4223": 6,
+                "4227": 8,
+                "4232": 248,
+                "4233": 34,
+                "4235": 597,
+                "4236": 515,
+                "4237": 25,
+                "4239": 32,
+                "4245": 2,
+                "4247": 1192,
+                "4248": 185,
+                "4253": 188,
+                "4254": 1464,
+                "4255": 26,
+                "4256": 8,
+                "4257": 31,
+                "4258": 7,
+                "4259": 1,
+                "4261": 107,
+                "4262": 58,
+                "4266": 37,
+                "4267": 196,
+                "4269": 60,
+                "4270": 3,
+                "4271": 2,
+                "4273": 92,
+                "4274": 120,
+                "4278": 135,
+                "4282": 20,
+                "4283": 12,
+                "4285": 3,
+                "4288": 3,
+                "4293": 7,
+                "4294": 24,
+                "4299": 27,
+                "4300": 517,
+                "4301": 336,
+                "4302": 384,
+                "4303": 11,
+                "4307": 3,
+                "4310": 44,
+                "4314": 3,
+                "4315": 44,
+                "4317": 241,
+                "4319": 33,
+                "4320": 2,
+                "4327": 16,
+                "4328": 57,
+                "4332": 358,
+                "4333": 4,
+                "4334": 199,
+                "4335": 51,
+                "4337": 199,
+                "4338": 47,
+                "4339": 282,
+                "4340": 5,
+                "4341": 8,
+                "4352": 137,
+                "4353": 97,
+                "4356": 14,
+                "4364": 1,
+                "4365": 7,
+                "4366": 31,
+                "4369": 83,
+                "4371": 2,
+                "4372": 4,
+                "4373": 6,
+                "4375": 144,
+                "4377": 18,
+                "4380": 26,
+                "4382": 35,
+                "4384": 2,
+                "4385": 314,
+                "4386": 12,
+                "4387": 205,
+                "4389": 79,
+                "4392": 114,
+                "4393": 127,
+                "4396": 35,
+                "4397": 13,
+                "4403": 6,
+                "4405": 2,
+                "4406": 121,
+                "4407": 6,
+                "4408": 4,
+                "4412": 9,
+                "4418": 56,
+                "4422": 12,
+                "4424": 11,
+                "4426": 152,
+                "4432": 54,
+                "4433": 132,
+                "4434": 1,
+                "4437": 2,
+                "4440": 11,
+                "4441": 2,
+                "4442": 5,
+                "4443": 3,
+                "4444": 6,
+                "4445": 2,
+                "4446": 74,
+                "4449": 1,
+                "4450": 1,
+                "4451": 1,
+                "4454": 6,
+                "4459": 529,
+                "4460": 89,
+                "4464": 2,
+                "4465": 31,
+                "4467": 168,
+                "4468": 10,
+                "4470": 188,
+                "4471": 1303,
+                "4474": 15,
+                "4476": 192,
+                "4477": 125,
+                "4478": 221,
+                "4479": 543,
+                "4480": 684,
+                "4481": 138,
+                "4482": 284,
+                "4484": 2,
+                "4486": 7,
+                "4487": 1,
+                "4488": 2,
+                "4489": 32,
+                "4490": 35,
+                "4491": 3,
+                "4492": 1,
+                "4493": 1,
+                "4494": 51,
+                "4495": 9,
+                "4496": 318,
+                "4497": 355,
+                "4498": 74,
+                "4502": 2,
+                "4505": 63,
+                "4508": 13,
+                "4514": 2412,
+                "4515": 3242,
+                "4516": 1199,
+                "4517": 1134,
+                "4519": 6,
+                "4520": 375,
+                "4525": 105,
+                "4527": 57,
+                "4533": 1,
+                "4534": 9,
+                "4537": 71,
+                "4538": 160,
+                "4539": 602,
+                "4540": 166,
+                "4543": 2,
+                "4544": 5,
+                "4545": 149,
+                "4546": 13,
+                "4548": 6,
+                "4549": 190,
+                "4550": 26,
+                "4552": 26,
+                "4553": 4,
+                "4556": 3,
+                "4557": 23,
+                "4558": 23,
+                "4560": 3,
+                "4561": 5,
+                "4564": 6,
+                "4565": 65,
+                "4566": 16,
+                "4567": 21,
+                "4568": 2,
+                "4569": 233,
+                "4571": 6,
+                "4572": 167,
+                "4573": 82,
+                "4577": 3,
+                "4578": 24,
+                "4579": 2,
+                "4580": 2,
+                "4583": 12,
+                "4587": 10,
+                "4588": 41,
+                "4589": 17,
+                "4591": 7,
+                "4593": 4,
+                "4594": 2,
+                "4596": 2,
+                "4597": 1,
+                "4598": 8,
+                "4600": 2,
+                "4602": 711,
+                "4603": 17,
+                "4607": 38,
+                "4609": 4,
+                "4611": 6,
+                "4612": 163,
+                "4618": 4,
+                "4619": 16,
+                "4620": 1,
+                "4625": 4,
+                "4626": 7,
+                "4627": 24,
+                "4628": 19,
+                "4629": 3,
+                "4631": 2,
+                "4632": 2,
+                "4633": 21,
+                "4634": 3,
+                "4635": 3,
+                "4639": 2,
+                "4641": 67,
+                "4642": 267,
+                "4643": 80,
+                "4644": 11,
+                "4645": 2,
+                "4646": 6,
+                "4648": 1,
+                "4649": 2,
+                "4652": 3,
+                "4654": 4,
+                "4658": 43,
+                "4659": 651,
+                "4662": 20,
+                "4664": 255,
+                "4665": 504,
+                "4666": 11,
+                "4667": 10,
+                "4669": 220,
+                "4671": 150,
+                "4672": 8,
+                "4673": 1,
+                "4675": 2,
+                "4677": 1,
+                "4680": 37,
+                "4681": 295,
+                "4682": 11,
+                "4683": 2,
+                "4685": 1,
+                "4686": 5,
+                "4687": 273,
+                "4688": 15,
+                "4690": 5,
+                "4692": 6,
+                "4694": 6,
+                "4698": 29,
+                "4699": 4,
+                "4700": 24,
+                "4702": 44,
+                "4704": 75,
+                "4707": 3,
+                "4710": 23,
+                "4712": 5,
+                "4713": 383,
+                "4715": 4,
+                "4716": 5,
+                "4717": 2,
+                "4719": 8,
+                "4720": 2,
+                "4722": 2,
+                "4723": 22,
+                "4725": 134,
+                "4727": 16,
+                "4729": 2,
+                "4730": 3,
+                "4731": 5,
+                "4732": 1,
+                "4735": 3
+              },
+              "expression_calls": 16320,
+              "message_arguments": 75,
+              "operand_bytes": 465675,
+              "top_level_calls": 51611,
+              "trailing_operand_bytes": 6868,
+              "value_kinds": {
+                "1": 1391,
+                "2": 32375,
+                "3": 1561,
+                "4": 2845,
+                "5": 294,
+                "6": 60,
+                "7": 592,
+                "8": 41334
+              }
+            },
+            "expression_regression": {
+              "all_statement_envelopes_and_token_digests_equal": true,
+              "changed_executable_rejected": true,
+              "compiled_bodies": 14514,
+              "counts": {
+                "command_calls": {
+                  "4097": 360,
+                  "4098": 1,
+                  "4101": 59,
+                  "4102": 82,
+                  "4104": 10,
+                  "4108": 821,
+                  "4110": 515,
+                  "4114": 137,
+                  "4120": 1,
+                  "4123": 49,
+                  "4127": 219,
+                  "4128": 99,
+                  "4131": 827,
+                  "4132": 18,
+                  "4133": 30,
+                  "4141": 95,
+                  "4142": 1512,
+                  "4143": 838,
+                  "4145": 7,
+                  "4146": 22,
+                  "4152": 370,
+                  "4154": 777,
+                  "4155": 367,
+                  "4157": 1,
+                  "4158": 6,
+                  "4160": 1,
+                  "4161": 5,
+                  "4162": 7,
+                  "4163": 323,
+                  "4166": 6,
+                  "4167": 201,
+                  "4168": 157,
+                  "4170": 11,
+                  "4173": 459,
+                  "4176": 46,
+                  "4177": 1,
+                  "4180": 43,
+                  "4187": 14,
+                  "4194": 5,
+                  "4195": 12,
+                  "4197": 19,
+                  "4201": 616,
+                  "4203": 5,
+                  "4204": 15,
+                  "4206": 16,
+                  "4208": 11,
+                  "4223": 6,
+                  "4227": 8,
+                  "4232": 248,
+                  "4237": 25,
+                  "4239": 32,
+                  "4245": 2,
+                  "4253": 188,
+                  "4255": 26,
+                  "4256": 7,
+                  "4257": 31,
+                  "4258": 7,
+                  "4259": 1,
+                  "4266": 37,
+                  "4271": 2,
+                  "4278": 135,
+                  "4282": 20,
+                  "4288": 3,
+                  "4293": 7,
+                  "4299": 27,
+                  "4301": 336,
+                  "4302": 384,
+                  "4303": 11,
+                  "4310": 44,
+                  "4315": 44,
+                  "4319": 33,
+                  "4320": 2,
+                  "4328": 57,
+                  "4333": 4,
+                  "4338": 47,
+                  "4340": 5,
+                  "4352": 137,
+                  "4371": 2,
+                  "4373": 6,
+                  "4382": 35,
+                  "4384": 2,
+                  "4385": 314,
+                  "4392": 114,
+                  "4396": 35,
+                  "4405": 2,
+                  "4406": 121,
+                  "4408": 4,
+                  "4434": 1,
+                  "4449": 1,
+                  "4450": 1,
+                  "4454": 6,
+                  "4459": 529,
+                  "4464": 2,
+                  "4468": 10,
+                  "4470": 7,
+                  "4478": 221,
+                  "4487": 1,
+                  "4488": 2,
+                  "4493": 1,
+                  "4494": 51,
+                  "4495": 9,
+                  "4505": 63,
+                  "4516": 1199,
+                  "4517": 1134,
+                  "4527": 57,
+                  "4534": 9,
+                  "4545": 149,
+                  "4546": 13,
+                  "4550": 26,
+                  "4556": 3,
+                  "4558": 23,
+                  "4560": 3,
+                  "4564": 6,
+                  "4567": 21,
+                  "4588": 41,
+                  "4591": 7,
+                  "4596": 2,
+                  "4611": 6,
+                  "4618": 4,
+                  "4619": 16,
+                  "4620": 1,
+                  "4627": 24,
+                  "4629": 3,
+                  "4639": 2,
+                  "4641": 67,
+                  "4642": 267,
+                  "4646": 6,
+                  "4654": 4,
+                  "4658": 43,
+                  "4669": 220,
+                  "4671": 150,
+                  "4682": 11,
+                  "4686": 5,
+                  "4700": 24,
+                  "4704": 75,
+                  "4707": 3,
+                  "4710": 23,
+                  "4715": 4,
+                  "4719": 8,
+                  "4722": 2,
+                  "4730": 3,
+                  "4732": 1,
+                  "4735": 3
+                },
+                "expression_bytes": 538070,
+                "expressions_with_pending_context": 0,
+                "operator_codes": {
+                  "10": 710,
+                  "11": 3062,
+                  "12": 442,
+                  "13": 255,
+                  "14": 2,
+                  "15": 230,
+                  "2": 6869,
+                  "3": 1195,
+                  "4": 949,
+                  "5": 1614,
+                  "6": 2099,
+                  "7": 1244,
+                  "8": 19431,
+                  "9": 1933
+                },
+                "statements": 53404,
+                "token_kinds": {
+                  "1": 22016,
+                  "2": 1499,
+                  "3": 2608,
+                  "4": 15835,
+                  "5": 16320,
+                  "7": 50769,
+                  "8": 40035
+                },
+                "tokens": 149082,
+                "trailing_operand_bytes": 0
+              },
+              "descriptor_fields_equal": true,
+              "native_report_sha256": "8c54854102878d29f1f55b3c125ff6f802c4a162e1efa259af07a865f367c280",
+              "rust_report_sha256": "044fe8395d48974efa802208848c0dc4144a3dba6cf6e715bd2b01453efecb9e",
+              "strict_unrelated_integrity_failure_retained": true
+            },
+            "native_report_sha256": "e48d2ae58d2bbfb999c70a0bbe071ea65b0a3620256351ead5babc987e9805c9",
+            "rust_report_sha256": "55f4182ea609ec1d923cb4a988af67e0f60b1831b46aa8dda96786785cd72de4"
+          },
+          "fresh_table_regression": {
+            "all_metadata_fields_and_digests_equal": true,
+            "native_report_sha256": "f847d0942ba9e50055dd728b9a8d20c7f14a788f785189149aff04eabe371f75",
+            "rust_report_sha256": "22225761e7deb98df3f4f763d5c3a9c10f87bc35be8dc81f587c5fc86aba215f",
+            "strict_integrity_failure_retained": true,
+            "units_compared": 80736
+          },
+          "known_gaps": [
+            "Foreign local declarations and loaded reference values",
+            "Actual referenced form existence and native type checks",
+            "Event operands, expression semantics, control flow and native effects",
+            "Eight conflicting repeated local indices need retail loading observations",
+            "Three stale empty-unit reference counts remain diagnostic findings",
+            "Extension encodings and other executable variants"
+          ],
+          "known_metadata_issues": [
+            {
+              "compiled_bytes": null,
+              "declared_references": 2,
+              "form_id": 16814653,
+              "header_decoded_offset": 241,
+              "issues": [
+                "SCHR reference count differs from ordered table length"
+              ],
+              "metadata_sha256": "ca014902c783f9ae5375e6c9c7a77d0e7753ba53e74c175089134ccdbfc63886",
+              "record_file_offset": 884410,
+              "record_kind": "TERM",
+              "references": 1,
+              "source_name": "DeadMoney.esm"
+            },
+            {
+              "compiled_bytes": null,
+              "declared_references": 1,
+              "form_id": 1420557,
+              "header_decoded_offset": 264,
+              "issues": [
+                "SCHR reference count differs from ordered table length"
+              ],
+              "metadata_sha256": "70396c90cd0db177285dcff25dfc10bfd77e196f5565d3a5ec4d0f48f6e4e3b9",
+              "record_file_offset": 228955087,
+              "record_kind": "INFO",
+              "references": 0,
+              "source_name": "FalloutNV.esm"
+            },
+            {
+              "compiled_bytes": null,
+              "declared_references": 1,
+              "form_id": 16795906,
+              "header_decoded_offset": 458,
+              "issues": [
+                "SCHR reference count differs from ordered table length"
+              ],
+              "metadata_sha256": "57bf6dc8e3a7b19d289e5000a55fb9852c5772f689cfd0d2b9d8cac77888cc25",
+              "record_file_offset": 1068231,
+              "record_kind": "TERM",
+              "references": 0,
+              "source_name": "OldWorldBlues.esm"
+            }
+          ],
+          "native_negative_cases_rejected": [
+            "short_magic",
+            "zero_reference",
+            "reference_outside_table",
+            "missing_form_variable",
+            "sparse_local_not_ordinal",
+            "bad_expression"
+          ],
+          "native_report_sha256": "c090c94161f88e063e562097a0d5ffbc809574d4fe5fa68ffc9795975ecb365c",
+          "plugins": [
+            {
+              "compiled_units": 1,
+              "counts": {
+                "deferred_foreign_locals": 2,
+                "expression_calls": 0,
+                "expressions": 2,
+                "instruction_calls": 6,
+                "message_arguments": 0,
+                "missing_bindings": 0,
+                "regular_arguments": 11,
+                "roles": {
+                  "1": 5,
+                  "10": 6,
+                  "2": 1,
+                  "4": 1,
+                  "7": 2
+                },
+                "statuses": {
+                  "2": 13,
+                  "4": 2
+                },
+                "uses": 15
+              },
+              "record_payloads_deferred": 5,
+              "source_bytes": 3007,
+              "source_name": "CaravanPack.esm",
+              "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82",
+              "table_units_with_issues": 0
+            },
+            {
+              "compiled_units": 2,
+              "counts": {
+                "deferred_foreign_locals": 2,
+                "expression_calls": 1,
+                "expressions": 3,
+                "instruction_calls": 8,
+                "message_arguments": 0,
+                "missing_bindings": 0,
+                "regular_arguments": 14,
+                "roles": {
+                  "1": 6,
+                  "10": 9,
+                  "2": 1,
+                  "4": 1,
+                  "7": 3
+                },
+                "statuses": {
+                  "2": 18,
+                  "4": 2
+                },
+                "uses": 20
+              },
+              "record_payloads_deferred": 15,
+              "source_bytes": 6523,
+              "source_name": "ClassicPack.esm",
+              "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b",
+              "table_units_with_issues": 0
+            },
+            {
+              "compiled_units": 1214,
+              "counts": {
+                "deferred_foreign_locals": 1685,
+                "expression_calls": 1327,
+                "expressions": 4572,
+                "instruction_calls": 4394,
+                "message_arguments": 8,
+                "missing_bindings": 0,
+                "regular_arguments": 5781,
+                "roles": {
+                  "1": 2647,
+                  "10": 3056,
+                  "12": 12,
+                  "2": 2441,
+                  "3": 41,
+                  "4": 2091,
+                  "5": 101,
+                  "6": 46,
+                  "7": 2248,
+                  "8": 32,
+                  "9": 9
+                },
+                "statuses": {
+                  "1": 2879,
+                  "2": 7423,
+                  "3": 737,
+                  "4": 1685
+                },
+                "uses": 12724
+              },
+              "record_payloads_deferred": 5121,
+              "source_bytes": 6274851,
+              "source_name": "DeadMoney.esm",
+              "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329",
+              "table_units_with_issues": 1
+            },
+            {
+              "compiled_units": 11215,
+              "counts": {
+                "deferred_foreign_locals": 20663,
+                "expression_calls": 10774,
+                "expressions": 36230,
+                "instruction_calls": 35003,
+                "message_arguments": 56,
+                "missing_bindings": 0,
+                "regular_arguments": 57393,
+                "roles": {
+                  "1": 18945,
+                  "10": 28475,
+                  "12": 169,
+                  "2": 21188,
+                  "3": 493,
+                  "4": 14510,
+                  "5": 991,
+                  "6": 2174,
+                  "7": 24232,
+                  "8": 375,
+                  "9": 5
+                },
+                "statuses": {
+                  "1": 15410,
+                  "2": 73462,
+                  "3": 2022,
+                  "4": 20663
+                },
+                "uses": 111557
+              },
+              "record_payloads_deferred": 119805,
+              "source_bytes": 245650747,
+              "source_name": "FalloutNV.esm",
+              "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+              "table_units_with_issues": 1
+            },
+            {
+              "compiled_units": 46,
+              "counts": {
+                "deferred_foreign_locals": 100,
+                "expression_calls": 62,
+                "expressions": 154,
+                "instruction_calls": 436,
+                "message_arguments": 0,
+                "missing_bindings": 0,
+                "regular_arguments": 816,
+                "roles": {
+                  "1": 168,
+                  "10": 522,
+                  "2": 67,
+                  "4": 93,
+                  "5": 1,
+                  "7": 124,
+                  "8": 13
+                },
+                "statuses": {
+                  "1": 73,
+                  "2": 815,
+                  "4": 100
+                },
+                "uses": 988
+              },
+              "record_payloads_deferred": 619,
+              "source_bytes": 252445,
+              "source_name": "GunRunnersArsenal.esm",
+              "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e",
+              "table_units_with_issues": 0
+            },
+            {
+              "compiled_units": 755,
+              "counts": {
+                "deferred_foreign_locals": 1016,
+                "expression_calls": 1294,
+                "expressions": 3008,
+                "instruction_calls": 3661,
+                "message_arguments": 6,
+                "missing_bindings": 0,
+                "regular_arguments": 5100,
+                "roles": {
+                  "1": 1850,
+                  "10": 3080,
+                  "12": 13,
+                  "2": 1416,
+                  "3": 92,
+                  "4": 1032,
+                  "5": 139,
+                  "6": 180,
+                  "7": 1416,
+                  "8": 55,
+                  "9": 18
+                },
+                "statuses": {
+                  "1": 1487,
+                  "2": 6395,
+                  "3": 393,
+                  "4": 1016
+                },
+                "uses": 9291
+              },
+              "record_payloads_deferred": 11332,
+              "source_bytes": 17308500,
+              "source_name": "HonestHearts.esm",
+              "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368",
+              "table_units_with_issues": 0
+            },
+            {
+              "compiled_units": 483,
+              "counts": {
+                "deferred_foreign_locals": 627,
+                "expression_calls": 1071,
+                "expressions": 4401,
+                "instruction_calls": 3279,
+                "message_arguments": 0,
+                "missing_bindings": 0,
+                "regular_arguments": 4015,
+                "roles": {
+                  "1": 1875,
+                  "10": 2131,
+                  "12": 5,
+                  "2": 2275,
+                  "3": 86,
+                  "4": 2289,
+                  "5": 134,
+                  "6": 38,
+                  "7": 1042,
+                  "8": 22,
+                  "9": 4
+                },
+                "statuses": {
+                  "1": 3959,
+                  "2": 5025,
+                  "3": 290,
+                  "4": 627
+                },
+                "uses": 9901
+              },
+              "record_payloads_deferred": 13339,
+              "source_bytes": 25676818,
+              "source_name": "LonesomeRoad.esm",
+              "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+              "table_units_with_issues": 0
+            },
+            {
+              "compiled_units": 1,
+              "counts": {
+                "deferred_foreign_locals": 2,
+                "expression_calls": 0,
+                "expressions": 2,
+                "instruction_calls": 6,
+                "message_arguments": 0,
+                "missing_bindings": 0,
+                "regular_arguments": 11,
+                "roles": {
+                  "1": 5,
+                  "10": 6,
+                  "2": 1,
+                  "4": 1,
+                  "7": 2
+                },
+                "statuses": {
+                  "2": 13,
+                  "4": 2
+                },
+                "uses": 15
+              },
+              "record_payloads_deferred": 5,
+              "source_bytes": 3064,
+              "source_name": "MercenaryPack.esm",
+              "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59",
+              "table_units_with_issues": 0
+            },
+            {
+              "compiled_units": 796,
+              "counts": {
+                "deferred_foreign_locals": 1461,
+                "expression_calls": 1791,
+                "expressions": 5030,
+                "instruction_calls": 4813,
+                "message_arguments": 5,
+                "missing_bindings": 0,
+                "regular_arguments": 7227,
+                "roles": {
+                  "1": 2958,
+                  "10": 4044,
+                  "12": 17,
+                  "2": 2449,
+                  "3": 70,
+                  "4": 1997,
+                  "5": 133,
+                  "6": 170,
+                  "7": 2630,
+                  "8": 95,
+                  "9": 24
+                },
+                "statuses": {
+                  "1": 3080,
+                  "2": 9720,
+                  "3": 326,
+                  "4": 1461
+                },
+                "uses": 14587
+              },
+              "record_payloads_deferred": 12468,
+              "source_bytes": 16202800,
+              "source_name": "OldWorldBlues.esm",
+              "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295",
+              "table_units_with_issues": 1
+            },
+            {
+              "compiled_units": 1,
+              "counts": {
+                "deferred_foreign_locals": 2,
+                "expression_calls": 0,
+                "expressions": 2,
+                "instruction_calls": 5,
+                "message_arguments": 0,
+                "missing_bindings": 0,
+                "regular_arguments": 9,
+                "roles": {
+                  "1": 4,
+                  "10": 5,
+                  "2": 1,
+                  "4": 1,
+                  "7": 2
+                },
+                "statuses": {
+                  "2": 11,
+                  "4": 2
+                },
+                "uses": 13
+              },
+              "record_payloads_deferred": 3,
+              "source_bytes": 2323,
+              "source_name": "TribalPack.esm",
+              "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328",
+              "table_units_with_issues": 0
+            }
+          ],
+          "profile": "nv-original",
+          "record_payloads_deferred": 162712,
+          "retail_parity_accepted": false,
+          "rust_report_sha256": "90732849c3017ffabbadde63fb4c16b95d79e38ab2a8226ef946edfdc824424c",
+          "schema_version": 1
+        },
+        "full_operand_report_sha256": "90732849c3017ffabbadde63fb4c16b95d79e38ab2a8226ef946edfdc824424c",
+        "known_gaps": [
+          "authored quest SCRI is a static relation; the current live event-list script remains unmeasured",
+          "placed references require live ExtraScript/event-list state; no base-script substitution",
+          "dynamic SCRV contexts, player bindings and runtime local values remain unavailable",
+          "original effective load order and record-specific merge behavior remain unmeasured",
+          "compressed extraction remains Rust-owned; prior complete decoded table coverage is independently filtered",
+          "two original short quest headers and three stale empty-unit counts remain source findings",
+          "no command effects, script scheduling, quest progression or retail acceptance"
+        ],
+        "known_quest_findings": [
+          {
+            "findings": [
+              {
+                "field_decoded_offset": 20,
+                "reason": "short quest header; loading unverified"
+              }
+            ],
+            "quest": {
+              "local_id": 124362,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            "source": {
+              "decoded_record_sha256": "7a4048290257468731e81c97e8e4673fa494a50d3bd31058ed64bcf7da1854d7",
+              "plugin": "FalloutNV.esm",
+              "record_file_offset": 242571309,
+              "record_flags": 0,
+              "sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            }
+          },
+          {
+            "findings": [
+              {
+                "field_decoded_offset": 28,
+                "reason": "short quest header; loading unverified"
+              }
+            ],
+            "quest": {
+              "local_id": 140330,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            "source": {
+              "decoded_record_sha256": "28f9833f45b4b61a10060874d63f7f1605dce4d1a3754102a9adb97233dfbfd5",
+              "plugin": "FalloutNV.esm",
+              "record_file_offset": 242571724,
+              "record_flags": 0,
+              "sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            }
+          }
+        ],
+        "live_event_lists_loaded": false,
+        "live_values_resolved": false,
+        "metadata": {
+          "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+          "definitions": 629788,
+          "winning_definitions": 628464,
+          "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+        },
+        "native_negative_cases_rejected": [
+          "short_magic",
+          "wrong_magic",
+          "short_record",
+          "invalid_source",
+          "wrong_kind",
+          "null_form",
+          "different_offset",
+          "record_budget",
+          "duplicate_quest",
+          "truncated_body",
+          "missing_quest_coverage"
+        ],
+        "native_report_sha256": "2f3e8958e48a96b385eb45084b96519f42e61d507c30d0b1b8e276c7fc7bfa46",
+        "operand_counts": {
+          "declaration_statuses": {
+            "placed_reference_needs_event_list": 5007,
+            "static_quest_declaration": 20542
+          },
+          "decode_issues": 0,
+          "foreign_uses": 25549,
+          "missing_bindings": 0,
+          "uses": 158890
+        },
+        "plugins": [
+          {
+            "source_bytes": 245650747,
+            "source_name": "FalloutNV.esm",
+            "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+          },
+          {
+            "source_bytes": 6274851,
+            "source_name": "DeadMoney.esm",
+            "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+          },
+          {
+            "source_bytes": 17308500,
+            "source_name": "HonestHearts.esm",
+            "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+          },
+          {
+            "source_bytes": 16202800,
+            "source_name": "OldWorldBlues.esm",
+            "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+          },
+          {
+            "source_bytes": 25676818,
+            "source_name": "LonesomeRoad.esm",
+            "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+          },
+          {
+            "source_bytes": 252445,
+            "source_name": "GunRunnersArsenal.esm",
+            "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+          },
+          {
+            "source_bytes": 3007,
+            "source_name": "CaravanPack.esm",
+            "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+          },
+          {
+            "source_bytes": 6523,
+            "source_name": "ClassicPack.esm",
+            "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+          },
+          {
+            "source_bytes": 3064,
+            "source_name": "MercenaryPack.esm",
+            "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+          },
+          {
+            "source_bytes": 2323,
+            "source_name": "TribalPack.esm",
+            "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+          }
+        ],
+        "profile": "nv-original",
+        "quest_bundle_sha256": "aaaab109279a1c87a305dfcd00e8cf2f121709dddcd8296787d03b3558198ddc",
+        "quest_counts": {
+          "decoded_bytes": 656157,
+          "fields": 465,
+          "quests": 640,
+          "source_findings": 2,
+          "statuses": {
+            "loaded_definition": 465,
+            "no_script_field": 175
+          }
+        },
+        "retail_parity_accepted": false,
+        "rust_report_sha256": "83c5a26422ea53a263a6a6e6b5653871ec5920f4a8d36a9012584e4d4b1d4663",
+        "schema_version": 1,
+        "script_bundle_sha256": "afee8424320ba45a450626389d01da3a95f82e7da958320530a4648efff11f45",
+        "source_fixtures": {
+          "all_fields_equal": true,
+          "attachment_states_compared": 10,
+          "current_local_never_substituted": true,
+          "declaration_states_compared": 10,
+          "foreign_uses_compared": 10,
+          "live_values_resolved": false,
+          "native_report_sha256": "6167d43ac8131f7fcf4f8238e43172c90ffdeddf5851bdc61e98341e941de941",
+          "quests_compared": 11,
+          "rust_report_sha256": "9aa1537e47995cab20f0d4e15abe1366b3385047f22b3454d526d244f0c90299"
+        },
+        "static_declarations_only": true
+      },
+      "instances": 8296,
+      "known_gaps": [
+        "Original event-list creation, replacement and initialization timing are unmeasured",
+        "Placed probe definitions are explicit engineering templates, not original attachments",
+        "Reference residency, lifetime, quest scheduling and native command effects remain unfinished",
+        "Full world save components, original save compatibility and retail differential traces remain open"
+      ],
+      "lookup_results_sha256": "1f4732dae072155e92375107c90bd5ef04304dad03e36b8abb07a4358d97fa21",
+      "metadata": {
+        "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+        "definitions": 629788,
+        "winning_definitions": 628464,
+        "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+      },
+      "native_container": {
+        "boundary_tick": 0,
+        "campaign": [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        "catalogue_sha256": "4d1be4ed4dda45ad4da901e21d730ab20efa230597f19e03b95c54ec4e5d615e",
+        "container_bytes": 4243884,
+        "container_sha256": "b6b6522e4e46ace770ecdfd93d8b77ca0c129b0b3acccd3a3f8051937fb8b664",
+        "generation": 1,
+        "snapshot_bytes": 4243652,
+        "snapshot_sha256": "58d514ecce938467508d1588279722be2baa65ebaf12aa2ff474f8923cecddb2",
+        "state_revision": 10708
+      },
+      "native_container_report_sha256": "ab1c85b63102804db45bc1c2619c165baad1d95b9a4d8a8f0eb8638495a33051",
+      "native_report_sha256": "f604bb8614729b23114aec0fb033246e74b127d75e673f3ad105fddce028eb0e",
+      "old_handles_rejected": true,
+      "oracle_binary_sha256": "3f96b8aadc7a52da9a68cb6c1b78b343e50ecf078ff8a48622d6b7d4450abe5a",
+      "original_live_values_captured": false,
+      "profile": "nv-original",
+      "retail_parity_accepted": false,
+      "rust_report_sha256": "37cb86c0ce3130f0dddd38979a7cf12bd7028ce239db233870d11c8d3d4531c6",
+      "schema_version": 1,
+      "scope": "Explicit host live-list lookup/storage engineering; independent original header and compiled operand facts; no original live-value capture",
+      "snapshot_bytes": 4243652,
+      "snapshot_sha256": "58d514ecce938467508d1588279722be2baa65ebaf12aa2ff474f8923cecddb2",
+      "sources": [
+        {
+          "source_bytes": 245650747,
+          "source_name": "FalloutNV.esm",
+          "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+        },
+        {
+          "source_bytes": 6274851,
+          "source_name": "DeadMoney.esm",
+          "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+        },
+        {
+          "source_bytes": 17308500,
+          "source_name": "HonestHearts.esm",
+          "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+        },
+        {
+          "source_bytes": 16202800,
+          "source_name": "OldWorldBlues.esm",
+          "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+        },
+        {
+          "source_bytes": 25676818,
+          "source_name": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+        },
+        {
+          "source_bytes": 252445,
+          "source_name": "GunRunnersArsenal.esm",
+          "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+        },
+        {
+          "source_bytes": 3007,
+          "source_name": "CaravanPack.esm",
+          "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+        },
+        {
+          "source_bytes": 6523,
+          "source_name": "ClassicPack.esm",
+          "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+        },
+        {
+          "source_bytes": 3064,
+          "source_name": "MercenaryPack.esm",
+          "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+        },
+        {
+          "source_bytes": 2323,
+          "source_name": "TribalPack.esm",
+          "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+        }
+      ],
+      "unbound_statuses": {
+        "missing_live_event_list": 20542,
+        "reference_not_registered": 5007
+      }
+    },
+    "known_gaps": [
+      "Original template inheritance and leveled-list expansion",
+      "Live count deltas, item instances, equipment and persistence",
+      "Original ownership, condition coercion, respawn and primitive query behavior",
+      "Retail differential traces and effective runtime load order"
+    ],
+    "live_inventory_initialized": false,
+    "malformed_cases_rejected": [
+      "short-item",
+      "long-item",
+      "short-extra",
+      "long-extra",
+      "short-actor-base",
+      "long-actor-base",
+      "short-template",
+      "short-container-data",
+      "partial-field-header",
+      "orphan-extended",
+      "short-extended",
+      "repeated-extended",
+      "field-overrun",
+      "compressed-checksum"
+    ],
+    "metadata": {
+      "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+      "definitions": 629788,
+      "winning_definitions": 628464,
+      "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+    },
+    "native_report_sha256": "13caf5a1bef2499fdaf474331d370c038d6bea84d4682ec5a03734277f0a439a",
+    "oracle_binary_sha256": "5fd4373ff285a4559786b4faba44741b4c7f2d4f1d6e41293fb6de66861bdb04",
+    "profile": "nv-original",
+    "retail_parity_accepted": false,
+    "rust_report_sha256": "abfbb1cb47f9f26f44cb754524703490285db686eb8e04ee85099d4a7e5bbdb6",
+    "schema_version": 1,
+    "scope": "Independent original authored base inventory fields and source bindings; no live inventory or retail gameplay acceptance",
+    "sources": [
+      {
+        "source_bytes": 245650747,
+        "source_name": "FalloutNV.esm",
+        "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+      },
+      {
+        "source_bytes": 6274851,
+        "source_name": "DeadMoney.esm",
+        "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+      },
+      {
+        "source_bytes": 17308500,
+        "source_name": "HonestHearts.esm",
+        "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+      },
+      {
+        "source_bytes": 16202800,
+        "source_name": "OldWorldBlues.esm",
+        "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+      },
+      {
+        "source_bytes": 25676818,
+        "source_name": "LonesomeRoad.esm",
+        "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+      },
+      {
+        "source_bytes": 252445,
+        "source_name": "GunRunnersArsenal.esm",
+        "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+      },
+      {
+        "source_bytes": 3007,
+        "source_name": "CaravanPack.esm",
+        "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+      },
+      {
+        "source_bytes": 6523,
+        "source_name": "ClassicPack.esm",
+        "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+      },
+      {
+        "source_bytes": 3064,
+        "source_name": "MercenaryPack.esm",
+        "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+      },
+      {
+        "source_bytes": 2323,
+        "source_name": "TribalPack.esm",
+        "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+      }
+    ],
+    "synthetic_fixtures": {
+      "cache_and_reordering_keep_canonical_definitions_equal": true,
+      "phases": [
+        {
+          "cache_reused": [
+            false,
+            false,
+            false
+          ],
+          "counts": {
+            "binding_statuses": {
+              "defined": 10,
+              "missing": 2,
+              "null": 1
+            },
+            "decoded_bytes": 286,
+            "deleted_records": 1,
+            "extra_fields": 5,
+            "fields": 16,
+            "items": 6,
+            "non_positive_counts": 3,
+            "record_kinds": {
+              "CONT": 2,
+              "NPC_": 2
+            },
+            "records": 4,
+            "source_findings": 0,
+            "template_fields": 1
+          },
+          "name": "inventory-fixture-cold",
+          "native_report_sha256": "d7ed5742a9824d21a731322d837148f9dd6269a68c277ba7e3b1d63bfa3b69a3",
+          "rust_report_sha256": "3d7a7dcfd41654f185d1aa2528722de1d70ca8392670ece5b91a093aa4592646"
+        },
+        {
+          "cache_reused": [
+            true,
+            true,
+            true
+          ],
+          "counts": {
+            "binding_statuses": {
+              "defined": 10,
+              "missing": 2,
+              "null": 1
+            },
+            "decoded_bytes": 286,
+            "deleted_records": 1,
+            "extra_fields": 5,
+            "fields": 16,
+            "items": 6,
+            "non_positive_counts": 3,
+            "record_kinds": {
+              "CONT": 2,
+              "NPC_": 2
+            },
+            "records": 4,
+            "source_findings": 0,
+            "template_fields": 1
+          },
+          "name": "inventory-fixture-warm",
+          "native_report_sha256": "d7ed5742a9824d21a731322d837148f9dd6269a68c277ba7e3b1d63bfa3b69a3",
+          "rust_report_sha256": "1fc1d72a3ac0a12d6adb9e37359dd8184a62649cfe6edcd6c70b8f4d654447da"
+        },
+        {
+          "cache_reused": [],
+          "counts": {
+            "binding_statuses": {
+              "defined": 10,
+              "missing": 2,
+              "null": 1
+            },
+            "decoded_bytes": 286,
+            "deleted_records": 1,
+            "extra_fields": 5,
+            "fields": 16,
+            "items": 6,
+            "non_positive_counts": 3,
+            "record_kinds": {
+              "CONT": 2,
+              "NPC_": 2
+            },
+            "records": 4,
+            "source_findings": 0,
+            "template_fields": 1
+          },
+          "name": "inventory-fixture-reordered",
+          "native_report_sha256": "edbfa7904faf7a4f76d5c7e208f8287dbb0cc97581499d2eba799bfcea8ad313",
+          "rust_report_sha256": "0f9ecdab8360a4b018e9b47090fe70bf81c303280406bfc89fa6ffb731d4268e"
+        },
+        {
+          "cache_reused": [],
+          "counts": {
+            "binding_statuses": {
+              "defined": 2,
+              "null": 4
+            },
+            "decoded_bytes": 136,
+            "deleted_records": 0,
+            "extra_fields": 4,
+            "fields": 8,
+            "items": 2,
+            "non_positive_counts": 0,
+            "record_kinds": {
+              "CONT": 2,
+              "NPC_": 1
+            },
+            "records": 3,
+            "source_findings": 3,
+            "template_fields": 0
+          },
+          "name": "inventory-fixture-ambiguity",
+          "native_report_sha256": "0587bb260bc7b063e4bcef132fb8837c95e418872380b25743498e1d4115d489",
+          "rust_report_sha256": "5630e0727a13b34fe206a29b5ca3a88491d2d8bd494e9d3597f17f3ba638f8ad"
+        }
+      ],
+      "scope": "Authored namespaces, winning tombstones, duplicate/signed counts, owner-dependent unions, NaN bits, unknown flags/fields and ambiguous extra associations"
+    }
+  },
+  "graph_counts": {
+    "cyclic_components": 0,
+    "cyclic_nodes": 0,
+    "edges": 56193,
+    "internal_edges": 40058,
+    "nodes": 14185,
+    "schema_mismatches": 3,
+    "terminal_edges": 16135,
+    "unresolved_edges": 0
+  },
+  "known_gaps": [
+    "Original level selection, chance/global behavior, count coercion and random draw order",
+    "Template inheritance, script-added entries, respawn and live item persistence",
+    "Full content/asset dependency closure beyond this structural domain",
+    "Retail differential traces and effective runtime load order"
+  ],
+  "malformed_cases_rejected": [
+    "short-entry",
+    "partial-count",
+    "partial-padding",
+    "long-entry",
+    "short-extra",
+    "long-extra",
+    "short-chance",
+    "long-flags",
+    "short-global",
+    "partial-field-header",
+    "orphan-extended",
+    "short-extended",
+    "repeated-extended",
+    "compressed-checksum"
+  ],
+  "metadata": {
+    "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+    "definitions": 629788,
+    "winning_definitions": 628464,
+    "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+  },
+  "native_report_sha256": "7a5e5c7dfd0bc2f9a8af2eb490cbe56152f7ae55e6dff62295331898bae50b81",
+  "oracle_binary_sha256": "d3ebe176b4e458586c96bad2600f072ab46dac795ed5909cbcd87655086732e1",
+  "profile": "nv-original",
+  "random_draws": 0,
+  "retail_parity_accepted": false,
+  "rust_report_sha256": "d010546af1a41991eaf2323f550101e350736f5d075d248dc7698295fb06d8f0",
+  "schema_domain_mismatches": [
+    {
+      "field_decoded_offset": 1788,
+      "role": "base-item",
+      "schema_kind_allowed": false,
+      "source": {
+        "local_id": 433897,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      },
+      "status": "defined",
+      "target": {
+        "local_id": 127837,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      }
+    },
+    {
+      "field_decoded_offset": 2180,
+      "role": "base-item",
+      "schema_kind_allowed": false,
+      "source": {
+        "local_id": 433897,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      },
+      "status": "defined",
+      "target": {
+        "local_id": 96968,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      }
+    },
+    {
+      "field_decoded_offset": 3216,
+      "role": "base-item",
+      "schema_kind_allowed": false,
+      "source": {
+        "local_id": 433897,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      },
+      "status": "defined",
+      "target": {
+        "local_id": 170210,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      }
+    }
+  ],
+  "schema_version": 1,
+  "scope": "Independent authored leveled-list fields and structural inventory/template/list graph; no random draws, inheritance or gameplay acceptance",
+  "source_snapshot_sha256": "1bf1ff05f50ee32683286732da0ec83bc7acdaab852b49b7dbeac58c0fa046ff",
+  "sources": [
+    {
+      "source_bytes": 245650747,
+      "source_name": "FalloutNV.esm",
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+    },
+    {
+      "source_bytes": 6274851,
+      "source_name": "DeadMoney.esm",
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+    },
+    {
+      "source_bytes": 17308500,
+      "source_name": "HonestHearts.esm",
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+    },
+    {
+      "source_bytes": 16202800,
+      "source_name": "OldWorldBlues.esm",
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+    },
+    {
+      "source_bytes": 25676818,
+      "source_name": "LonesomeRoad.esm",
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+    },
+    {
+      "source_bytes": 252445,
+      "source_name": "GunRunnersArsenal.esm",
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+    },
+    {
+      "source_bytes": 3007,
+      "source_name": "CaravanPack.esm",
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+    },
+    {
+      "source_bytes": 6523,
+      "source_name": "ClassicPack.esm",
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+    },
+    {
+      "source_bytes": 3064,
+      "source_name": "MercenaryPack.esm",
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+    },
+    {
+      "source_bytes": 2323,
+      "source_name": "TribalPack.esm",
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+    }
+  ],
+  "synthetic_fixtures": {
+    "cache_and_reordering_keep_definitions_graph_and_closure_equal": true,
+    "phases": [
+      {
+        "cache_reused": [
+          false,
+          false,
+          false
+        ],
+        "closure": {
+          "edge_indices": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "nodes": [
+            {
+              "local_id": 512,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            {
+              "local_id": 768,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            {
+              "local_id": 769,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            }
+          ],
+          "root": {
+            "local_id": 512,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          }
+        },
+        "counts": {
+          "absent_counts": 3,
+          "binding_statuses": {
+            "defined": 12,
+            "deleted": 2,
+            "missing": 1
+          },
+          "decoded_bytes": 269,
+          "deleted_records": 1,
+          "entries": 10,
+          "extra_fields": 3,
+          "fields": 18,
+          "high_bit_counts": 1,
+          "high_bit_levels": 2,
+          "record_kinds": {
+            "LVLC": 1,
+            "LVLI": 5,
+            "LVLN": 1
+          },
+          "records": 7,
+          "source_findings": 0,
+          "zero_counts": 1
+        },
+        "graph_counts": {
+          "cyclic_components": 2,
+          "cyclic_nodes": 3,
+          "edges": 11,
+          "internal_edges": 6,
+          "nodes": 9,
+          "schema_mismatches": 1,
+          "terminal_edges": 3,
+          "unresolved_edges": 2
+        },
+        "name": "leveled-fixture-cold",
+        "native_report_sha256": "6df135d117408aa695e15ec1a08020482a36b72800155901897bfd6c2d7d61c6",
+        "rust_report_sha256": "81bcea3e19049867dfc10a71078d2c6cc362803c6b5f46b800251de0396ccba8"
+      },
+      {
+        "cache_reused": [
+          true,
+          true,
+          true
+        ],
+        "closure": {
+          "edge_indices": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "nodes": [
+            {
+              "local_id": 512,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            {
+              "local_id": 768,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            {
+              "local_id": 769,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            }
+          ],
+          "root": {
+            "local_id": 512,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          }
+        },
+        "counts": {
+          "absent_counts": 3,
+          "binding_statuses": {
+            "defined": 12,
+            "deleted": 2,
+            "missing": 1
+          },
+          "decoded_bytes": 269,
+          "deleted_records": 1,
+          "entries": 10,
+          "extra_fields": 3,
+          "fields": 18,
+          "high_bit_counts": 1,
+          "high_bit_levels": 2,
+          "record_kinds": {
+            "LVLC": 1,
+            "LVLI": 5,
+            "LVLN": 1
+          },
+          "records": 7,
+          "source_findings": 0,
+          "zero_counts": 1
+        },
+        "graph_counts": {
+          "cyclic_components": 2,
+          "cyclic_nodes": 3,
+          "edges": 11,
+          "internal_edges": 6,
+          "nodes": 9,
+          "schema_mismatches": 1,
+          "terminal_edges": 3,
+          "unresolved_edges": 2
+        },
+        "name": "leveled-fixture-warm",
+        "native_report_sha256": "6df135d117408aa695e15ec1a08020482a36b72800155901897bfd6c2d7d61c6",
+        "rust_report_sha256": "786df1cfc7d8fe72498c3409a63017407e60e131de18b0e7a7777ebc978eee61"
+      },
+      {
+        "cache_reused": [],
+        "closure": {
+          "edge_indices": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "nodes": [
+            {
+              "local_id": 512,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            {
+              "local_id": 768,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            },
+            {
+              "local_id": 769,
+              "origin_plugin": "falloutnv.esm",
+              "profile": "nv-original"
+            }
+          ],
+          "root": {
+            "local_id": 512,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          }
+        },
+        "counts": {
+          "absent_counts": 3,
+          "binding_statuses": {
+            "defined": 12,
+            "deleted": 2,
+            "missing": 1
+          },
+          "decoded_bytes": 269,
+          "deleted_records": 1,
+          "entries": 10,
+          "extra_fields": 3,
+          "fields": 18,
+          "high_bit_counts": 1,
+          "high_bit_levels": 2,
+          "record_kinds": {
+            "LVLC": 1,
+            "LVLI": 5,
+            "LVLN": 1
+          },
+          "records": 7,
+          "source_findings": 0,
+          "zero_counts": 1
+        },
+        "graph_counts": {
+          "cyclic_components": 2,
+          "cyclic_nodes": 3,
+          "edges": 11,
+          "internal_edges": 6,
+          "nodes": 9,
+          "schema_mismatches": 1,
+          "terminal_edges": 3,
+          "unresolved_edges": 2
+        },
+        "name": "leveled-fixture-reordered",
+        "native_report_sha256": "b0c32e5f1117e7d8898f52a48d7cff5c3392c3421f80ae698bbe745029d2d1e5",
+        "rust_report_sha256": "bf1c23555609acf9e924e529f395bee7f2eb494827856ca0e07a032a11670619"
+      },
+      {
+        "cache_reused": [],
+        "closure": null,
+        "counts": {
+          "absent_counts": 3,
+          "binding_statuses": {
+            "defined": 13,
+            "missing": 1,
+            "null": 3
+          },
+          "decoded_bytes": 333,
+          "deleted_records": 0,
+          "entries": 10,
+          "extra_fields": 5,
+          "fields": 24,
+          "high_bit_counts": 1,
+          "high_bit_levels": 2,
+          "record_kinds": {
+            "LVLC": 1,
+            "LVLI": 5,
+            "LVLN": 1
+          },
+          "records": 7,
+          "source_findings": 4,
+          "zero_counts": 1
+        },
+        "graph_counts": {
+          "cyclic_components": 2,
+          "cyclic_nodes": 3,
+          "edges": 11,
+          "internal_edges": 6,
+          "nodes": 9,
+          "schema_mismatches": 1,
+          "terminal_edges": 4,
+          "unresolved_edges": 1
+        },
+        "name": "leveled-fixture-ambiguity",
+        "native_report_sha256": "6204bc53acf4526e4d298ffb9e3c20432281e6e80ae03312a680ee29fa3e3d2c",
+        "rust_report_sha256": "9ba8e801a1325ee76612e0ec9f6122a614c90bff741d48ba157e869105b09418"
+      }
+    ],
+    "scope": "Authored short/full entries, exact bits/padding, all list kinds, owner unions, namespaces, deleted winning lists, duplicate edges, SCCs and bounded closure"
+  }
+}

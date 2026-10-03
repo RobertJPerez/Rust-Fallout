@@ -26,7 +26,11 @@ Keep the entire master brief in scope and progress through its dependency gates.
    The current VFS reports 420 cross-archive path collisions and intentionally has no
    production precedence policy. The on-demand record store and typed CELL/REFR/ACHR/ACRE
    dependency inspection now work, including winning parent membership and target-kind
-   checks. Extend them to a reusable disk index, WRLD/terrain and remaining fields,
+   checks. Checkpoint 08 now persists source-bound plugin metadata with verified
+   cold/warm reuse and process-termination recovery. See
+   [record index caching](docs/record-index-cache.md). Winners still rebuild for the
+   supplied order, and deferred payloads remain strict on access. Extend this to
+   a canonical content store, WRLD/terrain and remaining fields,
    full asset dependency closure, and record-specific override rules.
 
 4. Continue NIF payload decoding with remaining scene-node kinds, skinning and

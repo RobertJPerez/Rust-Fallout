@@ -3,7 +3,7 @@
 
 use crate::{Result, malformed};
 use flate2::{Decompress, FlushDecompress, Status};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek, SeekFrom};
 
 pub const HEADER_SIZE: u64 = 24;
@@ -63,7 +63,7 @@ pub struct Record {
     pub integrity_issue: Option<ChecksumMismatch>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChecksumMismatch {
     pub file_offset: u64,
     pub form_id: u32,

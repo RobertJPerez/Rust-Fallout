@@ -365,6 +365,8 @@ pub struct CellReport {
     pub cell: Cell,
     pub integrity_failures: usize,
     pub index_payloads_deferred: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index_cache: Option<crate::index_cache::Report>,
     pub link_failures: usize,
     pub references: Vec<PlacedEntry>,
     pub models: Vec<ModelDependency>,
@@ -505,6 +507,7 @@ pub fn inspect_cell(
         cell,
         integrity_failures: store.integrity_failures(),
         index_payloads_deferred: store.deferred_payloads(),
+        index_cache: store.index_cache_report().cloned(),
         link_failures,
         references,
         models,

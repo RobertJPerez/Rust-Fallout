@@ -47,7 +47,10 @@ canonical content store. Inspect previews are bounded to 64 bytes per field.
 `RecordStore` now retains immutable source handles and a winning-record index for
 on-demand reads. CELL/REFR/ACHR/ACRE inspection preserves group ancestry and original
 transforms, and checks decoded base/enable-parent/door links against target kinds.
-Its metadata index is rebuilt at startup; disk index persistence remains future work.
+Its optional source-bound metadata cache persists raw headers and parent labels.
+Every cached open hashes its sources and verifies the cache format/digest; canonical
+identities and winners rebuild for the supplied order. Stored metadata does not
+validate deferred record bodies. See [record index caching](record-index-cache.md).
 See [world inspection](world-inspection.md) for the supported fields and limits.
 
 The opt-in header index validates TES4/CELL metadata and defers other bodies.
@@ -141,6 +144,11 @@ This rebuildable cache does not promise save-grade power-loss durability. Full j
 cancellation, conversion journals, graph scheduling, and transitive rule invalidation
 are unfinished R3-04 work. Multi-pass inspection assumes source files remain unchanged
 between passes; individual Windows source handles protect their own open lifetimes.
+
+Metadata cache publication now has actual process-termination tests at blob staging,
+blob publication and manifest staging. A missing commit marker triggers a rebuild
+before orphan verification; corrupt committed entries fail. These tests verify this
+rebuildable publication path, not save-grade durability or complete job cancellation.
 
 ## Evidence boundaries
 

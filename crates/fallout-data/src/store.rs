@@ -5,8 +5,10 @@ use crate::{
     baseline::open_source,
     content::{self, Definition, PluginIndex},
     identity::{FormKey, ProfileId, plugin_name, resolve_form},
+    index_cache,
     plugin::{self, Limits, Record},
 };
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs::File, path::Path};
 
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +23,7 @@ pub struct RecordStore {
     pub(crate) indices: Vec<PluginIndex>,
     pub(crate) winners: BTreeMap<FormKey, Location>,
     limits: Limits,
+    index_cache: Option<index_cache::Report>,
 }
 
 impl RecordStore {
@@ -29,13 +32,29 @@ impl RecordStore {
     }
 
     pub fn open_nv(data: &Path, names: &[String], limits: Limits) -> Result<Self> {
-        Self::open_selected(data, names, limits, false)
+        Self::open_selected(data, names, limits, false, None)
     }
 
     /// Startup validates framing, identities and CELL metadata. Every later read
     /// still checks the exact indexed header and strictly validates its payload.
     pub fn open_nv_headers(data: &Path, names: &[String], limits: Limits) -> Result<Self> {
-        Self::open_selected(data, names, limits, true)
+        Self::open_selected(data, names, limits, true, None)
+    }
+
+    /// Hash every source under its retained read-only handle before cache lookup.
+    /// A hit reuses metadata only; strict payload access and winner resolution stay
+    /// identical to the uncached path.
+    pub fn open_nv_headers_cached(
+        data: &Path,
+        names: &[String],
+        limits: Limits,
+        root: &Path,
+    ) -> Result<Self> {
+        Self::open_selected(data, names, limits, true, Some(root))
+    }
+
+    pub fn index_cache_report(&self) -> Option<&index_cache::Report> {
+        self.index_cache.as_ref()
     }
 
     fn open_selected(
@@ -43,21 +62,64 @@ impl RecordStore {
         names: &[String],
         limits: Limits,
         headers_only: bool,
+        index_root: Option<&Path>,
     ) -> Result<Self> {
         if names.is_empty() {
             return Err(Error::Resolution("load order is empty".into()));
         }
+        if index_root.is_some() && limits.inspect_checksum_mismatches {
+            return Err(Error::Resolution(
+                "index caching requires strict header indexing".into(),
+            ));
+        }
+        let source_tree = if data
+            .file_name()
+            .is_some_and(|v| v.eq_ignore_ascii_case("Data"))
+        {
+            data.parent()
+                .ok_or_else(|| Error::Resolution("Data has no installation parent".into()))?
+        } else {
+            data
+        };
+        let cache_root = index_root
+            .map(|root| {
+                let root = crate::cache::validate_root(root, source_tree)?;
+                // Protect the actual data directory too if the supplied Data path
+                // resolves through a junction outside its installation parent.
+                crate::cache::validate_root(&root, data)
+            })
+            .transpose()?;
         let mut files = Vec::new();
         let mut indices = Vec::new();
+        let mut receipts = Vec::new();
+        let mut source_bytes_hashed = 0u64;
         for name in names {
             plugin_name(name)?;
             let path = data.join(name);
-            files.push(open_source(&path)?);
-            indices.push(if headers_only {
+            let mut file = open_source(&path)?;
+            let index = if let Some(root) = &cache_root {
+                let (bytes, digest) = crate::baseline::digest_reader(&mut file)
+                    .map_err(|error| crate::io(&path, error))?;
+                source_bytes_hashed = source_bytes_hashed
+                    .checked_add(bytes)
+                    .ok_or_else(|| Error::Resolution("hashed byte count overflow".into()))?;
+                let (index, receipt) = index_cache::load_or_build(
+                    root,
+                    source_tree,
+                    &path,
+                    index_cache::identity(name, digest, limits),
+                    bytes,
+                    limits,
+                )?;
+                receipts.push(receipt);
+                index
+            } else if headers_only {
                 content::index_plugin_headers(&path, limits)?
             } else {
                 content::index_plugin_with_limits(&path, limits)?
-            });
+            };
+            files.push(file);
+            indices.push(index);
         }
         // Keep the same missing-master, duplicate-identity and taint rules as the
         // headless resolver. Inspection can carry taint, never erase it.
@@ -79,11 +141,34 @@ impl RecordStore {
                 winners.insert(key, Location { plugin, record });
             }
         }
+        let index_cache = if cache_root.is_some() {
+            let ordered: Vec<_> = receipts
+                .iter()
+                .map(|row| (plugin_name(&row.plugin), &row.source_sha256, &row.key))
+                .map(|(name, source, key)| name.map(|name| (name, source, key)))
+                .collect::<Result<_>>()?;
+            Some(index_cache::Report {
+                format: "nv-header-index-v1",
+                source_bytes_hashed,
+                ordered_source_sha256: format!(
+                    "{:x}",
+                    Sha256::digest(
+                        serde_json::to_vec(&ordered)
+                            .map_err(|error| Error::Resolution(error.to_string()))?
+                    )
+                ),
+                plugins: receipts,
+                scope: "source-bound TES4/CELL metadata; other payloads remain deferred and validate strictly on access; winners rebuilt for supplied order",
+            })
+        } else {
+            None
+        };
         Ok(Self {
             files,
             indices,
             winners,
             limits,
+            index_cache,
         })
     }
 

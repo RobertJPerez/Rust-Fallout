@@ -54,6 +54,64 @@ impl ArtifactIdentity {
     }
 }
 
+/// Verify and load an existing artifact without first rebuilding it. No marker
+/// means no committed entry: a later builder may recover a verified orphan blob.
+pub fn read_verified(
+    root: &Path,
+    source_tree: &Path,
+    identity: &ArtifactIdentity,
+    max_bytes: usize,
+) -> Result<Option<(CacheResult, Vec<u8>)>> {
+    let root = validate_root(root, source_tree)?;
+    let key = identity.key()?;
+    let marker = root.join(format!("{key}.json"));
+    if !marker.try_exists().map_err(|e| io(&marker, e))? {
+        return Ok(None);
+    }
+    require_plain_file(&marker)?;
+    let mut bytes = Vec::new();
+    open_source(&marker)?
+        .take(65537)
+        .read_to_end(&mut bytes)
+        .map_err(|e| io(&marker, e))?;
+    if bytes.len() > 65536 {
+        return Err(Error::Resolution("cache manifest exceeds budget".into()));
+    }
+    let manifest: Manifest = serde_json::from_slice(&bytes)
+        .map_err(|e| Error::Resolution(format!("cache manifest: {e}")))?;
+    if manifest.schema_version != 1 || manifest.identity != *identity {
+        return Err(Error::Resolution("cache manifest identity mismatch".into()));
+    }
+    if manifest.bytes > max_bytes as u64 {
+        return Err(Error::Resolution(
+            "cache artifact exceeds input budget".into(),
+        ));
+    }
+    let blob = root.join(format!("{key}.blob"));
+    require_plain_file(&blob)?;
+    let file = open_source(&blob)?;
+    if file.metadata().map_err(|e| io(&blob, e))?.len() != manifest.bytes {
+        return Err(Error::Resolution("cache blob byte length mismatch".into()));
+    }
+    bytes.clear();
+    file.take(manifest.bytes.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|e| io(&blob, e))?;
+    if bytes.len() as u64 != manifest.bytes
+        || format!("{:x}", Sha256::digest(&bytes)) != manifest.sha256
+    {
+        return Err(Error::Resolution("cache blob failed digest check".into()));
+    }
+    Ok(Some((
+        CacheResult {
+            key,
+            reused: true,
+            manifest,
+        },
+        bytes,
+    )))
+}
+
 /// Files are synced before publication. This rebuildable cache does not promise
 /// the power-loss durability required for saves or cross-campaign transactions.
 pub fn publish(
@@ -134,6 +192,8 @@ fn publish_at(
             "injected interruption after blob publication".into(),
         ));
     }
+    #[cfg(test)]
+    pause_publication_test(&root, "blob-published")?;
     let manifest =
         serde_json::to_vec_pretty(&expected).map_err(|e| Error::Resolution(e.to_string()))?;
     publish_file(&root, &marker, &manifest)?;
@@ -180,6 +240,15 @@ fn publish_file(root: &Path, path: &Path, bytes: &[u8]) -> Result<()> {
         .as_file()
         .sync_all()
         .map_err(|e| io(staged.path(), e))?;
+    #[cfg(test)]
+    pause_publication_test(
+        root,
+        if path.extension().is_some_and(|v| v == "blob") {
+            "blob-staged"
+        } else {
+            "marker-staged"
+        },
+    )?;
     match staged.persist_noclobber(path) {
         Ok(_) => Ok(()),
         // A concurrent builder can win, but its published bytes must still agree.
@@ -196,6 +265,26 @@ fn publish_file(root: &Path, path: &Path, bytes: &[u8]) -> Result<()> {
         }
         Err(e) => Err(io(path, e.error)),
     }
+}
+
+// Compiled only into the unit-test executable. A child announces a precise
+// publication point and waits for its parent to terminate it.
+#[cfg(test)]
+fn pause_publication_test(root: &Path, phase: &str) -> Result<()> {
+    if std::env::var("FALLOUT_CACHE_TEST_PHASE").ok().as_deref() == Some(phase) {
+        let ready = root.join("publication.ready");
+        let mut signal = tempfile::NamedTempFile::new_in(root).map_err(|error| io(root, error))?;
+        signal
+            .write_all(phase.as_bytes())
+            .map_err(|error| io(signal.path(), error))?;
+        signal
+            .persist_noclobber(&ready)
+            .map_err(|error| io(&ready, error.error))?;
+        loop {
+            std::thread::park();
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -250,5 +339,111 @@ mod tests {
         let source = tempfile::tempdir().unwrap();
         assert!(publish(source.path(), source.path(), identity(), b"x").is_err());
         assert_eq!(fs::read_dir(source.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn verified_lookup_checks_payload_budget_and_digest_before_reuse() {
+        let source = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let id = identity();
+        assert!(
+            read_verified(root.path(), source.path(), &id, 64)
+                .unwrap()
+                .is_none()
+        );
+        publish(root.path(), source.path(), id.clone(), b"authored payload").unwrap();
+        assert!(read_verified(root.path(), source.path(), &id, 1).is_err());
+        let (_, bytes) = read_verified(root.path(), source.path(), &id, 64)
+            .unwrap()
+            .unwrap();
+        assert_eq!(bytes, b"authored payload");
+        fs::write(
+            root.path().join(format!("{}.blob", id.key().unwrap())),
+            b"damaged payload!",
+        )
+        .unwrap();
+        assert!(read_verified(root.path(), source.path(), &id, 64).is_err());
+    }
+
+    #[test]
+    #[ignore = "helper executed by the process-termination test"]
+    fn publication_child_process() {
+        let root = PathBuf::from(std::env::var_os("FALLOUT_CACHE_TEST_ROOT").unwrap());
+        let source = PathBuf::from(std::env::var_os("FALLOUT_CACHE_TEST_SOURCE").unwrap());
+        publish(&root, &source, identity(), b"original fixture").unwrap();
+    }
+
+    #[test]
+    fn killed_publication_processes_leave_no_committed_partial_artifact() {
+        use std::{
+            process::{Child, Command, Stdio},
+            time::{Duration, Instant},
+        };
+        struct ChildGuard(Child);
+        impl Drop for ChildGuard {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        for phase in ["blob-staged", "blob-published", "marker-staged"] {
+            let root = tempfile::tempdir().unwrap();
+            let source = tempfile::tempdir().unwrap();
+            let source_path = source.path().join("untouched.txt");
+            fs::write(&source_path, b"read-only source fixture").unwrap();
+            let mut child = ChildGuard(
+                Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "cache::tests::publication_child_process",
+                        "--ignored",
+                    ])
+                    .env("FALLOUT_CACHE_TEST_ROOT", root.path())
+                    .env("FALLOUT_CACHE_TEST_SOURCE", source.path())
+                    .env("FALLOUT_CACHE_TEST_PHASE", phase)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .unwrap(),
+            );
+            let ready = root.path().join("publication.ready");
+            let started = Instant::now();
+            while !ready.exists() {
+                assert!(
+                    started.elapsed() < Duration::from_secs(15),
+                    "child did not reach {phase}"
+                );
+                assert!(
+                    child.0.try_wait().unwrap().is_none(),
+                    "child exited before {phase}"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert_eq!(fs::read_to_string(&ready).unwrap(), phase);
+            child.0.kill().unwrap();
+            assert!(!child.0.wait().unwrap().success());
+            let id = identity();
+            assert!(
+                !root
+                    .path()
+                    .join(format!("{}.json", id.key().unwrap()))
+                    .exists()
+            );
+            assert!(
+                read_verified(root.path(), source.path(), &id, 64)
+                    .unwrap()
+                    .is_none()
+            );
+            publish(root.path(), source.path(), id.clone(), b"original fixture").unwrap();
+            assert_eq!(
+                read_verified(root.path(), source.path(), &id, 64)
+                    .unwrap()
+                    .unwrap()
+                    .1,
+                b"original fixture"
+            );
+            assert_eq!(fs::read(&source_path).unwrap(), b"read-only source fixture");
+        }
     }
 }

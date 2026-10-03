@@ -4,10 +4,10 @@ use crate::{
     Result, malformed,
     plugin::{RecordHeader, Subrecord, signature},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallSite {
     pub form_id: u32,
     pub record_kind: String,
@@ -15,13 +15,13 @@ pub struct CallSite {
     pub decoded_payload_offset: usize,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Usage {
     pub occurrences: u64,
     pub examples: Vec<CallSite>,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ScriptInventory {
     pub headers: u64,
     pub compiled_bodies: u64,
@@ -35,7 +35,7 @@ pub struct ScriptInventory {
     pub script_header_lengths: BTreeMap<usize, u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScriptReference {
     pub caller: CallSite,
     pub target_raw_form: u32,

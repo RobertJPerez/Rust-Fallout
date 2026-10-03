@@ -15,8 +15,9 @@ a deleted winner remains a tombstone rather than resurrecting its predecessor.
 The store keeps Windows read handles open from index construction through its last
 record access. Reads seek directly to indexed headers, verify those headers still
 match, and reuse the same bounded decompressor as sequential scans. Unknown fields
-remain available in the original record body. This index is in memory; a reusable
-serialized index cache is not implemented yet.
+remain available in the original record body. Deferred inspection can persist and
+reuse source-bound metadata with `--index-cache`. See
+[record index caching](record-index-cache.md) for identity checks and recovery.
 
 `--defer-unread-payloads` builds the same header/identity/parent index while decoding
 TES4 and CELL bodies for metadata. It reads other body ranges without allocating

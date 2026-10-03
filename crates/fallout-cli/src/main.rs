@@ -74,6 +74,9 @@ enum Command {
         /// Validate headers/CELL metadata now and other record bodies on access.
         #[arg(long, conflicts_with = "inspect_checksum_mismatches")]
         defer_unread_payloads: bool,
+        /// Reuse source-bound plugin metadata from an existing cache outside the installation.
+        #[arg(long, requires = "defer_unread_payloads")]
+        index_cache: Option<PathBuf>,
         /// Decode unambiguous model candidates and inspect their NIF containers.
         #[arg(long)]
         inspect_models: bool,
@@ -303,23 +306,31 @@ fn run(args: Args) -> Result<()> {
             editor_id,
             inspect_checksum_mismatches,
             defer_unread_payloads,
+            index_cache,
             inspect_models,
             model_cache,
         } => {
             let names: Vec<String> = serde_json::from_reader(baseline::open_source(&load_order)?)?;
-            let open = if defer_unread_payloads {
-                fallout_data::store::RecordStore::open_nv_headers
-            } else {
-                fallout_data::store::RecordStore::open_nv
+            let limits = plugin::Limits {
+                inspect_checksum_mismatches,
+                ..Default::default()
             };
-            let mut store = open(
-                &install.join("Data"),
-                &names,
-                plugin::Limits {
-                    inspect_checksum_mismatches,
-                    ..Default::default()
-                },
-            )?;
+            let mut store = if let Some(root) = &index_cache {
+                fallout_data::store::RecordStore::open_nv_headers_cached(
+                    &install.join("Data"),
+                    &names,
+                    limits,
+                    root,
+                )?
+            } else if defer_unread_payloads {
+                fallout_data::store::RecordStore::open_nv_headers(
+                    &install.join("Data"),
+                    &names,
+                    limits,
+                )?
+            } else {
+                fallout_data::store::RecordStore::open_nv(&install.join("Data"), &names, limits)?
+            };
             let mut mounts = MountIndex::default();
             for path in data_files(&install, &["bsa"])? {
                 NvArchive::open(&path)?.census(&mut mounts)?;

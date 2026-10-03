@@ -10,6 +10,7 @@ pub mod cache;
 pub mod content;
 pub mod coordinates;
 pub mod identity;
+pub mod index_cache;
 pub mod model_probe;
 pub mod nif;
 pub mod nif_census;

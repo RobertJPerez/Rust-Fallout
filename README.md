@@ -9,6 +9,8 @@ profile remain in scope. Their runtime support is not implemented yet.
 directly, decodes scene geometry and material fields, resolves archived textures,
 and assembles Doc Mitchell's house from winning plugin references in Bevy. The CLI also provides corpus inspection,
 structural override resolution, script-reference inventory and a verified asset cache.
+The cell inspector can also reuse source-bound plugin indexes, checking source and
+cache hashes while retaining strict on-demand record reads.
 The inspection view draws 400 of 435 references using shared models and textures.
 It now handles authored untextured materials and source alpha, culling and depth
 states; 62 synthetic GPU checks cover those render states.
@@ -134,7 +136,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 68 synthetic tests pass, including malformed compression, forward/cyclic links,
+- 81 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 62 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -142,6 +144,10 @@ record the evidence and its limits:
   6,622 packed vertices, 2,810 packed triangles and 964 convex vertices. Source units
   are retained; physics and movement remain open. [Collision decoding](docs/nif-collisions.md)
   records the exact scope and reproduction commands.
+- All ten plugin metadata indexes persist and reuse across launches, covering
+  629,788 definitions in about 30 MB. Cached and uncached cell fields agree exactly;
+  killed publication workers recover without changing sources.
+  [Record index caching](docs/record-index-cache.md) records the scope and commands.
 
 ## Inspect a real interior and its models
 

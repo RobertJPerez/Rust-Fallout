@@ -6,20 +6,20 @@ use crate::{
     plugin::{self, Limits, RecordHeader, SelectedEvent as Event, Subrecord},
     script_inventory::{ScriptInventory, ScriptReference},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::BufReader,
     path::Path,
 };
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Count {
     pub occurrences: u64,
     pub decoded_bytes: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PluginCensus {
     pub payload_scope: PayloadScope,
     pub record_payloads_decoded: u64,
@@ -41,11 +41,11 @@ pub struct PluginCensus {
     pub subrecord_kinds: BTreeMap<String, Count>,
     pub form_versions: BTreeMap<u16, u64>,
     pub group_kinds: BTreeMap<i32, u64>,
-    pub status: &'static str,
-    pub unknown: Vec<&'static str>,
+    pub status: String,
+    pub unknown: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PayloadScope {
     All,
@@ -133,13 +133,13 @@ fn index_selected(path: &Path, limits: Limits, scope: PayloadScope) -> Result<Pl
         subrecord_kinds: BTreeMap::new(),
         form_versions: BTreeMap::new(),
         group_kinds: BTreeMap::new(),
-        status: "framing-decoded; gameplay semantics unimplemented",
+        status: "framing-decoded; gameplay semantics unimplemented".into(),
         unknown: vec![
-            "typed references within fields",
-            "script opcodes and native calls",
-            "condition evaluation",
-            "record-specific override exceptions",
-            "asset dependency resolution",
+            "typed references within fields".into(),
+            "script opcodes and native calls".into(),
+            "condition evaluation".into(),
+            "record-specific override exceptions".into(),
+            "asset dependency resolution".into(),
         ],
     };
     let mut records = Vec::new();
@@ -322,10 +322,11 @@ fn index_selected(path: &Path, limits: Limits, scope: PayloadScope) -> Result<Pl
         },
     )?;
     if !census.integrity_issues.is_empty() {
-        census.status = "UNTRUSTED diagnostic decode; strict integrity check failed";
+        census.status = "UNTRUSTED diagnostic decode; strict integrity check failed".into();
     } else if scope == PayloadScope::CellMetadata {
         census.status =
-            "header-indexed; TES4/CELL payloads validated; other payloads deferred to access";
+            "header-indexed; TES4/CELL payloads validated; other payloads deferred to access"
+                .into();
     }
     Ok(PluginIndex {
         census,

@@ -46,6 +46,13 @@ Rust. The GPL C++ oracle remains a separate executable. No upstream runtime code
 copied into Rust, and parsed collision data is not physics acceptance. See
 [collision decoding](nif-collisions.md).
 
+Checkpoint 08 adds original Rust plugin-index serialization, verified cache lookup,
+source hashing and killed-process publication tests. No new runtime dependency or
+upstream parser implementation is introduced. The source layouts and resolver rules
+remain those already pinned and tested; the new evidence compares every selected
+cell field with the uncached path. The earlier collision and GPU oracle results
+retain their original checkpoint/source identities.
+
 ## Reproduce the component builds
 
 ```powershell

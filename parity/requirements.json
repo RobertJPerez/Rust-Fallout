@@ -676,6 +676,33 @@
       ],
       "tolerance": "Source binary32 bits, other projected fields, source/block SHA256 and boundaries exact; graph validation covered by authored tests",
       "last_verified_revision": "fc6fb1b821094edda7b53d65d12c4849f64d394f"
+    },
+    {
+      "id": "fnv.content.persisted_header_index",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content",
+      "requirement": "Reuse source-bound plugin metadata without changing strict reads, winning identities or source-local parent membership",
+      "status": "unit-tested",
+      "affected_content": "Ten official NV plugins; 629788 definitions; exact selected-cell comparison",
+      "evidence": [
+        "reports/record-index-cache.json",
+        "reports/checkpoint-08-verification.json",
+        "docs/record-index-cache.md"
+      ],
+      "tests": [
+        "crates/fallout-data/tests/index_cache.rs",
+        "crates/fallout-data/src/cache.rs",
+        "crates/fallout-cli/src/index_evidence.rs"
+      ],
+      "known_gaps": [
+        "Metadata caching does not validate deferred bodies or close M1",
+        "Winning identities rebuild; canonical content persistence is not implemented",
+        "Every source is fully hashed on each open; preparation remains synchronous",
+        "Killed-process cache publication is not save-grade persistence or a complete job journal",
+        "Archive/loose precedence, measured retail profile and known source defects remain open"
+      ],
+      "tolerance": "Every selected field exact after removing only cache receipts; artifact/source hashes exact; timings are single sequential wall-clock samples",
+      "last_verified_revision": null
     }
   ]
 }

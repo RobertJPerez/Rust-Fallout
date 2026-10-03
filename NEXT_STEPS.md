@@ -105,7 +105,11 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    The condition reader now preserves all 80,627 CTDA fields, including 125 short
    layouts and two records with unverified fields. See
    [condition fields](docs/condition-fields.md). Parameters, grouping, subject
-   resolution and query evaluation remain open.
+   resolution and query evaluation remain open. Typed QUST/INFO/DIAL structure now
+   preserves 51,135 records, 176,792 sections and 59,225 script owners. Two short
+   quest headers and eighteen orphaned shared-info entries remain diagnostic;
+   see [narrative structure](docs/narrative-structure.md). Continue canonical winning
+   record/script identity, INFO parent GRUP membership and loaded target lookup.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

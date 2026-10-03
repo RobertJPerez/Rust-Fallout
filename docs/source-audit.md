@@ -180,3 +180,12 @@ helpers. Original Rust and C++ compare every authored condition field and source
 extent. Short layouts and two records' unexplained fields remain intact; no editor
 migration or condition evaluation is applied. Function parameter meanings and
 record ownership/grouping remain open. See [condition fields](condition-fields.md).
+
+Checkpoint 22 reads the pinned xEdit QUST, INFO, DIAL and embedded-script schema
+blocks completely, plus the selected common NextSpeaker, QSTR and editor-only
+INFO-order definitions. Original Rust retains borrowed fields, ordered section
+identities and separate condition/script owners. Original offline C++ compares
+all source fields and owners. Two short quest headers and eighteen orphaned shared
+infos are retained; xEdit's after-load cleanup and default insertion are not applied.
+This is schema evidence, not verified retail selection or timing. See
+[narrative structure](narrative-structure.md).

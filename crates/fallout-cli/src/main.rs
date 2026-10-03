@@ -3,6 +3,7 @@ mod collision;
 mod command_catalogue;
 mod condition_inspection;
 mod expression_inspection;
+mod narrative_inspection;
 mod operand_inspection;
 mod pe_image;
 mod script_profile;
@@ -65,6 +66,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Preserve authored quest/dialogue sections and condition/script ownership.
+    Narrative {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Decode authored condition fields, retaining short layouts and raw parameters.
     Conditions {
         #[arg(long)]
@@ -370,6 +380,22 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::Narrative {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let report = narrative_inspection::inspect(
+                &install,
+                defer_unrelated_payloads,
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = report["findings"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("quest/dialogue ownership has source findings; see report".into());
+            }
+        }
         Command::Conditions {
             install,
             defer_unrelated_payloads,

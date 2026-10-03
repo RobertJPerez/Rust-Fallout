@@ -7,6 +7,7 @@ mod condition_evidence;
 mod expression_evidence;
 mod height_evidence;
 mod index_evidence;
+mod narrative_evidence;
 mod operand_evidence;
 mod preview_evidence;
 mod script_evidence;
@@ -40,7 +41,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=21))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=22))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -364,6 +365,12 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let narrative_oracle = root.join("local/narrative-oracle-build/Release/narrative-oracle.exe");
+    let narrative_digest = if args.checkpoint == 22 {
+        Some(digest(&narrative_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -519,6 +526,17 @@ fn run(args: Args) -> Result<()> {
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
             },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let narrative_evidence = if args.checkpoint == 22 {
+        Some(narrative_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &narrative_oracle,
             &args.install,
         )?)
     } else {
@@ -694,6 +712,9 @@ fn run(args: Args) -> Result<()> {
         || binding_digest
             .as_ref()
             .is_some_and(|expected| digest(&binding_oracle).as_ref().ok() != Some(expected))
+        || narrative_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&narrative_oracle).as_ref().ok() != Some(expected))
         || condition_digest
             .as_ref()
             .is_some_and(|expected| digest(&condition_oracle).as_ref().ok() != Some(expected))
@@ -883,6 +904,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut narrative) = narrative_evidence {
+        narrative["checkpoint"] = args.checkpoint.into();
+        narrative["engine_revision"] = revision.clone().into();
+        narrative["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["narrative_structure"] = narrative.clone();
+        verification["narrative_oracle_binary_sha256"] = narrative_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this quest/dialogue ownership checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "narrative-structure"),
+            narrative,
         ));
     } else if let Some(mut conditions) = condition_evidence {
         conditions["checkpoint"] = args.checkpoint.into();

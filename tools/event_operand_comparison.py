@@ -88,6 +88,42 @@ def declarations(script):
     return result
 
 
+def validate_projection(script, binding):
+    """Tie the loaded storage projection to the independently read tuple.
+
+    A matching source hash does not prove a projected field is correct. Check
+    raw declaration/reference offsets and words before interpreting live values.
+    """
+    status = binding["status"]
+    if status in {1, 3}:
+        declaration = next((d for d in script["declarations"] if d["index"] == binding["target_value"]), None)
+        require(declaration is not None and declaration["decoded_offset"] == binding["local_declaration_decoded_offset"]
+                and declaration["type_byte"] == binding["local_type_byte"], "Loaded local declaration differs from native tuple")
+        if status == 1:
+            require(declaration["index"] == binding["index"], "Loaded local index differs from native tuple")
+    context = binding["context_reference"]
+    if context is not None or binding["role"] in {1, 3, 5, 6, 7, 9, 10, 12}:
+        index = context if context is not None else binding["index"]
+        source = next((r for r in script["references"] if r["index"] == index), None)
+        if status == 6:
+            require(source is None, "Native missing reference was supplied by loaded projection")
+            return
+        require(source is not None and source["decoded_offset"] == binding["reference_field_decoded_offset"],
+                "Loaded reference field differs from native tuple")
+        if context is not None:
+            source_kind = {1: "SCRO", 2: "SCRV"}.get(binding["context_target_kind"])
+            raw_value = binding["context_target_value"]
+        else:
+            source_kind = "SCRO" if status == 2 else "SCRV"
+            raw_value = binding["target_value"]
+        require(source["source_kind"] == source_kind and source["value"] == raw_value,
+                "Loaded reference kind or target word differs from native tuple")
+        if source_kind == "SCRO" and raw_value == 0:
+            require(source["status"] == "null_form", "Loaded null reference status differs")
+        if source_kind == "SCRV" and status < 5:
+            require(source["status"] == "dynamic_variable", "Loaded SCRV storage status differs")
+
+
 def storage(instance, schema, index, destination=False):
     declaration = schema.get(index)
     if declaration is None:
@@ -104,7 +140,7 @@ def storage(instance, schema, index, destination=False):
     return value, None
 
 
-def reference(instance, script, schema, index, registered, check_storage=False):
+def reference(instance, script, schema, index, registered):
     rows = {r["index"]: r for r in script["references"]}
     source = rows.get(index)
     if source is None:
@@ -116,11 +152,7 @@ def reference(instance, script, schema, index, registered, check_storage=False):
     if status == "null_form":
         return {"kind": "null"}, None
     if status == "dynamic_variable":
-        if check_storage:
-            value, error = storage(instance, schema, source["value"])
-        else:
-            value = instance["values"].get(source["value"])
-            error = "missing_local" if value is None else "uninitialized_local" if value["kind"] == "uninitialized" else None
+        value, error = storage(instance, schema, source["value"])
         if error:
             return None, error
         if value["kind"] != "reference":
@@ -137,8 +169,7 @@ def expected(instance, script, schema, binding, registered):
     if role in {3, 5, 9}:
         return {"status": "unresolved", "code": "unverified_global_value"}
     if role in {1, 6, 7, 10, 12}:
-        value, error = reference(instance, script, schema, binding["index"], registered,
-                                 check_storage=binding["status"] == 3)
+        value, error = reference(instance, script, schema, binding["index"], registered)
         if error:
             return {"status": "unresolved", "code": error}
         return {"status": "resolved", "access": "reference", "resolution": {"kind": "reference", "value": value}}
@@ -244,6 +275,7 @@ def compare(probe, frames, loaded, state, rust, native, bundle_sha, snapshot_sha
         require(observed == selected, f"Selected native tuple coverage/order differs at event {pending['sequence']}")
         schema = declarations(script)
         for operand in result["operands"]:
+            validate_projection(script, operand["binding"])
             wanted = expected(instance, script, schema, operand["binding"], registered)
             actual = {k: v for k, v in operand["outcome"].items() if k != "reason"}
             require(actual == wanted, f"Saved storage association differs at event {pending['sequence']} offset {operand['binding']['scda_offset']}")
@@ -329,6 +361,52 @@ def negative_checks(inputs):
             raise RuntimeError(f"Altered evidence was accepted: {name}")
         finally:
             owner[field] = original
+    # Change the loader and probe together. An audit that uses only their
+    # agreement would miss this; the independent native tuple must reject it.
+    scripts = {key(s["handle"]): s for s in loaded["scripts"]}
+    for row in probe["events"]:
+        if row["probe"] is None:
+            continue
+        local_operand = next((o for o in row["probe"]["operands"] if o["outcome"]["status"] == "resolved"
+                              and o["outcome"]["resolution"]["kind"] == "local"), None)
+        if local_operand is not None:
+            source = next(d for d in scripts[key(row["definition"])]["declarations"]
+                          if d["index"] == local_operand["binding"]["index"])
+            projected = local_operand["outcome"]["resolution"]["declaration"]
+            original_source, original_projection = source["decoded_offset"], projected["declaration_decoded_offset"]
+            source["decoded_offset"] ^= 1
+            projected["declaration_decoded_offset"] = source["decoded_offset"]
+            try:
+                compare(*inputs)
+            except RuntimeError as error:
+                require(str(error) == "Loaded local declaration differs from native tuple", "Correlated projection failed for unrelated reason")
+                rejected.append("correlated_loaded_and_probe_declaration")
+            else:
+                raise RuntimeError("Correlated altered storage projection was accepted")
+            finally:
+                source["decoded_offset"], projected["declaration_decoded_offset"] = original_source, original_projection
+            break
+    require(len(rejected) == 9, "Correlated declaration negative case was omitted")
+    for row in probe["events"]:
+        if row["probe"] is None:
+            continue
+        variable = next((o for o in row["probe"]["operands"] if o["binding"]["status"] == 3), None)
+        if variable is not None:
+            script = scripts[key(row["definition"])]
+            source = next(d for d in script["declarations"] if d["index"] == variable["binding"]["target_value"])
+            original = source["type_byte"]
+            source["type_byte"] ^= 1
+            try:
+                compare(*inputs)
+            except RuntimeError as error:
+                require(str(error) == "Loaded local declaration differs from native tuple", "SCRV type negative failed for unrelated reason")
+                rejected.append("loaded_scrv_type_with_unchanged_reference_kind")
+            else:
+                raise RuntimeError("Altered SCRV type projection was accepted")
+            finally:
+                source["type_byte"] = original
+            break
+    require(len(rejected) == 10, "SCRV type negative case was omitted")
     return rejected
 
 

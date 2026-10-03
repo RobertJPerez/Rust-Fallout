@@ -76,9 +76,11 @@ The optional `--negative-checks` mode rejects changed saved bits, unresolved
 codes, omitted uses, shifted windows, changed binder/source identities, damaged
 native tuples and hidden source findings.
 
-Eleven runtime tests cover supported and unsupported storage, destinations,
+Twelve runtime tests cover supported and unsupported storage, destinations,
 reference payloads, actual foreign owners, player bindings, restoration, exact
 budgets, whole-cohort mismatch, source rejection and event-window isolation.
+The SCRV storage check is shared by direct references and foreign contexts;
+both report unsupported storage before trying to read an unset index-zero value.
 
 Private development capture checked 2,160 pending entries, 2,111 probes and
 54,498 selected uses. The native tuples and saved storage observations agree;

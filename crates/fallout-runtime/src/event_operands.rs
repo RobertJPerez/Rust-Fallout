@@ -191,21 +191,6 @@ impl World<'_> {
                 "Global reads and destinations are not implemented",
             ),
             1 | 6 | 7 | 10 | 12 => {
-                // SCRV entries name local storage. Check that declaration before
-                // reading; an unverified schema must not look merely unset.
-                if binding.status == 3 {
-                    let index = binding.target_value.expect("bound SCRV local");
-                    let instance = match self.instance(handle) {
-                        Ok(instance) => instance,
-                        Err(error) => return local_failure(error),
-                    };
-                    let Some(declaration) = instance.definition_schema.locals.get(&index) else {
-                        return local_failure(crate::Error::MissingLocal(index));
-                    };
-                    if let Err(error) = supported(declaration) {
-                        return local_failure(error);
-                    }
-                }
                 match self.resolve_script_reference(handle, u32::from(binding.index), player) {
                     Ok(value) => Outcome::Resolved {
                         access: Access::Reference,

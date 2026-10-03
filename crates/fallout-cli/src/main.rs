@@ -8,6 +8,7 @@ mod dialogue_inspection;
 mod expression_inspection;
 mod foreign_context_inspection;
 mod inspection_input;
+mod inventory_inspection;
 mod loaded_script_inspection;
 mod narrative_inspection;
 mod native_save_inspection;
@@ -75,6 +76,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Preserve winning base inventory entries, ownership words and template inputs.
+    BaseInventory {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+    },
     /// Probe compiled foreign locals through explicit host live script instances.
     ForeignContext {
         #[arg(long)]
@@ -492,6 +502,21 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::BaseInventory {
+            install,
+            load_order,
+            index_cache,
+        } => {
+            let report =
+                inventory_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["counts"]["source_findings"] != 0 {
+                return Err(
+                    "base inventory inspection retains source association findings; see report"
+                        .into(),
+                );
+            }
+        }
         Command::ForeignContext {
             install,
             load_order,

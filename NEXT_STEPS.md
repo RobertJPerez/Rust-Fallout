@@ -205,3 +205,10 @@ The header classification, static attachment and operand comparisons are separat
 from those engineering inputs; see [foreign live context](docs/foreign-live-context.md).
 Next: immutable item/inventory inputs and primitive query components, then bounded
 observable execution. Original list lifecycle, defaults and gameplay remain open.
+
+Checkpoint 31 adds immutable base inventories for winning CONT/NPC_/CREA records,
+including exact CNTO/COED fields, ACBS template flags and TPLT dependencies. See
+[base inventory](docs/base-inventory.md). Next: bounded source dependency planning
+and explicit mutable item counts, followed by primitive queries and observable
+execution. Source counts do not establish template/leveled expansion, initialization,
+equipment, ownership enforcement or original count coercion.

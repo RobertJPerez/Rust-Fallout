@@ -282,3 +282,13 @@ the new requests to independently checked source facts. No upstream implementati
 is copied or linked and no original live state is captured. Exact selected scopes
 and file hashes are recorded in the source lock; see
 [foreign live context](foreign-live-context.md).
+
+Checkpoint 31 reads selected pinned xEdit CNTO/COED, CONT, actor ACBS/TPLT and
+inventory template declarations, plus the complete common COED owner decider.
+It reads selected xNVSE TESContainer/ContainerExtraData and ExtraContainerChanges
+layouts, and the complete GetCountForForm helper. Disk condition bits are 32-bit;
+the runtime layout uses a double. Neither conversion nor query behavior is assumed.
+Original Rust and offline C++ independently retain exact source fields and bind
+master-relative links. No upstream implementation is copied or linked. Line scopes
+and whole-file hashes are recorded in sources.lock.json; see
+[base inventory](base-inventory.md).

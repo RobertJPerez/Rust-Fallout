@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 231 tests pass, including malformed compression, forward/cyclic links,
+- 238 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -266,3 +266,8 @@ owner's current script instance, reads typed values and validates writes against
 that bank. Every compiled foreign request is exercised with explicit engineering
 lists and repeated after native restoration. Original lifecycle and execution
 semantics remain unmeasured.
+
+[Base inventory declarations](docs/base-inventory.md) now preserve winning container
+and actor item entries, signed counts, ownership unions and template inputs.
+Duplicate items remain ordered, and source fields agree with an independent
+reader. Mutable inventories, equipment and leveled-list expansion remain open.

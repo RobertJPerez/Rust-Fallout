@@ -264,6 +264,7 @@ fn fixtures(root: &Path, run: &Path, cli: &Path, oracle: &Path) -> Result<Value>
     let binary = run.join("schema-fixture-order.bin");
     write_new(&binary, &order_bundle(&names))?;
     let cache = run.join("schema-fixture-cache");
+    fs::create_dir(&cache)?;
     let inputs = Inputs {
         root,
         run,

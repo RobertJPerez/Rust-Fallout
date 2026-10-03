@@ -18,6 +18,7 @@ pub mod nif_collision;
 pub mod nif_scene;
 pub mod obscript;
 pub mod obscript_census;
+pub mod operand_bindings;
 pub mod parity;
 pub mod planning;
 pub mod plugin;

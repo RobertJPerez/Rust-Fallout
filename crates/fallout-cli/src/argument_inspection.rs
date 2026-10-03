@@ -1,14 +1,7 @@
 //! Offline native argument inspection; raw comparison bytes stay in a guarded local
 //! destination. Only source metadata, counts and hashes enter the JSON report.
-use super::{Result, command_catalogue, data_files, protected_tree};
-use fallout_data::{
-    baseline,
-    obscript::{
-        argument_census::{self, CommandSignature, Signatures},
-        arguments::{Convention, Parameter},
-        expression::{Operator, Operators},
-    },
-};
+use super::{Result, command_catalogue, data_files, protected_tree, script_profile};
+use fallout_data::{baseline, obscript::argument_census};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -19,42 +12,8 @@ use std::{
 
 pub(super) fn inspect(install: &Path, focused: bool, bundle_path: Option<&Path>) -> Result<Value> {
     let catalogue = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
-    let operators = Operators::new(
-        catalogue
-            .operators
-            .iter()
-            .map(|row| Operator {
-                code: row.code,
-                precedence: row.precedence,
-                spelling: row.spelling.as_bytes().to_vec(),
-            })
-            .collect(),
-    )?;
-    let signatures: Signatures = catalogue
-        .script_commands
-        .iter()
-        .map(|row| {
-            let convention = match row.parse_convention {
-                "vanilla-default" => Convention::Default,
-                "vanilla-message" => Convention::Message,
-                _ => Convention::Unknown,
-            };
-            (
-                row.id as u16,
-                CommandSignature {
-                    convention,
-                    parameters: row
-                        .parameters
-                        .iter()
-                        .map(|param| Parameter {
-                            type_id: param.type_id,
-                            optional_word: param.optional_word,
-                        })
-                        .collect(),
-                },
-            )
-        })
-        .collect();
+    let operators = script_profile::operators(&catalogue)?;
+    let signatures = script_profile::signatures(&catalogue);
     let mut total_calls = 0_u64;
     let mut bundle = bundle_path
         .map(|path| -> Result<_> {

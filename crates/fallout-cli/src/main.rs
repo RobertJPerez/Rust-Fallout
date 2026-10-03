@@ -2,7 +2,9 @@ mod argument_inspection;
 mod collision;
 mod command_catalogue;
 mod expression_inspection;
+mod operand_inspection;
 mod pe_image;
+mod script_profile;
 mod terrain_compare;
 
 use clap::{Parser, Subcommand};
@@ -62,6 +64,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Associate all supported compiled operands with their owning script tables.
+    OperandBindings {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Decode native operands from vanilla compiled scripts; invokes no handler.
     NativeArguments {
         #[arg(long)]
@@ -349,6 +360,24 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::OperandBindings {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let report = operand_inspection::inspect(
+                &install,
+                defer_unrelated_payloads,
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = report["table_units_with_issues"] != 0
+                || report["decode_issues"] != 0
+                || report["missing_bindings"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("operand table associations have issues; see report".into());
+            }
+        }
         Command::NativeArguments {
             install,
             defer_unrelated_payloads,

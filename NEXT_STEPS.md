@@ -98,8 +98,10 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    metadata. See [compiled expressions](docs/script-expressions.md). Native
    arguments now decode across 67,931 calls, with 80,377 regular operands and
    75 message substitutions. ShowMessage trailing words remain uninterpreted;
-   see [native operands](docs/native-arguments.md). Continue table/reference binding,
-   postfix structure and control-flow/behavior evidence.
+   see [native operands](docs/native-arguments.md). Operand table associations now match independently across 159,111 uses;
+   25,560 foreign locals retain deferred target declarations. See
+   [operand associations](docs/operand-bindings.md). Continue loaded target lookup,
+   typed conditions, postfix structure and control-flow/behavior evidence.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

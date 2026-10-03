@@ -167,3 +167,10 @@ all 67,931 authored instruction/expression calls agree. The shared offline
 expression reader and descriptor catalogue are freshly compared after refactoring.
 ShowMessage trailing words retain unverified semantics. Native type checks,
 conversions and behavior are unfinished; see [native operands](native-arguments.md).
+
+Checkpoint 20 associates compiled indices with their owning script tables.
+Original C++ independently parses complete decoded records and compares every
+association digest. Foreign local declarations remain deferred to loaded target
+scripts; no runtime value or form-existence claim is made. Shared original
+offline table/native helpers retain complete fresh regression comparisons. See
+[operand associations](operand-bindings.md).

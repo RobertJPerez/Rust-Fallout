@@ -1,5 +1,6 @@
 // Original offline FACT reader; no runtime or production decoder is called.
 #pragma once
+#include "body.hpp"
 namespace actor_factions {
 using namespace fallout_records;
 using actor_classes::bytes;
@@ -76,15 +77,7 @@ static std::string project(const HeaderIndex& index) {
         const auto version=static_cast<uint16_t>(integer(entry.header,20,2));Document document;std::string body_sha="null";
         if(deleted)++counts.values["deleted_records"];
         else {
-            auto body=source.source->read(entry.offset+24,static_cast<size_t>(integer(entry.header,4,4)));
-            if(flags&0x40000) {
-                if(body.size()<4)throw std::runtime_error("compressed faction header");
-                const auto expected=static_cast<size_t>(integer(body,0,4));if(expected>64*1024*1024)throw std::runtime_error("compressed faction budget");
-                auto decoded=fallout_zlib::decode(Bytes(body.begin()+4,body.end()),expected);
-                if(decoded.stored_adler!=decoded.calculated_adler)throw std::runtime_error("faction compressed checksum");body=std::move(decoded.payload);
-            }
-            counts.values["decoded_bytes"]+=body.size();
-            if(body.size()>64*1024*1024||counts.values["decoded_bytes"]>256ULL*1024*1024)throw std::runtime_error("faction decoded byte budget");
+            auto body=actor_body::read(index,entry,counts.values["decoded_bytes"]);
             body_sha=quote(fallout_tables::hash(body));document=decode(index,entry,body,version,counts);++counts.versions[std::to_string(version)];
         }
         const auto header=object({{"kind",bytes(entry.header,0,4)},{"offset",std::to_string(entry.offset)},

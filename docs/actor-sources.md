@@ -404,3 +404,38 @@ header/scalar path only, and is not placed-actor semantic evidence.
 Health/count/linked/patrol extras remain separate future source slices. This
 catalogue does not infer a cell/world encounter-zone fallback, effective level,
 merchant inventory, live placement or actor initialization.
+
+## Native body allocation bounds (ACT-08)
+
+Review identified that the offline native scalar/class/faction/placement readers
+checked some body budgets after allocating or inflating the body. Their shared
+owned `tools/actor-oracle/body.hpp` now computes the smaller of 64 MiB per record
+and the catalogue's remaining 256 MiB decoded budget before reading source bytes.
+Stored lengths are checked before the locked Source reader is called. Compressed
+declared lengths are checked before constructing the inflater's output, and the
+remaining limit is also passed to the unchanged authored zlib decoder. Complete
+decoded length and Adler checks still apply, and the ledger advances only for a
+successfully validated body. Shared/pinned oracle infrastructure is unchanged.
+
+Six native checks instrument the reader/decoder callbacks to verify that
+oversized stored bodies are never read and over-budget declared payloads never
+reach decompression, including a partially consumed cumulative budget. Exact
+remaining uncompressed and an independently authored valid compressed case pass.
+The build wrapper builds/runs these checks in the caller's private native build
+directory. Four direct-file NPC_/CLAS/FACT/ACHR fixtures with hostile inflated
+prefixes are rejected by both readers, and the native diagnostic confirms the
+pre-inflate rejection point. Inputs/results are retained under
+`local\act08-body-prefix-negatives-20261003`. Full original comparisons with the
+corrected binary agree in cold, warm and reordered phases for every requested
+scalar, association, class, faction and placement projection. Counts remain
+6,455 actors, 100 classes, 772 factions and 7,681 placements; the known deleted
+voice source finding remains explicit. Authored class, faction and placement
+comparisons also agree in all three phases, including malformed/duplicate source
+findings, tombstones and current-store bindings. Each completed run confirms
+that its actual source snapshot and executable hashes stayed unchanged.
+
+Evidence is in `local\act08-body-bounds-comparison-20261003-01`,
+`local\act08-class-authored-comparison-20261003`,
+`local\act08-faction-authored-comparison-20261003` and
+`local\act08-placement-authored-comparison-20261003`. This tooling fix does not
+alter the Rust catalogues or establish gameplay parity.

@@ -1,5 +1,6 @@
 // Original offline placed-actor projection from winning plugin bytes.
 #pragma once
+#include "body.hpp"
 namespace actor_placements {
 using namespace fallout_records;
 using actor_classes::bytes;
@@ -72,9 +73,7 @@ static std::string project(const HeaderIndex& index){
         const auto flags=static_cast<uint32_t>(integer(entry.header,8,4));const bool deleted=flags&0x20;const auto version=static_cast<uint16_t>(integer(entry.header,20,2));Document document;std::string body_sha="null";
         if(deleted)++counts.values["deleted_records"];
         else{
-            auto body=source.source->read(entry.offset+24,static_cast<size_t>(integer(entry.header,4,4)));
-            if(flags&0x40000){if(body.size()<4)throw std::runtime_error("compressed placed actor header");const auto expected=static_cast<size_t>(integer(body,0,4));if(expected>64*1024*1024)throw std::runtime_error("compressed placed actor budget");auto decoded=fallout_zlib::decode(Bytes(body.begin()+4,body.end()),expected);if(decoded.stored_adler!=decoded.calculated_adler)throw std::runtime_error("placed actor compressed checksum");body=std::move(decoded.payload);}
-            counts.values["decoded_bytes"]+=body.size();if(body.size()>64*1024*1024||counts.values["decoded_bytes"]>256ULL*1024*1024)throw std::runtime_error("placed actor decoded byte budget");
+            auto body=actor_body::read(index,entry,counts.values["decoded_bytes"]);
             body_sha=quote(fallout_tables::hash(body));document=decode(index,entry,body,kind,version,counts);++counts.versions[kind+":"+std::to_string(version)];
         }
         const auto header=object({{"kind",bytes(entry.header,0,4)},{"offset",std::to_string(entry.offset)},{"stored_size",std::to_string(integer(entry.header,4,4))},{"flags",std::to_string(flags)},{"form_id",std::to_string(integer(entry.header,12,4))},{"revision",bytes(entry.header,16,20)},{"version",std::to_string(version)},{"trailing_bytes",bytes(entry.header,22,24)}});

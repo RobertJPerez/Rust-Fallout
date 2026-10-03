@@ -1,6 +1,7 @@
 // Original offline source-field comparison. No replacement/runtime code is called.
 #include "../oracle-common/record_source.hpp"
 #include "../oracle-common/zlib_source.hpp"
+#include "body.hpp"
 #include "associations.hpp"
 #include "classes.hpp"
 #include "factions.hpp"
@@ -114,17 +115,7 @@ int wmain(int argc,wchar_t** argv) {
             actor_associations::Document associations;
             if (deleted) ++counts.values["deleted_records"];
             else {
-                auto body=source.source->read(entry.offset+24,static_cast<size_t>(integer(entry.header,4,4)));
-                if (flags & 0x40000) {
-                    if (body.size()<4) throw std::runtime_error("compressed actor header");
-                    const auto expected=static_cast<size_t>(integer(body,0,4));
-                    if (expected>64*1024*1024) throw std::runtime_error("compressed actor budget");
-                    auto decoded=fallout_zlib::decode(Bytes(body.begin()+4,body.end()),expected);
-                    if (decoded.stored_adler!=decoded.calculated_adler) throw std::runtime_error("actor compressed checksum");
-                    body=std::move(decoded.payload);
-                }
-                counts.values["decoded_bytes"]+=body.size();
-                if (body.size()>64*1024*1024 || counts.values["decoded_bytes"]>256ULL*1024*1024) throw std::runtime_error("actor decoded byte budget");
+                auto body=actor_body::read(index,entry,counts.values["decoded_bytes"]);
                 body_sha=quote(fallout_tables::hash(body)); document=decode(body,kind,version,counts); ++counts.versions[kind+":"+std::to_string(version)];
                 if(include_associations)associations=actor_associations::decode(index,entry,body,kind,association_counts);
             }

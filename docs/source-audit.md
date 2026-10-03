@@ -331,3 +331,12 @@ source entry IDs share an original Rust host query; no original handler executes
 and argument/return coercion remains unverified. Independent full descriptor/CTDA
 comparisons stay separate from engineering result tests. Exact scopes/hashes are
 in the source lock; see [primitive queries](primitive-queries.md).
+
+Checkpoint 38 reads the selected pinned xEdit FLST definition and complete
+form-list editor sorting helper, plus the selected xNVSE BGSListForm declaration.
+Physical authored LNAM order is retained; editor sorting and live script-added
+member accounting are not imported as runtime policies. Own Rust/C++ projections
+read original source independently and compare every member binding and structural
+edge. Shared Rust Kosaraju and independent C++ Tarjan remain iterative and bounded.
+No upstream implementation is copied or linked. See [form lists](form-lists.md)
+and source-lock ranges/hashes. GetItemCount expansion and retail execution stay open.

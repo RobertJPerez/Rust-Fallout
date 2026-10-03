@@ -7,6 +7,7 @@ mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
 mod foreign_context_inspection;
+mod form_list_inspection;
 mod inspection_input;
 mod inventory_inspection;
 mod item_state_inspection;
@@ -149,6 +150,19 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+    },
+    /// Preserve winning ordered form-list members and structural dependencies.
+    FormLists {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long, requires = "root_id")]
+        root_plugin: Option<String>,
+        #[arg(long, requires = "root_plugin")]
+        root_id: Option<u32>,
     },
     /// Preserve authored leveled lists and plan inventory/template dependencies.
     LeveledLists {
@@ -662,6 +676,21 @@ fn run(args: Args) -> Result<()> {
                         .into(),
                 );
             }
+        }
+        Command::FormLists {
+            install,
+            load_order,
+            index_cache,
+            root_plugin,
+            root_id,
+        } => {
+            let report = form_list_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                root_plugin.as_deref().zip(root_id),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::LeveledLists {
             install,

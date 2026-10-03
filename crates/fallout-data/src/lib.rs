@@ -14,6 +14,8 @@ pub mod condition_operands;
 pub mod content;
 pub mod coordinates;
 pub mod dialogue_membership;
+pub mod form_lists;
+mod graph;
 pub mod identity;
 pub mod index_cache;
 pub mod inventory;

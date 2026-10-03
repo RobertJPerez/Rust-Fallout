@@ -259,3 +259,12 @@ file creation; five real publication regressions run in the standard checks.
 See [report publication](docs/report-publication.md). Gameplay dependencies remain
 unchanged: measured original count/list/coercion behavior, bounded VM execution,
 complete actor/player/quest persistence and retail comparisons are still open.
+
+Checkpoint 38 adds immutable source form lists, ordered member bindings and bounded
+structural closure. All 608 winning original lists and 6,090 member occurrences
+match an independent source reader in the development comparison; final proof is
+recorded separately in the checkpoint receipt. Eight tests cover namespaces,
+tombstones, malformed/tainted input, duplicates, cycles, closure and budgets.
+See [form lists](docs/form-lists.md). Next: measured original list expansion,
+argument/return coercion and observable VM execution. Loading authored members
+does not initialize runtime script-added lists or accept GetItemCount expansion.

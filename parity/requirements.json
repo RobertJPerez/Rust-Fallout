@@ -1166,6 +1166,36 @@
       ],
       "tolerance": "Exact native definition/declaration/reference/owner/version equality, independent full-scan winning metadata digest and direct original header/source identities; no live state or execution acceptance",
       "last_verified_revision": "cfd1276eb382ca457df27e105a3c7f0f9093ab8e"
+    },
+    {
+      "id": "fnv.scripts.static-quest-declarations",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "scripts",
+      "requirement": "Associate authored winning quest SCRI attachments with versioned script definitions and foreign declarations, preserving missing/null/deleted/ambiguous states and deferring live event lists and values.",
+      "evidence": [
+        "reports/checkpoint-25-quest-scripts.json",
+        "reports/checkpoint-25-verification.json",
+        "docs/quest-script-attachments.md"
+      ],
+      "affected_content": "640 winning quests / 465 authored script attachments / 25549 foreign operand uses; 20542 static quest declarations and 5007 placed-reference event-list dependencies",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-data/tests/quest_scripts.rs",
+        "tools/quest-script-oracle",
+        "tools/operand-oracle",
+        "fallout-evidence --checkpoint 25"
+      ],
+      "known_gaps": [
+        "authored quest SCRI is a static relation; the current live event-list script remains unmeasured",
+        "placed references require live ExtraScript/event-list state; no base-script substitution",
+        "dynamic SCRV contexts, player bindings and runtime local values remain unavailable",
+        "original effective load order and record-specific merge behavior remain unmeasured",
+        "compressed extraction remains Rust-owned; prior complete decoded table coverage is independently filtered",
+        "two original short quest headers and three stale empty-unit counts remain source findings",
+        "no command effects, script scheduling, quest progression or retail acceptance"
+      ],
+      "tolerance": "Exact independently compared source/header identities, quest attachment rows and foreign declarations; all winning operand digests match a fresh full source scan; no runtime values or behavior acceptance",
+      "last_verified_revision": "6a1665e8cac22fe1aa72c030eadab83f506378e7"
     }
   ]
 }

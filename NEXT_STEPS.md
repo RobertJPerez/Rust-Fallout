@@ -153,3 +153,10 @@ adapters remain open. Checkpoint 04 was uploaded as commit
 `d33c7a11d3288a321604fad43b3021f28a7ed43b` to
 [RobertJPerez/Rust-Fallout](https://github.com/RobertJPerez/Rust-Fallout). The current
 verification report binds the tested implementation revision and source/binary hashes.
+
+Checkpoint 24 adds the immutable winning script catalogue, versioned handles,
+source owner metadata and explicit reference dependency states. See
+[loaded scripts](docs/loaded-scripts.md). Next: associate static quest SCRI
+definitions and resolve foreign declaration lookups where the source relation
+is established. Placed-reference live event lists and SCRV values remain runtime
+dependencies; do not substitute a base-object authoring link for a live script.

@@ -526,6 +526,15 @@ pub enum RuntimeBinding {
     NvPlayerReference,
 }
 
+/// Hardcoded engine references have no authored record to load. This only
+/// identifies the dependency; the player instance must be supplied at runtime.
+pub fn runtime_binding(key: &FormKey) -> Option<RuntimeBinding> {
+    (key.profile == ProfileId::NvOriginal
+        && key.origin_plugin == "falloutnv.esm"
+        && key.local_id == 0x14)
+        .then_some(RuntimeBinding::NvPlayerReference)
+}
+
 #[derive(Debug, Default, Serialize)]
 pub struct RuntimeDependency {
     pub occurrences: u64,

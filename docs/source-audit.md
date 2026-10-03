@@ -199,3 +199,14 @@ inspection. Payloads other than TES4 remain deferred; retail INFO ordering and
 record-specific override behavior remain open. Index cache format v2 has fresh
 cold/warm, corruption and selected-cell regression evidence. See
 [dialogue membership](dialogue-membership.md).
+
+Checkpoint 24 uses the already inspected xEdit ownership/table definitions and
+xNVSE first-variable lookup source. Original Rust loads immutable winning script
+definitions and retains source versions, authored declarations and reference
+dependency states. Original offline C++ rebuilds original headers and namespaces,
+compares all loaded unit metadata and versions, and independently filters the
+bound full checkpoint 17 table scan for completeness. Uncompressed bodies are
+compared directly with original bytes; compressed extraction remains Rust-owned.
+Moving the original header reader into a shared offline helper triggers a fresh
+complete checkpoint 23 regression. No live event lists, runtime values or script
+execution are implemented. See [loaded scripts](loaded-scripts.md).

@@ -4,6 +4,7 @@ mod command_catalogue;
 mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
+mod loaded_script_inspection;
 mod narrative_inspection;
 mod operand_inspection;
 mod pe_image;
@@ -67,6 +68,17 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Load immutable winning scripts, source owners and reference dependencies.
+    LoadedScripts {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Index winning INFO records by authored topic-child group membership.
     DialogueMembership {
         #[arg(long)]
@@ -390,6 +402,25 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::LoadedScripts {
+            install,
+            load_order,
+            index_cache,
+            comparison_bundle,
+        } => {
+            let report = loaded_script_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = report["counts"]["scripts_with_issues"] != 0
+                || report["counts"]["source_ownership_findings"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("loaded script catalogue retains source findings; see report".into());
+            }
+        }
         Command::DialogueMembership {
             install,
             load_order,

@@ -1,4392 +1,2278 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "d33c7a11d3288a321604fad43b3021f28a7ed43b",
-  "revision_note": "Original corpus evidence preserved at initial checkpoint commit; not regenerated for checkpoint 05.",
-  "evidence": "https://github.com/TES5Edit/TES5Edit/blob/9fb016884bec138ea6c7b872cec831537d464c3e/Core/wbDefinitionsFNV.pas",
-  "interpretation": "CTDA function IDs, not SCDA bytecode opcodes. Names and execution semantics remain unaudited.",
+  "last_verified_revision": "e2bf84d7f4d7289822f68efbcb8fdcac0f330b5d",
+  "executable_sha256": "3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d",
+  "evidence": "reports/checkpoint-36-primitive-queries.json",
+  "interpretation": "CTDA function IDs, separately linked to exact executable command metadata; original query/group evaluation unimplemented",
+  "winning_fields_observed": 80467,
   "unique_functions_observed": 148,
+  "evaluation_ready": false,
+  "retail_parity_accepted": false,
   "functions": [
     {
       "function_id": 1,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4097,
+      "name": "GetDistance",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200636,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 140,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 443,
-          "file_offset": 229068382,
-          "form_id": 1177693,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 132,
-          "file_offset": 25536616,
-          "form_id": 16832853,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 5,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4101,
+      "name": "GetLocked",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 95,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 257,
-          "file_offset": 854429,
-          "form_id": 16846470,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 946,
-          "file_offset": 5864441,
-          "form_id": 1261380,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 353,
-          "file_offset": 815458,
-          "form_id": 16827937,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 516,
-          "file_offset": 955285,
-          "form_id": 16865296,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 6,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4102,
+      "name": "GetPos",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201092,
+          "optional_word": 0,
+          "type_id": 8,
+          "type_name": "Axis"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 4,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 5485,
-          "file_offset": 242286706,
-          "form_id": 1276601,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 14,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4110,
+      "name": "GetActorValue",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201152,
+          "optional_word": 0,
+          "type_id": 5,
+          "type_name": "Actor Value"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2074,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 116,
-          "file_offset": 791323,
-          "form_id": 16854063,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 91,
-          "file_offset": 5565489,
-          "form_id": 1523424,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 118,
-          "file_offset": 75432,
-          "form_id": 16779411,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 219,
-          "file_offset": 1035358,
-          "form_id": 16839334,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 139,
-          "file_offset": 25143875,
-          "form_id": 16813219,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 120,
-          "file_offset": 915765,
-          "form_id": 16857352,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 18,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4114,
+      "name": "GetCurrentTime",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 138,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 513,
-          "file_offset": 229065679,
-          "form_id": 1529913,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 212,
-          "file_offset": 782083,
-          "form_id": 16831153,
-          "record_kind": "ENCH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 24,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4120,
+      "name": "GetScale",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 98,
-          "file_offset": 244002520,
-          "form_id": 208181,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 25,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4121,
+      "name": "IsMoving",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 49,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 64,
-          "file_offset": 6173784,
-          "form_id": 16842327,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 117,
-          "file_offset": 242579857,
-          "form_id": 1517895,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 65,
-          "file_offset": 1369271,
-          "form_id": 16845729,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 141,
-          "file_offset": 793493,
-          "form_id": 16827435,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 26,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4122,
+      "name": "IsTurning",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 107,
-          "file_offset": 793493,
-          "form_id": 16827435,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 32,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4128,
+      "name": "GetInSameCell",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200636,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 33,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 77,
-          "file_offset": 6159727,
-          "form_id": 16839355,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 195,
-          "file_offset": 229089024,
-          "form_id": 1276803,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 35,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4131,
+      "name": "GetDisabled",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 168,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 807,
-          "file_offset": 864642,
-          "form_id": 16835912,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 148,
-          "file_offset": 230350936,
-          "form_id": 1401049,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 1491,
-          "file_offset": 1355211,
-          "form_id": 16840432,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 158,
-          "file_offset": 25572460,
-          "form_id": 16796924,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 467,
-          "file_offset": 965212,
-          "form_id": 16859634,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 36,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4132,
+      "name": "MenuMode",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200096,
+          "optional_word": 1,
+          "type_id": 1,
+          "type_name": "Integer (Optional)"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 11,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 95,
-          "file_offset": 242623620,
-          "form_id": 1102129,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 45,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4141,
+      "name": "GetDetected",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201284,
+          "optional_word": 0,
+          "type_id": 6,
+          "type_name": "Actor"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 22,
-      "plugins": [
-        "FalloutNV.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 162,
-          "file_offset": 243083939,
-          "form_id": 1448192,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 485,
-          "file_offset": 16131412,
-          "form_id": 16828559,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 46,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4142,
+      "name": "GetDead",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 725,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 2075,
-          "file_offset": 1215856,
-          "form_id": 16857663,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 166,
-          "file_offset": 5585115,
-          "form_id": 280799,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 186,
-          "file_offset": 1405031,
-          "form_id": 16843324,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 750,
-          "file_offset": 818831,
-          "form_id": 16824733,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 560,
-          "file_offset": 1061749,
-          "form_id": 16817478,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 47,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 1286,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4143,
+      "name": "GetItemCount",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 2546,
-          "file_offset": 1209973,
-          "form_id": 16857667,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 778,
-          "file_offset": 5812318,
-          "form_id": 1459681,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 442,
-          "file_offset": 992765,
-          "form_id": 16832146,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 1226,
-          "file_offset": 25520495,
-          "form_id": 16791055,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 120,
-          "file_offset": 915056,
-          "form_id": 16863989,
-          "record_kind": "SPEL"
+          "descriptor_file_offset": 14200576,
+          "optional_word": 0,
+          "type_id": 50,
+          "type_name": "ObjectID"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 1284,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 49,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4145,
+      "name": "GetSleeping",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 18,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 129,
-          "file_offset": 242586887,
-          "form_id": 1439155,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 50,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4146,
+      "name": "GetTalkedToPC",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 141,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 444,
-          "file_offset": 229217345,
-          "form_id": 1529473,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 176,
-          "file_offset": 1019285,
-          "form_id": 16838240,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 121,
-          "file_offset": 25154382,
-          "form_id": 16813239,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 186,
-          "file_offset": 15740662,
-          "form_id": 16865915,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 53,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4149,
+      "name": "GetScriptVariable",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201500,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        },
+        {
+          "descriptor_file_offset": 14201512,
+          "optional_word": 0,
+          "type_id": 22,
+          "type_name": "Variable Name"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1756,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 522,
-          "file_offset": 835598,
-          "form_id": 16856400,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 1865,
-          "file_offset": 5825968,
-          "form_id": 1425852,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 455,
-          "file_offset": 563569,
-          "form_id": 16831128,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 716,
-          "file_offset": 818831,
-          "form_id": 16824733,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 1471,
-          "file_offset": 974365,
-          "form_id": 16838790,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 56,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4152,
+      "name": "GetQuestRunning",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201548,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 285,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 666,
-          "file_offset": 853705,
-          "form_id": 16846476,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 725,
-          "file_offset": 5858249,
-          "form_id": 1322441,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 163,
-          "file_offset": 1450584,
-          "form_id": 16838409,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 146,
-          "file_offset": 16050702,
-          "form_id": 16847494,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 58,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4154,
+      "name": "GetStage",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201548,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1335,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 369,
-          "file_offset": 1815576,
-          "form_id": 16850779,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 1009,
-          "file_offset": 5898241,
-          "form_id": 1079141,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 240,
-          "file_offset": 993552,
-          "form_id": 16833075,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 1560,
-          "file_offset": 25517414,
-          "form_id": 16791056,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 3449,
-          "file_offset": 974365,
-          "form_id": 16838790,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 59,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4155,
+      "name": "GetStageDone",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201644,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
+        },
+        {
+          "descriptor_file_offset": 14201656,
+          "optional_word": 0,
+          "type_id": 23,
+          "type_name": "Stage"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 510,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 268,
-          "file_offset": 837645,
-          "form_id": 16854599,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 397,
-          "file_offset": 228945670,
-          "form_id": 673566,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 660,
-          "file_offset": 1172526,
-          "form_id": 16843018,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 289,
-          "file_offset": 960000,
-          "form_id": 16864034,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 60,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4156,
+      "name": "GetFactionRankDifference",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201800,
+          "optional_word": 0,
+          "type_id": 17,
+          "type_name": "Faction"
+        },
+        {
+          "descriptor_file_offset": 14201812,
+          "optional_word": 0,
+          "type_id": 6,
+          "type_name": "Actor"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 116,
-          "file_offset": 231239672,
-          "form_id": 1393323,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 62,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4158,
+      "name": "IsRaining",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 3,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 75,
-          "file_offset": 244110503,
-          "form_id": 103742,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 63,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4159,
+      "name": "GetAttacked",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 11,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 135,
-          "file_offset": 242590485,
-          "form_id": 1420177,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 90,
-          "file_offset": 1371803,
-          "form_id": 16834541,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 64,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4160,
+      "name": "GetIsCreature",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 57,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 98,
-          "file_offset": 5585115,
-          "form_id": 280799,
-          "record_kind": "ENCH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 65,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4161,
+      "name": "GetLockLevel",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 736,
-          "file_offset": 5915191,
-          "form_id": 1016484,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 66,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4162,
+      "name": "GetShouldAttack",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201284,
+          "optional_word": 0,
+          "type_id": 6,
+          "type_name": "Actor"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 4,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 126,
-          "file_offset": 243706789,
-          "form_id": 935084,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 142,
-          "file_offset": 1447325,
-          "form_id": 16839093,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 67,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 1000,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4163,
+      "name": "GetInCell",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 291,
-          "file_offset": 1096713,
-          "form_id": 16856666,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 113,
-          "file_offset": 5623039,
-          "form_id": 456082,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 105,
-          "file_offset": 211486,
-          "form_id": 577675,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 753,
-          "file_offset": 1057047,
-          "form_id": 16841511,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 198,
-          "file_offset": 25049092,
-          "form_id": 16832906,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 1857,
-          "file_offset": 15978765,
-          "form_id": 16862200,
-          "record_kind": "QUST"
+          "descriptor_file_offset": 14201668,
+          "optional_word": 0,
+          "type_id": 9,
+          "type_name": "Cell"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 998,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 68,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4164,
+      "name": "GetIsClass",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201752,
+          "optional_word": 0,
+          "type_id": 16,
+          "type_name": "Class"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 10,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 198,
-          "file_offset": 229848740,
-          "form_id": 1457321,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 69,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4165,
+      "name": "GetIsRace",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201896,
+          "optional_word": 0,
+          "type_id": 15,
+          "type_name": "Race"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 52,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 169,
-          "file_offset": 231422322,
-          "form_id": 1442368,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 397,
-          "file_offset": 1506826,
-          "form_id": 16840315,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 274,
-          "file_offset": 25640153,
-          "form_id": 16819933,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 70,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4166,
+      "name": "GetIsSex",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201908,
+          "optional_word": 0,
+          "type_id": 18,
+          "type_name": "Sex"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 451,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 159,
-          "file_offset": 1446545,
-          "form_id": 16853944,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 419,
-          "file_offset": 228988324,
-          "form_id": 1529716,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 404,
-          "file_offset": 914761,
-          "form_id": 16847583,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 170,
-          "file_offset": 25262042,
-          "form_id": 16830594,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 334,
-          "file_offset": 15318835,
-          "form_id": 16838733,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 71,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4167,
+      "name": "GetInFaction",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201764,
+          "optional_word": 0,
+          "type_id": 17,
+          "type_name": "Faction"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 3582,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 424,
-          "file_offset": 228950540,
-          "form_id": 1529904,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 120,
-          "file_offset": 1352536,
-          "form_id": 16841573,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 146,
-          "file_offset": 902484,
-          "form_id": 928193,
-          "record_kind": "ENCH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 72,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 23785,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4168,
+      "name": "GetIsID",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 817,
-          "file_offset": 1023680,
-          "form_id": 16858090,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 85,
-          "file_offset": 5573927,
-          "form_id": 928199,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 139,
-          "file_offset": 211486,
-          "form_id": 577675,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 423,
-          "file_offset": 747225,
-          "form_id": 16847121,
-          "record_kind": "ALCH"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 232,
-          "file_offset": 25049092,
-          "form_id": 16832906,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 94,
-          "file_offset": 914904,
-          "form_id": 16865277,
-          "record_kind": "SPEL"
+          "descriptor_file_offset": 14200612,
+          "optional_word": 0,
+          "type_id": 21,
+          "type_name": "ObjectID"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 23749,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 73,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4169,
+      "name": "GetFactionRank",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201764,
+          "optional_word": 0,
+          "type_id": 17,
+          "type_name": "Faction"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 64,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 1889,
-          "file_offset": 5939256,
-          "form_id": 630035,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 74,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 2887,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4170,
+      "name": "GetGlobalValue",
+      "parameters": [
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 99,
-          "file_offset": 5617387,
-          "form_id": 609982,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 422,
-          "file_offset": 1279436,
-          "form_id": 16844624,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 250,
-          "file_offset": 25313005,
-          "form_id": 16831227,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 115,
-          "file_offset": 921861,
-          "form_id": 16852841,
-          "record_kind": "SPEL"
+          "descriptor_file_offset": 14201884,
+          "optional_word": 0,
+          "type_id": 19,
+          "type_name": "Global"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 2884,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 76,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4172,
+      "name": "GetDisposition",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201284,
+          "optional_word": 0,
+          "type_id": 6,
+          "type_name": "Actor"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 15,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 91,
-          "file_offset": 231610012,
-          "form_id": 321025,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 77,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4173,
+      "name": "GetRandomPercent",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 578,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 221,
-          "file_offset": 5887827,
-          "form_id": 16847698,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 223,
-          "file_offset": 231266505,
-          "form_id": 1528545,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 86,
-          "file_offset": 1367105,
-          "form_id": 16845739,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 93,
-          "file_offset": 789455,
-          "form_id": 16832191,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 154,
-          "file_offset": 915765,
-          "form_id": 16857352,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 79,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 11384,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4175,
+      "name": "GetQuestVariable",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 1131,
-          "file_offset": 831067,
-          "form_id": 16857906,
-          "record_kind": "TERM"
+          "descriptor_file_offset": 14201944,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
         },
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 490,
-          "file_offset": 5805226,
-          "form_id": 1469268,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 113,
-          "file_offset": 212663,
-          "form_id": 1372528,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 174,
-          "file_offset": 934133,
-          "form_id": 16818441,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 122,
-          "file_offset": 791350,
-          "form_id": 16828185,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 505,
-          "file_offset": 960000,
-          "form_id": 16864034,
-          "record_kind": "TERM"
+          "descriptor_file_offset": 14201956,
+          "optional_word": 0,
+          "type_id": 22,
+          "type_name": "Variable Name"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 11379,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 80,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4176,
+      "name": "GetLevel",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
-      "observed_calls": 46,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 224,
-          "file_offset": 1043560,
-          "form_id": 204204,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 93,
-          "file_offset": 5608204,
-          "form_id": 513266,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 224,
-          "file_offset": 1505981,
-          "form_id": 204204,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 368,
-          "file_offset": 25632714,
-          "form_id": 16826966,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 373,
-          "file_offset": 16128626,
-          "form_id": 16852846,
-          "record_kind": "PERK"
-        }
-      ]
+      "observed_calls": 44,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 81,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4177,
+      "name": "GetArmorRating",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 51,
-          "file_offset": 242696455,
-          "form_id": 704005,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 84,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4180,
+      "name": "GetDeadCount",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201992,
+          "optional_word": 0,
+          "type_id": 25,
+          "type_name": "Actor Base"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 444,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 174,
-          "file_offset": 229026802,
-          "form_id": 1404817,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 303,
-          "file_offset": 1051199,
-          "form_id": 16839893,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 692,
-          "file_offset": 25265221,
-          "form_id": 16830599,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 91,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4187,
+      "name": "GetIsAlerted",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 21,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 98,
-          "file_offset": 6173784,
-          "form_id": 16842327,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 101,
-          "file_offset": 242590485,
-          "form_id": 1420177,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 88,
-          "file_offset": 1366776,
-          "form_id": 16845741,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 99,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4195,
+      "name": "GetHeadingAngle",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200636,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 6,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 49,
-          "file_offset": 242650987,
-          "form_id": 347809,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 101,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4197,
+      "name": "IsWeaponOut",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 51,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 128,
-          "file_offset": 6175538,
-          "form_id": 16813790,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 61,
-          "file_offset": 242623620,
-          "form_id": 1102129,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 106,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4202,
+      "name": "IsFacingUp",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
-      "observed_calls": 41,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 86,
-          "file_offset": 6176213,
-          "form_id": 16785306,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 62,
-          "file_offset": 242580233,
-          "form_id": 1517188,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 88,
-          "file_offset": 25523527,
-          "form_id": 1032688,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observed_calls": 39,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 107,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4203,
+      "name": "GetKnockedState",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
-      "observed_calls": 35,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 63,
-          "file_offset": 6176561,
-          "form_id": 16785304,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 58,
-          "file_offset": 242580530,
-          "form_id": 1517186,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 68,
-          "file_offset": 1369578,
-          "form_id": 16845727,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 60,
-          "file_offset": 25523381,
-          "form_id": 1032692,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 82,
-          "file_offset": 16035205,
-          "form_id": 16840627,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observed_calls": 33,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 108,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4204,
+      "name": "GetWeaponAnimType",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 44,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 84,
-          "file_offset": 231736334,
-          "form_id": 1372174,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 109,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4205,
+      "name": "IsWeaponSkillType",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201152,
+          "optional_word": 0,
+          "type_id": 5,
+          "type_name": "Actor Value"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 52,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 153,
-          "file_offset": 6244027,
-          "form_id": 16839191,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 86,
-          "file_offset": 5618045,
-          "form_id": 504321,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 110,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4206,
+      "name": "GetCurrentAIPackage",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 15,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 102,
-          "file_offset": 229096931,
-          "form_id": 1321639,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 112,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4208,
+      "name": "IsIdlePlaying",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 88,
-          "file_offset": 5599864,
-          "form_id": 1278614,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 92,
-          "file_offset": 789305,
-          "form_id": 16832192,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 117,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4213,
+      "name": "GetMajorCrimeCount",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 164,
-          "file_offset": 231613151,
-          "form_id": 527503,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 123,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4219,
+      "name": "IsGreetingPlayer",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 50,
-          "file_offset": 242840254,
-          "form_id": 15328,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 127,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4223,
+      "name": "HasBeenEaten",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 4,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 350,
-          "file_offset": 244774598,
-          "form_id": 1436385,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 498,
-          "file_offset": 1507794,
-          "form_id": 16840313,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 131,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4227,
+      "name": "GetPCIsSex",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201908,
+          "optional_word": 0,
+          "type_id": 18,
+          "type_name": "Sex"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 190,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 253,
-          "file_offset": 5961733,
-          "form_id": 16846181,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 246,
-          "file_offset": 228951800,
-          "form_id": 1387564,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 294,
-          "file_offset": 25110948,
-          "form_id": 16831402,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 282,
-          "file_offset": 15418381,
-          "form_id": 16847988,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 136,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4232,
+      "name": "GetIsReference",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200636,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 444,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 505,
-          "file_offset": 1016375,
-          "form_id": 1471446,
-          "record_kind": "ALCH"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 91,
-          "file_offset": 5603603,
-          "form_id": 1221166,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 527,
-          "file_offset": 747225,
-          "form_id": 16847121,
-          "record_kind": "ALCH"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 122,
-          "file_offset": 25531817,
-          "form_id": 16834034,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 177,
-          "file_offset": 15308341,
-          "form_id": 16836018,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 141,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4237,
+      "name": "IsTalking",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 33,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 62,
-          "file_offset": 242584815,
-          "form_id": 1461992,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 79,
-          "file_offset": 1370164,
-          "form_id": 16839913,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 143,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4239,
+      "name": "GetCurrentAIProcedure",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 64,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 77,
-          "file_offset": 6173422,
-          "form_id": 16842329,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 104,
-          "file_offset": 242578122,
-          "form_id": 1535715,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 66,
-          "file_offset": 1370329,
-          "form_id": 16839912,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 144,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4240,
+      "name": "GetTrespassWarningLevel",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 29,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 438,
-          "file_offset": 232040359,
-          "form_id": 1528126,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 448,
-          "file_offset": 890532,
-          "form_id": 16847562,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 145,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4241,
+      "name": "IsTrespassing",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 80,
-          "file_offset": 242829847,
-          "form_id": 116445,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 157,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4253,
+      "name": "GetOpenState",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 4,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 451,
-          "file_offset": 5843162,
-          "form_id": 1368714,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 159,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4255,
+      "name": "GetSitting",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 73,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 269,
-          "file_offset": 231111228,
-          "form_id": 1454769,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 68,
-          "file_offset": 1370870,
-          "form_id": 16839768,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 160,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4256,
+      "name": "GetFurnitureMarkerID",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 79,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 158,
-          "file_offset": 242582866,
-          "form_id": 1481950,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 95,
-          "file_offset": 1372963,
-          "form_id": 16834534,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 161,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4257,
+      "name": "GetIsCurrentPackage",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14202328,
+          "optional_word": 0,
+          "type_id": 29,
+          "type_name": "Package"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 5,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 132,
-          "file_offset": 228946281,
-          "form_id": 841863,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 162,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4258,
+      "name": "IsCurrentFurnitureRef",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200636,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 104,
-          "file_offset": 243481082,
-          "form_id": 1177972,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 163,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4259,
+      "name": "IsCurrentFurnitureObj",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200768,
+          "optional_word": 0,
+          "type_id": 20,
+          "type_name": "Furniture"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 56,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 73,
-          "file_offset": 242578937,
-          "form_id": 1531764,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 88,
-          "file_offset": 1365728,
-          "form_id": 16848615,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 170,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4266,
+      "name": "GetDayOfWeek",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 11,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 481,
-          "file_offset": 6034193,
-          "form_id": 163585,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 182,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 479,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4278,
+      "name": "GetEquipped",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 72,
-          "file_offset": 1946577,
-          "form_id": 16852246,
-          "record_kind": "RCPE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 174,
-          "file_offset": 5565876,
-          "form_id": 1514919,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 182,
-          "file_offset": 73924,
-          "form_id": 16779537,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 64,
-          "file_offset": 1370686,
-          "form_id": 16839769,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 221,
-          "file_offset": 786414,
-          "form_id": 16824001,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 214,
-          "file_offset": 902758,
-          "form_id": 16864005,
-          "record_kind": "ENCH"
+          "descriptor_file_offset": 14200576,
+          "optional_word": 0,
+          "type_id": 50,
+          "type_name": "ObjectID"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 453,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 185,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4281,
+      "name": "IsSwimming",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 7,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 62,
-          "file_offset": 6176031,
-          "form_id": 16807608,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 223,
-          "file_offset": 242582262,
-          "form_id": 1485967,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 197,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4293,
+      "name": "GetPCEnemyofFaction",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201764,
+          "optional_word": 0,
+          "type_id": 17,
+          "type_name": "Faction"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 135,
-          "file_offset": 242578716,
-          "form_id": 1535712,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 203,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4299,
+      "name": "GetDestroyed",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 6,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 7447,
-          "file_offset": 242425615,
-          "form_id": 1116771,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 3294,
-          "file_offset": 2349550,
-          "form_id": 16815299,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 214,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4310,
+      "name": "HasMagicEffect",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14202364,
+          "optional_word": 0,
+          "type_id": 31,
+          "type_name": "Magic Effect"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 5,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 257,
-          "file_offset": 244801000,
-          "form_id": 399394,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 110,
-          "file_offset": 782083,
-          "form_id": 16831153,
-          "record_kind": "ENCH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 219,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4315,
+      "name": "GetAnimAction",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 481,
-          "file_offset": 244769105,
-          "form_id": 1463367,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 223,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4319,
+      "name": "IsSpellTarget",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201404,
+          "optional_word": 0,
+          "type_id": 11,
+          "type_name": "Magic Item"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 37,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 168,
-          "file_offset": 229602214,
-          "form_id": 1428971,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 150,
-          "file_offset": 792962,
-          "form_id": 16827442,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 170,
-          "file_offset": 15639677,
-          "form_id": 16867412,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 224,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4320,
+      "name": "GetVATSMode",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 124,
-          "file_offset": 242825595,
-          "form_id": 125496,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 1125,
-          "file_offset": 25641089,
-          "form_id": 16819714,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 226,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4322,
+      "name": "GetSandman",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 52,
-          "file_offset": 242725324,
-          "form_id": 509645,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 227,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4323,
+      "name": "GetCannibal",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 70,
-          "file_offset": 242724854,
-          "form_id": 513033,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 230,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4326,
+      "name": "GetInCellParam",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201680,
+          "optional_word": 0,
+          "type_id": 9,
+          "type_name": "Cell"
+        },
+        {
+          "descriptor_file_offset": 14201692,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 18,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 1669,
-          "file_offset": 242136196,
-          "form_id": 1483105,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 235,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4331,
+      "name": "GetVatsTargetHeight",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 7,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 149,
-          "file_offset": 242668462,
-          "form_id": 801300,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 242,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4338,
+      "name": "GetUnconscious",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 99,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 444,
-          "file_offset": 866247,
-          "form_id": 16835706,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 1038,
-          "file_offset": 5939256,
-          "form_id": 630035,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 69,
-          "file_offset": 1366950,
-          "form_id": 16845740,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 852,
-          "file_offset": 818831,
-          "form_id": 16824733,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 713,
-          "file_offset": 986523,
-          "form_id": 16825186,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 244,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4340,
+      "name": "GetRestrained",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 113,
-          "file_offset": 243169414,
-          "form_id": 1407451,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 148,
-          "file_offset": 25051299,
-          "form_id": 16815870,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 246,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4342,
+      "name": "GetIsUsedItem",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200600,
+          "optional_word": 0,
+          "type_id": 53,
+          "type_name": "ObjectID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 16,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 101,
-          "file_offset": 242665054,
-          "form_id": 824596,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 85,
-          "file_offset": 1370515,
-          "form_id": 16839770,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 247,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4343,
+      "name": "GetIsUsedItemType",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14202460,
+          "optional_word": 0,
+          "type_id": 32,
+          "type_name": "Form Type"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 6,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 87,
-          "file_offset": 242646227,
-          "form_id": 433006,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 65,
-          "file_offset": 1371058,
-          "form_id": 16839767,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 258,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4354,
+      "name": "GetUsedItemLevel",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 79,
-          "file_offset": 242648572,
-          "form_id": 397996,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 259,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4355,
+      "name": "GetUsedItemActivate",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 3,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 61,
-          "file_offset": 242648865,
-          "form_id": 397994,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 277,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4373,
+      "name": "GetBaseActorValue",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201152,
+          "optional_word": 0,
+          "type_id": 5,
+          "type_name": "Actor Value"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 16,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 241,
-          "file_offset": 238709659,
-          "form_id": 1363130,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 278,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4374,
+      "name": "IsOwner",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14202616,
+          "optional_word": 1,
+          "type_id": 35,
+          "type_name": "Owner(optional)"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 18,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 202,
-          "file_offset": 235320504,
-          "form_id": 1142303,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 285,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4381,
+      "name": "IsLeftUp",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 22,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 70,
-          "file_offset": 242637956,
-          "form_id": 1008137,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 96,
-          "file_offset": 1368909,
-          "form_id": 16845731,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 119,
-          "file_offset": 16033559,
-          "form_id": 16840635,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 286,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4382,
+      "name": "IsSneaking",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 33,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 60,
-          "file_offset": 242596196,
-          "form_id": 1362986,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 457,
-          "file_offset": 1507794,
-          "form_id": 16840313,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 144,
-          "file_offset": 782083,
-          "form_id": 16831153,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 175,
-          "file_offset": 15654745,
-          "form_id": 16864032,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 287,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4383,
+      "name": "IsRunning",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 4,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 69,
-          "file_offset": 242581902,
-          "form_id": 1486504,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 288,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4384,
+      "name": "GetFriendHit",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 9,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 132,
-          "file_offset": 231799387,
-          "form_id": 587732,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 289,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4385,
+      "name": "IsInCombat",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 219,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 200,
-          "file_offset": 5541032,
-          "form_id": 16843758,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 215,
-          "file_offset": 228958667,
-          "form_id": 1391119,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 99,
-          "file_offset": 1369271,
-          "form_id": 16845729,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 75,
-          "file_offset": 25525635,
-          "form_id": 16828019,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 300,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4396,
+      "name": "IsInInterior",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 56,
-      "plugins": [
-        "FalloutNV.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 169,
-          "file_offset": 5631263,
-          "form_id": 204180,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 178,
-          "file_offset": 782083,
-          "form_id": 16831153,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 129,
-          "file_offset": 916232,
-          "form_id": 16854703,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 304,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4400,
+      "name": "IsWaterObject",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 54,
-          "file_offset": 242814044,
-          "form_id": 139700,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 309,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4405,
+      "name": "IsXBox",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 79,
-          "file_offset": 242564484,
-          "form_id": 367749,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 310,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4406,
+      "name": "GetInWorldspace",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203168,
+          "optional_word": 0,
+          "type_id": 27,
+          "type_name": "WorldSpace"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 345,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 2500,
-          "file_offset": 1212625,
-          "form_id": 16857664,
-          "record_kind": "QUST"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 409,
-          "file_offset": 229068382,
-          "form_id": 1177693,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 94,
-          "file_offset": 25535696,
-          "form_id": 16833192,
-          "record_kind": "PACK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 1048,
-          "file_offset": 15991449,
-          "form_id": 16847574,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 354,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4450,
+      "name": "IsEssential",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 3,
-      "plugins": [
-        "FalloutNV.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 468,
-          "file_offset": 244819594,
-          "form_id": 204226,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 383,
-          "file_offset": 16131412,
-          "form_id": 16828559,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 358,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4454,
+      "name": "IsPlayerMovingIntoNewSpace",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 8,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 143,
-          "file_offset": 242842960,
-          "form_id": 1554987,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 365,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4461,
+      "name": "IsChild",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 203,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 132,
-          "file_offset": 5585115,
-          "form_id": 280799,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 389,
-          "file_offset": 1507794,
-          "form_id": 16840313,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 372,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4468,
+      "name": "IsInList",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203288,
+          "optional_word": 0,
+          "type_id": 37,
+          "type_name": "Form List"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 49,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 127,
-          "file_offset": 229377144,
-          "form_id": 1073498,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 420,
-          "file_offset": 1508721,
-          "form_id": 16840311,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 904,
-          "file_offset": 25629308,
-          "form_id": 16827935,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 382,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4478,
+      "name": "GetHasNote",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203384,
+          "optional_word": 0,
+          "type_id": 40,
+          "type_name": "Note"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 277,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 528,
-          "file_offset": 853705,
-          "form_id": 16846476,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 440,
-          "file_offset": 5928983,
-          "form_id": 953118,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 112,
-          "file_offset": 242337,
-          "form_id": 16779572,
-          "record_kind": "RCPE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 185,
-          "file_offset": 1938133,
-          "form_id": 16819819,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 558,
-          "file_offset": 25374056,
-          "form_id": 16831546,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 525,
-          "file_offset": 963448,
-          "form_id": 16859849,
-          "record_kind": "TERM"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 391,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4487,
+      "name": "GetHitLocation",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 321,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 119,
-          "file_offset": 231769864,
-          "form_id": 1391452,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 92,
-          "file_offset": 1367449,
-          "form_id": 16845737,
-          "record_kind": "IDLE"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 112,
-          "file_offset": 925968,
-          "form_id": 16816320,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 392,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4488,
+      "name": "IsPC1stPerson",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 9,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 132,
-          "file_offset": 242589788,
-          "form_id": 1420181,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 397,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4493,
+      "name": "GetCauseofDeath",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 179,
-          "file_offset": 229775055,
-          "form_id": 1069585,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 399,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4495,
+      "name": "IsWeaponInList",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203288,
+          "optional_word": 0,
+          "type_id": 37,
+          "type_name": "Form List"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 14,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 261,
-          "file_offset": 6243685,
-          "form_id": 16839192,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 372,
-          "file_offset": 12557005,
-          "form_id": 1424647,
-          "record_kind": "ALCH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 408,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 250,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
+      "native_command_id": 4504,
+      "name": "GetVATSValue",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 266,
-          "file_offset": 1942463,
-          "form_id": 16847977,
-          "record_kind": "PERK"
+          "descriptor_file_offset": 14200312,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "Integer"
         },
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 129,
-          "file_offset": 242652054,
-          "form_id": 335472,
-          "record_kind": "IDLE"
+          "descriptor_file_offset": 14200324,
+          "optional_word": 1,
+          "type_id": 1,
+          "type_name": "Integer (Optional)"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 250,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 411,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4507,
+      "name": "GetFactionCombatReaction",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201824,
+          "optional_word": 0,
+          "type_id": 17,
+          "type_name": "Faction"
+        },
+        {
+          "descriptor_file_offset": 14201836,
+          "optional_word": 0,
+          "type_id": 17,
+          "type_name": "Faction"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 109,
-          "file_offset": 243812682,
-          "form_id": 811295,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 415,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4511,
+      "name": "Exists",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14200636,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "ObjectReferenceID"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 21,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 427,
-          "file_offset": 232496202,
-          "form_id": 1528235,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 437,
-          "file_offset": 937297,
-          "form_id": 16847574,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 416,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4512,
+      "name": "GetGroupMemberCount",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 66,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 128,
-          "file_offset": 231706948,
-          "form_id": 1391436,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 430,
-          "file_offset": 938491,
-          "form_id": 16847576,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 417,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4513,
+      "name": "GetGroupTargetCount",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 3,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 93,
-          "file_offset": 231739927,
-          "form_id": 1201397,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 413,
-          "file_offset": 915800,
-          "form_id": 16847585,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 420,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 1284,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4516,
+      "name": "GetObjectiveCompleted",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 3108,
-          "file_offset": 860558,
-          "form_id": 16837112,
-          "record_kind": "TERM"
+          "descriptor_file_offset": 14201584,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
         },
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 289,
-          "file_offset": 5823000,
-          "form_id": 1436888,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 365,
-          "file_offset": 564864,
-          "form_id": 16817768,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 1383,
-          "file_offset": 818831,
-          "form_id": 16824733,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 151,
-          "file_offset": 914292,
-          "form_id": 16825919,
-          "record_kind": "ENCH"
+          "descriptor_file_offset": 14201596,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "ObjectiveIndex"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 1283,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 421,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4517,
+      "name": "GetObjectiveDisplayed",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201584,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
+        },
+        {
+          "descriptor_file_offset": 14201596,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "ObjectiveIndex"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 820,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 3074,
-          "file_offset": 860558,
-          "form_id": 16837112,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 404,
-          "file_offset": 5870688,
-          "form_id": 1227133,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 331,
-          "file_offset": 564864,
-          "form_id": 16817768,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 81,
-          "file_offset": 25554656,
-          "form_id": 16819832,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 427,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 17517,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4523,
+      "name": "GetIsVoiceType",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 113,
-          "file_offset": 5587536,
-          "form_id": 676852,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 118,
-          "file_offset": 228950540,
-          "form_id": 1529904,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 92,
-          "file_offset": 830089,
-          "form_id": 16847567,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 38,
-          "file_offset": 15971453,
-          "form_id": 14514,
-          "record_kind": "QUST"
+          "descriptor_file_offset": 14203660,
+          "optional_word": 0,
+          "type_id": 46,
+          "type_name": "VoiceType"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 17479,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 428,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4524,
+      "name": "GetPlantedExplosive",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 61,
-          "file_offset": 242749014,
-          "form_id": 274212,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 430,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4526,
+      "name": "IsActorTalkingThroughActivator",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
-      "observed_calls": 92,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 217,
-          "file_offset": 5576562,
-          "form_id": 1341542,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 207,
-          "file_offset": 228947665,
-          "form_id": 1341542,
-          "record_kind": "INFO"
-        }
-      ]
+      "observed_calls": 91,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 431,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4527,
+      "name": "GetHealthPercentage",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 129,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 94,
-          "file_offset": 5626335,
-          "form_id": 281764,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 126,
-          "file_offset": 1234582,
-          "form_id": 16844536,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 115,
-          "file_offset": 921618,
-          "form_id": 16852842,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 433,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4529,
+      "name": "GetIsObjectType",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14202460,
+          "optional_word": 0,
+          "type_id": 32,
+          "type_name": "Form Type"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 339,
-          "file_offset": 244789454,
-          "form_id": 1335449,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 435,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4531,
+      "name": "GetDialogueEmotion",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 20,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 61,
-          "file_offset": 242652833,
-          "form_id": 294113,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 438,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 79,
-      "plugins": [
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4534,
+      "name": "GetIsCreatureType",
+      "parameters": [
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 104,
-          "file_offset": 5565876,
-          "form_id": 1514919,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 112,
-          "file_offset": 73924,
-          "form_id": 16779537,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 566,
-          "file_offset": 1507794,
-          "form_id": 16840313,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 115,
-          "file_offset": 786414,
-          "form_id": 16824001,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 112,
-          "file_offset": 902484,
-          "form_id": 928193,
-          "record_kind": "ENCH"
+          "descriptor_file_offset": 14200072,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "Integer"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 73,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 449,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 493,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
+      "native_command_id": 4545,
+      "name": "HasPerk",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 295,
-          "file_offset": 1016375,
-          "form_id": 1471446,
-          "record_kind": "ALCH"
+          "descriptor_file_offset": 14203324,
+          "optional_word": 0,
+          "type_id": 39,
+          "type_name": "Perk"
         },
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 96,
-          "file_offset": 5564912,
-          "form_id": 1554317,
-          "record_kind": "ENCH"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 67,
-          "file_offset": 241096,
-          "form_id": 16779820,
-          "record_kind": "RCPE"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 131,
-          "file_offset": 544485,
-          "form_id": 16823039,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 151,
-          "file_offset": 790283,
-          "form_id": 16829906,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 108,
-          "file_offset": 909093,
-          "form_id": 16866026,
-          "record_kind": "ENCH"
+          "descriptor_file_offset": 14203336,
+          "optional_word": 1,
+          "type_id": 1,
+          "type_name": "Alt"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 488,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 450,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4546,
+      "name": "GetFactionRelation",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201284,
+          "optional_word": 0,
+          "type_id": 6,
+          "type_name": "Actor"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 11,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 172,
-          "file_offset": 229217969,
-          "form_id": 1529472,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 451,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4547,
+      "name": "IsLastIdlePlayed",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203768,
+          "optional_word": 0,
+          "type_id": 48,
+          "type_name": "Idle Form"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 86,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 79,
-          "file_offset": 242630045,
-          "form_id": 1071529,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 454,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4550,
+      "name": "GetPlayerTeammate",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 149,
-          "file_offset": 232842093,
-          "form_id": 945315,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 455,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4551,
+      "name": "GetPlayerTeammateCount",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 336,
-          "file_offset": 25640590,
-          "form_id": 16819932,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 460,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4556,
+      "name": "GetActorFactionPlayerEnemy",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 77,
-          "file_offset": 242968191,
-          "form_id": 1477350,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 464,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4560,
+      "name": "IsPlayerGrabbedRef",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203264,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 135,
-          "file_offset": 243632989,
-          "form_id": 1046168,
-          "record_kind": "PACK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 471,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4567,
+      "name": "GetDestructionStage",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 9,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 838,
-          "file_offset": 242310729,
-          "form_id": 1262824,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 474,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4570,
+      "name": "GetIsAlignment",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201524,
+          "optional_word": 0,
+          "type_id": 51,
+          "type_name": "Alignment"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 3,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 681,
-          "file_offset": 239987852,
-          "form_id": 1414804,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 480,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4576,
+      "name": "GetIsUsedItemEquipType",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201536,
+          "optional_word": 0,
+          "type_id": 52,
+          "type_name": "EquipType"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 561,
-          "file_offset": 16124167,
-          "form_id": 16867402,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 492,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4588,
+      "name": "GetMapMarkerVisible",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 31,
-      "plugins": [
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 411,
-          "file_offset": 229618253,
-          "form_id": 1435141,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 134,
-          "file_offset": 1068102,
-          "form_id": 16840206,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 174,
-          "file_offset": 15429815,
-          "form_id": 16848194,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 495,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4591,
+      "name": "GetPermanentActorValue",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201152,
+          "optional_word": 0,
+          "type_id": 5,
+          "type_name": "Actor Value"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 134,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 196,
-          "file_offset": 1942463,
-          "form_id": 16847977,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 196,
-          "file_offset": 230678253,
-          "form_id": 585876,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 268,
-          "file_offset": 239046,
-          "form_id": 16779566,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 294,
-          "file_offset": 1507794,
-          "form_id": 16840313,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 171,
-          "file_offset": 25628689,
-          "form_id": 16831715,
-          "record_kind": "PERK"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 344,
-          "file_offset": 16132559,
-          "form_id": 16817480,
-          "record_kind": "PERK"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 503,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4599,
+      "name": "GetRadiationLevel",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 7,
-      "plugins": [
-        "FalloutNV.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 101,
-          "file_offset": 5624975,
-          "form_id": 399294,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 109,
-          "file_offset": 926293,
-          "form_id": 16810000,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 515,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4611,
+      "name": "IsCombatTarget",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201284,
+          "optional_word": 0,
+          "type_id": 6,
+          "type_name": "Actor"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 1,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 139,
-          "file_offset": 231166627,
-          "form_id": 347760,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 518,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4614,
+      "name": "GetVATSRightAreaFree",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203276,
+          "optional_word": 1,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 21,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 49,
-          "file_offset": 244972137,
-          "form_id": 1530934,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 519,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4615,
+      "name": "GetVATSLeftAreaFree",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203276,
+          "optional_word": 1,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 21,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 14,
-          "file_offset": 244972000,
-          "form_id": 1530935,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 520,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4616,
+      "name": "GetVATSBackAreaFree",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203276,
+          "optional_word": 1,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 29,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 48,
-          "file_offset": 244972000,
-          "form_id": 1530935,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 521,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4617,
+      "name": "GetVATSFrontAreaFree",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203276,
+          "optional_word": 1,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 6,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 98,
-          "file_offset": 244982554,
-          "form_id": 1173136,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 523,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4619,
+      "name": "IsPS3",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 113,
-          "file_offset": 242564484,
-          "form_id": 367749,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 524,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4620,
+      "name": "IsWin32",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 3810,
-          "file_offset": 242564484,
-          "form_id": 367749,
-          "record_kind": "QUST"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 525,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4621,
+      "name": "GetVATSRightTargetVisible",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203264,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 75,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 32,
-          "file_offset": 244972594,
-          "form_id": 1525328,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 526,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4622,
+      "name": "GetVATSLeftTargetVisible",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203264,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 49,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 29,
-          "file_offset": 244972446,
-          "form_id": 1525329,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 528,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4624,
+      "name": "GetVATSFrontTargetVisible",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14203264,
+          "optional_word": 0,
+          "type_id": 4,
+          "type_name": "TESObjectREFR"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 4,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 25,
-          "file_offset": 244975525,
-          "form_id": 1183120,
-          "record_kind": "CPTH"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 546,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4642,
+      "name": "GetQuestCompleted",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14201548,
+          "optional_word": 0,
+          "type_id": 14,
+          "type_name": "Quest"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 574,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 159,
-          "file_offset": 1112045,
-          "form_id": 16856670,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 539,
-          "file_offset": 5958870,
-          "form_id": 583266,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 648,
-          "file_offset": 818831,
-          "form_id": 16824733,
-          "record_kind": "TERM"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 228,
-          "file_offset": 15111690,
-          "form_id": 16859845,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 573,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4669,
+      "name": "GetReputation",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14204224,
+          "optional_word": 0,
+          "type_id": 62,
+          "type_name": "Reputation"
+        },
+        {
+          "descriptor_file_offset": 14204236,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "Int"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 14,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 187,
-          "file_offset": 229619419,
-          "form_id": 1217109,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 574,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4670,
+      "name": "GetReputationPct",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14204224,
+          "optional_word": 0,
+          "type_id": 62,
+          "type_name": "Reputation"
+        },
+        {
+          "descriptor_file_offset": 14204236,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "Int"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 319,
-          "file_offset": 25477270,
-          "form_id": 16833136,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 575,
-      "name": null,
-      "status": "decoded",
-      "behavior_status": "unknown",
-      "observed_calls": 1643,
-      "plugins": [
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "GunRunnersArsenal.esm",
-        "LonesomeRoad.esm"
-      ],
-      "examples": [
+      "native_command_id": 4671,
+      "name": "GetReputationThreshold",
+      "parameters": [
         {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 313,
-          "file_offset": 1745653,
-          "form_id": 16849795,
-          "record_kind": "INFO"
+          "descriptor_file_offset": 14204224,
+          "optional_word": 0,
+          "type_id": 62,
+          "type_name": "Reputation"
         },
         {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 212,
-          "file_offset": 228951800,
-          "form_id": 1387564,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "GunRunnersArsenal.esm",
-          "decoded_payload_offset": 143,
-          "file_offset": 222918,
-          "form_id": 1442482,
-          "record_kind": "INFO"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 229,
-          "file_offset": 25221811,
-          "form_id": 16831400,
-          "record_kind": "INFO"
+          "descriptor_file_offset": 14204236,
+          "optional_word": 0,
+          "type_id": 1,
+          "type_name": "Int"
         }
-      ]
+      ],
+      "status": "oracle-tested",
+      "behavior_status": "unknown",
+      "observed_calls": 1642,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 586,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4682,
+      "name": "IsHardcore",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
-      "observed_calls": 278,
-      "plugins": [
-        "ClassicPack.esm",
-        "DeadMoney.esm",
-        "FalloutNV.esm",
-        "HonestHearts.esm",
-        "LonesomeRoad.esm",
-        "OldWorldBlues.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "ClassicPack.esm",
-          "decoded_payload_offset": 155,
-          "file_offset": 1497,
-          "form_id": 1523858,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "DeadMoney.esm",
-          "decoded_payload_offset": 114,
-          "file_offset": 790725,
-          "form_id": 16859181,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 112,
-          "file_offset": 5590551,
-          "form_id": 1534140,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "HonestHearts.esm",
-          "decoded_payload_offset": 114,
-          "file_offset": 543047,
-          "form_id": 16843065,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "LonesomeRoad.esm",
-          "decoded_payload_offset": 117,
-          "file_offset": 790283,
-          "form_id": 16829906,
-          "record_kind": "SPEL"
-        },
-        {
-          "plugin": "OldWorldBlues.esm",
-          "decoded_payload_offset": 152,
-          "file_offset": 924809,
-          "form_id": 16833057,
-          "record_kind": "SPEL"
-        }
-      ]
+      "observed_calls": 250,
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 601,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4697,
+      "name": "GetForceHitReaction",
+      "parameters": [],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 2,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 196,
-          "file_offset": 242596196,
-          "form_id": 1362986,
-          "record_kind": "IDLE"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 610,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4706,
+      "name": "GetCasinoWinningStage",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14204416,
+          "optional_word": 0,
+          "type_id": 63,
+          "type_name": "Casino"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 25,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 206,
-          "file_offset": 229615593,
-          "form_id": 1443837,
-          "record_kind": "INFO"
-        }
-      ]
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
     },
     {
       "function_id": 612,
-      "name": null,
-      "status": "decoded",
+      "native_command_id": 4708,
+      "name": "PlayerInRegion",
+      "parameters": [
+        {
+          "descriptor_file_offset": 14204476,
+          "optional_word": 0,
+          "type_id": 69,
+          "type_name": "Region"
+        }
+      ],
+      "status": "oracle-tested",
       "behavior_status": "unknown",
       "observed_calls": 74,
-      "plugins": [
-        "FalloutNV.esm"
-      ],
-      "examples": [
-        {
-          "plugin": "FalloutNV.esm",
-          "decoded_payload_offset": 118,
-          "file_offset": 235086333,
-          "form_id": 1079157,
-          "record_kind": "INFO"
-        }
+      "observations_scope": "Winning original CTDA fields in explicit inspection order",
+      "evaluation_implemented": false
+    }
+  ],
+  "shared_host_queries": [
+    {
+      "native_command_id": 4143,
+      "condition_function_id": 47,
+      "name": "GetItemCount",
+      "host_engineering_status": "unit-tested",
+      "behavior_status": "unknown",
+      "original_numeric_return_verified": false,
+      "original_argument_coercion_verified": false,
+      "original_handler_executed": false,
+      "form_list_expansion": "unimplemented; explicit error",
+      "evidence": [
+        "reports/checkpoint-36-primitive-queries.json",
+        "docs/primitive-queries.md"
       ]
+    }
+  ],
+  "source_findings": [
+    {
+      "field_decoded_offset": 97,
+      "findings": [
+        "unknown_subject_selector"
+      ],
+      "key": {
+        "local_id": 106031,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      },
+      "record_file_offset": 242812383,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "field_decoded_offset": 297,
+      "findings": [
+        "uninterpreted_low_flags",
+        "nonzero_flag_padding"
+      ],
+      "key": {
+        "local_id": 1289350,
+        "origin_plugin": "falloutnv.esm",
+        "profile": "nv-original"
+      },
+      "record_file_offset": 237810504,
+      "source_name": "FalloutNV.esm"
     }
   ]
 }

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "65d9c933fa176e5606df9b640d6c88cd47e07905",
-  "revision_note": "Checkpoint 35 binds source-bound explicit item checks and independent header/container facts; prior requirements retain their scopes/revisions.",
+  "last_verified_revision": "e2bf84d7f4d7289822f68efbcb8fdcac0f330b5d",
+  "revision_note": "Checkpoint 36 binds shared host query engineering, independently verified entry metadata and all winning CTDA bindings; original numeric returns and execution stay unverified.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1558,6 +1558,30 @@
       ],
       "tolerance": "Eight runtime tests; every supplied source role, override/tombstone/namespace and failure atomicity; every final source-form occurrence matches independently checked bindings; full cold observations agree",
       "last_verified_revision": "65d9c933fa176e5606df9b640d6c88cd47e07905"
+    },
+    {
+      "id": "fnv.queries.shared-get-item-count",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "primitive-queries",
+      "requirement": "Route verified native/condition GetItemCount IDs through one exact host count trace with explicit subjects, typed content arguments and bounded contributions.",
+      "evidence": [
+        "reports/checkpoint-36-primitive-queries.json",
+        "reports/checkpoint-36-verification.json",
+        "docs/primitive-queries.md"
+      ],
+      "affected_content": "Command 4143 / CTDA function 47; explicit engineering inventory state",
+      "status": "unit-tested",
+      "tests": [
+        "crates/fallout-runtime/tests/queries.rs",
+        "fallout-evidence --checkpoint 36"
+      ],
+      "known_gaps": [
+        "Original argument/return coercion, signed count arithmetic and form-list expansion",
+        "Original subject selection, condition comparison/group evaluation and script/native execution",
+        "Original initialization/admission, timing and complete world persistence"
+      ],
+      "tolerance": "Eight runtime tests; twelve source entry calls share exact core traces after canonical and cold restoration; state remains unchanged; independent original descriptors/CTDA bindings are source facts only",
+      "last_verified_revision": "e2bf84d7f4d7289822f68efbcb8fdcac0f330b5d"
     }
   ]
 }

@@ -2,6 +2,7 @@
 //! of snapshots; immutable script definitions remain in `fallout-data`.
 //! This crate stores explicit host inputs, not guessed retail initialization or
 //! an implementation of the original game's scheduler.
+pub mod catalogue;
 pub mod events;
 pub mod foreign;
 pub mod identity;
@@ -13,6 +14,7 @@ pub mod snapshot;
 pub mod source_items;
 pub mod state;
 
+pub use catalogue::SourceCatalogue;
 pub use state::{Limits, World};
 
 pub type Result<T> = std::result::Result<T, Error>;

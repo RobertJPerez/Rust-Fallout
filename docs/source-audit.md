@@ -373,3 +373,10 @@ through exact handles, body hashes, record file offsets and SCHR decoded offsets
 Equal SCDA hashes never replace owning-table identities. Source metadata and
 absent-body observations remain distinct from executable behavior. See
 [source-bound script preparation](source-bound-script-plans.md).
+
+Checkpoint 42 changes engine source ownership through standard Rust references
+and Arc, without importing new upstream implementation or format facts. Existing
+independent source/schema readers bind the input; worker transfer, source release,
+atomic replacement and repository fallback are engine engineering guarantees.
+See [shared runtime sources](shared-runtime-sources.md). Original execution and
+gameplay acceptance remain separate.

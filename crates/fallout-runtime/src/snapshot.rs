@@ -349,7 +349,11 @@ impl<'a> World<'a> {
             pending_events: self.pending.iter().cloned().collect(),
         }
     }
-    pub fn restore(catalogue: &'a Catalogue, snapshot: Snapshot, limits: Limits) -> Result<Self> {
+    pub fn restore(
+        catalogue: impl Into<crate::SourceCatalogue<'a>>,
+        snapshot: Snapshot,
+        limits: Limits,
+    ) -> Result<Self> {
         snapshot.check_budgets(limits)?;
         if snapshot.schema_version != SCHEMA_VERSION || snapshot.profile != ProfileId::NvOriginal {
             return Err(Error::Invalid(
@@ -400,7 +404,8 @@ impl<'a> World<'a> {
                     "duplicate script instance or allocator would reuse an identity".into(),
                 ));
             }
-            catalogue
+            world
+                .catalogue
                 .get_handle(&saved.definition)
                 .ok_or(Error::DefinitionChanged)?;
             world.validate_owner(&saved.owner)?;
@@ -470,7 +475,7 @@ impl<'a> World<'a> {
         Ok(world)
     }
     pub fn replace_from_snapshot(&mut self, snapshot: Snapshot) -> Result<()> {
-        let restored = Self::restore(self.catalogue, snapshot, self.limits)?;
+        let restored = Self::restore(self.catalogue.clone(), snapshot, self.limits)?;
         *self = restored;
         Ok(())
     }

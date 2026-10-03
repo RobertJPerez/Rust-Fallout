@@ -1,5 +1,5 @@
 use crate::{
-    Error, Result,
+    Error, Result, SourceCatalogue,
     events::{Clocks, Context, Pending, Trigger},
     identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value, valid_form},
     schema::{self, Kind, Local},
@@ -112,7 +112,7 @@ pub(crate) struct Slot {
 pub struct World<'a> {
     pub(crate) campaign: CampaignId,
     pub(crate) revision: u64,
-    pub(crate) catalogue: &'a Catalogue,
+    pub(crate) catalogue: SourceCatalogue<'a>,
     pub(crate) definitions: BTreeMap<ScriptKey, Arc<DefinitionSchema>>,
     pub(crate) block_count: usize,
     pub(crate) limits: Limits,
@@ -139,14 +139,16 @@ pub struct World<'a> {
 }
 
 impl<'a> World<'a> {
-    pub fn new(catalogue: &'a Catalogue, limits: Limits) -> Result<Self> {
+    pub fn new(catalogue: impl Into<SourceCatalogue<'a>>, limits: Limits) -> Result<Self> {
         Self::with_campaign(catalogue, limits, CampaignId::generate()?)
     }
     pub fn with_campaign(
-        catalogue: &'a Catalogue,
+        catalogue: impl Into<SourceCatalogue<'a>>,
         limits: Limits,
         campaign: CampaignId,
     ) -> Result<Self> {
+        let catalogue = catalogue.into();
+        let cohort = crate::snapshot::cohort(&catalogue)?;
         CampaignId::from_bytes(campaign.bytes())?;
         let epoch = NEXT_WORLD
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
@@ -158,7 +160,7 @@ impl<'a> World<'a> {
             definitions: BTreeMap::new(),
             block_count: 0,
             limits,
-            cohort: crate::snapshot::cohort(catalogue)?,
+            cohort,
             epoch,
             slots: Vec::new(),
             free: Vec::new(),
@@ -179,6 +181,10 @@ impl<'a> World<'a> {
             clocks: Clocks::default(),
             pending: VecDeque::new(),
         })
+    }
+    /// The immutable source view owned or borrowed by this world.
+    pub fn catalogue(&self) -> &Catalogue {
+        &self.catalogue
     }
     pub fn catalogue_fingerprint(&self) -> &str {
         &self.cohort

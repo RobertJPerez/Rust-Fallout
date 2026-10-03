@@ -1,6 +1,5 @@
 use super::{Captured, Error, Result, format, io};
-use crate::{Limits, World, identity::CampaignId};
-use fallout_data::loaded_scripts::Catalogue;
+use crate::{Limits, SourceCatalogue, World, identity::CampaignId};
 use serde::Serialize;
 use std::{
     fs::{self, File, OpenOptions, TryLockError},
@@ -359,7 +358,7 @@ impl Repository {
     fn load_slot<'a>(
         &self,
         slot: Slot,
-        catalogue: &'a Catalogue,
+        catalogue: SourceCatalogue<'a>,
         limits: Limits,
     ) -> Result<(World<'a>, format::Metadata)> {
         let decoded = format::decode(&self.slot_bytes(slot, limits)?, limits)?;
@@ -371,12 +370,13 @@ impl Repository {
     }
     pub fn load<'a>(
         &self,
-        catalogue: &'a Catalogue,
+        catalogue: impl Into<SourceCatalogue<'a>>,
         limits: Limits,
         recovery: Recovery,
     ) -> Result<(World<'a>, LoadReceipt)> {
         let _lock = self.lock()?;
-        match self.load_slot(Slot::Current, catalogue, limits) {
+        let catalogue = catalogue.into();
+        match self.load_slot(Slot::Current, catalogue.clone(), limits) {
             Ok((world, metadata)) => Ok((
                 world,
                 LoadReceipt {
@@ -407,11 +407,12 @@ impl Repository {
     /// Loading with recovery alone leaves the failed current file untouched.
     pub fn recover_previous<'a>(
         &self,
-        catalogue: &'a Catalogue,
+        catalogue: impl Into<SourceCatalogue<'a>>,
         limits: Limits,
     ) -> Result<(World<'a>, LoadReceipt)> {
         let _lock = self.lock()?;
-        let error = match self.load_slot(Slot::Current, catalogue, limits) {
+        let catalogue = catalogue.into();
+        let error = match self.load_slot(Slot::Current, catalogue.clone(), limits) {
             Ok(_) => {
                 return Err(invalid(
                     "current slot is valid; previous-slot repair is unnecessary",

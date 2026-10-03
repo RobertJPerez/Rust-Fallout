@@ -297,3 +297,11 @@ every control/expression/table finding. See
 runtime frames and explicit capability checks over source-bound plans, plus the
 remaining actor/player/state components. Original semantic measurements,
 live context readiness and observable VM effects remain separate open gates.
+
+Checkpoint 42 gives runtime worlds borrowed or shared immutable source ownership.
+Owned worlds can outlive their loaders and move to workers, while snapshot/native
+save formats and independent campaign banks retain their existing contracts. See
+[shared runtime sources](docs/shared-runtime-sources.md). Next: source-bound live
+event preparation and bounded runtime frames with explicit semantic capabilities,
+then actor/player state and presentation integration. Ownership does not admit
+original initialization, scheduling or bytecode effects.

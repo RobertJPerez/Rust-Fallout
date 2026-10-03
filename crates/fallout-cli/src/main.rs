@@ -25,6 +25,7 @@ mod query_inspection;
 mod quest_script_inspection;
 mod script_profile;
 mod script_state_inspection;
+mod shared_runtime_inspection;
 mod source_item_inspection;
 mod terrain_compare;
 
@@ -236,6 +237,15 @@ enum Command {
     },
     /// Inspect compiled local schemas and exercise native canonical state.
     ScriptState {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+    },
+    /// Exercise shared source ownership and canonical state across a worker.
+    SharedRuntime {
         #[arg(long)]
         install: PathBuf,
         #[arg(long)]
@@ -826,6 +836,15 @@ fn run(args: Args) -> Result<()> {
         } => {
             let report =
                 script_state_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::SharedRuntime {
+            install,
+            load_order,
+            index_cache,
+        } => {
+            let report =
+                shared_runtime_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::ConditionDependencies {

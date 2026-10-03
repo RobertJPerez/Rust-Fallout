@@ -212,3 +212,11 @@ including exact CNTO/COED fields, ACBS template flags and TPLT dependencies. See
 and explicit mutable item counts, followed by primitive queries and observable
 execution. Source counts do not establish template/leveled expansion, initialization,
 equipment, ownership enforcement or original count coercion.
+
+Checkpoint 32 reads all authored leveled item/creature/NPC lists and builds bounded
+inventory/template/list dependency graphs. Exact source words and duplicate edges
+remain intact; independent algorithms agree on every original graph edge. Three
+base-item schema-domain mismatches remain reported. See
+[leveled lists](docs/leveled-lists.md). Next: explicit live item counts/instances
+and shared primitive queries, with differential measurements before adopting
+selection, inheritance, coercion or original default rules.

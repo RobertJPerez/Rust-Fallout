@@ -17,6 +17,7 @@ pub mod dialogue_membership;
 pub mod identity;
 pub mod index_cache;
 pub mod inventory;
+pub mod leveled;
 pub mod loaded_scripts;
 pub mod model_probe;
 pub mod narrative;

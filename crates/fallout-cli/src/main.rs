@@ -9,6 +9,7 @@ mod expression_inspection;
 mod foreign_context_inspection;
 mod inspection_input;
 mod inventory_inspection;
+mod leveled_inspection;
 mod loaded_script_inspection;
 mod narrative_inspection;
 mod native_save_inspection;
@@ -84,6 +85,19 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+    },
+    /// Preserve authored leveled lists and plan inventory/template dependencies.
+    LeveledLists {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long, requires = "root_id")]
+        root_plugin: Option<String>,
+        #[arg(long, requires = "root_plugin")]
+        root_id: Option<u32>,
     },
     /// Probe compiled foreign locals through explicit host live script instances.
     ForeignContext {
@@ -513,6 +527,27 @@ fn run(args: Args) -> Result<()> {
             if report["counts"]["source_findings"] != 0 {
                 return Err(
                     "base inventory inspection retains source association findings; see report"
+                        .into(),
+                );
+            }
+        }
+        Command::LeveledLists {
+            install,
+            load_order,
+            index_cache,
+            root_plugin,
+            root_id,
+        } => {
+            let report = leveled_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                root_plugin.as_deref().zip(root_id),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["counts"]["source_findings"] != 0 {
+                return Err(
+                    "leveled list inspection retains source association findings; see report"
                         .into(),
                 );
             }

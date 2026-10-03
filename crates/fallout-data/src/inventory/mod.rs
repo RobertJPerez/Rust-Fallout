@@ -253,7 +253,7 @@ impl Catalogue {
         Ok(result)
     }
 }
-fn binding(
+pub(crate) fn binding(
     store: &RecordStore,
     location: Location,
     raw_form: u32,
@@ -297,7 +297,7 @@ fn binding(
         target,
     })
 }
-fn bind_value(
+pub(crate) fn bind_value(
     store: &RecordStore,
     location: Location,
     raw: fields::Raw,

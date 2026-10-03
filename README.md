@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 238 tests pass, including malformed compression, forward/cyclic links,
+- 247 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -271,3 +271,8 @@ semantics remain unmeasured.
 and actor item entries, signed counts, ownership unions and template inputs.
 Duplicate items remain ordered, and source fields agree with an independent
 reader. Mutable inventories, equipment and leveled-list expansion remain open.
+
+[Leveled-list source graphs](docs/leveled-lists.md) now retain item, creature and
+NPC lists and connect their authored entries with base inventories and actor
+templates. Structural closure preserves duplicates, missing/deleted targets and
+cycles. Original probabilities and random selection remain unimplemented.

@@ -292,3 +292,12 @@ Original Rust and offline C++ independently retain exact source fields and bind
 master-relative links. No upstream implementation is copied or linked. Line scopes
 and whole-file hashes are recorded in sources.lock.json; see
 [base inventory](base-inventory.md).
+
+Checkpoint 32 reads the complete selected pinned xEdit LVLI/LVLC/LVLN definitions
+and common leveled-entry helper, plus the selected xNVSE leveled-list load/runtime
+layouts. Disk level/count words and optional field absence stay exact; editor
+defaults and original signed runtime conversion are not applied. Original Rust
+uses iterative Kosaraju and original C++ uses iterative Tarjan for bounded source
+graphs. Full winning list fields, inventory/template links and SCCs are compared;
+no upstream algorithm implementation is imported and no random selection occurs.
+See [leveled lists](leveled-lists.md) and source-lock scopes for exact provenance.

@@ -8,6 +8,8 @@ use std::ops::Range;
 
 pub mod argument_census;
 pub mod arguments;
+pub mod control_flow;
+pub mod control_flow_bundle;
 pub mod expression;
 pub mod expression_census;
 pub mod expression_plan;

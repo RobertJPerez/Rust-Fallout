@@ -1651,6 +1651,52 @@
           ],
           "usage": "Complete selected ScriptOperatorCode/ScriptOperator declarations; identities checked against original executable descriptors",
           "implementation_imported": false
+        },
+        {
+          "checkpoint": 40,
+          "path": "nvse/nvse/ScriptAnalyzer.cpp",
+          "whole_file_sha256": "3b6d60284286c3c205c1c2d4b145eabb0ebcd6cea097c8ebfdeffd08db7835b9",
+          "selected_line_ranges": [
+            [
+              148,
+              190
+            ],
+            [
+              253,
+              269
+            ],
+            [
+              1048,
+              1069
+            ],
+            [
+              1182,
+              1215
+            ]
+          ],
+          "usage": "Selected statement framing, begin/conditional raw field readers and dispatch declarations; source delimiter/distance observations only, no original VM jump rules or execution",
+          "implementation_imported": false
+        },
+        {
+          "checkpoint": 40,
+          "path": "nvse/nvse/ScriptAnalyzer.h",
+          "whole_file_sha256": "4bffc689b0faf9ce4622ec6bce990ef6bafad9e9acab4b9c970c24a161341274",
+          "selected_line_ranges": [
+            [
+              55,
+              73
+            ],
+            [
+              140,
+              150
+            ],
+            [
+              303,
+              311
+            ]
+          ],
+          "usage": "Selected statement framing, begin/conditional raw field readers and dispatch declarations; source delimiter/distance observations only, no original VM jump rules or execution",
+          "implementation_imported": false
         }
       ]
     },

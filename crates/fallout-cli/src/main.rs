@@ -4,6 +4,7 @@ mod command_catalogue;
 mod compressed_record_inspection;
 mod condition_dependency_inspection;
 mod condition_inspection;
+mod control_flow_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
 mod expression_plan_inspection;
@@ -328,7 +329,17 @@ enum Command {
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
     },
-    /// Validate vanilla postfix relationships in an offline SCDA comparison bundle.
+    /// Match source delimiters and raw distances in an offline SCDA bundle.
+    ControlFlow {
+        /// Installation protected from report output; the bundle stays read-only.
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        bundle: PathBuf,
+        #[arg(long)]
+        diagnose_structure: bool,
+    },
+    /// Build source-token postfix structure from a hash-bound offline bundle.
     ExpressionPlans {
         #[arg(long)]
         install: PathBuf,
@@ -983,6 +994,20 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if failed {
                 return Err("native argument inspection has issues; see report".into());
+            }
+        }
+        Command::ControlFlow {
+            install,
+            bundle,
+            diagnose_structure,
+        } => {
+            let report = control_flow_inspection::inspect(&bundle, diagnose_structure)?;
+            let failed = report["structure"]["counts"]["structural_issues"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err(
+                    "source control-flow findings remain unverified; see diagnostic report".into(),
+                );
             }
         }
         Command::ExpressionPlans {

@@ -279,3 +279,12 @@ debug CLI now starts with an explicit inspector worker stack. See
 the three source expressions and numeric/short-circuit/native coercion, then
 source-bound control flow and bounded observable execution. This structural
 model does not establish retail effects or accept gameplay.
+
+Checkpoint 40 adds bounded source delimiter plans and explicit raw distance
+relations. Independent forward Rust and backward C++ pairing agree on all
+14,514 authored bodies: 14,461 complete structures and 53 first unresolved-body
+findings. See [control-flow structure](docs/control-flow-structure.md). Next:
+associate complete plans with immutable winning script versions, keep unresolved
+source capability failures explicit, then bounded observable execution over
+measured semantic primitives. Original jump rules, event lifecycle, numeric
+effects and native handlers remain unfinished.

@@ -180,7 +180,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 300 Rust tests and five publication checks pass, including malformed compression, forward/cyclic links,
+- 308 Rust tests and five publication checks are required, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -313,3 +313,8 @@ mutation and original GetItemCount list expansion remain unverified.
 relationships in a bounded iterative arena. Independent forward/backward planners
 agree on 53,401 complete structures and retain three authored residual-stack
 findings. Original numeric/short-circuit behavior and VM execution remain open.
+
+[Source control-flow structure](docs/control-flow-structure.md) now pairs event
+and conditional delimiters with explicit raw distance observations. Independent
+forward/backward readers agree on 14,461 complete authored bodies and retain 53
+first unresolved-body findings. Original branch rules and execution remain open.

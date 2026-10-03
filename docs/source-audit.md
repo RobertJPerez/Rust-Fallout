@@ -353,3 +353,14 @@ Source extraction is inherited from the independently checked existing pipeline;
 the new C++ tool does not independently extract plugins or execute scripts.
 See [expression plans](expression-plans.md). Numeric effects and VM acceptance
 remain unfinished.
+
+Checkpoint 40 reads selected pinned ScriptAnalyzer framing, begin/conditional
+field readers, statement dispatch and matching declarations. Raw field names
+are retained as reference facts; observed instruction-count relations are
+explicitly separated from original jump semantics. Own Rust pairs delimiters
+forward and own C++ pairs them backward after a structural audit. Every original
+body and first unresolved finding agrees in the development comparison. The
+new oracle consumes the existing independently checked extraction bundle; it
+does not independently extract plugins or execute scripts. No upstream code is
+copied or linked. See [control-flow structure](control-flow-structure.md) and
+the exact source-lock scopes. All original execution acceptance remains open.

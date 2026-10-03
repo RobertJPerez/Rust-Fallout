@@ -60,7 +60,7 @@ fn context_prefixes_are_metadata_and_quoted_operator_bytes_are_operands() {
     let plan = decode(&command, &model, Limits::default()).unwrap();
     assert_eq!(plan.nodes().len(), 1);
     assert!(
-        matches!(plan.tokens()[1].kind, Kind::Command { context_reference: Some(7), arguments, .. } if arguments == &[0xff, 0])
+        matches!(plan.tokens()[1].kind, Kind::Command { context_reference: Some(7), arguments, .. } if arguments == [0xff, 0])
     );
 }
 

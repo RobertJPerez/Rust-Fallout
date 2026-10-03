@@ -1,4 +1,4 @@
-# Three-agent development plan
+# Four-agent development plan
 
 Robert's master brief remains the specification. The purpose of this team is to
 advance independent prerequisites in parallel while preserving one coherent Rust
@@ -6,40 +6,38 @@ runtime and one verified integration history.
 
 ## Starting point
 
-Checkpoint 42 is complete at `2de525527fc74f29e13fa7481261d0846feffa19`.
-Its verified source passed 324 Rust tests and five publication checks. It adds
-shared immutable runtime sources; it does not execute ObScript or establish an
-accepted gameplay scenario. M1, trustworthy semantic content loading, remains the
-first unmet milestone. The following milestone work can proceed on independent
-prerequisites, but its acceptance still depends on the brief's gates.
+Checkpoint 44 verifies actor scalar sources and the first three skin source
+blocks alongside the full runtime/source regression: 359 Rust tests and five
+publication checks. Source readers and explicit engineering state do not establish
+gameplay parity. M1, trustworthy semantic content loading, remains the first unmet
+milestone. Independent prerequisites can proceed while acceptance follows the brief.
 
-Robert asked to stop after checkpoint 42, then requested this team plan. Preparing
-the plan and worktrees does not resume implementation. Team control starts in
-`planned` mode. Checkpoint 43 has staged, uncompiled event-preparation drafts in
-`local/live-event-43-src`; the primary agent must inspect them before applying them.
-Its draft counts and expected inspector exit status remain unverified.
-
-Robert resumed implementation on October 3. Checkpoint 43 is now verified and published; the team control is active. The primary agent integrates reviewed actor and asset commits and prepares the next source-lane proof. Runtime work continues in an additional primary-owned external worktree while main is frozen. The planning history above does not override current control or Robert's latest instruction.
+Robert resumed implementation on October 3 and asked for a fourth review/integration
+agent. Team control is active. Runtime work continues in a primary-owned external
+worktree, and the integration worker prepares candidates and proofs separately.
+The current control and Robert's latest instruction govern continuation.
 
 ## Responsibilities and file ownership
 
 | Role | Work | Owned additions | Working tree |
 | --- | --- | --- | --- |
-| Primary agent | Runtime, ObScript, canonical state, saves, integration and proof publication | Existing runtime/VM modules, shared entrypoints, interface reconciliation, checkpoint tooling and reports | `G:\Rust-Fallout`, branch `main` |
+| Primary agent | Runtime, ObScript, canonical state, saves, semantic contracts, final main promotion/push | Runtime/VM modules and final shared contracts | `G:\Rust-Fallout`, branch `main`; scripting in `G:\Rust-Fallout-worktrees\runtime-next` |
 | Actor worker | Immutable actor records, associations and dependencies | `crates/fallout-data/src/actors/**`, `tests/actors*.rs`, `tools/actor-oracle/**`, `docs/actor-sources.md`, new actor inspector modules when assigned | `G:\Rust-Fallout-worktrees\actors`, branch `agents/actors` |
 | Asset worker | Skin/skeleton/controller/animation source data, then independently verified evaluation | `crates/fallout-data/src/nif_skin/**`, `src/nif_animation/**`, corresponding tests, `tools/nif-skin-oracle/**`, `tools/nif-animation-oracle/**`, their dedicated wrappers, `docs/nif-skin.md`, `docs/nif-animation.md`, new inspectors when assigned | `G:\Rust-Fallout-worktrees\assets`, branch `agents/assets` |
+| Review/integration worker | Review handoffs, reconcile shared wiring, run fresh proofs, prepare candidate publication | Candidate shared exports/dispatch, integration verification, approved source-pin reconciliation, `docs/integration/**`, candidate reports/parity | `G:\Rust-Fallout-worktrees\integration`, branch `agents/integration` |
 
 The abbreviated `src/` and `tests/` paths in worker rows are under
 `crates/fallout-data`. A worker does not inherit ownership of other existing files
 in that crate. Each task has a concrete path list in its assignment.
 
-The primary agent owns the final versions of `Cargo.toml`, `Cargo.lock`,
+The primary agent owns the final contracts for `Cargo.toml`, `Cargo.lock`,
 `sources.lock.json`, crate module roots, existing inventory/world/NIF readers,
 CLI dispatch and evidence entrypoints, preview wiring, runtime identity/state/save
 contracts, shared oracle infrastructure, README, NEXT_STEPS, parity status and
-checkpoint reports. A worker may add the minimum module export or inspector
+checkpoint reports. The integration worker prepares tested candidate versions;
+runtime/API/dependency decisions remain coordinated with primary. A worker may add the minimum module export or inspector
 dispatch inside its isolated worktree to compile a task. It must identify those
-edits as integration changes. The primary agent reconciles them instead of blindly
+edits as integration changes. The integration worker reconciles them instead of blindly
 replacing a shared file with either worker's version.
 
 Changes outside the assignment need a message to the primary agent before editing.
@@ -53,10 +51,9 @@ fields, using the existing inventory catalogue and its exact source provenance.
 The first asset task is exact decoding of NiSkinInstance,
 BSDismemberSkinInstance and NiSkinData, with typed links and an independent field
 comparison. Neither task initializes gameplay actors or runs an animation system.
-Detailed scope, evidence and subsequent tasks are in the two role instructions.
+Detailed implementation backlogs are in the actor and asset instructions; the fourth role continuously reviews their handoffs and prepares tested integration candidates.
 
-The primary agent first completes and verifies the staged event-preparation slice,
-then follows the brief's actual unmet dependencies: explicit VM capabilities,
+The primary agent follows the brief's actual unmet dependencies: explicit VM capabilities,
 verified expression/condition semantics, bounded execution, runtime integration
 and source/behavior comparisons. A task is selected from observed evidence rather
 than from an invented sequence of future checkpoint numbers.
@@ -78,9 +75,11 @@ also use durable files at `G:\Rust-Fallout\local\team`:
 | --- | --- | --- |
 | `control.json` | Primary agent | Mode, run identity, stop request and resource reservations |
 | `actors.assignment.json`, `assets.assignment.json` | Primary agent | Task scope, approved backlog, ownership, dependencies and assignment generation |
+| `integration.assignment.json` | Primary agent | Review queue, approved base, proof scope/checkpoint reservation and integration ownership |
 | `root.status.json` | Primary agent | Integration queue, current proof/freeze, verified revision and next action |
 | `actors.status.json`, `assets.status.json` | Corresponding worker | Current task, branch/base/commit, changed paths, results, blockers and next action |
 | `actors.outbox.jsonl`, `assets.outbox.jsonl` | Corresponding worker | Ordered notifications, proposed interfaces and handoffs |
+| `integration.status.json`, `integration.outbox.jsonl` | Integration worker | Review dispositions, candidate chain, proof freeze, results and tested handoffs |
 
 These files stay ignored: they are mutable coordination state, not public proof.
 Each status update replaces the writer's own file atomically through a temporary
@@ -99,8 +98,9 @@ Notify the primary agent, preserve the current diff and continue only read-only
 investigation until it repairs the state against Robert's latest instruction. Do
 not assume an absent file means the stop request or another writer has disappeared.
 
-The primary agent checks both outboxes while working, acknowledges handoffs and
-issues follow-up work when an integrated worker finishes its turn. Workers should
+The integration worker reviews implementation outboxes and prepares tested candidates.
+Primary checks all outboxes, acknowledges handoffs, routes defects/contracts and
+reserves checkpoint numbers. Workers should
 continue through ready tasks within their assignment rather than return after
 one small change. There is one worker per lane, even after an interruption.
 
@@ -132,7 +132,8 @@ forever, or mark an unfinished milestone complete.
 The worktrees are external so workers cannot enter the primary agent's source
 snapshot accidentally. Their Cargo targets are respectively
 `G:\Rust-Fallout-worktrees\actors\target` and
-`G:\Rust-Fallout-worktrees\assets\target`. Native CMake/oracle builds and raw
+`G:\Rust-Fallout-worktrees\assets\target`. The integration worker uses
+`G:\Rust-Fallout-worktrees\integration\target`. Native CMake/oracle builds and raw
 reports go under each worker's own ignored `local/` directory, with a new evidence
 directory for each run.
 
@@ -174,11 +175,13 @@ Separate paths do not make destructive Git commands safe. Workers commit only th
 own branches; they do not switch/reset another branch, force-push, or change global
 Git settings. The primary agent alone merges and publishes main.
 
-For each handoff, the primary agent checks the changed paths and evidence, obtains
-a read-only peer review where useful, and integrates one completed commit at a
-time. It reconciles shared exports and source pins, resolves conflicts explicitly,
-and runs the appropriate workspace/regression checks. Later worker commits may
-depend on earlier lane commits; the handoff must identify that chain.
+For each handoff, the integration worker reviews complete changed files and
+evidence, requests bounded owner fixes, then applies reviewed commits in its
+candidate tree. It reconciles shared exports and approved pins, resolves conflicts
+explicitly, and runs the appropriate workspace/regression checks. Later commits
+may depend on earlier lane commits; every handoff identifies that chain. Primary
+promotes a tested candidate at a clean boundary and pushes main. A complete proof
+is repeated only after a new change or an unresolved concern.
 
 Full checkpoint proofs run against fixed integrated source, executables, oracles
 and input hashes. No one edits those files during the proof. Workers can continue
@@ -209,6 +212,6 @@ with the filesystem and control state; do not rerun already completed work or
 assume staged drafts passed. The primary agent wakes an idle worker or replaces
 a lost session only after confirming no other writer still owns that lane.
 
-Robert's stop/pause instruction propagates to both workers immediately. Preserve
+Robert's stop/pause instruction propagates to all workers immediately. Preserve
 work safely and start no new task. A request to finish the next checkpoint becomes
 one explicit integration boundary, with workers quiescing before its final proof.

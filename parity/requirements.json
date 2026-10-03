@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "4e7e13adbd805d394d93888526a855c72a5ebdaf",
-  "revision_note": "Checkpoint 43 binds exact pending-event source windows to separately persisted engineering contexts, live instances, winning source plans and independent native headers. Preparation preserves state and grants no VM execution permission; original behavior remains open.",
+  "last_verified_revision": "9e23c2e4ba4418edebfdb9e419261b20861ab94f",
+  "revision_note": "Checkpoint44 independently compares bounded actor scalar and skin source slices at frozen integrated source/binaries, with fresh runtime/source regressions. No actor initialization, evaluated skinning or retail scenario is accepted.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1766,6 +1766,53 @@
       ],
       "tolerance": "Exact queue/context/instance/source identity, selected source bytes and header digests, unchanged canonical snapshot, strict full-definition preparation and exact frame budgets; engine guarantees without original execution acceptance",
       "last_verified_revision": "4e7e13adbd805d394d93888526a855c72a5ebdaf"
+    },
+    {
+      "id": "fnv.actors.scalar-sources",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "actor-sources",
+      "requirement": "Preserve exact winning NPC_/CREA scalar fields, physical order, raw words, unknown payload hashes and source provenance without actor initialization.",
+      "evidence": [
+        "reports/checkpoint-44-source-lanes.json",
+        "reports/checkpoint-44-verification.json",
+        "docs/actor-sources.md"
+      ],
+      "affected_content": "6455 winning actors;204929 physical fields;17130 scalar occurrences",
+      "status": "oracle-tested",
+      "tests": [
+        "fallout-data tests/actors.rs",
+        "actor-oracle direct original-plugin comparison"
+      ],
+      "known_gaps": [
+        "Template inheritance, auto-calculation and actor/player initialization",
+        "Ordered associations and actor behavior remain separate slices"
+      ],
+      "tolerance": "Exact independently read source fields, ordering, identities and binary/source digests; scoped source facts without gameplay acceptance",
+      "last_verified_revision": "9e23c2e4ba4418edebfdb9e419261b20861ab94f"
+    },
+    {
+      "id": "fnv.assets.skin-source-blocks",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "assets",
+      "requirement": "Decode bounded NiSkinInstance, BSDismemberSkinInstance and NiSkinData branches with exact raw transforms, links, weight bits and source spans, retaining unresolved dependencies.",
+      "evidence": [
+        "reports/checkpoint-44-source-lanes.json",
+        "reports/checkpoint-44-verification.json",
+        "docs/nif-skin.md"
+      ],
+      "affected_content": "48 authored branches across12 stream revisions;32 sampled original stream34 files;500 blocks and250 owners",
+      "status": "oracle-tested",
+      "tests": [
+        "fallout-data tests/nif_skin.rs",
+        "nif-skin-oracle authored and sampled direct-source comparison"
+      ],
+      "known_gaps": [
+        "250 unresolved partition dependencies in sampled scope",
+        "Full corpus, first-person and GRA selection coverage",
+        "Bone graph binding, evaluated skinning, animation and retail rendering"
+      ],
+      "tolerance": "Exact independently read source fields, ordering, identities and binary/source digests; scoped source facts without gameplay acceptance",
+      "last_verified_revision": "9e23c2e4ba4418edebfdb9e419261b20861ab94f"
     }
   ]
 }

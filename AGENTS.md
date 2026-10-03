@@ -1,8 +1,9 @@
 # Working together on Rust Fallout
 
 Read [the team plan](docs/agent-coordination.md) before parallel implementation.
-Robert asked for two workers alongside the primary agent. The primary agent owns
-integration; workers own the actor and asset lanes described in that plan.
+Robert asked for actor, asset, and review/integration workers alongside the primary
+agent. The integration worker prepares tested candidates in its own worktree;
+the primary agent owns runtime work and final promotion of main.
 
 - Use the assigned external Git worktree. All agents share the filesystem; spawning
   an agent does not isolate its files, binaries, Git references or evidence.
@@ -24,8 +25,9 @@ integration; workers own the actor and asset lanes described in that plan.
 - Keep Cargo targets, native build directories and raw evidence separate. Read the
   installation and pinned research sources without changing them. Never reuse a
   primary-agent proof directory or rebuild a binary used by a live proof.
-- Only the primary agent merges and pushes `main`, assigns checkpoint numbers,
-  updates the source lock/parity ledger, and publishes verification receipts.
+- Only the primary agent promotes and pushes `main` and assigns checkpoint numbers.
+  The integration worker may reconcile approved source pins and prepare candidate
+  parity/report changes after fresh proof; these become public on promotion.
   Do not reset another branch, change global Git configuration, or force-push.
 - Complete small, reviewable tasks, run relevant checks, save a handoff, and take
   the next ready task in your lane while the team is active. Record blocked tasks
@@ -35,4 +37,5 @@ integration; workers own the actor and asset lanes described in that plan.
   reread control/assignment state before continuing. Propagate Robert's stop request
   to the whole team; do not start another task after it.
 
-Role instructions: [actors](docs/agents/actors.md), [assets](docs/agents/assets.md).
+Role instructions: [actors](docs/agents/actors.md), [assets](docs/agents/assets.md),
+[review and integration](docs/agents/integration.md).

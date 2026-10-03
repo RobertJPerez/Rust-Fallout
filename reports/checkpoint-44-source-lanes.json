@@ -1,0 +1,723 @@
+{
+  "schema_version": 1,
+  "checkpoint": 44,
+  "engine_revision": "9e23c2e4ba4418edebfdb9e419261b20861ab94f",
+  "source_snapshot_sha256": "65cd8fd84bba9c45705a8b8016a869d34cf7f2bf6e402d0475040474866b9a93",
+  "binaries": {
+    "target\\release\\fallout.exe": "c2bbd46e2c6ca1c723247bb6d97d8e0bab6fb88a94cad02c8f1cafa49eb1373e",
+    "target\\release\\fallout-evidence.exe": "c416b7c9f1feef4c2a7371bf33107b3275c0a19df94c1f6cb7c042e00b619eb1",
+    "local\\actor-oracle-build\\Release\\actor-oracle.exe": "00ad07c63eebe29638129bb74ba114c3e871bb46a2bafde9a67b21c869429fb0",
+    "local\\nif-skin-oracle-build\\Release\\nif-skin-oracle.exe": "6062b9c61cc22d60e82bd680228a15bd3c871565928b1453546310655391231d"
+  },
+  "commands": [
+    {
+      "name": "source-lane-guard-tests",
+      "arguments": [
+        "C:\\Users\\robjp\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "G:\\Rust-Fallout\\tools\\test_source_lane_guards.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "30364e2504ee04e69a65687ea4079544962ac2f8fee56301387809f1182e8123"
+    },
+    {
+      "name": "actors",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\actor-oracle\\compare.ps1",
+        "-Fallout",
+        "G:\\Rust-Fallout\\target\\release\\fallout.exe",
+        "-Oracle",
+        "G:\\Rust-Fallout\\local\\actor-oracle-build\\Release\\actor-oracle.exe",
+        "-Install",
+        "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas",
+        "-LoadOrder",
+        "G:\\Rust-Fallout\\profiles\\nv-inspection-order.json",
+        "-RunDirectory",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\actors"
+      ],
+      "exit_code": 0,
+      "log_sha256": "c2942669fd8c74b803d9023522ecdaf89992368ed544f2f1e34ef8a86b112c5d"
+    },
+    {
+      "name": "actors-altered-fatigue",
+      "arguments": [
+        "G:\\Rust-Fallout\\target\\release\\fallout.exe",
+        "actor-sources",
+        "--install",
+        "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas",
+        "--load-order",
+        "G:\\Rust-Fallout\\profiles\\nv-inspection-order.json",
+        "--compare-oracle",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\actors\\altered-fatigue.json",
+        "--output",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\actors\\altered-result.json"
+      ],
+      "exit_code": 1,
+      "log_sha256": "39bd90db7679d2c8357b911c3f68ec558461eb83426907b5ceba6f977e67875e"
+    },
+    {
+      "name": "skin-authored",
+      "arguments": [
+        "C:\\Users\\robjp\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "G:\\Rust-Fallout\\tools\\nif-skin-oracle\\check_comparison.py",
+        "--binary",
+        "G:\\Rust-Fallout\\target\\release\\fallout.exe",
+        "--oracle",
+        "G:\\Rust-Fallout\\local\\nif-skin-oracle-build\\Release\\nif-skin-oracle.exe",
+        "--output-dir",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\skin-authored"
+      ],
+      "exit_code": 0,
+      "log_sha256": "5c26d4b9bbfdef31f22dd023b3da5d50882150b3464d86535062e5348429342c"
+    },
+    {
+      "name": "skin-sample",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "--test",
+        "nif_skin_samples",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e462739766c27fb5dca6e39692466f2c9d1fe286b6a06260ec33b73cb6fa5771"
+    },
+    {
+      "name": "skin-native",
+      "arguments": [
+        "C:\\Users\\robjp\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "G:\\Rust-Fallout\\tools\\run-nif-skin-oracle.py",
+        "--binary",
+        "G:\\Rust-Fallout\\local\\nif-skin-oracle-build\\Release\\nif-skin-oracle.exe",
+        "--input",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\skin-retail\\inputs",
+        "--output",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\skin-retail\\oracle.json"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "skin-rust",
+      "arguments": [
+        "G:\\Rust-Fallout\\target\\release\\fallout.exe",
+        "nif-skin",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\skin-retail\\inputs",
+        "--oracle-report",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\skin-retail\\oracle.json",
+        "--output",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-verified\\skin-retail\\rust.json"
+      ],
+      "exit_code": 0,
+      "log_sha256": "62e4e7b652c46885c669c6ef02bf373acac472510fd4034616f95c5ae1b464e2"
+    },
+    {
+      "name": "runtime-regression",
+      "arguments": [
+        "G:\\Rust-Fallout\\target\\release\\fallout-evidence.exe",
+        "--checkpoint",
+        "43",
+        "--install",
+        "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas",
+        "--run-directory",
+        "G:\\Rust-Fallout\\local\\source-lanes-44-regression",
+        "--no-publish"
+      ],
+      "exit_code": 0,
+      "log_sha256": "ef2de038fad2d63e021bb3fc0f8b71f72355f3f27806bded00a659125c026a2e"
+    }
+  ],
+  "inspection_order_sha256": "af684297f2e6287f1afea0a8901db6f1c7664fb341e8817d3ec6af82d4e41be5",
+  "actor_and_runtime_source_cohorts_equal": true,
+  "actors": {
+    "counts": {
+      "decoded_bytes": 5337465,
+      "deleted_records": 0,
+      "fields": 204929,
+      "record_kinds": {
+        "CREA": 2235,
+        "NPC_": 4220
+      },
+      "record_versions": {
+        "CREA:11": 4,
+        "CREA:13": 1,
+        "CREA:14": 13,
+        "CREA:15": 2216,
+        "CREA:9": 1,
+        "NPC_:14": 1,
+        "NPC_:15": 4219
+      },
+      "records": 6455,
+      "scalar_fields": 17130,
+      "scalar_layouts": {
+        "CREA:ACBS:24": 2235,
+        "CREA:DATA:17": 2235,
+        "NPC_:ACBS:24": 4220,
+        "NPC_:DATA:11": 4220,
+        "NPC_:DNAM:28": 4220
+      },
+      "source_findings": 0
+    },
+    "sources": [
+      {
+        "source_bytes": 245650747,
+        "source_name": "FalloutNV.esm",
+        "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+      },
+      {
+        "source_bytes": 6274851,
+        "source_name": "DeadMoney.esm",
+        "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+      },
+      {
+        "source_bytes": 17308500,
+        "source_name": "HonestHearts.esm",
+        "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+      },
+      {
+        "source_bytes": 16202800,
+        "source_name": "OldWorldBlues.esm",
+        "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+      },
+      {
+        "source_bytes": 25676818,
+        "source_name": "LonesomeRoad.esm",
+        "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+      },
+      {
+        "source_bytes": 252445,
+        "source_name": "GunRunnersArsenal.esm",
+        "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+      },
+      {
+        "source_bytes": 3007,
+        "source_name": "CaravanPack.esm",
+        "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+      },
+      {
+        "source_bytes": 6523,
+        "source_name": "ClassicPack.esm",
+        "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+      },
+      {
+        "source_bytes": 3064,
+        "source_name": "MercenaryPack.esm",
+        "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+      },
+      {
+        "source_bytes": 2323,
+        "source_name": "TribalPack.esm",
+        "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+      }
+    ],
+    "winning_content_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f",
+    "phases": [
+      {
+        "name": "cold",
+        "report_sha256": "013c054658463b443b2161fc9e2796ba425cb2676086b268f227e79191bb49fb",
+        "index_cache": {
+          "format": "nv-header-index-v2",
+          "ordered_source_sha256": "20faafbbe68d4e5b86599c4bbd4f7a5231c67cbaf8c5b2c897002b221814dcd6",
+          "plugins": [
+            {
+              "index_bytes": 24668063,
+              "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+              "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+              "plugin": "FalloutNV.esm",
+              "records": 465016,
+              "reused": false,
+              "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            },
+            {
+              "index_bytes": 2131144,
+              "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+              "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+              "plugin": "DeadMoney.esm",
+              "records": 40084,
+              "reused": false,
+              "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+            },
+            {
+              "index_bytes": 1925901,
+              "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+              "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+              "plugin": "HonestHearts.esm",
+              "records": 36201,
+              "reused": false,
+              "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+            },
+            {
+              "index_bytes": 2800058,
+              "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+              "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+              "plugin": "OldWorldBlues.esm",
+              "records": 52683,
+              "reused": false,
+              "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+            },
+            {
+              "index_bytes": 1860691,
+              "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+              "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+              "plugin": "LonesomeRoad.esm",
+              "records": 34988,
+              "reused": false,
+              "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+            },
+            {
+              "index_bytes": 44496,
+              "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+              "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+              "plugin": "GunRunnersArsenal.esm",
+              "records": 778,
+              "reused": false,
+              "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+            },
+            {
+              "index_bytes": 1924,
+              "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+              "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+              "plugin": "CaravanPack.esm",
+              "records": 7,
+              "reused": false,
+              "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+            },
+            {
+              "index_bytes": 2649,
+              "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+              "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+              "plugin": "ClassicPack.esm",
+              "records": 19,
+              "reused": false,
+              "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+            },
+            {
+              "index_bytes": 1926,
+              "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+              "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+              "plugin": "MercenaryPack.esm",
+              "records": 7,
+              "reused": false,
+              "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+            },
+            {
+              "index_bytes": 1731,
+              "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+              "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+              "plugin": "TribalPack.esm",
+              "records": 5,
+              "reused": false,
+              "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+            }
+          ],
+          "scope": "source-bound TES4/CELL metadata; other payloads remain deferred and validate strictly on access; winners rebuilt for supplied order",
+          "source_bytes_hashed": 311381078
+        }
+      },
+      {
+        "name": "warm",
+        "report_sha256": "ca60c8c901bb0b04512e5d20f6f8169c10999d0610e1ca82e1eb46d4d457d564",
+        "index_cache": {
+          "format": "nv-header-index-v2",
+          "ordered_source_sha256": "20faafbbe68d4e5b86599c4bbd4f7a5231c67cbaf8c5b2c897002b221814dcd6",
+          "plugins": [
+            {
+              "index_bytes": 24668063,
+              "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+              "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+              "plugin": "FalloutNV.esm",
+              "records": 465016,
+              "reused": true,
+              "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            },
+            {
+              "index_bytes": 2131144,
+              "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+              "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+              "plugin": "DeadMoney.esm",
+              "records": 40084,
+              "reused": true,
+              "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+            },
+            {
+              "index_bytes": 1925901,
+              "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+              "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+              "plugin": "HonestHearts.esm",
+              "records": 36201,
+              "reused": true,
+              "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+            },
+            {
+              "index_bytes": 2800058,
+              "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+              "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+              "plugin": "OldWorldBlues.esm",
+              "records": 52683,
+              "reused": true,
+              "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+            },
+            {
+              "index_bytes": 1860691,
+              "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+              "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+              "plugin": "LonesomeRoad.esm",
+              "records": 34988,
+              "reused": true,
+              "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+            },
+            {
+              "index_bytes": 44496,
+              "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+              "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+              "plugin": "GunRunnersArsenal.esm",
+              "records": 778,
+              "reused": true,
+              "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+            },
+            {
+              "index_bytes": 1924,
+              "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+              "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+              "plugin": "CaravanPack.esm",
+              "records": 7,
+              "reused": true,
+              "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+            },
+            {
+              "index_bytes": 2649,
+              "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+              "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+              "plugin": "ClassicPack.esm",
+              "records": 19,
+              "reused": true,
+              "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+            },
+            {
+              "index_bytes": 1926,
+              "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+              "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+              "plugin": "MercenaryPack.esm",
+              "records": 7,
+              "reused": true,
+              "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+            },
+            {
+              "index_bytes": 1731,
+              "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+              "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+              "plugin": "TribalPack.esm",
+              "records": 5,
+              "reused": true,
+              "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+            }
+          ],
+          "scope": "source-bound TES4/CELL metadata; other payloads remain deferred and validate strictly on access; winners rebuilt for supplied order",
+          "source_bytes_hashed": 311381078
+        }
+      },
+      {
+        "name": "reordered",
+        "report_sha256": "cf17b63d19f8c47c297e1a4f4d48e2279b77cafc59d22d4310d9f90a64dd4b15",
+        "index_cache": {
+          "format": "nv-header-index-v2",
+          "ordered_source_sha256": "083b7812dec2cd6c6bfa6f14c2a348ecd3b1109b5267bf0ff5dec38b641b6046",
+          "plugins": [
+            {
+              "index_bytes": 24668063,
+              "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+              "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+              "plugin": "FalloutNV.esm",
+              "records": 465016,
+              "reused": true,
+              "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+            },
+            {
+              "index_bytes": 2131144,
+              "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+              "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+              "plugin": "DeadMoney.esm",
+              "records": 40084,
+              "reused": true,
+              "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+            },
+            {
+              "index_bytes": 1925901,
+              "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+              "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+              "plugin": "HonestHearts.esm",
+              "records": 36201,
+              "reused": true,
+              "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+            },
+            {
+              "index_bytes": 2800058,
+              "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+              "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+              "plugin": "OldWorldBlues.esm",
+              "records": 52683,
+              "reused": true,
+              "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+            },
+            {
+              "index_bytes": 1860691,
+              "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+              "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+              "plugin": "LonesomeRoad.esm",
+              "records": 34988,
+              "reused": true,
+              "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+            },
+            {
+              "index_bytes": 44496,
+              "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+              "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+              "plugin": "GunRunnersArsenal.esm",
+              "records": 778,
+              "reused": true,
+              "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+            },
+            {
+              "index_bytes": 1924,
+              "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+              "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+              "plugin": "CaravanPack.esm",
+              "records": 7,
+              "reused": true,
+              "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+            },
+            {
+              "index_bytes": 2649,
+              "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+              "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+              "plugin": "ClassicPack.esm",
+              "records": 19,
+              "reused": true,
+              "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+            },
+            {
+              "index_bytes": 1731,
+              "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+              "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+              "plugin": "TribalPack.esm",
+              "records": 5,
+              "reused": true,
+              "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+            },
+            {
+              "index_bytes": 1926,
+              "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+              "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+              "plugin": "MercenaryPack.esm",
+              "records": 7,
+              "reused": true,
+              "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+            }
+          ],
+          "scope": "source-bound TES4/CELL metadata; other payloads remain deferred and validate strictly on access; winners rebuilt for supplied order",
+          "source_bytes_hashed": 311381078
+        }
+      }
+    ],
+    "complete_physical_fields_equal": true,
+    "altered_fatigue_rejected": true,
+    "source_findings": [],
+    "actors_initialized": false
+  },
+  "skin": {
+    "authored": {
+      "schema_version": 1,
+      "fixtures": 48,
+      "stream_revisions": [
+        14,
+        21,
+        24,
+        25,
+        26,
+        27,
+        28,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "presence_normalizations_checked": 24,
+      "vertex_count_normalizations_checked": 24,
+      "deliberate_mismatches": [
+        {
+          "name": "weight_bits",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "weight_vertex_index",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "bounding_radius",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "transform_negative_zero",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "presence_byte",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "absent_vertex_count",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "reference_order",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "dismember_flags",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "body_part_id",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "source_hash",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "source_length",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "block_hash",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "block_offset",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "block_length",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "block_omission",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "owner_omission",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "owner_vertex_count",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "tuple",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "file_omission",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "duplicate_file",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "normalization_contract",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "prepare_data",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "source_pin",
+          "exit_code": 1,
+          "rejected": true
+        },
+        {
+          "name": "binary_hash",
+          "exit_code": 1,
+          "rejected": true
+        }
+      ],
+      "cli_sha256": "c2bbd46e2c6ca1c723247bb6d97d8e0bab6fb88a94cad02c8f1cafa49eb1373e",
+      "oracle_sha256": "6062b9c61cc22d60e82bd680228a15bd3c871565928b1453546310655391231d",
+      "oracle_report_sha256": "cde427c4744d50248bffcef8b747b5836cc9569feab912051654beaea9273db2",
+      "rust_report_sha256": "0e8a4e867a7c5d471d7f7bbe4f3d16506009569be588a57eacd6b6bb045f7480",
+      "gameplay_accepted": false
+    },
+    "sampled_files": 32,
+    "source_manifest_sha256": "25050423d51d923d8afaa75022b64b00c6568e124fbc550c633fe0a2d08a6714",
+    "rust_report_sha256": "626e87abe1c04c604bab56e9e9fd65009b516403324d702cfd2e83fca21eb404",
+    "oracle_report_sha256": "35cbdd242fe1e1835536866252c818f4845fc2fead824a5b202472513215ca34",
+    "decoded_scan_bytes": 23261738,
+    "selection_findings": [],
+    "block_counts": {
+      "BSDismemberSkinInstance": 248,
+      "NiSkinData": 250,
+      "NiSkinInstance": 2
+    },
+    "owners": 250,
+    "unresolved_dependencies": 250,
+    "actual_oracle_binary_bound": true,
+    "changed_valid_binary_digest_rejected_by_runner": true,
+    "runtime_ready": false
+  },
+  "runtime_regression": {
+    "checkpoint_scope": 43,
+    "directory": "local\\source-lanes-44-regression",
+    "verification_sha256": "b0863b7473f650fb3202c81dbb3adaac4614b64dffa57ba9637e36592236ea4e",
+    "tests_passed": 359,
+    "python_publication_tests_passed": 5
+  },
+  "original_installation_matches_baseline": true,
+  "installation_files_checked": 464,
+  "installation_bytes_checked": 9907238722,
+  "source_and_binaries_unchanged": true,
+  "finished_unix_seconds_utc": 1791063951,
+  "source_lane_guard_tests_passed": 3,
+  "retail_parity_accepted": false,
+  "accepted_scenarios": [],
+  "local_evidence_directory": "local\\source-lanes-44-verified",
+  "raw_receipt_sha256": "c1f87e3eaf28eef8a2d4b49e5da02a2c9523fd4ba4b70198aef3af48d3af3b86"
+}

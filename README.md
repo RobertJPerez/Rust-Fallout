@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 275 tests pass, including malformed compression, forward/cyclic links,
+- 283 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -290,3 +290,8 @@ leaving inventories uninitialized. Bethesda save compatibility remains separate.
 host content links and kind rules against winning headers before atomic item
 mutations. Missing/deleted forms and omitted rules fail without changing state.
 Original admission and gameplay semantics remain unmeasured.
+
+[Shared primitive queries](docs/primitive-queries.md) now route the verified
+GetItemCount native/condition entry IDs through the same exact host count trace.
+Explicit subjects and typed arguments are required; original coercion, form-list
+expansion, condition truth and script/native execution remain unfinished.

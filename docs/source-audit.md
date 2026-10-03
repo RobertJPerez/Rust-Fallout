@@ -323,3 +323,11 @@ no original admission domain is guessed. Original Rust validates links before
 canonical transactions. Whole-header classification and exact source binding
 comparisons are separate from host-policy engineering tests. No new upstream
 implementation is imported; see [source item checks](source-item-validation.md).
+
+Checkpoint 36 reads the pinned xNVSE inventory-object-or-form-list parameter
+declaration and xEdit GetItemCount condition row. The exact original executable
+supplies command 4143/function 47, required parent and parameter type 50. Both
+source entry IDs share an original Rust host query; no original handler executes
+and argument/return coercion remains unverified. Independent full descriptor/CTDA
+comparisons stay separate from engineering result tests. Exact scopes/hashes are
+in the source lock; see [primitive queries](primitive-queries.md).

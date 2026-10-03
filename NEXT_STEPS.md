@@ -243,3 +243,12 @@ Eight runtime tests and installed-data/cold/native comparisons cover the API; se
 [source item checks](docs/source-item-validation.md). Next: shared primitive query
 interfaces, observed original return coercion and bounded script execution traces.
 Body/asset residency and original inventory admission remain separate gates.
+
+Checkpoint 36 adds shared GetItemCount source-entry routing over explicit host
+state, with persistent request context, exact bounded count traces and explicit
+unverified numeric returns. Eight runtime tests and cold-process comparisons
+cover engineering behavior; all winning CTDA bindings/descriptors are rerun. See
+[primitive queries](docs/primitive-queries.md). Next: original form-list count and
+argument/return coercion measurements, then bounded observable VM execution.
+Unverified subject defaults and condition comparisons must continue to fail or
+remain unresolved rather than being presented as successful original behavior.

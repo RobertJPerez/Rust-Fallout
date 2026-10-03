@@ -17,6 +17,7 @@ mod native_migration_inspection;
 mod native_save_inspection;
 mod operand_inspection;
 mod pe_image;
+mod query_inspection;
 mod quest_script_inspection;
 mod script_profile;
 mod script_state_inspection;
@@ -80,6 +81,26 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Compare shared native/condition entry routing over explicit host state.
+    PrimitiveQueryState {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
+    },
+    /// Repeat shared query traces in a cold source-bound process.
+    PrimitiveQueryLoadProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        query_inputs: PathBuf,
+    },
     /// Validate explicit host item mutations against winning source headers.
     SourceItemState {
         #[arg(long)]
@@ -570,6 +591,25 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::PrimitiveQueryState {
+            install,
+            load_order,
+            new_repository,
+        } => {
+            let report = query_inspection::probe(&install, &load_order, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::PrimitiveQueryLoadProbe {
+            install,
+            load_order,
+            repository,
+            query_inputs,
+        } => {
+            let (owners, keys) = item_state_inspection::decode_query_inputs(&query_inputs)?;
+            let report =
+                query_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
         Command::SourceItemState {
             install,
             load_order,

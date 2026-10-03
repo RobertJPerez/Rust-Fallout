@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "02bb8698bb15ff7448ade1351df2884feb740155",
+  "last_verified_revision": "131ba173bc201ca8194ea65e398853df24692553",
   "revision_note": "Checkpoint 26 binds independent compressed byte extraction to its implementation revision; earlier requirements retain their own revisions and scopes.",
   "accepted_scenarios": [],
   "requirements": [
@@ -1248,6 +1248,58 @@
       ],
       "tolerance": "Exact raw fields, parameter classification, canonical form keys, winning-header provenance and all dependency states; 53 authored conditions across cold/warm/reordered loads; 10 malformed cases rejected",
       "last_verified_revision": "02bb8698bb15ff7448ade1351df2884feb740155"
+    },
+    {
+      "id": "fnv.scripts.compiled-local-schema",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "obscript",
+      "requirement": "Classify every winning compiled local from the first declaration and positive SCRV membership without requiring source text.",
+      "evidence": [
+        "reports/checkpoint-28-script-state.json",
+        "reports/checkpoint-28-verification.json",
+        "docs/script-runtime-state.md"
+      ],
+      "affected_content": "80627 winning units / 11172 unique locals / eleven preserved duplicate indices",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-runtime/tests/state.rs",
+        "tools/script-state-schema-oracle",
+        "fallout-evidence --checkpoint 28"
+      ],
+      "known_gaps": [
+        "Original live initialization, lifecycle, scheduling and quest-delay timing",
+        "Native query/command execution and original numeric coercion",
+        "Original save import and full mutable world state",
+        "Cross-owner event-list resolution and retail differential traces"
+      ],
+      "tolerance": "Exact independent original source extents, payload digests, unit markers, first declaration offsets and storage classification",
+      "last_verified_revision": "131ba173bc201ca8194ea65e398853df24692553"
+    },
+    {
+      "id": "fnv.runtime.canonical-script-state",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "canonical-state",
+      "requirement": "Persist explicit script-instance identities, exact local storage, reference links, context, clocks and pending event work against an immutable content cohort.",
+      "evidence": [
+        "reports/checkpoint-28-script-state.json",
+        "reports/checkpoint-28-verification.json",
+        "docs/script-runtime-state.md"
+      ],
+      "affected_content": "2483 engineering probe instances / 9144 numeric values / 2028 reference values / 2160 events",
+      "status": "unit-tested",
+      "tests": [
+        "crates/fallout-runtime/tests/state.rs",
+        "tools/script-state-schema-oracle",
+        "fallout-evidence --checkpoint 28"
+      ],
+      "known_gaps": [
+        "Original live initialization, lifecycle, scheduling and quest-delay timing",
+        "Native query/command execution and original numeric coercion",
+        "Original save import and full mutable world state",
+        "Cross-owner event-list resolution and retail differential traces"
+      ],
+      "tolerance": "Exact canonical snapshot bytes and persistent identities; eleven runtime tests plus original-schema engineering probe; no retail behavior comparison",
+      "last_verified_revision": "131ba173bc201ca8194ea65e398853df24692553"
     }
   ]
 }

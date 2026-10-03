@@ -125,6 +125,83 @@ only for authored fixtures expected to retain findings and return diagnostic exi
 1. The original cohort returns exit 0 in every phase. This tooling writes no
 installation files and does not claim original-game behavior or gameplay parity.
 
-ACT-02 is the next dependency: ordered authored actor associations, with exact
-source cohort checks before joining a store. Runtime inheritance, initialization
-and original gameplay measurements remain with the primary integration lane.
+## Ordered actor associations (ACT-02)
+
+`actors::associations::Catalogue::load(&mut RecordStore, &actors::Catalogue,
+Limits)` joins the admitted actor source to a store only after verifying a unique
+normalized-plugin map of exact source lengths/hashes and the exact winning header
+digest. Duplicate normalized receipts are rejected. Each owner is then located
+using its stable FormKey in the supplied store, with plugin identity, record
+offset, flags, kind and retained header checked. No prior store index is reused.
+Unrelated store reordering can succeed; changed override winners or even a
+same-length payload change with identical header counts must fail the join.
+
+The separate association definitions point to physical field indices in the
+scalar definition. They preserve authored order and every occurrence. The
+original field metadata and bytes remain in the joined source catalogue.
+
+| Authored link | Admitted source shape | Target schema |
+| --- | --- | --- |
+| SNAM faction | Form word, signed rank byte, three unused bytes; 8 bytes | FACT |
+| NPC_ RNAM race / CNAM class | One form word each; 4 bytes | RACE / CLAS |
+| VTCK voice | One form word; 4 bytes | VTYP |
+| INAM death item | One form word; 4 bytes | LVLI |
+| SPLO actor effect | One form word; 4 bytes | SPEL |
+| EITM unarmed effect | One form word; 4 bytes | ENCH or SPEL |
+| PKID package | One form word; 4 bytes | PACK |
+
+Creature RNAM is attack reach and CNAM is an impact dataset. This slice does not
+reinterpret them as NPC race/class links. Faction, actor-effect and package lists
+retain repetitions and order without deduplication. Repeated singleton links are
+findings. Required NPC voice/race/class field absence produces findings without
+defaults. Target null, missing, deleted and defined states use the existing
+inventory binding model; target-kind agreement is a separate optional fact.
+Missing/deleted targets and wrong kinds are reported without source repair.
+No faction state, effect execution, package selection or template inheritance is
+initialized by resolving a declaration.
+
+Additional pinned reads: `wbDefinitionsCommon.pas` lines 8801–8812 define the
+signed SNAM rank and padding; lines 6531–6543 confirm that FNV retains the three
+unused bytes. The FNV association declarations are within the previously listed
+CREA/NPC schema blocks, plus SPLO at lines 4061–4062. The existing reference file
+hashes and xEdit revision above remain unchanged.
+
+The private complete direct-reader comparison agrees in cold/warm/reordered runs
+on all 48,159 ordered bindings: 17,008 factions, 4,220 races, 4,220 classes, 5,762
+voices, 2,296 death items, 2,374 actor effects, 395 unarmed effects and 11,884
+packages. Of these, 48,158 targets are defined and one voice target is deleted.
+That authored voice link on `deadmoney.esm:00AE30`, at decoded offset 183, remains
+an `association_target_deleted` finding. Each original report is written with
+exact independent equality, then returns diagnostic exit 1. The original game's
+handling of that link remains unmeasured.
+
+Seven association tests pass in addition to the eight scalar tests. They cover
+ordered authored bindings, signed ranks and unused bytes, target domains,
+null/missing/deleted/wrong-kind targets, missing and duplicate fields, creature
+field overloads, bounds, tombstones, source-content changes, changed override
+winners and stable ownership across reordered stores. Direct authored-reader
+comparisons and deliberately altered rank/invalid SNAM tests supplement those
+checks. Formatting and fallout-data/CLI all-target Clippy pass.
+
+Use `actor-sources --include-associations` to add the association projection.
+Pass `-IncludeAssociations -AllowSourceFindings` to the comparison wrapper for
+the original cohort's retained tombstone finding. Scalar-only inspection and
+comparison remain available. ACT-02 raw development evidence is under
+`local\act02-associations-20261003-01`,
+`local\act02-authored-comparison-20261003-01`, and
+`local\act02-authored-inputs-20261003\negative-results`.
+
+The comparison wrapper now captures HEAD, dirty status, a hash/length manifest
+of every tracked and nonignored untracked file, and both executable hashes before
+comparison. It verifies those inputs at completion before publishing its private
+worker receipt. An injected source-file change was rejected and produced no
+completed receipt; its raw attempted run is retained at
+`local\act02-source-freeze-rejection-20261003`. Successful runs include source-start
+and source-finish manifests. These are worker evidence, with root responsible
+for fresh integrated checkpoint publication. The earlier ACT-01 receipt predates
+this runner correction; its exact binaries are preserved at
+`local\act01-frozen-tools` with their original hashes.
+
+Placed-actor extras, required race/class/faction source inputs and bounded actor
+dependency closure remain next source dependencies. Runtime inheritance,
+initialization and original gameplay measurements stay with the primary lane.

@@ -1,6 +1,7 @@
 // Original offline source-field comparison. No replacement/runtime code is called.
 #include "../oracle-common/record_source.hpp"
 #include "../oracle-common/zlib_source.hpp"
+#include "associations.hpp"
 using namespace fallout_records;
 
 static std::string bytes_json(const Bytes& bytes, size_t first, size_t end) {
@@ -88,8 +89,11 @@ static Document decode(const Bytes& body,const std::string& kind,uint16_t versio
 }
 int wmain(int argc,wchar_t** argv) {
     try {
-        if (argc!=3) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle");
+        if (argc!=3 && argc!=4) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations]");
+        const bool include_associations=argc==4;
+        if(include_associations&&std::wstring(argv[3])!=L"--include-associations")throw std::runtime_error("unknown actor oracle option");
         auto index=scan(argv[1],argv[2]); Counts counts; std::vector<std::string> definitions;
+        actor_associations::Counts association_counts;std::vector<std::string> association_definitions;
         for (const auto& winner:index.winners) {
             const auto& entry=winner.second; const auto& source=index.plugins[entry.source];
             const std::string kind(entry.header.begin(),entry.header.begin()+4);
@@ -98,6 +102,7 @@ int wmain(int argc,wchar_t** argv) {
             const auto flags=static_cast<uint32_t>(integer(entry.header,8,4)); const bool deleted=flags & 0x20;
             const auto version=static_cast<uint16_t>(integer(entry.header,20,2));
             Document document; std::string body_sha="null";
+            actor_associations::Document associations;
             if (deleted) ++counts.values["deleted_records"];
             else {
                 auto body=source.source->read(entry.offset+24,static_cast<size_t>(integer(entry.header,4,4)));
@@ -112,16 +117,21 @@ int wmain(int argc,wchar_t** argv) {
                 counts.values["decoded_bytes"]+=body.size();
                 if (body.size()>64*1024*1024 || counts.values["decoded_bytes"]>256ULL*1024*1024) throw std::runtime_error("actor decoded byte budget");
                 body_sha=quote(fallout_tables::hash(body)); document=decode(body,kind,version,counts); ++counts.versions[kind+":"+std::to_string(version)];
+                if(include_associations)associations=actor_associations::decode(index,entry,body,kind,association_counts);
             }
             definitions.push_back(object({{"key",winner.first.json()},{"kind",kind_json(entry.header)},
                 {"source",object({{"plugin",quote(source.name)},{"sha256",quote(source.source->sha256)},
                     {"record_file_offset",std::to_string(entry.offset)},{"record_flags",std::to_string(flags)},{"decoded_record_sha256",body_sha}})},
                 {"deleted",deleted ? "true":"false"},{"record_version",deleted ? "null":std::to_string(version)},
                 {"fields",array(document.fields)},{"findings",array(document.findings)}}));
+            if(include_associations){++association_counts.records;association_definitions.push_back(object({{"key",winner.first.json()},
+                {"associations",array(associations.associations)},{"findings",array(associations.findings)}}));}
         }
-        std::cout<<object({{"schema_version","1"},{"profile",quote("nv-original")},{"sources",index.sources_json()},
+        Object report{{"schema_version","1"},{"profile",quote("nv-original")},{"sources",index.sources_json()},
             {"metadata",index.metadata_json()},{"winning_content_sha256",quote(index.winners_sha256)},
-            {"counts",counts.json()},{"definitions",array(definitions)}})<<'\n';
+            {"counts",counts.json()},{"definitions",array(definitions)}};
+        if(include_associations)report["actor_associations"]=object({{"counts",association_counts.json()},{"definitions",array(association_definitions)}});
+        std::cout<<object(report)<<'\n';
         return 0;
     } catch (const std::exception& error) { std::cerr<<"actor-oracle: "<<error.what()<<'\n'; return 1; }
 }

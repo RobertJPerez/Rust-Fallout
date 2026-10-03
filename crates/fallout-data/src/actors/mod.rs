@@ -1,6 +1,7 @@
 //! Immutable actor scalars joined directly to their exact inventory catalogue.
 //! The borrow preserves source cohort/digest identity without a second store or
 //! a weaker join based on record counts. No live actor state is initialized.
+pub mod associations;
 pub mod fields;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};
 use serde::Serialize;

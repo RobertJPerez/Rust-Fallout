@@ -4,14 +4,20 @@ use fallout_data::{actors, baseline, inventory, record_metadata};
 use serde_json::{Value, json};
 use std::{io::Read, path::Path};
 
+#[derive(Default)]
+pub(super) struct Options {
+    pub(super) include_associations: bool,
+    pub(super) include_classes: bool,
+    pub(super) include_factions: bool,
+    pub(super) include_placements: bool,
+    pub(super) include_races: bool,
+}
+
 pub(super) fn inspect(
     install: &Path,
     order_path: &Path,
     cache: Option<&Path>,
-    include_associations: bool,
-    include_classes: bool,
-    include_factions: bool,
-    include_placements: bool,
+    options: Options,
 ) -> Result<Value> {
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -27,7 +33,7 @@ pub(super) fn inspect(
         "counts":catalogue.counts(),"definitions":definitions,"index_cache":store.index_cache_report(),
         "scope":"Exact authored NPC_/CREA scalar source fields joined to existing inventory provenance; no actor initialization, inheritance, automatic statistics or runtime conversion",
         "actors_initialized":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
-    if include_associations {
+    if options.include_associations {
         let associations = actors::associations::Catalogue::load(
             &mut store,
             &catalogue,
@@ -38,7 +44,7 @@ pub(super) fn inspect(
             "Exact authored NPC_/CREA scalar fields and ordered source associations; no inheritance, initialization, effect, faction or AI execution"
         );
     }
-    if include_classes {
+    if options.include_classes {
         let classes =
             actors::classes::Catalogue::load(&mut store, actors::classes::Limits::default())?;
         report["actor_classes"] = json!({"counts":classes.counts(),"definitions":classes.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
@@ -47,7 +53,7 @@ pub(super) fn inspect(
             report["scope"].as_str().unwrap_or_default()
         ));
     }
-    if include_factions {
+    if options.include_factions {
         let factions =
             actors::factions::Catalogue::load(&mut store, actors::factions::Limits::default())?;
         report["actor_factions"] = json!({"counts":factions.counts(),"definitions":factions.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
@@ -56,12 +62,20 @@ pub(super) fn inspect(
             report["scope"].as_str().unwrap_or_default()
         ));
     }
-    if include_placements {
+    if options.include_placements {
         let placements =
             actors::placements::Catalogue::load(&mut store, actors::placements::Limits::default())?;
         report["actor_placements"] = json!({"counts":placements.counts(),"definitions":placements.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
         report["scope"] = json!(format!(
             "{}; authored placed actor inputs using the existing world decoder, no actor initialization",
+            report["scope"].as_str().unwrap_or_default()
+        ));
+    }
+    if options.include_races {
+        let races = actors::races::Catalogue::load(&mut store, actors::races::Limits::default())?;
+        report["actor_races"] = json!({"counts":races.counts(),"definitions":races.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
+        report["scope"] = json!(format!(
+            "{}; authored RACE scalar inputs, no race or FaceGen application",
             report["scope"].as_str().unwrap_or_default()
         ));
     }
@@ -113,6 +127,10 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err("independent actor source comparison differs in actor_placements".into());
     }
+    if report.get("actor_races").is_some() && report.get("actor_races") != oracle.get("actor_races")
+    {
+        return Err("independent actor source comparison differs in actor_races".into());
+    }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
@@ -133,6 +151,10 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     if report.get("actor_placements").is_some() {
         report["independent_comparison"]["placements_checked"] =
             report["actor_placements"]["counts"]["records"].clone();
+    }
+    if report.get("actor_races").is_some() {
+        report["independent_comparison"]["races_checked"] =
+            report["actor_races"]["counts"]["records"].clone();
     }
     Ok(())
 }

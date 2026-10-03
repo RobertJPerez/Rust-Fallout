@@ -486,3 +486,76 @@ Comparisons are at `local\act03-linked-comparison-20261003-01` and
 verify actual source/head/dirty manifests and executable hashes unchanged. These
 are worker source checks; they do not accept gameplay or constitute an integrated
 checkpoint.
+
+## Remaining source investigation
+
+Read-only byte investigation for the next RACE slice is retained at
+`local\act05-race-investigation-20261003`. The supplied original order has 31
+physical and winning RACE definitions, all version 15, without deleted winners:
+22 from FalloutNV, six from HonestHearts and one each from DeadMoney,
+LonesomeRoad and OldWorldBlues. Their 3,518 physical fields occupy 144,223 decoded
+bytes. DATA36, PNAM4 and UNAM4 occur once in every winner (93 selected fields).
+Pinned FNV lines 7369-7397 define seven ordered signed skill/boost byte pairs,
+two unused bytes, four height/weight float words and flags in DATA. Lines
+7420-7421 define the main/face clamp floats. Source bits do not establish applied
+race statistics or FaceGen behavior. These measurements bound the separately
+approved scalar catalogue below; they do not constitute its comparison receipt.
+
+Independent package investigation is retained at
+`local\act06-package-investigation-20261003`. It found 4,888 physical PACK records
+and 4,885 winners across versions 1/2/3/9/10/11/13/14/15, with 88,491 fields and
+1,455,709 decoded bytes. The observed PKDT layouts are 4,872 twelve-byte fields
+and 13 eight-byte fields; all winners have one PSDT8. PLD2 has 472 twelve-byte
+occurrences across 236 winners, so repeated occurrences must be preserved rather
+than silently collapsed. There are 3,777 CTDA28 and 24 CTDA20 fields. These facts
+prepare an independently bounded package task; this investigation does not decode
+package unions, migrate editor defaults, group conditions or execute AI/scripts.
+
+## Race scalar sources (ACT-05 first RACE slice)
+
+`actors::races::Catalogue::load(&mut RecordStore, Limits)` owns winning RACE
+headers, source identity, decoded bodies, ordered field metadata and findings,
+with complete source receipts and the exact winning-content digest. The first
+scope admits observed version 15 and DATA36/PNAM4/UNAM4 only. Other fields retain
+opaque hashes/offsets and full body bytes; no model, voice, age, relation or hair
+bindings are decoded yet. Deleted winners retain header/provenance without
+reading their body or applying a version/default migration.
+
+DATA retains seven ordered `SkillBoost { skill: i8, boost: i8 }` pairs, two unused
+bytes, male/female height and weight raw words, and every flag bit. PNAM/UNAM
+retain main/face clamp words, including exact signed zero, subnormal and
+non-finite bit patterns. Fields do not apply clamps or infer effective race or
+FaceGen state. All three pinned required declarations produce missing-field
+findings when absent; duplicate singletons retain each physical occurrence and
+its finding. No default is manufactured to satisfy an absent declaration.
+
+Limits precede matching candidate clones, body reads/inflation and field vector
+growth. Per-record stored/declared/decoded bodies use the smaller of 64 MiB and
+the remaining 256 MiB catalogue budget. The independent native projection uses
+the ACT-08 body guard and directly reads the original fields. The additive
+`--include-races` flag emits `actor_races` and compares its complete projection;
+the private inspector options struct preserves the existing optional sections.
+Minimal CLI main flag/dispatch/finding wiring is declared for integration.
+
+All 40 actor tests (including five RACE tests), formatting and fallout-data/CLI
+all-target Clippy pass. The private native build passes its six allocation-order
+checks. Original comparisons agree in cold, warm and reordered phases on every
+requested source section, including 31 RACE winners, 3,518 fields, 93 scalar
+fields and 144,223 decoded bytes with zero race findings. The known association
+voice finding remains explicit. The inspector options refactor retains all
+existing complete projections.
+
+Authored comparisons agree in all phases on seven winners including an unread
+tombstone, 18 fields, 16 scalar fields, 396 bytes and six source findings. They
+retain exact non-finite/zero/subnormal words, signed skill order, unused bytes,
+duplicates/absence, extended opaque fields and master/self winner identities.
+Both readers reject DATA35/37, PNAM3, UNAM5, versions14/16 and a hostile declared
+compressed prefix. Changed height bits and winning-header trailing bytes fail
+the complete race comparison; the scalar-only default still compares equally.
+
+Evidence is at `local\act05-race-comparison-20261003-01`,
+`local\act05-race-authored-comparison-20261003-01` and
+`local\act05-race-authored-inputs-20261003\negative-results`. Completed runs verify
+their actual source/head/dirty manifests and executable hashes unchanged. This
+is an immutable source slice; race application, actor/player initialization and
+gameplay remain separate.

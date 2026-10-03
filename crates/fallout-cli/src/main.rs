@@ -178,6 +178,8 @@ enum Command {
         include_factions: bool,
         #[arg(long)]
         include_placements: bool,
+        #[arg(long)]
+        include_races: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -794,15 +796,19 @@ fn run(args: Args) -> Result<()> {
             include_classes,
             include_factions,
             include_placements,
+            include_races,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
-                include_associations,
-                include_classes,
-                include_factions,
-                include_placements,
+                actor_inspection::Options {
+                    include_associations,
+                    include_classes,
+                    include_factions,
+                    include_placements,
+                    include_races,
+                },
             )?;
             if let Some(oracle) = compare_oracle {
                 actor_inspection::compare(&mut report, &oracle)?;
@@ -822,6 +828,10 @@ fn run(args: Args) -> Result<()> {
                     .unwrap_or(0)
                     != 0
                 || report["actor_placements"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_races"]["counts"]["source_findings"]
                     .as_u64()
                     .unwrap_or(0)
                     != 0

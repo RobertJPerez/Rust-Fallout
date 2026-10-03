@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "dfc67dfb9844fd046587eb3d6e00714ebeb9253b",
+  "last_verified_revision": "0a4a210f59685d448ad0130620e7a2705a6963be",
   "revision_note": "Checkpoint 13 adds bounded authored quadrant weight inspection and an original C++ byte comparison. Defaults, missing bases, retail blending and M1 remain open; earlier GPU evidence retains its revision.",
   "accepted_scenarios": [],
   "requirements": [
@@ -856,7 +856,7 @@
         "Independent calculation starts from Rust-decoded bodies; compression and linking are outside its scope"
       ],
       "tolerance": "Weight bytes exact; modified oracle weight must fail",
-      "last_verified_revision": null
+      "last_verified_revision": "0a4a210f59685d448ad0130620e7a2705a6963be"
     }
   ]
 }

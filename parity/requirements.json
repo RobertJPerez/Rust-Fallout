@@ -3,7 +3,7 @@
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
   "last_verified_revision": "0a4a210f59685d448ad0130620e7a2705a6963be",
-  "revision_note": "Checkpoint 13 adds bounded authored quadrant weight inspection and an original C++ byte comparison. Defaults, missing bases, retail blending and M1 remain open; earlier GPU evidence retains its revision.",
+  "revision_note": "Checkpoint 14 adds bounded authored diffuse terrain inspection, shared DDS uploads, explicit tiling, incomplete-material rejection and 64 numeric GPU checks. Three textured cells plus interior/color regressions are captured; retail UI helper failed to connect, so direct camera/material/input testing remains open.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -857,6 +857,30 @@
       ],
       "tolerance": "Weight bytes exact; modified oracle weight must fail",
       "last_verified_revision": "0a4a210f59685d448ad0130620e7a2705a6963be"
+    },
+    {
+      "id": "fnv.presentation.terrain_diffuse_inspection",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "rendering",
+      "requirement": "Render authored diffuse terrain layers with source-bound byte weights, shared image uploads and explicit inspection draw states; reject missing/default materials",
+      "status": "oracle-tested",
+      "affected_content": "Goodsprings, GoodspringsSource, NVDLC02PineCreek; TownCenter/interior regressions; three incomplete-material negative fixtures",
+      "evidence": [
+        "reports/terrain-textured-preview.json",
+        "reports/checkpoint-14-verification.json",
+        "docs/terrain-textured-preview.md"
+      ],
+      "tests": [
+        "crates/fallout-cli/src/textured_evidence.rs",
+        "crates/fallout-preview/src/fixture.rs"
+      ],
+      "known_gaps": [
+        "Unlit additive inspection with explicit tiling is not measured retail compositing, normal/specular shading or lighting",
+        "NULL defaults, absent bases, props, water, streaming, collision and gameplay remain unfinished",
+        "Computer-use native pipe unavailable after retry/reset; manual input and retail camera/material comparison are pending"
+      ],
+      "tolerance": "64 original GPU expectations retain the existing two-byte sRGB quantization tolerance; texture/body/weight provenance exact; occupancy is only a smoke check",
+      "last_verified_revision": null
     }
   ]
 }

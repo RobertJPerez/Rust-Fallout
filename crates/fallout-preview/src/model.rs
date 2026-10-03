@@ -83,17 +83,23 @@ pub struct Textures {
 }
 
 impl Textures {
-    fn load(&mut self, assets: &ArchiveAssets, path: &AssetPath, clamp: u32) -> Result<usize> {
+    pub(super) fn load(
+        &mut self,
+        assets: &ArchiveAssets,
+        path: &AssetPath,
+        clamp: u32,
+    ) -> Result<usize> {
         let key = (path.clone(), clamp);
         if let Some(id) = self.ids.get(&key) {
             return Ok(*id);
         }
-        let (_, data) = assets.read_unique(path)?;
-        if self.images.len() >= 4096
-            || data.len() > (256 * 1024 * 1024usize).saturating_sub(self.bytes)
-        {
+        if self.images.len() >= 4096 {
             return Err("scene texture budget exceeded".into());
         }
+        let (_, data) = assets.read_unique_bounded(
+            path,
+            (256 * 1024 * 1024usize).saturating_sub(self.bytes) as u64,
+        )?;
         let image = decode_diffuse(&data, clamp)?;
         let size = image.texture_descriptor.size;
         self.evidence.push(TextureEvidence {

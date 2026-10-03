@@ -24,9 +24,11 @@ LTEX/TXST records to verified archive members. It retains unapplied NULL default
 see [terrain texture dependencies](docs/terrain-textures.md).
 Sparse terrain alpha samples also expand into independently compared quadrant
 weights; see [terrain blend maps](docs/terrain-blends.md).
+Goodsprings and two other source cells now render authored diffuse terrain layers.
+See [the textured build and manual test](docs/terrain-textured-preview.md).
 The inspection view draws 400 of 435 references using shared models and textures.
 It now handles authored untextured materials and source alpha, culling and depth
-states; 62 synthetic GPU checks cover those render states.
+states; 64 synthetic GPU checks now cover render states and terrain weight passes.
 Authored collision shapes and rigid-body fields now decode independently in Rust;
 731 collision blocks in the house match raw nifly output exactly.
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
@@ -151,7 +153,7 @@ record the evidence and its limits:
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
 - 134 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
-- 62 asset-free GPU cases pass for source alpha comparisons, blend factors, face
+- 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
 - Authored collision payloads match the raw oracle across the house's 207 models:
   6,622 packed vertices, 2,810 packed triangles and 964 convex vertices. Source units

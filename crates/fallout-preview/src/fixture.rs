@@ -6,13 +6,17 @@ use crate::{
     scene::{Instance, Prepared},
 };
 use bevy::{
-    asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology,
+    asset::RenderAssetUsages,
+    mesh::Indices,
+    prelude::*,
+    render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat},
 };
 use serde::Serialize;
 
 const SOURCE: [f32; 4] = [0.5, 0.25, 0.125, 0.5];
 const BACKGROUND: [f32; 4] = [0.16, 0.36, 0.64, 0.75];
 const THRESHOLD: u8 = 128;
+const TERRAIN_PALETTE: [[u8; 4]; 3] = [[255, 0, 0, 255], [0, 0, 255, 255], [0, 255, 0, 255]];
 
 #[derive(Clone, Serialize)]
 pub struct Case {
@@ -26,6 +30,10 @@ pub struct Case {
     expected_srgb8: [u8; 3],
     measured_srgb8: Option<[u8; 3]>,
     passed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    terrain_weights: Option<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    terrain_palette_rgba8: Option<Vec<[u8; 4]>>,
 }
 
 #[derive(Clone, Resource, Serialize)]
@@ -160,6 +168,8 @@ impl Board {
             expected_srgb8: expected.map(srgb8),
             measured_srgb8: None,
             passed: None,
+            terrain_weights: None,
+            terrain_palette_rgba8: None,
         });
         Ok(center)
     }
@@ -360,6 +370,74 @@ pub fn prepare() -> Result<(Prepared, Report)> {
             false,
         ));
     }
+    // Exercise the actual terrain draw adapter with solid, original test images.
+    // The golden colors are numeric expectations, not a second shader implementation.
+    for (name, weights, palette, expected) in [
+        (
+            "terrain-half-red-blue",
+            vec![128, 127],
+            vec![0, 1],
+            [128. / 255., 0., 127. / 255.],
+        ),
+        (
+            "terrain-overfull-red-green",
+            vec![0, 191, 191],
+            vec![1, 0, 2],
+            [191. / 255., 191. / 255., 0.],
+        ),
+    ] {
+        let center = board.add(
+            name.into(),
+            [0., 0., 0., 1.],
+            default(),
+            false,
+            1.,
+            expected,
+        )?;
+        board.parts.pop();
+        let case = board.cases.last_mut().ok_or("missing terrain GPU case")?;
+        case.terrain_weights = Some(weights.clone());
+        case.terrain_palette_rgba8 = Some(palette.iter().map(|i| TERRAIN_PALETTE[*i]).collect());
+        case.source_rgba = TERRAIN_PALETTE[palette[0]].map(|v| f32::from(v) / 255.);
+        for (pass, (weight, texture)) in weights.into_iter().zip(palette).enumerate() {
+            let mut part = quad(
+                center + Vec3::Z,
+                Vec2::new(80., 50.),
+                [1.; 4],
+                crate::terrain_textures::layer_raster(pass != 0),
+                false,
+            );
+            part.texture = Some(texture);
+            part.mesh.insert_attribute(
+                Mesh::ATTRIBUTE_COLOR,
+                vec![
+                    [
+                        f32::from(weight) / 255.,
+                        f32::from(weight) / 255.,
+                        f32::from(weight) / 255.,
+                        1.
+                    ];
+                    4
+                ],
+            );
+            board.parts.push(part);
+        }
+    }
+    let images = TERRAIN_PALETTE
+        .map(|rgba| {
+            Image::new_fill(
+                Extent3d {
+                    width: 4,
+                    height: 4,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                &rgba,
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::RENDER_WORLD,
+            )
+        })
+        .to_vec();
     let prepared = Prepared {
         models: vec![Model {
             parts: board.parts,
@@ -371,7 +449,7 @@ pub fn prepare() -> Result<(Prepared, Report)> {
             transform: Transform::IDENTITY,
             key: None,
         }],
-        images: vec![],
+        images,
         center: Vec3::ZERO,
         radius: 1000.,
         origin: [0.; 3],

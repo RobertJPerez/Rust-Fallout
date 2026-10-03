@@ -5,6 +5,7 @@ mod index_evidence;
 mod preview_evidence;
 mod terrain_evidence;
 mod texture_evidence;
+mod textured_evidence;
 
 use clap::Parser;
 use serde::Serialize;
@@ -31,7 +32,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=13))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=14))]
     checkpoint: u8,
 }
 
@@ -237,7 +238,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let terrain_oracle = root.join("local/terrain-oracle-build/Release/terrain-oracle.exe");
-    let terrain_digest = if matches!(args.checkpoint, 9..=13) {
+    let terrain_digest = if matches!(args.checkpoint, 9..=14) {
         Some(digest(&terrain_oracle)?)
     } else {
         None
@@ -249,8 +250,20 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let preview = root.join("target/debug/fallout-preview.exe");
-    let preview_digest = if args.checkpoint == 11 {
+    let preview_digest = if matches!(args.checkpoint, 11 | 14) {
         Some(digest(&preview)?)
+    } else {
+        None
+    };
+    let playtest = root.join("target/debug/fallout-playtest.exe");
+    let playtest_digest = if args.checkpoint == 14 {
+        Some(digest(&playtest)?)
+    } else {
+        None
+    };
+    let playtest_config = root.join("local/playtest.json");
+    let playtest_config_digest = if args.checkpoint == 14 {
+        Some(digest(&playtest_config)?)
     } else {
         None
     };
@@ -337,7 +350,7 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
-    let mut terrain_evidence = if matches!(args.checkpoint, 9..=13) {
+    let mut terrain_evidence = if matches!(args.checkpoint, 9..=14) {
         Some(terrain_evidence::run(
             &root,
             &destination,
@@ -387,13 +400,47 @@ fn run(args: Args) -> Result<()> {
             )?;
     }
     let gpu_evidence = if let Some(sha) = &preview_digest {
-        Some(preview_evidence::run(
-            &root,
-            &destination,
-            &preview,
-            &args.install,
-            sha,
-        )?)
+        Some(if args.checkpoint == 14 {
+            textured_evidence::run(&root, &destination, &preview, &args.install, sha)?
+        } else {
+            preview_evidence::run(&root, &destination, &preview, &args.install, sha)?
+        })
+    } else {
+        None
+    };
+    let launcher_evidence = if args.checkpoint == 14 {
+        let mut command = Command::new(&playtest);
+        command.current_dir(&root).arg("--check");
+        let output = run_logged(command, &destination.join("playtest-ready.log"))?;
+        let path = destination.join("playtest-ready.json");
+        write_new(&path, &output.stdout)?;
+        let receipt = json_file(&path)?;
+        if receipt["ready"] != true
+            || receipt["window_launched"] != false
+            || receipt["terrain"] != "Goodsprings"
+            || receipt["texture_repeats_per_quadrant"] != 4.
+            || Path::new(
+                receipt["preview"]
+                    .as_str()
+                    .ok_or("Missing launcher preview")?,
+            )
+            .canonicalize()?
+                != preview.canonicalize()?
+            || Path::new(
+                receipt["install"]
+                    .as_str()
+                    .ok_or("Missing launcher installation")?,
+            )
+            .canonicalize()?
+                != args.install.canonicalize()?
+        {
+            return Err("Manual test launcher configuration differs from GPU fixture".into());
+        }
+        Some(
+            json!({"binary_sha256":playtest_digest,"configuration_sha256":playtest_config_digest,
+            "readiness_report_sha256":digest(&path)?,"ready":true,"interactive_input_tested":false,
+            "scope":"Rust launcher path/config validation; matching terrain/tiling/source paths; headless viewer tested separately; direct user input remains a manual check"}),
+        )
     } else {
         None
     };
@@ -437,6 +484,12 @@ fn run(args: Args) -> Result<()> {
         || member_digest
             .as_ref()
             .is_some_and(|expected| digest(&member_oracle).as_ref().ok() != Some(expected))
+        || playtest_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&playtest).as_ref().ok() != Some(expected))
+        || playtest_config_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&playtest_config).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -473,6 +526,9 @@ fn run(args: Args) -> Result<()> {
     // Immutable checkpoint files are the publication boundary. Update current
     // aliases separately after this runner succeeds, retaining earlier receipts.
     let mut verification = verification;
+    if let Some(launcher) = launcher_evidence {
+        verification["manual_test_launcher"] = launcher;
+    }
     write_json(
         &root.join(format!(
             "reports/checkpoint-{:02}-source-snapshot.json",
@@ -481,6 +537,7 @@ fn run(args: Args) -> Result<()> {
         &source,
     )?;
     if let Some(mut terrain) = terrain_evidence {
+        terrain["checkpoint"] = args.checkpoint.into();
         terrain["engine_revision"] = revision.clone().into();
         terrain["source_snapshot_sha256"] = source["sha256"].clone();
         verification
@@ -526,11 +583,25 @@ fn run(args: Args) -> Result<()> {
     if let Some(mut gpu) = gpu_evidence {
         gpu["engine_revision"] = revision.clone().into();
         gpu["source_snapshot_sha256"] = source["sha256"].clone();
-        verification["terrain_preview"] = gpu.clone();
+        let (key, filename) = if args.checkpoint == 14 {
+            (
+                "terrain_textured_preview",
+                "reports/terrain-textured-preview.json",
+            )
+        } else {
+            ("terrain_preview", "reports/terrain-preview.json")
+        };
+        verification[key] = gpu.clone();
         verification["preview_binary_sha256"] = preview_digest.into();
         verification["presentation_reexecuted"] = true.into();
-        verification["presentation_scope"] = "Terrain GPU smoke captures and interior assembly regression; checkpoint 06 material oracle checks were not repeated".into();
-        write_json(&root.join("reports/terrain-preview.json"), &gpu)?;
+        verification["presentation_scope"] = if args.checkpoint==14 { "Three textured terrain inspections, vertex-color/interior regressions and 64 numeric synthetic GPU checks; no retail comparison" }
+            else { "Terrain GPU smoke captures and interior assembly regression; checkpoint 06 material oracle checks were not repeated" }.into();
+        if args.checkpoint == 14 {
+            verification["presentation_evidence_origin_checkpoint"] = 14.into();
+            verification["terrain_presentation_evidence_origin_checkpoint"] = 14.into();
+            verification["terrain_presentation_reexecuted"] = true.into();
+        }
+        write_json(&root.join(filename), &gpu)?;
     }
     write_json(
         &root.join(format!(

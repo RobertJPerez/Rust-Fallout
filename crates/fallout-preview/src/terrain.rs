@@ -9,6 +9,7 @@ use bevy::{
     asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology,
 };
 use fallout_data::{
+    assets::ArchiveAssets,
     baseline, coordinates, plugin,
     store::RecordStore,
     terrain::{self, Fields},
@@ -33,9 +34,16 @@ pub struct Report {
     pub coordinates: &'static str,
     pub rendering: &'static str,
     pub retail_parity_accepted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub textured: Option<crate::terrain_textures::Report>,
 }
 
-pub fn load(install: &Path, order: &Path, name: &str) -> model::Result<(Prepared, scene::Report)> {
+pub fn load(
+    install: &Path,
+    order: &Path,
+    name: &str,
+    repeats: Option<f32>,
+) -> model::Result<(Prepared, scene::Report)> {
     let mut order_bytes = Vec::new();
     baseline::open_source(order)?
         .take(1024 * 1024 + 1)
@@ -47,9 +55,22 @@ pub fn load(install: &Path, order: &Path, name: &str) -> model::Result<(Prepared
     let order_sha = format!("{:x}", Sha256::digest(&order_bytes));
     let mut store =
         RecordStore::open_nv_headers(&install.join("Data"), &names, plugin::Limits::default())?;
-    let report = terrain::inspect_cell(&mut store, name.as_bytes(), None)?;
+    let mut report = terrain::inspect_cell(&mut store, name.as_bytes(), None)?;
     if report.integrity_failures != 0 || report.link_failures != 0 {
         return Err("terrain contains unresolved or corrupt inputs".into());
+    }
+    let mut archives = repeats
+        .map(|_| ArchiveAssets::open_nv(install))
+        .transpose()?;
+    if let Some(assets) = &mut archives {
+        report.texture_dependencies = Some(terrain::textures::inspect(
+            &mut store,
+            &report,
+            assets,
+            None,
+            None,
+            terrain::textures::Limits::default(),
+        )?);
     }
     let Fields::Cell(cell) = report.cell.fields.as_ref().ok_or("missing CELL fields")? else {
         return Err("wrong CELL kind".into());
@@ -107,33 +128,61 @@ pub fn load(install: &Path, order: &Path, name: &str) -> model::Result<(Prepared
     }
     let vertices = positions.len();
     let triangles = geometry.indices.len() / 3;
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    );
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0f32; 2]; vertices]);
-    let color_mode = if let Some(colors) = geometry.colors {
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_COLOR,
-            colors
-                .iter()
-                .map(|rgb| {
-                    [
-                        f32::from(rgb[0]) / 255.,
-                        f32::from(rgb[1]) / 255.,
-                        f32::from(rgb[2]) / 255.,
-                        1.,
-                    ]
-                })
-                .collect::<Vec<_>>(),
-        );
+    let color_mode = if geometry.colors.is_some() {
         "authored VCLR divided by 255; color-space interpretation unmeasured"
     } else {
         "absent VCLR; white inspection material, no inferred source color"
     };
-    mesh.insert_indices(Indices::U32(geometry.indices));
+    let (parts, images, textured) = if let Some(repeats) = repeats {
+        let (parts, textures, evidence) = crate::terrain_textures::prepare(
+            &report,
+            land,
+            crate::terrain_textures::SurfaceView {
+                positions: &positions,
+                normals: &normals,
+                colors: geometry.colors.as_deref(),
+                hidden: flags.unwrap_or(0),
+            },
+            repeats,
+            archives.as_ref().ok_or("missing texture archives")?,
+        )?;
+        (parts, textures.images, Some(evidence))
+    } else {
+        let mut mesh = Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        );
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0f32; 2]; vertices]);
+        if let Some(colors) = geometry.colors {
+            mesh.insert_attribute(
+                Mesh::ATTRIBUTE_COLOR,
+                colors
+                    .iter()
+                    .map(|rgb| {
+                        [
+                            f32::from(rgb[0]) / 255.,
+                            f32::from(rgb[1]) / 255.,
+                            f32::from(rgb[2]) / 255.,
+                            1.,
+                        ]
+                    })
+                    .collect::<Vec<_>>(),
+            );
+        }
+        mesh.insert_indices(Indices::U32(geometry.indices));
+        (
+            vec![Part {
+                mesh,
+                texture: None,
+                color: Color::WHITE,
+                raster: Raster::default(),
+            }],
+            vec![],
+            None,
+        )
+    };
     let center = (min + max) * 0.5;
     let radius = (max - min).length() * 0.5;
     if !radius.is_finite() || radius <= 0. {
@@ -141,12 +190,7 @@ pub fn load(install: &Path, order: &Path, name: &str) -> model::Result<(Prepared
     }
     let prepared = Prepared {
         models: vec![Model {
-            parts: vec![Part {
-                mesh,
-                texture: None,
-                color: Color::WHITE,
-                raster: Raster::default(),
-            }],
+            parts,
             center,
             radius,
         }],
@@ -155,7 +199,7 @@ pub fn load(install: &Path, order: &Path, name: &str) -> model::Result<(Prepared
             transform: Transform::IDENTITY,
             key: Some(entry.key.clone()),
         }],
-        images: vec![],
+        images,
         center,
         radius,
         origin,
@@ -173,8 +217,13 @@ pub fn load(install: &Path, order: &Path, name: &str) -> model::Result<(Prepared
         land_flags_byte: flags,
         color_mode,
         coordinates: "source-local geometry; [x,y,z] -> [x,z,-y]; rebase in f64; measured retail axes/units remain open",
-        rendering: "unlit authored terrain height/normal/color inspection; no landscape textures, blending, props, water, retail lighting, streaming, collision or gameplay",
+        rendering: if textured.is_some() {
+            "unlit authored diffuse-layer inspection; explicit tiling and additive byte-weight passes; retail shaders/blending, defaults, props, water, streaming, collision and gameplay remain open"
+        } else {
+            "unlit authored terrain height/normal/color inspection; no landscape textures, blending, props, water, retail lighting, streaming, collision or gameplay"
+        },
         retail_parity_accepted: false,
+        textured,
     };
     Ok((prepared, scene::Report::Terrain(Box::new(report))))
 }

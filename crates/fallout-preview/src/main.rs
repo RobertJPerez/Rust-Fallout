@@ -4,6 +4,7 @@ mod material;
 mod model;
 mod scene;
 mod terrain;
+mod terrain_textures;
 
 use bevy::{
     app::{AppExit, ScheduleRunnerPlugin},
@@ -43,6 +44,12 @@ struct Options {
     /// Exterior terrain CELL editor ID, for example Goodsprings. No gameplay is simulated.
     #[arg(long, requires_all = ["load_order", "install"])]
     terrain: Option<String>,
+    /// Draw authored diffuse layers; missing bases and NULL defaults fail explicitly.
+    #[arg(long, requires_all = ["terrain", "terrain_texture_repeat"])]
+    terrain_textures: bool,
+    /// Explicit inspection tiling per quadrant, with no claimed retail scale.
+    #[arg(long, requires = "terrain_textures")]
+    terrain_texture_repeat: Option<f32>,
     /// Check synthetic material states on the GPU without reading game assets.
     #[arg(long, requires_all = ["headless", "report"])]
     material_fixture: bool,
@@ -141,6 +148,7 @@ fn run() -> model::Result<AppExit> {
             options.install.as_deref().expect("clap requires install"),
             options.load_order.as_deref().expect("clap requires order"),
             name,
+            options.terrain_texture_repeat,
         )?
     } else {
         scene::load_cell(

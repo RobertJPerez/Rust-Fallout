@@ -4,6 +4,12 @@ The next unmet gate is **M1: trustworthy, semantically useful content loading**.
 The current tools build and run; the original games have not been recreated yet.
 Keep the entire master brief in scope and progress through its dependency gates.
 
+Checkpoint 14 is ready for a direct visual/input comparison. Run the verified build
+with [these test instructions](docs/terrain-textured-preview.md). Windows UI
+automation failed to connect to its native pipe after retry/reset, so original-game
+camera/material comparison is an actual manual test gap, not missing file access.
+Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
+
 1. Resolve the three documented vanilla format exceptions with independent evidence.
    Reproduce the strict LAND failure with:
 

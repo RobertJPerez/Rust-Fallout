@@ -29,6 +29,10 @@ Neither source flags nor decoded geometry are rewritten.
 
 ## Asset-free GPU verification
 
+Checkpoint 14 retains the original 62 cases and adds two textured quadrant-weight
+checks, for 64 current GPU expectations. The extra cases record their texture
+palette and weight bytes; checkpoint 06's immutable evidence remains unchanged.
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 build --locked -p fallout-preview
 .\target\debug\fallout-preview.exe --material-fixture --headless --capture local/material-new.png --report local/material-new.json
@@ -49,13 +53,16 @@ and retains the PNG and measurements. A unit test also rejects a blank readback.
 | Simultaneous blending and strict greater-than alpha test | 3 |
 | CCW, CW and both-face modes with each winding | 6 |
 | Depth test and depth writes, enabled and disabled | 4 |
-| Total | 62 |
+| Textured residual-base and excess-overlay checks | 2 |
+| Current total | 64 |
 
 Expected linear RGB is converted to sRGB and compared with the captured bytes.
 The allowance is at most two byte values per channel for render-target quantization;
 it is not a retail comparison tolerance. Alpha threshold equality is tested directly,
 without an epsilon. Current numeric checks inspect RGB output, rather than separately
 certifying the framebuffer alpha channel. See [material-states.json](../reports/material-states.json).
+That report preserves checkpoint 06's original 62 cases; the current 64-case
+results are in [textured terrain evidence](../reports/terrain-textured-preview.json).
 
 ## References and remaining work
 

@@ -3,6 +3,7 @@ mod fixture;
 mod material;
 mod model;
 mod scene;
+mod startup;
 mod terrain;
 mod terrain_textures;
 
@@ -135,6 +136,7 @@ fn run() -> model::Result<AppExit> {
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
     }
+    let preparation = startup::Progress::start(options.headless);
     let (prepared, report) = if options.material_fixture {
         let (prepared, report) = fixture::prepare()?;
         (prepared, scene::Report::Fixture(report))
@@ -198,6 +200,7 @@ fn run() -> model::Result<AppExit> {
         serde_json::to_writer_pretty(&mut file, &report)?;
         file.write_all(b"\n")?;
     }
+    preparation.finish();
     let orbit = Orbit {
         center: prepared.center,
         radius: prepared.radius,
@@ -278,6 +281,7 @@ fn setup(
     mut materials: ResMut<Assets<material::InspectionMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
+    startup::stage("Graphics initialized; preparing the terrain/model draw resources.");
     let textures: Vec<_> = prepared
         .images
         .drain(..)

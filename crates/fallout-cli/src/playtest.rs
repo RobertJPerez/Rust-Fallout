@@ -6,9 +6,13 @@ use serde::Deserialize;
 use serde_json::json;
 use std::{
     error::Error,
-    io::Read,
+    fs::{self, File, OpenOptions},
+    io::{self, IsTerminal, Read, Write},
     path::PathBuf,
-    process::{Command, ExitCode},
+    process::{Command, ExitCode, Stdio},
+    sync::{Arc, Mutex},
+    thread,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -20,6 +24,9 @@ struct Options {
     check: bool,
     #[arg(long)]
     terrain: Option<String>,
+    /// Exercise this launcher and the renderer without opening a desktop window.
+    #[arg(long, conflicts_with = "check")]
+    smoke_test: bool,
 }
 
 #[derive(Deserialize)]
@@ -30,6 +37,26 @@ struct Config {
     load_order: PathBuf,
     terrain: String,
     texture_repeats_per_quadrant: f32,
+}
+
+fn relay(
+    mut source: impl Read + Send + 'static,
+    log: Arc<Mutex<File>>,
+) -> thread::JoinHandle<io::Result<()>> {
+    thread::spawn(move || {
+        let mut bytes = [0; 4096];
+        loop {
+            let count = source.read(&mut bytes)?;
+            if count == 0 {
+                return Ok(());
+            }
+            // Keep output live without holding the console lock while reading.
+            io::stderr().lock().write_all(&bytes[..count])?;
+            log.lock()
+                .map_err(|_| io::Error::other("Launch log lock failed"))?
+                .write_all(&bytes[..count])?;
+        }
+    })
 }
 
 fn run(options: Options) -> Result<()> {
@@ -90,11 +117,72 @@ fn run(options: Options) -> Result<()> {
         );
         return Ok(());
     }
+    let local = root.join("local").canonicalize()?;
+    if !local.starts_with(root.canonicalize()?) || local.starts_with(&install) {
+        return Err("Launch logs must stay in this checkout's local directory".into());
+    }
+    let nonce = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    let folder = local.join(format!("playtest-{}-{nonce}", std::process::id()));
+    fs::create_dir(&folder)?;
+    let log_path = folder.join("startup.log");
+    let log = Arc::new(Mutex::new(
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&log_path)?,
+    ));
+    if options.smoke_test {
+        command
+            .arg("--headless")
+            .arg("--capture")
+            .arg(folder.join("capture.png"))
+            .arg("--report")
+            .arg(folder.join("report.json"));
+    }
+    println!(
+        "Loading {terrain}. {}",
+        if options.smoke_test {
+            "Running an offscreen startup test."
+        } else {
+            "The 3D view opens in a separate window; this console shows loading progress."
+        }
+    );
+    println!("Startup log: {}", log_path.display());
     println!(
         "Terrain inspection: Tab toggles orbit/fly; WASD moves; Q/E changes height; arrows turn; R resets; Esc exits."
     );
-    if !command.status()?.success() {
-        return Err("Terrain inspection exited unsuccessfully".into());
+    io::stdout().flush()?;
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let stdout = relay(
+        child.stdout.take().ok_or("Missing viewer stdout")?,
+        Arc::clone(&log),
+    );
+    let stderr = relay(
+        child.stderr.take().ok_or("Missing viewer stderr")?,
+        Arc::clone(&log),
+    );
+    let status = child.wait()?;
+    stdout.join().map_err(|_| "Viewer output relay failed")??;
+    stderr.join().map_err(|_| "Viewer error relay failed")??;
+    log.lock()
+        .map_err(|_| "Launch log lock failed")?
+        .sync_all()?;
+    if !status.success() {
+        return Err(format!(
+            "Viewer exited with {status}. Startup log: {}",
+            log_path.display()
+        )
+        .into());
+    }
+    if options.smoke_test {
+        println!(
+            "Startup test passed. Capture: {}",
+            folder.join("capture.png").display()
+        );
     }
     Ok(())
 }
@@ -104,6 +192,10 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
+            if io::stdin().is_terminal() {
+                eprintln!("Press Enter to close this error window.");
+                let _ = io::stdin().read_line(&mut String::new());
+            }
             ExitCode::FAILURE
         }
     }

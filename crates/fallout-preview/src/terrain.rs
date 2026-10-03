@@ -53,16 +53,24 @@ pub fn load(
     }
     let names: Vec<String> = serde_json::from_slice(&order_bytes)?;
     let order_sha = format!("{:x}", Sha256::digest(&order_bytes));
+    crate::startup::stage(format!("Indexing {} plugins for {name}...", names.len()));
     let mut store =
         RecordStore::open_nv_headers(&install.join("Data"), &names, plugin::Limits::default())?;
+    crate::startup::stage(format!(
+        "Reading {name} terrain records and source hashes..."
+    ));
     let mut report = terrain::inspect_cell(&mut store, name.as_bytes(), None)?;
     if report.integrity_failures != 0 || report.link_failures != 0 {
         return Err("terrain contains unresolved or corrupt inputs".into());
+    }
+    if repeats.is_some() {
+        crate::startup::stage("Indexing texture archives...");
     }
     let mut archives = repeats
         .map(|_| ArchiveAssets::open_nv(install))
         .transpose()?;
     if let Some(assets) = &mut archives {
+        crate::startup::stage("Resolving texture layers and verifying archive/texture bytes...");
         report.texture_dependencies = Some(terrain::textures::inspect(
             &mut store,
             &report,
@@ -84,6 +92,7 @@ pub fn load(
     let Some(Fields::Land(land)) = &entry.fields else {
         return Err("terrain preview requires a present LAND".into());
     };
+    crate::startup::stage("Building the terrain surface...");
     let geometry = terrain::mesh::build(land, flags.unwrap_or(0))?;
     let normal_bits = geometry
         .normal_bits
@@ -134,6 +143,7 @@ pub fn load(
         "absent VCLR; white inspection material, no inferred source color"
     };
     let (parts, images, textured) = if let Some(repeats) = repeats {
+        crate::startup::stage("Decoding diffuse images and preparing layer draw passes...");
         let (parts, textures, evidence) = crate::terrain_textures::prepare(
             &report,
             land,

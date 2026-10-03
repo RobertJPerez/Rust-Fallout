@@ -25,3 +25,11 @@ unsafe_code = "forbid"
 lto = "thin"
 codegen-units = 1
 
+# Keep source validation usable in the inspection build. Full plugin scans and
+# archive hashing run before the first window; unoptimized loops make that wait long.
+[profile.dev.package.fallout-data]
+opt-level = 2
+
+[profile.dev.package.sha2]
+opt-level = 3
+

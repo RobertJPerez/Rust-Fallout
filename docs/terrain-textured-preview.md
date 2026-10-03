@@ -15,10 +15,17 @@ From `G:\Rust-Fallout`, run:
 
 You can also double-click that executable in Explorer. The ignored
 `local/playtest.json` is already configured for this installation and Goodsprings.
-This debug build loads source data before opening its window. Allow a few minutes
-for loading and keep the launcher console open.
+The 3D view opens in a separate window. The console now shows loading stages and
+an elapsed-time message every five seconds until data preparation finishes. The
+latest Goodsprings offscreen launch prepared source data in 17 seconds; this is a
+single smoke run, not a startup performance guarantee. Keep the launcher console
+open while loading.
 `fallout-playtest.exe --terrain GoodspringsSource` selects another supported cell;
-`--check` validates the configuration without opening a window. The launcher stays
+`--check` validates the configuration without opening a window.
+`--smoke-test` exercises the complete launcher and renderer offscreen, writes a
+capture/report, and exits. Each launch saves viewer output to its own
+`local/playtest-*/startup.log`. Failures keep an interactive console open until
+Enter is pressed so the error is readable. The launcher stays
 in Rust and never starts the retail game or changes source data.
 
 For another checkout, create `local/playtest.json` with schema_version 1, install

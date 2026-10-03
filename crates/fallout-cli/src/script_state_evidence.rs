@@ -72,7 +72,7 @@ fn phase(inputs: &Inputs<'_>, name: &str, cache: Option<&Path>) -> Result<(Value
     let native = json_file(&native_path)?;
     compare(&rust, &native)?;
     let receipt = json!({"name":name,"rust_report_sha256":digest(&rust_path)?,"native_report_sha256":digest(&native_path)?,
-        "counts":rust["counts"],"state_probe":rust["state_probe"],"cache_reused":rust["index_cache"]["entries"].as_array().map(|entries| entries.iter().map(|entry| entry["reused"].clone()).collect::<Vec<_>>()).unwrap_or_default()});
+        "counts":rust["counts"],"state_probe":rust["state_probe"],"cache_reused":rust["index_cache"]["plugins"].as_array().map(|entries| entries.iter().map(|entry| entry["reused"].clone()).collect::<Vec<_>>()).unwrap_or_default()});
     Ok((rust, receipt))
 }
 fn previous_coverage(root: &Path, report: &Value) -> Result<Value> {

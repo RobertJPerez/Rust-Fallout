@@ -1,6 +1,7 @@
 //! Bounded exterior comparisons. Raw source fields and decoded bodies stay local.
 use super::{Result, digest, json_file, run_logged, run_logged_status, write_json, write_new};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
 
 pub(super) const CELLS: &[&str] = &[
@@ -40,6 +41,9 @@ fn command(
     }
     if oracle.textures {
         command.arg("--inspect-textures");
+    }
+    if oracle.blends {
+        command.arg("--inspect-blends");
     }
     command
 }
@@ -111,6 +115,7 @@ pub struct OracleRun<'a> {
     pub heights: bool,
     pub geometry: bool,
     pub textures: bool,
+    pub blends: bool,
 }
 
 pub fn run(
@@ -184,6 +189,9 @@ pub fn run(
         } else if oracle.heights {
             oracle_command.arg("--heights");
         }
+        if oracle.blends {
+            oracle_command.arg("--blends");
+        }
         let raw = run_logged(oracle_command, &folder.join("oracle.log"))?;
         write_new(&oracle_path, &raw.stdout)?;
         let raw = json_file(&oracle_path)?;
@@ -226,6 +234,9 @@ pub fn run(
         }
         if oracle.geometry && compared["comparison"]["source_meshes_compared"] != 1 {
             return Err("Exterior fixture did not compare exactly one source mesh".into());
+        }
+        if oracle.blends && compared["comparison"]["blend_maps_compared"] != 1 {
+            return Err("Exterior fixture did not compare exactly one blend map".into());
         }
         if oracle.geometry {
             let meshes = compared["source_meshes"]
@@ -289,7 +300,9 @@ pub fn run(
                 .ok_or("Missing oracle rows")?
                 .iter_mut()
                 .find(|row| {
-                    if oracle.textures {
+                    if oracle.blends {
+                        row["blend_maps"]["quadrants"][0]["base"].is_object()
+                    } else if oracle.textures {
                         row["fields"]["paths"][0]["value"]
                             .as_array()
                             .is_some_and(|p| !p.is_empty())
@@ -298,7 +311,13 @@ pub fn run(
                     }
                 })
                 .ok_or("No height field for negative check")?;
-            let changed_field = if oracle.textures {
+            let changed_field = if oracle.blends {
+                let byte = row["blend_maps"]["quadrants"][0]["base"]["weights"][0]
+                    .as_u64()
+                    .ok_or("Missing base weight")?;
+                row["blend_maps"]["quadrants"][0]["base"]["weights"][0] = (byte ^ 1).into();
+                "blend_maps.quadrants[0].base.weights[0]"
+            } else if oracle.textures {
                 let byte = row["fields"]["paths"][0]["value"][0]
                     .as_u64()
                     .ok_or("Missing authored path byte")?;
@@ -344,7 +363,7 @@ pub fn run(
                 return Err("Altered terrain projection was not rejected".into());
             }
             negative = Some(
-                json!({"changed_field":changed_field, "alteration": if oracle.textures { "One authored texture path byte" } else if oracle.geometry { "Reverse one triangle's winding" } else { "One binary32 bit" },
+                json!({"changed_field":changed_field, "alteration": if oracle.blends { "One calculated base-weight byte" } else if oracle.textures { "One authored texture path byte" } else if oracle.geometry { "Reverse one triangle's winding" } else { "One binary32 bit" },
                 "exit_code":1, "comparison_failed":true, "report_sha256":digest(&negative_path)?}),
             );
         }
@@ -360,6 +379,26 @@ pub fn run(
             dataset["normal_samples"] = mesh["normal_bits"].as_array().map_or(0, Vec::len).into();
             dataset["color_samples"] = mesh["colors"].as_array().map_or(0, Vec::len).into();
             dataset["hidden_quadrants"] = mesh["hidden_quadrants"].clone();
+        }
+        if oracle.blends {
+            let dataset = datasets.last_mut().ok_or("Missing blend dataset")?;
+            let maps = &compared["blend_maps"][0]["blends"];
+            dataset["blend_maps_sha256"] =
+                format!("{:x}", Sha256::digest(serde_json::to_vec(maps)?)).into();
+            dataset["blend_weight_values"] = (compared["landscapes"][0]["fields"]["layers"]
+                .as_array()
+                .ok_or("Missing layers")?
+                .len()
+                * 289)
+                .into();
+            for field in [
+                "clamped_samples",
+                "overfull_vertices",
+                "unapplied_default_layers",
+                "missing_base_quadrants",
+            ] {
+                dataset[field] = maps[field].clone();
+            }
         }
     }
     let mut summary = json!({
@@ -423,6 +462,17 @@ pub fn run(
             "Texture pixels, LAND blending, material interpretation and retail rendering acceptance remain unfinished",
             "Original effective profiles, archive precedence and known vanilla format exceptions still block M1"
         ]);
+    }
+    if oracle.blends {
+        summary["checkpoint"] = 13.into();
+        summary["blend_model"] = fallout_data::terrain::blends::BLEND_MODEL.into();
+        summary["blend_maps_compared"] = datasets.len().into();
+        summary["blend_weight_values_compared"] = datasets
+            .iter()
+            .map(|d| d["blend_weight_values"].as_u64().unwrap_or(0))
+            .sum::<u64>()
+            .into();
+        summary["scope"] = "Source fields, geometry and quadrant-local byte weights against original C++ calculation; sparse samples, absent bases, unapplied NULL defaults and overfull weights retained; no cross-cell blend-map repair or measured retail rendering".into();
     }
     Ok(summary)
 }

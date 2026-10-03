@@ -290,10 +290,18 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr, std::
     return out;
 }
 
+#include "blends.hpp"
+
 int main(int argc, char** argv) {
-    const bool geometry = argc == 3 && std::string(argv[2]) == "--geometry";
-    const bool heights = geometry || (argc == 3 && std::string(argv[2]) == "--heights");
-    if (argc != 2 && !heights) { std::cerr << "usage: terrain-oracle BODY_CACHE_DIRECTORY [--heights|--geometry]\n"; return 2; }
+    bool geometry = false, heights = false, blends = false;
+    if (argc < 2 || argc > 4) return 2;
+    for (int i = 2; i < argc; ++i) {
+        const std::string flag(argv[i]);
+        if (flag == "--geometry") { geometry = true; heights = true; }
+        else if (flag == "--heights") heights = true;
+        else if (flag == "--blends") blends = true;
+        else { std::cerr << "unknown terrain oracle flag\n"; return 2; }
+    }
     try {
         std::vector<std::filesystem::path> paths;
         for (const auto& entry : std::filesystem::directory_iterator(argv[1]))
@@ -310,6 +318,7 @@ int main(int argc, char** argv) {
             Object row = {{"file", quote(path.filename().string())}, {"sha256", quote(digest(bytes))}, {"fields", object(fields)}};
             if (heights) row["height_grid"] = grid;
             if (geometry) row["source_mesh"] = mesh;
+            if (blends) row["blend_maps"] = blend_maps(bytes);
             files.push_back(object(row));
         }
         std::cout << object({{"oracle_binary_sha256", quote(digest(read_file(argv[0])))},

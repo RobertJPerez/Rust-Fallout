@@ -1,5 +1,6 @@
 //! Source fields for exterior loading. Authored height deltas and normal bytes
 //! remain unchanged; interpreting them for rendering/physics is a separate step.
+pub mod blends;
 pub mod heights;
 mod inspect;
 pub mod mesh;

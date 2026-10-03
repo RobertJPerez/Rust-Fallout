@@ -70,6 +70,12 @@ comparisons certify that reference model only, not measured NV terrain behavior.
 
 ## Reproduce the component builds
 
+Checkpoint 13 consults contiguous alpha-layer indices and byte coverage in the
+already pinned OpenMW terrain files. Original Rust and C++ calculations expand
+quadrant-local grids, preserving missing/default materials and reporting excess
+coverage. No upstream blend implementation was copied or linked. This comparison
+certifies the inspection model, not executed OpenMW or retail NV rendering.
+
 Checkpoint 12 consults the pinned xEdit LTEX/TXST and NULL LAND definitions, plus
 the already pinned OpenMW texture-root/default handling as source references.
 Original Rust resolves authored nonnull chains; original C++ projects exact fields.

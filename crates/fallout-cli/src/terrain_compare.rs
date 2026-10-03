@@ -22,6 +22,7 @@ pub struct Comparison {
     pub unique_bodies: usize,
     pub height_grids_compared: usize,
     pub source_meshes_compared: usize,
+    pub blend_maps_compared: usize,
     pub oracle_report_sha256: String,
     pub oracle_binary_sha256: String,
     pub differences: Vec<Difference>,
@@ -59,6 +60,7 @@ pub fn compare(
     source_tree: &Path,
     include_heights: bool,
     include_geometry: bool,
+    include_blends: bool,
 ) -> Result<Comparison> {
     let mut bytes = Vec::new();
     baseline::open_source(oracle_path)?
@@ -151,6 +153,16 @@ pub fn compare(
                 } else {
                     None
                 },
+                if include_blends {
+                    Some(match fields {
+                        fallout_data::terrain::Fields::Land(land) => {
+                            serde_json::to_value(fallout_data::terrain::blends::build(land)?)?
+                        }
+                        _ => Value::Null,
+                    })
+                } else {
+                    None
+                },
             ),
         );
         records_compared += 1;
@@ -161,7 +173,8 @@ pub fn compare(
     let mut differences = Vec::new();
     let mut height_grids_compared = 0;
     let mut source_meshes_compared = 0;
-    for (name, (fields, digest, height_grid, geometry)) in &expected {
+    let mut blend_maps_compared = 0;
+    for (name, (fields, digest, height_grid, geometry, blends)) in &expected {
         let row = rows
             .get(name.as_str())
             .ok_or("Terrain oracle omitted a selected body")?;
@@ -194,6 +207,22 @@ pub fn compare(
                 fields: differing,
             });
         }
+        if let Some(blends) = blends {
+            let actual = row
+                .get("blend_maps")
+                .ok_or("Terrain oracle omitted blend maps; run it with --blends")?;
+            let mut differing = Vec::new();
+            paths(blends, actual, "blend_maps", &mut differing);
+            if !blends.is_null() {
+                blend_maps_compared += 1;
+            }
+            if !differing.is_empty() {
+                differences.push(Difference {
+                    body: name.clone(),
+                    fields: differing,
+                });
+            }
+        }
     }
     Ok(Comparison {
         all_equal: differences.is_empty(),
@@ -201,6 +230,7 @@ pub fn compare(
         unique_bodies: expected.len(),
         height_grids_compared,
         source_meshes_compared,
+        blend_maps_compared,
         oracle_report_sha256: report_hash,
         oracle_binary_sha256: binary.into(),
         differences,

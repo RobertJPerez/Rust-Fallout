@@ -22,6 +22,8 @@ for reproduction commands and the unlit inspection scope.
 An optional texture stage now follows authored nonnull LAND layers through winning
 LTEX/TXST records to verified archive members. It retains unapplied NULL defaults;
 see [terrain texture dependencies](docs/terrain-textures.md).
+Sparse terrain alpha samples also expand into independently compared quadrant
+weights; see [terrain blend maps](docs/terrain-blends.md).
 The inspection view draws 400 of 435 references using shared models and textures.
 It now handles authored untextured materials and source alpha, culling and depth
 states; 62 synthetic GPU checks cover those render states.
@@ -147,7 +149,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 129 synthetic tests pass, including malformed compression, forward/cyclic links,
+- 134 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 62 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

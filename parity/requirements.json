@@ -3,7 +3,7 @@
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
   "last_verified_revision": "dfc67dfb9844fd046587eb3d6e00714ebeb9253b",
-  "revision_note": "Checkpoint 12 adds strict authored nonnull LAND/LTEX/TXST texture dependency inspection, original C++ field projection, selected ba2 archive-byte comparison and verified texture cache receipts. NULL default layers remain unapplied; earlier GPU/material/collision evidence keeps its revision.",
+  "revision_note": "Checkpoint 13 adds bounded authored quadrant weight inspection and an original C++ byte comparison. Defaults, missing bases, retail blending and M1 remain open; earlier GPU evidence retains its revision.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -833,6 +833,30 @@
       ],
       "tolerance": "Field offsets/raw bytes/values and selected archive bytes/hashes exact; changed authored path and corrupted copied cache must fail",
       "last_verified_revision": "dfc67dfb9844fd046587eb3d6e00714ebeb9253b"
+    },
+    {
+      "id": "fnv.content.terrain_blend_maps",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content",
+      "requirement": "Expand sparse authored quadrant alpha samples into exact inspection weights without changing source fields or inventing absent/default materials",
+      "status": "oracle-tested",
+      "affected_content": "Six base/DLC LAND fixtures under esm4-local-u8-residual-base-v1",
+      "evidence": [
+        "reports/terrain-blends.json",
+        "reports/checkpoint-13-verification.json",
+        "docs/terrain-blends.md"
+      ],
+      "tests": [
+        "crates/fallout-data/tests/terrain_blends.rs",
+        "tools/terrain-oracle/blends.hpp"
+      ],
+      "known_gaps": [
+        "Reference-informed quadrant-local model is not measured retail blending or reference chunk-edge behavior",
+        "NULL defaults and missing bases remain explicit; texture tiling, lighting and gameplay remain open",
+        "Independent calculation starts from Rust-decoded bodies; compression and linking are outside its scope"
+      ],
+      "tolerance": "Weight bytes exact; modified oracle weight must fail",
+      "last_verified_revision": null
     }
   ]
 }

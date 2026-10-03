@@ -47,6 +47,10 @@ Keep the entire master brief in scope and progress through its dependency gates.
    comparisons and cache verification. See [terrain texture dependencies](docs/terrain-textures.md).
    Four NULL default layers remain explicit/unapplied; defaults, world inheritance,
    grass assets/rules and texture pixel/blend behavior still need evidence.
+   Checkpoint 13 expands authored alpha samples into a bounded quadrant blend model
+   and compares every byte with an original C++ calculation. See
+   [terrain blend maps](docs/terrain-blends.md). Missing bases, NULL defaults,
+   overfull coverage and source values remain explicit; retail blending is open.
 
 4. Continue NIF payload decoding with remaining scene-node kinds, skinning and
    collision. Sixteen authored collision block types now decode in Rust; the house's

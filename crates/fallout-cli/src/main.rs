@@ -82,6 +82,9 @@ enum Command {
         /// Resolve LTEX/TXST records and verify authored texture archive bytes.
         #[arg(long)]
         inspect_textures: bool,
+        /// Expand authored quadrant alpha samples under the inspection blend model.
+        #[arg(long)]
+        inspect_blends: bool,
         #[arg(long, requires = "inspect_textures")]
         texture_cache: Option<PathBuf>,
         /// Compare an explicitly selected cardinal neighbor in the same worldspace.
@@ -383,6 +386,7 @@ fn run(args: Args) -> Result<()> {
             reconstruct_heights,
             inspect_mesh,
             inspect_textures,
+            inspect_blends,
             texture_cache,
             neighbor_editor_id,
             neighbor_form,
@@ -435,6 +439,7 @@ fn run(args: Args) -> Result<()> {
                         &install,
                         reconstruct_heights,
                         inspect_mesh,
+                        inspect_blends,
                     )
                 })
                 .transpose()?;
@@ -446,6 +451,19 @@ fn run(args: Args) -> Result<()> {
                     .is_none_or(|textures| textures.failures == 0)
                 && comparison.as_ref().is_none_or(|result| result.all_equal);
             let mut value = serde_json::to_value(&report)?;
+            if inspect_blends {
+                let mut maps = Vec::new();
+                for entry in &report.landscapes {
+                    let blends = match &entry.fields {
+                        Some(fallout_data::terrain::Fields::Land(land)) => {
+                            Some(fallout_data::terrain::blends::build(land)?)
+                        }
+                        _ => None,
+                    };
+                    maps.push(json!({"key":entry.key,"decoded_sha256":entry.decoded_sha256,"blends":blends}));
+                }
+                value["blend_maps"] = maps.into();
+            }
             if inspect_mesh {
                 let hidden = match &report.cell.fields {
                     Some(fallout_data::terrain::Fields::Cell(cell)) => {

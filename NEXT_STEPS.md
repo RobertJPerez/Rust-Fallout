@@ -220,3 +220,11 @@ base-item schema-domain mismatches remain reported. See
 [leveled lists](docs/leveled-lists.md). Next: explicit live item counts/instances
 and shared primitive queries, with differential measurements before adopting
 selection, inheritance, coercion or original default rules.
+
+Checkpoint 33 adds explicit canonical item banks, persistent identities, exact
+optional attributes and atomic split/transfer/removal/fact replacement. Derived
+count indices and bounded traces survive same-process and cold native restoration.
+See [item state](docs/item-runtime-state.md). Snapshot schema 3 has explicit raw
+migrations from schemas 1/2 without inventing inventory initialization. Next:
+explicit older native-envelope import, shared primitive query adapters and
+source-bound admission, followed by original differential execution measurements.

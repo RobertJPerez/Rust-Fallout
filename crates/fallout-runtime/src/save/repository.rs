@@ -305,6 +305,7 @@ impl Repository {
                     .snapshot
                     .clocks
                     .no_later_than(capture.snapshot.clocks)
+                || decoded.snapshot.next_item > capture.snapshot.next_item
                 || decoded.snapshot.next_instance > capture.snapshot.next_instance
                 || decoded.snapshot.next_reference > capture.snapshot.next_reference
                 || decoded.snapshot.next_event_sequence > capture.snapshot.next_event_sequence

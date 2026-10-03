@@ -5,6 +5,7 @@
 pub mod events;
 pub mod foreign;
 pub mod identity;
+pub mod inventory;
 pub mod save;
 pub mod schema;
 pub mod snapshot;

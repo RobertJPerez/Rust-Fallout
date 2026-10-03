@@ -1417,7 +1417,8 @@
         "nvse/nvse/GameForms.h (selected scopes recorded in checkpoint 31 source_read_scopes)",
         "nvse/nvse/GameExtraData.h (selected scopes recorded in checkpoint 31 source_read_scopes)",
         "nvse/nvse/GameForms.cpp (selected scopes recorded in checkpoint 31 source_read_scopes)",
-        "nvse/nvse/GameForms.h (selected scopes recorded in checkpoint 32 source_read_scopes)"
+        "nvse/nvse/GameForms.h (selected scopes recorded in checkpoint 32 source_read_scopes)",
+        "nvse/nvse/GameExtraData.h (selected scopes recorded in checkpoint 33 source_read_scopes)"
       ],
       "license_status": "per-component audit incomplete; no code reuse",
       "language": "C++",
@@ -1426,7 +1427,7 @@
         "common/common_license.txt",
         "nvse/Algohol/license.txt"
       ],
-      "notes": "Read ScriptAnalyzer files completely: statement values, line framing, begin event fields, expression/native argument structure and limitations. Command table Init separates script IDs at 0x1000. Component licenses shown for common/Algohol do not establish licensing for ScriptAnalyzer; no implementation copied or linked and Checkpoint 15 did not use executable addresses. Original offline C++ framing comparison is separately owned, not an xNVSE build. Checkpoint 16 adds original offline direct executable descriptor inspection at exact digest 3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d. Pinned preferred-image table addresses are mapped to file offsets, never loaded or called. CommandInfo/ParamInfo fields, exclusive table end and event/statement arrays inspected; complete CommandTable.h read. Return types and behavior remain unknown. Separate original C++ reads the executable independently. Checkpoint 17 inspects one-based reference lookup, first-match local index lookup, source-less reference classification and the variable-count comment. Authored duplicate declarations and three stale empty-unit counts are preserved and reported. Original Rust owns metadata borrowing/binding; an original C++ tool independently parses Rust-extracted decoded record fields. No upstream implementation is copied or linked; original retail loading and execution remain unmeasured. Checkpoint 18 reinspects Expression::ReadExpression/ReadOperator, SetToStatement, ConditionalStatement, ReadStringLiteral and ReadNumericConstant. The exact executable supplies all 16 operator descriptors. Original Rust retains decimal lexemes, quoted bytes, contexts and opaque command arguments; original C++ compares independently from Rust-extracted SCDA. Current CRT only supplies independent decimal boundaries; original evaluation/rounding, postfix semantics, operand binding and native arguments remain unimplemented. Checkpoint 19 uses vanilla native operand classifications, exact numeric bits and parser-convention metadata; ShowMessage trailing words retain unverified semantics. No upstream implementation copied or linked; no native code executed. Checkpoint 20 associates compiled operand indices with their owning tables. Foreign local declarations and loaded target values remain deferred; first-match duplicate lookup is source-reference evidence only. Checkpoint 30 reads live event-list selection and typed reference storage as source facts. Original Rust owns explicit host lookup/write engineering; original C++ independently projects winning headers. No original live values, list lifecycle, defaults or gameplay behavior are accepted.; checkpoint 31 reads selected original base inventory definitions and owner-dependent union layouts. Original Rust and offline C++ preserve exact authored counts, words, namespaces and findings; no upstream implementation imported and no retail mutable inventory behavior accepted.; checkpoint 32 reads selected leveled-list/entry disk schemas and runtime layouts. Authored level/count words remain exact bits, defaults and selection stay deferred; own Rust/C++ dependency algorithms independently compare all edges/cycles.",
+      "notes": "Read ScriptAnalyzer files completely: statement values, line framing, begin event fields, expression/native argument structure and limitations. Command table Init separates script IDs at 0x1000. Component licenses shown for common/Algohol do not establish licensing for ScriptAnalyzer; no implementation copied or linked and Checkpoint 15 did not use executable addresses. Original offline C++ framing comparison is separately owned, not an xNVSE build. Checkpoint 16 adds original offline direct executable descriptor inspection at exact digest 3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d. Pinned preferred-image table addresses are mapped to file offsets, never loaded or called. CommandInfo/ParamInfo fields, exclusive table end and event/statement arrays inspected; complete CommandTable.h read. Return types and behavior remain unknown. Separate original C++ reads the executable independently. Checkpoint 17 inspects one-based reference lookup, first-match local index lookup, source-less reference classification and the variable-count comment. Authored duplicate declarations and three stale empty-unit counts are preserved and reported. Original Rust owns metadata borrowing/binding; an original C++ tool independently parses Rust-extracted decoded record fields. No upstream implementation is copied or linked; original retail loading and execution remain unmeasured. Checkpoint 18 reinspects Expression::ReadExpression/ReadOperator, SetToStatement, ConditionalStatement, ReadStringLiteral and ReadNumericConstant. The exact executable supplies all 16 operator descriptors. Original Rust retains decimal lexemes, quoted bytes, contexts and opaque command arguments; original C++ compares independently from Rust-extracted SCDA. Current CRT only supplies independent decimal boundaries; original evaluation/rounding, postfix semantics, operand binding and native arguments remain unimplemented. Checkpoint 19 uses vanilla native operand classifications, exact numeric bits and parser-convention metadata; ShowMessage trailing words retain unverified semantics. No upstream implementation copied or linked; no native code executed. Checkpoint 20 associates compiled operand indices with their owning tables. Foreign local declarations and loaded target values remain deferred; first-match duplicate lookup is source-reference evidence only. Checkpoint 30 reads live event-list selection and typed reference storage as source facts. Original Rust owns explicit host lookup/write engineering; original C++ independently projects winning headers. No original live values, list lifecycle, defaults or gameplay behavior are accepted.; checkpoint 31 reads selected original base inventory definitions and owner-dependent union layouts. Original Rust and offline C++ preserve exact authored counts, words, namespaces and findings; no upstream implementation imported and no retail mutable inventory behavior accepted.; checkpoint 32 reads selected leveled-list/entry disk schemas and runtime layouts. Authored level/count words remain exact bits, defaults and selection stay deferred; own Rust/C++ dependency algorithms independently compare all edges/cycles.; checkpoint 33 preserves explicit host item attributes, exact storage widths and quantities without claiming original initialization, admission or opaque extra-data semantics.",
       "test_data_provenance": "No project build/tests performed; source inspection only",
       "supported_variants_verified": [],
       "known_omissions": [
@@ -1528,6 +1529,31 @@
             ]
           ],
           "usage": "TESLeveledList load/runtime layouts; signed runtime 16-bit words do not establish disk conversion or rolling",
+          "implementation_imported": false
+        },
+        {
+          "checkpoint": 33,
+          "path": "nvse/nvse/GameExtraData.h",
+          "whole_file_sha256": "9b75fb8d49dacabecd8b6cbd496ecb300176201e7b5f0af5468ae9866f725874",
+          "selected_line_ranges": [
+            [
+              303,
+              318
+            ],
+            [
+              546,
+              574
+            ],
+            [
+              599,
+              610
+            ],
+            [
+              681,
+              735
+            ]
+          ],
+          "usage": "Extra script, health/worn/count, ammo, ownership/rank/global and modification layouts; explicit host state only, no opaque constructor or original conversion acceptance",
           "implementation_imported": false
         }
       ]

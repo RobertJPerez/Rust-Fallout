@@ -22,7 +22,8 @@ documented stale SCHR counts remain findings in the loaded catalogue.
 The engineering probe instantiates the 2,483 definitions with locals using
 explicit fragment identities and synthetic values. It round-trips 9,144 numeric
 values, 2,028 reference values and 2,160 pending events. Checkpoint 28's schema 1
-snapshot was 2,381,445 bytes; schema 2 adds campaign identity and state revision.
+snapshot was 2,381,445 bytes; schema 2 added campaign identity and state revision.
+Schema 3 also preserves explicit item state.
 Those values are test inputs, not observations of original live state.
 
 ## Identity and storage
@@ -67,9 +68,10 @@ journal policy; original dispatch order, delay, suspension and pause behavior
 remain unmeasured. Acknowledgment is explicit and does not execute bytecode.
 Pending events prevent implicit instance removal.
 
-Schema version 2 snapshots retain campaign identity, state revision, allocators,
-references, instances, local banks, clocks and pending events. Explicit migration
-from schema 1 requires a campaign identity. A content fingerprint binds normalized source names,
+Schema version 3 snapshots retain campaign identity, state revision, allocators,
+references, instances, local banks, clocks, pending events and explicit item banks.
+Explicit migration from schema 1 requires a campaign identity; schema 2 migration
+preserves identity and revision. Both leave inventories uninitialized. A content fingerprint binds normalized source names,
 lengths and SHA-256 values, the digest of every winning content header, winning
 script versions and resolved reference
 provenance. Reordering the same sources without changing winners preserves it.
@@ -114,6 +116,7 @@ lines 1â€“150 describe execution context and type declarations. No implemen
 was copied. These sources expose storage operations; they do not expose or prove
 original constructor values or event scheduling.
 
-Next: foreign live-variable context,
-primitive queries and observable execution traces. Inventory, quest/dialogue
-mutation and complete world snapshots remain future work.
+[Foreign live-variable context](foreign-live-context.md) and
+[explicit item state](item-runtime-state.md) now have separate components. Next:
+shared primitive queries and observable execution traces. Original inventory
+initialization, quest/dialogue mutation and complete world snapshots remain open.

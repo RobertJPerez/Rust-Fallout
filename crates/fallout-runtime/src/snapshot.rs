@@ -18,7 +18,7 @@ use std::{
     io::Write,
 };
 
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,6 +52,8 @@ pub struct Snapshot {
     pub state_revision: u64,
     pub profile: ProfileId,
     pub catalogue_sha256: String,
+    pub next_item: u64,
+    pub inventory_banks: Vec<crate::inventory::Bank>,
     pub next_instance: u64,
     pub next_reference: u64,
     pub next_event_sequence: u64,
@@ -68,6 +70,24 @@ pub struct Snapshot {
 #[serde(deny_unknown_fields)]
 struct LegacySnapshot {
     schema_version: u32,
+    profile: ProfileId,
+    catalogue_sha256: String,
+    next_instance: u64,
+    next_reference: u64,
+    next_event_sequence: u64,
+    clocks: Clocks,
+    references: Vec<Reference>,
+    instances: Vec<ScriptInstance>,
+    pending_events: Vec<Pending>,
+}
+
+/// Schema 2 contains script/reference state but no initialized inventory banks.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyV2 {
+    schema_version: u32,
+    campaign: CampaignId,
+    state_revision: u64,
     profile: ProfileId,
     catalogue_sha256: String,
     next_instance: u64,
@@ -154,6 +174,8 @@ impl Snapshot {
             schema_version: SCHEMA_VERSION,
             campaign,
             state_revision: 0,
+            next_item: 1,
+            inventory_banks: Vec::new(),
             profile: old.profile,
             catalogue_sha256: old.catalogue_sha256,
             next_instance: old.next_instance,
@@ -166,6 +188,38 @@ impl Snapshot {
         };
         snapshot.check_budgets(limits)?;
         Ok(snapshot)
+    }
+    /// Explicit migration keeps schema-2 state intact. Inventory remains
+    /// uninitialized; an empty initialized bank would manufacture a live value.
+    pub fn migrate_v2(bytes: &[u8], limits: Limits) -> Result<Self> {
+        if bytes.len() > limits.max_snapshot_bytes {
+            return Err(Error::Capacity("legacy snapshot bytes"));
+        }
+        let old: LegacyV2 = serde_json::from_slice(bytes)?;
+        if old.schema_version != 2 || old.profile != ProfileId::NvOriginal {
+            return Err(Error::Invalid(
+                "legacy schema/profile is unsupported".into(),
+            ));
+        }
+        CampaignId::from_bytes(old.campaign.bytes())?;
+        let value = Self {
+            schema_version: SCHEMA_VERSION,
+            campaign: old.campaign,
+            state_revision: old.state_revision,
+            profile: old.profile,
+            catalogue_sha256: old.catalogue_sha256,
+            next_instance: old.next_instance,
+            next_reference: old.next_reference,
+            next_event_sequence: old.next_event_sequence,
+            clocks: old.clocks,
+            references: old.references,
+            instances: old.instances,
+            pending_events: old.pending_events,
+            next_item: 1,
+            inventory_banks: Vec::new(),
+        };
+        value.check_budgets(limits)?;
+        Ok(value)
     }
     pub fn encode(&self, maximum_bytes: usize) -> Result<Vec<u8>> {
         let mut writer = BoundedBytes {
@@ -184,6 +238,31 @@ impl Snapshot {
         Ok(snapshot)
     }
     fn check_budgets(&self, limits: Limits) -> Result<()> {
+        if self.inventory_banks.len() > limits.max_inventory_banks {
+            return Err(Error::Capacity("saved inventory banks"));
+        }
+        let mut items = 0_usize;
+        let mut links = 0_usize;
+        let mut bytes = 0_usize;
+        for bank in &self.inventory_banks {
+            if bank.items.len() > limits.max_item_instances.saturating_sub(items) {
+                return Err(Error::Capacity("saved items"));
+            }
+            items += bank.items.len();
+            for item in &bank.items {
+                let item_links = item.facts.links();
+                let item_bytes = item.facts.extra_bytes()?;
+                if item_links > limits.max_item_links
+                    || item_bytes > limits.max_item_bytes
+                    || item_links > limits.max_total_item_links.saturating_sub(links)
+                    || item_bytes > limits.max_total_item_bytes.saturating_sub(bytes)
+                {
+                    return Err(Error::Capacity("saved item extra state"));
+                }
+                links += item_links;
+                bytes += item_bytes;
+            }
+        }
         if self.references.len() > limits.max_references {
             return Err(Error::Capacity("saved references"));
         }
@@ -220,6 +299,15 @@ impl<'a> World<'a> {
             schema_version: SCHEMA_VERSION,
             campaign: self.campaign,
             state_revision: self.revision,
+            next_item: self.next_item,
+            inventory_banks: self
+                .inventory_banks
+                .iter()
+                .map(|(&owner, ids)| crate::inventory::Bank {
+                    owner,
+                    items: ids.iter().map(|id| self.items[id].clone()).collect(),
+                })
+                .collect(),
             profile: ProfileId::NvOriginal,
             catalogue_sha256: self.cohort.clone(),
             next_instance: self.next_instance,
@@ -274,6 +362,7 @@ impl<'a> World<'a> {
         }
         if snapshot.next_instance == 0
             || snapshot.next_reference == 0
+            || snapshot.next_item == 0
             || snapshot.next_event_sequence == 0
         {
             return Err(Error::Invalid("snapshot allocator cannot be zero".into()));
@@ -356,6 +445,7 @@ impl<'a> World<'a> {
                 }),
             });
         }
+        world.restore_item_banks(snapshot.inventory_banks, snapshot.next_item)?;
         let mut prior_sequence = 0;
         let mut prior_clocks = Clocks::default();
         let mut observed = BTreeSet::new();

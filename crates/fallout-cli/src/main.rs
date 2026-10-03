@@ -9,6 +9,7 @@ mod expression_inspection;
 mod foreign_context_inspection;
 mod inspection_input;
 mod inventory_inspection;
+mod item_state_inspection;
 mod leveled_inspection;
 mod loaded_script_inspection;
 mod narrative_inspection;
@@ -77,6 +78,26 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Probe explicit mutable item state, queries and owned native persistence.
+    ItemState {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
+    },
+    /// Cold-restore an item probe and query explicit subjects/items from a file.
+    ItemLoadProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        query_inputs: PathBuf,
+    },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
         #[arg(long)]
@@ -516,6 +537,25 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::ItemState {
+            install,
+            load_order,
+            new_repository,
+        } => {
+            let report = item_state_inspection::probe(&install, &load_order, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::ItemLoadProbe {
+            install,
+            load_order,
+            repository,
+            query_inputs,
+        } => {
+            let (owners, keys) = item_state_inspection::decode_query_inputs(&query_inputs)?;
+            let report =
+                item_state_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
         Command::BaseInventory {
             install,
             load_order,

@@ -4,7 +4,8 @@ The runtime can capture an owned snapshot at a host boundary and publish it from
 a worker while the host continues changing its world. Loading rebuilds canonical
 state against the same source-bound catalogue. This checkpoint persists script
 instances, local banks, references, contexts, clocks and pending events. Player,
-inventory, actor, quest and complete world state still need their own components.
+actor, quest and complete world state still need their own components.
+[Explicit item banks](item-runtime-state.md) are included beginning with schema 3.
 
 ```powershell
 .\target\release\fallout.exe native-save-probe `
@@ -52,7 +53,7 @@ Unknown versions, tags, reserved values, trailing bytes and invalid extents fail
 | Chunk | Version | Payload |
 | --- | --- | --- |
 | META | 1 | 88 bytes: NV adapter ID, state schema, generation, boundary tick, cohort digest, snapshot length, campaign identity and state revision |
-| STAT | 1 | Exact canonical snapshot JSON, schema 2 |
+| STAT | 1 | Exact canonical snapshot JSON, schema 3 |
 
 The fixed overhead is 232 bytes. The default snapshot limit is 64 MiB; filesystem
 length is checked before allocation. META must agree with STAT's identity,
@@ -60,11 +61,14 @@ revision, clocks, schema, length and cohort. Restoring also validates complete
 local schemas, content versions, all persistent links and pending event order.
 
 Checkpoint 28's in-memory schema 1 can be migrated explicitly with
-`Snapshot::migrate_v1`, supplying a campaign identity. It preserves gameplay
-values and assigns revision zero to the new bookkeeping field. Normal decoding
+`Snapshot::migrate_v1`, supplying a campaign identity. It preserves supplied
+values and assigns revision zero to the new bookkeeping field. Schema 2 raw snapshots
+can migrate explicitly with `Snapshot::migrate_v2`, preserving campaign and revision.
+Both migrations leave inventory banks uninitialized and start the item allocator
+at one; they do not invent original inventory contents. Normal decoding
 does not silently migrate old state. The migrated snapshot still needs full
-source-bound restoration. There was no earlier native filesystem container to
-import; this migration does not provide original-save compatibility.
+source-bound restoration. Normal native-envelope loading rejects old state schemas. Raw snapshot migration
+is separate from native-envelope import and original-save compatibility.
 
 ## Publication and recovery
 
@@ -103,7 +107,7 @@ conflicts, malformed metadata and snapshots, protected folders, blocked backup
 publication, explicit recovery, migration and killed writers. Eleven existing
 state tests also remain applicable.
 
-The installed-content probe preserves 2,483 instances and 2,160 pending events.
+The historical checkpoint 29 schema 2 installed-content probe preserves 2,483 instances and 2,160 pending events.
 The later canonical snapshot is 2,381,546 bytes, with SHA-256
 `f0655cb269a06daf8106fe408c7b4d0be167b0904e9c0952cc56bee6df556ed0`.
 Its values are explicit test inputs. A fresh process obtains identical bytes.

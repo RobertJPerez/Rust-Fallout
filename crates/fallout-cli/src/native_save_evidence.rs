@@ -107,12 +107,12 @@ pub(super) fn run(
         "oracle_binary_sha256":digest(oracles.container)?,"schema_oracle_binary_sha256":digest(oracles.schemas)?,
         "rust_report_sha256":digest(&report_path)?,"cold_report_sha256":digest(&cold_path)?,"instances":report["instances"],"pending_events":report["pending_events"],
         "worker_capture_isolated":true,"cold_process_state_equal":true,"explicit_recovery_equal":true,"independent_containers":containers,
-        "malformed_container_cases_rejected":malformed,"snapshot_migration":"Version 1 to 2 requires explicit campaign identity; unit-tested; no automatic migration or retail-save import",
+        "malformed_container_cases_rejected":malformed,"snapshot_migration":"Version 1 to 3 requires explicit campaign identity; version 2 to 3 preserves campaign/revision and leaves inventories uninitialized; unit-tested; no automatic native-envelope migration or retail-save import",
         "process_interruption":"Workspace native save tests kill a real child at five write/sync/publication stages and verify old/new complete slots and released locks",
         "fresh_schema_regression":schemas,"recovery":report["recovery"],"repair":report["repair"],
         "persistence_guarantees":"File sync and same-directory replacement; Windows NTFS process interruption tested; Windows directory/power-loss durability not verified",
         "retail_save_compatibility":false,"retail_parity_accepted":false,"accepted_scenarios":[],
-        "known_gaps":["Full mutable player/inventory/actor/quest/world state is not implemented","Original live initialization and execution behavior remain unmeasured","Native filesystem tests do not prove power-loss durability or remote filesystem semantics","Retail .fos, NVSE cosaves, third-party DLL state and campaign compatibility remain separate tracks"]}),
+        "known_gaps":["Complete player/actor/quest/world persistence remains unimplemented; explicit inventory state is scoped separately","Original live initialization and execution behavior remain unmeasured","Native filesystem tests do not prove power-loss durability or remote filesystem semantics","Retail .fos, NVSE cosaves, third-party DLL state and campaign compatibility remain separate tracks"]}),
     )
 }
 

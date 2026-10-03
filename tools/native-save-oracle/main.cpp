@@ -52,7 +52,7 @@ int wmain(int argc,wchar_t** argv) {
         if (std::string(magic.begin(),magic.end())!="FRSAVE01" || reader.number(2)!=1 || reader.number(2)!=0 || reader.number(4)!=2) throw std::runtime_error("native header/version");
         const auto metadata=reader.chunk("META",88); if (metadata.size()!=88) throw std::runtime_error("native metadata extent");
         Reader meta{metadata};
-        if (meta.number(4)!=1 || meta.number(4)!=2) throw std::runtime_error("native profile/state schema");
+        if (meta.number(4)!=1 || meta.number(4)!=3) throw std::runtime_error("native profile/state schema");
         const auto generation=meta.number(8); if (!generation) throw std::runtime_error("native generation zero");
         const auto tick=meta.number(8); const auto cohort=hex(meta.take(32)); const auto snapshot_size=meta.number(8);
         const auto campaign=meta.take(16); const auto revision=meta.number(8);

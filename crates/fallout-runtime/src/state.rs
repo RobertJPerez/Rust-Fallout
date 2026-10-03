@@ -28,6 +28,12 @@ pub struct Limits {
     pub max_event_blocks: usize,
     pub max_event_arguments: usize,
     pub max_snapshot_bytes: usize,
+    pub max_inventory_banks: usize,
+    pub max_item_instances: usize,
+    pub max_item_links: usize,
+    pub max_total_item_links: usize,
+    pub max_item_bytes: usize,
+    pub max_total_item_bytes: usize,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -39,6 +45,12 @@ impl Default for Limits {
             max_event_blocks: 1_000_000,
             max_event_arguments: 64,
             max_snapshot_bytes: 64 * 1024 * 1024,
+            max_inventory_banks: 262_144,
+            max_item_instances: 1_000_000,
+            max_item_links: 128,
+            max_total_item_links: 1_000_000,
+            max_item_bytes: 64 * 1024,
+            max_total_item_bytes: 16 * 1024 * 1024,
         }
     }
 }
@@ -112,6 +124,12 @@ pub struct World<'a> {
     pub(crate) owners: BTreeMap<Owner, InstanceId>,
     pub(crate) references: BTreeMap<ReferenceId, Option<FormKey>>,
     pub(crate) authored_references: BTreeMap<FormKey, ReferenceId>,
+    pub(crate) inventory_banks: BTreeMap<ReferenceId, BTreeSet<crate::inventory::ItemId>>,
+    pub(crate) items: BTreeMap<crate::inventory::ItemId, crate::inventory::Item>,
+    pub(crate) item_counts: BTreeMap<(ReferenceId, FormKey), u64>,
+    pub(crate) next_item: u64,
+    pub(crate) item_links: usize,
+    pub(crate) item_bytes: usize,
     pub(crate) next_instance: u64,
     pub(crate) next_reference: u64,
     pub(crate) next_sequence: u64,
@@ -148,6 +166,12 @@ impl<'a> World<'a> {
             owners: BTreeMap::new(),
             references: BTreeMap::new(),
             authored_references: BTreeMap::new(),
+            inventory_banks: BTreeMap::new(),
+            items: BTreeMap::new(),
+            item_counts: BTreeMap::new(),
+            next_item: 1,
+            item_links: 0,
+            item_bytes: 0,
             next_instance: 1,
             next_reference: 1,
             next_sequence: 1,
@@ -165,7 +189,7 @@ impl<'a> World<'a> {
     pub fn revision(&self) -> u64 {
         self.revision
     }
-    fn next_revision(&self) -> Result<u64> {
+    pub(crate) fn next_revision(&self) -> Result<u64> {
         self.revision
             .checked_add(1)
             .ok_or(Error::Capacity("state revisions"))
@@ -366,6 +390,15 @@ impl<'a> World<'a> {
         {
             return Err(Error::Invalid(
                 "instance has pending events; acknowledge them explicitly before removal".into(),
+            ));
+        }
+        if self
+            .items
+            .values()
+            .any(|item| item.facts.script_instance == Some(instance.id))
+        {
+            return Err(Error::Invalid(
+                "script instance is still linked by an inventory item".into(),
             ));
         }
         let generation = self.slots[slot]

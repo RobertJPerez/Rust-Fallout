@@ -301,3 +301,11 @@ uses iterative Kosaraju and original C++ uses iterative Tarjan for bounded sourc
 graphs. Full winning list fields, inventory/template links and SCCs are compared;
 no upstream algorithm implementation is imported and no random selection occurs.
 See [leveled lists](leveled-lists.md) and source-lock scopes for exact provenance.
+
+Checkpoint 33 reads selected pinned xNVSE extra-data declarations for script, health,
+worn, count, ammo, ownership/rank/global and weapon modification storage. Exact
+32/64-bit condition widths stay distinct; signed count conversion and opaque words
+are not assigned original semantics. Original Rust owns explicit host transactions,
+indices and persistence. Source identities and container integrity have independent
+comparisons; mutable values and query sums have engineering tests only. No upstream
+implementation is imported. See [item state](item-runtime-state.md) for scopes.

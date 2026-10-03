@@ -79,12 +79,15 @@ def main():
         for flag in (0, 1, 2, 255):
             (inputs / f"stream-{stream}-flag-{flag}.blob").write_bytes(fixture(stream, flag, flag != 1))
     oracle_path = args.output_dir / "oracle.json"
+    before = digest(args.oracle)
     with oracle_path.open("xb") as output:
         native = subprocess.run([str(args.oracle.resolve()), str(inputs.resolve())], stdout=output, stderr=subprocess.PIPE)
     (args.output_dir / "oracle.stderr.txt").write_bytes(native.stderr)
     if native.returncode:
         raise RuntimeError("native fixture oracle failed; retained oracle.json and stderr")
     oracle = json.loads(oracle_path.read_text(encoding="utf-8"))
+    if before != digest(args.oracle) or oracle.get("oracle_binary_sha256") != before:
+        raise AssertionError("oracle binary changed or embedded hash differs")
     if sum(row["presence_normalizations"] for row in oracle["files"]) != 24:
         raise AssertionError("presence normalization supplements were not exercised")
     if sum(row["vertex_count_normalizations"] for row in oracle["files"]) != 24:
@@ -141,6 +144,7 @@ def main():
               "presence_normalizations_checked": 24, "vertex_count_normalizations_checked": 24,
               "deliberate_mismatches": checks, "cli_sha256": digest(args.binary),
               "oracle_sha256": digest(args.oracle), "oracle_report_sha256": digest(oracle_path),
+              "oracle_sha256_before_after_embedded": before,
               "rust_report_sha256": digest(rust_path), "gameplay_accepted": False}
     write_json(args.output_dir / "summary.json", result)
     print(f"48 exact fixture comparisons; {len(checks)} deliberately altered reports rejected")

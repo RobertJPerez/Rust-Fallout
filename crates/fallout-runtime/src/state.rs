@@ -510,13 +510,28 @@ impl<'a> World<'a> {
                 key: reference.form_key.clone().ok_or(Error::DefinitionChanged)?,
             }),
             ReferenceStatus::NullForm => Ok(ReferenceValue::Null),
-            ReferenceStatus::DynamicVariable => match instance.local(reference.value)? {
-                Value::Reference { value } => {
-                    self.validate_reference(value)?;
-                    Ok(value.clone())
+            ReferenceStatus::DynamicVariable => {
+                let declaration = instance
+                    .definition_schema
+                    .locals
+                    .get(&reference.value)
+                    .ok_or(Error::MissingLocal(reference.value))?;
+                if !matches!(
+                    declaration.kind,
+                    Kind::Float | Kind::Integer | Kind::Reference
+                ) {
+                    // This applies to reference operands and foreign contexts.
+                    // Unsupported storage must not look like an unset value.
+                    return Err(Error::UnsupportedLocal(reference.value));
                 }
-                _ => Err(Error::IncompatibleLocal(reference.value)),
-            },
+                match instance.local(reference.value)? {
+                    Value::Reference { value } => {
+                        self.validate_reference(value)?;
+                        Ok(value.clone())
+                    }
+                    _ => Err(Error::IncompatibleLocal(reference.value)),
+                }
+            }
             ReferenceStatus::RuntimeDependency => {
                 let id =
                     player.ok_or_else(|| Error::UnresolvedDependency("player reference".into()))?;

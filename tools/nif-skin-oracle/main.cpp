@@ -99,7 +99,10 @@ static RawSkin preflight(const std::string& payload, const std::string& name) {
     return result;
 }
 
-static void write_file(std::ostream& out, const std::filesystem::path& path) {
+#include "partition.hpp"
+#include "binding.hpp"
+
+static void write_file(std::ostream& out, const std::filesystem::path& path, bool include_partitions, bool include_bindings) {
     const auto bytes = snapshot(path);
     std::istringstream input(bytes, std::ios::binary);
     NiHeader header; NiIStream stream(&input, &header); header.Get(stream);
@@ -111,6 +114,8 @@ static void write_file(std::ostream& out, const std::filesystem::path& path) {
     std::vector<std::unique_ptr<NiObject>> blocks;
     std::vector<size_t> offsets;
     std::vector<RawSkin> raw;
+    size_t partition_storage = 128 * 1024 * 1024;
+    size_t node_storage = 64 * 1024 * 1024;
     for (uint32_t id = 0; id < header.GetNumBlocks(); ++id) {
         const auto start = input.tellg();
         if (start < 0 || static_cast<size_t>(start) > bytes.size()
@@ -119,9 +124,13 @@ static void write_file(std::ostream& out, const std::filesystem::path& path) {
         const auto name = header.GetBlockTypeStringById(id);
         const auto payload = bytes.substr(offsets.back(), header.GetBlockSize(id));
         const bool skin = supported_skin(name);
+        const bool partition = include_partitions && name == "NiSkinPartition";
+        const bool node = include_bindings && selected_node(name);
+        if (node) preflight_node(payload, version.Stream(), node_storage);
+        if (partition) preflight_partition(payload, partition_storage);
         raw.push_back(skin ? preflight(payload, name) : RawSkin{});
         const bool geometry = name == "NiTriShape" || name == "NiTriStrips" || name == "NiTriShapeData" || name == "NiTriStripsData";
-        if (skin || geometry) {
+        if (skin || geometry || partition || node) {
             std::istringstream block_input(payload, std::ios::binary);
             NiIStream block_stream(&block_input, &header);
             auto factory = NiFactoryRegister::Get().GetFactoryByName(name);
@@ -203,11 +212,31 @@ static void write_file(std::ostream& out, const std::filesystem::path& path) {
         if (auto data = header.GetBlock<NiGeometryData>(data_id)) out << data->GetNumVertices(); else out << "null";
         out << '}';
     }
-    out << "],\"presence_normalizations\":" << presence_normalizations << ",\"vertex_count_normalizations\":" << count_normalizations << '}';
+    out << ']';
+    if (include_partitions) {
+        out << ",\"partitions\":["; first = true;
+        for (uint32_t id = 0; id < blocks.size(); ++id) {
+            auto partition = header.GetBlock<NiSkinPartition>(id);
+            if (!partition) continue;
+            if (!first) out << ','; first = false;
+            out << "{\"block\":" << id << ",\"block_type\":\"NiSkinPartition\",\"offset\":" << offsets[id]
+                << ",\"bytes\":" << header.GetBlockSize(id) << ",\"sha256\":"
+                << std::quoted(sha256(bytes.data() + offsets[id], header.GetBlockSize(id))) << ",\"partitions\":[";
+            for (size_t i = 0; i < partition->partitions.size(); ++i) {
+                if (i) out << ','; partition_fields(out, partition->partitions[i]);
+            }
+            out << "]}";
+        }
+        out << ']';
+    }
+    if (include_bindings) write_bindings(out, header, bytes, offsets);
+    out << ",\"presence_normalizations\":" << presence_normalizations << ",\"vertex_count_normalizations\":" << count_normalizations << '}';
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) { std::cerr << "usage: nif-skin-oracle INPUT_FILE_OR_DIRECTORY\n"; return 2; }
+    const bool include_bindings = argc == 3 && std::string(argv[2]) == "--include-bindings";
+    const bool include_partitions = include_bindings || (argc == 3 && std::string(argv[2]) == "--include-partitions");
+    if (argc != 2 && !include_partitions) { std::cerr << "usage: nif-skin-oracle INPUT_FILE_OR_DIRECTORY [--include-partitions|--include-bindings]\n"; return 2; }
     try {
         const std::filesystem::path input(argv[1]);
         std::vector<std::filesystem::path> paths;
@@ -224,13 +253,16 @@ int main(int argc, char** argv) {
         if (paths.empty()) throw std::runtime_error("oracle found no inputs");
         std::sort(paths.begin(), paths.end());
         auto binary = snapshot(argv[0]);
-        std::cout << "{\"schema_version\":1,\"float_encoding\":\"ieee754-binary32-bits\",\"nifly_revision\":\"cca0a770094bb962fb28ea1fec5ea903e68fda8e\","
+        std::cout << "{\"schema_version\":" << (include_bindings ? 3 : include_partitions ? 2 : 1);
+        if (include_partitions) std::cout << ",\"partition_branch\":\"nv-canonical-flags-four-wide-or-empty\",\"raw_partition_fields_checked\":true";
+        if (include_bindings) std::cout << ",\"binding_scope\":\"decoded-source-forest\",\"raw_node_fields_checked\":true,\"graph_membership_checked\":true";
+        std::cout << ",\"float_encoding\":\"ieee754-binary32-bits\",\"nifly_revision\":\"cca0a770094bb962fb28ea1fec5ea903e68fda8e\","
             << "\"prepare_data_called\":false,\"raw_presence_and_vertex_counts_checked\":true,\"oracle_binary_sha256\":"
             << std::quoted(sha256(binary.data(), binary.size())) << ",\"files\":[";
         bool failed = false;
         for (size_t i = 0; i < paths.size(); ++i) {
             if (i) std::cout << ',';
-            try { std::ostringstream row; write_file(row, paths[i]); std::cout << row.str(); }
+            try { std::ostringstream row; write_file(row, paths[i], include_partitions, include_bindings); std::cout << row.str(); }
             catch (const std::exception& error) {
                 failed = true;
                 std::cout << "{\"file\":" << std::quoted(paths[i].filename().string()) << ",\"error\":" << std::quoted(error.what()) << '}';

@@ -3,6 +3,7 @@
 //! This crate stores explicit host inputs, not guessed retail initialization or
 //! an implementation of the original game's scheduler.
 pub mod catalogue;
+pub mod event_operands;
 pub mod events;
 pub mod foreign;
 pub mod identity;

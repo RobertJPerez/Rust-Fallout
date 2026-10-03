@@ -9,6 +9,7 @@ mod control_flow_inspection;
 mod definition_plan_inspection;
 mod dialogue_inspection;
 mod event_frame_inspection;
+mod event_operand_inspection;
 mod expression_inspection;
 mod expression_plan_inspection;
 mod foreign_context_inspection;
@@ -94,6 +95,10 @@ enum Command {
         input: PathBuf,
         #[arg(long)]
         oracle_report: Option<PathBuf>,
+        #[arg(long)]
+        include_partitions: bool,
+        #[arg(long)]
+        include_bindings: bool,
     },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
@@ -165,6 +170,14 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         compare_oracle: Option<PathBuf>,
+        #[arg(long)]
+        include_associations: bool,
+        #[arg(long)]
+        include_classes: bool,
+        #[arg(long)]
+        include_factions: bool,
+        #[arg(long)]
+        include_placements: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -274,6 +287,18 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+    },
+    /// Inspect source operands against explicit live engineering storage.
+    EventOperands {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Explicit identity already present in the engineering world.
+        #[arg(long)]
+        player_id: Option<u64>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -762,15 +787,43 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             compare_oracle,
+            include_associations,
+            include_classes,
+            include_factions,
+            include_placements,
         } => {
-            let mut report =
-                actor_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            let mut report = actor_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                include_associations,
+                include_classes,
+                include_factions,
+                include_placements,
+            )?;
             if let Some(oracle) = compare_oracle {
                 actor_inspection::compare(&mut report, &oracle)?;
             }
             emit(&report, output, &protected_tree(&install)?)?;
-            if report["counts"]["source_findings"] != 0 {
-                return Err("actor source inspection retains scalar findings; see report".into());
+            if report["counts"]["source_findings"] != 0
+                || report["actor_associations"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_classes"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_factions"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_placements"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+            {
+                return Err("actor source inspection retains source findings; see report".into());
             }
         }
         Command::BaseInventory {
@@ -900,6 +953,28 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &protected_tree(&install)?)?;
             if report["prepared_frames"] != report["pending_events_checked"] {
                 return Err("Pending events retain unresolved source findings; see report".into());
+            }
+        }
+        Command::EventOperands {
+            install,
+            load_order,
+            index_cache,
+            player_id,
+        } => {
+            let report = event_operand_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                player_id,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["prepared_probes"] != report["pending_events_checked"]
+                || report["unresolved_operands"] != 0
+            {
+                return Err(
+                    "Pending operands retain unresolved source or storage findings; see report"
+                        .into(),
+                );
             }
         }
         Command::SharedRuntime {
@@ -1327,8 +1402,15 @@ fn run(args: Args) -> Result<()> {
         Command::NifSkin {
             input,
             oracle_report,
+            include_partitions,
+            include_bindings,
         } => {
-            let report = nif_skin_inspection::inspect(&input, oracle_report.as_deref())?;
+            let report = nif_skin_inspection::inspect(
+                &input,
+                oracle_report.as_deref(),
+                include_partitions,
+                include_bindings,
+            )?;
             emit(&report, output, &input)?;
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());

@@ -6,6 +6,7 @@ mod condition_dependency_inspection;
 mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
+mod foreign_context_inspection;
 mod inspection_input;
 mod loaded_script_inspection;
 mod narrative_inspection;
@@ -74,6 +75,26 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Probe compiled foreign locals through explicit host live script instances.
+    ForeignContext {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        new_repository: Option<PathBuf>,
+    },
+    /// Cold-restore an engineering save and repeat every compiled foreign lookup.
+    ForeignLoadProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        player_id: u64,
+    },
     /// Exercise filesystem save/recovery on explicit engineering state in a new directory.
     NativeSaveProbe {
         #[arg(long)]
@@ -471,6 +492,28 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::ForeignContext {
+            install,
+            load_order,
+            new_repository,
+        } => {
+            let report = foreign_context_inspection::inspect(
+                &install,
+                &load_order,
+                new_repository.as_deref(),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::ForeignLoadProbe {
+            install,
+            load_order,
+            repository,
+            player_id,
+        } => {
+            let report =
+                foreign_context_inspection::cold(&install, &load_order, &repository, player_id)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
         Command::NativeSaveProbe {
             install,
             load_order,

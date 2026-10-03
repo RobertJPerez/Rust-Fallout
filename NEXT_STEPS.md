@@ -197,3 +197,11 @@ writer termination covers five publication stages. See [native saves](docs/nativ
 Windows power-loss durability, full mutable world components, Bethesda save import
 and NVSE cosaves remain open. Next: resolve foreign locals through explicit live
 quest/placed event lists, then primitive queries and observable execution slices.
+
+Checkpoint 30 resolves foreign locals through explicitly installed live owner
+instances and supports typed atomic writes. All 25,549 compiled requests retain
+their source identity and agree after same-process and cold native restoration.
+The header classification, static attachment and operand comparisons are separate
+from those engineering inputs; see [foreign live context](docs/foreign-live-context.md).
+Next: immutable item/inventory inputs and primitive query components, then bounded
+observable execution. Original list lifecycle, defaults and gameplay remain open.

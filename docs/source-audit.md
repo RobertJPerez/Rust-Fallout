@@ -271,3 +271,14 @@ campaign identities. It is linked unchanged under its MIT-or-Apache-2.0 terms;
 the reviewed Windows backend uses ProcessPrng and failures propagate. Other
 platform backends were not audited or tested in this checkpoint. See
 [native saves](native-saves.md) for the contracts and primary documentation links.
+
+Checkpoint 30 rereads selected pinned xNVSE foreign-variable reference resolution,
+quest/placed event-list selection and parent-script lookup, plus GameForms.h lines
+1-140. Original Rust resolves explicit host instance banks and preserves typed
+values; authored SCRI and base links never supply missing live values. Original
+offline C++ rebuilds all winning header classifications. Fresh static quest,
+operand, descriptor, loaded/header/cache and native-save/schema regressions bind
+the new requests to independently checked source facts. No upstream implementation
+is copied or linked and no original live state is captured. Exact selected scopes
+and file hashes are recorded in the source lock; see
+[foreign live context](foreign-live-context.md).

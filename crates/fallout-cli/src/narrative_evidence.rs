@@ -137,7 +137,7 @@ pub(super) fn run(
         let count = |value: &Value| value.as_u64().unwrap_or(0);
         for kind in ["QUST", "INFO", "DIAL"] {
             if count(&report["counts"]["record_kinds"][kind])
-                != count(&original["record_kinds"][kind])
+                != count(&original["record_kinds"][kind]["occurrences"])
             {
                 return Err("Narrative record coverage differs from complete inventory".into());
             }

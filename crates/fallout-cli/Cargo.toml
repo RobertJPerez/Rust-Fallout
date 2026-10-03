@@ -23,6 +23,8 @@ fallout-data = { path = "../fallout-data" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+flate2.workspace = true
+adler2.workspace = true
 clap = { version = "4", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 

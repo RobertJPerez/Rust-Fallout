@@ -3,6 +3,7 @@
 mod argument_evidence;
 mod binding_evidence;
 mod catalogue_evidence;
+mod compressed_record_evidence;
 mod condition_evidence;
 mod dialogue_evidence;
 mod expression_evidence;
@@ -44,7 +45,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=25))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=26))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -394,6 +395,12 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let zlib_oracle = root.join("local/zlib-oracle-build/Release/zlib-oracle.exe");
+    let zlib_digest = if args.checkpoint == 26 {
+        Some(digest(&zlib_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -549,6 +556,17 @@ fn run(args: Args) -> Result<()> {
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
             },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let compressed_record_evidence = if args.checkpoint == 26 {
+        Some(compressed_record_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &zlib_oracle,
             &args.install,
         )?)
     } else {
@@ -788,6 +806,9 @@ fn run(args: Args) -> Result<()> {
         || loaded_script_digest
             .as_ref()
             .is_some_and(|expected| digest(&loaded_script_oracle).as_ref().ok() != Some(expected))
+        || zlib_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&zlib_oracle).as_ref().ok() != Some(expected))
         || quest_script_digest
             .as_ref()
             .is_some_and(|expected| digest(&quest_script_oracle).as_ref().ok() != Some(expected))
@@ -983,6 +1004,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut compressed) = compressed_record_evidence {
+        compressed["checkpoint"] = args.checkpoint.into();
+        compressed["engine_revision"] = revision.clone().into();
+        compressed["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["compressed_records"] = compressed.clone();
+        verification["zlib_oracle_binary_sha256"] = zlib_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separate startup fix; neither reexecuted in this independent compressed-byte extraction checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "compressed-records"),
+            compressed,
         ));
     } else if let Some(mut quests) = quest_script_evidence {
         quests["checkpoint"] = args.checkpoint.into();

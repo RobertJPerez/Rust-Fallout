@@ -1,6 +1,7 @@
 mod argument_inspection;
 mod collision;
 mod command_catalogue;
+mod compressed_record_inspection;
 mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
@@ -70,6 +71,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Hash original compressed record inputs and exact decoded outputs.
+    CompressedRecords {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        inspect_checksum_mismatches: bool,
+    },
     /// Link authored quest scripts and inspect foreign declarations without values.
     QuestScripts {
         #[arg(long)]
@@ -417,6 +427,24 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::CompressedRecords {
+            install,
+            load_order,
+            inspect_checksum_mismatches,
+        } => {
+            let report = compressed_record_inspection::inspect(
+                &install,
+                &load_order,
+                inspect_checksum_mismatches,
+            )?;
+            let failed = report["counts"]["checksum_mismatches"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err(
+                    "compressed record inspection retains checksum findings; see report".into(),
+                );
+            }
+        }
         Command::QuestScripts {
             install,
             load_order,

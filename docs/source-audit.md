@@ -222,3 +222,13 @@ triggers a fresh full operand/table/native/expression/descriptor regression;
 shared Rust inspection inputs trigger a fresh full loaded/header/cache comparison.
 No runtime values, scheduling or quest behavior are certified. See
 [quest script attachments](quest-script-attachments.md).
+
+Checkpoint 26 reads both complete RFC 1950 and RFC 1951 texts, including notices.
+The original offline C++ compression reader implements their format rules without
+copying sample code or linking an upstream zlib implementation. It directly reads
+all original compressed record bytes and independently compares stored/decoded
+hashes and checksum findings. Authored edge frames and deterministic Rust-library
+frames exercise all block kinds, backreferences and malformed boundaries. The
+existing original header reader supplies source namespaces and metadata; its
+implementation is unchanged in this checkpoint. Strict production checksum policy
+is unchanged. See [compressed records](compressed-records.md).

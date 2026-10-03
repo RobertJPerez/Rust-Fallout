@@ -167,3 +167,10 @@ state. See [quest attachments](docs/quest-script-attachments.md). Next: independ
 verify compressed record extraction and the original LAND checksum exception,
 then continue typed conditions and the first event/runtime state slice without
 claiming unmeasured original timing, defaults or command effects.
+
+Checkpoint 26 independently verifies every compressed source record and isolates
+the existing LAND checksum mismatch with equal payload hashes and Adler results.
+Both strict readers still reject it. See [compressed records](docs/compressed-records.md).
+Next: typed condition operands and subject dependencies, then the first canonical
+script event/runtime state slice. Retail checksum handling is still unmeasured;
+keep diagnostic extraction separate from runtime admission.

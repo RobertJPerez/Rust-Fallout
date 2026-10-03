@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 191 tests pass, including malformed compression, forward/cyclic links,
+- 195 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -222,6 +222,11 @@ The scene output contains source arrays and composed transforms; large meshes pr
 large JSON reports. Unknown blocks remain indexed and reported. The full scan returns
 1 for its recorded failures. [Scene decoding](docs/nif-scenes.md) explains the limits
 and independent comparison commands.
+
+Independent [compressed record extraction](docs/compressed-records.md) now compares
+every stored and decoded payload hash with an original RFC-based offline reader.
+The known LAND checksum finding remains diagnostic-only; strict runtime loading
+is unchanged.
 
 ## Code layout
 

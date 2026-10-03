@@ -1981,8 +1981,10 @@ dependencies = [
 name = "fallout-cli"
 version = "0.1.0"
 dependencies = [
+ "adler2",
  "clap",
  "fallout-data",
+ "flate2",
  "image",
  "serde",
  "serde_json",

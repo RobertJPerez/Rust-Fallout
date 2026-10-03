@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "checkpoint": 11,
+  "engine_revision": "df6fcb6712ea287f459c8fc1e4bf2f16d6bd65be",
+  "preview_binary_sha256": "959cd6d16da3571f461ac479dd9926c5e6424281e8f2a8d4201da78ac8f8ca99",
+  "review_method": "Codex inspected each actual local PNG with the image viewer after the verified run; separate from automatic occupancy checks",
+  "retail_parity_accepted": false,
+  "scope": "Inspection capture review only; no matching retail images, measured rendering tolerance or gameplay scenario",
+  "captures": [
+    {
+      "cell_editor_id": "Goodsprings",
+      "capture_sha256": "b49eb4a053924f7c3e9f23d7f33d1a4e6269b1753e0383c27032a2934b9cddad",
+      "observation": "Centered terrain patch is visible with authored pale vertex colors and height variation."
+    },
+    {
+      "cell_editor_id": "TownCenter",
+      "capture_sha256": "df96702ecf3d71e42b49fdf648fb4bb791de578de3a82b588fddaafd82a4161d",
+      "observation": "Near-flat white patch is visible; report explicitly retains absent VCLR."
+    },
+    {
+      "cell_editor_id": "NVDLC02PineCreek",
+      "capture_sha256": "c55f0117fdf91e8840438dd6c4df65651f3af8e0439217dbdbe2acdb71ef995d",
+      "observation": "Steep terrain and a narrow raised strip are visible. Geometry matches the source projection; retail shape/occlusion acceptance remains open."
+    },
+    {
+      "cell_editor_id": "NVDLC03SLVillage",
+      "capture_sha256": "9e77453955a18d34d87d1c95020697253ecf510c6ce38c94d1fd55ced492ecc0",
+      "observation": "Low relief patch and gray authored vertex-color variation are visible."
+    },
+    {
+      "cell_editor_id": "NVDLC04DivideEast",
+      "capture_sha256": "635c3117942d18c465e9736e363f36b88141633568c303912710b1cc3a270bbc",
+      "observation": "Uneven pale surface and dark authored vertex-color regions are visible."
+    },
+    {
+      "cell_editor_id": "GSDocMitchellHouse",
+      "capture_sha256": "3d143e0905c6373c1e168ac3d639af699928314619e6aade054727e592a4e929",
+      "observation": "Textured interior, Vit-o-matic and floor are visible; standalone colored marker meshes remain a known omission."
+    }
+  ]
+}

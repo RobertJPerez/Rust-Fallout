@@ -26,6 +26,8 @@ The native oracle is separately authored C++ from format/reference facts, not an
 executed upstream application or retail engine. It consumes Rust-decoded bodies;
 compression and canonical resolution remain outside its scope. GPU success, source
 counts and nonempty PNGs are smoke evidence, not retail image comparisons.
+All six actual captures were also inspected with the image viewer; the separate
+[visual review](terrain-preview-review.json) records observations and capture hashes.
 
 [Terrain geometry](terrain-geometry.json), [GPU preview](terrain-preview.json) and
 checkpoint-specific source/verification reports bind the tested implementation and

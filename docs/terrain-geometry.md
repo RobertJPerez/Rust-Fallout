@@ -78,6 +78,10 @@ under local; public reports contain counts, identities and hashes.
 10's original gradients/boundary diagnostics and checkpoint 06's material GPU oracle
 checks retain their earlier evidence; checkpoint 11 does not silently recertify them.
 
+[The visual review](../reports/terrain-preview-review.json) records a separate
+inspection of each actual capture and binds its hash. This does not establish
+retail acceptance or repair authored data to improve its appearance.
+
 Landscape textures/blending, parent inheritance, normal repair, props, water, retail
 lighting, streaming, collision and gameplay are unfinished. Effective original
 profiles, archive precedence and vanilla format exceptions still block M1.

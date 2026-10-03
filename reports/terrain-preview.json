@@ -1,0 +1,194 @@
+{
+  "build_profile": "debug",
+  "captures": [
+    {
+      "capture_sha256": "b49eb4a053924f7c3e9f23d7f33d1a4e6269b1753e0383c27032a2934b9cddad",
+      "cell_editor_id": "Goodsprings",
+      "color_mode": "authored VCLR divided by 255; color-space interpretation unmeasured",
+      "height": 900,
+      "log_sha256": "abc8c36945e73c782a32178ce26851863810716ebc7db0ae9e5549be6d816a1a",
+      "mode": "terrain",
+      "pixels_differing_from_top_left": 94459,
+      "relative_view_bounds": [
+        [
+          -2048.0,
+          -332.0,
+          -2048.0
+        ],
+        [
+          2048.0,
+          332.0,
+          2048.0
+        ]
+      ],
+      "report_sha256": "5f74bda113df882302170236c3bc817d7127bf6d5d96b390dce22f4506c1687e",
+      "source_origin": [
+        -71680.0,
+        2048.0,
+        8444.0
+      ],
+      "triangles": 2048,
+      "vertices": 1089,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "df96702ecf3d71e42b49fdf648fb4bb791de578de3a82b588fddaafd82a4161d",
+      "cell_editor_id": "TownCenter",
+      "color_mode": "absent VCLR; white inspection material, no inferred source color",
+      "height": 900,
+      "log_sha256": "abc8c36945e73c782a32178ce26851863810716ebc7db0ae9e5549be6d816a1a",
+      "mode": "terrain",
+      "pixels_differing_from_top_left": 86687,
+      "relative_view_bounds": [
+        [
+          -2048.0,
+          -4.0,
+          -2048.0
+        ],
+        [
+          2048.0,
+          4.0,
+          2048.0
+        ]
+      ],
+      "report_sha256": "b65a38e65f94bf3e75615d4775c8903060dea189aff06fce16c0b8156a052711",
+      "source_origin": [
+        6144.0,
+        6144.0,
+        1020.0
+      ],
+      "triangles": 2048,
+      "vertices": 1089,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "c55f0117fdf91e8840438dd6c4df65651f3af8e0439217dbdbe2acdb71ef995d",
+      "cell_editor_id": "NVDLC02PineCreek",
+      "color_mode": "authored VCLR divided by 255; color-space interpretation unmeasured",
+      "height": 900,
+      "log_sha256": "abc8c36945e73c782a32178ce26851863810716ebc7db0ae9e5549be6d816a1a",
+      "mode": "terrain",
+      "pixels_differing_from_top_left": 141273,
+      "relative_view_bounds": [
+        [
+          -2048.0,
+          -1356.0,
+          -2048.0
+        ],
+        [
+          2048.0,
+          1356.0,
+          2048.0
+        ]
+      ],
+      "report_sha256": "f474d4f03aedc5fa525dc34c99c997c652673a53b80590dc73bb68e18347533a",
+      "source_origin": [
+        18432.0,
+        -10240.0,
+        6228.0
+      ],
+      "triangles": 2048,
+      "vertices": 1089,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "9e77453955a18d34d87d1c95020697253ecf510c6ce38c94d1fd55ced492ecc0",
+      "cell_editor_id": "NVDLC03SLVillage",
+      "color_mode": "authored VCLR divided by 255; color-space interpretation unmeasured",
+      "height": 900,
+      "log_sha256": "abc8c36945e73c782a32178ce26851863810716ebc7db0ae9e5549be6d816a1a",
+      "mode": "terrain",
+      "pixels_differing_from_top_left": 85991,
+      "relative_view_bounds": [
+        [
+          -2048.0,
+          -36.0,
+          -2048.0
+        ],
+        [
+          2048.0,
+          36.0,
+          2048.0
+        ]
+      ],
+      "report_sha256": "b660e2566e28b32bd18766f71d3e49b9a3defbe7357bf7e7b1f902dbd0365bce",
+      "source_origin": [
+        6144.0,
+        -34816.0,
+        -940.0
+      ],
+      "triangles": 2048,
+      "vertices": 1089,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "635c3117942d18c465e9736e363f36b88141633568c303912710b1cc3a270bbc",
+      "cell_editor_id": "NVDLC04DivideEast",
+      "color_mode": "authored VCLR divided by 255; color-space interpretation unmeasured",
+      "height": 900,
+      "log_sha256": "abc8c36945e73c782a32178ce26851863810716ebc7db0ae9e5549be6d816a1a",
+      "mode": "terrain",
+      "pixels_differing_from_top_left": 99323,
+      "relative_view_bounds": [
+        [
+          -2048.0,
+          -304.0,
+          -2048.0
+        ],
+        [
+          2048.0,
+          304.0,
+          2048.0
+        ]
+      ],
+      "report_sha256": "4d08e2d4fb6f9741a0300a4984a656a3d0f9b229e6d2a011eb766faf791d5366",
+      "source_origin": [
+        14336.0,
+        2048.0,
+        1184.0
+      ],
+      "triangles": 2048,
+      "vertices": 1089,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "3d143e0905c6373c1e168ac3d639af699928314619e6aade054727e592a4e929",
+      "cell_editor_id": "GSDocMitchellHouse",
+      "color_mode": null,
+      "height": 900,
+      "log_sha256": "424d017f5659bb97bfcbb40c25c83d726f64eaf13a4b020b9e0d57abb3290b25",
+      "mode": "interior regression",
+      "pixels_differing_from_top_left": 1151969,
+      "relative_view_bounds": [
+        [
+          -1447.3228,
+          -110.92543,
+          -619.2915
+        ],
+        [
+          598.6849,
+          307.67688,
+          1247.7405
+        ]
+      ],
+      "report_sha256": "68e5de571d61cfd16e16c5c230658528b9884fa7d358b7a49adcc5e318b21e5a",
+      "source_origin": [
+        2130.0,
+        1920.0,
+        7360.0
+      ],
+      "triangles": null,
+      "vertices": null,
+      "width": 1280
+    }
+  ],
+  "captures_kept_local": true,
+  "checkpoint": 11,
+  "checks": "Successful GPU capture, expected source geometry counts, 1280x900 PNG and nonempty pixel occupancy; interior assembly count regression",
+  "engine_revision": "df6fcb6712ea287f459c8fc1e4bf2f16d6bd65be",
+  "preview_binary_sha256": "959cd6d16da3571f461ac479dd9926c5e6424281e8f2a8d4201da78ac8f8ca99",
+  "retail_parity_accepted": false,
+  "schema_version": 1,
+  "scope": "Five source terrain cells with authored colors or explicitly absent VCLR plus one interior regression; unlit inspection; no retail reference images or gameplay acceptance",
+  "source_snapshot_sha256": "3e0dbdcb23f711e825e6cf444086844fff95a7fe6a24d75a8cd61c91d9074a75"
+}

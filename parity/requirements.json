@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "7d734fede2f8ecbef0811ed44eb3c5331c71df4f",
+  "last_verified_revision": "df6fcb6712ea287f459c8fc1e4bf2f16d6bd65be",
   "revision_note": "Checkpoint 11 adds reference-model terrain geometry comparison and GPU smoke captures; prior evidence keeps its checkpoint and revision. Retail rendering and gameplay remain unaccepted.",
   "accepted_scenarios": [],
   "requirements": [
@@ -781,7 +781,7 @@
         "No edge/corner normal repair, parent inheritance, blending, texture closure or water"
       ],
       "tolerance": "Source-local positions, normalized f32 normal bits, optional color bytes, bounds and unhidden indices exact; changed winding must fail",
-      "last_verified_revision": null
+      "last_verified_revision": "df6fcb6712ea287f459c8fc1e4bf2f16d6bd65be"
     },
     {
       "id": "fnv.presentation.terrain_inspection",
@@ -793,7 +793,8 @@
       "evidence": [
         "reports/terrain-preview.json",
         "reports/checkpoint-11-verification.json",
-        "docs/terrain-geometry.md"
+        "docs/terrain-geometry.md",
+        "reports/terrain-preview-review.json"
       ],
       "tests": [
         "crates/fallout-cli/src/preview_evidence.rs",
@@ -805,7 +806,7 @@
         "Absent VCLR uses a labeled white inspection material; color space is unmeasured"
       ],
       "tolerance": "Expected counts and 1280x900 nonempty capture; no retail image tolerance",
-      "last_verified_revision": null
+      "last_verified_revision": "df6fcb6712ea287f459c8fc1e4bf2f16d6bd65be"
     }
   ]
 }

@@ -9,14 +9,21 @@ claiming its completion or playable Fallout.
 | Check | Result |
 | --- | --- |
 | Workspace | Formatting, 129 tests and Clippy with warnings denied |
-| Source fixtures | Six base/DLC terrain cells with cached/uncached equality |
+| Source fixtures | Six base/DLC cells; 83 record appearances, 59 unique tagged bodies; cached/uncached equality |
 | Field oracle | Selected WRLD/CELL/LAND/LTEX/TXST fields exact against original C++ projection |
 | Geometry regression | Six source meshes compared under the checkpoint 11 model |
-| Archive oracle | Every unique selected authored texture member compared independently with ba2 |
-| Cache | Cold/warm receipts verified; damaged copied cache rejected |
+| Archive oracle | All 40 unique selected texture members match ba2 exactly: 9,530,352 decoded bytes |
+| Cache | Cold/warm receipts verified; damaged copied cache rejected with CLI exit 1 |
+| Negative comparison | Altered authored texture-path byte rejected with CLI exit 1 |
 | NULL layers | Four valid default references remain explicit and unapplied |
-| Source safety | Fresh full installation hashes match the original baseline |
+| Source safety | All 464 original files, totaling 9,907,238,722 bytes, match the baseline |
 | Acceptance | Dependency inspection only; no textured terrain or gameplay acceptance |
+
+The tested implementation is [dfc67df](https://github.com/RobertJPerez/Rust-Fallout/commit/dfc67dfb9844fd046587eb3d6e00714ebeb9253b).
+Its source snapshot contains 102 files. Across the six cells, 108 layer bindings
+include 64 texture-record appearances (41 unique LTEX/TXST bodies) and four valid
+NULL defaults. The 40 authored texture members deduplicate across cells; all source
+and decoded-byte hashes agree with the independent reader.
 
 LTEX fields preserve material/friction/restitution bytes, specular exponent and grass
 references. TXST paths preserve missing/empty values, original bytes, flag bits and

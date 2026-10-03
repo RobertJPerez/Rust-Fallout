@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "df6fcb6712ea287f459c8fc1e4bf2f16d6bd65be",
+  "last_verified_revision": "dfc67dfb9844fd046587eb3d6e00714ebeb9253b",
   "revision_note": "Checkpoint 12 adds strict authored nonnull LAND/LTEX/TXST texture dependency inspection, original C++ field projection, selected ba2 archive-byte comparison and verified texture cache receipts. NULL default layers remain unapplied; earlier GPU/material/collision evidence keeps its revision.",
   "accepted_scenarios": [],
   "requirements": [
@@ -832,7 +832,7 @@
         "Known original-profile, archive-precedence and source-exception gates still block M1; no gameplay acceptance"
       ],
       "tolerance": "Field offsets/raw bytes/values and selected archive bytes/hashes exact; changed authored path and corrupted copied cache must fail",
-      "last_verified_revision": null
+      "last_verified_revision": "dfc67dfb9844fd046587eb3d6e00714ebeb9253b"
     }
   ]
 }

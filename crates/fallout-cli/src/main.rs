@@ -1,3 +1,4 @@
+mod actor_inspection;
 mod argument_inspection;
 mod collision;
 mod command_catalogue;
@@ -146,6 +147,17 @@ enum Command {
         repository: PathBuf,
         #[arg(long)]
         query_inputs: PathBuf,
+    },
+    /// Preserve authored NPC_/CREA scalar words with exact inventory provenance.
+    ActorSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        compare_oracle: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -737,6 +749,22 @@ fn run(args: Args) -> Result<()> {
             let report =
                 item_state_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
             emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::ActorSources {
+            install,
+            load_order,
+            index_cache,
+            compare_oracle,
+        } => {
+            let mut report =
+                actor_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            if let Some(oracle) = compare_oracle {
+                actor_inspection::compare(&mut report, &oracle)?;
+            }
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["counts"]["source_findings"] != 0 {
+                return Err("actor source inspection retains scalar findings; see report".into());
+            }
         }
         Command::BaseInventory {
             install,

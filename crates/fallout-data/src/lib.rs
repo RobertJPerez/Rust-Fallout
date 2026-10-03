@@ -3,6 +3,7 @@
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("The initial runtime targets 64-bit processes.");
 
+pub mod actors;
 pub mod archive;
 pub mod assets;
 pub mod baseline;

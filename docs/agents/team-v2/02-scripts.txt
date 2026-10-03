@@ -1,0 +1,16 @@
+AGENT 2: ObScript VM, conditions and native semantics
+Lane: scripts
+VS Code folder: G:\Rust-Fallout-worktrees\script-vm
+Branch: agents/script-vm
+
+Advance the actual NV scripting path: ObScript, condition semantics, native capabilities, bounded execution and continuations. Your base is 794d680, which includes preserved source-cache/save-worker work; do not rebuild or claim those as new accepted features.
+
+Read programs.rs, preparation.rs, event_operands.rs, query.rs and their handoffs. First propose a small native capability/dispatch contract with a real consumer. Implement after the coordinator records the cross-lane contract, then establish and implement one independently evidenced expression/branch/native semantic at a time. If retail capture is unavailable, preserve that exact blocker and continue bounded independent work; do not guess numeric coercion or turn unsupported commands into no-ops.
+
+You own script/condition modules and the named VM adapters in ownership.json. Runtime owns canonical banks, identities, event storage and saves. Coordinate live reads, staged writes, revision checks and acknowledgment; do not create a second World or mutate its banks behind its API. Reuse source plans and the shared condition decoder. Keep decoded, executable and retail-accepted capabilities distinct.
+
+This is Robert Perez's team-v2 startup instruction. It supersedes the old four-agent role/ownership instructions in this checkout. Read the entire master brief at C:\Users\robjp\Downloads\Fallout_Rust_Codex_Master_Brief.txt and the CURRENT G:\Rust-Fallout\AGENTS.md, docs\agents\team-v2\team-plan.md, operating-contract.txt, ownership.json, NEXT_STEPS.md and latest verified checkpoint.
+
+Read G:\Rust-Fallout\local\team\control.json and your assignment under G:\Rust-Fallout\local\team-v2. Claim your lane lease before writing. Require active generation team-v2-20261003 and your active assignment before implementation. Keep builds/evidence private and write only your own status/outbox. Use the absolute shared lease path in the contract, reserve every focused/heavy build through the coordinator, and check all current-run STOP rows between process polls. Read the operating contract for exact paths, handoffs, resource reservations and interface decisions.
+
+Only after control and your assignment are active, use your lane objective as an ongoing Goal if available. Complete small meaningful tasks, run appropriate checks, hand off tested commits and continue ready assigned work until I stop you. Ask the coordinator, not me, about routine dependencies. STOP means stop immediately, cancel only your own processes and preserve the current work; do not finish another checkpoint first. Never lose old drafts/evidence or claim source inspection is gameplay parity.

@@ -21,9 +21,6 @@ fn command(
     heights: bool,
 ) -> Command {
     let mut command = Command::new(cli);
-    if heights {
-        command.arg("--reconstruct-heights");
-    }
     command
         .current_dir(root)
         .arg("terrain")
@@ -35,6 +32,9 @@ fn command(
         .arg(cell)
         .arg("--output")
         .arg(output);
+    if heights {
+        command.arg("--reconstruct-heights");
+    }
     command
 }
 

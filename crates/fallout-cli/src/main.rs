@@ -58,6 +58,17 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Inventory compiled script instruction headers and event IDs; executes nothing.
+    Scripts {
+        #[arg(long)]
+        install: PathBuf,
+        /// Read only record kinds containing SCDA in the pinned FNV schema.
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        /// Write raw SCDA bodies for a separate offline framing comparison.
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Decode an exterior CELL, its parent worlds and winning LAND source fields.
     Terrain {
         #[arg(long)]
@@ -299,6 +310,79 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::Scripts {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let mut bundle = comparison_bundle
+                .as_ref()
+                .map(|path| -> Result<_> {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    if parent.starts_with(protected_tree(&install)?) {
+                        return Err(
+                            "script comparison bundle must be outside the installation".into()
+                        );
+                    }
+                    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+                    file.write_all(b"FROBS001")?;
+                    Ok(io::BufWriter::new(file))
+                })
+                .transpose()?;
+            let mut reports = Vec::new();
+            for path in data_files(&install, &["esm", "esp"])? {
+                eprintln!("Inspecting compiled scripts in {}", path.display());
+                reports.push(fallout_data::obscript_census::inspect(
+                    &path,
+                    defer_unrelated_payloads,
+                    |_, bytes, _| {
+                        if let Some(bundle) = &mut bundle {
+                            bundle
+                                .write_all(&(bytes.len() as u32).to_le_bytes())
+                                .map_err(|error| {
+                                    fallout_data::Error::Resolution(error.to_string())
+                                })?;
+                            bundle.write_all(bytes).map_err(|error| {
+                                fallout_data::Error::Resolution(error.to_string())
+                            })?;
+                        }
+                        Ok(())
+                    },
+                )?);
+            }
+            let bundle_receipt = if let Some(mut bundle) = bundle {
+                bundle.flush()?;
+                bundle.get_ref().sync_all()?;
+                drop(bundle);
+                let path = comparison_bundle.as_ref().expect("opened bundle path");
+                let (bytes, sha256) = baseline::digest_file(path)?;
+                Some(
+                    json!({"format":"FROBS001: magic, repeated u32 byte length and raw SCDA; order equals successfully decoded report plugins/bodies", "bytes":bytes,"sha256":sha256}),
+                )
+            } else {
+                None
+            };
+            let issues: usize = reports.iter().map(|report| report.bodies_with_issues).sum();
+            emit(
+                &json!({
+                    "schema_version":1, "profile":"nv-original",
+                    "scope":"authored compiled bodies; explicit focused scan defers other payloads; no winning-script or execution claim",
+                    "plugins":reports, "bodies_with_issues":issues,
+                    "comparison_bundle":bundle_receipt,
+                    "framing_digest_recipe":"SHA256 of concatenated 24-byte little-endian tuples: u32 start/end/operand offsets, u16 opcode, u8 reference presence, u16 reference index, u8 event presence, u16 event ID, u32 event end jump; absent values zero",
+                    "execution_ready":false, "retail_parity_accepted":false,
+                }),
+                output,
+                &install,
+            )?;
+            if issues != 0 {
+                return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
         Command::NifCollision {
             input,
             oracle_report,

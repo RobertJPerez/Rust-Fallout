@@ -31,6 +31,9 @@ It now handles authored untextured materials and source alpha, culling and depth
 states; 64 synthetic GPU checks now cover render states and terrain weight passes.
 Authored collision shapes and rigid-body fields now decode independently in Rust;
 731 collision blocks in the house match raw nifly output exactly.
+The compiled-script census now frames all 14,514 authored bodies without needing
+source text. An independent offline reader matches 142,218 instruction headers;
+operands and execution remain open. See [compiled scripts](docs/compiled-scripts.md).
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -151,7 +154,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 136 synthetic tests pass, including malformed compression, forward/cyclic links,
+- 142 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

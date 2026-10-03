@@ -18,7 +18,7 @@ source was ingested, and this work is not described as a clean-room implementati
 | [xEdit](https://github.com/TES5Edit/TES5Edit/tree/9fb016884bec138ea6c7b872cec831537d464c3e) | MPL-2.0 notices; FNV header, script metadata, CTDA, player binding, and file-ID mapping definitions | Source reference only. Delphi application and independent per-record exports not run. Field layouts are not evidence of gameplay execution semantics. |
 | [Bevy v0.19.1](https://github.com/bevyengine/bevy/tree/b56fc29d3016e641754765244b5ba3f9cc504671) | Pinned manifest, custom-mesh example, headless capture, image/DDS and sampler APIs; MIT/Apache declarations | Linked in separate `fallout-preview`; debug build and two real-model GPU captures work. Unlit diffuse inspection only; no retail lighting, shader or physics parity. |
 | [ByroRedux](https://github.com/matiaszanolli/ByroRedux/tree/273692be5638bd9c20f63ec022d659d1d832956e) | README/provenance review | Deferred. README claims MIT but no root LICENSE was found in the inspected checkout; component notices/provenance need work. README points to commercial engine source. No code copied, linked, or built. Advertised runtime breadth is not verified. |
-| [xNVSE](https://github.com/xNVSE/NVSE/tree/0ccd23ad885ddae533c1790a3fc56cd073e38de3) | Selected GameScript declarations for future command research | Per-file license audit incomplete; not built or reused. Wrappers around original executable addresses do not supply standalone implementations. |
+| [xNVSE](https://github.com/xNVSE/NVSE/tree/0ccd23ad885ddae533c1790a3fc56cd073e38de3) | Complete ScriptAnalyzer.h/.cpp; line/event framing and statement IDs; CommandTable::Init ranges; common/Algohol notices | Per-file license audit incomplete; not built or reused. Wrappers around original executable addresses do not supply standalone implementations. |
 | [nifxml](https://github.com/niftools/nifxml/tree/970a6238218a106daaeb89a61bcda0eeaf9d08c4) | GPL-3.0 root license; container, scene inheritance, geometry/topology and selected property layout facts | Format reference only. No XML schema or generated parser copied/linked into the runtime. Six scene/mesh and nine material/texture payload types independently implemented in Rust; no shader behavior acceptance. |
 | [nifly](https://github.com/ousnius/nifly/tree/cca0a770094bb962fb28ea1fec5ea903e68fda8e) | GPL-3.0 library; header/factory/geometry/object/transform APIs; raw block loading; half MIT and Miniball GPL notices | Separate MSVC oracle: 218 containers / 4,582 block entries match; raw supported payloads also match for 751 objects, 403 meshes and 1,127 material blocks. Raw diagnostics confirm all 25 rejected model inputs. No rendering/animation/physics parity or file writes/conversions. |
 | [OpenMW](https://github.com/OpenMW/openmw/tree/63f6261b6e1fe1eb6170ad4e686de0edec836114) | GPL-3.0 root license; selected placement conversion, world/scene and NIF loader paths | Source reference only, no build/copy/link. Consulted static rotation order and declared marker names/flag. Original Rust math has analytic tests; this convention is provisional until measured NV retail comparisons. |
@@ -127,3 +127,11 @@ Known primary-source format exception reports are linked in
 [format-exceptions.md](format-exceptions.md). New code and source research should update
 the existing pins and evidence, rather than replacing unverified entries with optimistic
 support labels.
+
+Checkpoint 15 reads the pinned xNVSE ScriptAnalyzer files completely and uses their
+line/event layouts as format evidence. Its per-file licensing is not established
+by the separate common/Algohol notices. Original Rust owns the bounded decoder;
+an original offline C++ tool compares Rust-extracted SCDA headers and CNG hashes.
+Neither upstream implementation is copied or linked, and no engine address is
+used. See [compiled script inspection](compiled-scripts.md) for scope and remaining
+operand/execution work.

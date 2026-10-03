@@ -3,6 +3,7 @@
 mod height_evidence;
 mod index_evidence;
 mod preview_evidence;
+mod script_evidence;
 mod terrain_evidence;
 mod texture_evidence;
 mod textured_evidence;
@@ -33,7 +34,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=14))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=15))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -291,7 +292,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let member_oracle = root.join("target/release/archive-member-oracle.exe");
-    let member_digest = if args.checkpoint >= 12 {
+    let member_digest = if matches!(args.checkpoint, 12..=14) {
         Some(digest(&member_oracle)?)
     } else {
         None
@@ -311,6 +312,12 @@ fn run(args: Args) -> Result<()> {
     let playtest_config = root.join("local/playtest.json");
     let playtest_config_digest = if args.checkpoint == 14 {
         Some(digest(&playtest_config)?)
+    } else {
+        None
+    };
+    let script_oracle = root.join("local/script-oracle-build/Release/script-oracle.exe");
+    let script_digest = if args.checkpoint == 15 {
+        Some(digest(&script_oracle)?)
     } else {
         None
     };
@@ -393,6 +400,17 @@ fn run(args: Args) -> Result<()> {
             &cli_path,
             &args.install,
             &cli_digest,
+        )?)
+    } else {
+        None
+    };
+    let script_evidence = if args.checkpoint == 15 {
+        Some(script_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &script_oracle,
+            &args.install,
         )?)
     } else {
         None
@@ -546,6 +564,9 @@ fn run(args: Args) -> Result<()> {
         || playtest_config_digest
             .as_ref()
             .is_some_and(|expected| digest(&playtest_config).as_ref().ok() != Some(expected))
+        || script_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&script_oracle).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -636,6 +657,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "record-index-cache"),
             index,
+        ));
+    } else if let Some(mut scripts) = script_evidence {
+        scripts["checkpoint"] = args.checkpoint.into();
+        scripts["engine_revision"] = revision.clone().into();
+        scripts["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["compiled_scripts"] = scripts.clone();
+        verification["script_oracle_binary_sha256"] = script_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this script checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "compiled-scripts"),
+            scripts,
         ));
     } else {
         publication.push((

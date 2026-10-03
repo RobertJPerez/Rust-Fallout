@@ -1321,20 +1321,27 @@
       "build_result": "Not built",
       "build_command": "Not yet instrumenting retail",
       "inspected_paths": [
-        "nvse/nvse/GameScript.h"
+        "nvse/nvse/GameScript.h",
+        "nvse/nvse/ScriptAnalyzer.h (complete)",
+        "nvse/nvse/ScriptAnalyzer.cpp (complete)",
+        "nvse/nvse/CommandTable.cpp::Init",
+        "common/common_license.txt (git blob)",
+        "nvse/Algohol/license.txt (git blob)"
       ],
       "license_status": "per-component audit incomplete; no code reuse",
       "language": "C++",
-      "role": "future behavior research",
+      "role": "pinned script format and future behavior reference; no linked/copied implementation",
       "license_files": [
         "common/common_license.txt",
         "nvse/Algohol/license.txt"
       ],
-      "notes": "ScriptInfo and fixed-address wrappers inspected; in-memory layouts kept separate from on-disk schema. No native addresses used.",
+      "notes": "Read ScriptAnalyzer files completely: statement values, line framing, begin event fields, expression/native argument structure and limitations. Command table Init separates script IDs at 0x1000. Component licenses shown for common/Algohol do not establish licensing for ScriptAnalyzer; no implementation copied or linked and no fixed engine addresses used. Original offline C++ framing comparison is separately owned, not an xNVSE build.",
       "test_data_provenance": "No project build/tests performed; source inspection only",
       "supported_variants_verified": [],
       "known_omissions": [
-        "Implementation and behavior not audited in this checkpoint"
+        "xNVSE runtime not built or instrumented",
+        "ScriptAnalyzer per-file license not established",
+        "Operand and scheduling descriptions still require independent corpus/retail behavior evidence"
       ]
     },
     {

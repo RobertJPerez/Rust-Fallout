@@ -160,3 +160,10 @@ source owner metadata and explicit reference dependency states. See
 definitions and resolve foreign declaration lookups where the source relation
 is established. Placed-reference live event lists and SCRV values remain runtime
 dependencies; do not substitute a base-object authoring link for a live script.
+
+Checkpoint 25 adds static quest SCRI attachments and foreign declaration lookup.
+All runtime values remain unresolved; placed references require live event-list
+state. See [quest attachments](docs/quest-script-attachments.md). Next: independently
+verify compressed record extraction and the original LAND checksum exception,
+then continue typed conditions and the first event/runtime state slice without
+claiming unmeasured original timing, defaults or command effects.

@@ -168,6 +168,38 @@ impl LoadedScript {
             .map(|bytes| obscript::decode(bytes, obscript::Limits::default()))
             .transpose()
     }
+
+    /// The existing operand decoder needs the authored table view. Recreate that
+    /// checked borrow on demand; running instances never mutate these bytes.
+    pub fn bind_operands(
+        &self,
+        operators: &obscript::expression::Operators,
+        signatures: &obscript::argument_census::Signatures,
+        maximum_uses: usize,
+    ) -> Result<Option<obscript::operand_binding::Binding>> {
+        let Some(program) = self
+            .program()
+            .map_err(|error| Error::Resolution(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+        let units = script_units::decode(
+            &self.record,
+            &self.version.source_plugin,
+            script_units::Limits::default(),
+        )?;
+        let unit = units
+            .iter()
+            .find(|unit| unit.header.offset as u32 == self.handle.key.header_decoded_offset)
+            .ok_or_else(|| Error::Resolution("loaded script lost its authored unit".into()))?;
+        Ok(Some(obscript::operand_binding::bind(
+            unit,
+            &program,
+            operators,
+            signatures,
+            maximum_uses,
+        )?))
+    }
     pub fn declaration(&self, index: u32) -> Option<&Declaration> {
         self.first_declaration
             .get(&index)
@@ -219,6 +251,20 @@ impl Catalogue {
     }
     pub fn iter(&self) -> impl Iterator<Item = (&ScriptKey, &LoadedScript)> {
         self.scripts.iter()
+    }
+
+    pub fn record_scripts(&self, record: &FormKey) -> impl Iterator<Item = &LoadedScript> {
+        self.scripts
+            .range(
+                ScriptKey {
+                    record: record.clone(),
+                    header_decoded_offset: 0,
+                }..=ScriptKey {
+                    record: record.clone(),
+                    header_decoded_offset: u32::MAX,
+                },
+            )
+            .map(|(_, script)| script)
     }
 
     pub fn load(

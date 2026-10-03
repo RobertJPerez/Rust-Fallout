@@ -4,10 +4,12 @@ mod command_catalogue;
 mod condition_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
+mod inspection_input;
 mod loaded_script_inspection;
 mod narrative_inspection;
 mod operand_inspection;
 mod pe_image;
+mod quest_script_inspection;
 mod script_profile;
 mod terrain_compare;
 
@@ -68,6 +70,19 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Link authored quest scripts and inspect foreign declarations without values.
+    QuestScripts {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        script_comparison_bundle: Option<PathBuf>,
+        #[arg(long)]
+        quest_comparison_bundle: Option<PathBuf>,
+    },
     /// Load immutable winning scripts, source owners and reference dependencies.
     LoadedScripts {
         #[arg(long)]
@@ -402,6 +417,32 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::QuestScripts {
+            install,
+            load_order,
+            index_cache,
+            script_comparison_bundle,
+            quest_comparison_bundle,
+        } => {
+            let report = quest_script_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                script_comparison_bundle.as_deref(),
+                quest_comparison_bundle.as_deref(),
+            )?;
+            let failed = report["catalogue_counts"]["scripts_with_issues"] != 0
+                || report["catalogue_counts"]["source_ownership_findings"] != 0
+                || report["quest_counts"]["source_findings"] != 0
+                || report["operand_counts"]["missing_bindings"] != 0
+                || report["operand_counts"]["decode_issues"] != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err(
+                    "quest script inspection retains source or operand findings; see report".into(),
+                );
+            }
+        }
         Command::LoadedScripts {
             install,
             load_order,

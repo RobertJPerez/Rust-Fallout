@@ -210,3 +210,15 @@ compared directly with original bytes; compressed extraction remains Rust-owned.
 Moving the original header reader into a shared offline helper triggers a fresh
 complete checkpoint 23 regression. No live event lists, runtime values or script
 execution are implemented. See [loaded scripts](loaded-scripts.md).
+
+Checkpoint 25 reads the pinned xNVSE GetReferencedScript, GetVariableInfo,
+ResolveExternalVar, EventListFromForm, GetParentScript and GetVariableName source
+sections, plus the full xEdit QUST schema block. Original Rust follows authored
+quest SCRI attachments and associates foreign declarations. Placed-reference
+ExtraScript/event-list selection stays explicit and deferred; base scripts are
+not substituted. Original offline C++ independently compares every winning quest
+attachment and compiled foreign operand. Refactoring the original operand helper
+triggers a fresh full operand/table/native/expression/descriptor regression;
+shared Rust inspection inputs trigger a fresh full loaded/header/cache comparison.
+No runtime values, scheduling or quest behavior are certified. See
+[quest script attachments](quest-script-attachments.md).

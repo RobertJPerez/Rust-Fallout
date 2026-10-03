@@ -54,6 +54,8 @@ Winning INFO topic membership now resolves through source master tables and cach
 version 2; see [dialogue membership](docs/dialogue-membership.md).
 The immutable script catalogue now retains winning source versions, declarations
 and reference dependencies; see [loaded scripts](docs/loaded-scripts.md).
+Static quest SCRI attachments now support foreign declaration associations; see
+[quest script attachments](docs/quest-script-attachments.md).
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -174,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 186 tests pass, including malformed compression, forward/cyclic links,
+- 191 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

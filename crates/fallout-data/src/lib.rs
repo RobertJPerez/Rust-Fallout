@@ -28,6 +28,7 @@ pub mod operand_bindings;
 pub mod parity;
 pub mod planning;
 pub mod plugin;
+pub mod quest_scripts;
 pub mod record_metadata;
 pub mod script_bindings;
 pub mod script_inventory;

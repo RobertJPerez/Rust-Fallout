@@ -12,6 +12,7 @@ mod loaded_script_evidence;
 mod narrative_evidence;
 mod operand_evidence;
 mod preview_evidence;
+mod quest_script_evidence;
 mod script_evidence;
 mod terrain_evidence;
 mod texture_evidence;
@@ -43,7 +44,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=24))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=25))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -331,32 +332,32 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if matches!(args.checkpoint, 16 | 18..=21) {
+    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25) {
         Some(digest(&command_oracle)?)
     } else {
         None
     };
     let binding_oracle = root.join("local/binding-oracle-build/Release/binding-oracle.exe");
-    let binding_digest = if matches!(args.checkpoint, 17 | 20) {
+    let binding_digest = if matches!(args.checkpoint, 17 | 20 | 25) {
         Some(digest(&binding_oracle)?)
     } else {
         None
     };
     let expression_oracle =
         root.join("local/expression-oracle-build/Release/expression-oracle.exe");
-    let expression_digest = if matches!(args.checkpoint, 18..=20) {
+    let expression_digest = if matches!(args.checkpoint, 18..=20 | 25) {
         Some(digest(&expression_oracle)?)
     } else {
         None
     };
     let argument_oracle = root.join("local/argument-oracle-build/Release/argument-oracle.exe");
-    let argument_digest = if matches!(args.checkpoint, 19 | 20) {
+    let argument_digest = if matches!(args.checkpoint, 19 | 20 | 25) {
         Some(digest(&argument_oracle)?)
     } else {
         None
     };
     let operand_oracle = root.join("local/operand-oracle-build/Release/operand-oracle.exe");
-    let operand_digest = if args.checkpoint == 20 {
+    let operand_digest = if matches!(args.checkpoint, 20 | 25) {
         Some(digest(&operand_oracle)?)
     } else {
         None
@@ -374,15 +375,22 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let record_oracle = root.join("local/record-oracle-build/Release/record-oracle.exe");
-    let record_digest = if matches!(args.checkpoint, 23 | 24) {
+    let record_digest = if matches!(args.checkpoint, 23..=25) {
         Some(digest(&record_oracle)?)
     } else {
         None
     };
     let loaded_script_oracle =
         root.join("local/script-catalogue-oracle-build/Release/script-catalogue-oracle.exe");
-    let loaded_script_digest = if args.checkpoint == 24 {
+    let loaded_script_digest = if matches!(args.checkpoint, 24 | 25) {
         Some(digest(&loaded_script_oracle)?)
+    } else {
+        None
+    };
+    let quest_script_oracle =
+        root.join("local/quest-script-oracle-build/Release/quest-script-oracle.exe");
+    let quest_script_digest = if args.checkpoint == 25 {
+        Some(digest(&quest_script_oracle)?)
     } else {
         None
     };
@@ -540,6 +548,28 @@ fn run(args: Args) -> Result<()> {
                 arguments: &argument_oracle,
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
+            },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let quest_script_evidence = if args.checkpoint == 25 {
+        Some(quest_script_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            quest_script_evidence::Oracles {
+                quests: &quest_script_oracle,
+                scripts: &loaded_script_oracle,
+                records: &record_oracle,
+                operands: operand_evidence::Oracles {
+                    operands: &operand_oracle,
+                    tables: &binding_oracle,
+                    arguments: &argument_oracle,
+                    expressions: &expression_oracle,
+                    catalogue: &command_oracle,
+                },
             },
             &args.install,
         )?)
@@ -758,6 +788,9 @@ fn run(args: Args) -> Result<()> {
         || loaded_script_digest
             .as_ref()
             .is_some_and(|expected| digest(&loaded_script_oracle).as_ref().ok() != Some(expected))
+        || quest_script_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&quest_script_oracle).as_ref().ok() != Some(expected))
         || narrative_digest
             .as_ref()
             .is_some_and(|expected| digest(&narrative_oracle).as_ref().ok() != Some(expected))
@@ -950,6 +983,29 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut quests) = quest_script_evidence {
+        quests["checkpoint"] = args.checkpoint.into();
+        quests["engine_revision"] = revision.clone().into();
+        quests["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["quest_scripts"] = quests.clone();
+        verification["quest_script_oracle_binary_sha256"] = quest_script_digest.into();
+        verification["script_catalogue_oracle_binary_sha256"] = loaded_script_digest.into();
+        verification["record_oracle_binary_sha256"] = record_digest.into();
+        verification["operand_oracle_binary_sha256"] = operand_digest.into();
+        verification["binding_oracle_binary_sha256"] = binding_digest.into();
+        verification["argument_oracle_binary_sha256"] = argument_digest.into();
+        verification["expression_oracle_binary_sha256"] = expression_digest.into();
+        verification["command_oracle_binary_sha256"] = command_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"]="Prior checkpoint 14 GPU evidence and separate startup fix; not reexecuted in this static quest/declaration checkpoint; complete loaded/header/cache and operand/table/native/expression regressions freshly repeated".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "quest-scripts"),
+            quests,
         ));
     } else if let Some(mut scripts) = loaded_script_evidence {
         scripts["checkpoint"] = args.checkpoint.into();

@@ -305,10 +305,13 @@ def main():
     require(document(frame_path)["sources"] == cold["sources"], "Actor and runtime source cohorts differ")
     operand_directory = run / "operands"
     operand_directory.mkdir()
+    # The cached reader requires its root to exist before the first cold load.
+    cache_directory = operand_directory / "index-cache"
+    cache_directory.mkdir()
     cold_path, warm_path = operand_directory / "cold.json", operand_directory / "warm.json"
     for phase, path in (("cold", cold_path), ("warm", warm_path)):
         execute(f"event-operands-{phase}", [cli, "event-operands", "--install", install, "--load-order", order,
-                "--index-cache", operand_directory / "index-cache", "--output", path], expected=1,
+                "--index-cache", cache_directory, "--output", path], expected=1,
                 diagnostic="Pending operands retain unresolved source or storage findings")
     operand_cold, operand_warm = document(cold_path), document(warm_path)
     operand_cold.pop("index_cache", None); operand_warm.pop("index_cache", None)

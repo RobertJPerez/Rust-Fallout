@@ -40,6 +40,16 @@ pub(super) struct Descriptor {
 }
 
 #[derive(Debug, Serialize)]
+pub(super) struct OperatorDescriptor {
+    pub descriptor_file_offset: usize,
+    pub table_index: usize,
+    pub code: u32,
+    pub precedence: u8,
+    pub spelling: String,
+    pub raw_spelling_bytes: [u8; 3],
+}
+
+#[derive(Debug, Serialize)]
 pub(super) struct Catalogue {
     pub schema_version: u32,
     pub source_bytes: usize,
@@ -51,6 +61,7 @@ pub(super) struct Catalogue {
     pub script_commands: Vec<Descriptor>,
     pub event_blocks: Vec<Descriptor>,
     pub statements: Vec<Descriptor>,
+    pub operators: Vec<OperatorDescriptor>,
     pub execution_ready: bool,
     pub retail_parity_accepted: bool,
     pub unknown: Vec<&'static str>,
@@ -120,6 +131,37 @@ fn descriptors(
     Ok(result)
 }
 
+fn operators(image: &Image<'_>, start: u32, count: usize) -> Result<Vec<OperatorDescriptor>> {
+    if count > 64 {
+        return Err("Operator descriptor count budget".into());
+    }
+    let (offset, bytes) = image.read(start, count * 8)?;
+    let mut result = Vec::with_capacity(count);
+    for (index, bytes) in bytes.as_chunks::<8>().0.iter().enumerate() {
+        let raw_spelling_bytes: [u8; 3] = bytes[5..8].try_into()?;
+        let end = raw_spelling_bytes
+            .iter()
+            .position(|byte| *byte == 0)
+            .ok_or("Unterminated operator spelling")?;
+        if end == 0
+            || !raw_spelling_bytes[..end]
+                .iter()
+                .all(u8::is_ascii_punctuation)
+        {
+            return Err("Unsupported operator spelling".into());
+        }
+        result.push(OperatorDescriptor {
+            descriptor_file_offset: offset + index * 8,
+            table_index: index,
+            code: u32_at(bytes, 0)?,
+            precedence: bytes[4],
+            spelling: std::str::from_utf8(&raw_spelling_bytes[..end])?.to_owned(),
+            raw_spelling_bytes,
+        });
+    }
+    Ok(result)
+}
+
 pub(super) fn inspect(path: &Path) -> Result<Catalogue> {
     let file = baseline::open_source(path)?;
     let size = file.metadata()?.len();
@@ -143,6 +185,7 @@ fn decode(bytes: &[u8]) -> Result<Catalogue> {
     let script_commands = descriptors(&image, 0x01190910, 640, 0x1000)?;
     let event_blocks = descriptors(&image, 0x0118e2f0, 38, 0)?;
     let statements = descriptors(&image, 0x0118cb50, 16, 0x10)?;
+    let operators = operators(&image, 0x0118cad0, 16)?;
     Ok(Catalogue {
         schema_version: 1,
         source_bytes: bytes.len(),
@@ -154,6 +197,7 @@ fn decode(bytes: &[u8]) -> Result<Catalogue> {
         script_commands,
         event_blocks,
         statements,
+        operators,
         execution_ready: false,
         retail_parity_accepted: false,
         unknown: vec![
@@ -168,6 +212,22 @@ fn decode(bytes: &[u8]) -> Result<Catalogue> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn operator_spelling_is_bounded_and_unused_bytes_remain_authored() {
+        let mut bytes = crate::pe_image::tests::fixture();
+        bytes[0x220..0x228].copy_from_slice(&[15, 0, 0, 0, 6, b'~', 0, 0x7b]);
+        let image = Image::parse(&bytes).unwrap();
+        let rows = operators(&image, 0x401020, 1).unwrap();
+        assert_eq!(rows[0].code, 15);
+        assert_eq!(rows[0].precedence, 6);
+        assert_eq!(rows[0].spelling, "~");
+        assert_eq!(rows[0].raw_spelling_bytes, [b'~', 0, 0x7b]);
+        bytes[0x226..0x228].copy_from_slice(b"++");
+        assert!(operators(&Image::parse(&bytes).unwrap(), 0x401020, 1).is_err());
+        bytes[0x225..0x228].copy_from_slice(&[b'A', 0, 0]);
+        assert!(operators(&Image::parse(&bytes).unwrap(), 0x401020, 1).is_err());
+    }
 
     fn descriptor_fixture() -> Vec<u8> {
         let mut bytes = crate::pe_image::tests::fixture();

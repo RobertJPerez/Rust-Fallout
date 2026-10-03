@@ -1,5 +1,6 @@
 mod collision;
 mod command_catalogue;
+mod expression_inspection;
 mod pe_image;
 mod terrain_compare;
 
@@ -60,6 +61,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Inspect vanilla expression tokens without evaluating or executing them.
+    Expressions {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Associate authored script caller references with each unit's own tables.
     #[command(name = "script-bindings")]
     Bindings {
@@ -329,6 +339,26 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::Expressions {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let report = expression_inspection::inspect(
+                &install,
+                defer_unrelated_payloads,
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = report["issues"] != 0
+                || !report["unresolved_command_ids"]
+                    .as_array()
+                    .ok_or("Missing command bindings")?
+                    .is_empty();
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("expression framing, token decoding or command descriptor links have issues; see report".into());
+            }
+        }
         Command::Bindings {
             install,
             defer_unrelated_payloads,

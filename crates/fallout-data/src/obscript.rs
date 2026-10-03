@@ -6,6 +6,9 @@
 
 use std::ops::Range;
 
+pub mod expression;
+pub mod expression_census;
+
 pub const REFERENCE_CALL: u16 = 0x1c;
 pub const BEGIN: u16 = 0x10;
 

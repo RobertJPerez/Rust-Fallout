@@ -151,3 +151,12 @@ extended fields and top-level caller associations. Three empty-unit count
 inconsistencies remain explicit. The comparison does not certify plugin extraction,
 stable identity conversion, retail loading or script behavior. See
 [script table bindings](script-bindings.md).
+
+Checkpoint 18 rereads the vanilla expression routines and operator declarations.
+An original Rust tokenizer preserves decimal lexemes, quoted bytes, context
+prefixes and opaque command arguments. Original C++ independently reads the
+operator table and parses Rust-extracted SCDA; all envelopes and token digests
+agree. Shared offline C++ PE helpers remain separate from Rust runtime code.
+Microsoft CRT documentation identifies historical parsing differences; current
+CRT boundary comparisons do not certify original values, rounding or evaluation.
+See [compiled expressions](script-expressions.md).

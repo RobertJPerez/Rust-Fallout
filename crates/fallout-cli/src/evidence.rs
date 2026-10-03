@@ -2,6 +2,7 @@
 //! records the commands it actually executes and publishes metadata, never assets.
 mod binding_evidence;
 mod catalogue_evidence;
+mod expression_evidence;
 mod height_evidence;
 mod index_evidence;
 mod preview_evidence;
@@ -36,7 +37,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=17))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=18))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -324,7 +325,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if args.checkpoint == 16 {
+    let command_digest = if matches!(args.checkpoint, 16 | 18) {
         Some(digest(&command_oracle)?)
     } else {
         None
@@ -332,6 +333,13 @@ fn run(args: Args) -> Result<()> {
     let binding_oracle = root.join("local/binding-oracle-build/Release/binding-oracle.exe");
     let binding_digest = if args.checkpoint == 17 {
         Some(digest(&binding_oracle)?)
+    } else {
+        None
+    };
+    let expression_oracle =
+        root.join("local/expression-oracle-build/Release/expression-oracle.exe");
+    let expression_digest = if args.checkpoint == 18 {
+        Some(digest(&expression_oracle)?)
     } else {
         None
     };
@@ -446,6 +454,18 @@ fn run(args: Args) -> Result<()> {
             &destination,
             &cli_path,
             &binding_oracle,
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let expression_evidence = if args.checkpoint == 18 {
+        Some(expression_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &expression_oracle,
+            &command_oracle,
             &args.install,
         )?)
     } else {
@@ -609,6 +629,9 @@ fn run(args: Args) -> Result<()> {
         || binding_digest
             .as_ref()
             .is_some_and(|expected| digest(&binding_oracle).as_ref().ok() != Some(expected))
+        || expression_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&expression_oracle).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -731,6 +754,23 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "command-catalogue"),
             catalogue,
+        ));
+    } else if let Some(mut expressions) = expression_evidence {
+        expressions["checkpoint"] = args.checkpoint.into();
+        expressions["engine_revision"] = revision.clone().into();
+        expressions["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["script_expressions"] = expressions.clone();
+        verification["expression_oracle_binary_sha256"] = expression_digest.into();
+        verification["command_oracle_binary_sha256"] = command_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this expression checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "script-expressions"),
+            expressions,
         ));
     } else if let Some(mut bindings) = binding_evidence {
         bindings["checkpoint"] = args.checkpoint.into();

@@ -324,6 +324,40 @@ fn a_reference_variable_with_an_unverified_zero_index_reports_unsupported_storag
 }
 
 #[test]
+fn a_foreign_scrv_context_checks_storage_before_reading_its_unset_value() {
+    let body = event(
+        &[
+            assignment(&foreign(7, 42), b"1"),
+            assignment(&local(42), &foreign(7, 42)),
+        ]
+        .concat(),
+    );
+    let (_directory, catalogue, content) = fixture(&body);
+    let (world, handle, sequence) = seed(catalogue, 0);
+    let before = world.snapshot();
+    assert!(matches!(
+        world.resolve_script_reference(handle, 7, None),
+        Err(fallout_runtime::Error::UnsupportedLocal(0))
+    ));
+    let report = probe(&world, sequence, &content, None, Default::default()).unwrap();
+    let context_uses: Vec<_> = report
+        .operands
+        .iter()
+        .filter(|operand| {
+            operand.binding.context_reference == Some(7)
+                || (operand.binding.index == 7 && operand.binding.status == 3)
+        })
+        .collect();
+    assert_eq!(context_uses.len(), 4);
+    assert!(
+        context_uses
+            .iter()
+            .all(|operand| unresolved(&operand.outcome, "unsupported_local"))
+    );
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
 fn unknown_native_signatures_fail_preparation_without_consuming_the_event() {
     let mut call = Vec::new();
     instruction(&mut call, 0x1001, &[1, 0, b'f', 90, 0]);

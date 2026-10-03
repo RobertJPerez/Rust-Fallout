@@ -67,8 +67,9 @@ can migrate explicitly with `Snapshot::migrate_v2`, preserving campaign and revi
 Both migrations leave inventory banks uninitialized and start the item allocator
 at one; they do not invent original inventory contents. Normal decoding
 does not silently migrate old state. The migrated snapshot still needs full
-source-bound restoration. Normal native-envelope loading rejects old state schemas. Raw snapshot migration
-is separate from native-envelope import and original-save compatibility.
+source-bound restoration. Normal native-envelope loading rejects old state schemas.
+[Explicit native import](native-save-migration.md) now handles schema 2 envelopes
+in a new repository after full validation. Original-save compatibility is separate.
 
 ## Publication and recovery
 

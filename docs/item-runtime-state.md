@@ -41,8 +41,8 @@ Restore validates every link and budget in a separate world, then rebuilds both
 derived indices. Neither indices nor transient handles enter the save. Explicit
 raw-snapshot migration from schema 2 preserves campaign, revision and prior state;
 schema 1 also requires a supplied campaign. Both leave inventories uninitialized
-and start the item allocator at one. Native envelopes require a separate explicit
-migration path; normal loading never silently converts unsupported schemas.
+and start the item allocator at one. [Native envelopes have a separate explicit import](native-save-migration.md);
+normal loading never silently converts unsupported schemas.
 
 ```powershell
 .\target\release\fallout.exe item-state `

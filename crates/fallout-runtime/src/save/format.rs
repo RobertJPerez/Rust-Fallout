@@ -131,7 +131,27 @@ impl<'a> Reader<'a> {
         Ok(payload)
     }
 }
+/// Migration receipts identify the original bytes separately from the new state.
+/// The migrated snapshot still requires full source-bound World::restore.
+pub struct Migration {
+    pub source_state_schema: u32,
+    pub source_metadata: Metadata,
+    pub snapshot: Snapshot,
+}
 pub fn decode(bytes: &[u8], limits: Limits) -> Result<Decoded> {
+    decode_schema(bytes, limits, snapshot::SCHEMA_VERSION)
+}
+/// Explicitly import our schema-2 native container. Normal decode stays strict.
+/// This never reads Bethesda saves and never initializes absent inventory state.
+pub fn migrate_v2(bytes: &[u8], limits: Limits) -> Result<Migration> {
+    let decoded = decode_schema(bytes, limits, 2)?;
+    Ok(Migration {
+        source_state_schema: 2,
+        source_metadata: decoded.metadata,
+        snapshot: decoded.snapshot,
+    })
+}
+fn decode_schema(bytes: &[u8], limits: Limits, source_schema: u32) -> Result<Decoded> {
     let maximum = limits
         .max_snapshot_bytes
         .checked_add(OVERHEAD)
@@ -162,7 +182,7 @@ pub fn decode(bytes: &[u8], limits: Limits) -> Result<Decoded> {
         bytes: meta,
         cursor: 0,
     };
-    if meta.u32()? != 1 || meta.u32()? != snapshot::SCHEMA_VERSION {
+    if meta.u32()? != 1 || meta.u32()? != source_schema {
         return Err(fail("unsupported profile or state schema"));
     }
     let generation = meta.u64()?;
@@ -180,7 +200,11 @@ pub fn decode(bytes: &[u8], limits: Limits) -> Result<Decoded> {
     if body.len() != snapshot_bytes || reader.cursor != unsigned.len() {
         return Err(fail("snapshot extent mismatch or trailing container bytes"));
     }
-    let snapshot = Snapshot::decode(body, limits)?;
+    let snapshot = if source_schema == 2 {
+        Snapshot::migrate_v2(body, limits)?
+    } else {
+        Snapshot::decode(body, limits)?
+    };
     if snapshot.campaign != campaign
         || snapshot.state_revision != state_revision
         || snapshot.clocks.tick != boundary_tick

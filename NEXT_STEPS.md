@@ -228,3 +228,10 @@ See [item state](docs/item-runtime-state.md). Snapshot schema 3 has explicit raw
 migrations from schemas 1/2 without inventing inventory initialization. Next:
 explicit older native-envelope import, shared primitive query adapters and
 source-bound admission, followed by original differential execution measurements.
+
+Checkpoint 34 adds explicit schema-2 native-envelope import with retained read-only
+inputs, metadata/state agreement and full source-bound validation before creating
+a new repository. Exact prior state survives cold restoration; inventories stay
+uninitialized. See [native migration](docs/native-save-migration.md). Next: validate
+explicit item keys against immutable winning source headers, then shared primitive
+query adapters and original differential execution measurements.

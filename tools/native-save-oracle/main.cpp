@@ -44,7 +44,9 @@ struct Reader {
 };
 int wmain(int argc,wchar_t** argv) {
     try {
-        if (argc!=2) throw std::runtime_error("usage: native-save-oracle native_container.frsv");
+        const bool legacy=argc==3 && std::wstring(argv[2])==L"--schema-2";
+        if (argc!=2 && !legacy) throw std::runtime_error("usage: native-save-oracle native_container.frsv [--schema-2]");
+        const auto state_schema=legacy?2:3;
         NativeFile source(argv[1]); const auto& bytes=source.bytes;
         const Bytes unsigned_bytes(bytes.begin(),bytes.end()-32), checksum(bytes.end()-32,bytes.end());
         if (fallout_tables::hash(unsigned_bytes)!=hex(checksum)) throw std::runtime_error("native whole checksum");
@@ -52,7 +54,7 @@ int wmain(int argc,wchar_t** argv) {
         if (std::string(magic.begin(),magic.end())!="FRSAVE01" || reader.number(2)!=1 || reader.number(2)!=0 || reader.number(4)!=2) throw std::runtime_error("native header/version");
         const auto metadata=reader.chunk("META",88); if (metadata.size()!=88) throw std::runtime_error("native metadata extent");
         Reader meta{metadata};
-        if (meta.number(4)!=1 || meta.number(4)!=3) throw std::runtime_error("native profile/state schema");
+        if (meta.number(4)!=1 || meta.number(4)!=state_schema) throw std::runtime_error("native profile/state schema");
         const auto generation=meta.number(8); if (!generation) throw std::runtime_error("native generation zero");
         const auto tick=meta.number(8); const auto cohort=hex(meta.take(32)); const auto snapshot_size=meta.number(8);
         const auto campaign=meta.take(16); const auto revision=meta.number(8);
@@ -64,7 +66,7 @@ int wmain(int argc,wchar_t** argv) {
             {"generation",std::to_string(generation)},{"boundary_tick",std::to_string(tick)},{"catalogue_sha256",quote(cohort)},
             {"snapshot_bytes",std::to_string(state.size())},{"snapshot_sha256",quote(fallout_tables::hash(state))},
             {"container_bytes",std::to_string(bytes.size())},{"container_sha256",quote(fallout_tables::hash(bytes))}});
-        std::cout<<object({{"schema_version","1"},{"metadata",report},
+        std::cout<<object({{"schema_version","1"},{"state_schema",std::to_string(state_schema)},{"metadata",report},
             {"scope",quote("Independent native container extents, metadata and checksums; canonical JSON semantics not evaluated")},
             {"retail_save_compatibility","false"}})<<'\n';
         return 0;

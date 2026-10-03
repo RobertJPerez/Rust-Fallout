@@ -309,3 +309,10 @@ are not assigned original semantics. Original Rust owns explicit host transactio
 indices and persistence. Source identities and container integrity have independent
 comparisons; mutable values and query sums have engineering tests only. No upstream
 implementation is imported. See [item state](item-runtime-state.md) for scopes.
+
+Checkpoint 34 extends the original native-container implementation with explicit
+schema-2 import. It reuses the previously documented file/checksum contracts and
+strict raw-state migration; no new upstream implementation is imported. Independent
+C++ requires an explicit schema-2 flag and checks source/target container integrity
+only. Full prior-state preservation and source-bound restoration are engineering
+proofs; Bethesda saves remain separate. See [native migration](native-save-migration.md).

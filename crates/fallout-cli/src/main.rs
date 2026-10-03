@@ -13,6 +13,7 @@ mod item_state_inspection;
 mod leveled_inspection;
 mod loaded_script_inspection;
 mod narrative_inspection;
+mod native_migration_inspection;
 mod native_save_inspection;
 mod operand_inspection;
 mod pe_image;
@@ -157,6 +158,17 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         repository: PathBuf,
+    },
+    /// Explicitly import our schema-2 native save into a new repository.
+    NativeMigrateV2 {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
     },
     /// Inspect native container integrity without loading or changing game state.
     NativeSaveFile {
@@ -628,6 +640,16 @@ fn run(args: Args) -> Result<()> {
             repository,
         } => {
             let report = native_save_inspection::load(&install, &load_order, &repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeMigrateV2 {
+            install,
+            load_order,
+            file,
+            new_repository,
+        } => {
+            let report =
+                native_migration_inspection::import(&install, &load_order, &file, &new_repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeSaveFile { file } => {

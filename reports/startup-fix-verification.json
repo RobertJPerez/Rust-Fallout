@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "engine_revision": "5c3c056d074631788d6282cc6183834f0dfc42db",
+  "source_snapshot_sha256": "e9e01b68d5a1c72e59ae38df1b7358bb237a3789d50071b223af2671b94ef520",
+  "verified_at_utc": "2026-10-03T04:54:20+00:00",
+  "scope": "Startup feedback/logging and optimized development build; real configured Goodsprings launcher smoke test, failure-path test, all workspace checks and 64 original numeric GPU cases. No interactive keyboard/window automation or retail parity acceptance.",
+  "preview_binary_sha256": "4b79afdc9f95a193819ab784a105de5298baca2e282ddaebc23427db849dfa08",
+  "launcher_binary_sha256": "600d2a527107c57c5ce14651deff519a51fbf15348366516230377ca78e02a22",
+  "configuration_sha256": "453134c8807f0168c59a59612c53cfdb63610d8457eaad0e856065291d1b167b",
+  "workspace_tests_passed": 136,
+  "format_check": "passed",
+  "clippy_warnings_denied": "passed",
+  "workspace_check_log_sha256": "c50be0089f3eedee36298b5d4dc3f612da0f1f1db8f141abf5c3c3710c59d016",
+  "startup": {
+    "exit_code": 0,
+    "source_preparation_seconds_reported": 17.0,
+    "stage_messages_observed": true,
+    "five_second_activity_message_observed": true,
+    "graphics_initialized": true,
+    "capture_sha256": "9a4faa5b8bd1415a0c0ffc0b4b051b44eb210a26594247f2b437fe92e11df27e",
+    "report_sha256": "481568972e3eadaf7696e31beaa399ca92470e9aed2c9213b4c7bda23e08c4b4",
+    "startup_log_sha256": "4f9d78929862e79d0bfb2ad53cec96c4f74ca145a1f35cd62dc55897e4c9b9e1",
+    "matches_checkpoint_14_goodsprings_pixels_exactly": true,
+    "local_evidence_directory": "local\\playtest-85564-1791002966136659900"
+  },
+  "failure_path": {
+    "selector": "RustFalloutMissingStartupCell",
+    "exit_code": 1,
+    "error_logged": true,
+    "capture_created": false,
+    "startup_log_sha256": "07503ab52e93960b594a5c27cfb75a837c2cb096534ecf1b37effd7b2ddcae2f",
+    "local_evidence_directory": "local\\playtest-95664-1791003014553591800",
+    "interactive_enter_wait_tested": false
+  },
+  "material_gpu_cases_passed": 64,
+  "material_report_sha256": "4f06a86d02b6195243f864ddc8b547c698177d62251c8e46af857f39d5731a23",
+  "material_capture_sha256": "adb94d21132d76986c8da358832f87e799b5125f4c55f3010cc8e6487b39cb77",
+  "retail_parity_accepted": false
+}

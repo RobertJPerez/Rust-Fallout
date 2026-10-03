@@ -1,0 +1,446 @@
+{
+  "schema_version": 1,
+  "revision": "5c3c056d074631788d6282cc6183834f0dfc42db",
+  "sha256": "e9e01b68d5a1c72e59ae38df1b7358bb237a3789d50071b223af2671b94ef520",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "4eb535065d2cbcf68a9c1fb972b2bb80cc9f252439f2fbbf6636177e988882a6"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "e01bfe3502d70b36325e091822d0817a10d0b9d171b42c0cbcf3948c1d01e943"
+    },
+    {
+      "path": "crates/fallout-cli/Cargo.toml",
+      "sha256": "38051acbda41b9b26810b14f5122c9c27ee0906ad2d1507df2d93d0fab475cf9"
+    },
+    {
+      "path": "crates/fallout-cli/src/collision.rs",
+      "sha256": "75149da2f13d699834f6b976c986409a24fb84644181708d1f34b52f566c04cc"
+    },
+    {
+      "path": "crates/fallout-cli/src/evidence.rs",
+      "sha256": "a4fa933c277c943e07dc2b0d39cf4c5a80efbc94cc3ebe0d2b502281747bbcc4"
+    },
+    {
+      "path": "crates/fallout-cli/src/height_evidence.rs",
+      "sha256": "7f23ec77014e60722e568be7b41fedd2afd5d5ee1446a13ac4122164ce17d897"
+    },
+    {
+      "path": "crates/fallout-cli/src/index_evidence.rs",
+      "sha256": "05b07a03bc3484d1b9e0bd3316224535bebbd931d62f64cf9b33f81c93d87c58"
+    },
+    {
+      "path": "crates/fallout-cli/src/main.rs",
+      "sha256": "aee78da46d2d999768958ccb48685fd61d1c01855db484d710201062328f3b06"
+    },
+    {
+      "path": "crates/fallout-cli/src/playtest.rs",
+      "sha256": "724d765443f50a9c1c8dbe9ca27fe6035647f388db20ca5a1f5245985bbdfdbf"
+    },
+    {
+      "path": "crates/fallout-cli/src/preview_evidence.rs",
+      "sha256": "db94523c31a192cad6305bb906066bc4feab9891c318f78a3a3262a3328d7d7a"
+    },
+    {
+      "path": "crates/fallout-cli/src/terrain_compare.rs",
+      "sha256": "d9ec741aa8c0e6528eb1164f93f423503dd4bbf1aead0fd69a516e51237257e0"
+    },
+    {
+      "path": "crates/fallout-cli/src/terrain_evidence.rs",
+      "sha256": "95e2f11b3718909f5eeb80cafc4825c99c71d5653af53413ce0c8a0c992e24d0"
+    },
+    {
+      "path": "crates/fallout-cli/src/texture_evidence.rs",
+      "sha256": "5226e88bd7149b89ce5573b14641850b8c4cc6359a939436dfd5199e11016e53"
+    },
+    {
+      "path": "crates/fallout-cli/src/textured_evidence.rs",
+      "sha256": "888ab19b90833d781eb764a5890b3f2928ab64cda2e1e4af8d4d69770617da09"
+    },
+    {
+      "path": "crates/fallout-data/Cargo.toml",
+      "sha256": "0d3c27170d470926fc99ef435c599afae237b58308efe1fa204b04e28749ea6c"
+    },
+    {
+      "path": "crates/fallout-data/src/archive.rs",
+      "sha256": "c84ded09a6f6eb59c0b3d7021a762c24a87a9be92f4c00afc70fd5fe685849ff"
+    },
+    {
+      "path": "crates/fallout-data/src/assets.rs",
+      "sha256": "3f6746158c39142db25d54deb64f3ac6109ff02475b30d4036ec57192bdc2c35"
+    },
+    {
+      "path": "crates/fallout-data/src/baseline.rs",
+      "sha256": "038dfbd78f188220fdb46a4f0da8c07cdd22974be81cd92347c7018ff7942a96"
+    },
+    {
+      "path": "crates/fallout-data/src/cache.rs",
+      "sha256": "d6fcc6d764c68f23cf43c5c1b993c59cc2a5085d31b14297e1d8fb2e5f4e95a0"
+    },
+    {
+      "path": "crates/fallout-data/src/content.rs",
+      "sha256": "497aeaaca84742b07bb8cde659bc57f158ed42ebe822516be2583dbeb70174a2"
+    },
+    {
+      "path": "crates/fallout-data/src/coordinates.rs",
+      "sha256": "81110512cc8c5c73a034bd7d09e456fbe3daebf1e6cc4cf3d362b7e9ccd5ddd6"
+    },
+    {
+      "path": "crates/fallout-data/src/identity.rs",
+      "sha256": "106cf0ef198459dd959eb497e3784947de693199941e1c0fd9cf6ddb4f228367"
+    },
+    {
+      "path": "crates/fallout-data/src/index_cache.rs",
+      "sha256": "3a030501f20ad29a08766127a3e11b5be3e57f795a9196db25a6a4c089eb602a"
+    },
+    {
+      "path": "crates/fallout-data/src/lib.rs",
+      "sha256": "5c7f04ec2d54e5f96a11948ec650cfd52ea9c1c92cb3a41513bc4c178dd68f47"
+    },
+    {
+      "path": "crates/fallout-data/src/model_probe.rs",
+      "sha256": "88438b534a475fd9d6f185e8ad19d4d126e26a977476210c3f36cfe6d5f73ff6"
+    },
+    {
+      "path": "crates/fallout-data/src/nif.rs",
+      "sha256": "ee5c1288738bade6156c952d0bee22653a6de1c2b5ff3308c2e2654edc52abf8"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_census.rs",
+      "sha256": "9fc02f37f94083ca42596dc6dc7406afb560c75fcd736dda023d824ee1f7543e"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_collision/graph.rs",
+      "sha256": "1fb29e7c25c1dcd251b5b9bc0d0667c33d54754d5db78b6bad74ae6a77bb4a80"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_collision/mod.rs",
+      "sha256": "9a462c45e34245ad821af4f092a076cffbad3d43a7835dfa2044fac627c3da66"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_collision/read.rs",
+      "sha256": "6f38847ee5b5465ffbe9ab09fdd3ed918ccef20f34bf3a8f6643a10d864e69d7"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_scene/cursor.rs",
+      "sha256": "b0526e18caca7aa0a4b689f476c00d2bb589206fe90d5eb37e0c0eb5b681f0f3"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_scene/graph.rs",
+      "sha256": "c59c5c366e9cc9b3808ec3c8dbfeebe9133e3e3a16105a8730d104408c76f303"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_scene/material.rs",
+      "sha256": "47bf789c7ab1461ead7bc47887ee352aeb11c513cb604f82a67c413d0bac0483"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_scene/mesh.rs",
+      "sha256": "642b882aae9603330a742e21cd3590cf1b5edd46776b2712dfbfc84a83f528e5"
+    },
+    {
+      "path": "crates/fallout-data/src/nif_scene/mod.rs",
+      "sha256": "782168a18d6a017bc80a4169128091c608b4c864b9d463c79be17a2ec94eb769"
+    },
+    {
+      "path": "crates/fallout-data/src/parity.rs",
+      "sha256": "25e974509543903e4cd6b5b437ee21e844a55ae94306c6920284bc4950132c28"
+    },
+    {
+      "path": "crates/fallout-data/src/planning.rs",
+      "sha256": "9484b6f1e0030621b5b68d5c8b5bae541cb22f3deeb325733c7a64baa8e4a676"
+    },
+    {
+      "path": "crates/fallout-data/src/plugin.rs",
+      "sha256": "844a02a272f3b9cae4ee791713ea11f4a8d19b22ac4cf67ac4e406a5c388b40c"
+    },
+    {
+      "path": "crates/fallout-data/src/script_inventory.rs",
+      "sha256": "a96f0e62367bf560c8851a79e84e8e944f2a095c7f360a14901e420148f0f5ea"
+    },
+    {
+      "path": "crates/fallout-data/src/store.rs",
+      "sha256": "2bff45914af3510d5fd91d1841dc068bbaf38585e4d1dfda3bc2b93b90aec62a"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/blends.rs",
+      "sha256": "4fa9968d1bc9c3b829535416664031c3b983374f655f131c50f9275d5d689fd9"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/heights.rs",
+      "sha256": "d23f3c3b8c8ceaa1a5bb3642ad464af6a80902e206266560c6e79e07e156c3b9"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/inspect.rs",
+      "sha256": "a821d14434df9541cf579bf3814db34bf141a32a5926820d62bf5de3769b74a7"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/mesh.rs",
+      "sha256": "d75d52f6448638816e41edf21c5298fc68a3f7e4bcc551b35b568de30f0f2fd5"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/mod.rs",
+      "sha256": "98039b384a473c926543c84677ba10993829a36300414984d53bf6508408073f"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/schema.rs",
+      "sha256": "14b1621c63531af14e4357380c2edb71339817b4c2f2f4ec213081e5f7c7a60a"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/surface.rs",
+      "sha256": "b1a0dbf237ff890949193fe69c90f15926b064c63efed65a7c44e805e4e5d3d1"
+    },
+    {
+      "path": "crates/fallout-data/src/terrain/textures.rs",
+      "sha256": "f7a8845402c4f047f565a80fcfd50fc21fd249c075fd60d7d800f0ebbc508585"
+    },
+    {
+      "path": "crates/fallout-data/src/texture_probe.rs",
+      "sha256": "5dc29e6739f64e16a00f87c9e77f60d6127594c9fa41e6f6707ce1bd4b7c9a7b"
+    },
+    {
+      "path": "crates/fallout-data/src/vfs.rs",
+      "sha256": "87e962f94b06e61a8f5302b5a3daa601d1630c405b2c4f6a8a5696946b7337bd"
+    },
+    {
+      "path": "crates/fallout-data/src/world.rs",
+      "sha256": "061dc4d183be1a32385e3d588fdb4225f9a19a7d11e3320aaf17568244f0e42a"
+    },
+    {
+      "path": "crates/fallout-data/tests/framing.rs",
+      "sha256": "3a1c2db197d6a0b80aa217bb79dd0db7f6baf2fa56752e49a5e76c461aa35c56"
+    },
+    {
+      "path": "crates/fallout-data/tests/index_cache.rs",
+      "sha256": "f96530c8aaf6493a94612dc71fd90b8ac6694063d4115b1defb393703282233a"
+    },
+    {
+      "path": "crates/fallout-data/tests/nif.rs",
+      "sha256": "3cc81f22d5e9a9d3a4395ab31ce3015c29847ea4232cbed0f2d291beb1d869be"
+    },
+    {
+      "path": "crates/fallout-data/tests/nif_collision.rs",
+      "sha256": "a2965d3d780b3aa35678f19c19a39155d5f9cfec5933023fcb78d727f8033012"
+    },
+    {
+      "path": "crates/fallout-data/tests/nif_scene.rs",
+      "sha256": "fa5453f87eec24f3e2a7855b23e9d52ce2c1fb1ebfa9804fab55fb79d0aacbdc"
+    },
+    {
+      "path": "crates/fallout-data/tests/terrain.rs",
+      "sha256": "3d2672500ce98579decc9b28ea8f813f6b82b133f0c2319801a8e1499b08fa08"
+    },
+    {
+      "path": "crates/fallout-data/tests/terrain_blends.rs",
+      "sha256": "e0173b4c5068e8f9d0e3ef610b7c0013dd0f67f6458afd6651319215e4e789cc"
+    },
+    {
+      "path": "crates/fallout-data/tests/terrain_heights.rs",
+      "sha256": "4f6e0ec69678414ef22f9f99fc11d1bfe7b4942152830bb895f13f5a06b1a2b4"
+    },
+    {
+      "path": "crates/fallout-data/tests/terrain_mesh.rs",
+      "sha256": "635a1b5b2fba9ce404c1c7142882d400ef72ee04b048559339a05f0fd4c37fd9"
+    },
+    {
+      "path": "crates/fallout-data/tests/terrain_textures.rs",
+      "sha256": "2ee4d5bddea36760e23f6b073e3528a66cb04bfa65df6ca1f42610cb7aed1fde"
+    },
+    {
+      "path": "crates/fallout-preview/Cargo.toml",
+      "sha256": "fb6e40509a0a7af59358bf4f83c7f8dba136d7de97024e35df074d78b99b7e18"
+    },
+    {
+      "path": "crates/fallout-preview/src/fixture.rs",
+      "sha256": "646766e0474d93f4825cc1e67f59a980f1c6281454a7a2bd895ccd272f75173d"
+    },
+    {
+      "path": "crates/fallout-preview/src/inspection.wgsl",
+      "sha256": "b627f136cb9dc855965152bd30d1fe3966b0047ac77e6d87cd803c81d8bc5428"
+    },
+    {
+      "path": "crates/fallout-preview/src/main.rs",
+      "sha256": "dcb5db6110b4d13e2a909c2dbbbaef931072e6cb2e44d2d077e5b5872682fd4f"
+    },
+    {
+      "path": "crates/fallout-preview/src/material.rs",
+      "sha256": "8785956f62726ab032a00852caf3988ff56d2ec9c33fc6c5c044231450ae36fd"
+    },
+    {
+      "path": "crates/fallout-preview/src/model.rs",
+      "sha256": "21cfff1b0658211c1a25494891507ebdad2d12f182518b09cc9e7bf5dd5c2c3d"
+    },
+    {
+      "path": "crates/fallout-preview/src/scene.rs",
+      "sha256": "4260bc272055fe45692372692d768b06ca2a385a9d9a6249c567f4294c245454"
+    },
+    {
+      "path": "crates/fallout-preview/src/startup.rs",
+      "sha256": "16df4cba5676194ecd98e7c7e4c63d5728ade88279974d0048f13d07b3cb9b53"
+    },
+    {
+      "path": "crates/fallout-preview/src/terrain.rs",
+      "sha256": "1c6cc73ede69bc4e6c75740fd01a2052cae839fb0d3852a9f435ae8fe5ff4070"
+    },
+    {
+      "path": "crates/fallout-preview/src/terrain_textures.rs",
+      "sha256": "18f9097828db5d06525cd3f663bb9c47bf99efbcd1aa2ce82145cb2ceee9cadb"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "e362c278544e2ba95a852f356eaa0e7446ac37b79f8250dbb8db2d3a997b6fbd"
+    },
+    {
+      "path": "sources.lock.json",
+      "sha256": "5bc90033e2ac1ad68ed49f227f7005f311f971e211ffab303d4b65731ce347bf"
+    },
+    {
+      "path": "tools/archive-compare/Cargo.toml",
+      "sha256": "da19a616428b0dea9223d8646639386203bf03ba90ad6a195e8a38f05623247c"
+    },
+    {
+      "path": "tools/archive-compare/src/main.rs",
+      "sha256": "ecd9faa8e1455fb32bac0e81207d0d9403a3b03b44419062cb58707d372f751b"
+    },
+    {
+      "path": "tools/archive-compare/src/members.rs",
+      "sha256": "6d77d0772427ab91e1cf69b0f5992dea79be3231ea1e4543783ef10b9a4b0025"
+    },
+    {
+      "path": "tools/bootstrap.ps1",
+      "sha256": "aa4152e9d0097caa633edc27036385b1727e75d94274747a3c0405ad1b0b9ef4"
+    },
+    {
+      "path": "tools/build-nif-oracle.ps1",
+      "sha256": "855c989ace3a0625a98adb7cb609b9c630976aa31a234c1907268343156ec3dd"
+    },
+    {
+      "path": "tools/cargo.ps1",
+      "sha256": "4ffddf5827014abe24475581d82baec12c9d66d21b21833b9866d1f3ba4722a6"
+    },
+    {
+      "path": "tools/check-nif-scene-comparison.py",
+      "sha256": "e244833306f941236370377f848db7be013153a3f32f8d62ac338fb0317db00b"
+    },
+    {
+      "path": "tools/check.ps1",
+      "sha256": "8ea63e5fdf5cb6d4e0435d0682b3377d9de24e667919d1bd511f79db0d857a53"
+    },
+    {
+      "path": "tools/compare-cell-selection.py",
+      "sha256": "c54f657905da5e94c14a444b080ea1415468bbf815888c30728391f5e659c202"
+    },
+    {
+      "path": "tools/compare-corpus.ps1",
+      "sha256": "6bcb17e35c3d9f4c2cc9d0ed68a85bf35be80e82b7190a069c70f31834c65e74"
+    },
+    {
+      "path": "tools/compare-nif-scenes.py",
+      "sha256": "969b435c9ccfea06b1d55576297cb8a4e4c85c32848d11e87e04a2b2363192f9"
+    },
+    {
+      "path": "tools/compare-nif.py",
+      "sha256": "9495983c435fbacdc10c5e6eed2c776e5723b1ecebc1d6a56036c2fb376e7296"
+    },
+    {
+      "path": "tools/nif-oracle/CMakeLists.txt",
+      "sha256": "0e768da2c4ebface2b495f4c1f905b3456dbdb584cde7189c2bdde6e7eb123c0"
+    },
+    {
+      "path": "tools/nif-oracle/collision.hpp",
+      "sha256": "f60e5438e5357a7a7c2a58e78a3eb20d0c487b92bec1d221ac9ba6b9dbc15550"
+    },
+    {
+      "path": "tools/nif-oracle/main.cpp",
+      "sha256": "9180ab01f1774f06833231516e57573a9fb959bf6af45b6659109b07da960ca0"
+    },
+    {
+      "path": "tools/nif-oracle/materials.hpp",
+      "sha256": "accbc35db31d4c4f5f24bdf83c334cc027cc403d34534894d129abc67273e47c"
+    },
+    {
+      "path": "tools/nif-oracle/scene.hpp",
+      "sha256": "afeb6d983af899c884401651c1ee77cd778d16c00853ce0a8776d95c440f4953"
+    },
+    {
+      "path": "tools/plugin-oracle/Cargo.lock",
+      "sha256": "5e38333dd7c6ffa3ddd3ea9bc3a50055b181e66e48a93d3ac8b1a602f9d63a22"
+    },
+    {
+      "path": "tools/plugin-oracle/Cargo.toml",
+      "sha256": "856f4fe7213dd74dda29ff86627fff36d8dafbee4079e69c2358bd5deaf13425"
+    },
+    {
+      "path": "tools/plugin-oracle/src/main.rs",
+      "sha256": "8de108fd2bc58041e40b793f578af4c42d3bb72ea848b0546358d1c7fa8e358f"
+    },
+    {
+      "path": "tools/probe-nif-scenes.py",
+      "sha256": "d6e7b6054df69693d09a92bef467b0681b33dedf4a1617ab5a4dbbf65b26b681"
+    },
+    {
+      "path": "tools/record-verification.py",
+      "sha256": "513f5b5d4b239e928e078f4d46ff72b017c99868816350deaa7a34c5a433ebc6"
+    },
+    {
+      "path": "tools/report-dependency-licenses.py",
+      "sha256": "038197cb4fb15764381c73fe4d8557ba2a76d2414cd3bd5d48875e1b2424569c"
+    },
+    {
+      "path": "tools/report-interior.py",
+      "sha256": "4917a0f1461d220afb2b6d33f50e49691169895b30e906b86d7de2e158c24f14"
+    },
+    {
+      "path": "tools/report-model-preview.py",
+      "sha256": "c10f8fc4456553f2fd476614e7d6b4f7475f842d5f3600a6600f6d3654beebd3"
+    },
+    {
+      "path": "tools/report-nif-materials.py",
+      "sha256": "a30daee2cf0622fad6fd9b04e9ff90d222c41a95d32f0a2a73dbde1938deb123"
+    },
+    {
+      "path": "tools/report-nif-scenes.py",
+      "sha256": "4d44d784fcd9ae7735bf88ce618c339958e9654d0f62d1801a12151c724a71aa"
+    },
+    {
+      "path": "tools/report-world.py",
+      "sha256": "82abee0ef3f18b1b7f8085630ef0e327fcc4dbd5a6c7ace42176536602309bdb"
+    },
+    {
+      "path": "tools/report.py",
+      "sha256": "396422a47714dce4bfed76392303cff2611949e83625202312c3d571afea0bc6"
+    },
+    {
+      "path": "tools/run-nif-oracle.py",
+      "sha256": "9aa75b4abd19b326c521f59958f9330075bf633963f4af505b9679e303771527"
+    },
+    {
+      "path": "tools/smoke-interior.py",
+      "sha256": "39dd545895fe34454131e25785623063200a20fce207a4edccc8dac83341c484"
+    },
+    {
+      "path": "tools/smoke-preview.py",
+      "sha256": "2e8afe33fd4a84a2b26d6d94251983cae8e461aeae491d1f2b63cf6594a71222"
+    },
+    {
+      "path": "tools/snapshot-source.py",
+      "sha256": "d11d40e915515cdeb1add39bf4d981a9c60253f70a45821eb1057f6e92f144b4"
+    },
+    {
+      "path": "tools/terrain-oracle/CMakeLists.txt",
+      "sha256": "11e2a3bb6fcc8679a76d3568728a922ebcc081b814aefc0b9255fcf74e4c281d"
+    },
+    {
+      "path": "tools/terrain-oracle/blends.hpp",
+      "sha256": "3e1adca4b953a6cf8dfe96a083cfa812db29fdff11b4d9ab598ebf4a88db4f3c"
+    },
+    {
+      "path": "tools/terrain-oracle/main.cpp",
+      "sha256": "fb2bfa02f826e96c9faa4b011bb2f3f7306ebb27df47fffe734664433f3c926e"
+    }
+  ],
+  "working_tree_dirty": false,
+  "scope": "Source/tooling/manifests/pins; all files match the startup-fix implementation commit",
+  "digest_recipe": "SHA256 of compact UTF-8 JSON files array; object keys path then sha256"
+}

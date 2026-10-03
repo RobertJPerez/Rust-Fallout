@@ -47,3 +47,12 @@ current aliases. Publication preflights every destination, and two filesystem
 regressions protect existing aliases and reject collisions before creating partial
 reports. Completion timestamps use UTC Unix seconds; `--no-publish` permits
 repeat runs into a fresh ignored local directory.
+
+Startup follow-up: the launcher now streams stage/activity messages and saves
+viewer output to an ignored per-launch log. The development data/hash packages
+are optimized. A configured Goodsprings launch prepared source data in 17 seconds,
+reached graphics initialization and produced exactly the checkpoint 14 pixels.
+All 136 workspace tests and 64 numeric GPU cases pass on the updated build.
+[Startup verification](startup-fix-verification.json) and
+[its source snapshot](startup-fix-source-snapshot.json) bind this follow-up to
+`5c3c056d074631788d6282cc6183834f0dfc42db`; the original checkpoint 14 receipts remain unchanged.

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "25d011b9868ac111c5c82df562e1cd1ece8b2b32",
-  "revision_note": "Checkpoint 14 binds 108 source files and actual executable hashes to 136 tests, six source fixtures, 40 exact archive members and 64 numeric GPU cases. Historical corpus/collision/cache evidence retains its own revision and scope. No retail or gameplay scenario is accepted.",
+  "last_verified_revision": "69dc6eaec45c61d5ca778c447f74dffffaf49abd",
+  "revision_note": "Checkpoint 15 binds 116 source files and actual executable hashes to 142 tests and exact independent framing/hash comparisons of all 14514 compiled bodies. Historical terrain, collision, corpus and cache receipts retain their own revisions and scopes. No retail or gameplay scenario is accepted.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -883,6 +883,34 @@
       ],
       "tolerance": "64 original GPU expectations retain the existing two-byte sRGB quantization tolerance; texture/body/weight provenance exact; occupancy is only a smoke check",
       "last_verified_revision": "25d011b9868ac111c5c82df562e1cd1ece8b2b32"
+    },
+    {
+      "id": "fnv.script.framing",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "script_ob",
+      "requirement": "Bounded source-less SCDA instruction framing preserves offsets, opaque operands, reference-call prefixes and begin event IDs without mixing identifier spaces.",
+      "evidence": [
+        "reports/checkpoint-15-compiled-scripts.json",
+        "reports/checkpoint-15-verification.json",
+        "docs/compiled-scripts.md"
+      ],
+      "affected_content": "14514 authored compiled bodies across ten official New Vegas plugins; override winners are not evaluated",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-data/tests/obscript.rs",
+        "crates/fallout-data/tests/obscript_census.rs",
+        "tools/script-oracle",
+        "fallout-evidence --checkpoint 15"
+      ],
+      "known_gaps": [
+        "Native arguments and expression tokens remain opaque",
+        "Local/reference binding and jump targets are unvalidated",
+        "Comparison starts at Rust-extracted SCDA, not independent plugin extraction",
+        "Events, commands and script scheduling are not executed",
+        "Focused scan defers 162712 unrelated record payloads"
+      ],
+      "tolerance": "Exact body digests and 24-byte header tuple digests; no behavioral tolerance or gameplay acceptance",
+      "last_verified_revision": "69dc6eaec45c61d5ca778c447f74dffffaf49abd"
     }
   ]
 }

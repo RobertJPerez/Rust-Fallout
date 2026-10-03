@@ -214,15 +214,30 @@
     "parity/nif-coverage.json",
     "reports/nif-scenes.json",
     "reports/nif-materials.json",
-    "reports/model-preview.json"
+    "reports/model-preview.json",
+    "reports/compiled-scripts.json"
   ],
   "unknown": [
     "typed field links outside the selected cell dependency path",
     "complete model/texture/audio dependency closure",
-    "SCDA commands and events",
+    "SCDA operand semantics, expression calls, command/event execution and scheduling",
     "remaining NIF block types, animation, skinning and collision semantics",
     "UI templates/operators",
     "audio codecs",
     "all gameplay semantics"
-  ]
+  ],
+  "compiled_script_framing": {
+    "last_verified_revision": "69dc6eaec45c61d5ca778c447f74dffffaf49abd",
+    "evidence": "reports/checkpoint-15-compiled-scripts.json",
+    "compiled_bodies": 14514,
+    "compiled_bytes": 1966273,
+    "instruction_headers": 142218,
+    "reference_calls": 28463,
+    "event_headers": 5702,
+    "top_level_native_command_ids": 217,
+    "condition_ids_remain_separate": 148,
+    "record_payloads_deferred": 162712,
+    "execution_ready": false,
+    "retail_parity_accepted": false
+  }
 }

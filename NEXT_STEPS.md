@@ -76,7 +76,13 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    cover 218 files and 4,582 blocks. The six legacy files need a separate version path;
    do not pretend their missing block-size table matches 20.2.0.7.
    Extend census to UI operators, audio codecs, and actual SCDA instructions/events.
-   There are 14,514 compiled bodies and 148 observed condition IDs; execution is absent.
+   Checkpoint 15 now frames all 14,514 compiled bodies and independently compares
+   142,218 headers, 28,463 reference calls and 5,702 event headers. See
+   [compiled script inspection](docs/compiled-scripts.md). There are 217 top-level
+   native command IDs; expression calls are still uncounted. The 148 condition IDs
+   retain their separate identifier space. Continue reference/variable binding,
+   expression and native argument decoding, registry evidence and execution.
+   No script is executed yet.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

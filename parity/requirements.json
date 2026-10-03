@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "57dc0a7fcbac3dda39b282c6754c3d649b878344",
-  "revision_note": "Checkpoint 30 binds foreign live-list engineering and independent context source facts to its implementation revision; earlier requirements retain their own revisions and scopes.",
+  "last_verified_revision": "81879010ef23ab5d0e5e0e0754dac5df845ef804",
+  "revision_note": "Checkpoint 31 binds immutable base inventory source facts to its implementation revision; earlier requirements retain their own revisions and scopes.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1404,6 +1404,32 @@
       ],
       "tolerance": "Nine runtime tests; exact identities for all 25549 compiled requests; every engineering outcome agrees after same-process and cold native restore; no original live-value or behavior acceptance",
       "last_verified_revision": "57dc0a7fcbac3dda39b282c6754c3d649b878344"
+    },
+    {
+      "id": "fnv.inventory.base-declarations",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "inventory",
+      "requirement": "Retain immutable winning container/actor CNTO/COED declarations, exact counts/words, template inputs and master-relative source bindings.",
+      "evidence": [
+        "reports/checkpoint-31-base-inventory.json",
+        "reports/checkpoint-31-verification.json",
+        "docs/base-inventory.md"
+      ],
+      "affected_content": "9872 winning CONT/NPC_/CREA records / 30414 item entries / 36686 inspected bindings",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-data/tests/inventory.rs",
+        "tools/inventory-oracle",
+        "fallout-evidence --checkpoint 31"
+      ],
+      "known_gaps": [
+        "Original template/leveled expansion and live initialization",
+        "Mutable item deltas, equipment and persistence",
+        "Original ownership, respawn, condition conversion and query semantics",
+        "Retail differential traces and effective load order"
+      ],
+      "tolerance": "Exact independent source-field/binding comparison, seven unit tests, cold/warm/reordered authored fixtures and fourteen malformed cases; source-format facts only",
+      "last_verified_revision": "81879010ef23ab5d0e5e0e0754dac5df845ef804"
     }
   ]
 }

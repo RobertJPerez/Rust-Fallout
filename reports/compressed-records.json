@@ -1,0 +1,259 @@
+{
+  "accepted_scenarios": [],
+  "all_stored_and_decoded_hashes_equal": true,
+  "checkpoint": 26,
+  "checksum_findings": [
+    {
+      "record": {
+        "decoded_bytes": 4385,
+        "decoded_sha256": "ad04d26ea0186f5aa9cc1ee3a5a0172a413eda20ed3d4586738ebeb81d4ff8c2",
+        "form_id": 1380288,
+        "integrity_issue": {
+          "calculated_adler32": 1816153796,
+          "file_offset": 185401092,
+          "form_id": 1380288,
+          "stored_adler32": 1852853964
+        },
+        "record_file_offset": 185401092,
+        "record_flags": 262144,
+        "record_kind": "LAND",
+        "stored_bytes": 4088,
+        "stored_sha256": "57a26ed7b721e9e9aac2c4235a84b2c695f8ab252d1acde5f19096fc046e8774"
+      },
+      "source": "FalloutNV.esm"
+    }
+  ],
+  "complete_compressed_coverage_equal": true,
+  "counts": {
+    "checksum_mismatches": 1,
+    "decoded_bytes": 344253561,
+    "records": 46696
+  },
+  "engine_revision": "074365706bf41959c9966dda04e881882d1ad00c",
+  "frame_fixtures": {
+    "authored_format_cases": [
+      "fixed-empty",
+      "fixed-all-literals",
+      "overlapping-distance-one",
+      "cross-block-distance-three",
+      "maximum-window-distance",
+      "dynamic-single-eob-empty-distance",
+      "dynamic-repeat-eighteen",
+      "dynamic-literals-empty-distance"
+    ],
+    "block_counts": [
+      83,
+      36,
+      33
+    ],
+    "checksum_diagnostic_sha256": "147938c92a7756c159c3d7c90c044f95ed4e48eded85aa4d70e29f808b41ae14",
+    "malformed_cases_rejected": [
+      "bad-method",
+      "oversized-window",
+      "bad-header-check",
+      "preset-dictionary",
+      "reserved-block",
+      "reserved-length",
+      "reserved-distance",
+      "match-before-output",
+      "stored-complement",
+      "repeat-without-previous",
+      "repeat-overflow",
+      "oversubscribed-code-tree",
+      "incomplete-code-tree",
+      "missing-eob",
+      "oversized-literal-alphabet",
+      "surplus-deflate",
+      "truncated-frame",
+      "wrong-decoded-length",
+      "oversized-decoded-budget",
+      "match-exceeds-advertised-window",
+      "empty-bundle",
+      "partial-bundle-header",
+      "partial-bundle-frame"
+    ],
+    "matches": 9218,
+    "native_report_sha256": "a8dac6621d23f9f5a44ba2b10da6f48545309fbf3b52d6e012f40d80853531cf",
+    "rust_library_rejects_damaged_checksum": true,
+    "scope": "Authored edge frames and pinned-library-generated deterministic fixtures",
+    "valid_bundle_sha256": "099552ce3e672051c99031efdd7e0af2ffc411d071e178021e2f9b0d489c2dc6",
+    "valid_frames": 116
+  },
+  "metadata": {
+    "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+    "definitions": 629788,
+    "winning_definitions": 628464,
+    "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+  },
+  "native_report_sha256": "9d51fa391371576711474828c73f3fd7a2b10a205df56824b35b8c20f2224a55",
+  "oracle_binary_sha256": "0eb33606739d769d3ee698b557cee33e6d65192d6a267257022eeea1df27a8d2",
+  "prior_census_receipt_sha256": "176be81d28d1841f5a11c6c405acd16a99288f037dad0206e25912d25da4bc98",
+  "prior_census_sha256": "503b2f8ba1e360c4751f2395baac0d8e2d3afe197f61a91caf23492e5c22a379",
+  "prior_header_receipt_sha256": "c2cfde7b19d2d1004e490f89f273fb2eff286e729185a56d4d217067331f6c5f",
+  "profile": "nv-original",
+  "retail_parity_accepted": false,
+  "runtime_checksum_policy": "strict",
+  "rust_report_sha256": "c5fe14cdd51aab4c4297399d94f34343901a16c6cc2d3da28ec37d3dd188d820",
+  "schema_version": 1,
+  "scope": "All compressed source records; independent RFC byte extraction, not gameplay or checksum compatibility",
+  "source_snapshot_sha256": "02348df7804da9b0ea54c4d97c75acc79a3ce7b8fef4f158a71ce32b092dd1e2",
+  "sources": [
+    {
+      "counts": {
+        "checksum_mismatches": 1,
+        "decoded_bytes": 252878912,
+        "record_kinds": {
+          "LAND": 29363,
+          "NPC_": 3816
+        },
+        "records": 33179,
+        "stored_bytes": 167438805,
+        "zlib_bytes": 167306089
+      },
+      "groups": 77000,
+      "source_bytes": 245650747,
+      "source_name": "FalloutNV.esm",
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 1406175,
+        "record_kinds": {
+          "LAND": 227,
+          "NPC_": 34
+        },
+        "records": 261,
+        "stored_bytes": 189536,
+        "zlib_bytes": 188492
+      },
+      "groups": 2533,
+      "source_bytes": 6274851,
+      "source_name": "DeadMoney.esm",
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 29315510,
+        "record_kinds": {
+          "LAND": 4096,
+          "NPC_": 170
+        },
+        "records": 4266,
+        "stored_bytes": 10692300,
+        "zlib_bytes": 10675236
+      },
+      "groups": 9111,
+      "source_bytes": 17308500,
+      "source_name": "HonestHearts.esm",
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 25421550,
+        "record_kinds": {
+          "LAND": 4105,
+          "NPC_": 100
+        },
+        "records": 4205,
+        "stored_bytes": 8450560,
+        "zlib_bytes": 8433740
+      },
+      "groups": 9373,
+      "source_bytes": 16202800,
+      "source_name": "OldWorldBlues.esm",
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 35231414,
+        "record_kinds": {
+          "LAND": 4683,
+          "NPC_": 102
+        },
+        "records": 4785,
+        "stored_bytes": 20438758,
+        "zlib_bytes": 20419618
+      },
+      "groups": 10432,
+      "source_bytes": 25676818,
+      "source_name": "LonesomeRoad.esm",
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 0,
+        "record_kinds": {},
+        "records": 0,
+        "stored_bytes": 0,
+        "zlib_bytes": 0
+      },
+      "groups": 51,
+      "source_bytes": 252445,
+      "source_name": "GunRunnersArsenal.esm",
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 0,
+        "record_kinds": {},
+        "records": 0,
+        "stored_bytes": 0,
+        "zlib_bytes": 0
+      },
+      "groups": 7,
+      "source_bytes": 3007,
+      "source_name": "CaravanPack.esm",
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 0,
+        "record_kinds": {},
+        "records": 0,
+        "stored_bytes": 0,
+        "zlib_bytes": 0
+      },
+      "groups": 9,
+      "source_bytes": 6523,
+      "source_name": "ClassicPack.esm",
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 0,
+        "record_kinds": {},
+        "records": 0,
+        "stored_bytes": 0,
+        "zlib_bytes": 0
+      },
+      "groups": 7,
+      "source_bytes": 3064,
+      "source_name": "MercenaryPack.esm",
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+    },
+    {
+      "counts": {
+        "checksum_mismatches": 0,
+        "decoded_bytes": 0,
+        "record_kinds": {},
+        "records": 0,
+        "stored_bytes": 0,
+        "zlib_bytes": 0
+      },
+      "groups": 5,
+      "source_bytes": 2323,
+      "source_name": "TribalPack.esm",
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+    }
+  ],
+  "strict_original_failure_reproduced_by_both": true,
+  "tainted_payloads_runtime_eligible": false
+}

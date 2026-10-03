@@ -23,6 +23,7 @@ mod preview_evidence;
 mod quest_script_evidence;
 mod script_evidence;
 mod script_state_evidence;
+mod source_item_evidence;
 mod terrain_evidence;
 mod texture_evidence;
 mod textured_evidence;
@@ -53,7 +54,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=34))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=35))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -341,32 +342,32 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25 | 27 | 30..=34) {
+    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25 | 27 | 30..=35) {
         Some(digest(&command_oracle)?)
     } else {
         None
     };
     let binding_oracle = root.join("local/binding-oracle-build/Release/binding-oracle.exe");
-    let binding_digest = if matches!(args.checkpoint, 17 | 20 | 25 | 30..=34) {
+    let binding_digest = if matches!(args.checkpoint, 17 | 20 | 25 | 30..=35) {
         Some(digest(&binding_oracle)?)
     } else {
         None
     };
     let expression_oracle =
         root.join("local/expression-oracle-build/Release/expression-oracle.exe");
-    let expression_digest = if matches!(args.checkpoint, 18..=20 | 25 | 30..=34) {
+    let expression_digest = if matches!(args.checkpoint, 18..=20 | 25 | 30..=35) {
         Some(digest(&expression_oracle)?)
     } else {
         None
     };
     let argument_oracle = root.join("local/argument-oracle-build/Release/argument-oracle.exe");
-    let argument_digest = if matches!(args.checkpoint, 19 | 20 | 25 | 30..=34) {
+    let argument_digest = if matches!(args.checkpoint, 19 | 20 | 25 | 30..=35) {
         Some(digest(&argument_oracle)?)
     } else {
         None
     };
     let operand_oracle = root.join("local/operand-oracle-build/Release/operand-oracle.exe");
-    let operand_digest = if matches!(args.checkpoint, 20 | 25 | 30..=34) {
+    let operand_digest = if matches!(args.checkpoint, 20 | 25 | 30..=35) {
         Some(digest(&operand_oracle)?)
     } else {
         None
@@ -384,21 +385,21 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let record_oracle = root.join("local/record-oracle-build/Release/record-oracle.exe");
-    let record_digest = if matches!(args.checkpoint, 23..=25 | 30..=34) {
+    let record_digest = if matches!(args.checkpoint, 23..=25 | 30..=35) {
         Some(digest(&record_oracle)?)
     } else {
         None
     };
     let loaded_script_oracle =
         root.join("local/script-catalogue-oracle-build/Release/script-catalogue-oracle.exe");
-    let loaded_script_digest = if matches!(args.checkpoint, 24 | 25 | 30..=34) {
+    let loaded_script_digest = if matches!(args.checkpoint, 24 | 25 | 30..=35) {
         Some(digest(&loaded_script_oracle)?)
     } else {
         None
     };
     let quest_script_oracle =
         root.join("local/quest-script-oracle-build/Release/quest-script-oracle.exe");
-    let quest_script_digest = if matches!(args.checkpoint, 25 | 30..=34) {
+    let quest_script_digest = if matches!(args.checkpoint, 25 | 30..=35) {
         Some(digest(&quest_script_oracle)?)
     } else {
         None
@@ -418,33 +419,33 @@ fn run(args: Args) -> Result<()> {
     };
     let script_state_oracle =
         root.join("local/script-state-schema-oracle-build/Release/script-state-schema-oracle.exe");
-    let script_state_digest = if matches!(args.checkpoint, 28..=34) {
+    let script_state_digest = if matches!(args.checkpoint, 28..=35) {
         Some(digest(&script_state_oracle)?)
     } else {
         None
     };
     let native_save_oracle =
         root.join("local/native-save-oracle-build/Release/native-save-oracle.exe");
-    let native_save_digest = if matches!(args.checkpoint, 29..=34) {
+    let native_save_digest = if matches!(args.checkpoint, 29..=35) {
         Some(digest(&native_save_oracle)?)
     } else {
         None
     };
     let leveled_oracle = root.join("local/leveled-oracle-build/Release/leveled-oracle.exe");
-    let leveled_digest = if matches!(args.checkpoint, 32..=34) {
+    let leveled_digest = if matches!(args.checkpoint, 32..=35) {
         Some(digest(&leveled_oracle)?)
     } else {
         None
     };
     let inventory_oracle = root.join("local/inventory-oracle-build/Release/inventory-oracle.exe");
-    let inventory_digest = if matches!(args.checkpoint, 31..=34) {
+    let inventory_digest = if matches!(args.checkpoint, 31..=35) {
         Some(digest(&inventory_oracle)?)
     } else {
         None
     };
     let foreign_context_oracle =
         root.join("local/foreign-context-oracle-build/Release/foreign-context-oracle.exe");
-    let foreign_context_digest = if matches!(args.checkpoint, 30..=34) {
+    let foreign_context_digest = if matches!(args.checkpoint, 30..=35) {
         Some(digest(&foreign_context_oracle)?)
     } else {
         None
@@ -609,11 +610,11 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
-    let item_state_evidence = if matches!(args.checkpoint, 33 | 34) {
-        let runner = if args.checkpoint == 34 {
-            native_migration_evidence::run
-        } else {
-            item_state_evidence::run
+    let item_state_evidence = if matches!(args.checkpoint, 33..=35) {
+        let runner = match args.checkpoint {
+            35 => source_item_evidence::run,
+            34 => native_migration_evidence::run,
+            _ => item_state_evidence::run,
         };
         Some(runner(
             &root,
@@ -1254,10 +1255,10 @@ fn run(args: Args) -> Result<()> {
             .as_object_mut()
             .ok_or("Missing verification object")?
             .remove("fresh_collision_comparison");
-        let item_report = if args.checkpoint == 34 {
-            "native-migration"
-        } else {
-            "item-state"
+        let item_report = match args.checkpoint {
+            35 => "source-items",
+            34 => "native-migration",
+            _ => "item-state",
         };
         verification[item_report] = items.clone();
         verification["leveled_oracle_binary_sha256"] = leveled_digest.into();

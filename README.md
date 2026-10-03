@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 267 tests pass, including malformed compression, forward/cyclic links,
+- 275 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -285,3 +285,8 @@ stacking, query coercion and callbacks remain unmeasured.
 [Explicit native migration](docs/native-save-migration.md) now imports our older
 schema 2 saves into new source-bound repositories, preserving all prior state and
 leaving inventories uninitialized. Bethesda save compatibility remains separate.
+
+[Source-bound item checks](docs/source-item-validation.md) now validate explicit
+host content links and kind rules against winning headers before atomic item
+mutations. Missing/deleted forms and omitted rules fail without changing state.
+Original admission and gameplay semantics remain unmeasured.

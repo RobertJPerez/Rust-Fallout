@@ -20,6 +20,7 @@ mod pe_image;
 mod quest_script_inspection;
 mod script_profile;
 mod script_state_inspection;
+mod source_item_inspection;
 mod terrain_compare;
 
 use clap::{Parser, Subcommand};
@@ -79,6 +80,26 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Validate explicit host item mutations against winning source headers.
+    SourceItemState {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
+    },
+    /// Repeat source-bound item checks after cold native restoration.
+    SourceItemLoadProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        query_inputs: PathBuf,
+    },
     /// Probe explicit mutable item state, queries and owned native persistence.
     ItemState {
         #[arg(long)]
@@ -549,6 +570,25 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::SourceItemState {
+            install,
+            load_order,
+            new_repository,
+        } => {
+            let report = source_item_inspection::probe(&install, &load_order, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::SourceItemLoadProbe {
+            install,
+            load_order,
+            repository,
+            query_inputs,
+        } => {
+            let (owners, keys) = item_state_inspection::decode_query_inputs(&query_inputs)?;
+            let report =
+                source_item_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
         Command::ItemState {
             install,
             load_order,

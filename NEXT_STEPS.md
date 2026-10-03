@@ -235,3 +235,11 @@ a new repository. Exact prior state survives cold restoration; inventories stay
 uninitialized. See [native migration](docs/native-save-migration.md). Next: validate
 explicit item keys against immutable winning source headers, then shared primitive
 query adapters and original differential execution measurements.
+
+Checkpoint 35 adds source-bound item checks using the shared immutable header
+index and explicit caller kind rules. Every supplied source role is checked before
+canonical mutation, with missing/deleted/wrong-kind cases preserving state.
+Eight runtime tests and installed-data/cold/native comparisons cover the API; see
+[source item checks](docs/source-item-validation.md). Next: shared primitive query
+interfaces, observed original return coercion and bounded script execution traces.
+Body/asset residency and original inventory admission remain separate gates.

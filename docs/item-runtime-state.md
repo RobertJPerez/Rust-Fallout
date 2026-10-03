@@ -21,9 +21,9 @@ or clamping is applied. Quantity is a positive host `u32`; this does not establi
 conversion from the original signed source counts or count deltas.
 
 Live ownership and script links must exist. An item script link prevents removal
-of that instance until explicitly detached. Content keys currently receive
-canonical syntax validation; header existence, kind and original admission rules
-are separate unfinished work. Ammunition count, equipment slot IDs and modification
+of that instance until explicitly detached. Raw host-state content keys receive canonical syntax validation.
+[Source-bound checks](source-item-validation.md) additionally validate winning
+header existence and explicit caller kind rules. Original admission remains open. Ammunition count, equipment slot IDs and modification
 keys are explicit host fields, not a claimed decoding of original extra-data
 words. Transfers do not silently change these facts or run callbacks.
 

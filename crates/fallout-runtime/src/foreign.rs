@@ -60,10 +60,10 @@ impl Failure {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Form {
-    kind: [u8; 4],
-    flags: u32,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct SourceForm {
+    pub kind: [u8; 4],
+    pub flags: u32,
 }
 fn class(kind: &[u8; 4]) -> u8 {
     match kind {
@@ -91,7 +91,7 @@ pub struct Report {
 /// Neither this index nor transient slot handles belong in a native snapshot.
 pub struct Content {
     cohort: String,
-    forms: BTreeMap<FormKey, Form>,
+    forms: BTreeMap<FormKey, SourceForm>,
     report: Report,
 }
 impl Content {
@@ -163,7 +163,7 @@ impl Content {
             }
             forms.insert(
                 key.clone(),
-                Form {
+                SourceForm {
                     kind: header.kind,
                     flags: header.flags,
                 },
@@ -182,7 +182,16 @@ impl Content {
     pub fn report(&self) -> &Report {
         &self.report
     }
-    fn form(&self, key: &FormKey) -> Result<&Form> {
+    /// Shared immutable header facts. This does not read deferred record bodies
+    /// or invent a runtime binding for a form absent from the source headers.
+    pub fn source_form(&self, world: &World<'_>, key: &FormKey) -> Result<SourceForm> {
+        if self.cohort != world.cohort {
+            return Err(Failure::ContentChanged);
+        }
+        crate::identity::valid_form(key)?;
+        Ok(*self.form(key)?)
+    }
+    fn form(&self, key: &FormKey) -> Result<&SourceForm> {
         let form = self
             .forms
             .get(key)

@@ -316,3 +316,10 @@ strict raw-state migration; no new upstream implementation is imported. Independ
 C++ requires an explicit schema-2 flag and checks source/target container integrity
 only. Full prior-state preservation and source-bound restoration are engineering
 proofs; Bethesda saves remain separate. See [native migration](native-save-migration.md).
+
+Checkpoint 35 shares the existing independently checked winning header index
+with item source validation. Callers explicitly declare kind rules for each role;
+no original admission domain is guessed. Original Rust validates links before
+canonical transactions. Whole-header classification and exact source binding
+comparisons are separate from host-policy engineering tests. No new upstream
+implementation is imported; see [source item checks](source-item-validation.md).

@@ -61,6 +61,13 @@ Its actual build/hash and selected field comparisons are recorded separately fro
 xEdit's unexecuted Delphi application and from retail behavior. Decompression and
 canonical resolution are outside that field oracle's scope.
 
+Checkpoint 10 consults the pinned OpenMW ESM4 height conversion, LAND dimensions
+and source-grid indexing. The original Rust converter uses a linear accumulator;
+the original C++ oracle independently evaluates each sample's dependency path.
+No OpenMW source is copied or linked and no upstream application is run. Root and
+per-file license facts and inspected hashes are in the source lock. Exact height
+comparisons certify that reference model only, not measured NV terrain behavior.
+
 ## Reproduce the component builds
 
 ```powershell

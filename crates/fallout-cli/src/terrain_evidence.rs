@@ -12,8 +12,18 @@ const CELLS: &[&str] = &[
     "NVDLC04DivideEast",
 ];
 
-fn command(root: &Path, cli: &Path, install: &Path, cell: &str, output: &Path) -> Command {
+fn command(
+    root: &Path,
+    cli: &Path,
+    install: &Path,
+    cell: &str,
+    output: &Path,
+    heights: bool,
+) -> Command {
     let mut command = Command::new(cli);
+    if heights {
+        command.arg("--reconstruct-heights");
+    }
     command
         .current_dir(root)
         .arg("terrain")
@@ -66,15 +76,21 @@ fn selected(report: &Value) -> Result<Value> {
     Ok(report)
 }
 
+pub struct OracleRun<'a> {
+    pub binary: &'a Path,
+    pub sha256: &'a str,
+    pub heights: bool,
+}
+
 pub fn run(
     root: &Path,
     directory: &Path,
     cli: &Path,
-    oracle: &Path,
+    oracle: OracleRun<'_>,
     install: &Path,
     cli_sha: &str,
-    oracle_sha: &str,
 ) -> Result<Value> {
+    let oracle_sha = oracle.sha256;
     let cache = directory.join("index-cache");
     fs::create_dir(&cache)?;
     let mut datasets = Vec::new();
@@ -91,11 +107,11 @@ pub fn run(
         fs::create_dir(&bodies)?;
         let uncached_path = folder.join("uncached.json");
         run_logged(
-            command(root, cli, install, cell, &uncached_path),
+            command(root, cli, install, cell, &uncached_path, oracle.heights),
             &folder.join("uncached.log"),
         )?;
         let cached_path = folder.join("cached.json");
-        let mut cached_command = command(root, cli, install, cell, &cached_path);
+        let mut cached_command = command(root, cli, install, cell, &cached_path, oracle.heights);
         cached_command
             .arg("--index-cache")
             .arg(&cache)
@@ -120,8 +136,11 @@ pub fn run(
             }
         }
         let oracle_path = folder.join("oracle.json");
-        let mut oracle_command = Command::new(oracle);
+        let mut oracle_command = Command::new(oracle.binary);
         oracle_command.current_dir(root).arg(&bodies);
+        if oracle.heights {
+            oracle_command.arg("--heights");
+        }
         let raw = run_logged(oracle_command, &folder.join("oracle.log"))?;
         write_new(&oracle_path, &raw.stdout)?;
         let raw = json_file(&oracle_path)?;
@@ -129,7 +148,8 @@ pub fn run(
             return Err("Terrain oracle binary identity differs".into());
         }
         let compared_path = folder.join("compared.json");
-        let mut compared_command = command(root, cli, install, cell, &compared_path);
+        let mut compared_command =
+            command(root, cli, install, cell, &compared_path, oracle.heights);
         compared_command
             .arg("--index-cache")
             .arg(&cache)
@@ -152,6 +172,9 @@ pub fn run(
         let records = entries(&compared)?;
         if compared["comparison"]["records_compared"] != records.len() {
             return Err("Exterior record count differs".into());
+        }
+        if oracle.heights && compared["comparison"]["height_grids_compared"] != 1 {
+            return Err("Exterior fixture did not compare exactly one reconstructed grid".into());
         }
         record_appearances += records.len();
         let mut sources = Vec::new();
@@ -189,14 +212,24 @@ pub fn run(
                 .iter_mut()
                 .find(|row| row["fields"]["heights"].is_object())
                 .ok_or("No height field for negative check")?;
-            let bits = row["fields"]["heights"]["value"]["offset_bits"]
-                .as_u64()
-                .ok_or("Missing height offset bits")?;
-            row["fields"]["heights"]["value"]["offset_bits"] = (bits ^ 1).into();
+            let changed_field = if oracle.heights {
+                let bits = row["height_grid"]["height_bits"][1088]
+                    .as_u64()
+                    .ok_or("Missing derived height bits")?;
+                row["height_grid"]["height_bits"][1088] = (bits ^ 1).into();
+                "height_grid.height_bits[1088]"
+            } else {
+                let bits = row["fields"]["heights"]["value"]["offset_bits"]
+                    .as_u64()
+                    .ok_or("Missing height offset bits")?;
+                row["fields"]["heights"]["value"]["offset_bits"] = (bits ^ 1).into();
+                "fields.heights.value.offset_bits"
+            };
             let altered_path = folder.join("oracle-altered.json");
             write_json(&altered_path, &altered)?;
             let negative_path = folder.join("negative.json");
-            let mut negative_command = command(root, cli, install, cell, &negative_path);
+            let mut negative_command =
+                command(root, cli, install, cell, &negative_path, oracle.heights);
             negative_command
                 .arg("--index-cache")
                 .arg(&cache)
@@ -214,7 +247,7 @@ pub fn run(
                 return Err("Altered height field was not rejected".into());
             }
             negative = Some(
-                json!({"changed_field":"fields.heights.value.offset_bits", "alteration":"One stored binary32 bit",
+                json!({"changed_field":changed_field, "alteration":"One binary32 bit",
                 "exit_code":1, "comparison_failed":true, "report_sha256":digest(&negative_path)?}),
             );
         }
@@ -225,7 +258,7 @@ pub fn run(
             "oracle_report_sha256":digest(&oracle_path)?, "compared_report_sha256":digest(&compared_path)?,
             "index_payloads_deferred":compared["index_payloads_deferred"]}));
     }
-    Ok(json!({
+    let mut summary = json!({
         "schema_version":1, "checkpoint":9, "release_cli_sha256":cli_sha, "terrain_oracle_binary_sha256":oracle_sha,
         "cells_compared":datasets.len(), "record_appearances_compared":record_appearances, "unique_tagged_bodies":unique.len(),
         "height_deltas_compared":height_samples, "texture_layers_compared":layers, "alpha_vertices_compared":alpha_vertices,
@@ -241,5 +274,22 @@ pub fn run(
             "Known unrelated LAND checksum defect remains strict; other payloads stay deferred",
             "Retail archive precedence, streaming, navigation, scripts and gameplay remain open"
         ]
-    }))
+    });
+    if oracle.heights {
+        summary["checkpoint"] = 10.into();
+        summary["height_grids_compared"] = datasets.len().into();
+        summary["reconstructed_samples_compared"] = height_samples.into();
+        summary["height_model"] = fallout_data::terrain::heights::HEIGHT_MODEL.into();
+        summary["oracle"] = "Authored C++ dependency-path height evaluation informed by pinned OpenMW ESM4 convention, plus xEdit field projection; neither upstream application nor retail engine was run".into();
+        summary["scope"] = "Exact selected source fields and reconstructed height bits against separately authored C++ dependency-path evaluation; no retail terrain behavior comparison".into();
+        summary["known_gaps"] = json!([
+            "Compression and canonical override resolution are not independently compared by the field oracle",
+            "Reference height convention is not measured retail NV axes/units or interpolation",
+            "Parent-world inheritance and editor defaults are not applied",
+            "Normal interpretation, meshes, seams correction, blending, textures, water and physics remain open",
+            "Known unrelated LAND checksum defect remains strict; other payloads stay deferred",
+            "Retail profiles, archive precedence, streaming, navigation, scripts and gameplay remain open"
+        ]);
+    }
+    Ok(summary)
 }

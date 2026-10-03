@@ -56,8 +56,12 @@ See [world inspection](world-inspection.md) for the supported fields and limits.
 Exterior inspection now preserves selected WRLD/CELL/LAND fields, float bits,
 padding and unknown bytes. Source-local winning LAND membership and typed links
 use the same resolver. Parent-world traversal detects cycles without recursion.
-Height reconstruction, normal interpretation, inheritance and editor defaults
-remain unapplied. See [exterior inspection](exterior-fields.md) for parsing budgets
+Optional height reconstruction lives in a separate engine-independent stage. It
+requires 1,089 deltas, rounds in f32 and rejects scaled overflow. Source positions
+use f64, and edge diagnostics never modify samples. Missing/deleted or ambiguous
+surfaces remain explicit; inheritance, normals and defaults remain unapplied.
+See [terrain heights](terrain-heights.md) for model evidence and
+[exterior inspection](exterior-fields.md) for parsing budgets
 and the independently compared field scope.
 
 The opt-in header index validates TES4/CELL metadata and defers other bodies.

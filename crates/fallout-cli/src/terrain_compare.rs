@@ -20,6 +20,7 @@ pub struct Comparison {
     pub all_equal: bool,
     pub records_compared: usize,
     pub unique_bodies: usize,
+    pub height_grids_compared: usize,
     pub oracle_report_sha256: String,
     pub oracle_binary_sha256: String,
     pub differences: Vec<Difference>,
@@ -55,6 +56,7 @@ pub fn compare(
     oracle_path: &Path,
     root: &Path,
     source_tree: &Path,
+    include_heights: bool,
 ) -> Result<Comparison> {
     let mut bytes = Vec::new();
     baseline::open_source(oracle_path)?
@@ -113,7 +115,25 @@ pub fn compare(
         }
         expected.insert(
             format!("{}.blob", receipt.key),
-            (serde_json::to_value(fields)?, &receipt.manifest.sha256),
+            (
+                serde_json::to_value(fields)?,
+                &receipt.manifest.sha256,
+                if include_heights {
+                    Some(match fields {
+                        fallout_data::terrain::Fields::Land(land) => land
+                            .heights
+                            .as_ref()
+                            .map(|field| fallout_data::terrain::heights::reconstruct(&field.value))
+                            .transpose()?
+                            .map(serde_json::to_value)
+                            .transpose()?
+                            .unwrap_or(Value::Null),
+                        _ => Value::Null,
+                    })
+                } else {
+                    None
+                },
+            ),
         );
         records_compared += 1;
     }
@@ -121,7 +141,8 @@ pub fn compare(
         return Err("Terrain oracle input set differs".into());
     }
     let mut differences = Vec::new();
-    for (name, (fields, digest)) in &expected {
+    let mut height_grids_compared = 0;
+    for (name, (fields, digest, height_grid)) in &expected {
         let row = rows
             .get(name.as_str())
             .ok_or("Terrain oracle omitted a selected body")?;
@@ -130,6 +151,15 @@ pub fn compare(
         }
         let mut differing = Vec::new();
         paths(fields, &row["fields"], "fields", &mut differing);
+        if let Some(height_grid) = height_grid {
+            let actual = row
+                .get("height_grid")
+                .ok_or("Terrain oracle omitted height projection; run it with --heights")?;
+            paths(height_grid, actual, "height_grid", &mut differing);
+            if !height_grid.is_null() {
+                height_grids_compared += 1;
+            }
+        }
         if !differing.is_empty() {
             differences.push(Difference {
                 body: name.clone(),
@@ -141,10 +171,11 @@ pub fn compare(
         all_equal: differences.is_empty(),
         records_compared,
         unique_bodies: expected.len(),
+        height_grids_compared,
         oracle_report_sha256: report_hash,
         oracle_binary_sha256: binary.into(),
         differences,
-        scope: "Exact selected field projection from tagged strictly decoded bodies; compression, override resolution, height reconstruction and gameplay are not independently compared",
+        scope: "Exact selected source fields and optional pinned-model reconstructed height bits from tagged strictly decoded bodies; compression, overrides, retail terrain behavior and gameplay are not independently compared",
     })
 }
 

@@ -765,11 +765,18 @@
         "components/misc/convert.hpp",
         "components/nifosg/nifloader.cpp",
         "files/shaders/compatibility/bs/nolighting.frag",
-        "files/shaders/compatibility/bs/nolighting.vert"
+        "files/shaders/compatibility/bs/nolighting.vert",
+        "components/esm/esmterrain.cpp",
+        "components/esm4/loadland.hpp",
+        "components/esm4/loadland.cpp",
+        "components/esmterrain/storage.cpp",
+        "components/esmterrain/storage.hpp",
+        "apps/openmw/mwrender/landmanager.cpp",
+        "apps/openmw/mwworld/store.cpp"
       ],
       "license_status": "GPL-3.0 root license inspected; no implementation copied or linked",
       "build_result": "not built",
-      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied.",
+      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied. Checkpoint 10 consults ESM4 height integration, dimensions and source-grid indexing. LAND cpp/hpp carry permissive zlib-style per-file notices; esmterrain.cpp uses the root GPL-3.0 terms. Original Rust/C++ arithmetic only; no upstream implementation copied or linked, no OpenMW application build or retail measurement. Native comparison certifies the pinned height model only.",
       "language": "C++ and GLSL source references",
       "license_files": [
         "LICENSE"
@@ -779,7 +786,16 @@
       "known_omissions": [
         "No local build, runtime reuse or measured NV retail comparison"
       ],
-      "test_data_provenance": "Source reference only; synthetic analytic transform tests and local NV GPU inspection are separate evidence"
+      "test_data_provenance": "Source reference only; synthetic analytic transform tests and local NV GPU inspection are separate evidence",
+      "terrain_reference_file_sha256": {
+        "components/esm/esmterrain.cpp": "6c6df7c6b4a0483d8d9250f02d46ec0cbba13a5f8fa06bcf8394ac0cce35e57e",
+        "components/esm4/loadland.hpp": "a33de0134ace85ad36e366de18372f360370384855194e4c31a72f7534ae7e99",
+        "components/esm4/loadland.cpp": "7235f353078924379be16eb78c03c18f60597e707c8b29d3c7e8a9c988174edc",
+        "components/esmterrain/storage.cpp": "36919fa6656623c288c8e3e3e3bf7175980ecace2b036226f35589ec7b337599",
+        "components/esmterrain/storage.hpp": "fc8e1820fa822fc11855347055cffabd3671c9a99c4ec152e958ff905d76f8b1",
+        "apps/openmw/mwrender/landmanager.cpp": "dc67d5b9bd3d4ea6f75935e12b05f2f7e0a38bab69efd960213727659b2865c7",
+        "apps/openmw/mwworld/store.cpp": "285135aa4caf4f40de53ac117cafd00812bb541a96e465abeaf928bf689e7f96"
+      }
     },
     {
       "url": "https://github.com/OpenNV/OpenNV",

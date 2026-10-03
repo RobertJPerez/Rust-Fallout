@@ -22,6 +22,26 @@ use std::{
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    #[test]
+    fn cell_selector_preserves_origin_and_rejects_runtime_high_bytes() {
+        let key = parse_cell_key("FalloutNV.esm:DAEB9").unwrap();
+        assert_eq!(key.origin_plugin, "falloutnv.esm");
+        assert_eq!(key.local_id, 0xDAEB9);
+        for value in [
+            "FalloutNV.esm:0",
+            "FalloutNV.esm:010DAEB9",
+            "../Base.esm:12",
+            "Base.esm",
+            "Base.esm:1:2",
+        ] {
+            assert!(parse_cell_key(value).is_err());
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(
     name = "fallout",
@@ -53,6 +73,19 @@ enum Command {
         body_cache: Option<PathBuf>,
         #[arg(long, requires = "body_cache")]
         oracle_report: Option<PathBuf>,
+        /// Convert VHGT using the pinned ESM4 height convention; source fields stay intact.
+        #[arg(long)]
+        reconstruct_heights: bool,
+        /// Compare an explicitly selected cardinal neighbor in the same worldspace.
+        #[arg(
+            long,
+            requires = "reconstruct_heights",
+            conflicts_with = "neighbor_form"
+        )]
+        neighbor_editor_id: Option<String>,
+        /// Unnamed neighbor: origin plugin and local hexadecimal ID, e.g. FalloutNV.esm:DAEB9.
+        #[arg(long, requires = "reconstruct_heights", value_parser = parse_cell_key)]
+        neighbor_form: Option<identity::FormKey>,
     },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
@@ -149,6 +182,21 @@ enum Command {
         #[arg(long)]
         inspect_nif: bool,
     },
+}
+
+fn parse_cell_key(raw: &str) -> std::result::Result<identity::FormKey, String> {
+    let (origin, local) = raw
+        .split_once(':')
+        .ok_or("expected ORIGIN_PLUGIN:LOCAL_HEX_ID")?;
+    let local_id = parse_form(local)?;
+    if local_id == 0 || local_id > 0x00ff_ffff {
+        return Err("cell identity requires a nonzero local ID without load-order bits".into());
+    }
+    Ok(identity::FormKey {
+        profile: ProfileId::NvOriginal,
+        origin_plugin: identity::plugin_name(origin).map_err(|error| error.to_string())?,
+        local_id,
+    })
 }
 
 fn parse_form(raw: &str) -> std::result::Result<u32, String> {
@@ -324,6 +372,9 @@ fn run(args: Args) -> Result<()> {
             index_cache,
             body_cache,
             oracle_report,
+            reconstruct_heights,
+            neighbor_editor_id,
+            neighbor_form,
         } => {
             let names: Vec<String> = serde_json::from_reader(baseline::open_source(&load_order)?)?;
             let body_root = body_cache
@@ -360,6 +411,7 @@ fn run(args: Args) -> Result<()> {
                         oracle,
                         body_root.as_deref().expect("required body cache"),
                         &install,
+                        reconstruct_heights,
                     )
                 })
                 .transpose()?;
@@ -367,6 +419,34 @@ fn run(args: Args) -> Result<()> {
                 && report.link_failures == 0
                 && comparison.as_ref().is_none_or(|result| result.all_equal);
             let mut value = serde_json::to_value(&report)?;
+            if reconstruct_heights {
+                let surface = fallout_data::terrain::reconstruct_cell(&report)?;
+                let neighbor = if let Some(neighbor_id) = neighbor_editor_id {
+                    Some(fallout_data::terrain::inspect_cell(
+                        &mut store,
+                        neighbor_id.as_bytes(),
+                        None,
+                    )?)
+                } else if let Some(key) = neighbor_form {
+                    Some(fallout_data::terrain::inspect_cell_key(
+                        &mut store, &key, None,
+                    )?)
+                } else {
+                    None
+                };
+                if let Some(neighbor) = neighbor {
+                    if neighbor.integrity_failures != 0 || neighbor.link_failures != 0 {
+                        return Err("neighbor contains integrity or reference failures".into());
+                    }
+                    let neighbor_surface = fallout_data::terrain::reconstruct_cell(&neighbor)?;
+                    value["edge_comparison"] = serde_json::to_value(
+                        fallout_data::terrain::compare_neighbor(&surface, &neighbor_surface)?,
+                    )?;
+                    value["neighbor"] = serde_json::to_value(&neighbor)?;
+                    value["neighbor_surface"] = serde_json::to_value(neighbor_surface)?;
+                }
+                value["surface"] = serde_json::to_value(surface)?;
+            }
             if let Some(comparison) = comparison {
                 value["comparison"] = serde_json::to_value(comparison)?;
             }

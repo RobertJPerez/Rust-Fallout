@@ -1,5 +1,6 @@
 //! Checkpoint tooling stays separate from the content-inspection CLI. This runner
 //! records the commands it actually executes and publishes metadata, never assets.
+mod height_evidence;
 mod index_evidence;
 mod terrain_evidence;
 
@@ -28,7 +29,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=9))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=10))]
     checkpoint: u8,
 }
 
@@ -234,7 +235,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let terrain_oracle = root.join("local/terrain-oracle-build/Release/terrain-oracle.exe");
-    let terrain_digest = if args.checkpoint == 9 {
+    let terrain_digest = if matches!(args.checkpoint, 9 | 10) {
         Some(digest(&terrain_oracle)?)
     } else {
         None
@@ -322,21 +323,39 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
-    let terrain_evidence = if args.checkpoint == 9 {
+    let mut terrain_evidence = if matches!(args.checkpoint, 9 | 10) {
         Some(terrain_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            terrain_evidence::OracleRun {
+                binary: &terrain_oracle,
+                sha256: terrain_digest
+                    .as_deref()
+                    .ok_or("Missing terrain oracle digest")?,
+                heights: args.checkpoint == 10,
+            },
+            &args.install,
+            &cli_digest,
+        )?)
+    } else {
+        None
+    };
+    if args.checkpoint == 10 {
+        let additional = height_evidence::run(
             &root,
             &destination,
             &cli_path,
             &terrain_oracle,
             &args.install,
-            &cli_digest,
             terrain_digest
                 .as_deref()
-                .ok_or("Missing terrain oracle digest")?,
-        )?)
-    } else {
-        None
-    };
+                .ok_or("Missing height oracle identity")?,
+        )?;
+        terrain_evidence
+            .as_mut()
+            .ok_or("Missing height comparisons")?["supplemental"] = additional;
+    }
     let baseline_path = destination.join("baseline.json");
     let mut baseline_command = Command::new(&cli_path);
     baseline_command
@@ -421,12 +440,17 @@ fn run(args: Args) -> Result<()> {
             .as_object_mut()
             .ok_or("Verification object missing")?
             .remove("fresh_collision_comparison");
-        verification["exterior_fields"] = terrain.clone();
+        let (key, filename) = if args.checkpoint == 10 {
+            ("terrain_heights", "reports/terrain-heights.json")
+        } else {
+            ("exterior_fields", "reports/exterior-fields.json")
+        };
+        verification[key] = terrain.clone();
         verification["terrain_oracle_binary_sha256"] = terrain_digest.into();
         verification["collision_evidence_origin_checkpoint"] = 7.into();
         verification["collision_comparison_reexecuted"] = false.into();
         verification["record_index_cache_evidence_origin_checkpoint"] = 8.into();
-        write_json(&root.join("reports/exterior-fields.json"), &terrain)?;
+        write_json(&root.join(filename), &terrain)?;
     } else if let Some(mut index) = index_evidence {
         index["engine_revision"] = revision.clone().into();
         index["source_snapshot_sha256"] = source["sha256"].clone();

@@ -6,8 +6,9 @@ cell. It uses the existing record store, strict on-demand decompression and opti
 source-bound metadata cache. Source files remain read-only.
 
 This is the next content-loading layer for Goodsprings. It does not draw terrain
-or implement traversal. Height deltas, normal interpretation, engine units, parent
-inheritance and water behavior still need independent evidence and implementation.
+or implement traversal. [Checkpoint 10](terrain-heights.md) adds optional height
+reconstruction under a pinned reference model. Normal interpretation, measured
+engine units, parent inheritance and water behavior remain open.
 
 ## Run it
 

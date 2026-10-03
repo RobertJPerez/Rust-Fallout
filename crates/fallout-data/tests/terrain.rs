@@ -647,3 +647,93 @@ fn many_tiny_fields_cannot_expand_into_unbounded_owned_metadata() {
     let error = parse(b"LAND", body).unwrap_err().to_string();
     assert!(error.contains("retained-field budget"));
 }
+
+#[test]
+fn missing_and_deleted_land_do_not_acquire_default_heights() {
+    let (_source, _cache, mut store) = setup(&base(), None);
+    let report = terrain::inspect_cell(&mut store, b"FirstOutside", None).unwrap();
+    let surface = terrain::reconstruct_cell(&report).unwrap();
+    assert_eq!(surface.landscapes[0].status, "missing_vhgt");
+    assert!(surface.landscapes[0].height_grid.is_none());
+    let mut patch = header(&["Base.esm"]);
+    patch.extend(group(
+        0x100,
+        1,
+        &group(
+            0x200,
+            6,
+            &group(0x200, 9, &record(b"LAND", 0x300, plugin::DELETED, &[])),
+        ),
+    ));
+    let (_source, _cache, mut store) = setup(&base(), Some(&patch));
+    let report = terrain::inspect_cell(&mut store, b"FirstOutside", None).unwrap();
+    let surface = terrain::reconstruct_cell(&report).unwrap();
+    assert_eq!(surface.landscapes[0].status, "deleted");
+    assert!(surface.landscapes[0].height_field_offset.is_none());
+    assert!(surface.landscapes[0].height_grid.is_none());
+    assert!(terrain::compare_neighbor(&surface, &surface).is_err());
+}
+
+#[test]
+fn unnamed_exterior_cell_uses_origin_identity_and_rejects_wrong_targets() {
+    use fallout_data::identity::{FormKey, ProfileId};
+    let mut bytes = header(&[]);
+    bytes.extend(record(b"WRLD", 0x100, 0, &[]));
+    let cell = record(
+        b"CELL",
+        0x200,
+        0,
+        &[
+            sub(b"DATA", &[0]),
+            sub(
+                b"XCLC",
+                &[(-18i32).to_le_bytes(), 0i32.to_le_bytes()].concat(),
+            ),
+        ]
+        .concat(),
+    );
+    bytes.extend(group(0x100, 1, &cell));
+    let (_source, _cache, mut store) = setup(&bytes, None);
+    let mut key = FormKey {
+        profile: ProfileId::NvOriginal,
+        origin_plugin: "base.esm".into(),
+        local_id: 0x200,
+    };
+    let report = terrain::inspect_cell_key(&mut store, &key, None).unwrap();
+    let surface = terrain::reconstruct_cell(&report).unwrap();
+    assert_eq!(surface.coordinates, [-18, 0]);
+    assert!(surface.landscapes.is_empty());
+    key.local_id = 0x100;
+    assert!(terrain::inspect_cell_key(&mut store, &key, None).is_err());
+    key.local_id = 0x999;
+    assert!(terrain::inspect_cell_key(&mut store, &key, None).is_err());
+}
+
+#[test]
+fn edge_comparison_rejects_world_mismatch_and_ambiguous_land() {
+    let (_source, _cache, mut store) = setup(&base(), None);
+    let report = terrain::inspect_cell(&mut store, b"FirstOutside", None).unwrap();
+    let mut first = terrain::reconstruct_cell(&report).unwrap();
+    let mut second = terrain::reconstruct_cell(&report).unwrap();
+    second.world.local_id += 1;
+    assert!(
+        terrain::compare_neighbor(&first, &second)
+            .unwrap_err()
+            .to_string()
+            .contains("different worldspaces")
+    );
+    second.world = first.world.clone();
+    first.landscapes.push(terrain::SurfaceLand {
+        key: first.landscapes[0].key.clone(),
+        decoded_sha256: None,
+        height_field_offset: None,
+        status: "deleted",
+        height_grid: None,
+    });
+    assert!(
+        terrain::compare_neighbor(&first, &second)
+            .unwrap_err()
+            .to_string()
+            .contains("exactly one LAND")
+    );
+}

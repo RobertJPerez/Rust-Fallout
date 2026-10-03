@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <optional>
 #include <sstream>
@@ -106,7 +107,35 @@ static Object empty_fields(const std::string& kind) {
     for (const auto& name : names) out[name] = "null";
     out["unhandled"] = "[]"; return out;
 }
-static Object project(const Bytes& tagged) {
+// Evaluate each sample from its vertical and horizontal dependency paths. This
+// deliberately does not share the runtime's single-pass row accumulator.
+static std::string height_grid(const Bytes& bytes, size_t start) {
+    const uint32_t offset_bits = number(bytes, start, 4);
+    float offset; std::memcpy(&offset, &offset_bits, 4);
+    if (!std::isfinite(offset)) throw std::runtime_error("nonfinite height offset");
+    std::vector<std::string> values;
+    float minimum = std::numeric_limits<float>::max();
+    float maximum = std::numeric_limits<float>::lowest();
+    for (size_t vertex = 0; vertex < 1089; ++vertex) {
+        const size_t row = vertex / 33, column = vertex % 33;
+        float value = offset;
+        for (size_t y = 0; y <= row; ++y)
+            value = value + static_cast<float>(signed_number(bytes, start + 4 + y * 33, 1));
+        for (size_t x = 1; x <= column; ++x)
+            value = value + static_cast<float>(signed_number(bytes, start + 4 + row * 33 + x, 1));
+        value = value * 8.0f;
+        if (!std::isfinite(value)) throw std::runtime_error("height reconstruction overflow");
+        if (value < minimum) minimum = value;
+        if (value > maximum) maximum = value;
+        uint32_t bits; std::memcpy(&bits, &value, 4); values.push_back(std::to_string(bits));
+    }
+    uint32_t min_bits, max_bits;
+    std::memcpy(&min_bits, &minimum, 4); std::memcpy(&max_bits, &maximum, 4);
+    return object({{"model", quote("esm4-vhgt-f32-row-prefix-scale8-v1")},
+        {"height_bits", array(values)}, {"minimum_bits", std::to_string(min_bits)}, {"maximum_bits", std::to_string(max_bits)}});
+}
+
+static Object project(const Bytes& tagged, std::string* heights = nullptr) {
     const auto kind = signature(tagged, 0);
     Bytes bytes(tagged.begin() + 4, tagged.end());
     Object out = empty_fields(kind);
@@ -157,6 +186,7 @@ static Object project(const Bytes& tagged) {
             set(sig == "VNML" ? "normals" : "colors", array(vectors));
         } else if (kind == "LAND" && sig == "VHGT") {
             require(1096);
+            if (heights) *heights = height_grid(bytes, start);
             set("heights", object({{"offset_bits", float_bits(bytes, start)},
                 {"deltas", byte_array(bytes, start + 4, start + 1093, true)},
                 {"unused", byte_array(bytes, start + 1093, start + 1096)}}));
@@ -193,7 +223,8 @@ static Object project(const Bytes& tagged) {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) { std::cerr << "usage: terrain-oracle BODY_CACHE_DIRECTORY\n"; return 2; }
+    const bool heights = argc == 3 && std::string(argv[2]) == "--heights";
+    if (argc != 2 && !heights) { std::cerr << "usage: terrain-oracle BODY_CACHE_DIRECTORY [--heights]\n"; return 2; }
     try {
         std::vector<std::filesystem::path> paths;
         for (const auto& entry : std::filesystem::directory_iterator(argv[1]))
@@ -204,8 +235,11 @@ int main(int argc, char** argv) {
         for (const auto& path : paths) {
             const auto bytes = read_file(path);
             if (bytes.size() < 4) throw std::runtime_error("missing record tag");
-            files.push_back(object({{"file", quote(path.filename().string())}, {"sha256", quote(digest(bytes))},
-                {"fields", object(project(bytes))}}));
+            std::string grid = "null";
+            const auto fields = project(bytes, heights ? &grid : nullptr);
+            Object row = {{"file", quote(path.filename().string())}, {"sha256", quote(digest(bytes))}, {"fields", object(fields)}};
+            if (heights) row["height_grid"] = grid;
+            files.push_back(object(row));
         }
         std::cout << object({{"oracle_binary_sha256", quote(digest(read_file(argv[0])))},
             {"files", array(files)}, {"scope", quote("Authored independent field projection from tagged decoded bodies; decompression, overrides and gameplay are not compared")}}) << '\n';

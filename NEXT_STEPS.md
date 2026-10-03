@@ -33,7 +33,9 @@ Keep the entire master brief in scope and progress through its dependency gates.
    a canonical content store and remaining fields. Checkpoint 09 now inspects
    WRLD and LAND source fields for Goodsprings and four DLC exteriors, preserving
    height deltas, raw normals/colors, layers, parent flags and unknown bytes.
-   See [exterior inspection](docs/exterior-fields.md). Height reconstruction,
+   See [exterior inspection](docs/exterior-fields.md). Checkpoint 10 reconstructs
+   VHGT under a pinned ESM4 model and diagnoses four Goodsprings boundaries. See
+   [terrain heights](docs/terrain-heights.md). Measured retail heights/axes/units,
    normal interpretation, world-parent inheritance and terrain rendering are open.
    Extend full asset dependency closure and record-specific override rules.
 

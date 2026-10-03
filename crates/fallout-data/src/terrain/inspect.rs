@@ -123,10 +123,31 @@ pub fn inspect_cell(
     editor_id: &[u8],
     body_cache: Option<(&Path, &Path)>,
 ) -> Result<TerrainReport> {
+    let (cell_key, _) = store.cell_by_editor_id(editor_id)?;
+    inspect_cell_key(store, &cell_key, body_cache)
+}
+
+/// Exterior cells often have no EDID. Select them by their persistent origin
+/// identity instead of a transient load-order high byte.
+pub fn inspect_cell_key(
+    store: &mut RecordStore,
+    cell_key: &FormKey,
+    body_cache: Option<(&Path, &Path)>,
+) -> Result<TerrainReport> {
     if let Some((root, source_tree)) = body_cache {
         cache::validate_root(root, source_tree)?;
     }
-    let (cell_key, cell_location) = store.cell_by_editor_id(editor_id)?;
+    let cell_location = *store
+        .winners
+        .get(cell_key)
+        .ok_or_else(|| Error::Resolution("selected CELL identity is missing".into()))?;
+    let definition = store.definition(cell_location);
+    if definition.header.kind != *b"CELL" || definition.header.flags & plugin::DELETED != 0 {
+        return Err(Error::Resolution(
+            "selected CELL identity is deleted or has the wrong kind".into(),
+        ));
+    }
+    let cell_key = cell_key.clone();
     let world_raw = store
         .definition(cell_location)
         .parent

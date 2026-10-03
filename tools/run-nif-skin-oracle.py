@@ -12,10 +12,13 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--binary", type=Path, default=Path("local/nif-skin-oracle-build/Release/nif-skin-oracle.exe"))
     parser.add_argument("--include-partitions", action="store_true")
+    parser.add_argument("--include-bindings", action="store_true")
     args = parser.parse_args()
     digest = hashlib.sha256(args.binary.read_bytes()).hexdigest()
     command = [str(args.binary.resolve()), str(args.input.resolve())]
-    if args.include_partitions:
+    if args.include_bindings:
+        command.append("--include-bindings")
+    elif args.include_partitions:
         command.append("--include-partitions")
     with args.output.open("xb") as output:
         result = subprocess.run(command, stdout=output, check=False)

@@ -1,5 +1,6 @@
 //! Authored NV skin sources. Exact bits and unresolved dependencies are retained;
 //! source decoding does not establish pose evaluation or gameplay skinning.
+pub mod binding;
 mod graph;
 pub mod partition;
 mod read;
@@ -133,6 +134,17 @@ pub fn decode_with_limits(
     source: &str,
     limits: Limits,
 ) -> Result<(nif::NifIndex, Skin)> {
+    let (index, skin, _) = decode_with_scene(bytes, source, limits)?;
+    Ok((index, skin))
+}
+
+// Private source access for binding; public callers still supply only bytes and
+// cannot combine unrelated scene/index/skin catalogues.
+fn decode_with_scene(
+    bytes: &[u8],
+    source: &str,
+    limits: Limits,
+) -> Result<(nif::NifIndex, Skin, nif_scene::Scene)> {
     let (index, scene) = nif_scene::decode_with_limits(bytes, source, limits.scene)?;
     let mut remaining = limits.skin_array_bytes;
     let mut skin = Skin {
@@ -187,7 +199,7 @@ pub fn decode_with_limits(
         limits.weight_index_checks,
     )?;
     skin.retained_bytes = limits.skin_array_bytes - remaining;
-    Ok((index, skin))
+    Ok((index, skin, scene))
 }
 
 fn reserve<T>(remaining: &mut usize, count: usize, source: &str) -> Result<()> {

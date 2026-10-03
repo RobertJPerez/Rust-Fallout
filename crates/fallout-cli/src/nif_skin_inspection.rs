@@ -2,7 +2,7 @@
 use crate::Result;
 use fallout_data::{
     baseline,
-    nif_skin::{self, Skin, partition},
+    nif_skin::{self, Skin, binding, partition},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -22,6 +22,8 @@ pub struct FileReport {
     skin: Option<Skin>,
     #[serde(skip_serializing_if = "Option::is_none")]
     partitions: Option<partition::Catalogue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bindings: Option<binding::Catalogue>,
     error: Option<String>,
     comparison: Option<&'static str>,
 }
@@ -31,6 +33,10 @@ pub struct Report {
     schema_version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     partition_branch: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    binding_scope: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    binding_diagnostics: Option<usize>,
     float_encoding: &'static str,
     input: PathBuf,
     oracle_report_sha256: Option<String>,
@@ -94,6 +100,13 @@ fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
     {
         return Err("oracle partition source fields differ".into());
     }
+    if let Some(bindings) = &actual.bindings {
+        let projection = serde_json::json!({"ancestry_scope":bindings.ancestry_scope,"nodes":bindings.nodes,"instances":bindings.instances,
+            "footer_roots":bindings.footer_roots,"unsupported_scene_edges":bindings.unsupported_scene_edges});
+        if projection != expected["bindings"] {
+            return Err("oracle authored node fields or decoded graph binding facts differ".into());
+        }
+    }
     Ok(())
 }
 
@@ -101,12 +114,22 @@ pub fn inspect(
     input: &Path,
     oracle_path: Option<&Path>,
     include_partitions: bool,
+    include_bindings: bool,
 ) -> Result<Report> {
-    let schema_version = if include_partitions { 2 } else { 1 };
+    let include_partitions = include_partitions || include_bindings;
+    let schema_version = if include_bindings {
+        3
+    } else if include_partitions {
+        2
+    } else {
+        1
+    };
     let branch = include_partitions.then_some("nv-canonical-flags-four-wide-or-empty");
     let mut report = Report {
         schema_version,
         partition_branch: branch,
+        binding_scope: include_bindings.then_some("decoded-source-forest"),
+        binding_diagnostics: include_bindings.then_some(0),
         float_encoding: "ieee754-binary32-bits",
         input: input.into(),
         oracle_report_sha256: None,
@@ -136,6 +159,13 @@ pub fn inspect(
                 || document["raw_partition_fields_checked"] != true)
         {
             return Err("oracle partition branch contract is missing".into());
+        }
+        if include_bindings
+            && (document["binding_scope"] != "decoded-source-forest"
+                || document["raw_node_fields_checked"] != true
+                || document["graph_membership_checked"] != true)
+        {
+            return Err("oracle decoded graph binding contract is missing".into());
         }
         let digest = document["oracle_binary_sha256"]
             .as_str()
@@ -198,6 +228,7 @@ pub fn inspect(
             tuple: None,
             skin: None,
             partitions: None,
+            bindings: None,
             error: None,
             comparison: None,
         };
@@ -205,23 +236,42 @@ pub fn inspect(
             skin_array_bytes: remaining.min(128 * 1024 * 1024),
             ..Default::default()
         };
-        let decoded = if include_partitions {
-            partition::decode_with_limits(
+        let partition_limits = partition::Limits {
+            skin: skin_limits,
+            array_bytes: remaining.min(128 * 1024 * 1024),
+            ..Default::default()
+        };
+        let decoded = if include_bindings {
+            binding::decode_with_limits(
                 &bytes,
                 &row.input.display().to_string(),
-                partition::Limits {
-                    skin: skin_limits,
-                    array_bytes: remaining.min(128 * 1024 * 1024),
+                binding::Limits {
+                    partition: partition_limits,
+                    array_bytes: remaining.min(64 * 1024 * 1024),
                     ..Default::default()
                 },
             )
-            .map(|(index, source)| (index, source.skin, Some(source.partitions)))
+            .map(|(index, source)| {
+                (
+                    index,
+                    source.skin.skin,
+                    Some(source.skin.partitions),
+                    Some(source.bindings),
+                )
+            })
+        } else if include_partitions {
+            partition::decode_with_limits(
+                &bytes,
+                &row.input.display().to_string(),
+                partition_limits,
+            )
+            .map(|(index, source)| (index, source.skin, Some(source.partitions), None))
         } else {
             nif_skin::decode_with_limits(&bytes, &row.input.display().to_string(), skin_limits)
-                .map(|(index, skin)| (index, skin, None))
+                .map(|(index, skin)| (index, skin, None, None))
         };
         match decoded {
-            Ok((index, skin, partitions)) => {
+            Ok((index, skin, partitions, bindings)) => {
                 row.tuple = Some([index.version, index.user_version, index.bethesda_version]);
                 remaining = remaining
                     .checked_sub(skin.retained_bytes)
@@ -236,6 +286,20 @@ pub fn inspect(
                         .or_default() += partitions.blocks.len();
                     report.unresolved_dependencies += partitions.dependencies.len();
                 }
+                if let Some(bindings) = &bindings {
+                    remaining = remaining
+                        .checked_sub(bindings.retained_bytes)
+                        .ok_or("aggregate binding catalogue budget exceeded")?;
+                    for node in &bindings.nodes {
+                        *report
+                            .block_counts
+                            .entry(node.block_type.clone())
+                            .or_default() += 1;
+                    }
+                    if let Some(count) = &mut report.binding_diagnostics {
+                        *count += bindings.diagnostics.len();
+                    }
+                }
                 for block in &skin.blocks {
                     *report
                         .block_counts
@@ -246,6 +310,7 @@ pub fn inspect(
                 report.unresolved_dependencies += skin.dependencies.len();
                 row.skin = Some(skin);
                 row.partitions = partitions;
+                row.bindings = bindings;
                 if let Some(oracle) = &oracle {
                     let result = row
                         .input

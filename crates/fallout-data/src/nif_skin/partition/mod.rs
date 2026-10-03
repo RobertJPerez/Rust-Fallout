@@ -105,7 +105,16 @@ pub fn decode_with_limits(
     source: &str,
     limits: Limits,
 ) -> Result<(nif::NifIndex, Source)> {
-    let (index, mut skin) = super::decode_with_limits(bytes, source, limits.skin)?;
+    let (index, source, _) = decode_with_scene(bytes, source, limits)?;
+    Ok((index, source))
+}
+
+pub(super) fn decode_with_scene(
+    bytes: &[u8],
+    source: &str,
+    limits: Limits,
+) -> Result<(nif::NifIndex, Source, crate::nif_scene::Scene)> {
+    let (index, mut skin, scene) = super::decode_with_scene(bytes, source, limits.skin)?;
     let mut remaining = limits.array_bytes;
     let mut catalogue = Catalogue {
         blocks: Vec::new(),
@@ -158,5 +167,6 @@ pub fn decode_with_limits(
             skin,
             partitions: catalogue,
         },
+        scene,
     ))
 }

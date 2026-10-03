@@ -141,8 +141,8 @@ module/command/dispatch additions in the CLI root. The primary agent owns their
 integrated versions, the source lock, parity ledger and final checkpoint proof.
 No scene/container/cursor, preview, runtime or save-contract file is edited.
 
-Next: graph/root/bone binding and its evaluation contract (ASSET-03).
-Skin-root membership, evaluated poses, transforms composed for
+Next: animation source framing (ASSET-04), then independently verified evaluation
+contracts. Complete-source skin-root membership, evaluated poses, transforms composed for
 skinning, normalization rules, dismemberment behavior, animation, attachments
 and retail presentation/gameplay remain unverified.
 
@@ -253,3 +253,100 @@ The only ASSET-02 shared-root wiring is the additive CLI flag/dispatch argument;
 the module export is inside the owned skin module. Public source limits/API and
 schema mode were coordinated before implementation. Source lock/parity/checkpoint
 updates remain with the primary agent.
+
+## ASSET-03 decoded source bindings
+
+`nif_skin::binding::{decode, decode_with_limits}` returns the index and
+`Source { skin: partition::Source, bindings: Catalogue }`. Private
+`decode_with_scene` helpers live only in the owned skin modules. The original
+scene decoder runs once, supplies the existing strict parent/cycle/footer
+validation and source objects, and remains unchanged. Its existing world matrices
+are not published or used for skin evaluation by this binding catalogue.
+
+Bindings preserve one entry per authored skin instance, including unowned,
+null-root and unresolved instances. Bone entries preserve ordinals, duplicates
+and original reference order. Node IDs and source name indices stay distinct;
+duplicate names never identify or merge bones. Geometry owners retain their
+original source block order. NiNode/BSFadeNode projections preserve source spans,
+hashes, name/extra-data/controller/property/collision refs, raw flags, local
+transform bits and ordered nullable child/effect arrays. Footer roots retain
+nullable positions and source order.
+
+The catalogue and CLI/native schema-3 mode are explicitly scoped to
+`decoded-source-forest`. `decoded_root_contains` uses bounded iterative forest
+intervals over existing decoded edges. `None` means the root or bone is not
+decoded. `false` means no path exists in that decoded forest. An unsupported
+intermediate can carry an undecoded connection, so scoped false cannot establish
+complete-source non-membership. Unsupported scene edges remain visible and no
+missing parent, root or bone is invented. Footer reachability is a separate fact.
+Root/bone nulls, undecoded types, footer unreachability and outside-decoded-root
+facts are diagnostics; authored references are not repaired or rejected for
+those facts. Existing source kind/range errors and scene cycles/multiple-parent
+errors still fail through their original validators.
+
+Binding limits include the existing partition limits, a separate 64 MiB source
+and graph storage budget, and a 16-million-check work budget. Traversal uses no
+recursion. Block-indexed graph vectors, interval/stack scratch, owner grouping,
+retained node/reference arrays, instance/bone/owner records, edge strings and
+diagnostics are charged. `retained_bytes` conservatively includes charged graph
+scratch even after it is released. Empty relations still consume work.
+
+`fallout nif-skin INPUT --include-bindings` implies partition inclusion and
+requires native schema 3 with `binding_scope: decoded-source-forest`,
+`raw_node_fields_checked: true` and `graph_membership_checked: true`. Source fields,
+decoded parents/footer reachability, root/bone resolution and scoped membership
+are compared exactly. The native reader loads only selected raw factories;
+bounded node preflight rejects malformed spans/counts and nonfinite local floats.
+Native parent/reachability traversal and separately budgeted ancestor walks are
+independent of the Rust interval traversal. No world/skin transforms are composed
+by the added native binding path. Existing schema-1 and schema-2 modes remain
+available, and both catalogue and report runtime readiness remain false.
+
+Pinned inherited node predicates were rechecked: NiObject contributes no fields;
+NiObjectNET uses header string indices, extra-data arrays and controller refs in
+this file version; flags are ushort through stream 26 and uint above 26;
+properties remain present through stream 34; collision refs are present for
+20.2.0.7; node effects remain present for user 11/stream below 130. BSFadeNode adds
+no payload. NiBlockRefArray's empty-reference cleanup runs on writing only, so raw
+factory reading retains nullable child/effect positions; authored comparisons
+exercise this rather than relying on reconstructed references.
+
+## ASSET-03 private verification
+
+Evidence: `local/asset-03-dev-20261003-01`. Native build output is separately
+`local/nif-skin-oracle-build-03/Release/nif-skin-oracle.exe`. Previous ASSET-01/02
+frozen executables and captured source inputs remain separate and unchanged.
+
+- `binding-tests-04.log`: 12 tests pass, covering twelve admitted streams, exact
+  raw bits/name indices/order, nullable arrays, duplicate names/bones, null and
+  unowned/unresolved instances, disconnected/footer roots, unsupported
+  intermediates, existing invalid-graph rejection, a 10,000-node chain and exact
+  storage/work budget boundaries.
+- `rust-regressions-01.log`: 78 NIF/container/scene/collision/skin/partition/binding
+  tests pass. `cli-tests-01.log`: 12 CLI tests pass. All-target Clippy with warnings
+  denied and formatting checks pass in `clippy-01.log`/`format-check-01.log`.
+- `authored-bindings-01/summary.json`: 169 exact independent comparisons, comprising
+  fourteen graph variants across twelve streams plus a 10,000-node chain.
+  Thirty-five deliberately altered reports are rejected. Node/root/bone/owner
+  identity, raw arrays/bits, footer positions, graph scope and membership
+  provenance are included in those rejection checks.
+- `schema1-regression-01/summary.json`: 48 original comparisons and 24 deliberate
+  corruption rejections pass. `schema2-regression-01/summary.json`: 72 original
+  comparisons, 29 corruption rejections and four source rejections pass.
+- `retail-comparison-01/summary.json`: all 32 frozen original files compare exactly
+  for 1,742 selected skin/partition/node source blocks. Their 992 decoded nodes,
+  250 instances, 2,121 ordered bone references and 250 owners match independent
+  source graph facts. All sampled bones/owners are inside their decoded roots;
+  binding diagnostics, unsupported scene edges and source dependencies are zero.
+  Complete-source ancestry, poses, runtime and gameplay remain unaccepted.
+
+The native executable's before/after/embedded SHA256 is
+`024b025b85bd62d5dafa92455614165ac4b361cfb0dafe540660165c7d1b52a4`.
+Real-source coverage remains the same bounded stream-34 sample from nine archives;
+the other stream/negative graph cases are authored. Whole-corpus, first-person,
+GRA, external skeleton binding and evaluated transforms remain open.
+
+The additive `--include-bindings` CLI flag/dispatch argument is the only shared
+root wiring. Scene access/API, source binding limits and schema mode were approved
+before implementation. No scene, runtime/save, preview, parity or source-lock file
+is edited in this lane.

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "222479b882f9af11b16a042d5909f31ec8f51afb",
-  "revision_note": "Checkpoint 39 binds the selected vanilla postfix structural model, retained source findings, independent backward/forward planning, debug CLI startup and a complete fresh form-list/query/source/runtime regression. Older rows and registries retain their scoped revisions.",
+  "last_verified_revision": "f77362fbe8795b327b0fe98e051a1a7dc8838ffc",
+  "revision_note": "Checkpoint 40 binds bounded source delimiters and raw distance observations, every retained first unresolved-body finding, independent backward/forward pairing and a fresh expression/form-list/query/source/runtime regression. Older rows and registries retain their scoped revisions.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1661,6 +1661,33 @@
       ],
       "tolerance": "Exact source body/token/expression hashes, 33-byte ordered shape tuple hashes and structured findings; six positive and nine strict/diagnostic fixtures; no retail execution acceptance",
       "last_verified_revision": "222479b882f9af11b16a042d5909f31ec8f51afb"
+    },
+    {
+      "id": "fnv.script.control-flow-structure",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "scripting",
+      "requirement": "Build bounded source delimiter plans, retain raw distance observations and every first unresolved-body finding, and reject unverified structure in strict mode.",
+      "evidence": [
+        "reports/checkpoint-40-control-flow.json",
+        "reports/checkpoint-40-verification.json",
+        "docs/control-flow-structure.md",
+        "sources.lock.json"
+      ],
+      "affected_content": "14,514 authored SCDA bodies / 142,218 framed instructions; 14,461 complete plans and 53 first unresolved-body findings",
+      "status": "oracle-tested",
+      "tests": [
+        "fallout-data obscript::control_flow::tests",
+        "fallout-data obscript::control_flow_bundle::tests",
+        "control-flow-oracle",
+        "fallout-evidence --checkpoint 40"
+      ],
+      "known_gaps": [
+        "Original handling of all irregular delimiters and distance fields",
+        "VM successor/origin rules, conditional truth and short-circuit effects",
+        "Winning script-handle association, event lifecycle, native effects and observable execution"
+      ],
+      "tolerance": "Exact source hashes, ordered event/arm/link records and structured first findings; five positive, fourteen strict/diagnostic, six framing and four hard budget fixtures; no retail execution acceptance",
+      "last_verified_revision": "f77362fbe8795b327b0fe98e051a1a7dc8838ffc"
     }
   ]
 }

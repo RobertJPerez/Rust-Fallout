@@ -1,0 +1,598 @@
+{
+  "acceptance": "Exterior source inspection; no rendered terrain or gameplay accepted",
+  "all_equal": true,
+  "alpha_vertices_compared": 6345,
+  "cells_compared": 6,
+  "checkpoint": 10,
+  "datasets": [
+    {
+      "all_equal": true,
+      "cell_editor_id": "Goodsprings",
+      "compared_report_sha256": "49d6019d2f1b008ec8b10e0ad79baf539f6565c227f4691c4e881c026c28d401",
+      "grid": [
+        -18,
+        0
+      ],
+      "index_payloads_deferred": 585196,
+      "landscape_records": 1,
+      "oracle_report_sha256": "907767388cdb80de3eef3dea09a33eb149907427b0bc8bd84a3275f514fe26cf",
+      "records": [
+        {
+          "decoded_sha256": "a8e37c76d2cdd73a741337f6a858d40c6eb8b70567dbbd59f1a90526215f4bb9",
+          "key": {
+            "local_id": 896699,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            67,
+            69,
+            76,
+            76
+          ],
+          "record_offset": 127082854,
+          "source_plugin": "FalloutNV.esm",
+          "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+          "tagged_body_sha256": "f2e93ba8bb4310184b8d58cb2c0b86a465ca25c610eda2527db3b50c0455c42e"
+        },
+        {
+          "decoded_sha256": "5b3a702fcf47bcf4ecf1eb242062bce8244ed8540e020ecb5a909ee313695189",
+          "key": {
+            "local_id": 894758,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 2126612,
+          "source_plugin": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+          "tagged_body_sha256": "cfd80acf4f3a821b96f1d2795cfe004705ff0f1fd410c456d683140452e974ed"
+        },
+        {
+          "decoded_sha256": "8bd64dba451b0afda19cdb22e824ffd15592d5793145c16efb1196f9eeefcd13",
+          "key": {
+            "local_id": 897038,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            76,
+            65,
+            78,
+            68
+          ],
+          "record_offset": 127083030,
+          "source_plugin": "FalloutNV.esm",
+          "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+          "tagged_body_sha256": "0fcad355a37e5e385725952f36ad0782ffd7e613ac6818a2cdc76859dcfe4bec"
+        }
+      ],
+      "uncached_cached_fields_equal": true,
+      "world_chain_records": 1
+    },
+    {
+      "all_equal": true,
+      "cell_editor_id": "GoodspringsSource",
+      "compared_report_sha256": "b83cb6b6f435525232653d5510c39e727689ffc7a9d854c62bbbc1fa1e0e8ce4",
+      "grid": [
+        -16,
+        -5
+      ],
+      "index_payloads_deferred": 585196,
+      "landscape_records": 1,
+      "oracle_report_sha256": "901a2f03065bfa6781cda14e28beeeeec261c2d69f42074a2400470c9791cde8",
+      "records": [
+        {
+          "decoded_sha256": "2a051afad754a143a11170c8438934acd09d2bb82a188f08a90e3c3db375de37",
+          "key": {
+            "local_id": 924109,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            67,
+            69,
+            76,
+            76
+          ],
+          "record_offset": 165997994,
+          "source_plugin": "FalloutNV.esm",
+          "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+          "tagged_body_sha256": "e8f7b5576be2865a339431098636f9e836d861da79df80684bd9a5dec6b1da33"
+        },
+        {
+          "decoded_sha256": "5b3a702fcf47bcf4ecf1eb242062bce8244ed8540e020ecb5a909ee313695189",
+          "key": {
+            "local_id": 894758,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 2126612,
+          "source_plugin": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+          "tagged_body_sha256": "cfd80acf4f3a821b96f1d2795cfe004705ff0f1fd410c456d683140452e974ed"
+        },
+        {
+          "decoded_sha256": "f1408025106ee57284b7820bbd66ca389b62f4da06aac0d4b12eb51e87f9ad80",
+          "key": {
+            "local_id": 927416,
+            "origin_plugin": "falloutnv.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            76,
+            65,
+            78,
+            68
+          ],
+          "record_offset": 165998186,
+          "source_plugin": "FalloutNV.esm",
+          "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+          "tagged_body_sha256": "d414b7ddbd2c94dfcda0733fede2b67e6013d19a82a7dc9b490bbdaaa68bde31"
+        }
+      ],
+      "uncached_cached_fields_equal": true,
+      "world_chain_records": 1
+    },
+    {
+      "all_equal": true,
+      "cell_editor_id": "TownCenter",
+      "compared_report_sha256": "37441c63a1aacccde7de569a220905dea9b281a1cdc4835965c685e94ee347ab",
+      "grid": [
+        1,
+        1
+      ],
+      "index_payloads_deferred": 585196,
+      "landscape_records": 1,
+      "oracle_report_sha256": "17b018bf120346f5a624907cd8b3c35fcf8d7368326b5524936199a2ea848c93",
+      "records": [
+        {
+          "decoded_sha256": "313bcf037ed056ca39b99fece9858904f23f8c7d745140623ebc7106e5853c1e",
+          "key": {
+            "local_id": 2065,
+            "origin_plugin": "deadmoney.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            67,
+            69,
+            76,
+            76
+          ],
+          "record_offset": 3577263,
+          "source_plugin": "DeadMoney.esm",
+          "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329",
+          "tagged_body_sha256": "871b092668ffcf7177076382da2d2e175a92c940268c9f417212f09363cce5e3"
+        },
+        {
+          "decoded_sha256": "0f6252e06216d59ce9f0e2b6d657c5748faf3e8dd6cf61cad291f98f65cb314e",
+          "key": {
+            "local_id": 2050,
+            "origin_plugin": "deadmoney.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 3574419,
+          "source_plugin": "DeadMoney.esm",
+          "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329",
+          "tagged_body_sha256": "f9a0487aead8cc55cf7342508d3af5c455810324fbaa132cd76b52f2b49fd848"
+        },
+        {
+          "decoded_sha256": "46fb5dff8a1e31c7bbddc88958edcfcc27f79772c1e7dc894f9ec4614903cb52",
+          "key": {
+            "local_id": 2110,
+            "origin_plugin": "deadmoney.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            76,
+            65,
+            78,
+            68
+          ],
+          "record_offset": 3577414,
+          "source_plugin": "DeadMoney.esm",
+          "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329",
+          "tagged_body_sha256": "898864b92649afaaacfcf2be4e9a695ae4dfe3acc6b0ecdbededd7fbfda5093a"
+        }
+      ],
+      "uncached_cached_fields_equal": true,
+      "world_chain_records": 1
+    },
+    {
+      "all_equal": true,
+      "cell_editor_id": "NVDLC02PineCreek",
+      "compared_report_sha256": "3938f3d8a15f1fe0ac264f58cc6944a312414535b176b98ad9fc3baf95e68f05",
+      "grid": [
+        4,
+        -3
+      ],
+      "index_payloads_deferred": 585196,
+      "landscape_records": 1,
+      "oracle_report_sha256": "c4b4eb8ba281eae740c2d32a43dea5f938f6beca121dcf0b24b206c489d07e0b",
+      "records": [
+        {
+          "decoded_sha256": "3b6e5bee3cfbd2f104308d6cf9c458d97c0db75fddb78948bff841441fb71f77",
+          "key": {
+            "local_id": 29517,
+            "origin_plugin": "honesthearts.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            67,
+            69,
+            76,
+            76
+          ],
+          "record_offset": 8113169,
+          "source_plugin": "HonestHearts.esm",
+          "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368",
+          "tagged_body_sha256": "5f457cb46ae3710b0c7649b8e249c8f5632fe2d82f6b5bd2b61458c77edcbda6"
+        },
+        {
+          "decoded_sha256": "abbb048c6433a45c6adcd917422558fd2bb48f69dc64607bf1d1a3e753d4be52",
+          "key": {
+            "local_id": 26683,
+            "origin_plugin": "honesthearts.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 2891586,
+          "source_plugin": "HonestHearts.esm",
+          "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368",
+          "tagged_body_sha256": "a65dded136a586d8f2215d6ed7641047d168b17b8fca3776ef31817f65122a89"
+        },
+        {
+          "decoded_sha256": "def29d8db58bc5457eed7caabc085fbd2ee88fc9e29b174fdf228bc9516227cb",
+          "key": {
+            "local_id": 32042,
+            "origin_plugin": "honesthearts.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            76,
+            65,
+            78,
+            68
+          ],
+          "record_offset": 8113346,
+          "source_plugin": "HonestHearts.esm",
+          "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368",
+          "tagged_body_sha256": "868e28c52ee0cec4b76c835ee0f0e0b8ae47edff595f2e2314d159a0bb9fe077"
+        }
+      ],
+      "uncached_cached_fields_equal": true,
+      "world_chain_records": 1
+    },
+    {
+      "all_equal": true,
+      "cell_editor_id": "NVDLC03SLVillage",
+      "compared_report_sha256": "e74fe21de8a984be32d608bd41e7ef8bdf78189127b71834091ae4e90d808c2f",
+      "grid": [
+        1,
+        -9
+      ],
+      "index_payloads_deferred": 585196,
+      "landscape_records": 1,
+      "oracle_report_sha256": "4439ebfc22c09fe9b2bbeed4adf7da7b0bbe594c0e9eb2f94ea4f76f6ff1faef",
+      "records": [
+        {
+          "decoded_sha256": "d75bf6866c03abd951d71067acc04224ee693b6c5b4c5c965c8ae154617b952c",
+          "key": {
+            "local_id": 5857,
+            "origin_plugin": "oldworldblues.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            67,
+            69,
+            76,
+            76
+          ],
+          "record_offset": 6168894,
+          "source_plugin": "OldWorldBlues.esm",
+          "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295",
+          "tagged_body_sha256": "9da75cafdc7cae3c2afa606d9a8ef686a3fd70a8f36a4e1ec6dd1dfaa17d4245"
+        },
+        {
+          "decoded_sha256": "f6eaf45d2b7dedfa3bc523801fa58bd80986902ce51b3a375486e8ee7666dce8",
+          "key": {
+            "local_id": 3713,
+            "origin_plugin": "oldworldblues.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 3820337,
+          "source_plugin": "OldWorldBlues.esm",
+          "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295",
+          "tagged_body_sha256": "4c3379906f4cced2a31b5ffddf815ea06620b665b1ba78a286c308a2bf997507"
+        },
+        {
+          "decoded_sha256": "c977b2fb481671b317fd915a421d3b2b8aa11675ce2175d34da9a4202a01a3b8",
+          "key": {
+            "local_id": 9953,
+            "origin_plugin": "oldworldblues.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            76,
+            65,
+            78,
+            68
+          ],
+          "record_offset": 6169079,
+          "source_plugin": "OldWorldBlues.esm",
+          "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295",
+          "tagged_body_sha256": "0fa18a7dba0bfde6a39917c5f93a5d22c8800119996edc411c339d5bd51f3c96"
+        }
+      ],
+      "uncached_cached_fields_equal": true,
+      "world_chain_records": 1
+    },
+    {
+      "all_equal": true,
+      "cell_editor_id": "NVDLC04DivideEast",
+      "compared_report_sha256": "5b36426bb33af99e06eaf137741105fc754a0eecedb8ccc11c551745a1535ad7",
+      "grid": [
+        3,
+        0
+      ],
+      "index_payloads_deferred": 585196,
+      "landscape_records": 1,
+      "oracle_report_sha256": "1ee1950082bb6eb0cb1db0ed083cb70ba4261d84c237e12c96992fb5a56b97f2",
+      "records": [
+        {
+          "decoded_sha256": "1aac6d673016208a8528c3e9f0309c356b9b39bdf27f5d826a22bc4f6fd03178",
+          "key": {
+            "local_id": 11409,
+            "origin_plugin": "lonesomeroad.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            67,
+            69,
+            76,
+            76
+          ],
+          "record_offset": 3131305,
+          "source_plugin": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+          "tagged_body_sha256": "9b85003cd77e105f7e66f92b7343cd6adc2803cd97eca14b371c0df0b849d6e0"
+        },
+        {
+          "decoded_sha256": "91f03912ac0cac657076f11673168872e7798521259f2298a7627e977ec9db08",
+          "key": {
+            "local_id": 11390,
+            "origin_plugin": "lonesomeroad.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 2977427,
+          "source_plugin": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+          "tagged_body_sha256": "d43039a4e5786f6a56769fcbb504f7bbe477ef31558aed4931b8a14d8f0f2c15"
+        },
+        {
+          "decoded_sha256": "ef2cfc35605574d62f49ccaced0a3120d81876671d8bde2898c1f28a37997a8f",
+          "key": {
+            "local_id": 19805,
+            "origin_plugin": "lonesomeroad.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            87,
+            82,
+            76,
+            68
+          ],
+          "record_offset": 4818518,
+          "source_plugin": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+          "tagged_body_sha256": "54f9dfce97b1e7610ea92b0d932a9c8e727a6b32324209aebca8fef5f6d27987"
+        },
+        {
+          "decoded_sha256": "b4fc936635137528b6b591ab3b4936f4cd7e5cfe50cdc1506498980840d0fa7f",
+          "key": {
+            "local_id": 14553,
+            "origin_plugin": "lonesomeroad.esm",
+            "profile": "nv-original"
+          },
+          "kind": [
+            76,
+            65,
+            78,
+            68
+          ],
+          "record_offset": 3131483,
+          "source_plugin": "LonesomeRoad.esm",
+          "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+          "tagged_body_sha256": "f90bd5ebde8ac2603cc68a629f438a7b9b479519fdf173565cf778a7cf0aa5ca"
+        }
+      ],
+      "uncached_cached_fields_equal": true,
+      "world_chain_records": 2
+    }
+  ],
+  "engine_revision": "7d734fede2f8ecbef0811ed44eb3c5331c71df4f",
+  "height_deltas_compared": 6534,
+  "height_grids_compared": 6,
+  "height_model": "esm4-vhgt-f32-row-prefix-scale8-v1",
+  "known_gaps": [
+    "Compression and canonical override resolution are not independently compared by the field oracle",
+    "Reference height convention is not measured retail NV axes/units or interpolation",
+    "Parent-world inheritance and editor defaults are not applied",
+    "Normal interpretation, meshes, seams correction, blending, textures, water and physics remain open",
+    "Known unrelated LAND checksum defect remains strict; other payloads stay deferred",
+    "Retail profiles, archive precedence, streaming, navigation, scripts and gameplay remain open"
+  ],
+  "negative_comparison": {
+    "alteration": "One binary32 bit",
+    "changed_field": "height_grid.height_bits[1088]",
+    "comparison_failed": true,
+    "exit_code": 1,
+    "report_sha256": "03e7bbffe724d497ce1bb7e1b2f34f822ff683c36ec446b013bed538368adb5e"
+  },
+  "oracle": "Authored C++ dependency-path height evaluation informed by pinned OpenMW ESM4 convention, plus xEdit field projection; neither upstream application nor retail engine was run",
+  "reconstructed_samples_compared": 6534,
+  "record_appearances_compared": 19,
+  "release_cli_sha256": "fa8da079c6a185923cbac4fc504e87576199f7db6d0861a1a3bc8c58663d843b",
+  "schema_version": 1,
+  "scope": "Exact selected source fields and reconstructed height bits against separately authored C++ dependency-path evaluation; no retail terrain behavior comparison",
+  "source_snapshot_sha256": "e7d09d4f1bd0faae30ffe6ba5abc3a93bdead5b1917e5d3eafcfc264734cccfe",
+  "supplemental": {
+    "boundaries": [
+      {
+        "comparison": {
+          "direction": "east",
+          "exact_bits_equal": true,
+          "maximum_absolute_difference": 0.0,
+          "mismatches": [],
+          "samples_compared": 33
+        },
+        "direction": "east",
+        "neighbor_cell": {
+          "local_id": 896697,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_coordinates": [
+          -17,
+          0
+        ],
+        "neighbor_decoded_sha256": "0f1c38377e2f8d918758f41b37bd5b8834710a6686a99f95a54f3074cef4ede9",
+        "neighbor_land": {
+          "local_id": 897040,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+        "report_sha256": "6af6151724c540aa38dbd02e037299dabd6a635f875056e82a41501beb885900"
+      },
+      {
+        "comparison": {
+          "direction": "west",
+          "exact_bits_equal": true,
+          "maximum_absolute_difference": 0.0,
+          "mismatches": [],
+          "samples_compared": 33
+        },
+        "direction": "west",
+        "neighbor_cell": {
+          "local_id": 896701,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_coordinates": [
+          -19,
+          0
+        ],
+        "neighbor_decoded_sha256": "574b4355903ca0a4e887432a16ba46046a8bb6791abfa9e1c88579be5ceeab71",
+        "neighbor_land": {
+          "local_id": 897036,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+        "report_sha256": "3abecb11b45ae1b8d4ffce7e11d67ea6fd8c7f631ce8f850def7ca84268f9665"
+      },
+      {
+        "comparison": {
+          "direction": "north",
+          "exact_bits_equal": true,
+          "maximum_absolute_difference": 0.0,
+          "mismatches": [],
+          "samples_compared": 33
+        },
+        "direction": "north",
+        "neighbor_cell": {
+          "local_id": 896698,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_coordinates": [
+          -18,
+          1
+        ],
+        "neighbor_decoded_sha256": "52f19bad0e1c236906fb2008c93fabc5f71002c2c50acaf35571747c466c2e80",
+        "neighbor_land": {
+          "local_id": 897039,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+        "report_sha256": "8a7dc017fb53f6a3d0e3fc48c9d3b7e80f5b8264ace9e03b210758208cd79ff8"
+      },
+      {
+        "comparison": {
+          "direction": "south",
+          "exact_bits_equal": true,
+          "maximum_absolute_difference": 0.0,
+          "mismatches": [],
+          "samples_compared": 33
+        },
+        "direction": "south",
+        "neighbor_cell": {
+          "local_id": 924327,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_coordinates": [
+          -18,
+          -1
+        ],
+        "neighbor_decoded_sha256": "f85079c174ad3b224739bdc0b2617d83267bcdec8af49bb05145790b7d95bebb",
+        "neighbor_land": {
+          "local_id": 927198,
+          "origin_plugin": "falloutnv.esm",
+          "profile": "nv-original"
+        },
+        "neighbor_source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+        "report_sha256": "49a2c0a1c1d852fe8b573080970804edae956637928080489fa3f1233f93da96"
+      }
+    ],
+    "boundary_scope": "Four source-model Goodsprings edges; neighboring fields are strict reads, not independently compared retail stitching or inheritance",
+    "synthetic": {
+      "all_equal": true,
+      "fixtures_compared": 36,
+      "oracle_report_sha256": "499df28ddc2bd71221ce9cbc9523a13e7a0b4b8e58a600a041685f98601f9291",
+      "overflow_oracle_exit_code": 1,
+      "samples_compared": 39204,
+      "scaled_overflow_rejected_by_both": true,
+      "scope": "Original gradients, signed extremes, fractional/subnormal offsets and binary32 rounding; no retail assets"
+    }
+  },
+  "terrain_oracle_binary_sha256": "60e0d07e89e221d923dfa7022abf40567524ae8cbcfb58099d2a1dabd5ae7118",
+  "texture_layers_compared": 108,
+  "unique_tagged_bodies": 18
+}

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "0f1804d234a972701a63250b9a14ea8569b934ea",
-  "revision_note": "Checkpoint 09 binds selected exterior source-field comparisons, the altered-height negative check and workspace checks to its implementation commit; index-cache, collision, presentation and earlier corpus scopes retain their original evidence revisions.",
+  "last_verified_revision": "7d734fede2f8ecbef0811ed44eb3c5331c71df4f",
+  "revision_note": "Checkpoint 10 binds exact selected source fields and pinned-model height bits, original gradient/overflow checks, neighbor diagnostics and workspace checks to its implementation commit; earlier index-cache, collision and presentation scopes retain their original evidence revisions.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -757,7 +757,7 @@
         "M1 profile, archive precedence, source exceptions and gameplay acceptance remain unfinished"
       ],
       "tolerance": "Height bits, extrema, model identities and source/body hashes exact; edge diagnostics retain all differences without correction",
-      "last_verified_revision": null
+      "last_verified_revision": "7d734fede2f8ecbef0811ed44eb3c5331c71df4f"
     }
   ]
 }

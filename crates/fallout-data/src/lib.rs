@@ -26,6 +26,7 @@ pub mod model_probe;
 pub mod narrative;
 pub mod narrative_census;
 pub mod nif;
+pub mod nif_animation;
 pub mod nif_census;
 pub mod nif_collision;
 pub mod nif_scene;

@@ -22,6 +22,7 @@ mod loaded_script_inspection;
 mod narrative_inspection;
 mod native_migration_inspection;
 mod native_save_inspection;
+mod nif_animation_inspection;
 mod nif_skin_inspection;
 mod operand_inspection;
 mod pe_image;
@@ -90,6 +91,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Decode bounded authored animation framing and compare raw native fields.
+    NifAnimation {
+        input: PathBuf,
+        #[arg(long)]
+        oracle_report: Option<PathBuf>,
+    },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
     NifSkin {
         input: PathBuf,
@@ -1412,6 +1419,18 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifAnimation {
+            input,
+            oracle_report,
+        } => {
+            let report = nif_animation_inspection::inspect(&input, oracle_report.as_deref())?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err(
+                    "animation source decoding or independent comparison failed; see report".into(),
+                );
             }
         }
         Command::NifSkin {

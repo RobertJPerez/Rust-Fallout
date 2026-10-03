@@ -260,7 +260,7 @@ pub fn model_path(record: &Record, name: &str) -> Result<Option<SourceField<Vec<
     Ok(path)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Dependency {
     pub key: Option<FormKey>,
     pub status: &'static str,
@@ -268,7 +268,7 @@ pub struct Dependency {
     pub expected_kinds: Vec<String>,
 }
 
-fn dependency(
+pub(crate) fn dependency(
     store: &RecordStore,
     owner: Location,
     raw: u32,

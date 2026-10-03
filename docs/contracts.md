@@ -53,6 +53,13 @@ identities and winners rebuild for the supplied order. Stored metadata does not
 validate deferred record bodies. See [record index caching](record-index-cache.md).
 See [world inspection](world-inspection.md) for the supported fields and limits.
 
+Exterior inspection now preserves selected WRLD/CELL/LAND fields, float bits,
+padding and unknown bytes. Source-local winning LAND membership and typed links
+use the same resolver. Parent-world traversal detects cycles without recursion.
+Height reconstruction, normal interpretation, inheritance and editor defaults
+remain unapplied. See [exterior inspection](exterior-fields.md) for parsing budgets
+and the independently compared field scope.
+
 The opt-in header index validates TES4/CELL metadata and defers other bodies.
 Record/header bounds, IDs, master order and parent groups remain checked. Strict
 on-demand decompression is mandatory; deferred bytes are never counted as validated

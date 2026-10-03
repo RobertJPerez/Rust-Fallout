@@ -21,6 +21,7 @@ pub mod planning;
 pub mod plugin;
 pub mod script_inventory;
 pub mod store;
+pub mod terrain;
 pub mod texture_probe;
 pub mod vfs;
 pub mod world;

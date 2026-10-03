@@ -11,6 +11,9 @@ and assembles Doc Mitchell's house from winning plugin references in Bevy. The C
 structural override resolution, script-reference inventory and a verified asset cache.
 The cell inspector can also reuse source-bound plugin indexes, checking source and
 cache hashes while retaining strict on-demand record reads.
+The terrain inspector now follows exterior cells, parent worlds and winning LAND
+fields. See [exterior source inspection](docs/exterior-fields.md) for Goodsprings
+and DLC comparisons, source hashes and the remaining terrain work.
 The inspection view draws 400 of 435 references using shared models and textures.
 It now handles authored untextured materials and source alpha, culling and depth
 states; 62 synthetic GPU checks cover those render states.
@@ -136,7 +139,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 81 synthetic tests pass, including malformed compression, forward/cyclic links,
+- 98 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 62 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

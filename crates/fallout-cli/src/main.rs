@@ -1,4 +1,5 @@
 mod collision;
+mod terrain_compare;
 
 use clap::{Parser, Subcommand};
 use fallout_data::{
@@ -37,6 +38,22 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Decode an exterior CELL, its parent worlds and winning LAND source fields.
+    Terrain {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Cache tagged decoded bodies outside the installation for offline comparison.
+        #[arg(long)]
+        body_cache: Option<PathBuf>,
+        #[arg(long, requires = "body_cache")]
+        oracle_report: Option<PathBuf>,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,
@@ -298,6 +315,64 @@ fn run(args: Args) -> Result<()> {
                 return Err(
                     "NIF census contains unsupported or invalid containers; see report".into(),
                 );
+            }
+        }
+        Command::Terrain {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            body_cache,
+            oracle_report,
+        } => {
+            let names: Vec<String> = serde_json::from_reader(baseline::open_source(&load_order)?)?;
+            let body_root = body_cache
+                .as_ref()
+                .map(|root| {
+                    let root = fallout_data::cache::validate_root(root, &install)?;
+                    fallout_data::cache::validate_root(&root, &install.join("Data"))
+                })
+                .transpose()?;
+            let mut store = if let Some(root) = &index_cache {
+                fallout_data::store::RecordStore::open_nv_headers_cached(
+                    &install.join("Data"),
+                    &names,
+                    plugin::Limits::default(),
+                    root,
+                )?
+            } else {
+                fallout_data::store::RecordStore::open_nv_headers(
+                    &install.join("Data"),
+                    &names,
+                    plugin::Limits::default(),
+                )?
+            };
+            let report = fallout_data::terrain::inspect_cell(
+                &mut store,
+                editor_id.as_bytes(),
+                body_root.as_deref().map(|root| (root, install.as_path())),
+            )?;
+            let comparison = oracle_report
+                .as_deref()
+                .map(|oracle| {
+                    terrain_compare::compare(
+                        &report,
+                        oracle,
+                        body_root.as_deref().expect("required body cache"),
+                        &install,
+                    )
+                })
+                .transpose()?;
+            let clean = report.integrity_failures == 0
+                && report.link_failures == 0
+                && comparison.as_ref().is_none_or(|result| result.all_equal);
+            let mut value = serde_json::to_value(&report)?;
+            if let Some(comparison) = comparison {
+                value["comparison"] = serde_json::to_value(comparison)?;
+            }
+            emit(&value, output, &install)?;
+            if !clean {
+                return Err("terrain inspection contains integrity, reference, or field-comparison failures".into());
             }
         }
         Command::Cell {

@@ -53,6 +53,14 @@ remain those already pinned and tested; the new evidence compares every selected
 cell field with the uncached path. The earlier collision and GPU oracle results
 retain their original checkpoint/source identities.
 
+Checkpoint 09 consults the pinned xEdit WRLD/LAND definitions, shared landscape
+layouts and VTXT position checks. Original Rust decoders retain source fields and
+unknown bytes. A separately authored C++ field oracle uses only the standard library
+and Windows CNG; it has no upstream parser dependency and is not linked into Rust.
+Its actual build/hash and selected field comparisons are recorded separately from
+xEdit's unexecuted Delphi application and from retail behavior. Decompression and
+canonical resolution are outside that field oracle's scope.
+
 ## Reproduce the component builds
 
 ```powershell

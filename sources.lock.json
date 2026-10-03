@@ -1252,7 +1252,7 @@
       "license_files": [
         "LICENSE.txt"
       ],
-      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection.",
+      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted.",
       "test_data_provenance": "No project build/tests performed; source inspection only",
       "supported_variants_verified": [],
       "known_omissions": [

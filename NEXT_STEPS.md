@@ -30,8 +30,12 @@ Keep the entire master brief in scope and progress through its dependency gates.
    cold/warm reuse and process-termination recovery. See
    [record index caching](docs/record-index-cache.md). Winners still rebuild for the
    supplied order, and deferred payloads remain strict on access. Extend this to
-   a canonical content store, WRLD/terrain and remaining fields,
-   full asset dependency closure, and record-specific override rules.
+   a canonical content store and remaining fields. Checkpoint 09 now inspects
+   WRLD and LAND source fields for Goodsprings and four DLC exteriors, preserving
+   height deltas, raw normals/colors, layers, parent flags and unknown bytes.
+   See [exterior inspection](docs/exterior-fields.md). Height reconstruction,
+   normal interpretation, world-parent inheritance and terrain rendering are open.
+   Extend full asset dependency closure and record-specific override rules.
 
 4. Continue NIF payload decoding with remaining scene-node kinds, skinning and
    collision. Sixteen authored collision block types now decode in Rust; the house's

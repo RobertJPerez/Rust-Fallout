@@ -9,7 +9,12 @@ use crate::{
     plugin::{self, Limits, Record},
 };
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fs::File, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    io::{Seek, SeekFrom},
+    path::Path,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Location {
@@ -24,6 +29,7 @@ pub struct RecordStore {
     pub(crate) winners: BTreeMap<FormKey, Location>,
     limits: Limits,
     index_cache: Option<index_cache::Report>,
+    source_digests: BTreeMap<usize, String>,
 }
 
 impl RecordStore {
@@ -163,12 +169,24 @@ impl RecordStore {
         } else {
             None
         };
+        let source_digests = index_cache
+            .as_ref()
+            .map(|report| {
+                report
+                    .plugins
+                    .iter()
+                    .enumerate()
+                    .map(|(i, row)| (i, row.source_sha256.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         Ok(Self {
             files,
             indices,
             winners,
             limits,
             index_cache,
+            source_digests,
         })
     }
 
@@ -213,6 +231,22 @@ impl RecordStore {
             &index.census.name,
             self.limits,
         )
+    }
+
+    /// Provenance uses the same retained, write-denying handle as indexed reads.
+    /// Hash at most once per source, reusing a digest already obtained for caching.
+    pub fn source_digest(&mut self, location: Location) -> Result<String> {
+        if let Some(digest) = self.source_digests.get(&location.plugin) {
+            return Ok(digest.clone());
+        }
+        let file = &mut self.files[location.plugin];
+        let name = &self.indices[location.plugin].census.name;
+        file.seek(SeekFrom::Start(0))
+            .map_err(|error| crate::io(name, error))?;
+        let (_, digest) =
+            crate::baseline::digest_reader(file).map_err(|error| crate::io(name, error))?;
+        self.source_digests.insert(location.plugin, digest.clone());
+        Ok(digest)
     }
 
     pub fn cell_by_editor_id(&self, name: &[u8]) -> Result<(FormKey, Location)> {

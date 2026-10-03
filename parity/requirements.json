@@ -703,6 +703,33 @@
       ],
       "tolerance": "Every selected field exact after removing only cache receipts; artifact/source hashes exact; timings are single sequential wall-clock samples",
       "last_verified_revision": "b72c3d03fc8939c8c99851078a023594a180eac5"
+    },
+    {
+      "id": "fnv.content.exterior_source_fields",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content",
+      "requirement": "Inspect winning exterior CELL/WRLD/LAND source fields with preserved bytes, strict access and source-local parent membership",
+      "status": "oracle-tested",
+      "affected_content": "Six exterior CELL fixtures across base NV and all four campaign DLCs; selected field projection only",
+      "evidence": [
+        "reports/exterior-fields.json",
+        "reports/checkpoint-09-verification.json",
+        "docs/exterior-fields.md"
+      ],
+      "tests": [
+        "crates/fallout-data/tests/terrain.rs",
+        "crates/fallout-cli/src/terrain_compare.rs",
+        "crates/fallout-cli/src/terrain_evidence.rs"
+      ],
+      "known_gaps": [
+        "Field oracle starts after Rust decompression; it is not xEdit or a retail runtime comparison",
+        "Height reconstruction, normal interpretation and engine axes/units remain unverified",
+        "World inheritance and editor defaults are retained but not applied",
+        "Terrain geometry, seams, textures, water, physics and streaming remain unfinished",
+        "Known source defects, archive precedence and gameplay acceptance remain open"
+      ],
+      "tolerance": "Selected field offsets, integer values, source float bits, padding and unknown bytes exact; source/body hashes exact; altered height bit must fail",
+      "last_verified_revision": null
     }
   ]
 }

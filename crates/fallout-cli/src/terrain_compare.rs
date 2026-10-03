@@ -1,0 +1,163 @@
+//! Compare exact source fields, including unknown bytes, without float tolerances.
+use super::Result;
+use fallout_data::{baseline, cache, terrain::TerrainReport};
+use serde::Serialize;
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Read,
+    path::Path,
+};
+
+#[derive(Serialize)]
+pub struct Difference {
+    pub body: String,
+    pub fields: Vec<String>,
+}
+#[derive(Serialize)]
+pub struct Comparison {
+    pub all_equal: bool,
+    pub records_compared: usize,
+    pub unique_bodies: usize,
+    pub oracle_report_sha256: String,
+    pub oracle_binary_sha256: String,
+    pub differences: Vec<Difference>,
+    pub scope: &'static str,
+}
+
+fn paths(left: &Value, right: &Value, path: &str, out: &mut Vec<String>) {
+    if left == right || out.len() >= 16 {
+        return;
+    }
+    match (left, right) {
+        (Value::Object(left), Value::Object(right)) => {
+            let keys: BTreeSet<_> = left.keys().chain(right.keys()).collect();
+            for key in keys {
+                match (left.get(key), right.get(key)) {
+                    (Some(left), Some(right)) => paths(left, right, &format!("{path}.{key}"), out),
+                    _ if out.len() < 16 => out.push(format!("{path}.{key}")),
+                    _ => {}
+                }
+            }
+        }
+        (Value::Array(left), Value::Array(right)) if left.len() == right.len() => {
+            for (i, (left, right)) in left.iter().zip(right).enumerate() {
+                paths(left, right, &format!("{path}[{i}]"), out);
+            }
+        }
+        _ => out.push(path.into()),
+    }
+}
+
+pub fn compare(
+    report: &TerrainReport,
+    oracle_path: &Path,
+    root: &Path,
+    source_tree: &Path,
+) -> Result<Comparison> {
+    let mut bytes = Vec::new();
+    baseline::open_source(oracle_path)?
+        .take(64 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 64 * 1024 * 1024 {
+        return Err("Terrain oracle report exceeds input budget".into());
+    }
+    let report_hash = format!("{:x}", Sha256::digest(&bytes));
+    let oracle: Value =
+        serde_json::from_slice(bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes))?;
+    let binary = oracle["oracle_binary_sha256"]
+        .as_str()
+        .ok_or("Missing terrain oracle binary digest")?;
+    if binary.len() != 64 || !binary.bytes().all(|v| v.is_ascii_hexdigit()) {
+        return Err("Malformed terrain oracle binary digest".into());
+    }
+    let mut rows = BTreeMap::new();
+    for row in oracle["files"]
+        .as_array()
+        .ok_or("Missing terrain oracle files")?
+    {
+        let name = row["file"]
+            .as_str()
+            .ok_or("Missing terrain oracle body name")?;
+        if rows.insert(name, row).is_some() {
+            return Err("Duplicate terrain oracle body".into());
+        }
+    }
+    let mut expected = BTreeMap::new();
+    let mut records_compared = 0;
+    for entry in std::iter::once(&report.cell)
+        .chain(&report.world_chain)
+        .chain(&report.landscapes)
+    {
+        let Some(fields) = &entry.fields else {
+            continue;
+        };
+        let receipt = entry
+            .body_cache
+            .as_ref()
+            .ok_or("Terrain comparison requires cached decoded bodies")?;
+        let (_, bytes) = cache::read_verified(
+            root,
+            source_tree,
+            &receipt.manifest.identity,
+            64 * 1024 * 1024 + 4,
+        )?
+        .ok_or("Terrain comparison body lacks a commit marker")?;
+        if bytes.get(..4) != Some(entry.header.kind.as_slice())
+            || bytes.len() as u64 != receipt.manifest.bytes
+            || format!("{:x}", Sha256::digest(&bytes)) != receipt.manifest.sha256
+            || Some(format!("{:x}", Sha256::digest(&bytes[4..]))) != entry.decoded_sha256
+        {
+            return Err("Terrain body no longer matches source receipt".into());
+        }
+        expected.insert(
+            format!("{}.blob", receipt.key),
+            (serde_json::to_value(fields)?, &receipt.manifest.sha256),
+        );
+        records_compared += 1;
+    }
+    if expected.is_empty() || rows.len() != expected.len() {
+        return Err("Terrain oracle input set differs".into());
+    }
+    let mut differences = Vec::new();
+    for (name, (fields, digest)) in &expected {
+        let row = rows
+            .get(name.as_str())
+            .ok_or("Terrain oracle omitted a selected body")?;
+        if row["sha256"] != digest.as_str() {
+            return Err("Terrain oracle body digest differs".into());
+        }
+        let mut differing = Vec::new();
+        paths(fields, &row["fields"], "fields", &mut differing);
+        if !differing.is_empty() {
+            differences.push(Difference {
+                body: name.clone(),
+                fields: differing,
+            });
+        }
+    }
+    Ok(Comparison {
+        all_equal: differences.is_empty(),
+        records_compared,
+        unique_bodies: expected.len(),
+        oracle_report_sha256: report_hash,
+        oracle_binary_sha256: binary.into(),
+        differences,
+        scope: "Exact selected field projection from tagged strictly decoded bodies; compression, override resolution, height reconstruction and gameplay are not independently compared",
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn changed_height_bits_and_missing_padding_report_exact_field_paths() {
+        let original = json!({"heights":{"offset_bits":2147483648u32,"unused":[1,2,3]}});
+        let changed = json!({"heights":{"offset_bits":0,"unused":[1,2]}});
+        let mut out = Vec::new();
+        paths(&original, &changed, "fields", &mut out);
+        assert_eq!(out, ["fields.heights.offset_bits", "fields.heights.unused"]);
+    }
+}

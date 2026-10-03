@@ -1,6 +1,7 @@
 //! Checkpoint tooling stays separate from the content-inspection CLI. This runner
 //! records the commands it actually executes and publishes metadata, never assets.
 mod index_evidence;
+mod terrain_evidence;
 
 use clap::Parser;
 use serde::Serialize;
@@ -18,7 +19,7 @@ use std::{
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Parser)]
-#[command(about = "Bind collision or record-index checkpoint evidence to committed source")]
+#[command(about = "Bind content-inspection checkpoint evidence to committed source")]
 struct Args {
     #[arg(long, default_value = ".")]
     repository: PathBuf,
@@ -27,7 +28,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=8))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=9))]
     checkpoint: u8,
 }
 
@@ -122,13 +123,17 @@ fn snapshot(root: &Path, revision: &str) -> Result<Value> {
     }))
 }
 
-fn run_logged(mut command: Command, log: &Path) -> Result<Output> {
+fn run_logged(command: Command, log: &Path) -> Result<Output> {
+    run_logged_status(command, log, 0)
+}
+
+fn run_logged_status(mut command: Command, log: &Path, expected: i32) -> Result<Output> {
     eprintln!("Running {command:?}");
     let output = command.output()?;
     let mut bytes = output.stdout.clone();
     bytes.extend(&output.stderr);
     write_new(log, &bytes)?;
-    if !output.status.success() {
+    if output.status.code() != Some(expected) {
         return Err(format!("Command failed; see {}", log.display()).into());
     }
     Ok(output)
@@ -228,6 +233,12 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let terrain_oracle = root.join("local/terrain-oracle-build/Release/terrain-oracle.exe");
+    let terrain_digest = if args.checkpoint == 9 {
+        Some(digest(&terrain_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -311,6 +322,21 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let terrain_evidence = if args.checkpoint == 9 {
+        Some(terrain_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &terrain_oracle,
+            &args.install,
+            &cli_digest,
+            terrain_digest
+                .as_deref()
+                .ok_or("Missing terrain oracle digest")?,
+        )?)
+    } else {
+        None
+    };
     let baseline_path = destination.join("baseline.json");
     let mut baseline_command = Command::new(&cli_path);
     baseline_command
@@ -342,6 +368,9 @@ fn run(args: Args) -> Result<()> {
         || oracle_digest
             .as_ref()
             .is_some_and(|expected| digest(&oracle_path).as_ref().ok() != Some(expected))
+        || terrain_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&terrain_oracle).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -385,7 +414,20 @@ fn run(args: Args) -> Result<()> {
         )),
         &source,
     )?;
-    if let Some(mut index) = index_evidence {
+    if let Some(mut terrain) = terrain_evidence {
+        terrain["engine_revision"] = revision.clone().into();
+        terrain["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Verification object missing")?
+            .remove("fresh_collision_comparison");
+        verification["exterior_fields"] = terrain.clone();
+        verification["terrain_oracle_binary_sha256"] = terrain_digest.into();
+        verification["collision_evidence_origin_checkpoint"] = 7.into();
+        verification["collision_comparison_reexecuted"] = false.into();
+        verification["record_index_cache_evidence_origin_checkpoint"] = 8.into();
+        write_json(&root.join("reports/exterior-fields.json"), &terrain)?;
+    } else if let Some(mut index) = index_evidence {
         index["engine_revision"] = revision.clone().into();
         index["source_snapshot_sha256"] = source["sha256"].clone();
         verification

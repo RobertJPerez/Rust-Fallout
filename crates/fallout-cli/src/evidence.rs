@@ -1,5 +1,6 @@
 //! Checkpoint tooling stays separate from the content-inspection CLI. This runner
 //! records the commands it actually executes and publishes metadata, never assets.
+mod catalogue_evidence;
 mod height_evidence;
 mod index_evidence;
 mod preview_evidence;
@@ -34,7 +35,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=15))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=16))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -321,6 +322,12 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
+    let command_digest = if args.checkpoint == 16 {
+        Some(digest(&command_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -410,6 +417,17 @@ fn run(args: Args) -> Result<()> {
             &destination,
             &cli_path,
             &script_oracle,
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let catalogue_evidence = if args.checkpoint == 16 {
+        Some(catalogue_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &command_oracle,
             &args.install,
         )?)
     } else {
@@ -567,6 +585,9 @@ fn run(args: Args) -> Result<()> {
         || script_digest
             .as_ref()
             .is_some_and(|expected| digest(&script_oracle).as_ref().ok() != Some(expected))
+        || command_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&command_oracle).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -673,6 +694,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "compiled-scripts"),
             scripts,
+        ));
+    } else if let Some(mut catalogue) = catalogue_evidence {
+        catalogue["checkpoint"] = args.checkpoint.into();
+        catalogue["engine_revision"] = revision.clone().into();
+        catalogue["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["command_catalogue"] = catalogue.clone();
+        verification["command_oracle_binary_sha256"] = command_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this metadata checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "command-catalogue"),
+            catalogue,
         ));
     } else {
         publication.push((

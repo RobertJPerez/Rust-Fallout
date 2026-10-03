@@ -34,6 +34,9 @@ Authored collision shapes and rigid-body fields now decode independently in Rust
 The compiled-script census now frames all 14,514 authored bodies without needing
 source text. An independent offline reader matches 142,218 instruction headers;
 operands and execution remain open. See [compiled scripts](docs/compiled-scripts.md).
+The offline command catalogue reads the fingerprinted executable and independently
+checks 640 command, 38 event and 16 statement descriptors.
+See [command metadata](docs/command-catalogue.md) for argument signatures and scope.
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -154,7 +157,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 142 tests pass, including malformed compression, forward/cyclic links,
+- 147 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

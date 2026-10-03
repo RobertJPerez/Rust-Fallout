@@ -135,3 +135,10 @@ an original offline C++ tool compares Rust-extracted SCDA headers and CNG hashes
 Neither upstream implementation is copied or linked, and no engine address is
 used. See [compiled script inspection](compiled-scripts.md) for scope and remaining
 operand/execution work.
+
+Checkpoint 16 adds source-bound, offline descriptor inspection of the original
+executable. Pinned xNVSE table locations are translated through bounded PE32
+sections; no original code is loaded or called. An original C++ reader independently
+reads the same executable and compares names, parameter metadata and provenance.
+Microsoft PE documentation is the format reference. All command behavior, return
+types and event scheduling remain open; see [command catalogue](command-catalogue.md).

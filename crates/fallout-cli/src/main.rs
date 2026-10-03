@@ -1,4 +1,6 @@
 mod collision;
+mod command_catalogue;
+mod pe_image;
 mod terrain_compare;
 
 use clap::{Parser, Subcommand};
@@ -58,6 +60,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Inspect vanilla command/event metadata from the exact pinned executable.
+    #[command(name = "command-catalogue")]
+    Catalogue {
+        #[arg(long)]
+        install: PathBuf,
+    },
     /// Inventory compiled script instruction headers and event IDs; executes nothing.
     Scripts {
         #[arg(long)]
@@ -310,6 +318,10 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::Catalogue { install } => {
+            let catalogue = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+            emit(&catalogue, output, &install)?;
+        }
         Command::Scripts {
             install,
             defer_unrelated_payloads,

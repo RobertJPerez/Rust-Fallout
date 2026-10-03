@@ -2,7 +2,7 @@
 use crate::Result;
 use fallout_data::{
     baseline,
-    nif_animation::{self, Animation, Limits},
+    nif_animation::{self, Animation, Limits, keyframe},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -22,6 +22,8 @@ pub struct FileReport {
     strings: Option<Vec<Vec<u8>>>,
     container_block_counts: Option<BTreeMap<String, usize>>,
     animation: Option<Animation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    keys: Option<keyframe::Catalogue>,
     error: Option<String>,
     comparison: Option<&'static str>,
 }
@@ -29,6 +31,8 @@ pub struct FileReport {
 pub struct Report {
     schema_version: u32,
     animation_branch: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    keyframe_branch: Option<&'static str>,
     float_encoding: &'static str,
     string_encoding: &'static str,
     input: PathBuf,
@@ -84,13 +88,121 @@ fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
     if serde_json::to_value(&animation.blocks)? != expected["animations"] {
         return Err("oracle animation block identity/span/hash or source fields differ".into());
     }
+    if let Some(keys) = &actual.keys
+        && !compare_keys(&keys.blocks, &expected["keys"])?
+    {
+        return Err("oracle transform-key block identity/span/hash or source fields differ".into());
+    }
     Ok(())
 }
 
-pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
+// Compare at most one small key value at a time. Constructing a second complete
+// JSON key catalogue would duplicate the admitted source arrays during comparison.
+fn exact_object(value: &Value, fields: usize) -> bool {
+    value.as_object().is_some_and(|v| v.len() == fields)
+}
+fn compare_key_array<T: Serialize>(keys: &[T], expected: &Value) -> Result<bool> {
+    let Some(expected) = expected.as_array() else {
+        return Ok(false);
+    };
+    if keys.len() != expected.len() {
+        return Ok(false);
+    }
+    for (key, expected) in keys.iter().zip(expected) {
+        if serde_json::to_value(key)? != *expected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+fn compare_group<const N: usize>(group: &keyframe::Group<N>, expected: &Value) -> Result<bool>
+where
+    [u32; N]: Serialize,
+{
+    Ok(exact_object(expected, 3)
+        && expected["declared_keys"].as_u64() == Some(u64::from(group.declared_keys))
+        && expected["key_type"] == serde_json::to_value(group.key_type)?
+        && compare_key_array(&group.keys, &expected["keys"])?)
+}
+fn compare_keys(blocks: &[keyframe::Block], expected: &Value) -> Result<bool> {
+    let Some(expected) = expected.as_array() else {
+        return Ok(false);
+    };
+    if blocks.len() != expected.len() {
+        return Ok(false);
+    }
+    for (block, row) in blocks.iter().zip(expected) {
+        if !exact_object(row, 6)
+            || row["block"].as_u64() != Some(u64::from(block.block))
+            || row["block_type"].as_str() != Some(block.block_type)
+            || row["offset"].as_u64() != Some(block.offset as u64)
+            || row["bytes"].as_u64() != Some(block.bytes as u64)
+            || row["sha256"].as_str() != Some(block.sha256.as_str())
+        {
+            return Ok(false);
+        }
+        let data = &row["data"];
+        if !exact_object(data, 4)
+            || data["declared_rotation_keys"].as_u64()
+                != Some(u64::from(block.data.declared_rotation_keys))
+        {
+            return Ok(false);
+        }
+        let rotation = &data["rotation"];
+        let equal = match &block.data.rotation {
+            keyframe::Rotation::Absent => {
+                exact_object(rotation, 1) && rotation["layout"] == "absent"
+            }
+            keyframe::Rotation::Quaternion { key_type, keys } => {
+                exact_object(rotation, 3)
+                    && rotation["layout"] == "quaternion"
+                    && rotation["key_type"].as_u64() == Some(u64::from(*key_type))
+                    && compare_key_array(keys, &rotation["keys"])?
+            }
+            keyframe::Rotation::Xyz { axes } => {
+                if !exact_object(rotation, 2) || rotation["layout"] != "xyz" {
+                    return Ok(false);
+                }
+                let Some(expected_axes) = rotation["axes"].as_array() else {
+                    return Ok(false);
+                };
+                if expected_axes.len() != 3 {
+                    return Ok(false);
+                }
+                let mut equal = true;
+                for (axis, expected) in axes.iter().zip(expected_axes) {
+                    equal &= compare_group(axis, expected)?;
+                }
+                equal
+            }
+        };
+        if !equal
+            || !compare_group(&block.data.translations, &data["translations"])?
+            || !compare_group(&block.data.scales, &data["scales"])?
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub fn inspect(
+    input: &Path,
+    oracle_path: Option<&Path>,
+    include_keyframes: bool,
+) -> Result<Report> {
+    inspect_with_key_work(input, oracle_path, include_keyframes, 16_000_000)
+}
+fn inspect_with_key_work(
+    input: &Path,
+    oracle_path: Option<&Path>,
+    include_keyframes: bool,
+    mut key_work: usize,
+) -> Result<Report> {
     let mut report = Report {
-        schema_version: 1,
+        schema_version: if include_keyframes { 2 } else { 1 },
         animation_branch: "nv-four-source-classes",
+        keyframe_branch: include_keyframes.then_some("nv-transform-data-source"),
         float_encoding: "ieee754-binary32-bits",
         string_encoding: "raw-byte-arrays",
         input: input.into(),
@@ -108,7 +220,7 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
         let bytes = bounded(path, 64 * 1024 * 1024)?;
         report.oracle_report_sha256 = Some(format!("{:x}", Sha256::digest(&bytes)));
         let document: Value = serde_json::from_slice(&bytes)?;
-        if document["schema_version"] != 1
+        if document["schema_version"] != report.schema_version
             || document["animation_branch"] != report.animation_branch
             || document["float_encoding"] != report.float_encoding
             || document["string_encoding"] != report.string_encoding
@@ -119,6 +231,12 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
             || document["runtime_ready"] != false
         {
             return Err("oracle animation source/provenance contract is missing".into());
+        }
+        if include_keyframes
+            && (document["keyframe_branch"] != "nv-transform-data-source"
+                || document["raw_keyframe_counts_checked"] != true)
+        {
+            return Err("oracle transform-key source/provenance contract is missing".into());
         }
         let hash = document["oracle_binary_sha256"]
             .as_str()
@@ -198,6 +316,7 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
             strings: None,
             container_block_counts: None,
             animation: None,
+            keys: None,
             error: None,
             comparison: None,
         };
@@ -205,11 +324,41 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
             array_bytes: remaining.min(128 * 1024 * 1024),
             ..Default::default()
         };
-        match nif_animation::decode_with_limits(&bytes, &row.input.display().to_string(), limits) {
-            Ok((index, animation)) => {
+        let decoded = if include_keyframes {
+            keyframe::decode_with_limits(
+                &bytes,
+                &row.input.display().to_string(),
+                keyframe::Limits {
+                    animation: limits,
+                    array_bytes: remaining.min(128 * 1024 * 1024),
+                    max_combined_retained_bytes: remaining,
+                    key_work,
+                },
+            )
+            .map(|(index, source)| (index, source.animation, Some(source.keys)))
+        } else {
+            nif_animation::decode_with_limits(&bytes, &row.input.display().to_string(), limits)
+                .map(|(index, animation)| (index, animation, None))
+        };
+        match decoded {
+            Ok((index, animation, keys)) => {
                 remaining = remaining
                     .checked_sub(animation.retained_bytes)
                     .ok_or("aggregate animation catalogue budget exceeded")?;
+                if let Some(keys) = &keys {
+                    key_work = key_work
+                        .checked_sub(keys.work_units)
+                        .ok_or("aggregate transform-key work budget exceeded")?;
+                    remaining = remaining
+                        .checked_sub(keys.retained_bytes)
+                        .ok_or("aggregate transform-key catalogue budget exceeded")?;
+                    for block in &keys.blocks {
+                        *report
+                            .block_counts
+                            .entry(block.block_type.into())
+                            .or_default() += 1;
+                    }
+                }
                 row.tuple = Some([index.version, index.user_version, index.bethesda_version]);
                 row.strings = Some(index.strings);
                 row.container_block_counts = Some(index.block_counts);
@@ -222,6 +371,7 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
                 report.unresolved_dependencies += animation.dependencies.len();
                 report.diagnostics += animation.diagnostics.len();
                 row.animation = Some(animation);
+                row.keys = keys;
                 if let Some(document) = &oracle {
                     let result = row
                         .input
@@ -242,6 +392,12 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
                 }
             }
             Err(e) => {
+                // Failed decodes cannot publish an exact successful work receipt.
+                // Conservatively debit their entire remaining key allowance so
+                // later failed rows cannot repeatedly spend the same budget.
+                if include_keyframes {
+                    key_work = 0;
+                }
                 row.error = Some(e.to_string());
                 report.failures += 1;
             }
@@ -249,4 +405,120 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
         report.files.push(row);
     }
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct Inputs(PathBuf);
+    impl Drop for Inputs {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+    fn words(values: &[u32]) -> Vec<u8> {
+        values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    }
+    fn source(payload: &[u8]) -> Vec<u8> {
+        let mut bytes = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+        bytes.extend(words(&[0x1402_0007]));
+        bytes.push(1);
+        bytes.extend(words(&[11, 1, 34]));
+        bytes.extend([0; 3]);
+        bytes.extend(1u16.to_le_bytes());
+        bytes.extend(words(&[15]));
+        bytes.extend(b"NiTransformData");
+        bytes.extend(0u16.to_le_bytes());
+        bytes.extend(words(&[payload.len() as u32, 0, 0, 0]));
+        bytes.extend(payload);
+        bytes.extend(words(&[1, 0]));
+        bytes
+    }
+    fn inputs(payloads: &[Vec<u8>]) -> Inputs {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../local")
+            .join(format!(
+                "asset-key-inspector-test-{}-{unique}",
+                std::process::id()
+            ));
+        std::fs::create_dir_all(directory.parent().unwrap()).unwrap();
+        std::fs::create_dir(&directory).unwrap();
+        let result = Inputs(directory);
+        for (id, payload) in payloads.iter().enumerate() {
+            std::fs::write(result.0.join(format!("{id}.kf")), source(payload)).unwrap();
+        }
+        result
+    }
+    #[test]
+    fn batch_work_exact_and_one_under_use_one_budget() {
+        let inputs = inputs(&[words(&[0, 0, 0]), words(&[0, 0, 0])]);
+        let exact = inspect_with_key_work(&inputs.0, None, true, 8).unwrap();
+        assert_eq!(exact.failures, 0);
+        assert_eq!(
+            exact
+                .files
+                .iter()
+                .map(|f| f.keys.as_ref().unwrap().work_units)
+                .sum::<usize>(),
+            8
+        );
+        let under = inspect_with_key_work(&inputs.0, None, true, 7).unwrap();
+        assert_eq!(under.failures, 1);
+        assert_eq!(under.files[0].keys.as_ref().unwrap().work_units, 4);
+        assert!(
+            under.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("transform-key work budget exceeded")
+        );
+    }
+    #[test]
+    fn failed_source_exhausts_remaining_key_work_and_schema1_stays_opaque() {
+        let inputs = inputs(&[words(&[0, 1, 6]), words(&[0, 0, 0])]);
+        let failed = inspect_with_key_work(&inputs.0, None, true, 100).unwrap();
+        assert_eq!(failed.failures, 2);
+        assert!(
+            failed.files[0]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("unadmitted transform key-group tag 6")
+        );
+        assert!(
+            failed.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("transform-key work budget exceeded")
+        );
+        let old = inspect_with_key_work(&inputs.0, None, false, 0).unwrap();
+        assert_eq!(old.failures, 0);
+        let json = serde_json::to_value(old).unwrap();
+        assert_eq!(json["schema_version"], 1);
+        assert!(json.get("keyframe_branch").is_none());
+        assert!(json["files"][0].get("keys").is_none());
+    }
+    #[test]
+    fn exact_key_comparison_rejects_missing_and_extra_source_fields() {
+        let (_, decoded) = keyframe::decode(&source(&words(&[0, 0, 0])), "empty.kf").unwrap();
+        let expected = serde_json::to_value(&decoded.keys.blocks).unwrap();
+        assert!(compare_keys(&decoded.keys.blocks, &expected).unwrap());
+        let mut extra = expected.clone();
+        extra[0]["data"]["invented_default"] = json!(0);
+        assert!(!compare_keys(&decoded.keys.blocks, &extra).unwrap());
+        let mut extra = expected.clone();
+        extra[0]["data"]["rotation"]["key_type"] = json!(0);
+        assert!(!compare_keys(&decoded.keys.blocks, &extra).unwrap());
+        let mut missing = expected;
+        missing[0].as_object_mut().unwrap().remove("sha256");
+        assert!(!compare_keys(&decoded.keys.blocks, &missing).unwrap());
+    }
 }

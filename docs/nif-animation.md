@@ -203,3 +203,102 @@ module/command/dispatch. The primary agent owns their integrated versions and
 source-lock, parity and checkpoint updates. Key data, compressed/B-spline fields
 and numerical sampling need their own following slices. Pose adapters and
 required actor-manifest coverage need separate coordinated contracts.
+
+## Exact transform-key source extension (ASSET-05A)
+
+`nif_animation::keyframe::{decode, decode_with_limits}` adds exact
+`NiTransformData` source decoding to the existing four-class catalogue. Its
+`Source` contains the unchanged `Animation` plus a key `Catalogue`. The original
+entrypoints and inspector/native schema 1 retain their source behavior; key
+payloads remain opaque unless the optional extension is selected. Both
+catalogues always report `runtime_ready: false`.
+
+The admitted container tuples above remain unchanged. Complete inherited
+`NiKeyframeData`, `NiTransformData`, `QuatKey`, `Key`, `KeyGroup`, `TBC`,
+`Quaternion` and `KeyType` metadata were read from the same pinned XML, with
+complete `Animation.hpp`, `Animation.cpp` and `Keys.hpp` inspected from the
+same nifly revision. No legacy layout or class-name alias is inferred.
+
+The leading uint rotation count remains exact. Count zero has no stored tag or
+keys. Quaternion tags 1/2/3/5 preserve ordered time and W/X/Y/Z bits; only tag 3
+stores a tension/bias/continuity triple. Quaternion tag 2 has no stored tangents.
+Rotation tag 4 requires the evidenced leading count of one and preserves three
+independent X/Y/Z scalar groups, including empty axes. The old rotation-order
+float is absent at this file version. Each scalar/vector group preserves its
+declared count and optional tag: zero count omits the source tag, tag 2 adds
+forward/backward values and tag 3 adds TBC values. Tags 1/5 add neither.
+
+Unknown tags and unevidenced XYZ leading counts are explicit unsupported
+branches. Truncation, surplus bytes, count/span violations and nonfinite words
+fail contextually. Signed zero, subnormals, finite extremes, zero/nonunit
+quaternions, duplicate/unsorted times and original array order remain exact;
+nothing is sorted, normalized or repaired. Decoding does not establish angle
+conventions, interpolation, clock scaling, event delivery, root motion or poses.
+
+The native extension uses the raw `NiTransformData` factory without loading a
+scene or calling `PrepareData`. Before factory allocation, an independent
+bounded raw scan checks every count/tag/span and finite word. It supplements the
+leading XYZ count that nifly discards and distinguishes absent zero-count tags
+from nifly's default `NO_INTERP`. The earlier raw-string supplement is unchanged.
+After all admitted key blocks parse successfully, only dependencies targeting
+decoded `NiTransformData` retire. Other known unparsed/unknown links and external
+bindings remain visible. A known wrong target family still fails the original API.
+
+Key defaults are 128 MiB additional logical array storage, 256 MiB combined
+animation/index/key retention admission and 16 million work units. Original
+animation limits and index scratch admission are reused once. The combined cap
+also bounds animation construction, so scratch can require more admission than
+the reported retained total. Key arrays receive at most the checked remaining
+combined allowance. Work charges one unit per selected key block, rotation/group
+product and stored float word, including empty products. Selected-block and
+array-word work is admitted before their respective vectors allocate.
+`Catalogue.work_units` records successful admitted work. These are logical
+storage/work limits, with count-bounded allocator overhead, rather than a process
+heap measurement.
+
+`fallout nif-animation INPUT --include-keyframes [--oracle-report REPORT]`
+selects source schema 2 and branch `nv-transform-data-source`; the independent
+oracle accepts the same optional flag. The CLI requires
+`raw_keyframe_counts_checked: true`, exact schema/branch provenance and the
+existing false runtime claim. It compares block identities/spans/hashes and all
+ordered fields exactly, using at most one small temporary key JSON value rather
+than duplicating a complete catalogue. The 256 MiB report admission and one
+16-million-unit key work allowance cover the whole batch. A failed combined
+decode conservatively debits its remaining key allowance, preventing later
+failures from repeatedly spending the same work. Schema 1 emits neither the
+new key catalogue nor keyframe branch field.
+
+Development verification is frozen under
+`local/asset-05a-teamv2-20261003-01`, with separate native build
+`local/nif-animation-oracle-build-05a-teamv2`. Earlier ASSET-04 inputs, binaries
+and evidence remain unchanged.
+
+- Thirteen independent authored decoder tests pass; the affected NIF regression
+  totals 106 passing tests and two explicitly ignored original-data samplers.
+- Fifteen CLI tests pass, including exact/one-under multi-file work admission,
+  attempted-work exhaustion and schema-1 opacity/field preservation. Affected
+  data/CLI all-target Clippy with warnings denied, formatting and diff checks pass.
+- `comparison-01/summary.json`: 108 authored source files across twelve streams
+  compare exactly; 23 changed key reports and eight malformed sources fail for
+  their intended reasons. Schema 1 continues to admit those opaque key payloads.
+- The same comparison checks all 1,499 key blocks in 70 preserved original files,
+  including 133,174 quaternion keys, 71,345 translation keys and 1,072 scale keys.
+  Original-file schema-1 native rows agree with the frozen ASSET-04 oracle except
+  the actual executable digest; the new Rust schema-1 inspector accepts that
+  frozen oracle unchanged.
+- `schema1-authored-01/summary.json`: the existing 96 source fixtures still compare
+  exactly, with 59 changed reports and seven malformed sources rejected.
+
+The source sample covers 63 files with key blocks and 554 XYZ blocks; it remains
+the bounded ASSET-04 sample described above. Original interpolation, evaluated
+poses, compressed/B-spline payloads and retail animation behavior remain separate
+unverified gates. This handoff is development source evidence, not an integration
+checkpoint or gameplay acceptance.
+
+For new team builds, use the current central operating contract's focused-build
+wrapper, an explicit private Cargo target and `--locked --jobs 2`. Frozen binaries
+can run the independent comparison without rebuilding them:
+
+```powershell
+py -3 tools/nif-animation-oracle/check_keyframes.py --output-dir local/new-key-source-comparison --binary local/asset-05a-teamv2-20261003-01/binaries/fallout-asset05a.exe --oracle local/asset-05a-teamv2-20261003-01/binaries/nif-animation-oracle-asset05a.exe
+```

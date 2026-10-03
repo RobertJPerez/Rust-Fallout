@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 
 from fixtures import STREAMS, container, fixture, w
+from process_guard import guard, run as run_process
 
 VARIANTS = ("baseline", "null_links", "unknown_links", "empty_arrays", "unknown_cycle", "all_strings_null", "trailing_nul_strings", "empty_string_table")
 
@@ -32,6 +33,7 @@ def main():
     parser.add_argument("--binary", type=Path, default=Path("target/debug/fallout.exe"))
     parser.add_argument("--oracle", type=Path, default=Path("local/nif-animation-oracle-build/Release/nif-animation-oracle.exe"))
     args = parser.parse_args()
+    guard()
     args.output_dir.mkdir(parents=True, exist_ok=False)
     inputs = args.output_dir / "inputs"
     inputs.mkdir()
@@ -43,7 +45,7 @@ def main():
     rust_before = digest(args.binary)
     oracle_path = args.output_dir / "oracle.json"
     with oracle_path.open("xb") as output:
-        result = subprocess.run([str(args.oracle.resolve()), str(inputs.resolve())], stdout=output, stderr=subprocess.PIPE)
+        result = run_process([str(args.oracle.resolve()), str(inputs.resolve())], stdout=output, stderr=subprocess.PIPE)
     (args.output_dir / "oracle.stderr.txt").write_bytes(result.stderr)
     if result.returncode:
         raise RuntimeError("authored native animation reader failed; retained report/stderr")
@@ -57,7 +59,7 @@ def main():
         command = [str(args.binary.resolve()), "nif-animation", str(directory.resolve()), "--output", str((args.output_dir / f"result-{name}.json").resolve())]
         if report is not None:
             command.extend(["--oracle-report", str(report.resolve())])
-        result = subprocess.run(command, capture_output=True)
+        result = run_process(command, capture_output=True)
         (args.output_dir / f"{name}.stdout.txt").write_bytes(result.stdout)
         (args.output_dir / f"{name}.stderr.txt").write_bytes(result.stderr)
         return result.returncode
@@ -155,7 +157,7 @@ def main():
         path.write_bytes(container(34, blocks, strings))
         report = args.output_dir / f"bad-{name}-oracle.json"
         with report.open("xb") as output:
-            native = subprocess.run([str(args.oracle.resolve()), str(directory.resolve())], stdout=output, stderr=subprocess.PIPE)
+            native = run_process([str(args.oracle.resolve()), str(directory.resolve())], stdout=output, stderr=subprocess.PIPE)
         native_document = json.loads(report.read_text())
         rust = run(f"bad-source-{name}", None, directory)
         if native.returncode == 0 or rust == 0 or not native_document["files"][0].get("error"):

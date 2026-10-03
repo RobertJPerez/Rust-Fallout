@@ -58,7 +58,8 @@ static void field(std::ostream& out,const char* name,uint32_t value) {out<<',';t
 static void vec(std::ostream& out,const Vector3& v) {out<<'['<<bits(v.x)<<','<<bits(v.y)<<','<<bits(v.z)<<']';}
 static bool selected(const std::string& name) {return name=="NiTransformController"||name=="NiControllerSequence"||name=="NiTransformInterpolator"||name=="NiTextKeyExtraData";}
 #include "raw.hpp"
-static void write_file(std::ostream& out,const std::filesystem::path& path) {
+#include "keyframes.hpp"
+static void write_file(std::ostream& out,const std::filesystem::path& path,bool include_keys) {
     const auto bytes=snapshot(path);const auto raw=raw_header(bytes);
     std::istringstream input(bytes,std::ios::binary);NiHeader header;NiIStream stream(&input,&header);header.Get(stream);
     if(!input||!header.IsValid()||header.GetNumBlocks()!=raw.sizes.size()||input.tellg()!=static_cast<std::streamoff>(raw.payload_start)||header.GetStringCount()!=raw.strings.size())
@@ -72,12 +73,17 @@ static void write_file(std::ostream& out,const std::filesystem::path& path) {
     std::vector<std::unique_ptr<NiObject>> blocks;blocks.reserve(raw.sizes.size());
     std::vector<RawCounts> counts;counts.reserve(raw.sizes.size());size_t remaining=128*1024*1024;
     storage(remaining,raw.sizes.size(),sizeof(RawCounts));
+    std::vector<KeyCounts> key_counts;
+    size_t key_checks=16000000;
+    if(include_keys){storage(remaining,raw.sizes.size(),sizeof(KeyCounts));key_counts.resize(raw.sizes.size());}
     for(uint32_t id=0;id<raw.sizes.size();++id) {
         const auto& name=raw.types[raw.indices[id]];
         if(header.GetBlockTypeStringById(id)!=name||header.GetBlockSize(id)!=raw.sizes[id])throw std::runtime_error("native/raw block table differs");
         const auto payload=std::string_view(bytes).substr(raw.offsets[id],raw.sizes[id]);
         counts.push_back(selected(name)?preflight(payload,name,raw,remaining):RawCounts{});
-        if(selected(name)) {
+        const bool key_data=include_keys&&name=="NiTransformData";
+        if(key_data)key_counts[id]=preflight_keys(payload,remaining,key_checks);
+        if(selected(name)||key_data) {
             std::istringstream block_input(std::string(payload),std::ios::binary);NiIStream block_stream(&block_input,&header);
             const auto factory=NiFactoryRegister::Get().GetFactoryByName(name);if(!factory)throw std::runtime_error("required animation factory missing");
             blocks.push_back(factory->Load(block_stream));
@@ -122,10 +128,22 @@ static void write_file(std::ostream& out,const std::filesystem::path& path) {
             for(size_t i=0;i<t->textKeys.size();++i){if(i)out<<',';const auto& k=t->textKeys[i];out<<"{\"time_bits\":"<<bits(k.time)<<",\"value\":";ref(out,k.value.GetIndex());out<<'}';}out<<"]}}";
         } else throw std::runtime_error("native selected animation factory type differs");out<<'}';
     }
-    out<<"]}";
+    out<<']';
+    if(include_keys){
+        out<<",\"keys\":[";bool first_key=true;
+        for(uint32_t id=0;id<blocks.size();++id){
+            const auto& name=raw.types[raw.indices[id]];if(name!="NiTransformData")continue;
+            if(!first_key)out<<',';first_key=false;
+            out<<"{\"block\":"<<id<<",\"block_type\":\"NiTransformData\",\"offset\":"<<raw.offsets[id]<<",\"bytes\":"<<raw.sizes[id]<<",\"sha256\":";
+            text(out,sha256(bytes.data()+raw.offsets[id],raw.sizes[id]));out<<",\"data\":";
+            const auto data=header.GetBlock<NiTransformData>(id);if(!data)throw std::runtime_error("native transform-key factory type differs");
+            project_keys(out,*data,key_counts[id]);out<<'}';
+        }out<<']';
+    }out<<'}';
 }
 int main(int argc,char** argv) {
-    if(argc!=2){std::cerr<<"usage: nif-animation-oracle INPUT_FILE_OR_DIRECTORY\n";return 2;}
+    const bool include_keys=argc==3&&std::string_view(argv[2])=="--include-keyframes";
+    if(argc!=2&&!include_keys){std::cerr<<"usage: nif-animation-oracle INPUT_FILE_OR_DIRECTORY [--include-keyframes]\n";return 2;}
     try {
         const std::filesystem::path input(argv[1]);std::vector<std::filesystem::path> paths;
         if(std::filesystem::is_directory(input)) {
@@ -135,9 +153,11 @@ int main(int argc,char** argv) {
             }
         }else paths.push_back(input);if(paths.empty())throw std::runtime_error("native animation found no inputs");std::sort(paths.begin(),paths.end());
         const auto binary=snapshot(argv[0]);
-        std::cout<<"{\"schema_version\":1,\"animation_branch\":\"nv-four-source-classes\",\"float_encoding\":\"ieee754-binary32-bits\",\"string_encoding\":\"raw-byte-arrays\",\"nifly_revision\":\"cca0a770094bb962fb28ea1fec5ea903e68fda8e\",\"prepare_data_called\":false,\"raw_string_table_checked\":true,\"raw_count_fields_checked\":true,\"runtime_ready\":false,\"oracle_binary_sha256\":";text(std::cout,sha256(binary.data(),binary.size()));std::cout<<",\"files\":[";
+        std::cout<<"{\"schema_version\":"<<(include_keys?2:1)<<",\"animation_branch\":\"nv-four-source-classes\",\"float_encoding\":\"ieee754-binary32-bits\",\"string_encoding\":\"raw-byte-arrays\",\"nifly_revision\":\"cca0a770094bb962fb28ea1fec5ea903e68fda8e\",\"prepare_data_called\":false,\"raw_string_table_checked\":true,\"raw_count_fields_checked\":true,\"runtime_ready\":false";
+        if(include_keys)std::cout<<",\"keyframe_branch\":\"nv-transform-data-source\",\"raw_keyframe_counts_checked\":true";
+        std::cout<<",\"oracle_binary_sha256\":";text(std::cout,sha256(binary.data(),binary.size()));std::cout<<",\"files\":[";
         bool failed=false;
-        for(size_t i=0;i<paths.size();++i){if(i)std::cout<<',';try{RowBuffer buffer;std::ostream row(&buffer);row.exceptions(std::ios::badbit|std::ios::failbit);write_file(row,paths[i]);std::cout<<buffer.get();}catch(const std::exception& e){failed=true;std::cout<<"{\"file\":";text(std::cout,paths[i].filename().u8string());std::cout<<",\"error\":";text(std::cout,e.what());std::cout<<'}';}}
+        for(size_t i=0;i<paths.size();++i){if(i)std::cout<<',';try{RowBuffer buffer;std::ostream row(&buffer);row.exceptions(std::ios::badbit|std::ios::failbit);write_file(row,paths[i],include_keys);std::cout<<buffer.get();}catch(const std::exception& e){failed=true;std::cout<<"{\"file\":";text(std::cout,paths[i].filename().u8string());std::cout<<",\"error\":";text(std::cout,e.what());std::cout<<'}';}}
         std::cout<<"]}\n";return failed?1:0;
     }catch(const std::exception& e){std::cerr<<"animation oracle: "<<e.what()<<'\n';return 1;}
 }

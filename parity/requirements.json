@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "fc6fb1b821094edda7b53d65d12c4849f64d394f",
-  "revision_note": "Checkpoint 07 binds collision payload comparisons and workspace checks to its implementation commit; earlier presentation and corpus scopes retain their original evidence revisions.",
+  "last_verified_revision": "b72c3d03fc8939c8c99851078a023594a180eac5",
+  "revision_note": "Checkpoint 08 binds persisted-index checks, uncached/cold/warm cell comparisons and workspace checks to its implementation commit; collision, presentation and earlier corpus scopes retain their original evidence revisions.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -702,7 +702,7 @@
         "Archive/loose precedence, measured retail profile and known source defects remain open"
       ],
       "tolerance": "Every selected field exact after removing only cache receipts; artifact/source hashes exact; timings are single sequential wall-clock samples",
-      "last_verified_revision": null
+      "last_verified_revision": "b72c3d03fc8939c8c99851078a023594a180eac5"
     }
   ]
 }

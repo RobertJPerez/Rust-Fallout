@@ -1,0 +1,146 @@
+{
+  "acceptance": "Metadata caching verified; no gameplay scenario accepted",
+  "all_selected_fields_equal": true,
+  "base_records": 222,
+  "cached_record_definitions": 629788,
+  "cell": "GSDocMitchellHouse",
+  "checkpoint": 8,
+  "cold_entries_built": 10,
+  "comparison": "Every serialized selected field exact after removing only the cache receipt; no tolerance",
+  "encoded_index_bytes": 30289643,
+  "engine_revision": "b72c3d03fc8939c8c99851078a023594a180eac5",
+  "index_payloads_deferred": 585196,
+  "inspection_order": [
+    "FalloutNV.esm",
+    "DeadMoney.esm",
+    "HonestHearts.esm",
+    "OldWorldBlues.esm",
+    "LonesomeRoad.esm",
+    "GunRunnersArsenal.esm",
+    "CaravanPack.esm",
+    "ClassicPack.esm",
+    "MercenaryPack.esm",
+    "TribalPack.esm"
+  ],
+  "integrity_failures": 0,
+  "known_gaps": [
+    "Every source is fully hashed on each cached open; no timestamp-only shortcut",
+    "Winning identities are rebuilt; no persisted linked or canonical content store",
+    "Other record bodies stay deferred and unvalidated until strict access",
+    "Rebuildable cache durability does not establish save or job-journal durability",
+    "Archive/loose precedence, real physics, script execution and gameplay remain open"
+  ],
+  "link_failures": 0,
+  "local_report_sha256": {
+    "cold": "3984b3b08b77de321705bf3e1a0b78c58fc4531f92228a34677ca460891f9c08",
+    "uncached": "9ff8cfe99dc4f5f2077df174ef00464206d142718331a6d2ed7563edddb2a28c",
+    "warm": "c61c0e4b6416135d1621480545fe0d41774fbfab3c61443dd63da5a2b99789a7"
+  },
+  "ordered_source_sha256": "a5542e117e3fa78dc9088e93e33541b04d29c6d92d6191c9beff4aa5f351c15c",
+  "plugins": [
+    {
+      "index_bytes": 22342983,
+      "index_sha256": "66b81e4a40210d65f8935248db56daff586acc65c25f1b9f7f7b18b720519656",
+      "key": "4ba966965a59bd983c4f4a659ccb6c0f0336d5277d262b5caf9f86bd23dcff24",
+      "plugin": "FalloutNV.esm",
+      "records": 465016,
+      "reused": true,
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+    },
+    {
+      "index_bytes": 1930724,
+      "index_sha256": "feca078e88fa056ca723e937bbde9b2021223a2ddc8c466044059278daa6ce4d",
+      "key": "952561c34ff1c118a608419ae95a0d99125c590dd481c0467bbaf9ced7c131ec",
+      "plugin": "DeadMoney.esm",
+      "records": 40084,
+      "reused": true,
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+    },
+    {
+      "index_bytes": 1744896,
+      "index_sha256": "b007f64cbe41e7d3f2501128c6c2e9a1508a63abaf6d370b73ace245cde0fea5",
+      "key": "6e8146f8874cb56a7293f575dcbeb5852178f90f994c361e07195504c81a20ba",
+      "plugin": "HonestHearts.esm",
+      "records": 36201,
+      "reused": true,
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+    },
+    {
+      "index_bytes": 2536643,
+      "index_sha256": "d7dfbf8b965690464b621652f4c52d35009d91078806c6b7399e642c642e2ab3",
+      "key": "177b5a8d36f0f1311b92f8554bb4d7b7b6a60b421a2b4654aa4d444eaa2bc9b4",
+      "plugin": "OldWorldBlues.esm",
+      "records": 52683,
+      "reused": true,
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+    },
+    {
+      "index_bytes": 1685751,
+      "index_sha256": "90d8856f30d886fc298d0829026a29930b4e9cf0ce8b6540cd9a1a79b512b7ac",
+      "key": "ba444ad7a7ed7a288a7f78e3d67106b69218ffa7ca2b29f64ed3c768c9ed04b2",
+      "plugin": "LonesomeRoad.esm",
+      "records": 34988,
+      "reused": true,
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+    },
+    {
+      "index_bytes": 40606,
+      "index_sha256": "0cdaa862d275464083653ecea45e60275294889111fb044fab7993a5256208b1",
+      "key": "5d9d6a9afe86a90f7b3ccd9c075621b66b1fb5ba53a23a9b249f92081efcb156",
+      "plugin": "GunRunnersArsenal.esm",
+      "records": 778,
+      "reused": true,
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+    },
+    {
+      "index_bytes": 1889,
+      "index_sha256": "d024711c56e570fee6b2b0f7e20b26e1f4ec75414ef5e7afd62de03add3773be",
+      "key": "cc2381014ef46599a0d4252078179081d7c12626876d62b284d7ea09eb9e0ca5",
+      "plugin": "CaravanPack.esm",
+      "records": 7,
+      "reused": true,
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+    },
+    {
+      "index_bytes": 2554,
+      "index_sha256": "3b14180b127f8805bd609a1016fd566ffb0c2d440e715028a19087879850f368",
+      "key": "8059ee5b3180e5ba4d3a1785676f321635309f0655f2d29d3724daba0f0e4438",
+      "plugin": "ClassicPack.esm",
+      "records": 19,
+      "reused": true,
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+    },
+    {
+      "index_bytes": 1891,
+      "index_sha256": "2263ac192b28d7c91ae1fdb7ff7e421c8e503f8e81fc1e036069ae4feae537e4",
+      "key": "c990f6ea7ed78807c564138d570345dbccd2b4cf15b71e96afcbdcaa11a15755",
+      "plugin": "MercenaryPack.esm",
+      "records": 7,
+      "reused": true,
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+    },
+    {
+      "index_bytes": 1706,
+      "index_sha256": "94a06a58e562edff493bb04f5230d7e8c53afe1cd9b74647cb23d63951f0f5a8",
+      "key": "c1d426e16b039953011cf1ff12b9452afbafaf93aa847c74d32eff1ab3611f45",
+      "plugin": "TribalPack.esm",
+      "records": 5,
+      "reused": true,
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+    }
+  ],
+  "process_termination_tests": "Workspace unit test kills publication children after blob staging, blob publication and marker staging; recovery verifies bytes and keeps sources unchanged",
+  "references": 435,
+  "release_cli_sha256": "5f57f48538c5fcd0cf0994da94aade5dc30abf94fef48e66101b7a7ae57e3b7d",
+  "schema_version": 1,
+  "source_bytes_hashed_per_cached_open": 311381078,
+  "source_snapshot_sha256": "8f984beddd4afe26f2a4c971303beb416b051c5b9d0a3fb120d8aa5143744863",
+  "timing_samples_per_phase": 1,
+  "timing_scope": "Sequential wall-clock samples for complete CLI cell inspection, including archive indexes and dependency reads; not a startup SLA or sustained benchmark",
+  "warm_entries_reused": 10,
+  "whole_cell_cli_seconds": {
+    "cold": 3.720684,
+    "uncached": 4.4232987999999995,
+    "warm": 2.9896781
+  }
+}

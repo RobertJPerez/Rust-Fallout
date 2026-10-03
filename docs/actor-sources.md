@@ -401,7 +401,7 @@ Investigation and fixtures stay in `local\act03-placement-investigation-20261003
 `local\act03-placement-authored-inputs-20261003`. The pre-implementation framing
 check at `local\act03-placement-fixture-framing-20261003` checked the established
 header/scalar path only, and is not placed-actor semantic evidence.
-Health/count/linked/patrol extras remain separate future source slices. This
+Health/count/patrol extras remain separate future source slices. This
 catalogue does not infer a cell/world encounter-zone fallback, effective level,
 merchant inventory, live placement or actor initialization.
 
@@ -439,3 +439,50 @@ Evidence is in `local\act08-body-bounds-comparison-20261003-01`,
 `local\act08-faction-authored-comparison-20261003` and
 `local\act08-placement-authored-comparison-20261003`. This tooling fix does not
 alter the Rust catalogues or establish gameplay parity.
+
+## Placed linked references (ACT-03 second slice)
+
+Pinned xEdit FNV lines 3157 and 3239 declare ACHR/ACRE `XLKR` as a four-byte
+linked reference with seven allowed target kinds: REFR, ACRE, ACHR, PGRE, PMIS,
+PBEA and PLYR. The existing placement catalogue now retains each occurrence as
+`Value::LinkedReference`, using unchanged inventory binding in the winning
+source's master/self namespace. Physical order, offsets, body/field hashes,
+target provenance and null/missing/deleted/wrong-kind facts remain explicit.
+Repeated singleton occurrences produce
+`multiple_placed_linked_reference_fields`; none is selected or discarded.
+Absence remains absence. There is no link traversal or activation/AI inference,
+and declared cycles are retained as ordinary source bindings.
+
+The existing kind/version admission, unchanged world placement decoder, source
+receipts and record/field/body/binding bounds remain in force. The inspector uses
+the existing `--include-placements` flag. No other catalogue, runtime, save,
+dependency, store, inventory or shared-file contract changes are required.
+The independent native reader adds its own field/domain projection while
+retaining the ACT-08 preallocation guard. Original byte investigation observed
+1,361 ACHR and 491 ACRE XLKR4 fields without duplicates. Full original comparisons
+agree in cold, warm and reordered phases across every requested projection:
+7,681 placements, 22,665 fields, 2,259 selected extras, 9,635 bindings and
+681,344 decoded bytes with zero placement findings. All 1,852 linked targets are
+defined: 1,372 REFR, 438 ACHR and 42 ACRE. The association section still retains
+the previously measured deleted voice finding; no fallback clears it.
+
+Focused tests cover all seven allowed domains, self-links, null/missing/wrong
+kind/deleted targets, ordered duplicate findings, exact binding-limit admission,
+XLKR3/5 rejection, master/self namespaces and cycles across cold/warm/reordered
+header caches. Authored comparison inputs include all seven domains and are at
+`local\act03-linked-authored-inputs-20261003-02`.
+The native authored comparison agrees in all phases on eight winners including a
+tombstone, 29 fields, 15 XLKR occurrences, 22 bindings and 12 findings. Its targets
+include all seven declared kinds plus an explicit wrong-kind PACK, null, missing
+and deleted references. Both readers reject XLKR3/5. Deliberately altered raw
+binding words and target file offsets fail the complete placement comparison.
+All 35 actor tests (including eight placement tests), formatting,
+fallout-data/CLI all-target Clippy and the
+private native build's six allocation-order checks pass.
+
+Comparisons are at `local\act03-linked-comparison-20261003-01` and
+`local\act03-linked-authored-comparison-20261003-01`; negative results are under
+`local\act03-linked-authored-inputs-20261003-02\negative-results`. Completed runs
+verify actual source/head/dirty manifests and executable hashes unchanged. These
+are worker source checks; they do not accept gameplay or constitute an integrated
+checkpoint.

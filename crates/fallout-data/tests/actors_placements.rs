@@ -290,7 +290,7 @@ fn observed_kind_versions_and_existing_world_constraints_have_explicit_failures(
         b"DAT".to_vec(),
         field(b"XXXX", &4u32.to_le_bytes()),
     ];
-    for kind in [b"XEZN", b"XMRC", b"XLCM"] {
+    for kind in [b"XEZN", b"XMRC", b"XLCM", b"XLKR"] {
         for length in [3, 5] {
             cases.push([core(0x800, 0), field(kind, &vec![0; length])].concat());
         }
@@ -299,6 +299,299 @@ fn observed_kind_versions_and_existing_world_constraints_have_explicit_failures(
         let mut store = single(directory.path(), b"ACHR", 15, &body);
         assert!(Catalogue::load(&mut store, Limits::default()).is_err());
     }
+}
+
+#[test]
+fn linked_references_keep_all_seven_domains_target_states_and_physical_occurrences() {
+    let directory = tempfile::tempdir().unwrap();
+    let raw_targets = [
+        0x911, 0x910, 0x100, 0x912, 0x913, 0x914, 0x915, 0, 0x999, 0x902, 0x916,
+    ];
+    let body = [
+        core(0x800, 0),
+        raw_targets
+            .iter()
+            .flat_map(|raw| link(b"XLKR", *raw))
+            .collect(),
+    ]
+    .concat();
+    let generic_targets: Vec<_> = [
+        (b"REFR", 0x911),
+        (b"PGRE", 0x912),
+        (b"PMIS", 0x913),
+        (b"PBEA", 0x914),
+        (b"PLYR", 0x915),
+        (b"REFR", 0x916),
+    ]
+    .into_iter()
+    .flat_map(|(kind, raw)| disk(kind, raw, 0, 15, &[]))
+    .collect();
+    fs::write(
+        directory.path().join("FalloutNV.esm"),
+        [
+            header(&[]),
+            targets(),
+            generic_targets,
+            disk(b"ACRE", 0x910, 0, 9, &core(0x801, 0)),
+            disk(b"ACHR", 0x100, 0, 15, &body),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Patch.esm"),
+        [
+            header(&["FalloutNV.esm"]),
+            disk(b"REFR", 0x916, plugin::DELETED, 16, b"unread"),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut store = source(directory.path(), &["FalloutNV.esm", "Patch.esm"]);
+    let catalogue = Catalogue::load(&mut store, Limits::default()).unwrap();
+    let definition = catalogue
+        .iter()
+        .find(|(key, _)| key.local_id == 0x100)
+        .unwrap()
+        .1;
+    let expected_kinds = [
+        *b"REFR", *b"ACRE", *b"ACHR", *b"PGRE", *b"PMIS", *b"PBEA", *b"PLYR",
+    ];
+    for (index, output) in definition.fields[3..].iter().enumerate() {
+        let Value::LinkedReference {
+            reference,
+            schema_kind_allowed,
+        } = &output.value
+        else {
+            panic!("linked reference")
+        };
+        assert_eq!(output.kind, *b"XLKR");
+        assert_eq!(output.decoded_offset, 50 + index as u32 * 10);
+        assert_eq!(reference.raw_form, raw_targets[index]);
+        if index < 7 {
+            assert_eq!(reference.status, Status::Defined);
+            assert_eq!(
+                reference.target.as_ref().unwrap().kind,
+                expected_kinds[index]
+            );
+            assert_eq!(*schema_kind_allowed, Some(true));
+        } else {
+            assert_eq!(
+                reference.status,
+                [
+                    Status::Null,
+                    Status::Missing,
+                    Status::Defined,
+                    Status::Deleted
+                ][index - 7]
+            );
+            assert_eq!(
+                *schema_kind_allowed,
+                [None, None, Some(false), Some(true)][index - 7]
+            );
+        }
+    }
+    assert_eq!(definition.findings.len(), 13);
+    assert_eq!(
+        definition
+            .findings
+            .iter()
+            .filter(|finding| finding.code == "multiple_placed_linked_reference_fields")
+            .count(),
+        10
+    );
+    assert_eq!(
+        definition
+            .findings
+            .iter()
+            .rev()
+            .take(4)
+            .map(|finding| finding.code)
+            .collect::<Vec<_>>(),
+        [
+            "placement_target_deleted",
+            "multiple_placed_linked_reference_fields",
+            "placement_target_wrong_kind",
+            "multiple_placed_linked_reference_fields"
+        ]
+    );
+    assert!(
+        definition
+            .findings
+            .windows(2)
+            .all(|pair| pair[0].field_decoded_offset <= pair[1].field_decoded_offset)
+    );
+    assert_eq!(catalogue.counts().selected_extra_fields, 11);
+    assert_eq!(catalogue.counts().bindings, 13);
+    assert_eq!(definition.record().unwrap().payload, body);
+    assert!(
+        Catalogue::load(
+            &mut store,
+            Limits {
+                max_bindings: 12,
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(
+        Catalogue::load(
+            &mut store,
+            Limits {
+                max_bindings: 13,
+                ..Default::default()
+            }
+        )
+        .unwrap()
+        .counts()
+        .bindings,
+        13
+    );
+}
+
+#[test]
+fn linked_reference_cycles_keep_master_and_self_identity_across_cache_and_order_changes() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("FalloutNV.esm"),
+        [
+            header(&[]),
+            targets(),
+            disk(
+                b"ACHR",
+                0x100,
+                0,
+                15,
+                &[core(0x800, 0), link(b"XLKR", 0x101)].concat(),
+            ),
+            disk(
+                b"ACHR",
+                0x101,
+                0,
+                15,
+                &[core(0x800, 0), link(b"XLKR", 0x100)].concat(),
+            ),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    for name in ["A.esm", "B.esm"] {
+        fs::write(
+            directory.path().join(name),
+            [
+                header(&["FalloutNV.esm"]),
+                disk(
+                    b"ACHR",
+                    0x0100_0100,
+                    plugin::COMPRESSED,
+                    15,
+                    &[core(0x800, 0), link(b"XLKR", 0x0100_0101)].concat(),
+                ),
+                disk(
+                    b"ACHR",
+                    0x0100_0101,
+                    0,
+                    15,
+                    &[
+                        core(0x800, 0),
+                        link(b"XLKR", 0x0100_0100),
+                        link(b"XLKR", 0x100),
+                    ]
+                    .concat(),
+                ),
+            ]
+            .concat(),
+        )
+        .unwrap();
+    }
+    let cache = tempfile::tempdir().unwrap();
+    let mut observed = Vec::new();
+    for (phase, order) in [
+        ["FalloutNV.esm", "A.esm", "B.esm"],
+        ["FalloutNV.esm", "A.esm", "B.esm"],
+        ["FalloutNV.esm", "B.esm", "A.esm"],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut store = RecordStore::open_nv_headers_cached(
+            directory.path(),
+            &order.iter().map(|name| (*name).into()).collect::<Vec<_>>(),
+            plugin::Limits::default(),
+            cache.path(),
+        )
+        .unwrap();
+        assert!(
+            store
+                .index_cache_report()
+                .unwrap()
+                .plugins
+                .iter()
+                .all(|receipt| receipt.reused == (phase != 0))
+        );
+        let catalogue = Catalogue::load(&mut store, Limits::default()).unwrap();
+        assert_eq!(catalogue.counts().records, 6);
+        assert_eq!(catalogue.counts().bindings, 14);
+        for (key, definition) in catalogue.iter() {
+            let Value::LinkedReference {
+                reference,
+                schema_kind_allowed,
+            } = &definition.fields[3].value
+            else {
+                panic!("link")
+            };
+            assert_eq!(*schema_kind_allowed, Some(true));
+            assert_eq!(reference.status, Status::Defined);
+            assert_eq!(
+                reference.key.as_ref().unwrap().origin_plugin,
+                key.origin_plugin
+            );
+            assert_eq!(
+                reference
+                    .target
+                    .as_ref()
+                    .unwrap()
+                    .source_plugin
+                    .to_lowercase(),
+                key.origin_plugin
+            );
+            assert_eq!(
+                reference.key.as_ref().unwrap().local_id,
+                if key.local_id == 0x100 { 0x101 } else { 0x100 }
+            );
+            if key.origin_plugin != "falloutnv.esm" && key.local_id == 0x101 {
+                let Value::LinkedReference { reference, .. } = &definition.fields[4].value else {
+                    panic!("master link")
+                };
+                assert_eq!(
+                    reference.key.as_ref().unwrap().origin_plugin,
+                    "falloutnv.esm"
+                );
+                assert_eq!(
+                    reference.target.as_ref().unwrap().source_plugin,
+                    "FalloutNV.esm"
+                );
+                assert_eq!(
+                    definition.findings[0].code,
+                    "multiple_placed_linked_reference_fields"
+                );
+                assert_eq!(definition.findings.len(), 1);
+            } else {
+                assert!(definition.findings.is_empty());
+            }
+        }
+        observed.push(
+            serde_json::to_value(
+                catalogue
+                    .iter()
+                    .map(|(_, definition)| definition)
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap(),
+        );
+    }
+    assert_eq!(observed[0], observed[1]);
+    assert_eq!(observed[0], observed[2]);
 }
 
 #[test]

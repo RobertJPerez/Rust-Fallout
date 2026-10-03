@@ -17,16 +17,20 @@ struct Document {
     std::string findings_json(){std::stable_sort(findings.begin(),findings.end(),[](const auto&a,const auto&b){return a.first<b.first;});std::vector<std::string> rows;for(const auto& row:findings)rows.push_back(row.second);return array(rows);}
 };
 static bool finite_word(uint32_t bits){return (bits&0x7f800000)!=0x7f800000;}
+static bool target_kind(const std::string& kind,const std::string& expected){
+    if(expected!="XLKR")return kind==expected;
+    return kind=="REFR"||kind=="ACRE"||kind=="ACHR"||kind=="PGRE"||kind=="PMIS"||kind=="PBEA"||kind=="PLYR";
+}
 static std::string words(const Bytes& data,size_t start,size_t count){std::vector<std::string> rows;for(size_t at=0;at<count;++at)rows.push_back(std::to_string(integer(data,start+at*4,4)));return array(rows);}
 static Document decode(const HeaderIndex& index,const Entry& entry,const Bytes& body,const std::string& kind,uint16_t version,Counts& counts) {
     if(kind=="ACHR"?version!=15:(version!=9&&version!=11&&version!=15))throw std::runtime_error("unsupported placed actor record version");
-    Document result;std::optional<size_t> extended;size_t core_seen[5]{},extra_seen[3]{};
+    Document result;std::optional<size_t> extended;size_t core_seen[5]{},extra_seen[4]{};
     std::string base_field="null",positions="null",rotations="null",scale="null";size_t transform_offset=0;
     const auto finding=[&](size_t offset,const std::string& code){result.findings.push_back({offset,object({{"field_decoded_offset",std::to_string(offset)},{"code",quote(code)}})});++counts.values["source_findings"];};
     const auto binding=[&](uint32_t raw,const std::string& expected,size_t offset){
         if(counts.values["bindings"]>=1000000)throw std::runtime_error("placed actor binding budget");
         const auto target=actor_associations::binding(index,entry.source,raw,counts.binding_counts);++counts.values["bindings"];
-        const std::string allowed=target.kind?(*target.kind==expected?"true":"false"):"null";
+        const std::string allowed=target.kind?(target_kind(*target.kind,expected)?"true":"false"):"null";
         if(target.status=="missing")finding(offset,"placement_target_missing");else if(target.status=="deleted")finding(offset,"placement_target_deleted");else if(allowed=="false")finding(offset,"placement_target_wrong_kind");
         return std::make_pair(target.json,allowed);
     };
@@ -50,13 +54,13 @@ static Document decode(const HeaderIndex& index,const Entry& entry,const Bytes& 
             const auto bits=static_cast<uint32_t>(integer(data,0,4));if(!finite_word(bits)||(bits&0x80000000)||!(bits&0x7fffffff))throw std::runtime_error("invalid placed actor scale");
             scale=object({{"decoded_offset",std::to_string(start)},{"value",std::to_string(bits)}});
         }else if(signature=="XTEL")for(size_t at=4;at<28;at+=4)if(!finite_word(static_cast<uint32_t>(integer(data,at,4))))throw std::runtime_error("nonfinite placed actor teleport");
-        int selected=-1;if(signature=="XEZN")selected=0;else if(signature=="XMRC")selected=1;else if(signature=="XLCM")selected=2;
+        int selected=-1;if(signature=="XEZN")selected=0;else if(signature=="XMRC")selected=1;else if(signature=="XLCM")selected=2;else if(signature=="XLKR")selected=3;
         std::string value=object({{"kind",quote("opaque")}});
         if(selected>=0){
             if(size!=4)throw std::runtime_error("unsupported placed actor extra extent");
-            if(++extra_seen[selected]>1){const char* codes[]{"multiple_placed_encounter_zone_fields","multiple_placed_merchant_fields","multiple_placed_level_modifier_fields"};finding(start,codes[selected]);}
+            if(++extra_seen[selected]>1){const char* codes[]{"multiple_placed_encounter_zone_fields","multiple_placed_merchant_fields","multiple_placed_level_modifier_fields","multiple_placed_linked_reference_fields"};finding(start,codes[selected]);}
             if(selected==2)value=object({{"kind",quote("level_modifier")},{"modifier",actor_classes::signed_word(integer(data,0,4),32)}});
-            else{const auto target=binding(static_cast<uint32_t>(integer(data,0,4)),selected==0?"ECZN":"REFR",start);value=object({{"kind",quote(selected==0?"encounter_zone":"merchant_container")},{selected==0?"zone":"container",target.first},{"schema_kind_allowed",target.second}});}
+            else{const auto target=binding(static_cast<uint32_t>(integer(data,0,4)),selected==0?"ECZN":selected==1?"REFR":"XLKR",start);value=object({{"kind",quote(selected==0?"encounter_zone":selected==1?"merchant_container":"linked_reference")},{selected==0?"zone":selected==1?"container":"reference",target.first},{"schema_kind_allowed",target.second}});}
             ++counts.values["selected_extra_fields"];++counts.layouts[signature+":"+std::to_string(size)];
         }
         result.fields.push_back(object({{"kind",bytes(body,start,start+4)},{"decoded_offset",std::to_string(start)},{"bytes",std::to_string(size)},{"sha256",quote(fallout_tables::hash(data))},{"value",value}}));++counts.values["fields"];

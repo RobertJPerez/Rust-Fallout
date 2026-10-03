@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "3265e7cb9bbb6353ad6092a2f4c2bdd6fb2f8385",
-  "revision_note": "Checkpoint 32 binds authored leveled-list fields and bounded structural inventory graphs to its implementation revision; earlier entries retain their own revisions and scopes.",
+  "last_verified_revision": "d401473c6e43d4bc9b03edc0554998c4254ff1cc",
+  "revision_note": "Checkpoint 33 binds canonical item engineering, original source identities and independent container integrity to its implementation revision; earlier entries keep their own revisions/scopes.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1484,6 +1484,31 @@
       ],
       "tolerance": "Exact independent source/graph facts; different iterative SCC algorithms; seven source/planning and two graph tests; cold/warm/reordered cyclic fixtures and fourteen malformed cases; no gameplay acceptance",
       "last_verified_revision": "3265e7cb9bbb6353ad6092a2f4c2bdd6fb2f8385"
+    },
+    {
+      "id": "fnv.runtime.canonical-item-state",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "inventory-runtime",
+      "requirement": "Preserve explicit item identities, quantities and optional facts through atomic host mutations, exact indexed queries and canonical/native restoration.",
+      "evidence": [
+        "reports/checkpoint-33-item-state.json",
+        "reports/checkpoint-33-verification.json",
+        "docs/item-runtime-state.md"
+      ],
+      "affected_content": "Three independently checked original item identities; explicit engineering item banks plus all compiled script state",
+      "status": "unit-tested",
+      "tests": [
+        "crates/fallout-runtime/tests/items.rs",
+        "fallout-evidence --checkpoint 33"
+      ],
+      "known_gaps": [
+        "Original inventory initialization, deltas, admission, stacking and leveled expansion",
+        "Native GetItemCount/condition adapters and numeric coercion",
+        "Equipment/ownership/ammo/modification behavior and lifecycle callbacks",
+        "Complete world saves, native-envelope migration and Bethesda save compatibility"
+      ],
+      "tolerance": "Fourteen tests including 2000 deterministic mutations checked against canonical sums; exact facts, full cold query traces and owned worker capture; independent checks cover source identities/container integrity only",
+      "last_verified_revision": "d401473c6e43d4bc9b03edc0554998c4254ff1cc"
     }
   ]
 }

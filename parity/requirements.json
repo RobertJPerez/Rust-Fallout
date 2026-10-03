@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "ee0c67bb3b019bc316c22abd75e32b996508a586",
-  "revision_note": "Checkpoint 37 binds initial census publication protection and a fresh complete shared-query/source/runtime regression; older entries and registries keep their own explicit revisions.",
+  "last_verified_revision": "05d782c74bf9c363c49ae4ea9b8a0b2d2dd4db50",
+  "revision_note": "Checkpoint 38 binds ordered source form lists, structural graph/cache/malformed comparisons and a complete fresh source/query/runtime regression. Older registry and ledger rows retain their scoped revisions.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1607,6 +1607,33 @@
       ],
       "tolerance": "Five real filesystem/writer tests; actual seven-output bootstrap preserves all current metadata and input bytes; exclusive directory/file creation rejects occupied targets",
       "last_verified_revision": "ee0c67bb3b019bc316c22abd75e32b996508a586"
+    },
+    {
+      "id": "fnv.content.form-lists",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "content-loading",
+      "requirement": "Retain winning authored FLST physical fields and ordered member occurrences, exact master-relative bindings, whole overrides/tombstones and bounded structural dependencies.",
+      "evidence": [
+        "reports/checkpoint-38-form-lists.json",
+        "reports/checkpoint-38-verification.json",
+        "docs/form-lists.md",
+        "sources.lock.json"
+      ],
+      "affected_content": "608 winning FLST records / 6,090 authored members in the pinned inspection order",
+      "status": "oracle-tested",
+      "tests": [
+        "fallout-data form_lists::tests",
+        "fallout-data graph::tests",
+        "form-list-oracle",
+        "fallout-evidence --checkpoint 38"
+      ],
+      "known_gaps": [
+        "Original GetItemCount expansion and argument/return coercion",
+        "Runtime list mutation, script-added members, list lifetime and persistence",
+        "Effective retail profile, VM execution and measured gameplay comparisons"
+      ],
+      "tolerance": "Exact original field/hash/binding/edge/SCC equality; authored cold/warm and changed-source checks; ten malformed cases rejected by both readers; no list expansion or accepted gameplay",
+      "last_verified_revision": "05d782c74bf9c363c49ae4ea9b8a0b2d2dd4db50"
     }
   ]
 }

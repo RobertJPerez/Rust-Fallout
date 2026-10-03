@@ -268,6 +268,9 @@ enum Command {
         /// Explicit identity already present in the engineering world.
         #[arg(long)]
         player_id: Option<u64>,
+        /// Prepare immutable source plans once and reuse them across events.
+        #[arg(long)]
+        prepared_sources: bool,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -885,12 +888,14 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             player_id,
+            prepared_sources,
         } => {
             let report = event_operand_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 player_id,
+                prepared_sources,
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
             if report["prepared_probes"] != report["pending_events_checked"]

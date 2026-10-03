@@ -7,6 +7,7 @@ use crate::{
     foreign::{self, Content},
     identity::{CampaignId, InstanceId, ReferenceId, ReferenceValue, Value},
     preparation,
+    programs::PreparedSources,
     schema::{Kind, Local},
 };
 use fallout_data::{
@@ -19,6 +20,20 @@ use serde::Serialize;
 pub struct Limits {
     pub preparation: preparation::Limits,
     pub maximum_uses: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CachedLimits {
+    pub maximum_event_instructions: usize,
+    pub maximum_uses: usize,
+}
+impl Default for CachedLimits {
+    fn default() -> Self {
+        Self {
+            maximum_event_instructions: 262_144,
+            maximum_uses: 262_144,
+        }
+    }
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -137,6 +152,30 @@ impl World<'_> {
     ) -> Result<Probe, Error> {
         content.validate_world(self)?;
         let frame = self.prepare_event(sequence, model, signatures, limits.preparation)?;
+        self.probe_prepared_operands(frame, content, player, limits.maximum_uses)
+    }
+
+    pub fn probe_event_operands_with_sources(
+        &self,
+        sequence: u64,
+        sources: &PreparedSources<'_>,
+        content: &Content,
+        player: Option<ReferenceId>,
+        limits: CachedLimits,
+    ) -> Result<Probe, Error> {
+        content.validate_world(self)?;
+        let frame =
+            self.prepare_event_with_sources(sequence, sources, limits.maximum_event_instructions)?;
+        self.probe_prepared_operands(frame, content, player, limits.maximum_uses)
+    }
+
+    fn probe_prepared_operands(
+        &self,
+        frame: preparation::PreparedEvent<'_>,
+        content: &Content,
+        player: Option<ReferenceId>,
+        maximum_uses: usize,
+    ) -> Result<Probe, Error> {
         let instructions = frame.instructions();
         let begin = instructions
             .first()
@@ -150,7 +189,7 @@ impl World<'_> {
             if !(begin..end).contains(&binding.scda_offset) {
                 continue;
             }
-            if operands.len() >= limits.maximum_uses {
+            if operands.len() >= maximum_uses {
                 return Err(Error::Capacity);
             }
             // Keep binder occurrence order, including repeated uses. Sorting or
@@ -167,9 +206,7 @@ impl World<'_> {
             catalogue_sha256: self.catalogue_fingerprint().into(),
             pending: frame.pending().clone(),
             definition: frame.source().handle().clone(),
-            full_definition_binding_sha256: fallout_data::obscript::operand_binding::digest(
-                &frame.source().bindings().uses,
-            ),
+            full_definition_binding_sha256: frame.binding_sha256().into_owned(),
             begin_scda_offset: begin,
             end_scda_offset: end,
             operands,

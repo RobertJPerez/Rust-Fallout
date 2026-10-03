@@ -3,12 +3,14 @@
 use crate::{
     World,
     events::{Pending, Trigger},
+    programs::{self, PreparedDefinition, PreparedSources},
     state::Instance,
 };
 use fallout_data::obscript::{
     Instruction, argument_census::Signatures, control_flow::Event, definition_plan,
     expression_plan::Model,
 };
+use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -39,6 +41,21 @@ pub enum Error {
     State(#[from] crate::Error),
     #[error(transparent)]
     Source(#[from] definition_plan::Error),
+    #[error(transparent)]
+    CachedSource(#[from] programs::LookupError),
+}
+
+enum Source<'a> {
+    Fresh(Box<definition_plan::Plan<'a>>),
+    Prepared(&'a PreparedDefinition<'a>),
+}
+impl<'a> Source<'a> {
+    fn plan(&self) -> &definition_plan::Plan<'a> {
+        match self {
+            Self::Fresh(plan) => plan,
+            Self::Prepared(prepared) => prepared.plan(),
+        }
+    }
 }
 
 /// The frame borrows the world so its instance, context and source cannot change
@@ -46,7 +63,7 @@ pub enum Error {
 pub struct PreparedEvent<'a> {
     pending: &'a Pending,
     instance: &'a Instance,
-    source: definition_plan::Plan<'a>,
+    source: Source<'a>,
     selected: Event,
 }
 impl<'a> PreparedEvent<'a> {
@@ -57,26 +74,54 @@ impl<'a> PreparedEvent<'a> {
         self.instance
     }
     pub fn source(&self) -> &definition_plan::Plan<'a> {
-        &self.source
+        self.source.plan()
+    }
+    pub fn binding_sha256(&self) -> Cow<'_, str> {
+        match &self.source {
+            Source::Fresh(plan) => Cow::Owned(fallout_data::obscript::operand_binding::digest(
+                &plan.bindings().uses,
+            )),
+            Source::Prepared(prepared) => Cow::Borrowed(prepared.binding_sha256()),
+        }
     }
     pub fn selected(&self) -> &Event {
         &self.selected
     }
     /// Source order includes both delimiters. It does not choose VM successors.
     pub fn instructions(&self) -> &[Instruction<'a>] {
-        &self.source.control().instructions()
+        &self.source().control().instructions()
             [self.selected.begin_instruction..=self.selected.end_instruction]
     }
 }
 
+fn select<'a>(
+    pending: &'a Pending,
+    instance: &'a Instance,
+    source: Source<'a>,
+    event_id: u16,
+    begin_byte_offset: u32,
+    maximum_event_instructions: usize,
+) -> Result<PreparedEvent<'a>, Error> {
+    let selected = source
+        .plan()
+        .event_at_scda_offset(begin_byte_offset as usize)
+        .filter(|event| event.event_id == event_id)
+        .ok_or(Error::EventBlockChanged)?
+        .clone();
+    let instruction_count = selected.end_instruction - selected.begin_instruction + 1;
+    if instruction_count > maximum_event_instructions {
+        return Err(Error::Capacity);
+    }
+    Ok(PreparedEvent {
+        pending,
+        instance,
+        source,
+        selected,
+    })
+}
+
 impl World<'_> {
-    pub fn prepare_event(
-        &self,
-        sequence: u64,
-        model: &Model<'_>,
-        signatures: &Signatures,
-        limits: Limits,
-    ) -> Result<PreparedEvent<'_>, Error> {
+    fn pending_source(&self, sequence: u64) -> Result<(&Pending, &Instance, u16, u32), Error> {
         // Sequence order is checked on restore and preserved by enqueue/acknowledge.
         // Binary search also works when the deque's allocation has wrapped.
         let index = self
@@ -93,6 +138,16 @@ impl World<'_> {
         };
         let instance = self.instance(self.handle(pending.instance)?)?;
         self.validate_context(&pending.context)?;
+        Ok((pending, instance, event_id, begin_byte_offset))
+    }
+    pub fn prepare_event(
+        &self,
+        sequence: u64,
+        model: &Model<'_>,
+        signatures: &Signatures,
+        limits: Limits,
+    ) -> Result<PreparedEvent<'_>, Error> {
+        let (pending, instance, event_id, begin_byte_offset) = self.pending_source(sequence)?;
         let source = definition_plan::prepare(
             self.catalogue(),
             instance.definition(),
@@ -100,20 +155,33 @@ impl World<'_> {
             signatures,
             limits.source,
         )?;
-        let selected = source
-            .event_at_scda_offset(begin_byte_offset as usize)
-            .filter(|event| event.event_id == event_id)
-            .ok_or(Error::EventBlockChanged)?
-            .clone();
-        let instruction_count = selected.end_instruction - selected.begin_instruction + 1;
-        if instruction_count > limits.maximum_event_instructions {
-            return Err(Error::Capacity);
-        }
-        Ok(PreparedEvent {
+        select(
             pending,
             instance,
-            source,
-            selected,
-        })
+            Source::Fresh(Box::new(source)),
+            event_id,
+            begin_byte_offset,
+            limits.maximum_event_instructions,
+        )
+    }
+    /// The source admission policy was fixed when `sources` was built. This
+    /// call separately bounds its event window and checks current live identity.
+    pub fn prepare_event_with_sources<'a>(
+        &'a self,
+        sequence: u64,
+        sources: &'a PreparedSources<'_>,
+        maximum_event_instructions: usize,
+    ) -> Result<PreparedEvent<'a>, Error> {
+        sources.validate_world(self)?;
+        let (pending, instance, event_id, begin_byte_offset) = self.pending_source(sequence)?;
+        let source = sources.get(instance.definition())?;
+        select(
+            pending,
+            instance,
+            Source::Prepared(source),
+            event_id,
+            begin_byte_offset,
+            maximum_event_instructions,
+        )
     }
 }

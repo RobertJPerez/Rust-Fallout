@@ -2,6 +2,7 @@ mod argument_inspection;
 mod collision;
 mod command_catalogue;
 mod condition_inspection;
+mod dialogue_inspection;
 mod expression_inspection;
 mod narrative_inspection;
 mod operand_inspection;
@@ -66,6 +67,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Index winning INFO records by authored topic-child group membership.
+    DialogueMembership {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+    },
     /// Preserve authored quest/dialogue sections and condition/script ownership.
     Narrative {
         #[arg(long)]
@@ -380,6 +390,30 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::DialogueMembership {
+            install,
+            load_order,
+            index_cache,
+        } => {
+            let report =
+                dialogue_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            let counts = &report["membership"]["counts"];
+            let failures = [
+                "missing_parents",
+                "null_parents",
+                "missing_topics",
+                "deleted_topics",
+                "wrong_topic_kinds",
+            ]
+            .into_iter()
+            .map(|key| counts[key].as_u64().unwrap_or(0))
+            .sum::<u64>();
+            let failed = failures != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("dialogue membership has unresolved topic links; see report".into());
+            }
+        }
         Command::Narrative {
             install,
             defer_unrelated_payloads,

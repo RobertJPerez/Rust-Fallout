@@ -189,3 +189,13 @@ all source fields and owners. Two short quest headers and eighteen orphaned shar
 infos are retained; xEdit's after-load cleanup and default insertion are not applied.
 This is schema evidence, not verified retail selection or timing. See
 [narrative structure](narrative-structure.md).
+
+Checkpoint 23 reads the selected xEdit group-label formatting implementation:
+group 7 is topic children and its label is a source FormID. Original offline C++
+now independently reads original plugin headers, master tables and parent group
+contexts, rebuilds canonical whole-record winners and compares all metadata
+and winning INFO memberships. Its write-denying source handles stay open during
+inspection. Payloads other than TES4 remain deferred; retail INFO ordering and
+record-specific override behavior remain open. Index cache format v2 has fresh
+cold/warm, corruption and selected-cell regression evidence. See
+[dialogue membership](dialogue-membership.md).

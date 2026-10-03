@@ -4,6 +4,7 @@ mod argument_evidence;
 mod binding_evidence;
 mod catalogue_evidence;
 mod condition_evidence;
+mod dialogue_evidence;
 mod expression_evidence;
 mod height_evidence;
 mod index_evidence;
@@ -41,7 +42,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=22))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=23))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -371,6 +372,12 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let record_oracle = root.join("local/record-oracle-build/Release/record-oracle.exe");
+    let record_digest = if args.checkpoint == 23 {
+        Some(digest(&record_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -526,6 +533,17 @@ fn run(args: Args) -> Result<()> {
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
             },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let dialogue_evidence = if args.checkpoint == 23 {
+        Some(dialogue_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &record_oracle,
             &args.install,
         )?)
     } else {
@@ -712,6 +730,9 @@ fn run(args: Args) -> Result<()> {
         || binding_digest
             .as_ref()
             .is_some_and(|expected| digest(&binding_oracle).as_ref().ok() != Some(expected))
+        || record_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&record_oracle).as_ref().ok() != Some(expected))
         || narrative_digest
             .as_ref()
             .is_some_and(|expected| digest(&narrative_oracle).as_ref().ok() != Some(expected))
@@ -904,6 +925,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut dialogue) = dialogue_evidence {
+        dialogue["checkpoint"] = args.checkpoint.into();
+        dialogue["engine_revision"] = revision.clone().into();
+        dialogue["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["dialogue_membership"] = dialogue.clone();
+        verification["record_oracle_binary_sha256"] = record_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; not reexecuted in this header/membership checkpoint; selected-cell cache regression freshly compared".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "dialogue-membership"),
+            dialogue,
         ));
     } else if let Some(mut narrative) = narrative_evidence {
         narrative["checkpoint"] = args.checkpoint.into();

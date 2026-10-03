@@ -5,7 +5,7 @@ open hashes each plugin through a retained read-only source handle, then verifie
 the cache manifest, encoded length, payload digest and bounded metadata format.
 Record bodies still go through the ordinary strict on-demand reader.
 
-The first real-data run stores 629,788 record definitions from all ten official
+Checkpoint 08's first real-data run stores 629,788 record definitions from all ten official
 plugins in 30,289,643 encoded bytes. The second run reuses all ten entries.
 Both reproduce all selected Doc Mitchell fields: 435 references, 222 bases and
 zero selected integrity/link failures. Their selected fields also match the earlier
@@ -52,11 +52,15 @@ fail through the existing resolver.
 
 ## Format and limits
 
-FNVHIDX version 1 is an application cache format, not a Bethesda format. Its
+FNVHIDX version 2 is an application cache format, not a Bethesda format. Its
 20-byte prefix identifies the format, version, record count and summary size.
 The bounded JSON summary retains the selected census and script-reference metadata.
-Record entries store a 32-byte header projection, three tagged parent values and an
+Record entries store a 32-byte header projection, four tagged parent values (topic, world, cell and child group) and an
 optional editor ID. Raw parent labels remain local to the source plugin.
+Checkpoint 23 adds the topic value and changes the transform identity to v2.
+Older v1 bytes are rejected by the new decoder; their existing artifacts stay
+separate. Current byte counts and fresh cell/membership comparisons are in
+[dialogue membership](dialogue-membership.md).
 
 Maximum encoded input is 128 MiB per plugin, summary input is 1 MiB and an editor
 ID is at most 4,096 bytes. Before allocating the record array, the decoder checks

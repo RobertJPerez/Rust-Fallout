@@ -22,6 +22,13 @@ pub struct Location {
     pub(crate) record: usize,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct SourceReceipt {
+    pub source_name: String,
+    pub source_bytes: u64,
+    pub source_sha256: String,
+}
+
 pub struct RecordStore {
     // Windows write-denying handles stay open from indexing through the last read.
     files: Vec<File>,
@@ -33,6 +40,14 @@ pub struct RecordStore {
 }
 
 impl RecordStore {
+    pub fn winner(&self, key: &FormKey) -> Option<Location> {
+        self.winners.get(key).copied()
+    }
+
+    pub fn winning_definitions(&self) -> impl Iterator<Item = (&FormKey, Location)> {
+        self.winners.iter().map(|(key, location)| (key, *location))
+    }
+
     pub fn indices(&self) -> &[PluginIndex] {
         &self.indices
     }
@@ -154,7 +169,7 @@ impl RecordStore {
                 .map(|(name, source, key)| name.map(|name| (name, source, key)))
                 .collect::<Result<_>>()?;
             Some(index_cache::Report {
-                format: "nv-header-index-v1",
+                format: "nv-header-index-v2",
                 source_bytes_hashed,
                 ordered_source_sha256: format!(
                     "{:x}",
@@ -243,17 +258,35 @@ impl RecordStore {
 
     /// Provenance uses the same retained, write-denying handle as indexed reads.
     /// Hash at most once per source, reusing a digest already obtained for caching.
+    pub fn source_receipts(&mut self) -> Result<Vec<SourceReceipt>> {
+        let mut receipts = Vec::with_capacity(self.indices.len());
+        for index in 0..self.indices.len() {
+            let hash = self.plugin_digest(index)?;
+            let source = &self.indices[index].census;
+            receipts.push(SourceReceipt {
+                source_name: source.name.clone(),
+                source_bytes: source.source_bytes,
+                source_sha256: hash,
+            });
+        }
+        Ok(receipts)
+    }
+
     pub fn source_digest(&mut self, location: Location) -> Result<String> {
-        if let Some(digest) = self.source_digests.get(&location.plugin) {
+        self.plugin_digest(location.plugin)
+    }
+
+    fn plugin_digest(&mut self, plugin_index: usize) -> Result<String> {
+        if let Some(digest) = self.source_digests.get(&plugin_index) {
             return Ok(digest.clone());
         }
-        let file = &mut self.files[location.plugin];
-        let name = &self.indices[location.plugin].census.name;
+        let file = &mut self.files[plugin_index];
+        let name = &self.indices[plugin_index].census.name;
         file.seek(SeekFrom::Start(0))
             .map_err(|error| crate::io(name, error))?;
         let (_, digest) =
             crate::baseline::digest_reader(file).map_err(|error| crate::io(name, error))?;
-        self.source_digests.insert(location.plugin, digest.clone());
+        self.source_digests.insert(plugin_index, digest.clone());
         Ok(digest)
     }
 

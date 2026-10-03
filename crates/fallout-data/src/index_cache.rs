@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, mem::size_of, path::Path};
 
 const MAGIC: &[u8; 8] = b"FNVHIDX\0";
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 pub const MAX_BYTES: usize = 128 * 1024 * 1024;
 const MAX_SUMMARY: usize = 1024 * 1024;
 const MAX_EDITOR_ID: usize = 4096;
@@ -44,7 +44,7 @@ pub fn identity(name: &str, digest: String, limits: Limits) -> cache::ArtifactId
         source_sha256: digest,
         path_bytes: name.as_bytes().to_vec(),
         transform_version: format!(
-            "nv-header-index-v1;record={};decoded={};records={};depth={}",
+            "nv-header-index-v2;record={};decoded={};records={};depth={}",
             limits.max_record_bytes,
             limits.max_decoded_bytes,
             limits.max_records,
@@ -93,7 +93,7 @@ pub fn encode(index: &PluginIndex) -> Result<Vec<u8>> {
                 None => 0,
             };
             bytes
-                .checked_add(48 + name)
+                .checked_add(53 + name)
                 .ok_or_else(|| fail("byte size overflow"))
         })?;
     if required > MAX_BYTES {
@@ -115,6 +115,7 @@ pub fn encode(index: &PluginIndex) -> Result<Vec<u8>> {
         bytes.extend(header.revision);
         bytes.extend(header.version.to_le_bytes());
         bytes.extend(header.trailing_bytes);
+        option(&mut bytes, record.parent.topic);
         option(&mut bytes, record.parent.world);
         option(&mut bytes, record.parent.cell);
         option(&mut bytes, record.parent.child_group.map(|v| v as u32));
@@ -178,7 +179,7 @@ pub fn decode(bytes: &[u8], name: &str, source_bytes: u64, limits: Limits) -> Re
     }
     let summary: Summary = serde_json::from_slice(reader.span(summary_size)?)
         .map_err(|e| fail(&format!("summary: {e}")))?;
-    if count as u64 >= limits.max_records || count > (bytes.len() - reader.position) / 48 {
+    if count as u64 >= limits.max_records || count > (bytes.len() - reader.position) / 53 {
         return Err(fail("record count exceeds input or configured budget"));
     }
     let mut owned_left = MAX_OWNED_BYTES
@@ -220,6 +221,7 @@ pub fn decode(bytes: &[u8], name: &str, source_bytes: u64, limits: Limits) -> Re
         }
         end = next;
         let parent = ParentContext {
+            topic: reader.option()?,
             world: reader.option()?,
             cell: reader.option()?,
             child_group: reader.option()?.map(|v| v as i32),

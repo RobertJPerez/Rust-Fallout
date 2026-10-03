@@ -62,6 +62,7 @@ pub struct Definition {
 /// Raw IDs belong to this definition's source plugin, including group labels.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ParentContext {
+    pub topic: Option<u32>,
     pub world: Option<u32>,
     pub cell: Option<u32>,
     pub child_group: Option<i32>,
@@ -299,6 +300,7 @@ fn index_selected(path: &Path, limits: Limits, scope: PayloadScope) -> Result<Pl
                     match group.kind {
                         1 => parent.world = Some(label),
                         6 => parent.cell = Some(label),
+                        7 => parent.topic = Some(label),
                         8..=10 => {
                             if parent.cell != Some(label) {
                                 return Err(malformed(

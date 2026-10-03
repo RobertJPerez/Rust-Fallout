@@ -109,7 +109,12 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    preserves 51,135 records, 176,792 sections and 59,225 script owners. Two short
    quest headers and eighteen orphaned shared-info entries remain diagnostic;
    see [narrative structure](docs/narrative-structure.md). Continue canonical winning
-   record/script identity, INFO parent GRUP membership and loaded target lookup.
+   record/script identity and loaded target lookup. INFO parent GRUP labels and
+   winning topic membership now match a direct original-header reader across
+   all 629,788 definitions. Cache v2 adds the topic parent and retains fresh
+   cold/warm and selected-cell comparisons; see
+   [dialogue membership](docs/dialogue-membership.md). Retail INFO order, script
+   identity/versioning and foreign declaration lookup remain unfinished.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

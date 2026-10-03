@@ -38,6 +38,8 @@ pub struct TerrainReport {
     pub link_failures: usize,
     pub runtime_ready: bool,
     pub unknown: Vec<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub texture_dependencies: Option<super::textures::Report>,
 }
 
 fn entry(
@@ -45,6 +47,16 @@ fn entry(
     key: FormKey,
     location: Location,
     cache: Option<(&Path, &Path)>,
+) -> Result<RecordEntry> {
+    entry_bounded(store, key, location, cache, 64 * 1024 * 1024)
+}
+
+pub(super) fn entry_bounded(
+    store: &mut RecordStore,
+    key: FormKey,
+    location: Location,
+    cache: Option<(&Path, &Path)>,
+    maximum: usize,
 ) -> Result<RecordEntry> {
     let header = store.definition(location).header.clone();
     let source_plugin = store.source_name(location).to_owned();
@@ -62,7 +74,7 @@ fn entry(
     if out.header.flags & plugin::DELETED != 0 {
         return Ok(out);
     }
-    let record = store.read(location)?;
+    let record = store.read_bounded(location, maximum)?;
     let fields = decode(&record, &out.source_plugin)?;
     out.decoded_sha256 = Some(format!("{:x}", Sha256::digest(&record.payload)));
     match &fields {
@@ -92,7 +104,21 @@ fn entry(
                 );
             }
         }
-        Fields::Cell(_) => {}
+        Fields::LandTexture(texture) => {
+            if let Some(field) = &texture.texture_set {
+                out.links.insert(
+                    "TNAM".into(),
+                    dependency(store, location, field.value, &[*b"TXST"])?,
+                );
+            }
+            for (i, field) in texture.grasses.iter().enumerate() {
+                out.links.insert(
+                    format!("grass[{i}]"),
+                    dependency(store, location, field.value, &[*b"GRAS"])?,
+                );
+            }
+        }
+        Fields::Cell(_) | Fields::TextureSet(_) => {}
     }
     if let Some((root, source_tree)) = cache {
         // The four-byte record kind tags an offline oracle input. The remaining
@@ -257,6 +283,7 @@ pub fn inspect_cell_key(
         integrity_failures: store.integrity_failures(),
         link_failures,
         runtime_ready: false,
+        texture_dependencies: None,
         unknown: vec![
             "parent worldspace inheritance and editor-default application",
             "height-delta reconstruction, normal interpretation and measured axes/units",

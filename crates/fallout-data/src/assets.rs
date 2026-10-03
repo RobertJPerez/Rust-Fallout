@@ -62,6 +62,14 @@ impl ArchiveAssets {
     }
 
     pub fn read_unique(&self, path: &AssetPath) -> Result<(AssetSource, Vec<u8>)> {
+        self.read_unique_bounded(path, crate::archive::MAX_ASSET_BYTES)
+    }
+
+    pub fn read_unique_bounded(
+        &self,
+        path: &AssetPath,
+        maximum: u64,
+    ) -> Result<(AssetSource, Vec<u8>)> {
         let source = self.mounts.unique(path.bytes())?.ok_or_else(|| {
             Error::Resolution(format!(
                 "missing archive asset: {:?}",
@@ -76,7 +84,7 @@ impl ArchiveAssets {
         if id.index() != source.entry_index {
             return Err(Error::Resolution("archive member identity changed".into()));
         }
-        Ok((source.clone(), archive.read(id)?))
+        Ok((source.clone(), archive.read_bounded(id, maximum)?))
     }
 
     pub fn source_digest(&mut self, source: &AssetSource) -> Result<&str> {

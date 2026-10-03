@@ -4,6 +4,7 @@ mod height_evidence;
 mod index_evidence;
 mod preview_evidence;
 mod terrain_evidence;
+mod texture_evidence;
 
 use clap::Parser;
 use serde::Serialize;
@@ -30,7 +31,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=11))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=12))]
     checkpoint: u8,
 }
 
@@ -236,8 +237,14 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let terrain_oracle = root.join("local/terrain-oracle-build/Release/terrain-oracle.exe");
-    let terrain_digest = if matches!(args.checkpoint, 9..=11) {
+    let terrain_digest = if matches!(args.checkpoint, 9..=12) {
         Some(digest(&terrain_oracle)?)
+    } else {
+        None
+    };
+    let member_oracle = root.join("target/release/archive-member-oracle.exe");
+    let member_digest = if args.checkpoint == 12 {
+        Some(digest(&member_oracle)?)
     } else {
         None
     };
@@ -330,7 +337,7 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
-    let mut terrain_evidence = if matches!(args.checkpoint, 9..=11) {
+    let mut terrain_evidence = if matches!(args.checkpoint, 9..=12) {
         Some(terrain_evidence::run(
             &root,
             &destination,
@@ -341,7 +348,8 @@ fn run(args: Args) -> Result<()> {
                     .as_deref()
                     .ok_or("Missing terrain oracle digest")?,
                 heights: args.checkpoint >= 10,
-                geometry: args.checkpoint == 11,
+                geometry: args.checkpoint >= 11,
+                textures: args.checkpoint == 12,
             },
             &args.install,
             &cli_digest,
@@ -363,6 +371,19 @@ fn run(args: Args) -> Result<()> {
         terrain_evidence
             .as_mut()
             .ok_or("Missing height comparisons")?["supplemental"] = additional;
+    }
+    if let Some(sha) = &member_digest {
+        terrain_evidence
+            .as_mut()
+            .ok_or("Missing texture field evidence")?["texture_dependencies"] =
+            texture_evidence::run(
+                &root,
+                &destination,
+                &cli_path,
+                &member_oracle,
+                &args.install,
+                sha,
+            )?;
     }
     let gpu_evidence = if let Some(sha) = &preview_digest {
         Some(preview_evidence::run(
@@ -412,6 +433,9 @@ fn run(args: Args) -> Result<()> {
         || preview_digest
             .as_ref()
             .is_some_and(|expected| digest(&preview).as_ref().ok() != Some(expected))
+        || member_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&member_oracle).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -462,7 +486,9 @@ fn run(args: Args) -> Result<()> {
             .as_object_mut()
             .ok_or("Verification object missing")?
             .remove("fresh_collision_comparison");
-        let (key, filename) = if args.checkpoint == 11 {
+        let (key, filename) = if args.checkpoint == 12 {
+            ("terrain_textures", "reports/terrain-textures.json")
+        } else if args.checkpoint == 11 {
             ("terrain_geometry", "reports/terrain-geometry.json")
         } else if args.checkpoint == 10 {
             ("terrain_heights", "reports/terrain-heights.json")
@@ -475,6 +501,11 @@ fn run(args: Args) -> Result<()> {
         verification["collision_comparison_reexecuted"] = false.into();
         verification["record_index_cache_evidence_origin_checkpoint"] = 8.into();
         write_json(&root.join(filename), &terrain)?;
+        if args.checkpoint == 12 {
+            verification["archive_member_oracle_binary_sha256"] = member_digest.clone().into();
+            verification["terrain_presentation_evidence_origin_checkpoint"] = 11.into();
+            verification["terrain_presentation_reexecuted"] = false.into();
+        }
     } else if let Some(mut index) = index_evidence {
         index["engine_revision"] = revision.clone().into();
         index["source_snapshot_sha256"] = source["sha256"].clone();

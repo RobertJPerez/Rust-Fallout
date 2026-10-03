@@ -5,9 +5,11 @@ mod inspect;
 pub mod mesh;
 mod schema;
 mod surface;
+pub mod textures;
 pub use surface::{Surface, SurfaceLand, compare_neighbor, reconstruct_cell};
 
 pub use inspect::{RecordEntry, TerrainReport, inspect_cell, inspect_cell_key};
 pub use schema::{
-    AlphaVertex, CellFields, Fields, HeightMap, Landscape, Layer, RawField, Worldspace, decode,
+    AlphaVertex, CellFields, Fields, HeightMap, LandTexture, Landscape, Layer, RawField,
+    TextureSet, Worldspace, decode,
 };

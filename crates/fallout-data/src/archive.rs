@@ -57,17 +57,23 @@ impl NvArchive {
         &self.archive
     }
     pub fn read(&self, id: EntryId) -> Result<Vec<u8>> {
+        self.read_bounded(id, MAX_ASSET_BYTES)
+    }
+
+    /// Check a caller's remaining budget before the backend allocates output.
+    pub fn read_bounded(&self, id: EntryId, maximum: u64) -> Result<Vec<u8>> {
         let name = self.path.to_string_lossy();
         let size = self
             .archive
             .extracted_len_by_id(id)
             .map_err(|e| malformed(&name, 0, e.to_string()))?;
-        if size > MAX_ASSET_BYTES {
+        let maximum = maximum.min(MAX_ASSET_BYTES);
+        if size > maximum {
             return Err(Error::Unsupported(format!(
                 "{} entry {} exceeds the {} byte asset budget",
                 name,
                 id.index(),
-                MAX_ASSET_BYTES
+                maximum
             )));
         }
         let entry = self

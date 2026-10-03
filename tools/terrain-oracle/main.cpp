@@ -103,6 +103,8 @@ static Object empty_fields(const std::string& kind) {
         "image_space", "encounter_zone", "music"};
     else if (kind == "CELL") names = {"editor_id", "full_name", "flags", "grid", "quadrant_flags"};
     else if (kind == "LAND") { names = {"flags", "normals", "heights", "colors"}; out["layers"] = "[]"; }
+    else if (kind == "LTEX") { names = {"editor_id", "icon", "texture_set", "havok", "specular_exponent"}; out["grasses"] = "[]"; }
+    else if (kind == "TXST") { names = {"editor_id", "flags"}; out["paths"] = "[]"; }
     else throw std::runtime_error("unknown record kind");
     for (const auto& name : names) out[name] = "null";
     out["unhandled"] = "[]"; return out;
@@ -183,6 +185,7 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr, std::
     Bytes bytes(tagged.begin() + 4, tagged.end());
     Object out = empty_fields(kind);
     std::vector<std::string> unknown; std::vector<Object> layers;
+    std::vector<std::string> paths(6, "null"), grasses;
     const std::map<std::string, std::string> world_links = {
         {"WNAM", "parent"}, {"CNAM", "climate"}, {"NAM2", "water"}, {"NAM3", "lod_water"},
         {"INAM", "image_space"}, {"XEZN", "encounter_zone"}, {"ZNAM", "music"}};
@@ -205,12 +208,28 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr, std::
             if (out.at(name) != "null") throw std::runtime_error("duplicate " + sig);
             out[name] = field(offset, value);
         };
-        if ((kind == "WRLD" || kind == "CELL") && (sig == "EDID" || sig == "FULL")) {
+        const bool string_field = ((kind == "WRLD" || kind == "CELL") && sig == "FULL")
+            || (kind != "LAND" && sig == "EDID") || (kind == "LTEX" && sig == "ICON");
+        if (string_field) {
             if (count == 0 || bytes[start + count - 1] != 0
                 || std::find(bytes.begin() + start, bytes.begin() + start + count - 1, 0) != bytes.begin() + start + count - 1)
                 throw std::runtime_error("string terminator");
-            set(sig == "EDID" ? "editor_id" : "full_name", byte_array(bytes, start, start + count - 1));
-        } else if (sig == "DATA") {
+            set(sig == "EDID" ? "editor_id" : sig == "ICON" ? "icon" : "full_name", byte_array(bytes, start, start + count - 1));
+        } else if (kind == "LTEX" && (sig == "TNAM" || sig == "HNAM" || sig == "SNAM" || sig == "GNAM")) {
+            require(sig == "HNAM" ? 3 : sig == "SNAM" ? 1 : 4);
+            if (sig == "GNAM") grasses.push_back(field(offset, std::to_string(number(bytes, start, 4))));
+            else set(sig == "TNAM" ? "texture_set" : sig == "HNAM" ? "havok" : "specular_exponent",
+                sig == "HNAM" ? byte_array(bytes, start, start+3) : std::to_string(number(bytes, start, count)));
+        } else if (kind == "TXST" && sig.substr(0,3) == "TX0" && sig[3] >= '0' && sig[3] <= '5') {
+            const size_t slot = sig[3]-'0';
+            if (count < 1 || count > 4097 || bytes[start+count-1] != 0
+                || std::find(bytes.begin()+start, bytes.begin()+start+count-1, 0) != bytes.begin()+start+count-1)
+                throw std::runtime_error("texture path extent or terminator");
+            if (paths[slot] != "null") throw std::runtime_error("duplicate texture slot");
+            paths[slot] = field(offset, byte_array(bytes, start, start+count-1));
+        } else if (kind == "TXST" && sig == "DNAM") {
+            require(2); set("flags", std::to_string(number(bytes,start,2)));
+        } else if ((kind == "WRLD" || kind == "CELL" || kind == "LAND") && sig == "DATA") {
             require(kind == "LAND" ? 4 : 1); set("flags", std::to_string(number(bytes, start, count)));
         } else if (kind == "WRLD" && world_links.count(sig)) {
             require(4); set(world_links.at(sig), std::to_string(number(bytes, start, 4)));
@@ -262,6 +281,8 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr, std::
     if (extended) throw std::runtime_error("orphan XXXX");
     if (geometry && height_at) *geometry = source_mesh(bytes, *height_at, normal_at, color_at);
     out["unhandled"] = array(unknown);
+    if (kind == "TXST") out["paths"] = array(paths);
+    if (kind == "LTEX") out["grasses"] = array(grasses);
     if (kind == "LAND") {
         std::vector<std::string> values; for (const auto& layer : layers) values.push_back(object(layer));
         out["layers"] = array(values);

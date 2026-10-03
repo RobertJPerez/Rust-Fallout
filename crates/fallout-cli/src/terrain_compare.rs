@@ -93,6 +93,12 @@ pub fn compare(
     for entry in std::iter::once(&report.cell)
         .chain(&report.world_chain)
         .chain(&report.landscapes)
+        .chain(
+            report
+                .texture_dependencies
+                .iter()
+                .flat_map(|textures| &textures.records),
+        )
     {
         let Some(fields) = &entry.fields else {
             continue;

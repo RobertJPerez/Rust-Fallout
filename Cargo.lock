@@ -198,6 +198,7 @@ version = "0.1.0"
 dependencies = [
  "ba2",
  "fallout-data",
+ "serde",
  "serde_json",
  "sha2",
 ]

@@ -70,6 +70,14 @@ comparisons certify that reference model only, not measured NV terrain behavior.
 
 ## Reproduce the component builds
 
+Checkpoint 12 consults the pinned xEdit LTEX/TXST and NULL LAND definitions, plus
+the already pinned OpenMW texture-root/default handling as source references.
+Original Rust resolves authored nonnull chains; original C++ projects exact fields.
+The separate ba2 member oracle independently reads selected archive bytes, sharing
+file guards and SHA helpers but no runtime archive parsing. No upstream application
+was run and no implementation was copied into Rust. NULL defaults and texture/blend
+behavior remain unaccepted. Updated notes and source hashes are in the lock file.
+
 Checkpoint 11 consults pinned OpenMW checkerboard diagonals and signed normal
 storage, and verifies xEdit's XCLC land flag byte plus three unused bytes. Original
 Rust/C++ geometry is compared exactly; the separate Bevy adapter renders source

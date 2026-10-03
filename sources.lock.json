@@ -777,7 +777,7 @@
       ],
       "license_status": "GPL-3.0 root license inspected; no implementation copied or linked",
       "build_result": "not built",
-      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied. Checkpoint 10 consults ESM4 height integration, dimensions and source-grid indexing. LAND cpp/hpp carry permissive zlib-style per-file notices; esmterrain.cpp uses the root GPL-3.0 terms. Original Rust/C++ arithmetic only; no upstream implementation copied or linked, no OpenMW application build or retail measurement. Native comparison certifies the pinned height model only. Checkpoint 11 consults checkerboard diagonals and signed normal storage. Original Rust/C++ geometry and Bevy terrain adapter; source normals preserved without reference edge/corner repair. Winding/color space remain inspection choices without retail measurement; no source copy/link.",
+      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied. Checkpoint 10 consults ESM4 height integration, dimensions and source-grid indexing. LAND cpp/hpp carry permissive zlib-style per-file notices; esmterrain.cpp uses the root GPL-3.0 terms. Original Rust/C++ arithmetic only; no upstream implementation copied or linked, no OpenMW application build or retail measurement. Native comparison certifies the pinned height model only. Checkpoint 11 consults checkerboard diagonals and signed normal storage. Original Rust/C++ geometry and Bevy terrain adapter; source normals preserved without reference edge/corner repair. Winding/color space remain inspection choices without retail measurement; no source copy/link. Checkpoint 12 consults texture-root lookup and explicit default-layer handling in the already pinned storage.cpp. Original Rust follows authored nonnull LTEX/TXST paths only; no upstream defaults, blending code or shader implementation copied/applied.",
       "language": "C++ and GLSL source references",
       "license_files": [
         "LICENSE"
@@ -1071,7 +1071,7 @@
       "license_files": [
         "LICENSE"
       ],
-      "notes": "DirectXTex C++, lz4 C, zlib C only in offline comparison graph. Format knowledge not copied implementation.",
+      "notes": "DirectXTex C++, lz4 C, zlib C only in offline comparison graph. Format knowledge not copied implementation. Checkpoint 12 adds a separate selected-member ba2 oracle. It reads explicitly requested original archive member bytes, emitting source/output hashes and sizes. Shared project file guards/hashing are reused, but runtime archive decoding and mount policy are not used by that reader.",
       "test_data_provenance": "Authorized local Steam FNV corpus and original synthetic fixtures; no upstream test assets copied",
       "supported_variants_verified": [
         "FNV BSA v104 in this pinned Steam corpus"
@@ -1270,12 +1270,16 @@
       "license_files": [
         "LICENSE.txt"
       ],
-      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted. Checkpoint 11 verifies XCLC contains one land flag byte plus three unused bytes. The raw trailing word remains preserved, but only its low byte controls inspection hides.",
+      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted. Checkpoint 11 verifies XCLC contains one land flag byte plus three unused bytes. The raw trailing word remains preserved, but only its low byte controls inspection hides. Checkpoint 12 inspects LTEX EDID/ICON/TNAM/HNAM/SNAM/GNAM and TXST EDID/TX00..TX05/DNAM, preserving unknown fields. Shared LAND definitions permit NULL and label the NV default as LDirtWasteland01; default application remains unverified/unimplemented. Original Rust dependency resolver and authored C++ field projection only; xEdit application not run.",
       "test_data_provenance": "No project build/tests performed; source inspection only",
       "supported_variants_verified": [],
       "known_omissions": [
         "Implementation and behavior not audited in this checkpoint"
-      ]
+      ],
+      "texture_reference_file_sha256": {
+        "Core/wbDefinitionsFNV.pas": "89b1420415b858e004429e89a828348a1df71f5c8b199d4ea66e02f0ca41b012",
+        "Core/wbDefinitionsCommon.pas": "e616b6546f6df74d88ec98bb870906db380c985963d011e4931c5726682b7d26"
+      }
     },
     {
       "url": "https://github.com/the-big-mt/SugarBombEngine",

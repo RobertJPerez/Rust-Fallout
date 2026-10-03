@@ -3,7 +3,7 @@ use super::{Result, digest, json_file, run_logged, run_logged_status, write_json
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
 
-const CELLS: &[&str] = &[
+pub(super) const CELLS: &[&str] = &[
     "Goodsprings",
     "GoodspringsSource",
     "TownCenter",
@@ -18,8 +18,7 @@ fn command(
     install: &Path,
     cell: &str,
     output: &Path,
-    heights: bool,
-    geometry: bool,
+    oracle: &OracleRun<'_>,
 ) -> Command {
     let mut command = Command::new(cli);
     command
@@ -33,11 +32,14 @@ fn command(
         .arg(cell)
         .arg("--output")
         .arg(output);
-    if heights {
+    if oracle.heights {
         command.arg("--reconstruct-heights");
     }
-    if geometry {
+    if oracle.geometry {
         command.arg("--inspect-mesh");
+    }
+    if oracle.textures {
+        command.arg("--inspect-textures");
     }
     command
 }
@@ -54,6 +56,9 @@ fn entries(report: &Value) -> Result<Vec<&Value>> {
             .as_array()
             .ok_or("Missing landscapes")?,
     );
+    if let Some(textures) = report["texture_dependencies"]["records"].as_array() {
+        records.extend(textures);
+    }
     Ok(records)
 }
 
@@ -77,6 +82,26 @@ fn selected(report: &Value) -> Result<Value> {
                 .remove("body_cache");
         }
     }
+    if let Some(textures) = object.get_mut("texture_dependencies") {
+        for record in textures["records"]
+            .as_array_mut()
+            .ok_or("Missing texture record array")?
+        {
+            record
+                .as_object_mut()
+                .ok_or("Missing texture entry")?
+                .remove("body_cache");
+        }
+        for asset in textures["assets"]
+            .as_array_mut()
+            .ok_or("Missing texture asset array")?
+        {
+            asset
+                .as_object_mut()
+                .ok_or("Missing texture asset")?
+                .remove("cache");
+        }
+    }
     Ok(report)
 }
 
@@ -85,6 +110,7 @@ pub struct OracleRun<'a> {
     pub sha256: &'a str,
     pub heights: bool,
     pub geometry: bool,
+    pub textures: bool,
 }
 
 pub fn run(
@@ -98,6 +124,10 @@ pub fn run(
     let oracle_sha = oracle.sha256;
     let cache = directory.join("index-cache");
     fs::create_dir(&cache)?;
+    let texture_cache = directory.join("texture-cache");
+    if oracle.textures {
+        fs::create_dir(&texture_cache)?;
+    }
     let mut datasets = Vec::new();
     let mut unique = BTreeSet::new();
     let mut negative = None;
@@ -107,6 +137,7 @@ pub fn run(
     let mut alpha_vertices = 0usize;
     let mut normal_samples = 0usize;
     let mut color_samples = 0usize;
+    let mut source_digests = std::collections::BTreeMap::new();
     for (case, cell) in CELLS.iter().enumerate() {
         let folder = directory.join(cell);
         fs::create_dir(&folder)?;
@@ -114,32 +145,19 @@ pub fn run(
         fs::create_dir(&bodies)?;
         let uncached_path = folder.join("uncached.json");
         run_logged(
-            command(
-                root,
-                cli,
-                install,
-                cell,
-                &uncached_path,
-                oracle.heights,
-                oracle.geometry,
-            ),
+            command(root, cli, install, cell, &uncached_path, &oracle),
             &folder.join("uncached.log"),
         )?;
         let cached_path = folder.join("cached.json");
-        let mut cached_command = command(
-            root,
-            cli,
-            install,
-            cell,
-            &cached_path,
-            oracle.heights,
-            oracle.geometry,
-        );
+        let mut cached_command = command(root, cli, install, cell, &cached_path, &oracle);
         cached_command
             .arg("--index-cache")
             .arg(&cache)
             .arg("--body-cache")
             .arg(&bodies);
+        if oracle.textures {
+            cached_command.arg("--texture-cache").arg(&texture_cache);
+        }
         run_logged(cached_command, &folder.join("cached.log"))?;
         let cached = json_file(&cached_path)?;
         let uncached = json_file(&uncached_path)?;
@@ -173,15 +191,7 @@ pub fn run(
             return Err("Terrain oracle binary identity differs".into());
         }
         let compared_path = folder.join("compared.json");
-        let mut compared_command = command(
-            root,
-            cli,
-            install,
-            cell,
-            &compared_path,
-            oracle.heights,
-            oracle.geometry,
-        );
+        let mut compared_command = command(root, cli, install, cell, &compared_path, &oracle);
         compared_command
             .arg("--index-cache")
             .arg(&cache)
@@ -189,6 +199,9 @@ pub fn run(
             .arg(&bodies)
             .arg("--oracle-report")
             .arg(&oracle_path);
+        if oracle.textures {
+            compared_command.arg("--texture-cache").arg(&texture_cache);
+        }
         run_logged(compared_command, &folder.join("compared.log"))?;
         let compared = json_file(&compared_path)?;
         if selected(&cached)? != selected(&compared)?
@@ -202,6 +215,9 @@ pub fn run(
             return Err("Exterior comparison or acceptance checks failed".into());
         }
         let records = entries(&compared)?;
+        if oracle.textures && compared["texture_dependencies"]["failures"] != 0 {
+            return Err("Texture dependency closure failed".into());
+        }
         if compared["comparison"]["records_compared"] != records.len() {
             return Err("Exterior record count differs".into());
         }
@@ -242,7 +258,13 @@ pub fn run(
             let plugin = record["source_plugin"]
                 .as_str()
                 .ok_or("Missing terrain source")?;
-            if digest(&install.join("Data").join(plugin))? != record["source_sha256"] {
+            if !source_digests.contains_key(plugin) {
+                source_digests.insert(
+                    plugin.to_owned(),
+                    digest(&install.join("Data").join(plugin))?,
+                );
+            }
+            if source_digests[plugin] != record["source_sha256"] {
                 return Err("Selected terrain source changed after inspection".into());
             }
             sources.push(json!({"kind":record["header"]["kind"], "key":record["key"],
@@ -266,9 +288,23 @@ pub fn run(
                 .as_array_mut()
                 .ok_or("Missing oracle rows")?
                 .iter_mut()
-                .find(|row| row["fields"]["heights"].is_object())
+                .find(|row| {
+                    if oracle.textures {
+                        row["fields"]["paths"][0]["value"]
+                            .as_array()
+                            .is_some_and(|p| !p.is_empty())
+                    } else {
+                        row["fields"]["heights"].is_object()
+                    }
+                })
                 .ok_or("No height field for negative check")?;
-            let changed_field = if oracle.geometry {
+            let changed_field = if oracle.textures {
+                let byte = row["fields"]["paths"][0]["value"][0]
+                    .as_u64()
+                    .ok_or("Missing authored path byte")?;
+                row["fields"]["paths"][0]["value"][0] = (byte ^ 1).into();
+                "fields.paths[0].value[0]"
+            } else if oracle.geometry {
                 row["source_mesh"]["indices"]
                     .as_array_mut()
                     .ok_or("Missing mesh indices")?
@@ -290,15 +326,7 @@ pub fn run(
             let altered_path = folder.join("oracle-altered.json");
             write_json(&altered_path, &altered)?;
             let negative_path = folder.join("negative.json");
-            let mut negative_command = command(
-                root,
-                cli,
-                install,
-                cell,
-                &negative_path,
-                oracle.heights,
-                oracle.geometry,
-            );
+            let mut negative_command = command(root, cli, install, cell, &negative_path, &oracle);
             negative_command
                 .arg("--index-cache")
                 .arg(&cache)
@@ -316,7 +344,7 @@ pub fn run(
                 return Err("Altered terrain projection was not rejected".into());
             }
             negative = Some(
-                json!({"changed_field":changed_field, "alteration": if oracle.geometry { "Reverse one triangle's winding" } else { "One binary32 bit" },
+                json!({"changed_field":changed_field, "alteration": if oracle.textures { "One authored texture path byte" } else if oracle.geometry { "Reverse one triangle's winding" } else { "One binary32 bit" },
                 "exit_code":1, "comparison_failed":true, "report_sha256":digest(&negative_path)?}),
             );
         }
@@ -382,6 +410,17 @@ pub fn run(
             "Checkerboard winding, height scale, axes, normals and color-space interpretation have no measured retail acceptance",
             "Authored edge/corner normals remain unchanged; reference engine normal repair is not implemented",
             "Parent inheritance, landscape texture closure and blending, water, props, streaming and physics remain open",
+            "Original effective profiles, archive precedence and known vanilla format exceptions still block M1"
+        ]);
+    }
+    if oracle.textures {
+        summary["checkpoint"] = 12.into();
+        summary["scope"] = "Exact selected WRLD/CELL/LAND/LTEX/TXST fields and source geometry against original C++ projection; authored texture assets and cold/warm cache compared separately".into();
+        summary["known_gaps"] = json!([
+            "Field oracle consumes Rust-decoded plugin bodies; compression and canonical resolution are not independently compared",
+            "Selected archive bytes are compared separately with ba2; no loose-file or retail mount precedence is claimed",
+            "Empty/missing fields are preserved without defaults; parent inheritance and grass asset closure remain open",
+            "Texture pixels, LAND blending, material interpretation and retail rendering acceptance remain unfinished",
             "Original effective profiles, archive precedence and known vanilla format exceptions still block M1"
         ]);
     }

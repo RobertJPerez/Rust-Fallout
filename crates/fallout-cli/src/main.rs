@@ -79,6 +79,11 @@ enum Command {
         /// Inspect source-local mesh geometry; retail topology remains unmeasured.
         #[arg(long, requires = "reconstruct_heights")]
         inspect_mesh: bool,
+        /// Resolve LTEX/TXST records and verify authored texture archive bytes.
+        #[arg(long)]
+        inspect_textures: bool,
+        #[arg(long, requires = "inspect_textures")]
+        texture_cache: Option<PathBuf>,
         /// Compare an explicitly selected cardinal neighbor in the same worldspace.
         #[arg(
             long,
@@ -377,6 +382,8 @@ fn run(args: Args) -> Result<()> {
             oracle_report,
             reconstruct_heights,
             inspect_mesh,
+            inspect_textures,
+            texture_cache,
             neighbor_editor_id,
             neighbor_form,
         } => {
@@ -402,11 +409,22 @@ fn run(args: Args) -> Result<()> {
                     plugin::Limits::default(),
                 )?
             };
-            let report = fallout_data::terrain::inspect_cell(
+            let mut report = fallout_data::terrain::inspect_cell(
                 &mut store,
                 editor_id.as_bytes(),
                 body_root.as_deref().map(|root| (root, install.as_path())),
             )?;
+            if inspect_textures {
+                let mut assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
+                report.texture_dependencies = Some(fallout_data::terrain::textures::inspect(
+                    &mut store,
+                    &report,
+                    &mut assets,
+                    body_root.as_deref().map(|root| (root, install.as_path())),
+                    texture_cache.as_deref(),
+                    fallout_data::terrain::textures::Limits::default(),
+                )?);
+            }
             let comparison = oracle_report
                 .as_deref()
                 .map(|oracle| {
@@ -422,6 +440,10 @@ fn run(args: Args) -> Result<()> {
                 .transpose()?;
             let clean = report.integrity_failures == 0
                 && report.link_failures == 0
+                && report
+                    .texture_dependencies
+                    .as_ref()
+                    .is_none_or(|textures| textures.failures == 0)
                 && comparison.as_ref().is_none_or(|result| result.all_equal);
             let mut value = serde_json::to_value(&report)?;
             if inspect_mesh {

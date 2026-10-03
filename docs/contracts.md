@@ -137,6 +137,13 @@ standalone marker models, evaluate collision flags or change canonical source da
 
 ## Jobs and publication
 
+Terrain texture inspection tightens strict reads to 64 KiB per LTEX/TXST, bounds
+unique records/layers/assets and aggregate extracted bytes, and reads shared paths
+once. It preserves source-local linking and NULL default layers without applying
+unverified defaults. Archive collision policy remains unchanged. Shared safe texture
+normalization is in vfs; NIF callers retain their existing API. See
+[terrain texture dependencies](terrain-textures.md) for budgets and evidence scope.
+
 The optional terrain mesh stage owns at most 1,089 vertices and 6,144 indices.
 It retains local f64 positions, normalized authored normal bits, optional raw colors
 and source identity. XCLC padding does not enter hide flags. The Bevy adapter

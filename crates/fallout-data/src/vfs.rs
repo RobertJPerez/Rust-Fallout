@@ -7,6 +7,21 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct AssetPath(Vec<u8>);
 
+/// Texture fields may be relative to the textures directory or include it.
+/// Preserve authored bytes at the caller; this only creates a safe lookup key.
+pub fn texture_path(raw: &[u8]) -> Result<AssetPath> {
+    if raw.len() > 4096 {
+        return Err(Error::Unsupported("texture path exceeds 4096 bytes".into()));
+    }
+    let path = AssetPath::new(raw)?;
+    if path.bytes().starts_with(b"textures/") {
+        return Ok(path);
+    }
+    let mut rooted = b"textures/".to_vec();
+    rooted.extend(path.bytes());
+    AssetPath::new(&rooted)
+}
+
 impl AssetPath {
     pub fn new(raw: &[u8]) -> Result<Self> {
         if raw.is_empty()

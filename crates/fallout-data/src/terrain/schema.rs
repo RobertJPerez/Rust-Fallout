@@ -93,6 +93,28 @@ pub enum Fields {
     World(Worldspace),
     Cell(CellFields),
     Land(Landscape),
+    LandTexture(LandTexture),
+    TextureSet(TextureSet),
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct LandTexture {
+    pub editor_id: Option<SourceField<Vec<u8>>>,
+    pub icon: Option<SourceField<Vec<u8>>>,
+    pub texture_set: Option<SourceField<u32>>,
+    pub havok: Option<SourceField<[u8; 3]>>,
+    pub specular_exponent: Option<SourceField<u8>>,
+    pub grasses: Vec<SourceField<u32>>,
+    pub unhandled: Vec<RawField>,
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct TextureSet {
+    pub editor_id: Option<SourceField<Vec<u8>>>,
+    /// NV TX00 through TX05. Absence and an authored empty string stay distinct.
+    pub paths: [Option<SourceField<Vec<u8>>>; 6],
+    pub flags: Option<SourceField<u16>>,
+    pub unhandled: Vec<RawField>,
 }
 
 fn size(sub: &Subrecord<'_>, expected: usize, record: &Record, name: &str) -> Result<()> {
@@ -218,12 +240,96 @@ pub fn decode(record: &Record, name: &str) -> Result<Fields> {
         b"WRLD" => world(record, name).map(Fields::World),
         b"CELL" => cell(record, name).map(Fields::Cell),
         b"LAND" => land(record, name).map(Fields::Land),
+        b"LTEX" => land_texture(record, name).map(Fields::LandTexture),
+        b"TXST" => texture_set(record, name).map(Fields::TextureSet),
         _ => Err(malformed(
             name,
             record.header.offset,
-            "expected WRLD, CELL or LAND",
+            "expected WRLD, CELL, LAND, LTEX or TXST",
         )),
     }
+}
+
+fn land_texture(record: &Record, name: &str) -> Result<LandTexture> {
+    let mut out = LandTexture::default();
+    plugin::visit_subrecords(record, name, |sub| {
+        match &sub.kind {
+            b"EDID" => string(&mut out.editor_id, &sub, record, name)?,
+            b"ICON" => string(&mut out.icon, &sub, record, name)?,
+            b"TNAM" => {
+                size(&sub, 4, record, name)?;
+                one(
+                    &mut out.texture_set,
+                    &sub,
+                    u32_at(sub.data, 0),
+                    record,
+                    name,
+                )?;
+            }
+            b"HNAM" => {
+                size(&sub, 3, record, name)?;
+                one(
+                    &mut out.havok,
+                    &sub,
+                    sub.data.try_into().expect("three bytes"),
+                    record,
+                    name,
+                )?;
+            }
+            b"SNAM" => {
+                size(&sub, 1, record, name)?;
+                one(&mut out.specular_exponent, &sub, sub.data[0], record, name)?;
+            }
+            b"GNAM" => {
+                size(&sub, 4, record, name)?;
+                out.grasses.push(SourceField {
+                    decoded_offset: sub.payload_offset,
+                    value: u32_at(sub.data, 0),
+                });
+            }
+            _ => out.unhandled.push(raw(&sub)),
+        }
+        Ok(())
+    })?;
+    Ok(out)
+}
+
+fn texture_set(record: &Record, name: &str) -> Result<TextureSet> {
+    let mut out = TextureSet::default();
+    plugin::visit_subrecords(record, name, |sub| {
+        if &sub.kind[..3] == b"TX0" && (b'0'..=b'5').contains(&sub.kind[3]) {
+            if sub.data.len() > 4097 {
+                return Err(malformed(
+                    name,
+                    record.header.offset,
+                    "TXST path exceeds 4096 bytes",
+                ));
+            }
+            string(
+                &mut out.paths[usize::from(sub.kind[3] - b'0')],
+                &sub,
+                record,
+                name,
+            )?;
+        } else {
+            match &sub.kind {
+                b"EDID" => string(&mut out.editor_id, &sub, record, name)?,
+                b"DNAM" => {
+                    size(&sub, 2, record, name)?;
+                    one(
+                        &mut out.flags,
+                        &sub,
+                        u16::from_le_bytes(sub.data.try_into().expect("two bytes")),
+                        record,
+                        name,
+                    )?;
+                }
+                _ => out.unhandled.push(raw(&sub)),
+            }
+        }
+        Ok(())
+    })?;
+    Ok(out)
 }
 
 fn world(record: &Record, name: &str) -> Result<Worldspace> {

@@ -223,13 +223,21 @@ impl RecordStore {
     }
 
     pub fn read(&mut self, location: Location) -> Result<Record> {
+        self.read_bounded(location, self.limits.max_record_bytes)
+    }
+
+    /// A consumer may tighten the existing strict limits, never relax them.
+    pub fn read_bounded(&mut self, location: Location, maximum: usize) -> Result<Record> {
+        let mut limits = self.limits;
+        limits.max_record_bytes = limits.max_record_bytes.min(maximum);
+        limits.max_decoded_bytes = limits.max_decoded_bytes.min(maximum as u64);
         let index = &self.indices[location.plugin];
         plugin::read_indexed(
             &mut self.files[location.plugin],
             index.census.source_bytes,
             &index.records[location.record].header,
             &index.census.name,
-            self.limits,
+            limits,
         )
     }
 

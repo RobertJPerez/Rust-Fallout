@@ -295,20 +295,7 @@ pub struct TextureReference {
 
 /// Keep the authored bytes alongside lookup normalization. Absolute exporter
 /// paths are reported, never opened or silently trimmed into a different asset.
-pub fn texture_path(raw: &[u8]) -> Result<AssetPath> {
-    if raw.len() > 4096 {
-        return Err(crate::Error::Unsupported(
-            "texture path exceeds 4096 bytes".into(),
-        ));
-    }
-    let path = AssetPath::new(raw)?;
-    if path.bytes().starts_with(b"textures/") {
-        return Ok(path);
-    }
-    let mut rooted = b"textures/".to_vec();
-    rooted.extend(path.bytes());
-    AssetPath::new(&rooted)
-}
+pub use crate::vfs::texture_path;
 
 pub(super) fn resolve(
     scene: &mut Scene,

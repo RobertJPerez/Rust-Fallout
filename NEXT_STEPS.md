@@ -42,6 +42,11 @@ Keep the entire master brief in scope and progress through its dependency gates.
    follow an explicit inspection model; retail comparison, normal repair,
    landscape textures/blending, water, props and streaming remain unfinished.
    Extend full asset dependency closure and record-specific override rules.
+   Checkpoint 12 now follows authored nonnull terrain layers through winning
+   LTEX/TXST records to unique texture archive members, with independent field/byte
+   comparisons and cache verification. See [terrain texture dependencies](docs/terrain-textures.md).
+   Four NULL default layers remain explicit/unapplied; defaults, world inheritance,
+   grass assets/rules and texture pixel/blend behavior still need evidence.
 
 4. Continue NIF payload decoding with remaining scene-node kinds, skinning and
    collision. Sixteen authored collision block types now decode in Rust; the house's

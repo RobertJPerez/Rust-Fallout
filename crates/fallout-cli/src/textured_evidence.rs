@@ -88,7 +88,7 @@ pub fn run(
         )?;
         let report = json_file(&folder.join(format!("{name}.json")))?;
         if report["retail_parity_accepted"] != false {
-            return Err("Preview unexpectedly claims retail acceptance".into());
+            return Err("Preview report must explicitly mark retail parity as unaccepted".into());
         }
         if terrain && (report["vertices"] != 1089 || report["triangles"] != 2048) {
             return Err("Terrain source geometry regression".into());

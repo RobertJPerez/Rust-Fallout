@@ -80,6 +80,7 @@ pub struct CellReport {
     pub coordinates: &'static str,
     pub rendering: &'static str,
     pub runtime_ready: bool,
+    pub retail_parity_accepted: bool,
 }
 
 pub fn load_model(install: &Path, path: &AssetPath) -> Result<(Prepared, Report)> {
@@ -272,6 +273,7 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
         coordinates: "source units; clockwise X then Y then Z; [x,y,z] -> [x,z,-y]; subtract source origin in f64",
         rendering: "unlit static views with source alpha, culling and depth states; model failures and omitted references retained; no retail lighting/effects or collision parity",
         runtime_ready: false,
+        retail_parity_accepted: false,
     };
     Ok((
         Prepared {

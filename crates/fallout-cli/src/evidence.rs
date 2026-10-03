@@ -433,6 +433,15 @@ fn run(args: Args) -> Result<()> {
             )
             .canonicalize()?
                 != args.install.canonicalize()?
+            || Path::new(
+                receipt["load_order"]
+                    .as_str()
+                    .ok_or("Missing launcher load order")?,
+            )
+            .canonicalize()?
+                != root
+                    .join("profiles/nv-inspection-order.json")
+                    .canonicalize()?
         {
             return Err("Manual test launcher configuration differs from GPU fixture".into());
         }

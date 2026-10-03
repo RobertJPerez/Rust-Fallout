@@ -15,6 +15,8 @@ From `G:\Rust-Fallout`, run:
 
 You can also double-click that executable in Explorer. The ignored
 `local/playtest.json` is already configured for this installation and Goodsprings.
+This debug build loads source data before opening its window. Allow a few minutes
+for loading and keep the launcher console open.
 `fallout-playtest.exe --terrain GoodspringsSource` selects another supported cell;
 `--check` validates the configuration without opening a window. The launcher stays
 in Rust and never starts the retail game or changes source data.
@@ -100,7 +102,7 @@ test in this environment. No retail image comparison or accepted scenario is cla
 
 ```powershell
 # Build/commit first, then use a fresh evidence directory.
-.\target\release\fallout-evidence.exe --checkpoint 14 --run-directory .\local\terrain-14-verified --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas'
+.\target\release\fallout-evidence.exe --checkpoint 14 --run-directory .\local\terrain-14-new --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas'
 ```
 
 See [textured GPU evidence](../reports/terrain-textured-preview.json). Earlier

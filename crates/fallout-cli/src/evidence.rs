@@ -3,6 +3,7 @@
 mod argument_evidence;
 mod binding_evidence;
 mod catalogue_evidence;
+mod condition_evidence;
 mod expression_evidence;
 mod height_evidence;
 mod index_evidence;
@@ -39,7 +40,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=20))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=21))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -327,7 +328,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if matches!(args.checkpoint, 16 | 18 | 19 | 20) {
+    let command_digest = if matches!(args.checkpoint, 16 | 18..=21) {
         Some(digest(&command_oracle)?)
     } else {
         None
@@ -354,6 +355,12 @@ fn run(args: Args) -> Result<()> {
     let operand_oracle = root.join("local/operand-oracle-build/Release/operand-oracle.exe");
     let operand_digest = if args.checkpoint == 20 {
         Some(digest(&operand_oracle)?)
+    } else {
+        None
+    };
+    let condition_oracle = root.join("local/condition-oracle-build/Release/condition-oracle.exe");
+    let condition_digest = if args.checkpoint == 21 {
+        Some(digest(&condition_oracle)?)
     } else {
         None
     };
@@ -517,6 +524,18 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let condition_evidence = if args.checkpoint == 21 {
+        Some(condition_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &condition_oracle,
+            &command_oracle,
+            &args.install,
+        )?)
+    } else {
+        None
+    };
     let mut terrain_evidence = if matches!(args.checkpoint, 9..=14) {
         Some(terrain_evidence::run(
             &root,
@@ -675,6 +694,9 @@ fn run(args: Args) -> Result<()> {
         || binding_digest
             .as_ref()
             .is_some_and(|expected| digest(&binding_oracle).as_ref().ok() != Some(expected))
+        || condition_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&condition_oracle).as_ref().ok() != Some(expected))
         || operand_digest
             .as_ref()
             .is_some_and(|expected| digest(&operand_oracle).as_ref().ok() != Some(expected))
@@ -861,6 +883,23 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut conditions) = condition_evidence {
+        conditions["checkpoint"] = args.checkpoint.into();
+        conditions["engine_revision"] = revision.clone().into();
+        conditions["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["condition_fields"] = conditions.clone();
+        verification["condition_oracle_binary_sha256"] = condition_digest.into();
+        verification["command_oracle_binary_sha256"] = command_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this condition field checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "condition-fields"),
+            conditions,
         ));
     } else if let Some(mut bindings) = binding_evidence {
         bindings["checkpoint"] = args.checkpoint.into();

@@ -46,7 +46,8 @@ including 16,320 embedded calls. Arguments and evaluation remain unfinished; see
 exact typed bits across 67,931 calls; see [native arguments](docs/native-arguments.md).
 The operand binder associates 159,111 encoded uses with owning tables; see
 [operand associations](docs/operand-bindings.md). Foreign declarations, reference
-values and command behavior remain unfinished.
+values and command behavior remain unfinished. The condition reader preserves
+all 80,627 original CTDA fields; see [condition fields](docs/condition-fields.md).
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -167,7 +168,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 167 tests pass, including malformed compression, forward/cyclic links,
+- 170 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

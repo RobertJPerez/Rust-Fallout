@@ -101,7 +101,11 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    see [native operands](docs/native-arguments.md). Operand table associations now match independently across 159,111 uses;
    25,560 foreign locals retain deferred target declarations. See
    [operand associations](docs/operand-bindings.md). Continue loaded target lookup,
-   typed conditions, postfix structure and control-flow/behavior evidence.
+   typed quest/dialogue ownership, postfix structure and control-flow/behavior evidence.
+   The condition reader now preserves all 80,627 CTDA fields, including 125 short
+   layouts and two records with unverified fields. See
+   [condition fields](docs/condition-fields.md). Parameters, grouping, subject
+   resolution and query evaluation remain open.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

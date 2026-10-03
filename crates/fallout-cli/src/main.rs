@@ -1,6 +1,7 @@
 mod argument_inspection;
 mod collision;
 mod command_catalogue;
+mod condition_inspection;
 mod expression_inspection;
 mod operand_inspection;
 mod pe_image;
@@ -64,6 +65,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Decode authored condition fields, retaining short layouts and raw parameters.
+    Conditions {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Associate all supported compiled operands with their owning script tables.
     OperandBindings {
         #[arg(long)]
@@ -360,6 +370,25 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::Conditions {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let report = condition_inspection::inspect(
+                &install,
+                defer_unrelated_payloads,
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = !report["unresolved_condition_function_ids"]
+                .as_array()
+                .ok_or("Missing condition links")?
+                .is_empty();
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("condition function metadata has unresolved links; see report".into());
+            }
+        }
         Command::OperandBindings {
             install,
             defer_unrelated_payloads,

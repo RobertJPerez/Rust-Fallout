@@ -174,3 +174,9 @@ association digest. Foreign local declarations remain deferred to loaded target
 scripts; no runtime value or form-existence claim is made. Shared original
 offline table/native helpers retain complete fresh regression comparisons. See
 [operand associations](operand-bindings.md).
+
+Checkpoint 21 reads xEdit's CTDA optional layouts and selected common comparison
+helpers. Original Rust and C++ compare every authored condition field and source
+extent. Short layouts and two records' unexplained fields remain intact; no editor
+migration or condition evaluation is applied. Function parameter meanings and
+record ownership/grouping remain open. See [condition fields](condition-fields.md).

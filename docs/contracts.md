@@ -137,6 +137,13 @@ standalone marker models, evaluate collision flags or change canonical source da
 
 ## Jobs and publication
 
+The optional terrain mesh stage owns at most 1,089 vertices and 6,144 indices.
+It retains local f64 positions, normalized authored normal bits, optional raw colors
+and source identity. XCLC padding does not enter hide flags. The Bevy adapter
+requires a single present surface, rebases before narrowing, and labels its unlit
+color and missing-color choices. Reference topology/normal math remains separate
+from retail acceptance; see [terrain geometry](terrain-geometry.md).
+
 The dry-run planner hashes source content and produces deterministic preparation jobs.
 Job identities include profile, operation, transform revision, source digest, and ordered
 master digests. Reordering directory enumeration or moving the installation does not

@@ -19,6 +19,7 @@ fn command(
     cell: &str,
     output: &Path,
     heights: bool,
+    geometry: bool,
 ) -> Command {
     let mut command = Command::new(cli);
     command
@@ -34,6 +35,9 @@ fn command(
         .arg(output);
     if heights {
         command.arg("--reconstruct-heights");
+    }
+    if geometry {
+        command.arg("--inspect-mesh");
     }
     command
 }
@@ -80,6 +84,7 @@ pub struct OracleRun<'a> {
     pub binary: &'a Path,
     pub sha256: &'a str,
     pub heights: bool,
+    pub geometry: bool,
 }
 
 pub fn run(
@@ -100,6 +105,8 @@ pub fn run(
     let mut height_samples = 0usize;
     let mut layers = 0usize;
     let mut alpha_vertices = 0usize;
+    let mut normal_samples = 0usize;
+    let mut color_samples = 0usize;
     for (case, cell) in CELLS.iter().enumerate() {
         let folder = directory.join(cell);
         fs::create_dir(&folder)?;
@@ -107,11 +114,27 @@ pub fn run(
         fs::create_dir(&bodies)?;
         let uncached_path = folder.join("uncached.json");
         run_logged(
-            command(root, cli, install, cell, &uncached_path, oracle.heights),
+            command(
+                root,
+                cli,
+                install,
+                cell,
+                &uncached_path,
+                oracle.heights,
+                oracle.geometry,
+            ),
             &folder.join("uncached.log"),
         )?;
         let cached_path = folder.join("cached.json");
-        let mut cached_command = command(root, cli, install, cell, &cached_path, oracle.heights);
+        let mut cached_command = command(
+            root,
+            cli,
+            install,
+            cell,
+            &cached_path,
+            oracle.heights,
+            oracle.geometry,
+        );
         cached_command
             .arg("--index-cache")
             .arg(&cache)
@@ -138,7 +161,9 @@ pub fn run(
         let oracle_path = folder.join("oracle.json");
         let mut oracle_command = Command::new(oracle.binary);
         oracle_command.current_dir(root).arg(&bodies);
-        if oracle.heights {
+        if oracle.geometry {
+            oracle_command.arg("--geometry");
+        } else if oracle.heights {
             oracle_command.arg("--heights");
         }
         let raw = run_logged(oracle_command, &folder.join("oracle.log"))?;
@@ -148,8 +173,15 @@ pub fn run(
             return Err("Terrain oracle binary identity differs".into());
         }
         let compared_path = folder.join("compared.json");
-        let mut compared_command =
-            command(root, cli, install, cell, &compared_path, oracle.heights);
+        let mut compared_command = command(
+            root,
+            cli,
+            install,
+            cell,
+            &compared_path,
+            oracle.heights,
+            oracle.geometry,
+        );
         compared_command
             .arg("--index-cache")
             .arg(&cache)
@@ -175,6 +207,30 @@ pub fn run(
         }
         if oracle.heights && compared["comparison"]["height_grids_compared"] != 1 {
             return Err("Exterior fixture did not compare exactly one reconstructed grid".into());
+        }
+        if oracle.geometry && compared["comparison"]["source_meshes_compared"] != 1 {
+            return Err("Exterior fixture did not compare exactly one source mesh".into());
+        }
+        if oracle.geometry {
+            let meshes = compared["source_meshes"]
+                .as_array()
+                .ok_or("Missing source meshes")?;
+            if meshes.len() != 1
+                || meshes[0]["geometry"]["hidden_quadrants"] != 0
+                || meshes[0]["geometry"]["local_positions"]
+                    .as_array()
+                    .map(Vec::len)
+                    != Some(1089)
+                || meshes[0]["geometry"]["indices"].as_array().map(Vec::len) != Some(6144)
+            {
+                return Err("Real geometry fixture is not one complete unhidden grid".into());
+            }
+            normal_samples += meshes[0]["geometry"]["normal_bits"]
+                .as_array()
+                .map_or(0, Vec::len);
+            color_samples += meshes[0]["geometry"]["colors"]
+                .as_array()
+                .map_or(0, Vec::len);
         }
         record_appearances += records.len();
         let mut sources = Vec::new();
@@ -212,7 +268,13 @@ pub fn run(
                 .iter_mut()
                 .find(|row| row["fields"]["heights"].is_object())
                 .ok_or("No height field for negative check")?;
-            let changed_field = if oracle.heights {
+            let changed_field = if oracle.geometry {
+                row["source_mesh"]["indices"]
+                    .as_array_mut()
+                    .ok_or("Missing mesh indices")?
+                    .swap(0, 1);
+                "source_mesh.indices[0,1]"
+            } else if oracle.heights {
                 let bits = row["height_grid"]["height_bits"][1088]
                     .as_u64()
                     .ok_or("Missing derived height bits")?;
@@ -228,8 +290,15 @@ pub fn run(
             let altered_path = folder.join("oracle-altered.json");
             write_json(&altered_path, &altered)?;
             let negative_path = folder.join("negative.json");
-            let mut negative_command =
-                command(root, cli, install, cell, &negative_path, oracle.heights);
+            let mut negative_command = command(
+                root,
+                cli,
+                install,
+                cell,
+                &negative_path,
+                oracle.heights,
+                oracle.geometry,
+            );
             negative_command
                 .arg("--index-cache")
                 .arg(&cache)
@@ -244,10 +313,10 @@ pub fn run(
                     .as_array()
                     .is_none_or(Vec::is_empty)
             {
-                return Err("Altered height field was not rejected".into());
+                return Err("Altered terrain projection was not rejected".into());
             }
             negative = Some(
-                json!({"changed_field":changed_field, "alteration":"One binary32 bit",
+                json!({"changed_field":changed_field, "alteration": if oracle.geometry { "Reverse one triangle's winding" } else { "One binary32 bit" },
                 "exit_code":1, "comparison_failed":true, "report_sha256":digest(&negative_path)?}),
             );
         }
@@ -257,6 +326,13 @@ pub fn run(
             "all_equal":true, "uncached_cached_fields_equal":true, "records":sources,
             "oracle_report_sha256":digest(&oracle_path)?, "compared_report_sha256":digest(&compared_path)?,
             "index_payloads_deferred":compared["index_payloads_deferred"]}));
+        if oracle.geometry {
+            let dataset = datasets.last_mut().ok_or("Missing geometry dataset")?;
+            let mesh = &compared["source_meshes"][0]["geometry"];
+            dataset["normal_samples"] = mesh["normal_bits"].as_array().map_or(0, Vec::len).into();
+            dataset["color_samples"] = mesh["colors"].as_array().map_or(0, Vec::len).into();
+            dataset["hidden_quadrants"] = mesh["hidden_quadrants"].clone();
+        }
     }
     let mut summary = json!({
         "schema_version":1, "checkpoint":9, "release_cli_sha256":cli_sha, "terrain_oracle_binary_sha256":oracle_sha,
@@ -289,6 +365,24 @@ pub fn run(
             "Normal interpretation, meshes, seams correction, blending, textures, water and physics remain open",
             "Known unrelated LAND checksum defect remains strict; other payloads stay deferred",
             "Retail profiles, archive precedence, streaming, navigation, scripts and gameplay remain open"
+        ]);
+    }
+    if oracle.geometry {
+        summary["checkpoint"] = 11.into();
+        summary["source_meshes_compared"] = datasets.len().into();
+        summary["geometry_model"] = fallout_data::terrain::mesh::GEOMETRY_MODEL.into();
+        summary["vertices_compared"] = height_samples.into();
+        summary["normalized_normals_compared"] = normal_samples.into();
+        summary["color_triplets_compared"] = color_samples.into();
+        summary["triangles_compared"] = (datasets.len() * 2048).into();
+        summary["scope"] = "Exact fields, height bits, source-local f64 positions, normalized f32 normal bits, optional color bytes, bounds and unhidden checkerboard indices against original C++ tooling; CELL hide masks tested synthetically; no measured retail topology or normal repair".into();
+        summary["acceptance"] = "Source geometry inspection; GPU captures recorded separately; no gameplay or retail rendering acceptance".into();
+        summary["known_gaps"] = json!([
+            "Independent geometry oracle consumes Rust-decoded bodies; compression and canonical override resolution are outside its scope",
+            "Checkerboard winding, height scale, axes, normals and color-space interpretation have no measured retail acceptance",
+            "Authored edge/corner normals remain unchanged; reference engine normal repair is not implemented",
+            "Parent inheritance, landscape texture closure and blending, water, props, streaming and physics remain open",
+            "Original effective profiles, archive precedence and known vanilla format exceptions still block M1"
         ]);
     }
     Ok(summary)

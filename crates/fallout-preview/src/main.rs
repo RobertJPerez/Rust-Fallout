@@ -3,6 +3,7 @@ mod fixture;
 mod material;
 mod model;
 mod scene;
+mod terrain;
 
 use bevy::{
     app::{AppExit, ScheduleRunnerPlugin},
@@ -28,8 +29,8 @@ use std::{
 };
 
 #[derive(Parser, Resource)]
-#[command(about = "Inspect archived New Vegas models or a placed interior")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "cell", "material_fixture"])))]
+#[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "cell", "terrain", "material_fixture"])))]
 struct Options {
     #[arg(long)]
     install: Option<PathBuf>,
@@ -39,17 +40,20 @@ struct Options {
     /// Interior CELL editor ID, for example GSDocMitchellHouse.
     #[arg(long, requires_all = ["load_order", "install"])]
     cell: Option<String>,
+    /// Exterior terrain CELL editor ID, for example Goodsprings. No gameplay is simulated.
+    #[arg(long, requires_all = ["load_order", "install"])]
+    terrain: Option<String>,
     /// Check synthetic material states on the GPU without reading game assets.
     #[arg(long, requires_all = ["headless", "report"])]
     material_fixture: bool,
-    #[arg(long, requires = "cell")]
+    #[arg(long, requires = "install")]
     load_order: Option<PathBuf>,
     /// Camera position in original source units (x,y,z).
     #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
-        requires_all = ["camera_look_at", "cell"])]
+        requires_all = ["camera_look_at", "load_order"])]
     camera_position: Option<Vec<f64>>,
     #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
-        requires_all = ["camera_position", "cell"])]
+        requires_all = ["camera_position", "load_order"])]
     camera_look_at: Option<Vec<f64>>,
     /// Write a PNG and exit after the GPU capture completes. Existing files are refused.
     #[arg(long)]
@@ -132,6 +136,12 @@ fn run() -> model::Result<AppExit> {
             options.install.as_deref().expect("clap requires install"),
             &AssetPath::new(name.as_bytes())?,
         )?
+    } else if let Some(name) = &options.terrain {
+        terrain::load(
+            options.install.as_deref().expect("clap requires install"),
+            options.load_order.as_deref().expect("clap requires order"),
+            name,
+        )?
     } else {
         scene::load_cell(
             options.install.as_deref().expect("clap requires install"),
@@ -165,6 +175,10 @@ fn run() -> model::Result<AppExit> {
         scene::Report::Fixture(report) => {
             eprintln!("{} synthetic material GPU cases", report.cases.len())
         }
+        scene::Report::Terrain(report) => eprintln!(
+            "{} terrain vertices, {} triangles; {}",
+            report.vertices, report.triangles, report.rendering
+        ),
     }
     eprintln!(
         "Tab: orbit/fly; fly: WASD, Q/E vertical, arrows look, Shift faster; R: reset; Esc: close"
@@ -208,6 +222,7 @@ fn run() -> model::Result<AppExit> {
                         .model
                         .as_deref()
                         .or(options.cell.as_deref())
+                        .or(options.terrain.as_deref())
                         .unwrap_or("synthetic material fixture")
                 ),
                 resolution: (1280, 900).into(),

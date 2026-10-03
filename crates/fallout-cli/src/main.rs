@@ -76,6 +76,9 @@ enum Command {
         /// Convert VHGT using the pinned ESM4 height convention; source fields stay intact.
         #[arg(long)]
         reconstruct_heights: bool,
+        /// Inspect source-local mesh geometry; retail topology remains unmeasured.
+        #[arg(long, requires = "reconstruct_heights")]
+        inspect_mesh: bool,
         /// Compare an explicitly selected cardinal neighbor in the same worldspace.
         #[arg(
             long,
@@ -373,6 +376,7 @@ fn run(args: Args) -> Result<()> {
             body_cache,
             oracle_report,
             reconstruct_heights,
+            inspect_mesh,
             neighbor_editor_id,
             neighbor_form,
         } => {
@@ -412,6 +416,7 @@ fn run(args: Args) -> Result<()> {
                         body_root.as_deref().expect("required body cache"),
                         &install,
                         reconstruct_heights,
+                        inspect_mesh,
                     )
                 })
                 .transpose()?;
@@ -419,6 +424,27 @@ fn run(args: Args) -> Result<()> {
                 && report.link_failures == 0
                 && comparison.as_ref().is_none_or(|result| result.all_equal);
             let mut value = serde_json::to_value(&report)?;
+            if inspect_mesh {
+                let hidden = match &report.cell.fields {
+                    Some(fallout_data::terrain::Fields::Cell(cell)) => {
+                        cell.land_flags().unwrap_or(0)
+                    }
+                    _ => return Err("mesh inspection requires CELL fields".into()),
+                };
+                let mut meshes = Vec::new();
+                for entry in &report.landscapes {
+                    let geometry = match &entry.fields {
+                        Some(fallout_data::terrain::Fields::Land(land))
+                            if land.heights.is_some() =>
+                        {
+                            Some(fallout_data::terrain::mesh::build(land, hidden)?)
+                        }
+                        _ => None,
+                    };
+                    meshes.push(json!({"key":entry.key,"decoded_sha256":entry.decoded_sha256,"geometry":geometry}));
+                }
+                value["source_meshes"] = meshes.into();
+            }
             if reconstruct_heights {
                 let surface = fallout_data::terrain::reconstruct_cell(&report)?;
                 let neighbor = if let Some(neighbor_id) = neighbor_editor_id {

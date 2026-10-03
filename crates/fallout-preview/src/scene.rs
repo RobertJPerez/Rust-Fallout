@@ -41,6 +41,7 @@ pub enum Report {
     Model(model::Report),
     Cell(Box<CellReport>),
     Fixture(crate::fixture::Report),
+    Terrain(Box<crate::terrain::Report>),
 }
 
 #[derive(Serialize)]

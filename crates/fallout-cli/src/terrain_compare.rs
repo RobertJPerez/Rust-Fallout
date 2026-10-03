@@ -21,6 +21,7 @@ pub struct Comparison {
     pub records_compared: usize,
     pub unique_bodies: usize,
     pub height_grids_compared: usize,
+    pub source_meshes_compared: usize,
     pub oracle_report_sha256: String,
     pub oracle_binary_sha256: String,
     pub differences: Vec<Difference>,
@@ -57,6 +58,7 @@ pub fn compare(
     root: &Path,
     source_tree: &Path,
     include_heights: bool,
+    include_geometry: bool,
 ) -> Result<Comparison> {
     let mut bytes = Vec::new();
     baseline::open_source(oracle_path)?
@@ -133,6 +135,16 @@ pub fn compare(
                 } else {
                     None
                 },
+                if include_geometry {
+                    Some(match fields {
+                        fallout_data::terrain::Fields::Land(land) if land.heights.is_some() => {
+                            serde_json::to_value(fallout_data::terrain::mesh::build(land, 0)?)?
+                        }
+                        _ => Value::Null,
+                    })
+                } else {
+                    None
+                },
             ),
         );
         records_compared += 1;
@@ -142,7 +154,8 @@ pub fn compare(
     }
     let mut differences = Vec::new();
     let mut height_grids_compared = 0;
-    for (name, (fields, digest, height_grid)) in &expected {
+    let mut source_meshes_compared = 0;
+    for (name, (fields, digest, height_grid, geometry)) in &expected {
         let row = rows
             .get(name.as_str())
             .ok_or("Terrain oracle omitted a selected body")?;
@@ -160,6 +173,15 @@ pub fn compare(
                 height_grids_compared += 1;
             }
         }
+        if let Some(geometry) = geometry {
+            let actual = row
+                .get("source_mesh")
+                .ok_or("Terrain oracle omitted geometry; run it with --geometry")?;
+            paths(geometry, actual, "source_mesh", &mut differing);
+            if !geometry.is_null() {
+                source_meshes_compared += 1;
+            }
+        }
         if !differing.is_empty() {
             differences.push(Difference {
                 body: name.clone(),
@@ -172,10 +194,11 @@ pub fn compare(
         records_compared,
         unique_bodies: expected.len(),
         height_grids_compared,
+        source_meshes_compared,
         oracle_report_sha256: report_hash,
         oracle_binary_sha256: binary.into(),
         differences,
-        scope: "Exact selected source fields and optional pinned-model reconstructed height bits from tagged strictly decoded bodies; compression, overrides, retail terrain behavior and gameplay are not independently compared",
+        scope: "Exact selected source fields and optional height bits/source-local unhidden mesh against authored C++; CELL hide-mask semantics, compression, overrides, retail terrain behavior and gameplay are not independently compared",
     })
 }
 

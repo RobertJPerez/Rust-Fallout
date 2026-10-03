@@ -36,7 +36,11 @@ Keep the entire master brief in scope and progress through its dependency gates.
    See [exterior inspection](docs/exterior-fields.md). Checkpoint 10 reconstructs
    VHGT under a pinned ESM4 model and diagnoses four Goodsprings boundaries. See
    [terrain heights](docs/terrain-heights.md). Measured retail heights/axes/units,
-   normal interpretation, world-parent inheritance and terrain rendering are open.
+   world-parent inheritance and retail rendering are open. Checkpoint 11 builds
+   source meshes and renders five real terrain cells through the Bevy inspector.
+   See [terrain geometry](docs/terrain-geometry.md). Normals, winding and color space
+   follow an explicit inspection model; retail comparison, normal repair,
+   landscape textures/blending, water, props and streaming remain unfinished.
    Extend full asset dependency closure and record-specific override rules.
 
 4. Continue NIF payload decoding with remaining scene-node kinds, skinning and

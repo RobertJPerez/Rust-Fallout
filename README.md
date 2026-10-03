@@ -16,6 +16,9 @@ fields. See [exterior source inspection](docs/exterior-fields.md) for Goodspring
 and DLC comparisons, source hashes and the remaining terrain work.
 An optional height stage reconstructs LAND grids and diagnoses neighboring cell
 edges while preserving source fields. See [terrain heights](docs/terrain-heights.md).
+The source mesh stage and --terrain preview now display real Goodsprings and DLC
+surfaces with authored normals/colors. See [terrain geometry](docs/terrain-geometry.md)
+for reproduction commands and the unlit inspection scope.
 The inspection view draws 400 of 435 references using shared models and textures.
 It now handles authored untextured materials and source alpha, culling and depth
 states; 62 synthetic GPU checks cover those render states.
@@ -141,7 +144,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 111 synthetic tests pass, including malformed compression, forward/cyclic links,
+- 117 synthetic tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 62 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -153,6 +156,9 @@ record the evidence and its limits:
   629,788 definitions in about 30 MB. Cached and uncached cell fields agree exactly;
   killed publication workers recover without changing sources.
   [Record index caching](docs/record-index-cache.md) records the scope and commands.
+- Six source terrain meshes match original C++ projection exactly: 6,534 positions
+  and normalized normals, 12,288 triangles and 5,445 authored color triplets.
+  Five terrain GPU captures and one interior regression complete the inspection smoke checks.
 
 ## Inspect a real interior and its models
 

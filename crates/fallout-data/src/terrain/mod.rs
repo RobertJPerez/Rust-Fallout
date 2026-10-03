@@ -2,6 +2,7 @@
 //! remain unchanged; interpreting them for rendering/physics is a separate step.
 pub mod heights;
 mod inspect;
+pub mod mesh;
 mod schema;
 mod surface;
 pub use surface::{Surface, SurfaceLand, compare_neighbor, reconstruct_cell};

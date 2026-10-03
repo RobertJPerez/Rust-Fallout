@@ -44,6 +44,14 @@ pub struct CellFields {
     pub unhandled: Vec<RawField>,
 }
 
+impl CellFields {
+    /// XCLC stores one flag byte followed by three unused bytes. Keep the old
+    /// raw word intact for provenance; padding must never become hide flags.
+    pub fn land_flags(&self) -> Option<u8> {
+        self.quadrant_flags.as_ref().map(|field| field.value as u8)
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct HeightMap {
     pub offset_bits: u32,

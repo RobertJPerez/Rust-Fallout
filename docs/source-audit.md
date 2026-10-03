@@ -70,6 +70,13 @@ comparisons certify that reference model only, not measured NV terrain behavior.
 
 ## Reproduce the component builds
 
+Checkpoint 11 consults pinned OpenMW checkerboard diagonals and signed normal
+storage, and verifies xEdit's XCLC land flag byte plus three unused bytes. Original
+Rust/C++ geometry is compared exactly; the separate Bevy adapter renders source
+terrain with authored colors. No upstream implementation is copied/linked or
+application executed. Inspection winding/color space and absent-color presentation
+are not measured retail behavior. Source hashes and limits remain in the lock file.
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\cargo.ps1 build --release --locked -p fallout-cli
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\cargo.ps1 build --release --locked -p archive-compare

@@ -2,6 +2,7 @@
 //! records the commands it actually executes and publishes metadata, never assets.
 mod height_evidence;
 mod index_evidence;
+mod preview_evidence;
 mod terrain_evidence;
 
 use clap::Parser;
@@ -29,7 +30,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=10))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=11))]
     checkpoint: u8,
 }
 
@@ -235,8 +236,14 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let terrain_oracle = root.join("local/terrain-oracle-build/Release/terrain-oracle.exe");
-    let terrain_digest = if matches!(args.checkpoint, 9 | 10) {
+    let terrain_digest = if matches!(args.checkpoint, 9..=11) {
         Some(digest(&terrain_oracle)?)
+    } else {
+        None
+    };
+    let preview = root.join("target/debug/fallout-preview.exe");
+    let preview_digest = if args.checkpoint == 11 {
+        Some(digest(&preview)?)
     } else {
         None
     };
@@ -323,7 +330,7 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
-    let mut terrain_evidence = if matches!(args.checkpoint, 9 | 10) {
+    let mut terrain_evidence = if matches!(args.checkpoint, 9..=11) {
         Some(terrain_evidence::run(
             &root,
             &destination,
@@ -333,7 +340,8 @@ fn run(args: Args) -> Result<()> {
                 sha256: terrain_digest
                     .as_deref()
                     .ok_or("Missing terrain oracle digest")?,
-                heights: args.checkpoint == 10,
+                heights: args.checkpoint >= 10,
+                geometry: args.checkpoint == 11,
             },
             &args.install,
             &cli_digest,
@@ -356,6 +364,17 @@ fn run(args: Args) -> Result<()> {
             .as_mut()
             .ok_or("Missing height comparisons")?["supplemental"] = additional;
     }
+    let gpu_evidence = if let Some(sha) = &preview_digest {
+        Some(preview_evidence::run(
+            &root,
+            &destination,
+            &preview,
+            &args.install,
+            sha,
+        )?)
+    } else {
+        None
+    };
     let baseline_path = destination.join("baseline.json");
     let mut baseline_command = Command::new(&cli_path);
     baseline_command
@@ -390,6 +409,9 @@ fn run(args: Args) -> Result<()> {
         || terrain_digest
             .as_ref()
             .is_some_and(|expected| digest(&terrain_oracle).as_ref().ok() != Some(expected))
+        || preview_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&preview).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -440,7 +462,9 @@ fn run(args: Args) -> Result<()> {
             .as_object_mut()
             .ok_or("Verification object missing")?
             .remove("fresh_collision_comparison");
-        let (key, filename) = if args.checkpoint == 10 {
+        let (key, filename) = if args.checkpoint == 11 {
+            ("terrain_geometry", "reports/terrain-geometry.json")
+        } else if args.checkpoint == 10 {
             ("terrain_heights", "reports/terrain-heights.json")
         } else {
             ("exterior_fields", "reports/exterior-fields.json")
@@ -464,6 +488,15 @@ fn run(args: Args) -> Result<()> {
         write_json(&root.join("reports/record-index-cache.json"), &index)?;
     } else {
         write_json(&root.join("reports/nif-collisions.json"), &collisions)?;
+    }
+    if let Some(mut gpu) = gpu_evidence {
+        gpu["engine_revision"] = revision.clone().into();
+        gpu["source_snapshot_sha256"] = source["sha256"].clone();
+        verification["terrain_preview"] = gpu.clone();
+        verification["preview_binary_sha256"] = preview_digest.into();
+        verification["presentation_reexecuted"] = true.into();
+        verification["presentation_scope"] = "Terrain GPU smoke captures and interior assembly regression; checkpoint 06 material oracle checks were not repeated".into();
+        write_json(&root.join("reports/terrain-preview.json"), &gpu)?;
     }
     write_json(
         &root.join(format!(

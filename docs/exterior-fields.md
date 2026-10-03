@@ -7,7 +7,8 @@ source-bound metadata cache. Source files remain read-only.
 
 This is the next content-loading layer for Goodsprings. It does not draw terrain
 or implement traversal. [Checkpoint 10](terrain-heights.md) adds optional height
-reconstruction under a pinned reference model. Normal interpretation, measured
+reconstruction under a pinned reference model; [checkpoint 11](terrain-geometry.md)
+adds source geometry and an unlit preview. Retail normal interpretation, measured
 engine units, parent inheritance and water behavior remain open.
 
 ## Run it
@@ -40,7 +41,7 @@ was copied or linked, and xEdit itself has not been run.
 
 | Record | Selected fields |
 | --- | --- |
-| CELL | EDID, FULL, DATA; signed XCLC coordinates and optional trailing quadrant flags |
+| CELL | EDID, FULL, DATA; signed XCLC coordinates and optional raw trailing word (one land flag byte plus three unused bytes) |
 | WRLD | EDID, FULL, DATA; WNAM/PNAM parent and flags; climate, water, LOD water, image space, encounter zone and music links; NAM4/DNAM float bits |
 | LAND | DATA; 33 by 33 VNML/VCLR triplets; VHGT offset bits, signed deltas and three padding bytes; ordered BTXT/ATXT headers and associated VTXT entries |
 

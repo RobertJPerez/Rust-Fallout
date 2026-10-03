@@ -772,11 +772,12 @@
         "components/esmterrain/storage.cpp",
         "components/esmterrain/storage.hpp",
         "apps/openmw/mwrender/landmanager.cpp",
-        "apps/openmw/mwworld/store.cpp"
+        "apps/openmw/mwworld/store.cpp",
+        "components/terrain/buffercache.cpp"
       ],
       "license_status": "GPL-3.0 root license inspected; no implementation copied or linked",
       "build_result": "not built",
-      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied. Checkpoint 10 consults ESM4 height integration, dimensions and source-grid indexing. LAND cpp/hpp carry permissive zlib-style per-file notices; esmterrain.cpp uses the root GPL-3.0 terms. Original Rust/C++ arithmetic only; no upstream implementation copied or linked, no OpenMW application build or retail measurement. Native comparison certifies the pinned height model only.",
+      "notes": "Consulted pinned static-reference rotation order and declared editor-marker selection. Original Rust matrix math; source values retained. Actor rules remain separate. OpenMW convention is not measured NV retail behavior. Checkpoint 06 consulted empty NoLighting texture semantics and falloff facts. Our original Rust/WGSL handles untextured diffuse and alpha/raster state; falloff and emittance remain unimplemented. No upstream C++ or GLSL copied. Checkpoint 10 consults ESM4 height integration, dimensions and source-grid indexing. LAND cpp/hpp carry permissive zlib-style per-file notices; esmterrain.cpp uses the root GPL-3.0 terms. Original Rust/C++ arithmetic only; no upstream implementation copied or linked, no OpenMW application build or retail measurement. Native comparison certifies the pinned height model only. Checkpoint 11 consults checkerboard diagonals and signed normal storage. Original Rust/C++ geometry and Bevy terrain adapter; source normals preserved without reference edge/corner repair. Winding/color space remain inspection choices without retail measurement; no source copy/link.",
       "language": "C++ and GLSL source references",
       "license_files": [
         "LICENSE"
@@ -794,7 +795,8 @@
         "components/esmterrain/storage.cpp": "36919fa6656623c288c8e3e3e3bf7175980ecace2b036226f35589ec7b337599",
         "components/esmterrain/storage.hpp": "fc8e1820fa822fc11855347055cffabd3671c9a99c4ec152e958ff905d76f8b1",
         "apps/openmw/mwrender/landmanager.cpp": "dc67d5b9bd3d4ea6f75935e12b05f2f7e0a38bab69efd960213727659b2865c7",
-        "apps/openmw/mwworld/store.cpp": "285135aa4caf4f40de53ac117cafd00812bb541a96e465abeaf928bf689e7f96"
+        "apps/openmw/mwworld/store.cpp": "285135aa4caf4f40de53ac117cafd00812bb541a96e465abeaf928bf689e7f96",
+        "components/terrain/buffercache.cpp": "9eb9151bf22628514f14de800f7f26a43ada61c78ad52c13279e7856adce2bf1"
       }
     },
     {
@@ -1268,7 +1270,7 @@
       "license_files": [
         "LICENSE.txt"
       ],
-      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted.",
+      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted. Checkpoint 11 verifies XCLC contains one land flag byte plus three unused bytes. The raw trailing word remains preserved, but only its low byte controls inspection hides.",
       "test_data_provenance": "No project build/tests performed; source inspection only",
       "supported_variants_verified": [],
       "known_omissions": [

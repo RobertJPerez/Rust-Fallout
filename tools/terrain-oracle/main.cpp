@@ -109,7 +109,7 @@ static Object empty_fields(const std::string& kind) {
 }
 // Evaluate each sample from its vertical and horizontal dependency paths. This
 // deliberately does not share the runtime's single-pass row accumulator.
-static std::string height_grid(const Bytes& bytes, size_t start) {
+static std::string height_grid(const Bytes& bytes, size_t start, std::vector<float>* samples = nullptr) {
     const uint32_t offset_bits = number(bytes, start, 4);
     float offset; std::memcpy(&offset, &offset_bits, 4);
     if (!std::isfinite(offset)) throw std::runtime_error("nonfinite height offset");
@@ -125,6 +125,7 @@ static std::string height_grid(const Bytes& bytes, size_t start) {
             value = value + static_cast<float>(signed_number(bytes, start + 4 + row * 33 + x, 1));
         value = value * 8.0f;
         if (!std::isfinite(value)) throw std::runtime_error("height reconstruction overflow");
+        if (samples) samples->push_back(value);
         if (value < minimum) minimum = value;
         if (value > maximum) maximum = value;
         uint32_t bits; std::memcpy(&bits, &value, 4); values.push_back(std::to_string(bits));
@@ -135,7 +136,49 @@ static std::string height_grid(const Bytes& bytes, size_t start) {
         {"height_bits", array(values)}, {"minimum_bits", std::to_string(min_bits)}, {"maximum_bits", std::to_string(max_bits)}});
 }
 
-static Object project(const Bytes& tagged, std::string* heights = nullptr) {
+static std::string real(double value) {
+    std::ostringstream out; out << std::scientific << std::setprecision(17) << value; return out.str();
+}
+// An inspection projection, authored independently of the Rust mesh builder.
+// The reference suggests alternating diagonals; retail winding is not certified.
+static std::string source_mesh(const Bytes& bytes, size_t height, std::optional<size_t> normal, std::optional<size_t> color) {
+    std::vector<float> samples; height_grid(bytes, height, &samples);
+    std::vector<std::string> positions(1089), normals(1089), colors(1089), indices;
+    double low = std::numeric_limits<double>::infinity(), high = -low;
+    for (size_t x = 0; x <= 32; ++x) for (size_t y = 0; y <= 32; ++y) {
+        const size_t vertex = 33*y+x;
+        const double z = samples[vertex]; low = std::min(low, z); high = std::max(high, z);
+        positions[vertex] = array({real(128*x), real(128*y), real(z)});
+        if (normal) {
+            double a = signed_number(bytes, *normal+3*vertex, 1);
+            double b = signed_number(bytes, *normal+3*vertex+1, 1);
+            double c = signed_number(bytes, *normal+3*vertex+2, 1);
+            const double length = std::sqrt(a*a+b*b+c*c);
+            if (length == 0) throw std::runtime_error("zero authored normal");
+            std::vector<std::string> bits;
+            for (double component : {a,b,c}) {
+                float value = static_cast<float>(component / length); uint32_t raw;
+                std::memcpy(&raw, &value, 4); bits.push_back(std::to_string(raw));
+            }
+            normals[vertex] = array(bits);
+        }
+        if (color) colors[vertex] = byte_array(bytes, *color+3*vertex, *color+3*vertex+3);
+    }
+    // Enumerate each square's corners in source coordinates, then choose one of
+    // the two diagonals. The front face points toward positive source Z.
+    for (uint32_t square = 0; square < 1024; ++square) {
+        const uint32_t y = square / 32, x = square % 32, sw = y*33+x;
+        const uint32_t se=sw+1, nw=sw+33, ne=sw+34;
+        const std::vector<uint32_t> pair = ((x+y)&1) ? std::vector<uint32_t>{sw,se,nw,se,ne,nw} : std::vector<uint32_t>{sw,se,ne,sw,ne,nw};
+        for (auto vertex : pair) indices.push_back(std::to_string(vertex));
+    }
+    return object({{"model",quote("esm4-source-grid-checkerboard-positive-z-v1")}, {"local_positions",array(positions)},
+        {"normal_bits",normal ? array(normals) : "null"}, {"colors",color ? array(colors) : "null"},
+        {"indices",array(indices)}, {"hidden_quadrants","0"},
+        {"bounds",array({array({real(0),real(0),real(low)}),array({real(4096),real(4096),real(high)})})}});
+}
+
+static Object project(const Bytes& tagged, std::string* heights = nullptr, std::string* geometry = nullptr) {
     const auto kind = signature(tagged, 0);
     Bytes bytes(tagged.begin() + 4, tagged.end());
     Object out = empty_fields(kind);
@@ -144,6 +187,7 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr) {
         {"WNAM", "parent"}, {"CNAM", "climate"}, {"NAM2", "water"}, {"NAM3", "lod_water"},
         {"INAM", "image_space"}, {"XEZN", "encounter_zone"}, {"ZNAM", "music"}};
     std::optional<size_t> extended;
+    std::optional<size_t> height_at, normal_at, color_at;
     size_t pos = 0;
     while (pos < bytes.size()) {
         if (bytes.size() - pos < 6) throw std::runtime_error("short subrecord");
@@ -181,10 +225,12 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr) {
             set("grid", array({std::to_string(signed_number(bytes, start, 4)), std::to_string(signed_number(bytes, start + 4, 4))}));
             if (count == 12) set("quadrant_flags", std::to_string(number(bytes, start + 8, 4)));
         } else if (kind == "LAND" && (sig == "VNML" || sig == "VCLR")) {
+            if (sig == "VNML") normal_at = start; else color_at = start;
             require(3267); std::vector<std::string> vectors;
             for (size_t i = 0; i < count; i += 3) vectors.push_back(byte_array(bytes, start + i, start + i + 3));
             set(sig == "VNML" ? "normals" : "colors", array(vectors));
         } else if (kind == "LAND" && sig == "VHGT") {
+            height_at = start;
             require(1096);
             if (heights) *heights = height_grid(bytes, start);
             set("heights", object({{"offset_bits", float_bits(bytes, start)},
@@ -214,6 +260,7 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr) {
         }
     }
     if (extended) throw std::runtime_error("orphan XXXX");
+    if (geometry && height_at) *geometry = source_mesh(bytes, *height_at, normal_at, color_at);
     out["unhandled"] = array(unknown);
     if (kind == "LAND") {
         std::vector<std::string> values; for (const auto& layer : layers) values.push_back(object(layer));
@@ -223,8 +270,9 @@ static Object project(const Bytes& tagged, std::string* heights = nullptr) {
 }
 
 int main(int argc, char** argv) {
-    const bool heights = argc == 3 && std::string(argv[2]) == "--heights";
-    if (argc != 2 && !heights) { std::cerr << "usage: terrain-oracle BODY_CACHE_DIRECTORY [--heights]\n"; return 2; }
+    const bool geometry = argc == 3 && std::string(argv[2]) == "--geometry";
+    const bool heights = geometry || (argc == 3 && std::string(argv[2]) == "--heights");
+    if (argc != 2 && !heights) { std::cerr << "usage: terrain-oracle BODY_CACHE_DIRECTORY [--heights|--geometry]\n"; return 2; }
     try {
         std::vector<std::filesystem::path> paths;
         for (const auto& entry : std::filesystem::directory_iterator(argv[1]))
@@ -236,9 +284,11 @@ int main(int argc, char** argv) {
             const auto bytes = read_file(path);
             if (bytes.size() < 4) throw std::runtime_error("missing record tag");
             std::string grid = "null";
-            const auto fields = project(bytes, heights ? &grid : nullptr);
+            std::string mesh = "null";
+            const auto fields = project(bytes, heights ? &grid : nullptr, geometry ? &mesh : nullptr);
             Object row = {{"file", quote(path.filename().string())}, {"sha256", quote(digest(bytes))}, {"fields", object(fields)}};
             if (heights) row["height_grid"] = grid;
+            if (geometry) row["source_mesh"] = mesh;
             files.push_back(object(row));
         }
         std::cout << object({{"oracle_binary_sha256", quote(digest(read_file(argv[0])))},

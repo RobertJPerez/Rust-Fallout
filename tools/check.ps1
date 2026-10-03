@@ -10,6 +10,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
     & powershell -NoProfile -ExecutionPolicy Bypass -File $cargo clippy --workspace --all-targets --locked -- -D warnings
     if ($LASTEXITCODE -ne 0) { throw 'Clippy failed' }
+    & py -3 (Join-Path $PSScriptRoot 'test_report_publication.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Publication checks failed' }
 } finally {
     Pop-Location
 }

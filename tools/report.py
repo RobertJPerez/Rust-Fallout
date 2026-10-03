@@ -1,4 +1,4 @@
-"""Summarize this checkpoint's local evidence without copying game content.
+"""Stage the initial census metadata in a new local directory.
 
 This does not execute tests or turn observations into acceptance. Keep raw reports
 under local/; the public reports contain counts, hashes, offsets, and open gates.
@@ -18,16 +18,29 @@ def read(path):
 
 def write(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    with path.open("x", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
 
 
-def summarize(local):
+def new_output_directory(path):
+    # Initial census reconstruction must never reset a later verified ledger.
+    path = Path(path).absolute()
+    if path.parent.resolve(strict=True) != (ROOT / "local").resolve(strict=True):
+        raise ValueError("Output must be a new directory directly under repository local/")
+    if path.exists() or path.is_symlink():
+        raise FileExistsError(f"Output directory already exists: {path}")
+    return path
+
+
+def summarize(local, output):
+    output = new_output_directory(output)
     baseline = read(local / "baseline.json")
     census = read(local / "census-with-scripts.json")
     archives = read(local / "archive-comparison.json")
     oracle = {p["name"]: p for p in read(local / "plugin-oracle.json")}
     resolution = read(local / "resolution-final.json")
     plan = read(local / "import-plan.json")
+    metadata = read(local / "cargo-metadata.json")
     plugins = census["plugins"]
     records = Counter()
     extensions = Counter()
@@ -84,7 +97,8 @@ def summarize(local):
             ("unified-crossover", ["versioned canonical content and campaign-specific extensions"], ["explicit crossover policy; undecided"]),
         ]],
     }
-    profile_path = ROOT / "profiles/manifest.json"
+    output.mkdir()  # Exclusive creation also rejects a concurrently occupied target.
+    profile_path = output / "profiles/manifest.json"
     write(profile_path, profile)
     profile_hash = hashlib.sha256(profile_path.read_bytes()).hexdigest()
     shared = {"schema_version": 1, "profile": "nv-original", "profile_manifest_sha256": profile_hash,
@@ -140,19 +154,16 @@ def summarize(local):
         ("crossover.travel", "travel", "Preserve per-campaign identity/state through transactional round trips."),
     ]:
         requirement(identifier, subsystem, "unknown", behavior, [], ["Unimplemented; no passing acceptance scenario"], ["docs/references/Fallout_Rust_Codex_Master_Brief.txt", "NEXT_STEPS.md"])
-    ledger_path = ROOT / "parity/requirements.json"
-    if ledger_path.exists():
-        regenerated = {item["id"] for item in requirements}
-        requirements.extend(item for item in read(ledger_path)["requirements"] if item["id"] not in regenerated)
+    ledger_path = output / "parity/requirements.json"
     write(ledger_path, {**shared, "accepted_scenarios": [], "requirements": requirements})
-    write(ROOT / "parity/conditions.json", {
+    write(output / "parity/conditions.json", {
         **shared, "evidence": "https://github.com/TES5Edit/TES5Edit/blob/9fb016884bec138ea6c7b872cec831537d464c3e/Core/wbDefinitionsFNV.pas",
         "interpretation": "CTDA function IDs, not SCDA bytecode opcodes. Names and execution semantics remain unaudited.",
         "unique_functions_observed": len(conditions), "functions": sorted(conditions.values(), key=lambda v: v["function_id"]),
     })
     script_counts = {key: sum(p["scripts"][key] for p in plugins) for key in (
         "headers", "compiled_bodies", "compiled_bytes", "source_text_fields", "explicit_form_references", "local_variable_references")}
-    write(ROOT / "parity/commands.json", {
+    write(output / "parity/commands.json", {
         **shared, "status": "unknown", "script_metadata": script_counts,
         "opcode_decoder_implemented": False, "unique_command_denominator": None, "commands": [],
         "remaining": "Decode NV SCDA instruction/event framing and argument boundaries before enumerating commands. No VM or native command execution exists.",
@@ -162,7 +173,7 @@ def summarize(local):
         for failure in archive["failures"]:
             failures.append({"archive": Path(archive["archive"]).name, **failure})
     links = resolution["script_links"]
-    write(ROOT / "parity/content-coverage.json", {
+    write(output / "parity/content-coverage.json", {
         **shared, "content_fingerprint": baseline["content_fingerprint"],
         "plugins_scanned": len(plugins), "archives_indexed": len(census["archives"]),
         "records_excluding_tes4_headers": sum(p["records_excluding_header"] for p in plugins),
@@ -179,7 +190,7 @@ def summarize(local):
         "unknown": ["typed field links outside the selected cell dependency path", "complete model/texture/audio dependency closure", "SCDA commands and events",
                     "NIF block-internal geometry/animation/collision semantics", "UI templates/operators", "audio codecs", "all gameplay semantics"],
     })
-    write(ROOT / "reports/corpus.json", {
+    write(output / "reports/corpus.json", {
         **shared, "source_files_hashed": len(baseline["files"]), "source_bytes_hashed": sum(f["bytes"] for f in baseline["files"]),
         "content_fingerprint": baseline["content_fingerprint"], "plugin_comparisons": comparisons,
         "all_plugin_comparisons_equal": all(p["counts_masters_header_version_equal"] for p in comparisons),
@@ -189,8 +200,7 @@ def summarize(local):
         "plan": {"jobs": len(plan["jobs"]), "unsupported_inputs": len(plan["unsupported"]), "runtime_ready": plan["runtime_ready"]},
         "accepted": False,
     })
-    metadata = read(local / "cargo-metadata.json")
-    write(ROOT / "reports/dependency-licenses.json", {
+    write(output / "reports/dependency-licenses.json", {
         "scope": "Workspace Cargo metadata, including offline archive oracle; GPL plugin oracle is a separate workspace.",
         "limitations": "Manifest declarations, not a completed per-file/transitive source audit.",
         "packages": [{k: p.get(k) for k in ("name", "version", "source", "license", "license_file", "repository")}
@@ -199,7 +209,13 @@ def summarize(local):
     print(f"Wrote corpus and parity metadata for {len(plugins)} plugins, {len(archives)} archives, {len(conditions)} condition IDs.")
 
 
-if __name__ == "__main__":
+def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--local", type=Path, default=ROOT / "local")
-    summarize(parser.parse_args().local)
+    parser.add_argument("--new-output-directory", type=Path, required=True)
+    args = parser.parse_args(arguments)
+    summarize(args.local, args.new_output_directory)
+
+
+if __name__ == "__main__":
+    main()

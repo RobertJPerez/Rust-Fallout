@@ -252,3 +252,10 @@ cover engineering behavior; all winning CTDA bindings/descriptors are rerun. See
 argument/return coercion measurements, then bounded observable VM execution.
 Unverified subject defaults and condition comparisons must continue to fail or
 remain unresolved rather than being presented as successful original behavior.
+
+Checkpoint 37 protects current verified metadata from the initial census generator.
+Historical reconstruction requires a new local staging directory and exclusive
+file creation; five real publication regressions run in the standard checks.
+See [report publication](docs/report-publication.md). Gameplay dependencies remain
+unchanged: measured original count/list/coercion behavior, bounded VM execution,
+complete actor/player/quest persistence and retail comparisons are still open.

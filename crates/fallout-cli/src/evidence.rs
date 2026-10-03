@@ -55,7 +55,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=36))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=37))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -343,32 +343,32 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25 | 27 | 30..=36) {
+    let command_digest = if matches!(args.checkpoint, 16 | 18..=21 | 25 | 27 | 30..=37) {
         Some(digest(&command_oracle)?)
     } else {
         None
     };
     let binding_oracle = root.join("local/binding-oracle-build/Release/binding-oracle.exe");
-    let binding_digest = if matches!(args.checkpoint, 17 | 20 | 25 | 30..=36) {
+    let binding_digest = if matches!(args.checkpoint, 17 | 20 | 25 | 30..=37) {
         Some(digest(&binding_oracle)?)
     } else {
         None
     };
     let expression_oracle =
         root.join("local/expression-oracle-build/Release/expression-oracle.exe");
-    let expression_digest = if matches!(args.checkpoint, 18..=20 | 25 | 30..=36) {
+    let expression_digest = if matches!(args.checkpoint, 18..=20 | 25 | 30..=37) {
         Some(digest(&expression_oracle)?)
     } else {
         None
     };
     let argument_oracle = root.join("local/argument-oracle-build/Release/argument-oracle.exe");
-    let argument_digest = if matches!(args.checkpoint, 19 | 20 | 25 | 30..=36) {
+    let argument_digest = if matches!(args.checkpoint, 19 | 20 | 25 | 30..=37) {
         Some(digest(&argument_oracle)?)
     } else {
         None
     };
     let operand_oracle = root.join("local/operand-oracle-build/Release/operand-oracle.exe");
-    let operand_digest = if matches!(args.checkpoint, 20 | 25 | 30..=36) {
+    let operand_digest = if matches!(args.checkpoint, 20 | 25 | 30..=37) {
         Some(digest(&operand_oracle)?)
     } else {
         None
@@ -386,21 +386,21 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let record_oracle = root.join("local/record-oracle-build/Release/record-oracle.exe");
-    let record_digest = if matches!(args.checkpoint, 23..=25 | 30..=36) {
+    let record_digest = if matches!(args.checkpoint, 23..=25 | 30..=37) {
         Some(digest(&record_oracle)?)
     } else {
         None
     };
     let loaded_script_oracle =
         root.join("local/script-catalogue-oracle-build/Release/script-catalogue-oracle.exe");
-    let loaded_script_digest = if matches!(args.checkpoint, 24 | 25 | 30..=36) {
+    let loaded_script_digest = if matches!(args.checkpoint, 24 | 25 | 30..=37) {
         Some(digest(&loaded_script_oracle)?)
     } else {
         None
     };
     let quest_script_oracle =
         root.join("local/quest-script-oracle-build/Release/quest-script-oracle.exe");
-    let quest_script_digest = if matches!(args.checkpoint, 25 | 30..=36) {
+    let quest_script_digest = if matches!(args.checkpoint, 25 | 30..=37) {
         Some(digest(&quest_script_oracle)?)
     } else {
         None
@@ -413,40 +413,40 @@ fn run(args: Args) -> Result<()> {
     };
     let condition_operand_oracle =
         root.join("local/condition-operand-oracle-build/Release/condition-operand-oracle.exe");
-    let condition_operand_digest = if matches!(args.checkpoint, 27 | 36) {
+    let condition_operand_digest = if matches!(args.checkpoint, 27 | 36 | 37) {
         Some(digest(&condition_operand_oracle)?)
     } else {
         None
     };
     let script_state_oracle =
         root.join("local/script-state-schema-oracle-build/Release/script-state-schema-oracle.exe");
-    let script_state_digest = if matches!(args.checkpoint, 28..=36) {
+    let script_state_digest = if matches!(args.checkpoint, 28..=37) {
         Some(digest(&script_state_oracle)?)
     } else {
         None
     };
     let native_save_oracle =
         root.join("local/native-save-oracle-build/Release/native-save-oracle.exe");
-    let native_save_digest = if matches!(args.checkpoint, 29..=36) {
+    let native_save_digest = if matches!(args.checkpoint, 29..=37) {
         Some(digest(&native_save_oracle)?)
     } else {
         None
     };
     let leveled_oracle = root.join("local/leveled-oracle-build/Release/leveled-oracle.exe");
-    let leveled_digest = if matches!(args.checkpoint, 32..=36) {
+    let leveled_digest = if matches!(args.checkpoint, 32..=37) {
         Some(digest(&leveled_oracle)?)
     } else {
         None
     };
     let inventory_oracle = root.join("local/inventory-oracle-build/Release/inventory-oracle.exe");
-    let inventory_digest = if matches!(args.checkpoint, 31..=36) {
+    let inventory_digest = if matches!(args.checkpoint, 31..=37) {
         Some(digest(&inventory_oracle)?)
     } else {
         None
     };
     let foreign_context_oracle =
         root.join("local/foreign-context-oracle-build/Release/foreign-context-oracle.exe");
-    let foreign_context_digest = if matches!(args.checkpoint, 30..=36) {
+    let foreign_context_digest = if matches!(args.checkpoint, 30..=37) {
         Some(digest(&foreign_context_oracle)?)
     } else {
         None
@@ -472,6 +472,15 @@ fn run(args: Args) -> Result<()> {
                 .ok()
         })
         .sum();
+    let publication_checks = if args.checkpoint == 37 {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stderr.contains("Ran 5 tests") || !stderr.contains("OK") {
+            return Err("Initial report publication checks were not executed successfully".into());
+        }
+        Some(5_u64)
+    } else {
+        None
+    };
     if passed == 0 {
         return Err("Workspace check did not run tests".into());
     }
@@ -611,9 +620,9 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
-    let item_state_evidence = if matches!(args.checkpoint, 33..=36) {
+    let item_state_evidence = if matches!(args.checkpoint, 33..=37) {
         let runner = match args.checkpoint {
-            36 => query_evidence::run,
+            36 | 37 => query_evidence::run,
             35 => source_item_evidence::run,
             34 => native_migration_evidence::run,
             _ => item_state_evidence::run,
@@ -1096,6 +1105,7 @@ fn run(args: Args) -> Result<()> {
         "check_command":"powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
         "check_exit_code":0, "check_log_sha256":digest(&check_log)?, "tests_passed":passed,
         "format_check":"passed", "clippy_warnings_denied":"passed",
+        "python_publication_tests_passed":publication_checks,
         "original_installation_matches_baseline":true,
         "installation_files_checked":installation_files.len(), "installation_bytes_checked":installation_bytes,
         "content_fingerprint":after["content_fingerprint"], "baseline_report_sha256":digest(&baseline_path)?,
@@ -1250,6 +1260,10 @@ fn run(args: Args) -> Result<()> {
             operands,
         ));
     } else if let Some(mut items) = item_state_evidence {
+        if args.checkpoint == 37 {
+            items["initial_report_publication_checks"] = json!({"tests_passed":publication_checks,"scope":"Required new local staging, occupied destinations/files, protected current metadata and actual seven-file bootstrap publication; engineering fixtures only","source":"tools/test_report_publication.py","current_metadata_preserved":true});
+            items["scope"] = "Initial census publication protection plus fresh source-bound query/condition/runtime regressions; no original behavior acceptance".into();
+        }
         items["checkpoint"] = args.checkpoint.into();
         items["engine_revision"] = revision.clone().into();
         items["source_snapshot_sha256"] = source["sha256"].clone();
@@ -1258,13 +1272,14 @@ fn run(args: Args) -> Result<()> {
             .ok_or("Missing verification object")?
             .remove("fresh_collision_comparison");
         let item_report = match args.checkpoint {
+            37 => "report-publication",
             36 => "primitive-queries",
             35 => "source-items",
             34 => "native-migration",
             _ => "item-state",
         };
         verification[item_report] = items.clone();
-        if args.checkpoint == 36 {
+        if matches!(args.checkpoint, 36 | 37) {
             verification["condition_operand_oracle_binary_sha256"] =
                 condition_operand_digest.clone().into();
         }

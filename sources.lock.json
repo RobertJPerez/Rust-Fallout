@@ -700,7 +700,8 @@
         "nif.xml (NiObjectNET/NiAVObject/NiNode/BSFadeNode/NiGeometry and triangle shape/data inheritance; MaterialData, NiBound, flags, MatchGroup, triangle/UV/matrix facts; selected shader/property/node layouts researched only)",
         "nif.xml (NiMaterialProperty, NiAlphaProperty, NiStencilProperty, NiShadeProperty, BSShaderProperty/PPLighting/NoLighting, BSShaderTextureSet, NiSourceTexture, NiTexturingProperty and TexDesc version gates)",
         "nif.xml (AlphaFlags, AlphaFunction, TestFunction, StencilFlags/StencilDrawMode and BSShaderFlags/BSShaderFlags2 field facts)",
-        "nif.xml (collision inheritance, HavokFilter/HavokMaterial, WorldObjectCInfo/EntityCInfo/RigidBodyCInfo550_660, sphere/box/capsule/convex/transform/list/MOPP/packed-shape and TriangleData/hkSubPartData layouts)"
+        "nif.xml (collision inheritance, HavokFilter/HavokMaterial, WorldObjectCInfo/EntityCInfo/RigidBodyCInfo550_660, sphere/box/capsule/convex/transform/list/MOPP/packed-shape and TriangleData/hkSubPartData layouts)",
+        "nif.xml (NiObject/NiTransform/Matrix33/NiBound/BoneData/BoneVertData/NiSkinInstance/BSDismemberSkinInstance/NiSkinData/BodyPartList and dismemberment enums; checkpoint44 skin source facts)"
       ],
       "license_status": "GPL-3.0 root license; schema consulted as format evidence, not copied/generated into runtime",
       "build_result": "No build; no schema generator used",
@@ -717,7 +718,30 @@
         "Only selected schemas inspected; behavior, controllers, skinning and collision remain open",
         "Full game-to-renderer axes/units and placement conventions not validated against retail"
       ],
-      "test_data_provenance": "No upstream assets used; original Rust fixtures and authorized local corpus"
+      "test_data_provenance": "No upstream assets used; original Rust fixtures and authorized local corpus",
+      "source_read_scopes": [
+        {
+          "checkpoint": 44,
+          "path": "nif.xml",
+          "whole_file_sha256": "d6b76a83ea5fbadd21da5f06348b236a1c43da6bb76d108a2e8b749c22618dd6",
+          "selected_types": [
+            "NiObject",
+            "NiTransform",
+            "Matrix33",
+            "NiBound",
+            "BoneData",
+            "BoneVertData",
+            "NiSkinInstance",
+            "BSDismemberSkinInstance",
+            "NiSkinData",
+            "BodyPartList",
+            "BSPartFlag",
+            "BSDismemberBodyPartType"
+          ],
+          "usage": "Exact source layouts within NV tuple; schema consulted rather than copied/generated into Rust",
+          "implementation_imported": false
+        }
+      ]
     },
     {
       "url": "https://github.com/niftools/pyffi",
@@ -956,11 +980,13 @@
         "src/Shaders.cpp (material version gates and legacy slots)",
         "include/ExtraData.hpp",
         "include/bhk.hpp (collision, body, primitive and packed-triangle field APIs)",
-        "src/bhk.cpp (serialized pre-Skyrim body/shape layouts and compressed packed-vertex reader limitation)"
+        "src/bhk.cpp (serialized pre-Skyrim body/shape layouts and compressed packed-vertex reader limitation)",
+        "include/Skin.hpp (complete skin declarations/serialization read for checkpoint44)",
+        "src/Skin.cpp (complete skin declarations/serialization read for checkpoint44)"
       ],
       "license_status": "GPL-3.0 library; half MIT notice; Miniball GPL-3.0-or-later notice",
       "build_result": "Separate VS18/MSVC oracle: 218 containers/4582 block entries; raw supported payloads equal for 751 objects, 403 meshes, 96707 vertices and 84661 triangles; independent diagnostics confirm all 25 strict scene rejections; material projection matches 1127 blocks across the same 218 files; checkpoint 07 collision mode matches 734 supported blocks across 218 sampled files",
-      "notes": "Standalone GPL executable only. Not linked into fallout.exe. Revision exactly matches lock; upstream header/source code not copied to Rust; checkpoint 05 adds raw BSXFlags projection compared on all 218 previous sample files; nine deliberate mismatches rejected",
+      "notes": "Standalone GPL executable only. Not linked into fallout.exe. Revision exactly matches lock; upstream header/source code not copied to Rust; checkpoint 05 adds raw BSXFlags projection compared on all 218 previous sample files; nine deliberate mismatches rejected; checkpoint44 uses a dedicated isolated raw-factory skin oracle and independent raw presence/count supplements because factory values normalize those fields; no evaluated skinning or gameplay acceptance.",
       "language": "C++17",
       "license_files": [
         "LICENSE",
@@ -979,7 +1005,25 @@
         "Compressed packed vertices cannot be certified by this pinned reader",
         "Constraint and blend-controller payloads, physics behavior and whole-corpus collision coverage remain open"
       ],
-      "test_data_provenance": "Authorized local BSA members decoded to ignored cache; no upstream test models used"
+      "test_data_provenance": "Authorized local BSA members decoded to ignored cache; no upstream test models used",
+      "source_read_scopes": [
+        {
+          "checkpoint": 44,
+          "path": "include/Skin.hpp",
+          "whole_file_sha256": "198157a5038a027bfb273800b38e1afc7ae286211d521a9b2866e4ed8662b15d",
+          "whole_file_read": true,
+          "usage": "Skin source fields, raw factory comparison and normalization limits; no upstream runtime code imported",
+          "implementation_imported": false
+        },
+        {
+          "checkpoint": 44,
+          "path": "src/Skin.cpp",
+          "whole_file_sha256": "47fbfbe48a74cfe0cd31940e5baef9be304a5a14d7b8aae4e148bec240c1c5df",
+          "whole_file_read": true,
+          "usage": "Skin source fields, raw factory comparison and normalization limits; no upstream runtime code imported",
+          "implementation_imported": false
+        }
+      ]
     },
     {
       "url": "https://github.com/Pouya69/F76_Overhaul_Fallout4",
@@ -1278,7 +1322,7 @@
       "license_files": [
         "LICENSE.txt"
       ],
-      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted. Checkpoint 11 verifies XCLC contains one land flag byte plus three unused bytes. The raw trailing word remains preserved, but only its low byte controls inspection hides. Checkpoint 12 inspects LTEX EDID/ICON/TNAM/HNAM/SNAM/GNAM and TXST EDID/TX00..TX05/DNAM, preserving unknown fields. Shared LAND definitions permit NULL and label the NV default as LDirtWasteland01; default application remains unverified/unimplemented. Original Rust dependency resolver and authored C++ field projection only; xEdit application not run. Checkpoint 17 inspects SCHR/SLSD/SCVR/SCRO/SCRV and embedded script ordering at lines 3035-3108 and SCPT at 4921-4928. The embedded-script after-load editor fixup at 2569-2582 is observed but never applied to the original raw metadata. Checkpoint 21 preserves exact CTDA fields and short-layout absence without applying editor migration. Unverified subject selector, low flag and padding findings remain; no condition evaluation or ownership/grouping claim.; checkpoint 22 inspects complete FNV QUST/INFO/DIAL/embedded-script definition blocks and selected common NextSpeaker/QSTR/INFO-order definitions; no editor after-load cleanup or default migration applied; checkpoint 23 reads the selected group-label formatting implementation identifying type 7 topic children; original header/master/group reader independently compares canonical metadata and INFO membership; checkpoint 31 reads selected original base inventory definitions and owner-dependent union layouts. Original Rust and offline C++ preserve exact authored counts, words, namespaces and findings; no upstream implementation imported and no retail mutable inventory behavior accepted.; checkpoint 32 reads selected leveled-list/entry disk schemas and runtime layouts. Authored level/count words remain exact bits, defaults and selection stay deferred; own Rust/C++ dependency algorithms independently compare all edges/cycles.; checkpoint 36 reads selected GetItemCount entry/parameter declarations, preserves form-list and numeric coercion gaps, and uses original host query code without upstream implementation imports.; checkpoint 38 reads selected form-list declarations. Original Rust/C++ compare physical ordered member occurrences and structural dependencies; no upstream code imported or retail list behavior accepted.",
+      "notes": "Selected framing, SCHR/SCRO/CTDA and file-slot resolution definitions inspected; not all schema semantics implemented. No schema generator/port. PlayerRef hardcoded binding and PLYR definition inspected; retail runtime binding is still unimplemented. Additional inspection: CELL DATA/XCLC, REFR/ACHR/ACRE NAME/DATA/XSCL/XESP/XTEL, MODL, and group kinds 1/6/8/9/10 for typed cell inspection. Checkpoint 09 inspected WRLD EDID/FULL/DATA/WNAM/PNAM/CNAM/NAM2/NAM3/NAM4/DNAM/INAM/XEZN/ZNAM, CELL XCLC trailing flags, LAND DATA/VNML/VHGT/VCLR/BTXT/ATXT/VTXT, and shared quadrant/alpha-position validation. Original Rust and a separate authored C++ field projection use these format facts; no Pascal implementation copied or linked. The Delphi application and retail handling remain unexecuted. Checkpoint 11 verifies XCLC contains one land flag byte plus three unused bytes. The raw trailing word remains preserved, but only its low byte controls inspection hides. Checkpoint 12 inspects LTEX EDID/ICON/TNAM/HNAM/SNAM/GNAM and TXST EDID/TX00..TX05/DNAM, preserving unknown fields. Shared LAND definitions permit NULL and label the NV default as LDirtWasteland01; default application remains unverified/unimplemented. Original Rust dependency resolver and authored C++ field projection only; xEdit application not run. Checkpoint 17 inspects SCHR/SLSD/SCVR/SCRO/SCRV and embedded script ordering at lines 3035-3108 and SCPT at 4921-4928. The embedded-script after-load editor fixup at 2569-2582 is observed but never applied to the original raw metadata. Checkpoint 21 preserves exact CTDA fields and short-layout absence without applying editor migration. Unverified subject selector, low flag and padding findings remain; no condition evaluation or ownership/grouping claim.; checkpoint 22 inspects complete FNV QUST/INFO/DIAL/embedded-script definition blocks and selected common NextSpeaker/QSTR/INFO-order definitions; no editor after-load cleanup or default migration applied; checkpoint 23 reads the selected group-label formatting implementation identifying type 7 topic children; original header/master/group reader independently compares canonical metadata and INFO membership; checkpoint 31 reads selected original base inventory definitions and owner-dependent union layouts. Original Rust and offline C++ preserve exact authored counts, words, namespaces and findings; no upstream implementation imported and no retail mutable inventory behavior accepted.; checkpoint 32 reads selected leveled-list/entry disk schemas and runtime layouts. Authored level/count words remain exact bits, defaults and selection stay deferred; own Rust/C++ dependency algorithms independently compare all edges/cycles.; checkpoint 36 reads selected GetItemCount entry/parameter declarations, preserves form-list and numeric coercion gaps, and uses original host query code without upstream implementation imports.; checkpoint 38 reads selected form-list declarations. Original Rust/C++ compare physical ordered member occurrences and structural dependencies; no upstream code imported or retail list behavior accepted.; checkpoint44 adds independently authored NPC_/CREA scalar projection retaining raw level words, numeric bits, unknown fields and source findings; actor defaults, inheritance and behavior remain unimplemented.",
       "test_data_provenance": "No project build/tests performed; source inspection only",
       "supported_variants_verified": [],
       "known_omissions": [
@@ -1385,6 +1429,44 @@
             ]
           ],
           "usage": "FLST repeated LNAM form IDs and editor-only sorting decisions. Physical source order is preserved; editor transformations are not used as runtime semantics.",
+          "implementation_imported": false
+        },
+        {
+          "checkpoint": 44,
+          "path": "Core/wbDefinitionsFNV.pas",
+          "whole_file_sha256": "89b1420415b858e004429e89a828348a1df71f5c8b199d4ea66e02f0ca41b012",
+          "selected_line_ranges": [
+            [
+              4276,
+              4423
+            ],
+            [
+              6798,
+              6955
+            ],
+            [
+              2478,
+              2493
+            ]
+          ],
+          "usage": "NPC_/CREA scalar disk fields and distinct editor fixup, consulted by actor lane; no actor initialization or editor repair",
+          "implementation_imported": false
+        },
+        {
+          "checkpoint": 44,
+          "path": "Core/wbDefinitionsCommon.pas",
+          "whole_file_sha256": "e616b6546f6df74d88ec98bb870906db380c985963d011e4931c5726682b7d26",
+          "selected_line_ranges": [
+            [
+              5704,
+              5716
+            ],
+            [
+              923,
+              936
+            ]
+          ],
+          "usage": "Level union selection and editor clamp, retained raw word without conversion or fixup",
           "implementation_imported": false
         }
       ]

@@ -19,6 +19,8 @@ the plan and worktrees does not resume implementation. Team control starts in
 `local/live-event-43-src`; the primary agent must inspect them before applying them.
 Its draft counts and expected inspector exit status remain unverified.
 
+Robert resumed implementation on October 3. Checkpoint 43 is now verified and published; the team control is active. The primary agent integrates reviewed actor and asset commits and prepares the next source-lane proof. Runtime work continues in an additional primary-owned external worktree while main is frozen. The planning history above does not override current control or Robert's latest instruction.
+
 ## Responsibilities and file ownership
 
 | Role | Work | Owned additions | Working tree |

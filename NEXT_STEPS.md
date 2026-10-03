@@ -316,3 +316,5 @@ and execution continuations. Preparation does not acknowledge events or grant
 execution permission; original lifecycle, actor initialization and gameplay remain
 open. Parallel actor/skin source work uses the
 [team coordination plan](docs/agent-coordination.md) and isolated worktrees.
+
+Checkpoint 44 integrates the reviewed actor scalar and three-block skin source slices. Its fresh proof is pending; worker evidence does not establish integrated verification. Actor associations and partition payloads continue in isolated lanes. The primary agent continues exact live operand probes in a separate runtime worktree, then source-bound execution capabilities and measured semantics. See [source-lane verification](docs/source-lane-verification.md).

@@ -189,3 +189,11 @@ source reader; native snapshots preserve explicit engineering inputs. See
 [script runtime state](docs/script-runtime-state.md).
 Next: filesystem save publication/recovery, live foreign context resolution and
 primitive query/execution slices. No original live values or defaults were captured.
+
+Checkpoint 29 adds native script-state save repositories with campaign identity,
+checked state revisions, owned worker captures, versioned checksummed chunks and
+explicit previous-slot recovery. Cold processes restore the exact state; real
+writer termination covers five publication stages. See [native saves](docs/native-saves.md).
+Windows power-loss durability, full mutable world components, Bethesda save import
+and NVSE cosaves remain open. Next: resolve foreign locals through explicit live
+quest/placed event lists, then primitive queries and observable execution slices.

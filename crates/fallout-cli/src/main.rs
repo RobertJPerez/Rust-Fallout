@@ -9,6 +9,7 @@ mod expression_inspection;
 mod inspection_input;
 mod loaded_script_inspection;
 mod narrative_inspection;
+mod native_save_inspection;
 mod operand_inspection;
 mod pe_image;
 mod quest_script_inspection;
@@ -73,6 +74,29 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Exercise filesystem save/recovery on explicit engineering state in a new directory.
+    NativeSaveProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
+    },
+    /// Restore a native save in a fresh process against exact original content.
+    NativeLoadProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+    },
+    /// Inspect native container integrity without loading or changing game state.
+    NativeSaveFile {
+        #[arg(long)]
+        file: PathBuf,
+    },
     /// Inspect compiled local schemas and exercise native canonical state.
     ScriptState {
         #[arg(long)]
@@ -447,6 +471,26 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::NativeSaveProbe {
+            install,
+            load_order,
+            new_repository,
+        } => {
+            let report = native_save_inspection::probe(&install, &load_order, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeLoadProbe {
+            install,
+            load_order,
+            repository,
+        } => {
+            let report = native_save_inspection::load(&install, &load_order, &repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeSaveFile { file } => {
+            let report = native_save_inspection::file(&file)?;
+            emit(&report, output, &file.canonicalize()?)?;
+        }
         Command::ScriptState {
             install,
             load_order,

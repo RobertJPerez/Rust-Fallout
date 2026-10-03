@@ -8,7 +8,7 @@ use fallout_data::{
 use fallout_runtime::{
     Limits, World,
     events::{Clocks, Context, Trigger},
-    identity::{Owner, ReferenceValue, Value},
+    identity::{CampaignId, Owner, ReferenceValue, Value},
     schema::{self, Kind},
     snapshot::Snapshot,
 };
@@ -16,9 +16,21 @@ use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, path::Path};
 
-fn probe(catalogue: &Catalogue) -> Result<Json> {
+pub(super) struct EngineeringWorld<'a> {
+    pub world: World<'a>,
+    pub handles: Vec<(
+        fallout_runtime::identity::InstanceId,
+        fallout_runtime::state::InstanceHandle,
+    )>,
+    pub numbers: u64,
+    pub references: u64,
+    pub unknown: u64,
+}
+
+/// Shared deterministic harness inputs. This does not initialize a game session.
+pub(super) fn engineering_world(catalogue: &Catalogue) -> Result<EngineeringWorld<'_>> {
     let limits = Limits::default();
-    let mut world = World::new(catalogue, limits)?;
+    let mut world = World::with_campaign(catalogue, limits, CampaignId::from_bytes([0x28; 16])?)?;
     let reference = world.register_reference(None)?;
     world.advance_clocks(Clocks {
         tick: 1,
@@ -97,6 +109,23 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
         }
         handles.push((world.instance(handle)?.id(), handle));
     }
+    Ok(EngineeringWorld {
+        world,
+        handles,
+        numbers,
+        references,
+        unknown,
+    })
+}
+fn probe(catalogue: &Catalogue) -> Result<Json> {
+    let EngineeringWorld {
+        world,
+        handles,
+        numbers,
+        references,
+        unknown,
+    } = engineering_world(catalogue)?;
+    let limits = Limits::default();
     let snapshot = world.snapshot();
     let bytes = snapshot.encode(limits.max_snapshot_bytes)?;
     let restored = World::restore(catalogue, Snapshot::decode(&bytes, limits)?, limits)?;

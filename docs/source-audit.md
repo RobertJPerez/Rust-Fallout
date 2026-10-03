@@ -255,3 +255,19 @@ Every first declaration and classification agrees. Storage, identity, event
 journaling and snapshot restoration have engineering proofs, not retail behavior
 acceptance. No upstream implementation is copied. See
 [script runtime state](script-runtime-state.md) for exact reference scopes.
+
+Checkpoint 29 reviews Rust 1.99 file sync, rename and nonblocking lock contracts,
+alongside the Windows MoveFileExW and FlushFileBuffers documentation. Original
+Rust owns the versioned native save container, worker capture and repository
+publication/recovery code. An original offline C++ reader independently validates
+container extents, metadata and SHA-256 values; it does not interpret the JSON
+state. No upstream persistence implementation is copied or linked. Process-kill
+tests run on Windows NTFS; directory/power-loss durability remains unverified.
+
+The complete pinned getrandom 0.4.3 Cargo.toml.orig, LICENSE-MIT, LICENSE-APACHE,
+src/lib.rs and src/backends/windows.rs were read from the local Cargo registry.
+This existing resolved dependency is now a direct runtime dependency for OS random
+campaign identities. It is linked unchanged under its MIT-or-Apache-2.0 terms;
+the reviewed Windows backend uses ProcessPrng and failures propagate. Other
+platform backends were not audited or tested in this checkpoint. See
+[native saves](native-saves.md) for the contracts and primary documentation links.

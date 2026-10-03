@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 211 tests pass, including malformed compression, forward/cyclic links,
+- 222 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -254,3 +254,9 @@ percentage is inferred from file counts or tests.
 crate. Persistent instance/reference IDs, typed local banks, event contexts and
 version-bound snapshots round-trip against the original compiled schemas.
 Initialization defaults, bytecode execution and retail scheduling remain open.
+
+[Native script-state saves](docs/native-saves.md) now capture owned state for worker
+publication, preserve a verified previous slot and restore in a fresh process.
+Campaign identities, checked revisions, chunk integrity and explicit recovery
+protect the implemented state. Complete world saves and original `.fos` support
+remain unfinished.

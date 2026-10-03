@@ -12,6 +12,7 @@ mod height_evidence;
 mod index_evidence;
 mod loaded_script_evidence;
 mod narrative_evidence;
+mod native_save_evidence;
 mod operand_evidence;
 mod preview_evidence;
 mod quest_script_evidence;
@@ -47,7 +48,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=28))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=29))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -412,8 +413,15 @@ fn run(args: Args) -> Result<()> {
     };
     let script_state_oracle =
         root.join("local/script-state-schema-oracle-build/Release/script-state-schema-oracle.exe");
-    let script_state_digest = if args.checkpoint == 28 {
+    let script_state_digest = if matches!(args.checkpoint, 28 | 29) {
         Some(digest(&script_state_oracle)?)
+    } else {
+        None
+    };
+    let native_save_oracle =
+        root.join("local/native-save-oracle-build/Release/native-save-oracle.exe");
+    let native_save_digest = if args.checkpoint == 29 {
+        Some(digest(&native_save_oracle)?)
     } else {
         None
     };
@@ -571,6 +579,20 @@ fn run(args: Args) -> Result<()> {
                 arguments: &argument_oracle,
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
+            },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let native_save_evidence = if args.checkpoint == 29 {
+        Some(native_save_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            native_save_evidence::Oracles {
+                container: &native_save_oracle,
+                schemas: &script_state_oracle,
             },
             &args.install,
         )?)
@@ -845,6 +867,9 @@ fn run(args: Args) -> Result<()> {
         || loaded_script_digest
             .as_ref()
             .is_some_and(|expected| digest(&loaded_script_oracle).as_ref().ok() != Some(expected))
+        || native_save_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&native_save_oracle).as_ref().ok() != Some(expected))
         || script_state_digest
             .as_ref()
             .is_some_and(|expected| digest(&script_state_oracle).as_ref().ok() != Some(expected))
@@ -1049,6 +1074,23 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut saves) = native_save_evidence {
+        saves["checkpoint"] = args.checkpoint.into();
+        saves["engine_revision"] = revision.clone().into();
+        saves["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["native_saves"] = saves.clone();
+        verification["native_save_oracle_binary_sha256"] = native_save_digest.into();
+        verification["script_state_schema_oracle_binary_sha256"] = script_state_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separate startup fix; neither reexecuted in this native-persistence checkpoint; full compiled-schema/state regression freshly repeated".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "native-saves"),
+            saves,
         ));
     } else if let Some(mut state) = script_state_evidence {
         state["checkpoint"] = args.checkpoint.into();

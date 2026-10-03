@@ -21,12 +21,14 @@ documented stale SCHR counts remain findings in the loaded catalogue.
 
 The engineering probe instantiates the 2,483 definitions with locals using
 explicit fragment identities and synthetic values. It round-trips 9,144 numeric
-values, 2,028 reference values and 2,160 pending events through a 2,381,445-byte
-snapshot. Those values are test inputs, not observations of original live state.
+values, 2,028 reference values and 2,160 pending events. Checkpoint 28's schema 1
+snapshot was 2,381,445 bytes; schema 2 adds campaign identity and state revision.
+Those values are test inputs, not observations of original live state.
 
 ## Identity and storage
 
-Persistent script and reference IDs use separate monotonic nonzero 64-bit
+Each world has a persistent nonzero 128-bit campaign identity. Persistent script
+and reference IDs use separate monotonic nonzero 64-bit
 allocators. Removed instance IDs are not recycled. Transient handles use a world
 epoch, slot and generation; removal, slot reuse and restoration invalidate old
 handles. Saves contain persistent identities, never raw pointers or ECS entities.
@@ -65,8 +67,9 @@ journal policy; original dispatch order, delay, suspension and pause behavior
 remain unmeasured. Acknowledgment is explicit and does not execute bytecode.
 Pending events prevent implicit instance removal.
 
-Schema version 1 snapshots retain allocators, references, instances, local banks,
-clocks and pending events. A content fingerprint binds normalized source names,
+Schema version 2 snapshots retain campaign identity, state revision, allocators,
+references, instances, local banks, clocks and pending events. Explicit migration
+from schema 1 requires a campaign identity. A content fingerprint binds normalized source names,
 lengths and SHA-256 values, the digest of every winning content header, winning
 script versions and resolved reference
 provenance. Reordering the same sources without changing winners preserves it.
@@ -77,7 +80,8 @@ identity/context/event, then replaces the caller's state. Unknown JSON fields,
 unsupported versions, duplicate identities, missing declarations, wrong storage
 kinds, dangling references, invalid event order and allocator reuse are rejected.
 Collection and byte budgets are explicit. This layer provides bounded canonical
-JSON encoding; filesystem publication and crash recovery are the next checkpoint.
+JSON encoding; [native saves](native-saves.md) add filesystem publication and
+explicit previous-slot recovery.
 It does not read or write Bethesda `.fos` files.
 
 ## Evidence and references
@@ -110,6 +114,6 @@ lines 1â€“150 describe execution context and type declarations. No implemen
 was copied. These sources expose storage operations; they do not expose or prove
 original constructor values or event scheduling.
 
-Next: filesystem save publication/recovery, foreign live-variable context,
+Next: foreign live-variable context,
 primitive queries and observable execution traces. Inventory, quest/dialogue
 mutation and complete world snapshots remain future work.

@@ -1,7 +1,7 @@
 use crate::{
     Error, Result,
     events::{Clocks, Context, Pending, Trigger},
-    identity::{InstanceId, Owner, ReferenceId, ReferenceValue, Value, valid_form},
+    identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value, valid_form},
     schema::{self, Kind, Local},
 };
 use fallout_data::{
@@ -98,6 +98,8 @@ pub(crate) struct Slot {
 }
 
 pub struct World<'a> {
+    pub(crate) campaign: CampaignId,
+    pub(crate) revision: u64,
     pub(crate) catalogue: &'a Catalogue,
     pub(crate) definitions: BTreeMap<ScriptKey, Arc<DefinitionSchema>>,
     pub(crate) block_count: usize,
@@ -120,10 +122,20 @@ pub struct World<'a> {
 
 impl<'a> World<'a> {
     pub fn new(catalogue: &'a Catalogue, limits: Limits) -> Result<Self> {
+        Self::with_campaign(catalogue, limits, CampaignId::generate()?)
+    }
+    pub fn with_campaign(
+        catalogue: &'a Catalogue,
+        limits: Limits,
+        campaign: CampaignId,
+    ) -> Result<Self> {
+        CampaignId::from_bytes(campaign.bytes())?;
         let epoch = NEXT_WORLD
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| Error::Capacity("world epochs"))?;
         Ok(Self {
+            campaign,
+            revision: 0,
             catalogue,
             definitions: BTreeMap::new(),
             block_count: 0,
@@ -147,6 +159,17 @@ impl<'a> World<'a> {
     pub fn catalogue_fingerprint(&self) -> &str {
         &self.cohort
     }
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+    fn next_revision(&self) -> Result<u64> {
+        self.revision
+            .checked_add(1)
+            .ok_or(Error::Capacity("state revisions"))
+    }
     pub fn instance_count(&self) -> usize {
         self.instances.len()
     }
@@ -162,7 +185,9 @@ impl<'a> World<'a> {
                 "clocks must advance monotonically with a new tick".into(),
             ));
         }
+        let revision = self.next_revision()?;
         self.clocks = clocks;
+        self.revision = revision;
         Ok(())
     }
     pub fn register_reference(&mut self, authored: Option<FormKey>) -> Result<ReferenceId> {
@@ -185,11 +210,13 @@ impl<'a> World<'a> {
             NonZeroU64::new(self.next_reference)
                 .ok_or_else(|| Error::Invalid("zero reference allocator".into()))?,
         );
+        let revision = self.next_revision()?;
         if let Some(key) = &authored {
             self.authored_references.insert(key.clone(), id);
         }
         self.references.insert(id, authored);
         self.next_reference = next;
+        self.revision = revision;
         Ok(id)
     }
     pub fn authored_reference(&self, key: &FormKey) -> Option<ReferenceId> {
@@ -274,6 +301,7 @@ impl<'a> World<'a> {
             definition_schema,
             locals,
         };
+        let revision = self.next_revision()?;
         self.local_count += instance.locals.len();
         let slot = if let Some(slot) = self.free.pop() {
             self.slots[slot].value = Some(instance);
@@ -289,6 +317,7 @@ impl<'a> World<'a> {
         self.instances.insert(id, slot);
         self.owners.insert(owner, id);
         self.next_instance = next;
+        self.revision = revision;
         Ok(self.handle_for_slot(slot))
     }
     fn handle_for_slot(&self, slot: usize) -> InstanceHandle {
@@ -343,6 +372,7 @@ impl<'a> World<'a> {
             .generation
             .checked_add(1)
             .ok_or(Error::Capacity("slot generations"))?;
+        let revision = self.next_revision()?;
         let instance = self.slots[slot]
             .value
             .take()
@@ -352,6 +382,7 @@ impl<'a> World<'a> {
         self.local_count -= instance.locals.len();
         self.slots[slot].generation = generation;
         self.free.push(slot);
+        self.revision = revision;
         Ok(())
     }
     pub(crate) fn validate_value(&self, local: &Local, value: &Value) -> Result<()> {
@@ -386,6 +417,10 @@ impl<'a> World<'a> {
                 value,
             )?;
         }
+        if assignments.is_empty() {
+            return Ok(());
+        }
+        let revision = self.next_revision()?;
         let slot = self.slot(handle)?;
         let instance = self.slots[slot]
             .value
@@ -394,6 +429,7 @@ impl<'a> World<'a> {
         for (index, value) in assignments {
             *instance.locals.get_mut(index).expect("checked local") = value.clone();
         }
+        self.revision = revision;
         Ok(())
     }
     /// This explicit operation models the reviewed ResetAllVariables storage
@@ -520,6 +556,7 @@ impl<'a> World<'a> {
             .next_sequence
             .checked_add(1)
             .ok_or(Error::Capacity("event sequences"))?;
+        let revision = self.next_revision()?;
         let sequence = self.next_sequence;
         self.pending.push_back(Pending {
             sequence,
@@ -529,6 +566,7 @@ impl<'a> World<'a> {
             arrived: self.clocks,
         });
         self.next_sequence = next;
+        self.revision = revision;
         Ok(sequence)
     }
     pub fn pending_events(&self) -> impl ExactSizeIterator<Item = &Pending> {
@@ -546,6 +584,9 @@ impl<'a> World<'a> {
                 "acknowledgment must name the first pending event".into(),
             ));
         }
-        Ok(self.pending.pop_front().expect("checked pending head"))
+        let revision = self.next_revision()?;
+        let event = self.pending.pop_front().expect("checked pending head");
+        self.revision = revision;
+        Ok(event)
     }
 }

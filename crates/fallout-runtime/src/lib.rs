@@ -4,6 +4,7 @@
 //! an implementation of the original game's scheduler.
 pub mod events;
 pub mod identity;
+pub mod save;
 pub mod schema;
 pub mod snapshot;
 pub mod state;

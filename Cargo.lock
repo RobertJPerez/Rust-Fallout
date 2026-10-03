@@ -2024,6 +2024,7 @@ name = "fallout-runtime"
 version = "0.1.0"
 dependencies = [
  "fallout-data",
+ "getrandom",
  "serde",
  "serde_json",
  "sha2",

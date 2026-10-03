@@ -3,6 +3,31 @@ use fallout_data::identity::{FormKey, ProfileId, plugin_name};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
+/// Opaque persistent campaign namespace. Reference/instance counters are local
+/// to this identity, while transient world epochs change after restoration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct CampaignId([u8; 16]);
+impl CampaignId {
+    pub fn generate() -> Result<Self> {
+        let mut bytes = [0; 16];
+        getrandom::fill(&mut bytes)
+            .map_err(|error| Error::Invalid(format!("campaign entropy source: {error}")))?;
+        Self::from_bytes(bytes)
+    }
+    /// An explicit identity is useful for imports and deterministic engineering
+    /// fixtures. Callers must use a distinct identity when starting a new game.
+    pub fn from_bytes(bytes: [u8; 16]) -> Result<Self> {
+        if bytes == [0; 16] {
+            return Err(Error::Invalid("zero campaign identity".into()));
+        }
+        Ok(Self(bytes))
+    }
+    pub fn bytes(self) -> [u8; 16] {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InstanceId(pub NonZeroU64);

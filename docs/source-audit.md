@@ -364,3 +364,12 @@ new oracle consumes the existing independently checked extraction bundle; it
 does not independently extract plugins or execute scripts. No upstream code is
 copied or linked. See [control-flow structure](control-flow-structure.md) and
 the exact source-lock scopes. All original execution acceptance remains open.
+
+Checkpoint 41 combines the already scoped winning catalogue, delimiter/expression
+planners and owning-table binder in a strict source-bound API. No new upstream
+code or source facts are imported. The exporter is Rust-owned; independent
+catalogue, control/expression and physical-unit binding comparisons are joined
+through exact handles, body hashes, record file offsets and SCHR decoded offsets.
+Equal SCDA hashes never replace owning-table identities. Source metadata and
+absent-body observations remain distinct from executable behavior. See
+[source-bound script preparation](source-bound-script-plans.md).

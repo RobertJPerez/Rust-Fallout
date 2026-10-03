@@ -10,6 +10,7 @@ pub mod argument_census;
 pub mod arguments;
 pub mod control_flow;
 pub mod control_flow_bundle;
+pub mod definition_plan;
 pub mod expression;
 pub mod expression_census;
 pub mod expression_plan;

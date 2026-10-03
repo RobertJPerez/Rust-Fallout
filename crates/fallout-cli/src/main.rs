@@ -5,6 +5,7 @@ mod compressed_record_inspection;
 mod condition_dependency_inspection;
 mod condition_inspection;
 mod control_flow_inspection;
+mod definition_plan_inspection;
 mod dialogue_inspection;
 mod expression_inspection;
 mod expression_plan_inspection;
@@ -326,6 +327,17 @@ enum Command {
         install: PathBuf,
         #[arg(long)]
         defer_unrelated_payloads: bool,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
+    /// Prepare exact winning script versions and owning source-table bindings.
+    SourcePlans {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
     },
@@ -994,6 +1006,35 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if failed {
                 return Err("native argument inspection has issues; see report".into());
+            }
+        }
+        Command::SourcePlans {
+            install,
+            load_order,
+            index_cache,
+            comparison_bundle,
+        } => {
+            let report = definition_plan_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = report["counts"]
+                .as_object()
+                .ok_or("Missing source-plan counts")?
+                .iter()
+                .any(|(kind, count)| {
+                    kind != "prepared_source_structure"
+                        && kind != "absent_compiled_field"
+                        && count.as_u64().unwrap_or(1) != 0
+                });
+            emit(&report, output, &install)?;
+            if failed {
+                return Err(
+                    "winning script source findings remain unresolved; see source-plan report"
+                        .into(),
+                );
             }
         }
         Command::ControlFlow {

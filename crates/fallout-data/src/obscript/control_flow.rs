@@ -79,11 +79,11 @@ pub struct Plan<'a> {
     links: Vec<Link>,
     maximum_depth: usize,
 }
-impl Plan<'_> {
-    pub fn bytes(&self) -> &[u8] {
+impl<'a> Plan<'a> {
+    pub fn bytes(&self) -> &'a [u8] {
         self.program.bytes
     }
-    pub fn instructions(&self) -> &[Instruction<'_>] {
+    pub fn instructions(&self) -> &[Instruction<'a>] {
         &self.program.instructions
     }
     pub fn events(&self) -> &[Event] {

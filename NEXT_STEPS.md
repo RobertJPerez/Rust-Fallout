@@ -288,3 +288,12 @@ associate complete plans with immutable winning script versions, keep unresolved
 source capability failures explicit, then bounded observable execution over
 measured semantic primitives. Original jump rules, event lifecycle, numeric
 effects and native handlers remain unfinished.
+
+Checkpoint 41 combines winning source handles with bounded delimiter/expression
+plans and each unit's own encoded operand tables. The development comparison
+checks all 80,627 units and prepares 14,420 compiled source structures, retaining
+every control/expression/table finding. See
+[source-bound script plans](docs/source-bound-script-plans.md). Next: bounded
+runtime frames and explicit capability checks over source-bound plans, plus the
+remaining actor/player/state components. Original semantic measurements,
+live context readiness and observable VM effects remain separate open gates.

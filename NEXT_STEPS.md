@@ -305,3 +305,14 @@ save formats and independent campaign banks retain their existing contracts. See
 event preparation and bounded runtime frames with explicit semantic capabilities,
 then actor/player state and presentation integration. Ownership does not admit
 original initialization, scheduling or bytecode effects.
+
+Checkpoint 43 adds read-only preparation of an exact pending event against its
+live instance, retained context, winning source version and complete owning-table
+plan. Development checks agree on 2,111 prepared frames and 49 retained source
+control findings across 2,160 engineering journal entries. See
+[live event preparation](docs/live-event-preparation.md). Next: explicit live
+operand readiness and semantic capability contracts, followed by bounded effects
+and execution continuations. Preparation does not acknowledge events or grant
+execution permission; original lifecycle, actor initialization and gameplay remain
+open. Parallel actor/skin source work uses the
+[team coordination plan](docs/agent-coordination.md) and isolated worktrees.

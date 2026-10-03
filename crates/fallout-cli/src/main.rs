@@ -7,6 +7,7 @@ mod condition_inspection;
 mod control_flow_inspection;
 mod definition_plan_inspection;
 mod dialogue_inspection;
+mod event_frame_inspection;
 mod expression_inspection;
 mod expression_plan_inspection;
 mod foreign_context_inspection;
@@ -243,6 +244,17 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+    },
+    /// Prepare bounded source windows for explicit engineering pending events.
+    EventFrames {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -837,6 +849,23 @@ fn run(args: Args) -> Result<()> {
             let report =
                 script_state_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
             emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::EventFrames {
+            install,
+            load_order,
+            index_cache,
+            comparison_bundle,
+        } => {
+            let report = event_frame_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                comparison_bundle.as_deref(),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["prepared_frames"] != report["pending_events_checked"] {
+                return Err("Pending events retain unresolved source findings; see report".into());
+            }
         }
         Command::SharedRuntime {
             install,

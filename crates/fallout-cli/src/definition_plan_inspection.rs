@@ -15,7 +15,7 @@ use std::{
     path::Path,
 };
 
-fn finding(error: definition_plan::Error) -> Value {
+pub(super) fn finding(error: definition_plan::Error) -> Value {
     use definition_plan::Error as E;
     match error {
         E::MissingBody => json!({"kind":"absent_compiled_field"}),

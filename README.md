@@ -58,6 +58,9 @@ Static quest SCRI attachments now support foreign declaration associations; see
 [quest script attachments](docs/quest-script-attachments.md).
 Runtime worlds can now own shared immutable sources and move to workers while
 keeping campaign banks independent; see [shared runtime sources](docs/shared-runtime-sources.md).
+Queued events can now prepare an exact source block against their live instance
+without consuming the journal or changing state; see
+[live event preparation](docs/live-event-preparation.md).
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -182,7 +185,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 324 Rust tests and five publication checks pass, including malformed compression, forward/cyclic links,
+- 332 Rust tests and five publication checks are required, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

@@ -2,7 +2,7 @@
 use crate::Result;
 use fallout_data::{
     baseline,
-    nif_skin::{self, Skin},
+    nif_skin::{self, Skin, partition},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -20,6 +20,8 @@ pub struct FileReport {
     decoded_bytes: usize,
     tuple: Option<[u32; 3]>,
     skin: Option<Skin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    partitions: Option<partition::Catalogue>,
     error: Option<String>,
     comparison: Option<&'static str>,
 }
@@ -27,6 +29,8 @@ pub struct FileReport {
 #[derive(Serialize)]
 pub struct Report {
     schema_version: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    partition_branch: Option<&'static str>,
     float_encoding: &'static str,
     input: PathBuf,
     oracle_report_sha256: Option<String>,
@@ -85,12 +89,24 @@ fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
     if serde_json::to_value(&skin.owners)? != expected["owners"] {
         return Err("oracle skin owner associations differ".into());
     }
+    if let Some(partitions) = &actual.partitions
+        && serde_json::to_value(&partitions.blocks)? != expected["partitions"]
+    {
+        return Err("oracle partition source fields differ".into());
+    }
     Ok(())
 }
 
-pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
+pub fn inspect(
+    input: &Path,
+    oracle_path: Option<&Path>,
+    include_partitions: bool,
+) -> Result<Report> {
+    let schema_version = if include_partitions { 2 } else { 1 };
+    let branch = include_partitions.then_some("nv-canonical-flags-four-wide-or-empty");
     let mut report = Report {
-        schema_version: 1,
+        schema_version,
+        partition_branch: branch,
         float_encoding: "ieee754-binary32-bits",
         input: input.into(),
         oracle_report_sha256: None,
@@ -107,13 +123,19 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
         let bytes = read_bounded(path, 128 * 1024 * 1024)?;
         report.oracle_report_sha256 = Some(format!("{:x}", Sha256::digest(&bytes)));
         let document: Value = serde_json::from_slice(&bytes)?;
-        if document["schema_version"] != 1
+        if document["schema_version"] != schema_version
             || document["float_encoding"] != "ieee754-binary32-bits"
             || document["nifly_revision"] != "cca0a770094bb962fb28ea1fec5ea903e68fda8e"
             || document["prepare_data_called"] != false
             || document["raw_presence_and_vertex_counts_checked"] != true
         {
             return Err("oracle provenance or raw-field comparison contract is missing".into());
+        }
+        if let Some(branch) = branch
+            && (document["partition_branch"] != branch
+                || document["raw_partition_fields_checked"] != true)
+        {
+            return Err("oracle partition branch contract is missing".into());
         }
         let digest = document["oracle_binary_sha256"]
             .as_str()
@@ -175,22 +197,45 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
             decoded_bytes: bytes.len(),
             tuple: None,
             skin: None,
+            partitions: None,
             error: None,
             comparison: None,
         };
-        match nif_skin::decode_with_limits(
-            &bytes,
-            &row.input.display().to_string(),
-            nif_skin::Limits {
-                skin_array_bytes: remaining.min(128 * 1024 * 1024),
-                ..Default::default()
-            },
-        ) {
-            Ok((index, skin)) => {
+        let skin_limits = nif_skin::Limits {
+            skin_array_bytes: remaining.min(128 * 1024 * 1024),
+            ..Default::default()
+        };
+        let decoded = if include_partitions {
+            partition::decode_with_limits(
+                &bytes,
+                &row.input.display().to_string(),
+                partition::Limits {
+                    skin: skin_limits,
+                    array_bytes: remaining.min(128 * 1024 * 1024),
+                    ..Default::default()
+                },
+            )
+            .map(|(index, source)| (index, source.skin, Some(source.partitions)))
+        } else {
+            nif_skin::decode_with_limits(&bytes, &row.input.display().to_string(), skin_limits)
+                .map(|(index, skin)| (index, skin, None))
+        };
+        match decoded {
+            Ok((index, skin, partitions)) => {
                 row.tuple = Some([index.version, index.user_version, index.bethesda_version]);
                 remaining = remaining
                     .checked_sub(skin.retained_bytes)
                     .ok_or("aggregate skin catalogue budget exceeded")?;
+                if let Some(partitions) = &partitions {
+                    remaining = remaining
+                        .checked_sub(partitions.retained_bytes)
+                        .ok_or("aggregate partition catalogue budget exceeded")?;
+                    *report
+                        .block_counts
+                        .entry("NiSkinPartition".into())
+                        .or_default() += partitions.blocks.len();
+                    report.unresolved_dependencies += partitions.dependencies.len();
+                }
                 for block in &skin.blocks {
                     *report
                         .block_counts
@@ -200,6 +245,7 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
                 report.owners += skin.owners.len();
                 report.unresolved_dependencies += skin.dependencies.len();
                 row.skin = Some(skin);
+                row.partitions = partitions;
                 if let Some(oracle) = &oracle {
                     let result = row
                         .input

@@ -1,6 +1,7 @@
 //! Authored NV skin sources. Exact bits and unresolved dependencies are retained;
 //! source decoding does not establish pose evaluation or gameplay skinning.
 mod graph;
+pub mod partition;
 mod read;
 
 use crate::{Error, Result, nif, nif_scene, nif_scene::cursor::Reader};

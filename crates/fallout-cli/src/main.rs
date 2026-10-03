@@ -94,6 +94,8 @@ enum Command {
         input: PathBuf,
         #[arg(long)]
         oracle_report: Option<PathBuf>,
+        #[arg(long)]
+        include_partitions: bool,
     },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
@@ -1355,8 +1357,10 @@ fn run(args: Args) -> Result<()> {
         Command::NifSkin {
             input,
             oracle_report,
+            include_partitions,
         } => {
-            let report = nif_skin_inspection::inspect(&input, oracle_report.as_deref())?;
+            let report =
+                nif_skin_inspection::inspect(&input, oracle_report.as_deref(), include_partitions)?;
             emit(&report, output, &input)?;
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());

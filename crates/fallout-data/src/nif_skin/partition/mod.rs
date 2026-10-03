@@ -86,6 +86,8 @@ pub enum Dependency {
 pub struct Catalogue {
     pub blocks: Vec<Block>,
     pub dependencies: Vec<Dependency>,
+    /// Charged retained records/arrays; temporary count-bounded relation maps
+    /// and allocator capacity/overhead are excluded (see docs/nif-skin.md).
     pub retained_bytes: usize,
     pub runtime_ready: bool,
 }

@@ -202,6 +202,19 @@ Each relation costs a work-budget unit even with empty arrays, so shared empty
 partitions cannot bypass the aggregate validation limit. Array products, strip
 sums, vector element storage and dependency storage are checked before allocation.
 
+The partition `array_bytes` limit and `retained_bytes` diagnostic cover retained
+partition records, source arrays, hashes and dependencies. They exclude the two
+temporary relation maps in `partition::graph::resolve`. Those maps group the
+already decoded skin instances by partition and geometry owners by instance.
+Their key and value counts are bounded by the admitted skin block and owner
+counts, each at most the scene block limit (100,000 by default). They are linear
+scratch storage, released before returning; map-node and vector-capacity overhead
+is not an exact byte measurement. A zero partition array budget therefore does
+not mean zero temporary allocation. There is no separate partition scratch-byte
+limit. Exact scene block-count and retained-array boundaries, including an empty
+partition catalogue with zero array/work budgets, are covered by the follow-up
+tests. These limits do not establish a whole-process memory ceiling.
+
 Native schema 2 is explicitly tagged
 `nv-canonical-flags-four-wide-or-empty` and requires
 `raw_partition_fields_checked: true`. The CLI compares each partition's source

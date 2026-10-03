@@ -445,3 +445,41 @@ fn zero_partitions_is_preserved() {
     let (_, s) = partition::decode(&container(&fixture(34, &[]), 34), "zero").unwrap();
     assert!(s.partitions.blocks[0].partitions.is_empty());
 }
+
+#[test]
+fn retained_arrays_and_relation_map_source_counts_have_distinct_boundaries() {
+    let blocks = fixture(34, &[packet(false)]);
+    let bytes = container(&blocks, 34);
+    let (_, decoded) = partition::decode(&bytes, "measured retained charge").unwrap();
+    let charge = decoded.partitions.retained_bytes;
+    let mut limits = Limits {
+        array_bytes: charge,
+        ..Default::default()
+    };
+    limits.skin.scene.blocks = blocks.len();
+    assert!(partition::decode_with_limits(&bytes, "exact boundaries", limits).is_ok());
+    limits.array_bytes -= 1;
+    assert!(partition::decode_with_limits(&bytes, "one byte short", limits).is_err());
+    limits.array_bytes = charge;
+    limits.skin.scene.blocks -= 1;
+    assert!(partition::decode_with_limits(&bytes, "one source block short", limits).is_err());
+
+    // Existing source owners still populate temporary relation maps even when
+    // no partition record is retained. A zero array budget is not a scratch cap.
+    let mut blocks = fixture(34, &[]);
+    blocks.pop();
+    blocks[1].1[4..8].copy_from_slice(&NULL.to_le_bytes());
+    let (_, decoded) = partition::decode_with_limits(
+        &container(&blocks, 34),
+        "empty partition catalogue",
+        Limits {
+            array_bytes: 0,
+            index_checks: 0,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(decoded.skin.owners.len(), 1);
+    assert!(decoded.partitions.blocks.is_empty());
+    assert_eq!(decoded.partitions.retained_bytes, 0);
+}

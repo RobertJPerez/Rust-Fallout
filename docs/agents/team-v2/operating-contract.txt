@@ -65,7 +65,7 @@ When active, work through dependency-ready assigned tasks until Robert stops or
 all defensible assigned work is blocked. Startup prompts explicitly request a
 persistent Goal when available. Goals support continuation/resumption but do not
 promise unlimited session/service lifetime. Never spin on identical failing checks.
-Keep one active task and at most two new unmerged handoffs. Review fixes come first.
+Keep one active task and at most six new unmerged handoffs. Review fixes come first.
 Inherited tested handoffs are consumed, not reimplemented. Every task needs a real
 consumer or a demonstrated dependency/failure. Avoid empty frameworks and duplicate
 parsers. Preserve exact resumption state before interruption or compaction.
@@ -78,12 +78,17 @@ read-only. Pass explicit research and private build paths to native wrappers.
 Keep caches, binaries and raw evidence in your own local directories. Never
 rebuild a binary or change an input used by a running proof.
 Run focused tests, formatting and affected-package Clippy with warnings denied.
-Every focused Cargo build/test/Clippy command needs the focused slot reserved by
-coordinator in board.json, even if no other build appears active. Heavy full
-proofs and GPU/retail captures need the separate heavy slot. Do not infer a free
-slot from observing no process. Reservations name owner/task and are released at
-completion or interruption. Check control and current-run stop messages between
-short process polls (normally no more than 10 seconds). Use new
+Run every focused Cargo test/build/Clippy and native build through the automatic
+focused slot: py -3 G:\Rust-Fallout\tools\team-v2-focused.py --lane YOUR_LANE --
+COMMAND ARGUMENTS. Set the assigned private CARGO_TARGET_DIR first and run from
+your assigned worktree. The Windows kernel mutex admits one worker at a time and
+releases on process exit, including crashes. Waiters recheck active control,
+assignment, lease and STOP every five seconds; the wrapper checks during builds
+and cancels only its own child tree on STOP. No coordinator grant or board update
+is required for focused builds. If the control policy is not automatic_mutex,
+finish source work while the current legacy reservation drains. Do not bypass
+the wrapper to avoid the queue. Heavy full proofs and GPU/retail captures still
+use the separately coordinator-reserved heavy slot. Use new
 evidence directories and exact commit/source/binary/input hashes. Negative tests
 must fail for the intended reason, not just return a nonzero code.
 

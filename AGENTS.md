@@ -26,9 +26,18 @@ checkout still contains an older four-agent plan.
   steal an existing lease. Workers write only their own status/outbox. Coordinator
   writes assignments and the integration board. Separate chats do not share
   messages automatically: read the durable mailboxes.
-- Keep one active task and at most two new unmerged handoffs per worker unless
-  explicitly reassigned. Prioritize review fixes and dependency integration.
+- Keep one active task and at most six new unmerged handoffs per worker.
+  Prioritize review fixes and dependency integration.
   Deliver reachable functionality; do not create duplicate parsers or empty crates.
+- Each active worker has a ready queue in its `local/team-v2/<lane>.assignment.json`.
+  After a tested handoff, take the next ready slice without a coordinator signal.
+  If one dependency is missing, record it once and continue an independent slice.
+  When the listed queue is exhausted, derive the next source-backed task from
+  the master brief and `NEXT_STEPS.md` within assigned paths, with a named
+  consumer and a small tested exit. Share that task in the lane outbox.
+- Once control enables `automatic_mutex`, run focused Cargo and native builds via
+  `tools/team-v2-focused.py` from the assigned worktree with its private target.
+  The wrapper waits for one shared build slot; no coordinator grant is needed.
 - Original installations, saves/settings and pinned research remain untouched.
   Never rebuild binaries used by a live proof. Raw retail material stays local.
 - Only coordinator assigns checkpoints and promotes/pushes main. Interrupted or

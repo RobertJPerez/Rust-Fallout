@@ -131,10 +131,16 @@ repeated permission. No consumer writes around canonical state validation.
 
 ## Review throughput and proof scheduling
 
-Keep one active task and at most two new unmerged handoffs per worker. Preserved
+Keep one active task and at most six new unmerged handoffs per worker. Preserved
 backlogs are grandfathered, but review them before adding another dependent stack.
-At the cap, fix findings or take coordinator-assigned independent work. Do not
-manufacture busywork. Send small tested commits early for overlapping review.
+After each handoff, take the next ready assignment task yourself. If its
+dependency is missing, record the blocker once and take an independent owned
+slice. When the listed queue is exhausted, derive the next source-backed task
+from the master brief and NEXT_STEPS.md within your owned paths, name its real
+consumer and small tested exit, and publish it in your own outbox. Do not wait
+for a coordinator task signal. At the handoff cap, review/fix existing handoffs
+and investigate source evidence while coordinator integrates; do not create an
+unbounded branch or manufacture busywork. Send small tested commits early.
 
 Coordinator reviews mailboxes at command/task boundaries and routes production
 defects to owners. A small cross-system candidate fix is allowed after recording
@@ -147,10 +153,11 @@ checks come first: directories, provenance, arguments, intended diagnostics and
 private output locations. Repeat a full proof only for a new relevant change,
 failure or unresolved concern, not every status request or worker commit.
 
-Initially permit one heavy full proof/GPU/retail capture and one focused Cargo
-build concurrently, with two Cargo jobs per focused build. Coordinator reserves
-every focused/heavy slot explicitly and adjusts from measured resources. Workers
-cannot independently assume they are the first build. Read-only review and private
+Permit one heavy full proof/GPU/retail capture and one focused Cargo/native build
+concurrently, with two Cargo jobs per focused build. Coordinator reserves the
+heavy slot and adjusts limits from measured resources. Workers use the automatic
+focused-slot wrapper in the operating contract; it serializes their commands
+without a coordinator grant. Read-only review and private
 implementation can continue while candidate source/binaries/inputs are frozen.
 
 Preserve historical reports and raw failed attempts. Code decoding, engine-state

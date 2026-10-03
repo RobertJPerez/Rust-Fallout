@@ -337,3 +337,70 @@ captures the then-uncommitted faction work in its source manifest. Original clas
 equality is additionally covered by the combined faction comparison.
 These worker source comparisons do not establish original faction behavior or
 replace root's integrated checkpoint verification.
+
+## Placed actor core and first extras (ACT-03)
+
+`actors::placements::Catalogue::load(&mut RecordStore, Limits)` owns winning
+ACHR/ACRE source headers, raw parent metadata, bodies and ordered physical fields.
+It reuses the unchanged `world::decode_placement` for NAME, DATA, XSCL and the
+existing optional core fields. The retained typed placement is available through
+`Definition::placement()`. The independent JSON core projection obtains exact
+position, rotation and scale words by calling `f32::to_bits` on those already
+decoded values. There is no separate Rust transform parser or coordinate
+conversion. Unknown source fields retain their bytes and metadata.
+
+The first bounded extra slice selects XEZN4 (ECZN encounter-zone binding), XMRC4
+(REFR merchant-container binding), and XLCM4 (signed level modifier). Base bindings
+use the existing parsed NAME word and exact NPC_/CREA schema domain for ACHR/ACRE.
+All bindings use the current owning store location. Null, missing, deleted and
+wrong-kind facts remain explicit, with findings for the latter three states.
+Duplicate extra declarations are retained and reported. Optional absence stays
+absent. Winning parent IDs remain raw and relative to the winning source plugin,
+including when an override moves the actor into a different cell.
+
+Pinned FNV lines 3113–3165 and 3203–3247 contain the selected layouts and domains,
+within the ACHR/ACRE declarations. Reference revision/file hash remain unchanged.
+The direct investigation found 7,761 physical definitions and 7,681 winners:
+3,942 ACHR15, 3,736 ACRE15, one ACRE11 and two ACRE9. These exact kind/version
+combinations are admitted. There are no winning tombstones in this cohort.
+All have one NAME4 and DATA24; 79 have XSCL4. Core transforms are finite and scales
+positive, matching the established world decoder's admission policy. The selected
+extras have 16 XEZN4, 86 XMRC4 and 305 XLCM4 occurrences, with no duplicates.
+
+Limits precede candidate key clones, physical field allocations, world decoder
+core-map allocation, binding creation and strict body decoding. Deleted winners
+retain headers/parent metadata without payload reads or earlier-definition
+fallback. Six focused tests pass, covering source-bit preservation, signed zero
+and subnormal scale, exact core getters, signed level modifiers, target states and
+domains, ordered duplicates, absent extras, extended opaque fields, kind/version
+dispatch, existing core rejection policies, budgets, compression, winning parent
+moves, unread tombstones, namespaces and cold/warm/reordered ownership.
+
+Use `actor-sources --include-placements` and comparison-wrapper
+`-IncludePlacements` to add this source projection. Original and authored full
+direct-reader comparisons agree in cold/warm/reordered phases. The original
+cohort has 7,681 winners, 22,665 physical fields, 407 selected extra occurrences,
+7,783 defined bindings and 681,344 decoded bytes, with no placement findings.
+The other scalar/association/class/faction projections remain exact. The combined
+reports retain the known voice finding and return diagnostic exit 1. Authored
+comparisons agree on five winners including a tombstone, 22 fields, nine extras,
+ten bindings and five findings, retaining the moved winning cell parent.
+Original cache phases have 0/10/10 hits; authored phases have 0/3/3.
+
+Both readers reject invalid XLCM3/XEZN5, missing NAME, non-finite core transforms
+and unadmitted ACHR14. Deliberately changed core bits and winning parent metadata
+are rejected; the scalar-only default still compares successfully. All 33 actor
+tests, formatting and fallout-data/CLI all-target Clippy pass. Completed worker
+runs verify their actual source/head/dirty manifests and executable hashes
+unchanged. Source comparison does not initialize actors or accept retail behavior.
+
+Raw comparisons are at `local\act03-placement-comparison-20261003-01` and
+`local\act03-placement-authored-comparison-20261003-01`; negatives are under
+`local\act03-placement-authored-inputs-20261003\negative-results`.
+Investigation and fixtures stay in `local\act03-placement-investigation-20261003` and
+`local\act03-placement-authored-inputs-20261003`. The pre-implementation framing
+check at `local\act03-placement-fixture-framing-20261003` checked the established
+header/scalar path only, and is not placed-actor semantic evidence.
+Health/count/linked/patrol extras remain separate future source slices. This
+catalogue does not infer a cell/world encounter-zone fallback, effective level,
+merchant inventory, live placement or actor initialization.

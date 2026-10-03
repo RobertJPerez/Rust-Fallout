@@ -8,6 +8,7 @@ param(
     [switch]$IncludeAssociations,
     [switch]$IncludeClasses,
     [switch]$IncludeFactions,
+    [switch]$IncludePlacements,
     [switch]$SkipReordered
 )
 $ErrorActionPreference = 'Stop'
@@ -77,6 +78,7 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     if ($IncludeAssociations) { $actorStart.Arguments += ' --include-associations' }
     if ($IncludeClasses) { $actorStart.Arguments += ' --include-classes' }
     if ($IncludeFactions) { $actorStart.Arguments += ' --include-factions' }
+    if ($IncludePlacements) { $actorStart.Arguments += ' --include-placements' }
     $actorStart.UseShellExecute = $false
     $actorStart.CreateNoWindow = $true
     $actorStart.RedirectStandardOutput = $true
@@ -97,6 +99,7 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     if ($IncludeAssociations) { $actorOracleArguments += '--include-associations' }
     if ($IncludeClasses) { $actorOracleArguments += '--include-classes' }
     if ($IncludeFactions) { $actorOracleArguments += '--include-factions' }
+    if ($IncludePlacements) { $actorOracleArguments += '--include-placements' }
     $actorCommands.Add($actorOracleArguments)
 }
 $actorOrderJson = Join-Path $actorRun 'order.json'
@@ -129,6 +132,7 @@ foreach ($actorPhase in @('cold','warm','reordered')) {
     if ($IncludeAssociations) { $actorArguments += '--include-associations' }
     if ($IncludeClasses) { $actorArguments += '--include-classes' }
     if ($IncludeFactions) { $actorArguments += '--include-factions' }
+    if ($IncludePlacements) { $actorArguments += '--include-placements' }
     # Windows PowerShell presents native stderr (including the CLI's normal
     # "Wrote ..." notice) as an error record. Exit status determines success.
     $actorPriorPreference = $ErrorActionPreference
@@ -155,7 +159,7 @@ if ($actorInitialSource.head_revision -ne $actorFinalSource.head_revision -or
 [IO.File]::WriteAllText((Join-Path $actorRun 'source-finish.json'), (ConvertTo-Json -InputObject $actorFinalSource -Depth 8), $actorUtf8)
 $actorReceipt = [ordered]@{
     schema_version=1
-    task_id= $(if ($IncludeFactions) { 'ACT-05-FACT' } elseif ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
+    task_id= $(if ($IncludePlacements) { 'ACT-03-core-extras' } elseif ($IncludeFactions) { 'ACT-05-FACT' } elseif ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
     scope='Private worker source-field comparisons; not an integrated checkpoint or retail acceptance receipt'
     started_source_revision=$actorInitialSource.head_revision
     source_snapshot_sha256=$actorInitialSource.manifest_sha256

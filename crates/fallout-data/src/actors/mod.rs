@@ -5,6 +5,7 @@ pub mod associations;
 pub mod classes;
 pub mod factions;
 pub mod fields;
+pub mod placements;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};
 use serde::Serialize;
 use std::collections::BTreeMap;

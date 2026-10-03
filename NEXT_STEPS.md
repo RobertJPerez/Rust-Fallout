@@ -82,7 +82,11 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    native command IDs; expression calls are still uncounted. The 148 condition IDs
    retain their separate identifier space. Continue reference/variable binding,
    expression and native argument decoding, registry evidence and execution.
-   No script is executed yet.
+   Checkpoint 16 independently reads the exact executable and compares 640 native
+   command, 38 event and 16 statement descriptors, including 638 parameter
+   occurrences. All 217 observed top-level commands, 33 events and 148 condition
+   IDs bind to metadata; native behavior is unimplemented. See
+   [command catalogue](docs/command-catalogue.md). No script is executed yet.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

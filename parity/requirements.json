@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "69dc6eaec45c61d5ca778c447f74dffffaf49abd",
-  "revision_note": "Checkpoint 15 binds 116 source files and actual executable hashes to 142 tests and exact independent framing/hash comparisons of all 14514 compiled bodies. Historical terrain, collision, corpus and cache receipts retain their own revisions and scopes. No retail or gameplay scenario is accepted.",
+  "last_verified_revision": "558d91e99133c5d7e50a6e5625bf6ddda3f65fd7",
+  "revision_note": "Checkpoint 16 binds 121 source files and executable hashes to 147 tests and independent direct reads of 694 command/event/statement descriptors and 638 parameter occurrences. Earlier format, terrain, script framing, collision and cache receipts retain their own revisions. No retail or gameplay scenario is accepted.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -911,6 +911,34 @@
       ],
       "tolerance": "Exact body digests and 24-byte header tuple digests; no behavioral tolerance or gameplay acceptance",
       "last_verified_revision": "69dc6eaec45c61d5ca778c447f74dffffaf49abd"
+    },
+    {
+      "id": "fnv.script.command-metadata",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "script_ob",
+      "requirement": "Fingerprint-gated offline descriptor inspection preserves command/event/statement IDs, parameter type/optional words and source file provenance.",
+      "evidence": [
+        "reports/checkpoint-16-command-catalogue.json",
+        "reports/checkpoint-16-verification.json",
+        "docs/command-catalogue.md"
+      ],
+      "affected_content": "640 vanilla command, 38 event and 16 statement descriptors; 217 observed top-level commands, 33 event IDs and 148 condition-function bindings",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-cli/src/pe_image.rs",
+        "crates/fallout-cli/src/command_catalogue.rs",
+        "tools/command-oracle",
+        "fallout-evidence --checkpoint 16"
+      ],
+      "known_gaps": [
+        "Descriptor metadata does not implement native behavior or return types",
+        "Expressions/native operands and variable/reference binding are unfinished",
+        "Condition subject/grouping and event timing are unimplemented",
+        "Only the exact local 1.4.0.525 executable digest is supported",
+        "No original executable handler is called"
+      ],
+      "tolerance": "Exact direct-source descriptor/string/parameter metadata; no behavioral tolerance",
+      "last_verified_revision": "558d91e99133c5d7e50a6e5625bf6ddda3f65fd7"
     }
   ]
 }

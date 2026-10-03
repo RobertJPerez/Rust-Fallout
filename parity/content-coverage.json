@@ -215,7 +215,8 @@
     "reports/nif-scenes.json",
     "reports/nif-materials.json",
     "reports/model-preview.json",
-    "reports/compiled-scripts.json"
+    "reports/compiled-scripts.json",
+    "reports/command-catalogue.json"
   ],
   "unknown": [
     "typed field links outside the selected cell dependency path",
@@ -237,6 +238,19 @@
     "top_level_native_command_ids": 217,
     "condition_ids_remain_separate": 148,
     "record_payloads_deferred": 162712,
+    "execution_ready": false,
+    "retail_parity_accepted": false
+  },
+  "native_command_metadata": {
+    "last_verified_revision": "558d91e99133c5d7e50a6e5625bf6ddda3f65fd7",
+    "evidence": "reports/checkpoint-16-command-catalogue.json",
+    "script_descriptors": 640,
+    "event_descriptors": 38,
+    "statement_descriptors": 16,
+    "parameter_descriptor_occurrences": 638,
+    "top_level_command_ids_bound": 217,
+    "observed_event_ids_bound": 33,
+    "condition_function_ids_bound": 148,
     "execution_ready": false,
     "retail_parity_accepted": false
   }

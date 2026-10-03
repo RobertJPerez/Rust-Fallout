@@ -40,8 +40,9 @@ def authored_actor_checks(root, run, cli, actor, binaries, revision, execute, po
     cold, warm = copy.copy(reports["cold"]), copy.copy(reports["warm"])
     cold.pop("index_cache", None); warm.pop("index_cache", None)
     require(cold == warm, "Authored cold/warm placement source facts differ")
-    require(reports["cold"]["actor_placements"] != reports["reordered"]["actor_placements"],
-            "Authored independent override reorder did not change source winner facts")
+    order = document(placement / "order.json")
+    require(document(directory / "reordered-order.json") == order[:-2] + order[-2:][::-1],
+            "Authored comparison did not apply the intended independent load order")
     native = document(directory / "oracle.json")
     rows = native["actor_placements"]["definitions"]
     live = next(row for row in rows if row["core"] is not None)

@@ -1,0 +1,541 @@
+{
+  "all_metadata_fields_and_digests_equal": true,
+  "all_top_level_caller_bindings_equal": true,
+  "checkpoint": 17,
+  "comparison_bundle_sha256": "242e848e22ccb56a7716a77caa9f22bda112d56bd517dc5868928238fce8fed0",
+  "comparison_scope": "independent field/table/caller parsing from Rust-extracted decoded records; extraction/decompression, stable identity conversion, runtime values and execution are not independently compared here",
+  "compiled_units_with_issues": 0,
+  "counts": {
+    "calls_to_forms": 26139,
+    "calls_to_variables": 2324,
+    "compiled_bodies": 14514,
+    "compiled_bytes": 1966273,
+    "conflicting_variable_indices": 8,
+    "declared_variable_count_equals_length": 79783,
+    "declared_variable_count_equals_max_index": 80349,
+    "duplicate_variable_indices": 11,
+    "form_references": 49074,
+    "reference_calls": 28463,
+    "source_fields": 14904,
+    "units": 80736,
+    "variable_references": 2031,
+    "variables": 11234
+  },
+  "duplicate_lookup": "preserve all declarations; source-reference first-match lookup; retail loading remains unmeasured",
+  "duplicate_variable_sites": [
+    {
+      "conflicting_variable_indices": 0,
+      "duplicate_variable_indices": 1,
+      "form_id": 1550428,
+      "header_decoded_offset": 27,
+      "metadata_sha256": "cd843577b2f5b3bcf9517c5c38ecaff267e653242c5276e3b73bbeccbdcfdb10",
+      "record_file_offset": 1060719,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 1,
+      "duplicate_variable_indices": 1,
+      "form_id": 1472288,
+      "header_decoded_offset": 22,
+      "metadata_sha256": "c18ff9b1a7f139e1f99ba4e8d4c6a58caea68caa326002fb6e00bcad77f2749e",
+      "record_file_offset": 1576801,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 0,
+      "duplicate_variable_indices": 1,
+      "form_id": 1459465,
+      "header_decoded_offset": 27,
+      "metadata_sha256": "2501decf298307fc0c7920e9532a201a94d09282620a08bc38f125f59490d815",
+      "record_file_offset": 1731683,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 1,
+      "duplicate_variable_indices": 1,
+      "form_id": 1455161,
+      "header_decoded_offset": 27,
+      "metadata_sha256": "8800d20ee82707adbace8fa47ab6c7ac24241ef4faadfd1a5d03e67b084d865b",
+      "record_file_offset": 1777390,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 1,
+      "duplicate_variable_indices": 1,
+      "form_id": 1424644,
+      "header_decoded_offset": 27,
+      "metadata_sha256": "1cdd7565e715813e94cfdf329cb6fbaf7a4b64299b473f4ba7c39f141fc6d4a6",
+      "record_file_offset": 2329890,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 1,
+      "duplicate_variable_indices": 1,
+      "form_id": 1423269,
+      "header_decoded_offset": 27,
+      "metadata_sha256": "b64f77af92240473f8784536065078f8583023a39084cd9c1249d8f5a5e41b91",
+      "record_file_offset": 2342444,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 1,
+      "duplicate_variable_indices": 1,
+      "form_id": 1364903,
+      "header_decoded_offset": 23,
+      "metadata_sha256": "115a53f0a10cd2d83ab5c8488110f2d4bfc22d2961b46a98be847c221a9e5ad4",
+      "record_file_offset": 2726708,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 0,
+      "duplicate_variable_indices": 1,
+      "form_id": 1325109,
+      "header_decoded_offset": 49,
+      "metadata_sha256": "1122abd5a9f9a2e708ee8e096fbecf9da1ea8fec492f2657de33c15403b5b581",
+      "record_file_offset": 3046931,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 2,
+      "duplicate_variable_indices": 2,
+      "form_id": 1201301,
+      "header_decoded_offset": 32,
+      "metadata_sha256": "4d41970134c05c06360c9233f5e8444496454c23e466d829e70f11db824f41d5",
+      "record_file_offset": 3831678,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "conflicting_variable_indices": 1,
+      "duplicate_variable_indices": 1,
+      "form_id": 1190777,
+      "header_decoded_offset": 18,
+      "metadata_sha256": "8b1a3bbf9cbeac76158db327b69ef0bcb083cad454d352f7fd12909e6ca7c20e",
+      "record_file_offset": 3906694,
+      "source_name": "FalloutNV.esm"
+    }
+  ],
+  "engine_revision": "7453516309bd168facb1f2e35eb4151f421fe6e2",
+  "execution_ready": false,
+  "framing_receipt_sha256": "176be81d28d1841f5a11c6c405acd16a99288f037dad0206e25912d25da4bc98",
+  "full_inventory_sha256": "503b2f8ba1e360c4751f2395baac0d8e2d3afe197f61a91caf23492e5c22a379",
+  "known_gaps": [
+    "Three stale empty-unit reference counts",
+    "Eight conflicting duplicate variable indices need retail loading observations",
+    "Winning embedded-script identity and actual referenced-form existence",
+    "Expression/native arguments, jumps, scheduling and effects"
+  ],
+  "known_metadata_issues": [
+    {
+      "compiled_bytes": null,
+      "declared_references": 2,
+      "form_id": 16814653,
+      "header_decoded_offset": 241,
+      "issues": [
+        "SCHR reference count differs from ordered table length"
+      ],
+      "metadata_sha256": "ca014902c783f9ae5375e6c9c7a77d0e7753ba53e74c175089134ccdbfc63886",
+      "record_file_offset": 884410,
+      "record_kind": "TERM",
+      "references": 1,
+      "source_name": "DeadMoney.esm"
+    },
+    {
+      "compiled_bytes": null,
+      "declared_references": 1,
+      "form_id": 1420557,
+      "header_decoded_offset": 264,
+      "issues": [
+        "SCHR reference count differs from ordered table length"
+      ],
+      "metadata_sha256": "70396c90cd0db177285dcff25dfc10bfd77e196f5565d3a5ec4d0f48f6e4e3b9",
+      "record_file_offset": 228955087,
+      "record_kind": "INFO",
+      "references": 0,
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "compiled_bytes": null,
+      "declared_references": 1,
+      "form_id": 16795906,
+      "header_decoded_offset": 458,
+      "issues": [
+        "SCHR reference count differs from ordered table length"
+      ],
+      "metadata_sha256": "57bf6dc8e3a7b19d289e5000a55fb9852c5772f689cfd0d2b9d8cac77888cc25",
+      "record_file_offset": 1068231,
+      "record_kind": "TERM",
+      "references": 0,
+      "source_name": "OldWorldBlues.esm"
+    }
+  ],
+  "native_negative_cases_rejected": [
+    "short_magic",
+    "wrong_magic",
+    "short_record",
+    "short_schr",
+    "orphan_reference",
+    "duplicate_body",
+    "orphan_xxxx",
+    "short_reference",
+    "unnamed_variable",
+    "unterminated_name",
+    "zero_caller",
+    "missing_local",
+    "record_budget"
+  ],
+  "native_report_sha256": "f847d0942ba9e50055dd728b9a8d20c7f14a788f785189149aff04eabe371f75",
+  "plugins": [
+    {
+      "counts": {
+        "calls_to_forms": 5,
+        "calls_to_variables": 0,
+        "compiled_bodies": 1,
+        "compiled_bytes": 161,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 0,
+        "declared_variable_count_equals_max_index": 0,
+        "duplicate_variable_indices": 0,
+        "form_references": 8,
+        "reference_calls": 5,
+        "script_flags": {
+          "1": 1
+        },
+        "script_types": {
+          "1": 1
+        },
+        "source_fields": 1,
+        "units": 1,
+        "variable_references": 0,
+        "variable_type_bytes": {},
+        "variables": 0
+      },
+      "record_payloads_decoded": 3,
+      "record_payloads_deferred": 5,
+      "source_bytes": 3007,
+      "source_name": "CaravanPack.esm",
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82",
+      "units_with_issues": 0
+    },
+    {
+      "counts": {
+        "calls_to_forms": 6,
+        "calls_to_variables": 0,
+        "compiled_bodies": 2,
+        "compiled_bytes": 237,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 1,
+        "declared_variable_count_equals_max_index": 1,
+        "duplicate_variable_indices": 0,
+        "form_references": 12,
+        "reference_calls": 6,
+        "script_flags": {
+          "1": 2
+        },
+        "script_types": {
+          "1": 2
+        },
+        "source_fields": 2,
+        "units": 2,
+        "variable_references": 0,
+        "variable_type_bytes": {},
+        "variables": 0
+      },
+      "record_payloads_decoded": 5,
+      "record_payloads_deferred": 15,
+      "source_bytes": 6523,
+      "source_name": "ClassicPack.esm",
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b",
+      "units_with_issues": 0
+    },
+    {
+      "counts": {
+        "calls_to_forms": 2167,
+        "calls_to_variables": 480,
+        "compiled_bodies": 1214,
+        "compiled_bytes": 167094,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 5450,
+        "declared_variable_count_equals_max_index": 5517,
+        "duplicate_variable_indices": 0,
+        "form_references": 4012,
+        "reference_calls": 2647,
+        "script_flags": {
+          "0": 1,
+          "1": 5593
+        },
+        "script_types": {
+          "0": 5525,
+          "1": 50,
+          "256": 19
+        },
+        "source_fields": 1298,
+        "units": 5594,
+        "variable_references": 122,
+        "variable_type_bytes": {
+          "0": 229,
+          "1": 752
+        },
+        "variables": 981
+      },
+      "record_payloads_decoded": 34964,
+      "record_payloads_deferred": 5121,
+      "source_bytes": 6274851,
+      "source_name": "DeadMoney.esm",
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329",
+      "units_with_issues": 1
+    },
+    {
+      "counts": {
+        "calls_to_forms": 17851,
+        "calls_to_variables": 1094,
+        "compiled_bodies": 11215,
+        "compiled_bytes": 1335400,
+        "conflicting_variable_indices": 8,
+        "declared_variable_count_equals_length": 64101,
+        "declared_variable_count_equals_max_index": 64482,
+        "duplicate_variable_indices": 11,
+        "form_references": 35392,
+        "reference_calls": 18945,
+        "script_flags": {
+          "0": 13,
+          "1": 64719
+        },
+        "script_types": {
+          "0": 64255,
+          "1": 329,
+          "256": 148
+        },
+        "source_fields": 11483,
+        "units": 64732,
+        "variable_references": 1554,
+        "variable_type_bytes": {
+          "0": 2284,
+          "1": 5656
+        },
+        "variables": 7940
+      },
+      "record_payloads_decoded": 345212,
+      "record_payloads_deferred": 119805,
+      "source_bytes": 245650747,
+      "source_name": "FalloutNV.esm",
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1",
+      "units_with_issues": 1
+    },
+    {
+      "counts": {
+        "calls_to_forms": 168,
+        "calls_to_variables": 0,
+        "compiled_bodies": 46,
+        "compiled_bytes": 10633,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 46,
+        "declared_variable_count_equals_max_index": 46,
+        "duplicate_variable_indices": 0,
+        "form_references": 199,
+        "reference_calls": 168,
+        "script_flags": {
+          "1": 48
+        },
+        "script_types": {
+          "0": 22,
+          "1": 1,
+          "256": 25
+        },
+        "source_fields": 46,
+        "units": 48,
+        "variable_references": 0,
+        "variable_type_bytes": {
+          "0": 3,
+          "1": 25
+        },
+        "variables": 28
+      },
+      "record_payloads_decoded": 160,
+      "record_payloads_deferred": 619,
+      "source_bytes": 252445,
+      "source_name": "GunRunnersArsenal.esm",
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e",
+      "units_with_issues": 0
+    },
+    {
+      "counts": {
+        "calls_to_forms": 1585,
+        "calls_to_variables": 265,
+        "compiled_bodies": 755,
+        "compiled_bytes": 124240,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 4037,
+        "declared_variable_count_equals_max_index": 4062,
+        "duplicate_variable_indices": 0,
+        "form_references": 3343,
+        "reference_calls": 1850,
+        "script_flags": {
+          "1": 4072
+        },
+        "script_types": {
+          "0": 4012,
+          "1": 44,
+          "256": 16
+        },
+        "source_fields": 779,
+        "units": 4072,
+        "variable_references": 135,
+        "variable_type_bytes": {
+          "0": 175,
+          "1": 392
+        },
+        "variables": 567
+      },
+      "record_payloads_decoded": 24870,
+      "record_payloads_deferred": 11332,
+      "source_bytes": 17308500,
+      "source_name": "HonestHearts.esm",
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368",
+      "units_with_issues": 0
+    },
+    {
+      "counts": {
+        "calls_to_forms": 1630,
+        "calls_to_variables": 245,
+        "compiled_bodies": 483,
+        "compiled_bytes": 141687,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 2185,
+        "declared_variable_count_equals_max_index": 2212,
+        "duplicate_variable_indices": 0,
+        "form_references": 2230,
+        "reference_calls": 1875,
+        "script_flags": {
+          "1": 2230
+        },
+        "script_types": {
+          "0": 2191,
+          "1": 20,
+          "256": 19
+        },
+        "source_fields": 483,
+        "units": 2230,
+        "variable_references": 90,
+        "variable_type_bytes": {
+          "0": 187,
+          "1": 578
+        },
+        "variables": 765
+      },
+      "record_payloads_decoded": 21650,
+      "record_payloads_deferred": 13339,
+      "source_bytes": 25676818,
+      "source_name": "LonesomeRoad.esm",
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516",
+      "units_with_issues": 0
+    },
+    {
+      "counts": {
+        "calls_to_forms": 5,
+        "calls_to_variables": 0,
+        "compiled_bodies": 1,
+        "compiled_bytes": 161,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 0,
+        "declared_variable_count_equals_max_index": 0,
+        "duplicate_variable_indices": 0,
+        "form_references": 8,
+        "reference_calls": 5,
+        "script_flags": {
+          "1": 1
+        },
+        "script_types": {
+          "1": 1
+        },
+        "source_fields": 1,
+        "units": 1,
+        "variable_references": 0,
+        "variable_type_bytes": {},
+        "variables": 0
+      },
+      "record_payloads_decoded": 3,
+      "record_payloads_deferred": 5,
+      "source_bytes": 3064,
+      "source_name": "MercenaryPack.esm",
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59",
+      "units_with_issues": 0
+    },
+    {
+      "counts": {
+        "calls_to_forms": 2718,
+        "calls_to_variables": 240,
+        "compiled_bodies": 796,
+        "compiled_bytes": 186517,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 3963,
+        "declared_variable_count_equals_max_index": 4029,
+        "duplicate_variable_indices": 0,
+        "form_references": 3863,
+        "reference_calls": 2958,
+        "script_flags": {
+          "0": 2,
+          "1": 4053
+        },
+        "script_types": {
+          "0": 3968,
+          "1": 48,
+          "256": 39
+        },
+        "source_fields": 810,
+        "units": 4055,
+        "variable_references": 130,
+        "variable_type_bytes": {
+          "0": 237,
+          "1": 716
+        },
+        "variables": 953
+      },
+      "record_payloads_decoded": 40216,
+      "record_payloads_deferred": 12468,
+      "source_bytes": 16202800,
+      "source_name": "OldWorldBlues.esm",
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295",
+      "units_with_issues": 1
+    },
+    {
+      "counts": {
+        "calls_to_forms": 4,
+        "calls_to_variables": 0,
+        "compiled_bodies": 1,
+        "compiled_bytes": 143,
+        "conflicting_variable_indices": 0,
+        "declared_variable_count_equals_length": 0,
+        "declared_variable_count_equals_max_index": 0,
+        "duplicate_variable_indices": 0,
+        "form_references": 7,
+        "reference_calls": 4,
+        "script_flags": {
+          "1": 1
+        },
+        "script_types": {
+          "1": 1
+        },
+        "source_fields": 1,
+        "units": 1,
+        "variable_references": 0,
+        "variable_type_bytes": {},
+        "variables": 0
+      },
+      "record_payloads_decoded": 3,
+      "record_payloads_deferred": 3,
+      "source_bytes": 2323,
+      "source_name": "TribalPack.esm",
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328",
+      "units_with_issues": 0
+    }
+  ],
+  "profile": "nv-original",
+  "record_payloads_deferred": 162712,
+  "retail_parity_accepted": false,
+  "rust_report_sha256": "22225761e7deb98df3f4f763d5c3a9c10f87bc35be8dc81f587c5fc86aba215f",
+  "schema_version": 1,
+  "source_snapshot_sha256": "3a2444ca5ca7d3394a7cc66eaf9ff243c4e1d63b43c3e005e011fc748d1d5c74",
+  "strict_unrelated_integrity_failure_retained": true,
+  "units_compared": 80736,
+  "variable_count_semantics": "raw declared value retained; equality to declaration length and maximum index are observations only"
+}

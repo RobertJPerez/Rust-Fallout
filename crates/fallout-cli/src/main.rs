@@ -60,6 +60,17 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Associate authored script caller references with each unit's own tables.
+    #[command(name = "script-bindings")]
+    Bindings {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        /// Local raw decoded records for an independent metadata comparison.
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Inspect vanilla command/event metadata from the exact pinned executable.
     #[command(name = "command-catalogue")]
     Catalogue {
@@ -318,6 +329,83 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::Bindings {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let mut bundle = comparison_bundle
+                .as_ref()
+                .map(|path| -> Result<_> {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    if parent.starts_with(protected_tree(&install)?) {
+                        return Err("script binding bundle must be outside the installation".into());
+                    }
+                    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+                    file.write_all(b"FRUNIT01")?;
+                    Ok(io::BufWriter::new(file))
+                })
+                .transpose()?;
+            let mut bundle_bytes = 8_u64;
+            let mut reports = Vec::new();
+            for path in data_files(&install, &["esm", "esp"])? {
+                eprintln!("Inspecting script tables in {}", path.display());
+                reports.push(fallout_data::script_bindings::inspect(
+                    &path,
+                    defer_unrelated_payloads,
+                    |record, _| {
+                        if let Some(bundle) = &mut bundle {
+                            bundle_bytes += 20 + record.payload.len() as u64;
+                            if bundle_bytes > 512 * 1024 * 1024 {
+                                return Err(fallout_data::Error::Unsupported(
+                                    "script binding bundle exceeds 512 MiB".into(),
+                                ));
+                            }
+                            let write = |error: std::io::Error| {
+                                fallout_data::Error::Resolution(error.to_string())
+                            };
+                            bundle.write_all(&record.header.kind).map_err(write)?;
+                            bundle
+                                .write_all(&record.header.form_id.to_le_bytes())
+                                .map_err(write)?;
+                            bundle
+                                .write_all(&record.header.offset.to_le_bytes())
+                                .map_err(write)?;
+                            bundle
+                                .write_all(&(record.payload.len() as u32).to_le_bytes())
+                                .map_err(write)?;
+                            bundle.write_all(&record.payload).map_err(write)?;
+                        }
+                        Ok(())
+                    },
+                )?);
+            }
+            let bundle_receipt = if let Some(mut bundle) = bundle {
+                bundle.flush()?;
+                bundle.get_ref().sync_all()?;
+                drop(bundle);
+                let (bytes, sha256) =
+                    baseline::digest_file(comparison_bundle.as_ref().expect("opened bundle"))?;
+                Some(
+                    json!({"format":"FRUNIT01: magic, repeated record kind[4], u32 form ID, u64 file offset, u32 decoded payload length and raw payload", "bytes":bytes, "sha256":sha256}),
+                )
+            } else {
+                None
+            };
+            let issues: usize = reports.iter().map(|report| report.units_with_issues).sum();
+            emit(
+                &json!({"schema_version":1,"profile":"nv-original", "scope":"authored script tables and top-level caller bindings; no runtime values or winning embedded-script identity", "plugins":reports, "units_with_issues":issues, "comparison_bundle":bundle_receipt, "execution_ready":false,"retail_parity_accepted":false}),
+                output,
+                &install,
+            )?;
+            if issues != 0 {
+                return Err("script table associations have issues; see report".into());
+            }
+        }
         Command::Catalogue { install } => {
             let catalogue = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
             emit(&catalogue, output, &install)?;

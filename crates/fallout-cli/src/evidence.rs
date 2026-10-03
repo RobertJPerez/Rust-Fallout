@@ -1,5 +1,6 @@
 //! Checkpoint tooling stays separate from the content-inspection CLI. This runner
 //! records the commands it actually executes and publishes metadata, never assets.
+mod binding_evidence;
 mod catalogue_evidence;
 mod height_evidence;
 mod index_evidence;
@@ -35,7 +36,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=16))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=17))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -328,6 +329,12 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let binding_oracle = root.join("local/binding-oracle-build/Release/binding-oracle.exe");
+    let binding_digest = if args.checkpoint == 17 {
+        Some(digest(&binding_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -428,6 +435,17 @@ fn run(args: Args) -> Result<()> {
             &destination,
             &cli_path,
             &command_oracle,
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let binding_evidence = if args.checkpoint == 17 {
+        Some(binding_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &binding_oracle,
             &args.install,
         )?)
     } else {
@@ -588,6 +606,9 @@ fn run(args: Args) -> Result<()> {
         || command_digest
             .as_ref()
             .is_some_and(|expected| digest(&command_oracle).as_ref().ok() != Some(expected))
+        || binding_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&binding_oracle).as_ref().ok() != Some(expected))
     {
         return Err("Source or executable changed during verification".into());
     }
@@ -710,6 +731,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "command-catalogue"),
             catalogue,
+        ));
+    } else if let Some(mut bindings) = binding_evidence {
+        bindings["checkpoint"] = args.checkpoint.into();
+        bindings["engine_revision"] = revision.clone().into();
+        bindings["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["script_bindings"] = bindings.clone();
+        verification["binding_oracle_binary_sha256"] = binding_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this binding checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "script-bindings"),
+            bindings,
         ));
     } else {
         publication.push((

@@ -142,3 +142,12 @@ sections; no original code is loaded or called. An original C++ reader independe
 reads the same executable and compares names, parameter metadata and provenance.
 Microsoft PE documentation is the format reference. All command behavior, return
 types and event scheduling remain open; see [command catalogue](command-catalogue.md).
+
+Checkpoint 17 inspects xEdit script table definitions and the xNVSE reference/local
+lookup functions. The original Rust decoder retains byte-level field provenance,
+source-less tables and all authored duplicate declarations. An original offline
+C++ tool parses complete Rust-extracted decoded records independently, including
+extended fields and top-level caller associations. Three empty-unit count
+inconsistencies remain explicit. The comparison does not certify plugin extraction,
+stable identity conversion, retail loading or script behavior. See
+[script table bindings](script-bindings.md).

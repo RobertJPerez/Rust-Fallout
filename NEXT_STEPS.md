@@ -87,6 +87,12 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    occurrences. All 217 observed top-level commands, 33 events and 148 condition
    IDs bind to metadata; native behavior is unimplemented. See
    [command catalogue](docs/command-catalogue.md). No script is executed yet.
+   The script table layer now preserves 80,736 units and compares all 28,463
+   top-level caller associations. Three stale empty-unit reference counts and
+   eleven duplicate variable indices remain documented, with no source repair.
+   See [script table bindings](docs/script-bindings.md). Continue expression and
+   native operand decoding; stable winning embedded-script identity and loaded
+   reference values remain unverified.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

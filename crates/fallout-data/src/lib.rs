@@ -29,6 +29,7 @@ pub mod nif;
 pub mod nif_census;
 pub mod nif_collision;
 pub mod nif_scene;
+pub mod nif_skin;
 pub mod obscript;
 pub mod obscript_census;
 pub mod operand_bindings;

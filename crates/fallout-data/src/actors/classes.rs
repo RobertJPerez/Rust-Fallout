@@ -103,15 +103,17 @@ impl Catalogue {
         self.definitions.iter()
     }
     pub fn load(store: &mut RecordStore, limits: Limits) -> Result<Self> {
-        let locations = store
-            .winning_definitions()
-            .filter(|(_, at)| store.definition(*at).header.kind == *b"CLAS")
-            .map(|(key, at)| (key.clone(), at))
-            .collect::<Vec<_>>();
-        if locations.len() > limits.max_records {
-            return Err(crate::Error::Unsupported(
-                "class record budget exceeded".into(),
-            ));
+        let mut locations = Vec::new();
+        for (key, at) in store.winning_definitions() {
+            if store.definition(at).header.kind != *b"CLAS" {
+                continue;
+            }
+            if locations.len() >= limits.max_records {
+                return Err(crate::Error::Unsupported(
+                    "class record budget exceeded".into(),
+                ));
+            }
+            locations.push((key.clone(), at));
         }
         let mut catalogue = Self {
             sources: store.source_receipts()?,

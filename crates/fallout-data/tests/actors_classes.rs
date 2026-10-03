@@ -234,6 +234,10 @@ fn budgets_apply_to_record_count_individual_decoding_total_decoding_and_fields()
     assert_eq!(catalogue.counts().decoded_bytes, body(1).len() * 2);
     for limits in [
         Limits {
+            max_records: 0,
+            ..Default::default()
+        },
+        Limits {
             max_records: 1,
             ..Default::default()
         },

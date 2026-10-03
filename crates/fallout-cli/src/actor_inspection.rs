@@ -9,6 +9,7 @@ pub(super) fn inspect(
     order_path: &Path,
     cache: Option<&Path>,
     include_associations: bool,
+    include_classes: bool,
 ) -> Result<Value> {
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -34,6 +35,15 @@ pub(super) fn inspect(
         report["scope"] = json!(
             "Exact authored NPC_/CREA scalar fields and ordered source associations; no inheritance, initialization, effect, faction or AI execution"
         );
+    }
+    if include_classes {
+        let classes =
+            actors::classes::Catalogue::load(&mut store, actors::classes::Limits::default())?;
+        report["actor_classes"] = json!({"counts":classes.counts(),"definitions":classes.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
+        report["scope"] = json!(format!(
+            "{}; authored CLAS DATA/ATTR inputs, no class application",
+            report["scope"].as_str().unwrap_or_default()
+        ));
     }
     Ok(report)
 }
@@ -68,6 +78,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err("independent actor source comparison differs in actor_associations".into());
     }
+    if report.get("actor_classes").is_some()
+        && report.get("actor_classes") != oracle.get("actor_classes")
+    {
+        return Err("independent actor source comparison differs in actor_classes".into());
+    }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
@@ -76,6 +91,10 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     if report.get("actor_associations").is_some() {
         report["independent_comparison"]["association_bindings_checked"] =
             report["actor_associations"]["counts"]["bindings"].clone();
+    }
+    if report.get("actor_classes").is_some() {
+        report["independent_comparison"]["classes_checked"] =
+            report["actor_classes"]["counts"]["records"].clone();
     }
     Ok(())
 }

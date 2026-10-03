@@ -167,6 +167,8 @@ enum Command {
         compare_oracle: Option<PathBuf>,
         #[arg(long)]
         include_associations: bool,
+        #[arg(long)]
+        include_classes: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -765,12 +767,14 @@ fn run(args: Args) -> Result<()> {
             index_cache,
             compare_oracle,
             include_associations,
+            include_classes,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 include_associations,
+                include_classes,
             )?;
             if let Some(oracle) = compare_oracle {
                 actor_inspection::compare(&mut report, &oracle)?;
@@ -778,6 +782,10 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &protected_tree(&install)?)?;
             if report["counts"]["source_findings"] != 0
                 || report["actor_associations"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_classes"]["counts"]["source_findings"]
                     .as_u64()
                     .unwrap_or(0)
                     != 0

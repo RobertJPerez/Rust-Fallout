@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory=$true)][string]$RunDirectory,
     [switch]$AllowSourceFindings,
     [switch]$IncludeAssociations,
+    [switch]$IncludeClasses,
     [switch]$SkipReordered
 )
 $ErrorActionPreference = 'Stop'
@@ -73,6 +74,7 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     $actorStart.FileName = $actorOracle
     $actorStart.Arguments = '"' + (Join-Path $actorInstall 'Data') + '" "' + $Order + '"'
     if ($IncludeAssociations) { $actorStart.Arguments += ' --include-associations' }
+    if ($IncludeClasses) { $actorStart.Arguments += ' --include-classes' }
     $actorStart.UseShellExecute = $false
     $actorStart.CreateNoWindow = $true
     $actorStart.RedirectStandardOutput = $true
@@ -91,6 +93,7 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     } finally { $actorOutputStream.Dispose(); $actorProcess.Dispose() }
     $actorOracleArguments = @($actorOracle, (Join-Path $actorInstall 'Data'), $Order)
     if ($IncludeAssociations) { $actorOracleArguments += '--include-associations' }
+    if ($IncludeClasses) { $actorOracleArguments += '--include-classes' }
     $actorCommands.Add($actorOracleArguments)
 }
 $actorOrderJson = Join-Path $actorRun 'order.json'
@@ -121,6 +124,7 @@ foreach ($actorPhase in @('cold','warm','reordered')) {
     $actorArguments = @('actor-sources','--install',$actorInstall,'--load-order',$actorOrderJson,
         '--index-cache',$actorCache,'--compare-oracle',$actorOracleJson,'--output',$actorOutput)
     if ($IncludeAssociations) { $actorArguments += '--include-associations' }
+    if ($IncludeClasses) { $actorArguments += '--include-classes' }
     # Windows PowerShell presents native stderr (including the CLI's normal
     # "Wrote ..." notice) as an error record. Exit status determines success.
     $actorPriorPreference = $ErrorActionPreference
@@ -147,7 +151,7 @@ if ($actorInitialSource.head_revision -ne $actorFinalSource.head_revision -or
 [IO.File]::WriteAllText((Join-Path $actorRun 'source-finish.json'), (ConvertTo-Json -InputObject $actorFinalSource -Depth 8), $actorUtf8)
 $actorReceipt = [ordered]@{
     schema_version=1
-    task_id= $(if ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
+    task_id= $(if ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
     scope='Private worker source-field comparisons; not an integrated checkpoint or retail acceptance receipt'
     started_source_revision=$actorInitialSource.head_revision
     source_snapshot_sha256=$actorInitialSource.manifest_sha256

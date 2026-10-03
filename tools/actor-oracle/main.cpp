@@ -2,6 +2,7 @@
 #include "../oracle-common/record_source.hpp"
 #include "../oracle-common/zlib_source.hpp"
 #include "associations.hpp"
+#include "classes.hpp"
 using namespace fallout_records;
 
 static std::string bytes_json(const Bytes& bytes, size_t first, size_t end) {
@@ -89,9 +90,13 @@ static Document decode(const Bytes& body,const std::string& kind,uint16_t versio
 }
 int wmain(int argc,wchar_t** argv) {
     try {
-        if (argc!=3 && argc!=4) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations]");
-        const bool include_associations=argc==4;
-        if(include_associations&&std::wstring(argv[3])!=L"--include-associations")throw std::runtime_error("unknown actor oracle option");
+        if (argc<3 || argc>5) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations] [--include-classes]");
+        bool include_associations=false,include_classes=false;
+        for(int argument=3;argument<argc;++argument) {
+            if(std::wstring(argv[argument])==L"--include-associations"&&!include_associations)include_associations=true;
+            else if(std::wstring(argv[argument])==L"--include-classes"&&!include_classes)include_classes=true;
+            else throw std::runtime_error("unknown or duplicate actor oracle option");
+        }
         auto index=scan(argv[1],argv[2]); Counts counts; std::vector<std::string> definitions;
         actor_associations::Counts association_counts;std::vector<std::string> association_definitions;
         for (const auto& winner:index.winners) {
@@ -131,6 +136,7 @@ int wmain(int argc,wchar_t** argv) {
             {"metadata",index.metadata_json()},{"winning_content_sha256",quote(index.winners_sha256)},
             {"counts",counts.json()},{"definitions",array(definitions)}};
         if(include_associations)report["actor_associations"]=object({{"counts",association_counts.json()},{"definitions",array(association_definitions)}});
+        if(include_classes)report["actor_classes"]=actor_classes::project(index);
         std::cout<<object(report)<<'\n';
         return 0;
     } catch (const std::exception& error) { std::cerr<<"actor-oracle: "<<error.what()<<'\n'; return 1; }

@@ -205,3 +205,63 @@ this runner correction; its exact binaries are preserved at
 Placed-actor extras, required race/class/faction source inputs and bounded actor
 dependency closure remain next source dependencies. Runtime inheritance,
 initialization and original gameplay measurements stay with the primary lane.
+
+## Authored class inputs (ACT-05-CLAS)
+
+`actors::classes::Catalogue::load(&mut RecordStore, Limits)` owns an immutable
+catalogue of winning CLAS definitions. It retains the complete winning header,
+source plugin/hash/offset/flags, ordered physical field metadata and decoded body
+for each nondeleted winner. Tombstones retain their winning header without
+reading a deleted payload. Full source receipts and the exact winning header
+digest are exposed for future joins; record counts or store indices alone cannot
+establish shared source identity.
+
+The pinned FNV schema at `wbDefinitionsFNV.pas` lines 4146–4169 defines the
+selected layouts. The reference revision and file hash above remain unchanged.
+An independent direct-file investigation found 101 physical definitions and 100
+winning classes in the original ten-plugin cohort. The winning nondeleted header
+versions are 14 (29 records) and 15 (71 records). Both have the same selected
+fixed layouts. Other nondeleted header versions are explicitly unsupported.
+
+| Field | Selected exact layout |
+| --- | --- |
+| DATA, 28 bytes | Four signed 32-bit tag-skill words, unsigned 32-bit flags and services, signed training-skill byte, unsigned maximum-training-level byte, two unused bytes |
+| ATTR, 7 bytes | Seven authored attribute bytes in schema order |
+
+Signed words, unknown flag/service bits and unused bytes are retained without
+enum normalization, clamps or editor defaults. Missing DATA/ATTR and repeated
+selected fields produce findings. Repetitions remain ordered; no value is chosen
+as an effective class. Invalid selected lengths fail explicitly. Other physical
+fields remain opaque, with exact offsets, lengths, hashes and retained bytes.
+This slice does not apply tagged skills, train actors, initialize services or
+compute effective attributes.
+
+Five focused tests pass, covering signed extremes, flags, unused bytes, training
+bytes, attributes, ordered duplicates, extended opaque fields, missing inputs,
+unsupported versions, truncation/extents, decoding budgets, compressed bodies,
+master-relative overrides, unread tombstones and cold/warm/reordered ownership.
+The native direct-source projection builds in the private ACT-05 class directory.
+`actor-sources --include-classes` and comparison-wrapper `-IncludeClasses` add the
+class projection while preserving the scalar-only and association modes.
+Formatting and fallout-data/CLI all-target Clippy pass with warnings denied.
+All twenty scalar, association and class tests pass together.
+
+The independent original comparison agrees in cold/warm/reordered phases on all
+100 classes, 499 physical fields, 200 selected scalar occurrences and 9,628 decoded
+body bytes. There are no class findings. The combined scalar/association/class
+reports retain ACT-02's one deleted voice target and return diagnostic exit 1.
+Ten plugin cache misses become ten warm hits and ten reordered hits. The authored
+direct-reader comparison agrees on six winners including a tombstone, twelve
+physical fields, eight selected occurrences and four retained findings in all
+three phases. A deliberately changed tag-skill word is rejected; malformed
+27-byte DATA, 8-byte ATTR and nondeleted version 16 fail in both readers. Scalar
+default mode continues to compare successfully without admitting class sources.
+
+Raw development comparisons, investigation and authored/negative files stay
+under `local\act05-class-comparison-20261003-01`,
+`local\act05-class-authored-comparison-20261003-01`,
+`local\act05-class-investigation-20261003`, and
+`local\act05-class-authored-inputs-20261003\negative-results`. Both complete
+comparison runs captured and verified unchanged source manifests and binary
+hashes. These are source comparisons; root owns fresh integrated publication and
+no actor class behavior has been accepted against the original game.

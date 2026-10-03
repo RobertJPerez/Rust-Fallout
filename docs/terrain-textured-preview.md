@@ -101,9 +101,15 @@ tests remain available, but retail UI/camera comparison requires a direct manual
 test in this environment. No retail image comparison or accepted scenario is claimed.
 
 ```powershell
-# Build/commit first, then use a fresh evidence directory.
-.\target\release\fallout-evidence.exe --checkpoint 14 --run-directory .\local\terrain-14-new --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas'
+# Build/commit first, then use a fresh evidence directory. Keep published receipts unchanged.
+.\target\release\fallout-evidence.exe --checkpoint 14 --run-directory .\local\terrain-14-new --no-publish --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas'
 ```
 
 See [textured GPU evidence](../reports/terrain-textured-preview.json). Earlier
 immutable checkpoints and the checkpoint 11 untextured captures remain retained.
+
+The runner publishes checkpoint-specific files and checks every destination before
+writing. Current aliases are updated separately after successful verification.
+`--no-publish` repeats all checks and saves its metadata beneath the new local run
+directory; omit it only when publishing a checkpoint that has no existing receipts.
+Verification records completion as UTC Unix seconds, rather than a fixed date.

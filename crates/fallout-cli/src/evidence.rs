@@ -18,6 +18,7 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode, Output},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -34,6 +35,9 @@ struct Args {
     install: PathBuf,
     #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=14))]
     checkpoint: u8,
+    /// Repeat verification into the fresh local directory, preserving published reports.
+    #[arg(long)]
+    no_publish: bool,
 }
 
 #[derive(Serialize)]
@@ -71,6 +75,41 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     let mut bytes = serde_json::to_vec_pretty(value)?;
     bytes.push(b'\n');
     write_new(path, &bytes)
+}
+
+fn checkpoint_path(root: &Path, checkpoint: u8, name: &str) -> PathBuf {
+    root.join(format!("reports/checkpoint-{checkpoint:02}-{name}.json"))
+}
+
+fn require_new_reports<'a>(paths: impl IntoIterator<Item = &'a PathBuf>) -> Result<()> {
+    for path in paths {
+        if path.try_exists()? {
+            return Err(format!(
+                "Immutable checkpoint report already exists: {}",
+                path.display()
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+/// Check every destination before writing any report. Current aliases are updated
+/// separately; an earlier checkpoint must never block or be overwritten by a new one.
+fn publish_metadata(reports: Vec<(PathBuf, Value)>) -> Result<()> {
+    require_new_reports(reports.iter().map(|(path, _)| path))?;
+    let reports = reports
+        .into_iter()
+        .map(|(path, value)| {
+            let mut bytes = serde_json::to_vec_pretty(&value)?;
+            bytes.push(b'\n');
+            Ok((path, bytes))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    for (path, bytes) in reports {
+        write_new(&path, &bytes)?;
+    }
+    Ok(())
 }
 
 fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
@@ -224,11 +263,19 @@ fn run(args: Args) -> Result<()> {
             .file_name()
             .ok_or("Missing run directory name")?,
     );
+    let publication_root = if args.no_publish { &destination } else { &root };
+    require_new_reports([
+        &checkpoint_path(publication_root, args.checkpoint, "source-snapshot"),
+        &checkpoint_path(publication_root, args.checkpoint, "verification"),
+    ])?;
     let revision = String::from_utf8(git(&root, &["rev-parse", "HEAD"])?)?
         .trim()
         .to_owned();
     let source = snapshot(&root, &revision)?;
     fs::create_dir(&destination)?;
+    if args.no_publish {
+        fs::create_dir(destination.join("reports"))?;
+    }
     let cli_path = root.join("target/release/fallout.exe");
     let oracle_path = root.join("local/nif-oracle-build/Release/nif-oracle.exe");
     let cli_digest = digest(&cli_path)?;
@@ -516,7 +563,8 @@ fn run(args: Args) -> Result<()> {
         ]
     });
     let verification = json!({
-        "schema_version":1, "date":"2026-10-02", "checkpoint":args.checkpoint, "engine_revision":revision,
+        "schema_version":1, "verification_finished_unix_seconds_utc":SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+        "checkpoint":args.checkpoint, "engine_revision":revision,
         "source_snapshot_sha256":source["sha256"], "source_matches_implementation_commit":true,
         "release_cli_sha256":cli_digest, "raw_oracle_binary_sha256":oracle_digest,
         "evidence_runner_sha256":digest(&std::env::current_exe()?)?,
@@ -538,13 +586,10 @@ fn run(args: Args) -> Result<()> {
     if let Some(launcher) = launcher_evidence {
         verification["manual_test_launcher"] = launcher;
     }
-    write_json(
-        &root.join(format!(
-            "reports/checkpoint-{:02}-source-snapshot.json",
-            args.checkpoint
-        )),
-        &source,
-    )?;
+    let mut publication = vec![(
+        checkpoint_path(publication_root, args.checkpoint, "source-snapshot"),
+        source.clone(),
+    )];
     if let Some(mut terrain) = terrain_evidence {
         terrain["checkpoint"] = args.checkpoint.into();
         terrain["engine_revision"] = revision.clone().into();
@@ -553,23 +598,26 @@ fn run(args: Args) -> Result<()> {
             .as_object_mut()
             .ok_or("Verification object missing")?
             .remove("fresh_collision_comparison");
-        let (key, filename) = if args.checkpoint >= 13 {
-            ("terrain_blends", "reports/terrain-blends.json")
+        let (key, name) = if args.checkpoint >= 13 {
+            ("terrain_blends", "terrain-blends")
         } else if args.checkpoint == 12 {
-            ("terrain_textures", "reports/terrain-textures.json")
+            ("terrain_textures", "terrain-textures")
         } else if args.checkpoint == 11 {
-            ("terrain_geometry", "reports/terrain-geometry.json")
+            ("terrain_geometry", "terrain-geometry")
         } else if args.checkpoint == 10 {
-            ("terrain_heights", "reports/terrain-heights.json")
+            ("terrain_heights", "terrain-heights")
         } else {
-            ("exterior_fields", "reports/exterior-fields.json")
+            ("exterior_fields", "exterior-fields")
         };
         verification[key] = terrain.clone();
         verification["terrain_oracle_binary_sha256"] = terrain_digest.into();
         verification["collision_evidence_origin_checkpoint"] = 7.into();
         verification["collision_comparison_reexecuted"] = false.into();
         verification["record_index_cache_evidence_origin_checkpoint"] = 8.into();
-        write_json(&root.join(filename), &terrain)?;
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, name),
+            terrain,
+        ));
         if args.checkpoint >= 12 {
             verification["archive_member_oracle_binary_sha256"] = member_digest.clone().into();
             verification["terrain_presentation_evidence_origin_checkpoint"] = 11.into();
@@ -585,20 +633,23 @@ fn run(args: Args) -> Result<()> {
         verification["record_index_cache"] = index.clone();
         verification["collision_evidence_origin_checkpoint"] = 7.into();
         verification["collision_comparison_reexecuted"] = false.into();
-        write_json(&root.join("reports/record-index-cache.json"), &index)?;
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "record-index-cache"),
+            index,
+        ));
     } else {
-        write_json(&root.join("reports/nif-collisions.json"), &collisions)?;
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "nif-collisions"),
+            collisions,
+        ));
     }
     if let Some(mut gpu) = gpu_evidence {
         gpu["engine_revision"] = revision.clone().into();
         gpu["source_snapshot_sha256"] = source["sha256"].clone();
-        let (key, filename) = if args.checkpoint == 14 {
-            (
-                "terrain_textured_preview",
-                "reports/terrain-textured-preview.json",
-            )
+        let (key, name) = if args.checkpoint == 14 {
+            ("terrain_textured_preview", "terrain-textured-preview")
         } else {
-            ("terrain_preview", "reports/terrain-preview.json")
+            ("terrain_preview", "terrain-preview")
         };
         verification[key] = gpu.clone();
         verification["preview_binary_sha256"] = preview_digest.into();
@@ -610,15 +661,16 @@ fn run(args: Args) -> Result<()> {
             verification["terrain_presentation_evidence_origin_checkpoint"] = 14.into();
             verification["terrain_presentation_reexecuted"] = true.into();
         }
-        write_json(&root.join(filename), &gpu)?;
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, name),
+            gpu,
+        ));
     }
-    write_json(
-        &root.join(format!(
-            "reports/checkpoint-{:02}-verification.json",
-            args.checkpoint
-        )),
-        &verification,
-    )?;
+    publication.push((
+        checkpoint_path(publication_root, args.checkpoint, "verification"),
+        verification,
+    ));
+    publish_metadata(publication)?;
     eprintln!(
         "Checkpoint {} verified at {revision}: {passed} tests; metadata published",
         args.checkpoint
@@ -633,5 +685,69 @@ fn main() -> ExitCode {
             eprintln!("error: {error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod publication_tests {
+    use super::*;
+
+    fn scratch() -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "fallout-publication-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(root.join("reports")).unwrap();
+        root
+    }
+
+    fn cleanup(root: &Path, files: &[PathBuf]) {
+        for path in files {
+            assert_eq!(path.parent(), Some(root.join("reports").as_path()));
+            fs::remove_file(path).unwrap();
+        }
+        fs::remove_dir(root.join("reports")).unwrap();
+        fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn existing_report_blocks_publication_before_any_new_file_is_written() {
+        let root = scratch();
+        let first = checkpoint_path(&root, 14, "source-snapshot");
+        let occupied = checkpoint_path(&root, 14, "terrain-blends");
+        fs::write(&occupied, b"keep this receipt").unwrap();
+        assert!(
+            publish_metadata(vec![
+                (first.clone(), json!({})),
+                (occupied.clone(), json!({}))
+            ])
+            .is_err()
+        );
+        assert!(!first.exists());
+        assert_eq!(fs::read(&occupied).unwrap(), b"keep this receipt");
+        cleanup(&root, &[occupied]);
+    }
+
+    #[test]
+    fn new_checkpoint_publishes_beside_an_unchanged_current_alias() {
+        let root = scratch();
+        let alias = root.join("reports/terrain-blends.json");
+        fs::write(&alias, b"previous checkpoint bytes").unwrap();
+        let body = checkpoint_path(&root, 14, "terrain-blends");
+        let verification = checkpoint_path(&root, 14, "verification");
+        publish_metadata(vec![
+            (body.clone(), json!({"checkpoint":14})),
+            (verification.clone(), json!({"checked":true})),
+        ])
+        .unwrap();
+        assert_eq!(fs::read(&alias).unwrap(), b"previous checkpoint bytes");
+        assert_eq!(json_file(&body).unwrap(), json!({"checkpoint":14}));
+        assert_eq!(json_file(&verification).unwrap(), json!({"checked":true}));
+        cleanup(&root, &[alias, body, verification]);
     }
 }

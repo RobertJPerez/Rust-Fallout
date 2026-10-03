@@ -70,6 +70,12 @@ comparisons certify that reference model only, not measured NV terrain behavior.
 
 ## Reproduce the component builds
 
+Checkpoint 14 uses the original quadrant weights in an original Rust diffuse
+inspection adapter and Rust test launcher. Existing bounded DDS/material code is
+reused; no upstream terrain shader is copied or linked. Independent source/byte
+checks and 64 original GPU expectations certify the stated inspection model,
+while retail blending, tiling, visibility and lighting remain unaccepted.
+
 Checkpoint 13 consults contiguous alpha-layer indices and byte coverage in the
 already pinned OpenMW terrain files. Original Rust and C++ calculations expand
 quadrant-local grids, preserving missing/default materials and reporting excess

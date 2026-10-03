@@ -6,7 +6,7 @@ overlay passes. Missing bases and NULL defaults reject textured rendering explic
 
 | Check | Result |
 | --- | --- |
-| Workspace | Formatting, 134 tests and Clippy with warnings denied |
+| Workspace | Formatting, 136 tests and Clippy with warnings denied |
 | Source/weights | Six base/DLC cells; selected fields, geometry and all 31,212 weight bytes match |
 | Texture archive bytes | All 40 unique selected members match the independent ba2 reader |
 | Textured GPU captures | Goodsprings, GoodspringsSource and NVDLC02PineCreek |

@@ -180,7 +180,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 300 Rust tests and five publication checks are required, including malformed compression, forward/cyclic links,
+- 300 Rust tests and five publication checks pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

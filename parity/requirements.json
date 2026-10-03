@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "05d782c74bf9c363c49ae4ea9b8a0b2d2dd4db50",
-  "revision_note": "Checkpoint 38 binds ordered source form lists, structural graph/cache/malformed comparisons and a complete fresh source/query/runtime regression. Older registry and ledger rows retain their scoped revisions.",
+  "last_verified_revision": "222479b882f9af11b16a042d5909f31ec8f51afb",
+  "revision_note": "Checkpoint 39 binds the selected vanilla postfix structural model, retained source findings, independent backward/forward planning, debug CLI startup and a complete fresh form-list/query/source/runtime regression. Older rows and registries retain their scoped revisions.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1634,6 +1634,33 @@
       ],
       "tolerance": "Exact original field/hash/binding/edge/SCC equality; authored cold/warm and changed-source checks; ten malformed cases rejected by both readers; no list expansion or accepted gameplay",
       "last_verified_revision": "05d782c74bf9c363c49ae4ea9b8a0b2d2dd4db50"
+    },
+    {
+      "id": "fnv.script.expression-structure",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "scripting",
+      "requirement": "Build bounded source-token postfix plans with ordered children, retain every authored structural finding, and reject unverified stacks in strict mode.",
+      "evidence": [
+        "reports/checkpoint-39-expression-plans.json",
+        "reports/checkpoint-39-verification.json",
+        "docs/expression-plans.md",
+        "sources.lock.json"
+      ],
+      "affected_content": "14,514 authored SCDA bodies / 53,404 expression statements; 53,401 complete plans and three residual stacks under the selected model",
+      "status": "oracle-tested",
+      "tests": [
+        "fallout-data obscript::expression_plan::tests",
+        "fallout-data obscript::expression_plan_bundle::tests",
+        "expression-plan-oracle",
+        "fallout-evidence --checkpoint 39"
+      ],
+      "known_gaps": [
+        "Retail handling of the three authored residual stacks",
+        "Original arithmetic/coercion, tilde effects, short-circuit behavior and native returns",
+        "Winning script-handle/live operand linkage, control-flow origins, scheduling and VM execution"
+      ],
+      "tolerance": "Exact source body/token/expression hashes, 33-byte ordered shape tuple hashes and structured findings; six positive and nine strict/diagnostic fixtures; no retail execution acceptance",
+      "last_verified_revision": "222479b882f9af11b16a042d5909f31ec8f51afb"
     }
   ]
 }

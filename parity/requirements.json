@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "39f6a224c87c0c7fd8ccb388a9b539cbfa28ba3d",
-  "revision_note": "Checkpoint 22 verifies authored quest/dialogue fields and ownership at 39f6a224c87c0c7fd8ccb388a9b539cbfa28ba3d; earlier evidence keeps its tested revision. Canonical winning identity, loaded targets, state and behavior remain unfinished.",
+  "last_verified_revision": "ffe2377e516087fdfa3ded6efa9eb8995e9d6791",
+  "revision_note": "Checkpoint 23 verifies direct original headers/canonical keys and winning INFO membership at ffe2377e516087fdfa3ded6efa9eb8995e9d6791, with cache v2 regression evidence. Earlier scopes retain their tested revisions; retail ordering, script identity and gameplay remain unfinished.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1111,6 +1111,33 @@
       ],
       "tolerance": "Exact independently compared typed field/owner digests, ordered section and script rows, source extents and counts; no behavior acceptance",
       "last_verified_revision": "39f6a224c87c0c7fd8ccb388a9b539cbfa28ba3d"
+    },
+    {
+      "id": "fnv.dialogue.winning-topic-membership",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "data",
+      "requirement": "Retain topic-child group labels and resolve winning INFO membership through each source master table, preserving deleted/missing/wrong-kind states and source-bound cache v2 metadata.",
+      "evidence": [
+        "reports/checkpoint-23-dialogue-membership.json",
+        "reports/checkpoint-23-verification.json",
+        "docs/dialogue-membership.md"
+      ],
+      "affected_content": "629788 source definitions / 628464 winners; 28896 winning INFO records linked to 11994 topics under the supplied ten-plugin inspection order",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-data/tests/dialogue_membership.rs",
+        "crates/fallout-data/tests/index_cache.rs",
+        "tools/record-oracle",
+        "fallout-evidence --checkpoint 23"
+      ],
+      "known_gaps": [
+        "Original effective load order remains unmeasured; this is the supplied inspection order",
+        "Record-specific override exceptions and retail INFO ordering/selection",
+        "Deferred payload integrity and typed narrative/runtime state",
+        "Condition subjects/queries, embedded-script scheduling and native effects"
+      ],
+      "tolerance": "Exact direct-source header/canonical-key/parent-context digests, winning membership rows, cache cold/warm results and source hashes; no dialogue behavior acceptance",
+      "last_verified_revision": "ffe2377e516087fdfa3ded6efa9eb8995e9d6791"
     }
   ]
 }

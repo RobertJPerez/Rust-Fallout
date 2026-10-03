@@ -1,0 +1,477 @@
+{
+  "all_direct_source_headers_keys_and_parent_contexts_equal": true,
+  "all_winning_info_memberships_equal": true,
+  "cache_receipts": [
+    {
+      "index_bytes": 24668063,
+      "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+      "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+      "plugin": "FalloutNV.esm",
+      "records": 465016,
+      "reused": true,
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+    },
+    {
+      "index_bytes": 2131144,
+      "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+      "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+      "plugin": "DeadMoney.esm",
+      "records": 40084,
+      "reused": true,
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+    },
+    {
+      "index_bytes": 1925901,
+      "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+      "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+      "plugin": "HonestHearts.esm",
+      "records": 36201,
+      "reused": true,
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+    },
+    {
+      "index_bytes": 2800058,
+      "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+      "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+      "plugin": "OldWorldBlues.esm",
+      "records": 52683,
+      "reused": true,
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+    },
+    {
+      "index_bytes": 1860691,
+      "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+      "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+      "plugin": "LonesomeRoad.esm",
+      "records": 34988,
+      "reused": true,
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+    },
+    {
+      "index_bytes": 44496,
+      "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+      "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+      "plugin": "GunRunnersArsenal.esm",
+      "records": 778,
+      "reused": true,
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+    },
+    {
+      "index_bytes": 1924,
+      "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+      "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+      "plugin": "CaravanPack.esm",
+      "records": 7,
+      "reused": true,
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+    },
+    {
+      "index_bytes": 2649,
+      "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+      "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+      "plugin": "ClassicPack.esm",
+      "records": 19,
+      "reused": true,
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+    },
+    {
+      "index_bytes": 1926,
+      "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+      "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+      "plugin": "MercenaryPack.esm",
+      "records": 7,
+      "reused": true,
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+    },
+    {
+      "index_bytes": 1731,
+      "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+      "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+      "plugin": "TribalPack.esm",
+      "records": 5,
+      "reused": true,
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+    }
+  ],
+  "cached_uncached_equal": true,
+  "checkpoint": 23,
+  "cold_entries_built": 10,
+  "comparison_scope": "independent direct original plugin-header framing, master-relative canonical keys, all record parent contexts and whole-record winning INFO topic membership",
+  "corrupt_cache_rejected_without_report": true,
+  "encoded_index_bytes": 33438583,
+  "engine_revision": "ffe2377e516087fdfa3ded6efa9eb8995e9d6791",
+  "explicit_load_order": [
+    "FalloutNV.esm",
+    "DeadMoney.esm",
+    "HonestHearts.esm",
+    "OldWorldBlues.esm",
+    "LonesomeRoad.esm",
+    "GunRunnersArsenal.esm",
+    "CaravanPack.esm",
+    "ClassicPack.esm",
+    "MercenaryPack.esm",
+    "TribalPack.esm"
+  ],
+  "index_format": "nv-header-index-v2",
+  "known_gaps": [
+    "Original effective load order remains unmeasured; this is the supplied inspection order",
+    "Record-specific override exceptions and retail INFO ordering/selection",
+    "Deferred payload integrity and typed narrative/runtime state",
+    "Condition subjects/queries, embedded-script scheduling and native effects"
+  ],
+  "load_order_sha256": "af684297f2e6287f1afea0a8901db6f1c7664fb341e8817d3ec6af82d4e41be5",
+  "membership_counts": {
+    "deleted_infos": 0,
+    "deleted_topics": 0,
+    "linked_infos": 28896,
+    "missing_parents": 0,
+    "missing_topics": 0,
+    "null_parents": 0,
+    "topics_with_linked_infos": 11994,
+    "winning_infos": 28896,
+    "wrong_topic_kinds": 0
+  },
+  "metadata": {
+    "all_definitions_sha256": "0352af58e57ce7571e98d761afd555629ba0e62533f80919ed313d84a53c6d6e",
+    "definitions": 629788,
+    "winning_definitions": 628464,
+    "winning_definitions_sha256": "bf2cca62dd03832e6f91a08148ef02c0795980d4962b9d231509f56fa72c1d9f"
+  },
+  "native_report_sha256": "71376fca37540f279f4de33dc67acfc70bd8997a90324d138528c62526739877",
+  "negative_order_cases_rejected": [
+    "short_magic",
+    "wrong_magic",
+    "zero_count",
+    "large_count",
+    "short_name",
+    "unsafe_name",
+    "duplicate_names",
+    "later_master",
+    "surplus_order"
+  ],
+  "negative_source_cases_rejected": [
+    "missing_tes4",
+    "duplicate_tes4",
+    "bad_hedr_version",
+    "later_missing_master",
+    "truncated_header",
+    "group_extent",
+    "duplicate_raw_id",
+    "null_definition",
+    "cell_child_label"
+  ],
+  "order_bundle_sha256": "0fefdb2ff05169333d7f15f7c1730db7376aa5f8fb4b5cfac991d4774d424007",
+  "plugins": [
+    {
+      "source_bytes": 245650747,
+      "source_name": "FalloutNV.esm",
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+    },
+    {
+      "source_bytes": 6274851,
+      "source_name": "DeadMoney.esm",
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+    },
+    {
+      "source_bytes": 17308500,
+      "source_name": "HonestHearts.esm",
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+    },
+    {
+      "source_bytes": 16202800,
+      "source_name": "OldWorldBlues.esm",
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+    },
+    {
+      "source_bytes": 25676818,
+      "source_name": "LonesomeRoad.esm",
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+    },
+    {
+      "source_bytes": 252445,
+      "source_name": "GunRunnersArsenal.esm",
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+    },
+    {
+      "source_bytes": 3007,
+      "source_name": "CaravanPack.esm",
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+    },
+    {
+      "source_bytes": 6523,
+      "source_name": "ClassicPack.esm",
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+    },
+    {
+      "source_bytes": 3064,
+      "source_name": "MercenaryPack.esm",
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+    },
+    {
+      "source_bytes": 2323,
+      "source_name": "TribalPack.esm",
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+    }
+  ],
+  "profile": "nv-original",
+  "record_payloads_validated": false,
+  "retail_parity_accepted": false,
+  "retail_selection_order_verified": false,
+  "runtime_ready": false,
+  "rust_report_sha256": {
+    "cold": "f1f8987b275a10b17bbc027b082ca279badc2258bf591a62f2eedcd30f4dbaa9",
+    "uncached": "a088b7193fdb3e259ff3f468886bca5ecdc58ab4cb50cec6932991c28991b016",
+    "warm": "905f61af9d8b0ce9e6e27d7e7980f3039813d8d3d80bc2ac1992a3770d7cb69a"
+  },
+  "schema_version": 1,
+  "selected_cell_cache_regression": {
+    "acceptance": "Metadata caching verified; no gameplay scenario accepted",
+    "all_selected_fields_equal": true,
+    "base_records": 222,
+    "cached_record_definitions": 629788,
+    "cell": "GSDocMitchellHouse",
+    "checkpoint": 8,
+    "cold_entries_built": 10,
+    "comparison": "Every serialized selected field exact after removing only the cache receipt; no tolerance",
+    "encoded_index_bytes": 33438583,
+    "index_payloads_deferred": 585196,
+    "inspection_order": [
+      "FalloutNV.esm",
+      "DeadMoney.esm",
+      "HonestHearts.esm",
+      "OldWorldBlues.esm",
+      "LonesomeRoad.esm",
+      "GunRunnersArsenal.esm",
+      "CaravanPack.esm",
+      "ClassicPack.esm",
+      "MercenaryPack.esm",
+      "TribalPack.esm"
+    ],
+    "integrity_failures": 0,
+    "known_gaps": [
+      "Every source is fully hashed on each cached open; no timestamp-only shortcut",
+      "Winning identities are rebuilt; no persisted linked or canonical content store",
+      "Other record bodies stay deferred and unvalidated until strict access",
+      "Rebuildable cache durability does not establish save or job-journal durability",
+      "Archive/loose precedence, real physics, script execution and gameplay remain open"
+    ],
+    "link_failures": 0,
+    "local_report_sha256": {
+      "cold": "fcfa081a3970bfdc617e621795562e8ed5c0f33c6d065aa80d3c7123b4c769f5",
+      "uncached": "9ff8cfe99dc4f5f2077df174ef00464206d142718331a6d2ed7563edddb2a28c",
+      "warm": "bb753053efdd8f58de47439141fc446b140345d488a9f7dea2b5b984b084303e"
+    },
+    "ordered_source_sha256": "20faafbbe68d4e5b86599c4bbd4f7a5231c67cbaf8c5b2c897002b221814dcd6",
+    "plugins": [
+      {
+        "index_bytes": 24668063,
+        "index_sha256": "37e8b47f25a8e9aba12b8e093962e379ece332e34419ae059cc1d74342c7541e",
+        "key": "dc2709b8c4ab4d9c17f753d4f46bcade74247cb54f3611f6c5d425f0fdb5b486",
+        "plugin": "FalloutNV.esm",
+        "records": 465016,
+        "reused": true,
+        "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+      },
+      {
+        "index_bytes": 2131144,
+        "index_sha256": "50bcad08c53a89378b93e0d03fbbdd37bd84dddef2bab862f9fcc8fead5c6adb",
+        "key": "ee81145c208b590b25964f4507ceef357736b453327380028db602a30f850578",
+        "plugin": "DeadMoney.esm",
+        "records": 40084,
+        "reused": true,
+        "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+      },
+      {
+        "index_bytes": 1925901,
+        "index_sha256": "936395d5c76647dad879d02e3dd41a37a4b405fa361349eb04b331324a259ab1",
+        "key": "8899e8ac175f1c531291012069fe2cd56c2b3f23acda58ddb4842178e5624790",
+        "plugin": "HonestHearts.esm",
+        "records": 36201,
+        "reused": true,
+        "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+      },
+      {
+        "index_bytes": 2800058,
+        "index_sha256": "f209a1e054f096f3542dab340e3e126545df07a2b67df53165a9277a0b95facf",
+        "key": "4afb3923936f00d50ca44502ccff3d0d4ddbb2a43aaeabcf4b801134861c8084",
+        "plugin": "OldWorldBlues.esm",
+        "records": 52683,
+        "reused": true,
+        "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+      },
+      {
+        "index_bytes": 1860691,
+        "index_sha256": "131d118e54ee92f91ad4c9af76af262a9a1dbe6723b5187229764f4fa843195e",
+        "key": "20181514c5db9d00dad48e2b7a164c8457e0bab5bcb134ec4f61e68f395fc7ac",
+        "plugin": "LonesomeRoad.esm",
+        "records": 34988,
+        "reused": true,
+        "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+      },
+      {
+        "index_bytes": 44496,
+        "index_sha256": "41d1a018d8995c04cc86d79782b44ce983a7165535b03dd1a2d736dc0751dcb8",
+        "key": "a2affaa1a2488965ec8c3293b57ac827f8646296f0fcd8e11fbd3619db944332",
+        "plugin": "GunRunnersArsenal.esm",
+        "records": 778,
+        "reused": true,
+        "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+      },
+      {
+        "index_bytes": 1924,
+        "index_sha256": "ea892893496e240b1420ec1b3e1da7aff13c666c49b3e7a02e588dac727907c2",
+        "key": "77e580751a469c81485f7cd82e815a1cafb684874692646ef800095bc46d46ae",
+        "plugin": "CaravanPack.esm",
+        "records": 7,
+        "reused": true,
+        "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+      },
+      {
+        "index_bytes": 2649,
+        "index_sha256": "33223947b9277e0cea5d1576af6016ecf30efa61a50d288cb8550c7759652219",
+        "key": "0b280d890552041204e6184294f1f7809d0f655d754ff9ef4ebd5f6bb6a29eea",
+        "plugin": "ClassicPack.esm",
+        "records": 19,
+        "reused": true,
+        "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+      },
+      {
+        "index_bytes": 1926,
+        "index_sha256": "df69b33bd7d712bede59588cc3db1d393b082e379acf51a09d48b338daa7badb",
+        "key": "5c3b5c36c074a00bb1c6f257fb2720cb70513e2ba015d2ecaea449d52ac03b8f",
+        "plugin": "MercenaryPack.esm",
+        "records": 7,
+        "reused": true,
+        "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+      },
+      {
+        "index_bytes": 1731,
+        "index_sha256": "1d1cc9a1427961254a605053bafd81043460c31b289dc04ab144bde5cf60c374",
+        "key": "350af4ceda094d3983a2d9f62ae7e1268575c071c8b7dc3be42574b2c169d8e5",
+        "plugin": "TribalPack.esm",
+        "records": 5,
+        "reused": true,
+        "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+      }
+    ],
+    "process_termination_tests": "Workspace unit test kills publication children after blob staging, blob publication and marker staging; recovery verifies bytes and keeps sources unchanged",
+    "references": 435,
+    "release_cli_sha256": "d1440eb1b266ffa24316b9a0e4d67805744237a73a26bbacdd44479468ad44af",
+    "schema_version": 1,
+    "source_bytes_hashed_per_cached_open": 311381078,
+    "timing_samples_per_phase": 1,
+    "timing_scope": "Sequential wall-clock samples for complete CLI cell inspection, including archive indexes and dependency reads; not a startup SLA or sustained benchmark",
+    "warm_entries_reused": 10,
+    "whole_cell_cli_seconds": {
+      "cold": 3.5795238,
+      "uncached": 4.1248389,
+      "warm": 2.8426812
+    }
+  },
+  "source_fixtures": {
+    "all_statuses_source_rebasing_moved_overrides_and_deleted_topics_compared": true,
+    "cases": [
+      {
+        "all_equal": true,
+        "membership_counts": {
+          "deleted_infos": 1,
+          "deleted_topics": 0,
+          "linked_infos": 1,
+          "missing_parents": 1,
+          "missing_topics": 1,
+          "null_parents": 1,
+          "topics_with_linked_infos": 1,
+          "winning_infos": 6,
+          "wrong_topic_kinds": 1
+        },
+        "metadata": {
+          "all_definitions_sha256": "2e94425fba12a2e551d5392d5242d7ec1d25470f64557a20a6c17252d94177b8",
+          "definitions": 12,
+          "winning_definitions": 12,
+          "winning_definitions_sha256": "fde08a3d3c40248d8b478271b9c3d6888242db111e70a6aae127412b652eac75"
+        },
+        "order": [
+          "Base.esm"
+        ]
+      },
+      {
+        "all_equal": true,
+        "membership_counts": {
+          "deleted_infos": 1,
+          "deleted_topics": 0,
+          "linked_infos": 1,
+          "missing_parents": 1,
+          "missing_topics": 1,
+          "null_parents": 1,
+          "topics_with_linked_infos": 1,
+          "winning_infos": 6,
+          "wrong_topic_kinds": 1
+        },
+        "metadata": {
+          "all_definitions_sha256": "94ff9ec1c2c47746b2cf5c027576936760078cff9040738daaad26b531187e97",
+          "definitions": 13,
+          "winning_definitions": 12,
+          "winning_definitions_sha256": "8163ff50f916469d234e79d69890e9ef398f0663a01670acff9d9316405491dc"
+        },
+        "order": [
+          "Other.esm",
+          "Base.esm",
+          "Move.esp"
+        ]
+      },
+      {
+        "all_equal": true,
+        "membership_counts": {
+          "deleted_infos": 1,
+          "deleted_topics": 0,
+          "linked_infos": 1,
+          "missing_parents": 1,
+          "missing_topics": 1,
+          "null_parents": 1,
+          "topics_with_linked_infos": 1,
+          "winning_infos": 6,
+          "wrong_topic_kinds": 1
+        },
+        "metadata": {
+          "all_definitions_sha256": "94ff9ec1c2c47746b2cf5c027576936760078cff9040738daaad26b531187e97",
+          "definitions": 13,
+          "winning_definitions": 12,
+          "winning_definitions_sha256": "8163ff50f916469d234e79d69890e9ef398f0663a01670acff9d9316405491dc"
+        },
+        "order": [
+          "Base.esm",
+          "Other.esm",
+          "Move.esp"
+        ]
+      },
+      {
+        "all_equal": true,
+        "membership_counts": {
+          "deleted_infos": 1,
+          "deleted_topics": 1,
+          "linked_infos": 0,
+          "missing_parents": 1,
+          "missing_topics": 1,
+          "null_parents": 1,
+          "topics_with_linked_infos": 0,
+          "winning_infos": 6,
+          "wrong_topic_kinds": 1
+        },
+        "metadata": {
+          "all_definitions_sha256": "685f1e057f6154aa4135b705c669a186fcaeea80cc84fa9869cbb324ffcbc043",
+          "definitions": 14,
+          "winning_definitions": 12,
+          "winning_definitions_sha256": "a887d788cda2c6cfd2a9f92f14c5fab00e5529e11aa12c1a4ad95095686ed6ca"
+        },
+        "order": [
+          "Base.esm",
+          "Other.esm",
+          "Move.esp",
+          "Delete.esp"
+        ]
+      }
+    ]
+  },
+  "source_snapshot_sha256": "8273de5a51db9a8b02010e0de67a443c30807e7023fc71f697044a479e314dab",
+  "warm_entries_reused": 10
+}

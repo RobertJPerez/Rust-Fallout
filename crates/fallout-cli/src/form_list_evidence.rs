@@ -208,6 +208,7 @@ fn fixtures(root: &Path, run: &Path, cli: &Path, oracle: &Path) -> Result<Vec<Va
         binary: &binary,
     };
     let cache = run.join("form-list-fixture-cache");
+    fs::create_dir(&cache)?;
     let (cold, a) = phase(&i, "form-list-cold", Some(&cache), Some(0x100))?;
     let (warm, b) = phase(&i, "form-list-warm", Some(&cache), Some(0x100))?;
     for key in [

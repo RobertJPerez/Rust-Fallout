@@ -14,7 +14,8 @@ pub enum ProfileId {
 }
 
 /// A definition's identity is independent of where its plugin sits in a load order.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FormKey {
     pub profile: ProfileId,
     pub origin_plugin: String,

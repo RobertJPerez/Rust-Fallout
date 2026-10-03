@@ -16,6 +16,7 @@ mod operand_evidence;
 mod preview_evidence;
 mod quest_script_evidence;
 mod script_evidence;
+mod script_state_evidence;
 mod terrain_evidence;
 mod texture_evidence;
 mod textured_evidence;
@@ -46,7 +47,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=27))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=28))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -409,6 +410,13 @@ fn run(args: Args) -> Result<()> {
     } else {
         None
     };
+    let script_state_oracle =
+        root.join("local/script-state-schema-oracle-build/Release/script-state-schema-oracle.exe");
+    let script_state_digest = if args.checkpoint == 28 {
+        Some(digest(&script_state_oracle)?)
+    } else {
+        None
+    };
     let check_log = destination.join("workspace-check.log");
     let mut check = Command::new("powershell");
     check.current_dir(&root).args([
@@ -564,6 +572,17 @@ fn run(args: Args) -> Result<()> {
                 expressions: &expression_oracle,
                 catalogue: &command_oracle,
             },
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let script_state_evidence = if args.checkpoint == 28 {
+        Some(script_state_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            &script_state_oracle,
             &args.install,
         )?)
     } else {
@@ -826,6 +845,9 @@ fn run(args: Args) -> Result<()> {
         || loaded_script_digest
             .as_ref()
             .is_some_and(|expected| digest(&loaded_script_oracle).as_ref().ok() != Some(expected))
+        || script_state_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&script_state_oracle).as_ref().ok() != Some(expected))
         || condition_operand_digest.as_ref().is_some_and(|expected| {
             digest(&condition_operand_oracle).as_ref().ok() != Some(expected)
         })
@@ -1027,6 +1049,22 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "operand-bindings"),
             operands,
+        ));
+    } else if let Some(mut state) = script_state_evidence {
+        state["checkpoint"] = args.checkpoint.into();
+        state["engine_revision"] = revision.clone().into();
+        state["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["script_state"] = state.clone();
+        verification["script_state_schema_oracle_binary_sha256"] = script_state_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separate startup fix; neither reexecuted in this compiled-schema and canonical-state checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "script-state"),
+            state,
         ));
     } else if let Some(mut dependencies) = condition_dependency_evidence {
         dependencies["checkpoint"] = args.checkpoint.into();

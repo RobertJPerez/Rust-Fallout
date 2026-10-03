@@ -244,3 +244,14 @@ typed word, source namespace, static dependency and binding digest. No upstream
 condition implementation is imported; editor migration, runtime target-kind
 acceptance, live values and query evaluation stay unimplemented. See
 [condition dependencies](condition-dependencies.md).
+
+Checkpoint 28 reads selected pinned xNVSE ScriptLocal/ScriptEventList definitions,
+compiled declaration classification, reference extraction, copy/reset and
+external event-list selection sections. The reviewed constructor wraps opaque
+original code, so initialization remains unresolved. Original Rust stores explicit
+host values in typed canonical state; an original offline C++ reader directly
+extracts all winning compiled schemas using unchanged source/compression helpers.
+Every first declaration and classification agrees. Storage, identity, event
+journaling and snapshot restoration have engineering proofs, not retail behavior
+acceptance. No upstream implementation is copied. See
+[script runtime state](script-runtime-state.md) for exact reference scopes.

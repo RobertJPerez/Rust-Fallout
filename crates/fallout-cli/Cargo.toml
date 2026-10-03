@@ -20,6 +20,7 @@ path = "src/playtest.rs"
 
 [dependencies]
 fallout-data = { path = "../fallout-data" }
+fallout-runtime = { path = "../fallout-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

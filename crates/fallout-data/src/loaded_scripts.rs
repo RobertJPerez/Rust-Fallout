@@ -7,7 +7,7 @@ use crate::{
     narrative, obscript, obscript_census, plugin, script_bindings, script_units,
     store::{Location, RecordStore, SourceReceipt},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
@@ -31,7 +31,8 @@ impl Default for Limits {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScriptKey {
     pub record: FormKey,
     /// An authored SCHR marker within the decoded winning record. This remains
@@ -39,7 +40,8 @@ pub struct ScriptKey {
     pub header_decoded_offset: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Handle {
     pub key: ScriptKey,
     pub version_sha256: String,
@@ -238,10 +240,16 @@ pub struct Counts {
 
 pub struct Catalogue {
     scripts: BTreeMap<ScriptKey, LoadedScript>,
+    winning_content_sha256: String,
     pub counts: Counts,
     pub sources: Vec<SourceReceipt>,
 }
 impl Catalogue {
+    /// Snapshot consumers bind every winning content identity, including forms
+    /// outside scripts. The source digests separately bind deferred body bytes.
+    pub fn winning_content_sha256(&self) -> &str {
+        &self.winning_content_sha256
+    }
     pub fn get(&self, key: &ScriptKey) -> Option<&LoadedScript> {
         self.scripts.get(key)
     }
@@ -287,6 +295,8 @@ impl Catalogue {
         }
         let mut catalogue = Self {
             scripts: BTreeMap::new(),
+            winning_content_sha256: crate::record_metadata::inspect(store)?
+                .winning_definitions_sha256,
             counts: Counts::default(),
             sources,
         };

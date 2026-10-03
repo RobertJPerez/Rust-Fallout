@@ -176,7 +176,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 200 tests pass, including malformed compression, forward/cyclic links,
+- 211 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.
@@ -249,3 +249,8 @@ Start with [NEXT_STEPS.md](NEXT_STEPS.md) for the next unmet gate. The
 [source audit](docs/source-audit.md), and [format contracts](docs/contracts.md)
 distinguish tested behavior, decoded metadata, and unfinished work. No completion
 percentage is inferred from file counts or tests.
+
+[Canonical script state](docs/script-runtime-state.md) now lives in a separate Rust
+crate. Persistent instance/reference IDs, typed local banks, event contexts and
+version-bound snapshots round-trip against the original compiled schemas.
+Initialization defaults, bytecode execution and retail scheduling remain open.

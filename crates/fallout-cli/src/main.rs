@@ -13,6 +13,7 @@ mod operand_inspection;
 mod pe_image;
 mod quest_script_inspection;
 mod script_profile;
+mod script_state_inspection;
 mod terrain_compare;
 
 use clap::{Parser, Subcommand};
@@ -72,6 +73,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Inspect compiled local schemas and exercise native canonical state.
+    ScriptState {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+    },
     /// Bind authored winning CTDA operands and static form dependencies.
     ConditionDependencies {
         #[arg(long)]
@@ -437,6 +447,15 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::ScriptState {
+            install,
+            load_order,
+            index_cache,
+        } => {
+            let report =
+                script_state_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
         Command::ConditionDependencies {
             install,
             load_order,

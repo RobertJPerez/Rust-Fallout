@@ -181,3 +181,11 @@ subject/value requests remain explicit; see [condition dependencies](docs/condit
 Next: canonical script-instance/event state and version-bound persistence, then
 primitive queries and observable execution. Unknown runtime defaults and native
 behavior must remain unresolved instead of becoming successful no-ops.
+
+Checkpoint 28 introduces a presentation-independent runtime crate with persistent
+script/reference identities, exact numeric storage, typed local banks and pending
+event contexts. All winning compiled schemas agree with an independent original
+source reader; native snapshots preserve explicit engineering inputs. See
+[script runtime state](docs/script-runtime-state.md).
+Next: filesystem save publication/recovery, live foreign context resolution and
+primitive query/execution slices. No original live values or defaults were captured.

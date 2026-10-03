@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/fallout-data", "crates/fallout-cli", "crates/fallout-preview", "tools/archive-compare"]
-default-members = ["crates/fallout-cli", "crates/fallout-data"]
+members = ["crates/fallout-data", "crates/fallout-runtime", "crates/fallout-cli", "crates/fallout-preview", "tools/archive-compare"]
+default-members = ["crates/fallout-cli", "crates/fallout-data", "crates/fallout-runtime"]
 resolver = "3"
 exclude = ["tools/plugin-oracle"]
 

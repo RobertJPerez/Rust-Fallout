@@ -1984,6 +1984,7 @@ dependencies = [
  "adler2",
  "clap",
  "fallout-data",
+ "fallout-runtime",
  "flate2",
  "image",
  "serde",
@@ -2016,6 +2017,18 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "fallout-runtime"
+version = "0.1.0"
+dependencies = [
+ "fallout-data",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

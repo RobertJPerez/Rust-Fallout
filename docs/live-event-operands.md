@@ -76,11 +76,13 @@ The optional `--negative-checks` mode rejects changed saved bits, unresolved
 codes, omitted uses, shifted windows, changed binder/source identities, damaged
 native tuples and hidden source findings.
 
-Twelve runtime tests cover supported and unsupported storage, destinations,
+Thirteen runtime tests cover supported and unsupported storage, destinations,
 reference payloads, actual foreign owners, player bindings, restoration, exact
 budgets, whole-cohort mismatch, source rejection and event-window isolation.
 The SCRV storage check is shared by direct references and foreign contexts;
 both report unsupported storage before trying to read an unset index-zero value.
+The prepared-source variant also observes changed player bindings and replacement
+foreign live lists. See [source preparation reuse](prepared-runtime-sources.md).
 
 Private development capture checked 2,160 pending entries, 2,111 probes and
 54,498 selected uses. The native tuples and saved storage observations agree;

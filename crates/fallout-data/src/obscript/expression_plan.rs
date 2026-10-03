@@ -31,6 +31,24 @@ impl<'a> Model<'a> {
         }
         Ok(Self { operators })
     }
+    /// Identity of the exact validated descriptors, including precedence words.
+    /// This names structural inputs; it does not certify arithmetic semantics.
+    pub fn descriptor_sha256(&self) -> String {
+        let mut hash = Sha256::new();
+        hash.update(b"FNVSTRUCTURALMODEL1");
+        for code in 0..SPELLINGS.len() as u32 {
+            let entry = self
+                .operators
+                .entries()
+                .iter()
+                .find(|entry| entry.code == code)
+                .expect("validated complete vanilla operator table");
+            hash.update(entry.code.to_le_bytes());
+            hash.update([entry.precedence, entry.spelling.len() as u8]);
+            hash.update(&entry.spelling);
+        }
+        format!("{:x}", hash.finalize())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -218,6 +236,12 @@ impl Error {
 /// plans cannot be assembled with forged public token fields or mutable counters.
 pub fn decode<'a>(bytes: &'a [u8], model: &Model<'_>, limits: Limits) -> Result<Plan<'a>, Error> {
     let expression = expression::decode(bytes, model.operators, limits.decoding)?;
+    from_decoded(expression, limits)
+}
+
+// Only our source decoders can supply this view. Keep it private to obscript so
+// public, caller-assembled token structs cannot become validated plans.
+pub(super) fn from_decoded(expression: Expression<'_>, limits: Limits) -> Result<Plan<'_>, Error> {
     // All tuple fields fit u32 even if a caller raises the decoder limits.
     if expression.bytes.len() > u32::MAX as usize || expression.tokens.len() > u32::MAX as usize {
         return Err(Error::Limit {

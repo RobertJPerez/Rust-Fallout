@@ -9,6 +9,7 @@ pub mod foreign;
 pub mod identity;
 pub mod inventory;
 pub mod preparation;
+pub mod programs;
 pub mod query;
 pub mod save;
 pub mod schema;

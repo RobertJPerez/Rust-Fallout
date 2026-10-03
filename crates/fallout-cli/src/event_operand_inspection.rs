@@ -4,7 +4,9 @@ use super::{
     script_state_inspection,
 };
 use fallout_data::{loaded_scripts, obscript};
-use fallout_runtime::{event_operands, foreign::Content, identity::ReferenceId, preparation};
+use fallout_runtime::{
+    event_operands, foreign::Content, identity::ReferenceId, preparation, programs,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
@@ -14,6 +16,9 @@ fn finding(error: event_operands::Error) -> Value {
         event_operands::Error::Preparation(preparation::Error::Source(error)) => {
             definition_plan_inspection::finding(error)
         }
+        event_operands::Error::Preparation(preparation::Error::CachedSource(
+            programs::LookupError::Source(error),
+        )) => definition_plan_inspection::finding(error.as_ref()),
         other => json!({"kind":"event_operand_probe","reason":other.to_string()}),
     }
 }
@@ -23,6 +28,7 @@ pub(super) fn inspect(
     order_path: &Path,
     cache: Option<&Path>,
     player_id: Option<u64>,
+    prepare_sources: bool,
 ) -> Result<Value> {
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
     let operators = script_profile::operators(&descriptors)?;
@@ -36,6 +42,11 @@ pub(super) fn inspect(
         |_, _| Ok(()),
     )?);
     let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let sources = prepare_sources
+        .then(|| {
+            programs::PreparedSources::load(&catalogue, &model, &signatures, Default::default())
+        })
+        .transpose()?;
     let seed = script_state_inspection::engineering_world(&catalogue)?;
     let before = seed.world.snapshot();
     let world: fallout_runtime::World<'static> = fallout_runtime::World::restore(
@@ -69,19 +80,30 @@ pub(super) fn inspect(
             .ok_or("Pending instance source has changed")?
             .compiled()
             .map_or(0, <[u8]>::len);
-        // Failed preparations still count toward the repeated-source work limit.
+        // This historical field counts source bytes per pending event. Prepared
+        // mode reports its actual once-per-definition work separately below.
         if source_bytes > (66_usize * 1024 * 1024).saturating_sub(attempted_source_bytes) {
             return Err("attempted operand source-byte budget exceeded".into());
         }
         attempted_source_bytes += source_bytes;
-        let (probe, issue) = match world.probe_event_operands(
-            pending.sequence,
-            &model,
-            &signatures,
-            &content,
-            player,
-            event_operands::Limits::default(),
-        ) {
+        let result = match &sources {
+            Some(sources) => world.probe_event_operands_with_sources(
+                pending.sequence,
+                sources,
+                &content,
+                player,
+                Default::default(),
+            ),
+            None => world.probe_event_operands(
+                pending.sequence,
+                &model,
+                &signatures,
+                &content,
+                player,
+                event_operands::Limits::default(),
+            ),
+        };
+        let (probe, issue) = match result {
             Ok(probe) => {
                 if probe.operands.len() > 2_000_000_usize.saturating_sub(operand_uses) {
                     return Err("event operand-use budget exceeded".into());
@@ -132,7 +154,7 @@ pub(super) fn inspect(
         return Err("Operand probing changed state or consumed its pending journal".into());
     }
     let snapshot = before.encode(fallout_runtime::Limits::default().max_snapshot_bytes)?;
-    Ok(json!({"schema_version":1,"profile":"nv-original",
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
         "scope":"Exact source/live storage associations over explicit engineering pending events; no native argument or caller readiness",
         "sources":catalogue.sources,"catalogue_sha256":world.catalogue_fingerprint(),
         "executable_source_sha256":descriptors.source_sha256,"context_content":content.report(),"explicit_player":player,
@@ -141,5 +163,15 @@ pub(super) fn inspect(
         "source_counts":source_counts,"operand_counts":operand_counts,"events":rows,
         "snapshot_sha256":format!("{:x}",Sha256::digest(snapshot)),"canonical_state_unchanged":true,
         "index_cache":store.index_cache_report(),"native_readiness_accepted":false,"bytecode_executed":false,
-        "retail_parity_accepted":false,"accepted_scenarios":[]}))
+        "retail_parity_accepted":false,"accepted_scenarios":[]});
+    if let Some(sources) = sources {
+        report["schema_version"] = json!(2);
+        report["prepared_sources"] = json!({
+            "source_cohort_sha256": sources.source_cohort_sha256(),
+            "decoder_sha256": sources.decoder_sha256(),
+            "counts": sources.counts(),
+            "scope": "Immutable source admission only; live operand outcomes are resolved for each pending event"
+        });
+    }
+    Ok(report)
 }

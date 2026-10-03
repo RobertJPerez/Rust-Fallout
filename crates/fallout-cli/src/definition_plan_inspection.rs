@@ -15,9 +15,9 @@ use std::{
     path::Path,
 };
 
-pub(super) fn finding(error: definition_plan::Error) -> Value {
+pub(super) fn finding(error: impl std::borrow::Borrow<definition_plan::Error>) -> Value {
     use definition_plan::Error as E;
-    match error {
+    match error.borrow() {
         E::MissingBody => json!({"kind":"absent_compiled_field"}),
         E::SourceMetadata(issues) => json!({"kind":"source_metadata","issues":issues}),
         E::Control(fallout_data::obscript::control_flow::Error::Structure(issue)) => {

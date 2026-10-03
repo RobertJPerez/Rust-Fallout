@@ -163,6 +163,11 @@ impl LoadedScript {
             .as_ref()
             .map(|range| &self.record.payload[range.clone()])
     }
+    /// Charge work that reconstructs an owning unit's metadata view. Embedded
+    /// units share the payload, but preparing each one can revisit that payload.
+    pub fn decoded_record_bytes(&self) -> usize {
+        self.record.payload.len()
+    }
     pub fn program(
         &self,
     ) -> std::result::Result<Option<obscript::Program<'_>>, obscript::DecodeError> {

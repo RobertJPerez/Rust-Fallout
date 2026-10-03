@@ -3,6 +3,7 @@
 #include "../oracle-common/zlib_source.hpp"
 #include "associations.hpp"
 #include "classes.hpp"
+#include "factions.hpp"
 using namespace fallout_records;
 
 static std::string bytes_json(const Bytes& bytes, size_t first, size_t end) {
@@ -90,11 +91,12 @@ static Document decode(const Bytes& body,const std::string& kind,uint16_t versio
 }
 int wmain(int argc,wchar_t** argv) {
     try {
-        if (argc<3 || argc>5) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations] [--include-classes]");
-        bool include_associations=false,include_classes=false;
+        if (argc<3 || argc>6) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations] [--include-classes] [--include-factions]");
+        bool include_associations=false,include_classes=false,include_factions=false;
         for(int argument=3;argument<argc;++argument) {
             if(std::wstring(argv[argument])==L"--include-associations"&&!include_associations)include_associations=true;
             else if(std::wstring(argv[argument])==L"--include-classes"&&!include_classes)include_classes=true;
+            else if(std::wstring(argv[argument])==L"--include-factions"&&!include_factions)include_factions=true;
             else throw std::runtime_error("unknown or duplicate actor oracle option");
         }
         auto index=scan(argv[1],argv[2]); Counts counts; std::vector<std::string> definitions;
@@ -137,6 +139,7 @@ int wmain(int argc,wchar_t** argv) {
             {"counts",counts.json()},{"definitions",array(definitions)}};
         if(include_associations)report["actor_associations"]=object({{"counts",association_counts.json()},{"definitions",array(association_definitions)}});
         if(include_classes)report["actor_classes"]=actor_classes::project(index);
+        if(include_factions)report["actor_factions"]=actor_factions::project(index);
         std::cout<<object(report)<<'\n';
         return 0;
     } catch (const std::exception& error) { std::cerr<<"actor-oracle: "<<error.what()<<'\n'; return 1; }

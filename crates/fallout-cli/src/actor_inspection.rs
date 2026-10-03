@@ -10,6 +10,7 @@ pub(super) fn inspect(
     cache: Option<&Path>,
     include_associations: bool,
     include_classes: bool,
+    include_factions: bool,
 ) -> Result<Value> {
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -42,6 +43,15 @@ pub(super) fn inspect(
         report["actor_classes"] = json!({"counts":classes.counts(),"definitions":classes.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
         report["scope"] = json!(format!(
             "{}; authored CLAS DATA/ATTR inputs, no class application",
+            report["scope"].as_str().unwrap_or_default()
+        ));
+    }
+    if include_factions {
+        let factions =
+            actors::factions::Catalogue::load(&mut store, actors::factions::Limits::default())?;
+        report["actor_factions"] = json!({"counts":factions.counts(),"definitions":factions.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
+        report["scope"] = json!(format!(
+            "{}; authored FACT inputs, no faction state initialization",
             report["scope"].as_str().unwrap_or_default()
         ));
     }
@@ -83,6 +93,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err("independent actor source comparison differs in actor_classes".into());
     }
+    if report.get("actor_factions").is_some()
+        && report.get("actor_factions") != oracle.get("actor_factions")
+    {
+        return Err("independent actor source comparison differs in actor_factions".into());
+    }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
@@ -95,6 +110,10 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     if report.get("actor_classes").is_some() {
         report["independent_comparison"]["classes_checked"] =
             report["actor_classes"]["counts"]["records"].clone();
+    }
+    if report.get("actor_factions").is_some() {
+        report["independent_comparison"]["factions_checked"] =
+            report["actor_factions"]["counts"]["records"].clone();
     }
     Ok(())
 }

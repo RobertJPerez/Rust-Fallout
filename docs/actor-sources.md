@@ -202,7 +202,7 @@ for fresh integrated checkpoint publication. The earlier ACT-01 receipt predates
 this runner correction; its exact binaries are preserved at
 `local\act01-frozen-tools` with their original hashes.
 
-Placed-actor extras, required race/class/faction source inputs and bounded actor
+Placed-actor extras, required race source inputs and bounded actor
 dependency closure remain next source dependencies. Runtime inheritance,
 initialization and original gameplay measurements stay with the primary lane.
 
@@ -265,3 +265,75 @@ under `local\act05-class-comparison-20261003-01`,
 comparison runs captured and verified unchanged source manifests and binary
 hashes. These are source comparisons; root owns fresh integrated publication and
 no actor class behavior has been accepted against the original game.
+
+## Authored faction inputs (ACT-05-FACT)
+
+`actors::factions::Catalogue::load(&mut RecordStore, Limits)` owns exact winning
+FACT source inputs, retaining headers, provenance, decoded nondeleted bodies and
+all physical fields. Tombstones are kept without reading their payloads. It
+exposes full source receipts and the winning header digest for future joins.
+Bindings are resolved in the current owning record's namespace using the existing
+inventory binding model. No earlier store indices are retained or reused.
+
+Pinned FNV lines 4735–4755 define FACT, lines 4721–4733 define rank declarations,
+and Common lines 8814–8832 define relations. FNV lines 2738–2764 remove CNAM during
+an editor after-load operation. This reader preserves those original CNAM bytes.
+Both reference file hashes and the xEdit revision above remain unchanged.
+
+| Field | Admitted source facts |
+| --- | --- |
+| DATA, 1 or 4 bytes | Raw flags byte; the four-byte layout additionally contains a second flags byte and two unused bytes. Missing optional bytes remain absent. |
+| CNAM, 4 bytes | Exact unused float bits, including non-finite bit patterns |
+| RNAM, 4 bytes | Ordered signed rank-number declaration, without grouping title fields |
+| XNAM, 12 bytes | Authored FACT/RACE target, signed modifier and raw group-combat-reaction word |
+| WMI1, 4 bytes | Authored reputation target with REPU domain |
+
+The direct original investigation found 772 physical definitions and 772 winners,
+with 3,923 physical fields and no tombstones. DATA has 34 one-byte occurrences and
+738 four-byte occurrences; XNAM has 1,547, RNAM has 112, CNAM has 34 and WMI1 has 48.
+Observed admitted header versions are 1, 2, 3, 4, 8, 9, 10, 11, 13, 14 and 15.
+Legacy DATA1/CNAM4 occurs in versions 1/2/3/4/8; DATA4 occurs in the later observed
+versions. Layout absence is read directly, without inventing a version migration
+or filling absent bytes. Other record versions and DATA widths, including the
+unobserved two-byte partial layout, remain explicitly unsupported in this slice.
+
+Relations and rank declarations retain repetitions and order. Repeated DATA,
+CNAM or WMI1 singleton declarations and absent DATA produce findings. Target null,
+missing, deleted and defined states are preserved; target-kind agreement is a
+separate optional fact. Missing/deleted and wrong-kind targets produce findings.
+Male/female titles, insignia and other fields remain opaque with exact retained
+bytes and metadata. No editor normalization, effective rank, crime/reputation
+state, faction hostility calculation or combat reaction is executed.
+
+Seven focused faction tests and all-target fallout-data/CLI Clippy pass with
+warnings denied. Tests cover legacy absence and unused bits, signed ranks and
+relation modifiers, raw reactions, target states/domains, duplicate/missing
+declarations, version/length/framing admission, budgets before candidate clones,
+valid extended opaque fields, compression, namespaces, tombstones and cache/order
+reuse. All 27 scalar, association, class and faction tests pass together.
+
+The direct original comparison agrees in cold/warm/reordered phases on all 772
+factions, 3,923 fields, 2,513 selected occurrences, 1,595 bindings and 76,397
+decoded bytes. All target winners are defined and no faction findings occur.
+The scalar/association/class projections also remain exact, including the class
+candidate-budget fix and the known voice tombstone finding. The authored reader
+agrees on six winners including a tombstone, 23 fields, 19 selected occurrences,
+10 bindings and seven findings in all three phases. DATA3 and unadmitted DATA2,
+XNAM11, RNAM5 and nondeleted version 16 fail in both readers. A changed reaction
+word is rejected, while scalar default mode continues to compare successfully.
+Cache phases have 0/10/10 hits for the original cohort and 0/3/3 for authored input.
+
+Raw comparisons and negative results remain under
+`local\act05-faction-comparison-20261003-01`,
+`local\act05-faction-authored-comparison-20261003-01`, and
+`local\act05-faction-authored-inputs-20261003\negative-results`.
+Investigation/version-layout evidence is under
+`local\act05-faction-investigation-20261003`. All completed comparison runs verify
+their actual source/HEAD/dirty-state manifests and executable hashes unchanged.
+The separate class budget fix checks the limit before each candidate key clone;
+its fresh authored comparison is at
+`local\act05-class-budget-followup-comparison-20261003`. That run truthfully
+captures the then-uncommitted faction work in its source manifest. Original class
+equality is additionally covered by the combined faction comparison.
+These worker source comparisons do not establish original faction behavior or
+replace root's integrated checkpoint verification.

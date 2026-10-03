@@ -3,6 +3,7 @@
 //! and winning-content identity. No live actor state is initialized.
 pub mod associations;
 pub mod classes;
+pub mod factions;
 pub mod fields;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};
 use serde::Serialize;

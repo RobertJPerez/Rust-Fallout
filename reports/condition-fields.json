@@ -1,0 +1,2397 @@
+{
+  "all_condition_fields_and_source_extents_equal": true,
+  "checkpoint": 21,
+  "comparison_bundle_sha256": "9e87f532290cdf601d4b0c3ca4078a43fb2504f3cad372672dec3b74e7e02afe",
+  "comparison_scope": "independent CTDA fields, exact unions, optional words, preceding-field provenance and counts from Rust-extracted decoded records; no grouping/migration or evaluation",
+  "condition_fields_compared": 80627,
+  "condition_function_ids_bound": 148,
+  "condition_function_links": [
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 1,
+      "descriptor_file_offset": 14214456,
+      "name": "GetDistance",
+      "occurrences": 140,
+      "script_command_id": 4097
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 5,
+      "descriptor_file_offset": 14214616,
+      "name": "GetLocked",
+      "occurrences": 95,
+      "script_command_id": 4101
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 6,
+      "descriptor_file_offset": 14214656,
+      "name": "GetPos",
+      "occurrences": 4,
+      "script_command_id": 4102
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 14,
+      "descriptor_file_offset": 14214976,
+      "name": "GetActorValue",
+      "occurrences": 2074,
+      "script_command_id": 4110
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 18,
+      "descriptor_file_offset": 14215136,
+      "name": "GetCurrentTime",
+      "occurrences": 138,
+      "script_command_id": 4114
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 24,
+      "descriptor_file_offset": 14215376,
+      "name": "GetScale",
+      "occurrences": 1,
+      "script_command_id": 4120
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 25,
+      "descriptor_file_offset": 14215416,
+      "name": "IsMoving",
+      "occurrences": 49,
+      "script_command_id": 4121
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 26,
+      "descriptor_file_offset": 14215456,
+      "name": "IsTurning",
+      "occurrences": 1,
+      "script_command_id": 4122
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 32,
+      "descriptor_file_offset": 14215696,
+      "name": "GetInSameCell",
+      "occurrences": 33,
+      "script_command_id": 4128
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 35,
+      "descriptor_file_offset": 14215816,
+      "name": "GetDisabled",
+      "occurrences": 168,
+      "script_command_id": 4131
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 36,
+      "descriptor_file_offset": 14215856,
+      "name": "MenuMode",
+      "occurrences": 11,
+      "script_command_id": 4132
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 45,
+      "descriptor_file_offset": 14216216,
+      "name": "GetDetected",
+      "occurrences": 22,
+      "script_command_id": 4141
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 46,
+      "descriptor_file_offset": 14216256,
+      "name": "GetDead",
+      "occurrences": 725,
+      "script_command_id": 4142
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 47,
+      "descriptor_file_offset": 14216296,
+      "name": "GetItemCount",
+      "occurrences": 1286,
+      "script_command_id": 4143
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 49,
+      "descriptor_file_offset": 14216376,
+      "name": "GetSleeping",
+      "occurrences": 18,
+      "script_command_id": 4145
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 50,
+      "descriptor_file_offset": 14216416,
+      "name": "GetTalkedToPC",
+      "occurrences": 141,
+      "script_command_id": 4146
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 53,
+      "descriptor_file_offset": 14216536,
+      "name": "GetScriptVariable",
+      "occurrences": 1756,
+      "script_command_id": 4149
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 56,
+      "descriptor_file_offset": 14216656,
+      "name": "GetQuestRunning",
+      "occurrences": 285,
+      "script_command_id": 4152
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 58,
+      "descriptor_file_offset": 14216736,
+      "name": "GetStage",
+      "occurrences": 1335,
+      "script_command_id": 4154
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 59,
+      "descriptor_file_offset": 14216776,
+      "name": "GetStageDone",
+      "occurrences": 510,
+      "script_command_id": 4155
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 60,
+      "descriptor_file_offset": 14216816,
+      "name": "GetFactionRankDifference",
+      "occurrences": 2,
+      "script_command_id": 4156
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 62,
+      "descriptor_file_offset": 14216896,
+      "name": "IsRaining",
+      "occurrences": 3,
+      "script_command_id": 4158
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 63,
+      "descriptor_file_offset": 14216936,
+      "name": "GetAttacked",
+      "occurrences": 11,
+      "script_command_id": 4159
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 64,
+      "descriptor_file_offset": 14216976,
+      "name": "GetIsCreature",
+      "occurrences": 57,
+      "script_command_id": 4160
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 65,
+      "descriptor_file_offset": 14217016,
+      "name": "GetLockLevel",
+      "occurrences": 1,
+      "script_command_id": 4161
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 66,
+      "descriptor_file_offset": 14217056,
+      "name": "GetShouldAttack",
+      "occurrences": 4,
+      "script_command_id": 4162
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 67,
+      "descriptor_file_offset": 14217096,
+      "name": "GetInCell",
+      "occurrences": 1000,
+      "script_command_id": 4163
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 68,
+      "descriptor_file_offset": 14217136,
+      "name": "GetIsClass",
+      "occurrences": 10,
+      "script_command_id": 4164
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 69,
+      "descriptor_file_offset": 14217176,
+      "name": "GetIsRace",
+      "occurrences": 52,
+      "script_command_id": 4165
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 70,
+      "descriptor_file_offset": 14217216,
+      "name": "GetIsSex",
+      "occurrences": 451,
+      "script_command_id": 4166
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 71,
+      "descriptor_file_offset": 14217256,
+      "name": "GetInFaction",
+      "occurrences": 3582,
+      "script_command_id": 4167
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 72,
+      "descriptor_file_offset": 14217296,
+      "name": "GetIsID",
+      "occurrences": 23785,
+      "script_command_id": 4168
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 73,
+      "descriptor_file_offset": 14217336,
+      "name": "GetFactionRank",
+      "occurrences": 64,
+      "script_command_id": 4169
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 74,
+      "descriptor_file_offset": 14217376,
+      "name": "GetGlobalValue",
+      "occurrences": 2887,
+      "script_command_id": 4170
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 76,
+      "descriptor_file_offset": 14217456,
+      "name": "GetDisposition",
+      "occurrences": 15,
+      "script_command_id": 4172
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 77,
+      "descriptor_file_offset": 14217496,
+      "name": "GetRandomPercent",
+      "occurrences": 578,
+      "script_command_id": 4173
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 79,
+      "descriptor_file_offset": 14217576,
+      "name": "GetQuestVariable",
+      "occurrences": 11384,
+      "script_command_id": 4175
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 80,
+      "descriptor_file_offset": 14217616,
+      "name": "GetLevel",
+      "occurrences": 46,
+      "script_command_id": 4176
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 81,
+      "descriptor_file_offset": 14217656,
+      "name": "GetArmorRating",
+      "occurrences": 1,
+      "script_command_id": 4177
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 84,
+      "descriptor_file_offset": 14217776,
+      "name": "GetDeadCount",
+      "occurrences": 444,
+      "script_command_id": 4180
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 91,
+      "descriptor_file_offset": 14218056,
+      "name": "GetIsAlerted",
+      "occurrences": 21,
+      "script_command_id": 4187
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 99,
+      "descriptor_file_offset": 14218376,
+      "name": "GetHeadingAngle",
+      "occurrences": 6,
+      "script_command_id": 4195
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 101,
+      "descriptor_file_offset": 14218456,
+      "name": "IsWeaponOut",
+      "occurrences": 51,
+      "script_command_id": 4197
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 106,
+      "descriptor_file_offset": 14218656,
+      "name": "IsFacingUp",
+      "occurrences": 41,
+      "script_command_id": 4202
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 107,
+      "descriptor_file_offset": 14218696,
+      "name": "GetKnockedState",
+      "occurrences": 35,
+      "script_command_id": 4203
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 108,
+      "descriptor_file_offset": 14218736,
+      "name": "GetWeaponAnimType",
+      "occurrences": 44,
+      "script_command_id": 4204
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 109,
+      "descriptor_file_offset": 14218776,
+      "name": "IsWeaponSkillType",
+      "occurrences": 52,
+      "script_command_id": 4205
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 110,
+      "descriptor_file_offset": 14218816,
+      "name": "GetCurrentAIPackage",
+      "occurrences": 15,
+      "script_command_id": 4206
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 112,
+      "descriptor_file_offset": 14218896,
+      "name": "IsIdlePlaying",
+      "occurrences": 2,
+      "script_command_id": 4208
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 117,
+      "descriptor_file_offset": 14219096,
+      "name": "GetMajorCrimeCount",
+      "occurrences": 2,
+      "script_command_id": 4213
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 123,
+      "descriptor_file_offset": 14219336,
+      "name": "IsGreetingPlayer",
+      "occurrences": 1,
+      "script_command_id": 4219
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 127,
+      "descriptor_file_offset": 14219496,
+      "name": "HasBeenEaten",
+      "occurrences": 4,
+      "script_command_id": 4223
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 131,
+      "descriptor_file_offset": 14219656,
+      "name": "GetPCIsSex",
+      "occurrences": 190,
+      "script_command_id": 4227
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 136,
+      "descriptor_file_offset": 14219856,
+      "name": "GetIsReference",
+      "occurrences": 444,
+      "script_command_id": 4232
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 141,
+      "descriptor_file_offset": 14220056,
+      "name": "IsTalking",
+      "occurrences": 33,
+      "script_command_id": 4237
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 143,
+      "descriptor_file_offset": 14220136,
+      "name": "GetCurrentAIProcedure",
+      "occurrences": 64,
+      "script_command_id": 4239
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 144,
+      "descriptor_file_offset": 14220176,
+      "name": "GetTrespassWarningLevel",
+      "occurrences": 29,
+      "script_command_id": 4240
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 145,
+      "descriptor_file_offset": 14220216,
+      "name": "IsTrespassing",
+      "occurrences": 1,
+      "script_command_id": 4241
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 157,
+      "descriptor_file_offset": 14220696,
+      "name": "GetOpenState",
+      "occurrences": 4,
+      "script_command_id": 4253
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 159,
+      "descriptor_file_offset": 14220776,
+      "name": "GetSitting",
+      "occurrences": 73,
+      "script_command_id": 4255
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 160,
+      "descriptor_file_offset": 14220816,
+      "name": "GetFurnitureMarkerID",
+      "occurrences": 79,
+      "script_command_id": 4256
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 161,
+      "descriptor_file_offset": 14220856,
+      "name": "GetIsCurrentPackage",
+      "occurrences": 5,
+      "script_command_id": 4257
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 162,
+      "descriptor_file_offset": 14220896,
+      "name": "IsCurrentFurnitureRef",
+      "occurrences": 2,
+      "script_command_id": 4258
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 163,
+      "descriptor_file_offset": 14220936,
+      "name": "IsCurrentFurnitureObj",
+      "occurrences": 56,
+      "script_command_id": 4259
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 170,
+      "descriptor_file_offset": 14221216,
+      "name": "GetDayOfWeek",
+      "occurrences": 11,
+      "script_command_id": 4266
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 182,
+      "descriptor_file_offset": 14221696,
+      "name": "GetEquipped",
+      "occurrences": 479,
+      "script_command_id": 4278
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 185,
+      "descriptor_file_offset": 14221816,
+      "name": "IsSwimming",
+      "occurrences": 7,
+      "script_command_id": 4281
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 197,
+      "descriptor_file_offset": 14222296,
+      "name": "GetPCEnemyofFaction",
+      "occurrences": 2,
+      "script_command_id": 4293
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 203,
+      "descriptor_file_offset": 14222536,
+      "name": "GetDestroyed",
+      "occurrences": 6,
+      "script_command_id": 4299
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 214,
+      "descriptor_file_offset": 14222976,
+      "name": "HasMagicEffect",
+      "occurrences": 5,
+      "script_command_id": 4310
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 219,
+      "descriptor_file_offset": 14223176,
+      "name": "GetAnimAction",
+      "occurrences": 1,
+      "script_command_id": 4315
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 223,
+      "descriptor_file_offset": 14223336,
+      "name": "IsSpellTarget",
+      "occurrences": 37,
+      "script_command_id": 4319
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 224,
+      "descriptor_file_offset": 14223376,
+      "name": "GetVATSMode",
+      "occurrences": 2,
+      "script_command_id": 4320
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 226,
+      "descriptor_file_offset": 14223456,
+      "name": "GetSandman",
+      "occurrences": 2,
+      "script_command_id": 4322
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 227,
+      "descriptor_file_offset": 14223496,
+      "name": "GetCannibal",
+      "occurrences": 1,
+      "script_command_id": 4323
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 230,
+      "descriptor_file_offset": 14223616,
+      "name": "GetInCellParam",
+      "occurrences": 18,
+      "script_command_id": 4326
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 235,
+      "descriptor_file_offset": 14223816,
+      "name": "GetVatsTargetHeight",
+      "occurrences": 7,
+      "script_command_id": 4331
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 242,
+      "descriptor_file_offset": 14224096,
+      "name": "GetUnconscious",
+      "occurrences": 99,
+      "script_command_id": 4338
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 244,
+      "descriptor_file_offset": 14224176,
+      "name": "GetRestrained",
+      "occurrences": 2,
+      "script_command_id": 4340
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 246,
+      "descriptor_file_offset": 14224256,
+      "name": "GetIsUsedItem",
+      "occurrences": 16,
+      "script_command_id": 4342
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 247,
+      "descriptor_file_offset": 14224296,
+      "name": "GetIsUsedItemType",
+      "occurrences": 6,
+      "script_command_id": 4343
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 258,
+      "descriptor_file_offset": 14224736,
+      "name": "GetUsedItemLevel",
+      "occurrences": 2,
+      "script_command_id": 4354
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 259,
+      "descriptor_file_offset": 14224776,
+      "name": "GetUsedItemActivate",
+      "occurrences": 3,
+      "script_command_id": 4355
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 277,
+      "descriptor_file_offset": 14225496,
+      "name": "GetBaseActorValue",
+      "occurrences": 16,
+      "script_command_id": 4373
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 278,
+      "descriptor_file_offset": 14225536,
+      "name": "IsOwner",
+      "occurrences": 18,
+      "script_command_id": 4374
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 285,
+      "descriptor_file_offset": 14225816,
+      "name": "IsLeftUp",
+      "occurrences": 22,
+      "script_command_id": 4381
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 286,
+      "descriptor_file_offset": 14225856,
+      "name": "IsSneaking",
+      "occurrences": 33,
+      "script_command_id": 4382
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 287,
+      "descriptor_file_offset": 14225896,
+      "name": "IsRunning",
+      "occurrences": 4,
+      "script_command_id": 4383
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 288,
+      "descriptor_file_offset": 14225936,
+      "name": "GetFriendHit",
+      "occurrences": 9,
+      "script_command_id": 4384
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 289,
+      "descriptor_file_offset": 14225976,
+      "name": "IsInCombat",
+      "occurrences": 219,
+      "script_command_id": 4385
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 300,
+      "descriptor_file_offset": 14226416,
+      "name": "IsInInterior",
+      "occurrences": 56,
+      "script_command_id": 4396
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 304,
+      "descriptor_file_offset": 14226576,
+      "name": "IsWaterObject",
+      "occurrences": 1,
+      "script_command_id": 4400
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 309,
+      "descriptor_file_offset": 14226776,
+      "name": "IsXBox",
+      "occurrences": 2,
+      "script_command_id": 4405
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 310,
+      "descriptor_file_offset": 14226816,
+      "name": "GetInWorldspace",
+      "occurrences": 345,
+      "script_command_id": 4406
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 354,
+      "descriptor_file_offset": 14228576,
+      "name": "IsEssential",
+      "occurrences": 3,
+      "script_command_id": 4450
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 358,
+      "descriptor_file_offset": 14228736,
+      "name": "IsPlayerMovingIntoNewSpace",
+      "occurrences": 8,
+      "script_command_id": 4454
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 365,
+      "descriptor_file_offset": 14229016,
+      "name": "IsChild",
+      "occurrences": 203,
+      "script_command_id": 4461
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 372,
+      "descriptor_file_offset": 14229296,
+      "name": "IsInList",
+      "occurrences": 49,
+      "script_command_id": 4468
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 382,
+      "descriptor_file_offset": 14229696,
+      "name": "GetHasNote",
+      "occurrences": 277,
+      "script_command_id": 4478
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 391,
+      "descriptor_file_offset": 14230056,
+      "name": "GetHitLocation",
+      "occurrences": 321,
+      "script_command_id": 4487
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 392,
+      "descriptor_file_offset": 14230096,
+      "name": "IsPC1stPerson",
+      "occurrences": 9,
+      "script_command_id": 4488
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 397,
+      "descriptor_file_offset": 14230296,
+      "name": "GetCauseofDeath",
+      "occurrences": 1,
+      "script_command_id": 4493
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 399,
+      "descriptor_file_offset": 14230376,
+      "name": "IsWeaponInList",
+      "occurrences": 14,
+      "script_command_id": 4495
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 408,
+      "descriptor_file_offset": 14230736,
+      "name": "GetVATSValue",
+      "occurrences": 250,
+      "script_command_id": 4504
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 411,
+      "descriptor_file_offset": 14230856,
+      "name": "GetFactionCombatReaction",
+      "occurrences": 1,
+      "script_command_id": 4507
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 415,
+      "descriptor_file_offset": 14231016,
+      "name": "Exists",
+      "occurrences": 21,
+      "script_command_id": 4511
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 416,
+      "descriptor_file_offset": 14231056,
+      "name": "GetGroupMemberCount",
+      "occurrences": 66,
+      "script_command_id": 4512
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 417,
+      "descriptor_file_offset": 14231096,
+      "name": "GetGroupTargetCount",
+      "occurrences": 3,
+      "script_command_id": 4513
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 420,
+      "descriptor_file_offset": 14231216,
+      "name": "GetObjectiveCompleted",
+      "occurrences": 1284,
+      "script_command_id": 4516
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 421,
+      "descriptor_file_offset": 14231256,
+      "name": "GetObjectiveDisplayed",
+      "occurrences": 820,
+      "script_command_id": 4517
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 427,
+      "descriptor_file_offset": 14231496,
+      "name": "GetIsVoiceType",
+      "occurrences": 17517,
+      "script_command_id": 4523
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 428,
+      "descriptor_file_offset": 14231536,
+      "name": "GetPlantedExplosive",
+      "occurrences": 1,
+      "script_command_id": 4524
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 430,
+      "descriptor_file_offset": 14231616,
+      "name": "IsActorTalkingThroughActivator",
+      "occurrences": 92,
+      "script_command_id": 4526
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 431,
+      "descriptor_file_offset": 14231656,
+      "name": "GetHealthPercentage",
+      "occurrences": 129,
+      "script_command_id": 4527
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 433,
+      "descriptor_file_offset": 14231736,
+      "name": "GetIsObjectType",
+      "occurrences": 1,
+      "script_command_id": 4529
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 435,
+      "descriptor_file_offset": 14231816,
+      "name": "GetDialogueEmotion",
+      "occurrences": 20,
+      "script_command_id": 4531
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 438,
+      "descriptor_file_offset": 14231936,
+      "name": "GetIsCreatureType",
+      "occurrences": 79,
+      "script_command_id": 4534
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 449,
+      "descriptor_file_offset": 14232376,
+      "name": "HasPerk",
+      "occurrences": 493,
+      "script_command_id": 4545
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 450,
+      "descriptor_file_offset": 14232416,
+      "name": "GetFactionRelation",
+      "occurrences": 11,
+      "script_command_id": 4546
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 451,
+      "descriptor_file_offset": 14232456,
+      "name": "IsLastIdlePlayed",
+      "occurrences": 86,
+      "script_command_id": 4547
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 454,
+      "descriptor_file_offset": 14232576,
+      "name": "GetPlayerTeammate",
+      "occurrences": 2,
+      "script_command_id": 4550
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 455,
+      "descriptor_file_offset": 14232616,
+      "name": "GetPlayerTeammateCount",
+      "occurrences": 2,
+      "script_command_id": 4551
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 460,
+      "descriptor_file_offset": 14232816,
+      "name": "GetActorFactionPlayerEnemy",
+      "occurrences": 2,
+      "script_command_id": 4556
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 464,
+      "descriptor_file_offset": 14232976,
+      "name": "IsPlayerGrabbedRef",
+      "occurrences": 1,
+      "script_command_id": 4560
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 471,
+      "descriptor_file_offset": 14233256,
+      "name": "GetDestructionStage",
+      "occurrences": 9,
+      "script_command_id": 4567
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 474,
+      "descriptor_file_offset": 14233376,
+      "name": "GetIsAlignment",
+      "occurrences": 3,
+      "script_command_id": 4570
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 480,
+      "descriptor_file_offset": 14233616,
+      "name": "GetIsUsedItemEquipType",
+      "occurrences": 1,
+      "script_command_id": 4576
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 492,
+      "descriptor_file_offset": 14234096,
+      "name": "GetMapMarkerVisible",
+      "occurrences": 31,
+      "script_command_id": 4588
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 495,
+      "descriptor_file_offset": 14234216,
+      "name": "GetPermanentActorValue",
+      "occurrences": 134,
+      "script_command_id": 4591
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 503,
+      "descriptor_file_offset": 14234536,
+      "name": "GetRadiationLevel",
+      "occurrences": 7,
+      "script_command_id": 4599
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 515,
+      "descriptor_file_offset": 14235016,
+      "name": "IsCombatTarget",
+      "occurrences": 1,
+      "script_command_id": 4611
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 518,
+      "descriptor_file_offset": 14235136,
+      "name": "GetVATSRightAreaFree",
+      "occurrences": 21,
+      "script_command_id": 4614
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 519,
+      "descriptor_file_offset": 14235176,
+      "name": "GetVATSLeftAreaFree",
+      "occurrences": 21,
+      "script_command_id": 4615
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 520,
+      "descriptor_file_offset": 14235216,
+      "name": "GetVATSBackAreaFree",
+      "occurrences": 29,
+      "script_command_id": 4616
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 521,
+      "descriptor_file_offset": 14235256,
+      "name": "GetVATSFrontAreaFree",
+      "occurrences": 6,
+      "script_command_id": 4617
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 523,
+      "descriptor_file_offset": 14235336,
+      "name": "IsPS3",
+      "occurrences": 2,
+      "script_command_id": 4619
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 524,
+      "descriptor_file_offset": 14235376,
+      "name": "IsWin32",
+      "occurrences": 2,
+      "script_command_id": 4620
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 525,
+      "descriptor_file_offset": 14235416,
+      "name": "GetVATSRightTargetVisible",
+      "occurrences": 75,
+      "script_command_id": 4621
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 526,
+      "descriptor_file_offset": 14235456,
+      "name": "GetVATSLeftTargetVisible",
+      "occurrences": 49,
+      "script_command_id": 4622
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 528,
+      "descriptor_file_offset": 14235536,
+      "name": "GetVATSFrontTargetVisible",
+      "occurrences": 4,
+      "script_command_id": 4624
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 546,
+      "descriptor_file_offset": 14236256,
+      "name": "GetQuestCompleted",
+      "occurrences": 574,
+      "script_command_id": 4642
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 573,
+      "descriptor_file_offset": 14237336,
+      "name": "GetReputation",
+      "occurrences": 14,
+      "script_command_id": 4669
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 574,
+      "descriptor_file_offset": 14237376,
+      "name": "GetReputationPct",
+      "occurrences": 2,
+      "script_command_id": 4670
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 575,
+      "descriptor_file_offset": 14237416,
+      "name": "GetReputationThreshold",
+      "occurrences": 1643,
+      "script_command_id": 4671
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 586,
+      "descriptor_file_offset": 14237856,
+      "name": "IsHardcore",
+      "occurrences": 278,
+      "script_command_id": 4682
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 601,
+      "descriptor_file_offset": 14238456,
+      "name": "GetForceHitReaction",
+      "occurrences": 2,
+      "script_command_id": 4697
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 610,
+      "descriptor_file_offset": 14238816,
+      "name": "GetCasinoWinningStage",
+      "occurrences": 25,
+      "script_command_id": 4706
+    },
+    {
+      "behavior_status": "unimplemented",
+      "condition_function_id": 612,
+      "descriptor_file_offset": 14238896,
+      "name": "PlayerInRegion",
+      "occurrences": 74,
+      "script_command_id": 4708
+    }
+  ],
+  "counts": {
+    "absent_reference_words": 125,
+    "absent_run_on_words": 123,
+    "active_reference_words": 2990,
+    "animation_group_words": {
+      "0": 49,
+      "20": 5
+    },
+    "comparison_operators": {
+      "0": 68299,
+      "1": 3467,
+      "2": 995,
+      "3": 4014,
+      "4": 2907,
+      "5": 945
+    },
+    "conditions": 80627,
+    "flags": {
+      "0": 65003,
+      "1": 3296,
+      "100": 45,
+      "128": 2788,
+      "129": 114,
+      "132": 4,
+      "144": 1,
+      "160": 909,
+      "161": 33,
+      "164": 3,
+      "32": 3419,
+      "33": 48,
+      "64": 931,
+      "65": 57,
+      "68": 6,
+      "69": 1,
+      "96": 3788,
+      "97": 181
+    },
+    "functions": {
+      "1": 140,
+      "101": 51,
+      "106": 41,
+      "107": 35,
+      "108": 44,
+      "109": 52,
+      "110": 15,
+      "112": 2,
+      "117": 2,
+      "123": 1,
+      "127": 4,
+      "131": 190,
+      "136": 444,
+      "14": 2074,
+      "141": 33,
+      "143": 64,
+      "144": 29,
+      "145": 1,
+      "157": 4,
+      "159": 73,
+      "160": 79,
+      "161": 5,
+      "162": 2,
+      "163": 56,
+      "170": 11,
+      "18": 138,
+      "182": 479,
+      "185": 7,
+      "197": 2,
+      "203": 6,
+      "214": 5,
+      "219": 1,
+      "223": 37,
+      "224": 2,
+      "226": 2,
+      "227": 1,
+      "230": 18,
+      "235": 7,
+      "24": 1,
+      "242": 99,
+      "244": 2,
+      "246": 16,
+      "247": 6,
+      "25": 49,
+      "258": 2,
+      "259": 3,
+      "26": 1,
+      "277": 16,
+      "278": 18,
+      "285": 22,
+      "286": 33,
+      "287": 4,
+      "288": 9,
+      "289": 219,
+      "300": 56,
+      "304": 1,
+      "309": 2,
+      "310": 345,
+      "32": 33,
+      "35": 168,
+      "354": 3,
+      "358": 8,
+      "36": 11,
+      "365": 203,
+      "372": 49,
+      "382": 277,
+      "391": 321,
+      "392": 9,
+      "397": 1,
+      "399": 14,
+      "408": 250,
+      "411": 1,
+      "415": 21,
+      "416": 66,
+      "417": 3,
+      "420": 1284,
+      "421": 820,
+      "427": 17517,
+      "428": 1,
+      "430": 92,
+      "431": 129,
+      "433": 1,
+      "435": 20,
+      "438": 79,
+      "449": 493,
+      "45": 22,
+      "450": 11,
+      "451": 86,
+      "454": 2,
+      "455": 2,
+      "46": 725,
+      "460": 2,
+      "464": 1,
+      "47": 1286,
+      "471": 9,
+      "474": 3,
+      "480": 1,
+      "49": 18,
+      "492": 31,
+      "495": 134,
+      "5": 95,
+      "50": 141,
+      "503": 7,
+      "515": 1,
+      "518": 21,
+      "519": 21,
+      "520": 29,
+      "521": 6,
+      "523": 2,
+      "524": 2,
+      "525": 75,
+      "526": 49,
+      "528": 4,
+      "53": 1756,
+      "546": 574,
+      "56": 285,
+      "573": 14,
+      "574": 2,
+      "575": 1643,
+      "58": 1335,
+      "586": 278,
+      "59": 510,
+      "6": 4,
+      "60": 2,
+      "601": 2,
+      "610": 25,
+      "612": 74,
+      "62": 3,
+      "63": 11,
+      "64": 57,
+      "65": 1,
+      "66": 4,
+      "67": 1000,
+      "68": 10,
+      "69": 52,
+      "70": 451,
+      "71": 3582,
+      "72": 23785,
+      "73": 64,
+      "74": 2887,
+      "76": 15,
+      "77": 578,
+      "79": 11384,
+      "80": 46,
+      "81": 1,
+      "84": 444,
+      "91": 21,
+      "99": 6
+    },
+    "global_comparisons": 59,
+    "lengths": {
+      "20": 123,
+      "24": 2,
+      "28": 80502
+    },
+    "nonfinite_float_comparisons": 0,
+    "nonzero_flag_padding": 1,
+    "nonzero_function_padding": 0,
+    "or_flags": 3730,
+    "record_kinds": {
+      "ALCH": 487,
+      "CPTH": 593,
+      "ENCH": 323,
+      "IDLE": 1907,
+      "INFO": 69332,
+      "MESG": 419,
+      "PACK": 3801,
+      "PERK": 471,
+      "QUST": 2084,
+      "RCPE": 156,
+      "SPEL": 252,
+      "TERM": 802
+    },
+    "subject_run_on_words": {
+      "0": 73683,
+      "1": 3554,
+      "2": 2990,
+      "3": 69,
+      "4": 153,
+      "7": 1
+    },
+    "uninterpreted_low_flags": 1,
+    "unknown_comparison_operators": 0,
+    "unverified_subject_selector_words": 1
+  },
+  "engine_revision": "706c9b836a9334fe3646949092717d4b472fa905",
+  "evaluation_ready": false,
+  "executable_source_sha256": "3a87f92f011e5dc9179ddf733cf08be2b39ea6e5b7a8a9e3a9a72dafcc1b104d",
+  "fresh_catalogue_regression": {
+    "all_descriptor_fields_equal": true,
+    "changed_executable_rejected": true,
+    "native_report_sha256": "56e5716fdfef7abdae521aaff364303f77976a83a9cf14dda26f37e5461032cd",
+    "rust_report_sha256": "a087e4df1654d8049be24529e86d6364af9857a42c39530dcf1a0a7879ea39cb"
+  },
+  "known_gaps": [
+    "Unverified subject selector, low flag and nonzero padding source findings",
+    "Legacy short-layout loading/default/migration behavior",
+    "Function-specific parameter meanings and reference existence",
+    "Condition ownership/grouping, query effects and evaluation order",
+    "Numerical comparisons, original native errors and retail behavior"
+  ],
+  "native_negative_cases_rejected": [
+    "short_magic",
+    "wrong_magic",
+    "short_record",
+    "short_field",
+    "short_ctda",
+    "partial_run_on",
+    "partial_reference",
+    "surplus_ctda",
+    "orphan_extended",
+    "empty_record"
+  ],
+  "native_report_sha256": "ec1304d610eec50fef4c9b4c226965f5fb90cb741ffe6441ef0a4567252a708d",
+  "original_inventory_sha256": "503b2f8ba1e360c4751f2395baac0d8e2d3afe197f61a91caf23492e5c22a379",
+  "plugins": [
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 0,
+        "animation_group_words": {},
+        "comparison_operators": {},
+        "conditions": 0,
+        "flags": {},
+        "functions": {},
+        "global_comparisons": 0,
+        "lengths": {},
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 0,
+        "record_kinds": {},
+        "subject_run_on_words": {},
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 3,
+      "record_payloads_deferred": 5,
+      "source_bytes": 3007,
+      "source_name": "CaravanPack.esm",
+      "source_sha256": "0473cff52d375a77d6585f203a914445fa5a9e6ba726818aa7d8d48cb177ec82"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 0,
+        "animation_group_words": {},
+        "comparison_operators": {
+          "0": 1
+        },
+        "conditions": 1,
+        "flags": {
+          "0": 1
+        },
+        "functions": {
+          "586": 1
+        },
+        "global_comparisons": 0,
+        "lengths": {
+          "28": 1
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 0,
+        "record_kinds": {
+          "SPEL": 1
+        },
+        "subject_run_on_words": {
+          "0": 1
+        },
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 6,
+      "record_payloads_deferred": 14,
+      "source_bytes": 6523,
+      "source_name": "ClassicPack.esm",
+      "source_sha256": "3b31928dfdac46028f2e12f25b0dbdd0e809d4d74ac04fb7783e0063e912760b"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 316,
+        "animation_group_words": {
+          "0": 2
+        },
+        "comparison_operators": {
+          "0": 4083,
+          "1": 142,
+          "2": 56,
+          "3": 137,
+          "4": 123,
+          "5": 39
+        },
+        "conditions": 4580,
+        "flags": {
+          "0": 4005,
+          "1": 78,
+          "128": 123,
+          "160": 39,
+          "32": 127,
+          "33": 15,
+          "64": 56,
+          "96": 137
+        },
+        "functions": {
+          "101": 2,
+          "106": 2,
+          "107": 1,
+          "109": 5,
+          "131": 4,
+          "136": 67,
+          "14": 159,
+          "143": 4,
+          "182": 5,
+          "185": 1,
+          "242": 2,
+          "25": 3,
+          "289": 4,
+          "310": 71,
+          "32": 1,
+          "35": 23,
+          "382": 52,
+          "399": 1,
+          "408": 2,
+          "420": 179,
+          "421": 24,
+          "427": 8,
+          "430": 1,
+          "449": 77,
+          "46": 35,
+          "47": 35,
+          "495": 11,
+          "5": 29,
+          "53": 497,
+          "546": 192,
+          "56": 122,
+          "575": 2,
+          "58": 2,
+          "586": 38,
+          "59": 75,
+          "67": 147,
+          "70": 2,
+          "72": 1803,
+          "77": 6,
+          "79": 884,
+          "80": 1,
+          "91": 1
+        },
+        "global_comparisons": 0,
+        "lengths": {
+          "28": 4580
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 93,
+        "record_kinds": {
+          "ALCH": 101,
+          "IDLE": 18,
+          "INFO": 3879,
+          "MESG": 28,
+          "PACK": 196,
+          "PERK": 26,
+          "QUST": 111,
+          "RCPE": 54,
+          "SPEL": 5,
+          "TERM": 162
+        },
+        "subject_run_on_words": {
+          "0": 4080,
+          "1": 176,
+          "2": 316,
+          "4": 6
+        },
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 2742,
+      "record_payloads_deferred": 37343,
+      "source_bytes": 6274851,
+      "source_name": "DeadMoney.esm",
+      "source_sha256": "31ede9c21ae6960ec868bf60879c602bf7a13879b2f47e7cfd1ac30b4d4de329"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 125,
+        "absent_run_on_words": 123,
+        "active_reference_words": 1927,
+        "animation_group_words": {
+          "0": 40,
+          "20": 4
+        },
+        "comparison_operators": {
+          "0": 57475,
+          "1": 3108,
+          "2": 841,
+          "3": 3365,
+          "4": 2369,
+          "5": 847
+        },
+        "conditions": 68005,
+        "flags": {
+          "0": 54916,
+          "1": 2559,
+          "100": 45,
+          "128": 2258,
+          "129": 106,
+          "132": 4,
+          "144": 1,
+          "160": 815,
+          "161": 29,
+          "164": 3,
+          "32": 3075,
+          "33": 33,
+          "64": 779,
+          "65": 55,
+          "68": 6,
+          "69": 1,
+          "96": 3205,
+          "97": 115
+        },
+        "functions": {
+          "1": 129,
+          "101": 49,
+          "106": 35,
+          "107": 29,
+          "108": 44,
+          "109": 47,
+          "110": 15,
+          "112": 1,
+          "117": 2,
+          "123": 1,
+          "127": 3,
+          "131": 176,
+          "136": 165,
+          "14": 1576,
+          "141": 32,
+          "143": 58,
+          "144": 26,
+          "145": 1,
+          "157": 4,
+          "159": 68,
+          "160": 78,
+          "161": 5,
+          "162": 2,
+          "163": 52,
+          "170": 11,
+          "18": 126,
+          "182": 206,
+          "185": 6,
+          "197": 2,
+          "203": 3,
+          "214": 1,
+          "219": 1,
+          "223": 3,
+          "224": 1,
+          "226": 2,
+          "227": 1,
+          "230": 18,
+          "235": 7,
+          "24": 1,
+          "242": 76,
+          "244": 1,
+          "246": 15,
+          "247": 5,
+          "25": 43,
+          "258": 2,
+          "259": 3,
+          "277": 16,
+          "278": 18,
+          "285": 18,
+          "286": 10,
+          "287": 4,
+          "288": 9,
+          "289": 198,
+          "300": 20,
+          "304": 1,
+          "309": 2,
+          "310": 271,
+          "32": 32,
+          "35": 109,
+          "354": 2,
+          "358": 8,
+          "36": 11,
+          "365": 201,
+          "372": 45,
+          "382": 95,
+          "391": 298,
+          "392": 9,
+          "397": 1,
+          "399": 13,
+          "408": 248,
+          "411": 1,
+          "415": 19,
+          "416": 63,
+          "417": 2,
+          "420": 1050,
+          "421": 792,
+          "427": 16982,
+          "428": 1,
+          "430": 91,
+          "431": 116,
+          "433": 1,
+          "435": 20,
+          "438": 42,
+          "449": 306,
+          "45": 21,
+          "450": 11,
+          "451": 86,
+          "454": 2,
+          "46": 521,
+          "460": 2,
+          "464": 1,
+          "47": 1035,
+          "471": 9,
+          "474": 3,
+          "49": 18,
+          "492": 17,
+          "495": 101,
+          "5": 44,
+          "50": 116,
+          "503": 2,
+          "515": 1,
+          "518": 21,
+          "519": 21,
+          "520": 29,
+          "521": 6,
+          "523": 2,
+          "524": 2,
+          "525": 75,
+          "526": 49,
+          "528": 4,
+          "53": 830,
+          "546": 353,
+          "56": 161,
+          "573": 14,
+          "575": 1598,
+          "58": 1014,
+          "586": 190,
+          "59": 384,
+          "6": 4,
+          "60": 2,
+          "601": 2,
+          "610": 25,
+          "612": 74,
+          "62": 3,
+          "63": 10,
+          "64": 57,
+          "65": 1,
+          "66": 3,
+          "67": 795,
+          "68": 10,
+          "69": 36,
+          "70": 410,
+          "71": 3535,
+          "72": 18677,
+          "73": 64,
+          "74": 2844,
+          "76": 15,
+          "77": 564,
+          "79": 9444,
+          "80": 13,
+          "81": 1,
+          "84": 391,
+          "91": 19,
+          "99": 6
+        },
+        "global_comparisons": 59,
+        "lengths": {
+          "20": 123,
+          "24": 2,
+          "28": 67880
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 1,
+        "nonzero_function_padding": 0,
+        "or_flags": 2898,
+        "record_kinds": {
+          "ALCH": 341,
+          "CPTH": 593,
+          "ENCH": 82,
+          "IDLE": 1798,
+          "INFO": 59664,
+          "MESG": 259,
+          "PACK": 2992,
+          "PERK": 260,
+          "QUST": 1501,
+          "RCPE": 26,
+          "SPEL": 84,
+          "TERM": 405
+        },
+        "subject_run_on_words": {
+          "0": 62773,
+          "1": 2941,
+          "2": 1927,
+          "3": 66,
+          "4": 130,
+          "7": 1
+        },
+        "uninterpreted_low_flags": 1,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 1
+      },
+      "record_payloads_decoded": 32236,
+      "record_payloads_deferred": 432781,
+      "source_bytes": 245650747,
+      "source_name": "FalloutNV.esm",
+      "source_sha256": "50991d36804b7d1e70df1afd7471b72f0e29d1b456ee2516a9717c002564e7c1"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 8,
+        "animation_group_words": {},
+        "comparison_operators": {
+          "0": 63,
+          "3": 7,
+          "4": 5
+        },
+        "conditions": 75,
+        "flags": {
+          "0": 35,
+          "1": 28,
+          "128": 5,
+          "96": 7
+        },
+        "functions": {
+          "14": 9,
+          "182": 26,
+          "382": 1,
+          "438": 4,
+          "449": 18,
+          "495": 2,
+          "575": 1,
+          "67": 1,
+          "72": 10,
+          "79": 3
+        },
+        "global_comparisons": 0,
+        "lengths": {
+          "28": 75
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 28,
+        "record_kinds": {
+          "ENCH": 38,
+          "INFO": 15,
+          "PERK": 2,
+          "RCPE": 19,
+          "SPEL": 1
+        },
+        "subject_run_on_words": {
+          "0": 67,
+          "2": 8
+        },
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 47,
+      "record_payloads_deferred": 732,
+      "source_bytes": 252445,
+      "source_name": "GunRunnersArsenal.esm",
+      "source_sha256": "aee27930699494f0626d24a3a8ae947fe447e33edc0ed46762e54faab4c05a1e"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 131,
+        "animation_group_words": {
+          "0": 1,
+          "20": 1
+        },
+        "comparison_operators": {
+          "0": 2297,
+          "1": 75,
+          "2": 12,
+          "3": 160,
+          "4": 89,
+          "5": 19
+        },
+        "conditions": 2652,
+        "flags": {
+          "0": 2190,
+          "1": 107,
+          "128": 81,
+          "129": 8,
+          "160": 19,
+          "32": 75,
+          "64": 12,
+          "96": 157,
+          "97": 3
+        },
+        "functions": {
+          "107": 1,
+          "127": 1,
+          "136": 101,
+          "14": 80,
+          "141": 1,
+          "143": 2,
+          "144": 3,
+          "159": 5,
+          "160": 1,
+          "163": 4,
+          "182": 7,
+          "203": 3,
+          "242": 1,
+          "246": 1,
+          "247": 1,
+          "25": 1,
+          "285": 2,
+          "286": 2,
+          "289": 3,
+          "35": 16,
+          "365": 2,
+          "372": 1,
+          "382": 1,
+          "391": 11,
+          "415": 2,
+          "416": 3,
+          "417": 1,
+          "420": 7,
+          "421": 3,
+          "427": 491,
+          "431": 5,
+          "438": 2,
+          "449": 14,
+          "46": 63,
+          "47": 46,
+          "492": 6,
+          "495": 4,
+          "50": 18,
+          "53": 181,
+          "56": 1,
+          "58": 130,
+          "586": 11,
+          "59": 33,
+          "63": 1,
+          "66": 1,
+          "67": 27,
+          "69": 14,
+          "70": 19,
+          "71": 16,
+          "72": 1017,
+          "74": 8,
+          "77": 3,
+          "79": 227,
+          "80": 3,
+          "84": 43,
+          "91": 1
+        },
+        "global_comparisons": 0,
+        "lengths": {
+          "28": 2652
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 118,
+        "record_kinds": {
+          "ALCH": 13,
+          "IDLE": 53,
+          "INFO": 1963,
+          "MESG": 14,
+          "PACK": 422,
+          "PERK": 39,
+          "QUST": 130,
+          "RCPE": 9,
+          "SPEL": 4,
+          "TERM": 5
+        },
+        "subject_run_on_words": {
+          "0": 2395,
+          "1": 121,
+          "2": 131,
+          "3": 3
+        },
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 1874,
+      "record_payloads_deferred": 34328,
+      "source_bytes": 17308500,
+      "source_name": "HonestHearts.esm",
+      "source_sha256": "4341d1a35eaac7d9e7097ebac8f31a13264ca6dcb33443408bd97e5ddd5d8368"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 93,
+        "animation_group_words": {
+          "0": 4
+        },
+        "comparison_operators": {
+          "0": 1455,
+          "1": 18,
+          "2": 37,
+          "3": 134,
+          "4": 85,
+          "5": 5
+        },
+        "conditions": 1734,
+        "flags": {
+          "0": 1236,
+          "1": 219,
+          "128": 85,
+          "160": 1,
+          "161": 4,
+          "32": 18,
+          "64": 37,
+          "96": 130,
+          "97": 4
+        },
+        "functions": {
+          "1": 11,
+          "106": 4,
+          "107": 2,
+          "112": 1,
+          "131": 6,
+          "136": 19,
+          "14": 84,
+          "18": 12,
+          "182": 7,
+          "214": 4,
+          "223": 2,
+          "224": 1,
+          "242": 3,
+          "244": 1,
+          "25": 2,
+          "26": 1,
+          "286": 12,
+          "289": 14,
+          "300": 8,
+          "310": 2,
+          "35": 3,
+          "372": 3,
+          "382": 21,
+          "420": 6,
+          "421": 1,
+          "438": 4,
+          "449": 38,
+          "455": 2,
+          "46": 7,
+          "47": 16,
+          "495": 12,
+          "5": 17,
+          "50": 6,
+          "53": 89,
+          "546": 6,
+          "574": 2,
+          "575": 42,
+          "58": 7,
+          "586": 25,
+          "67": 7,
+          "69": 2,
+          "70": 6,
+          "72": 821,
+          "74": 4,
+          "77": 2,
+          "79": 353,
+          "80": 26,
+          "84": 10
+        },
+        "global_comparisons": 0,
+        "lengths": {
+          "28": 1734
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 227,
+        "record_kinds": {
+          "ALCH": 20,
+          "ENCH": 37,
+          "IDLE": 10,
+          "INFO": 1224,
+          "MESG": 18,
+          "PACK": 94,
+          "PERK": 89,
+          "QUST": 81,
+          "RCPE": 34,
+          "SPEL": 70,
+          "TERM": 57
+        },
+        "subject_run_on_words": {
+          "0": 1543,
+          "1": 94,
+          "2": 93
+        },
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 1092,
+      "record_payloads_deferred": 33897,
+      "source_bytes": 25676818,
+      "source_name": "LonesomeRoad.esm",
+      "source_sha256": "41bf457c1ed313834407840d2b60447f74264e33b372590454ead8ac663b0516"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 0,
+        "animation_group_words": {},
+        "comparison_operators": {},
+        "conditions": 0,
+        "flags": {},
+        "functions": {},
+        "global_comparisons": 0,
+        "lengths": {},
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 0,
+        "record_kinds": {},
+        "subject_run_on_words": {},
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 3,
+      "record_payloads_deferred": 5,
+      "source_bytes": 3064,
+      "source_name": "MercenaryPack.esm",
+      "source_sha256": "73e76bcadbf326818af7b58c315773a2d86fe3a8186a778e84a68916cb830c59"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 515,
+        "animation_group_words": {
+          "0": 2
+        },
+        "comparison_operators": {
+          "0": 2925,
+          "1": 124,
+          "2": 49,
+          "3": 211,
+          "4": 236,
+          "5": 35
+        },
+        "conditions": 3580,
+        "flags": {
+          "0": 2620,
+          "1": 305,
+          "128": 236,
+          "160": 35,
+          "32": 124,
+          "64": 47,
+          "65": 2,
+          "96": 152,
+          "97": 59
+        },
+        "functions": {
+          "107": 2,
+          "131": 4,
+          "136": 92,
+          "14": 166,
+          "182": 228,
+          "223": 32,
+          "242": 17,
+          "285": 2,
+          "286": 9,
+          "300": 28,
+          "310": 1,
+          "35": 17,
+          "354": 1,
+          "382": 107,
+          "391": 12,
+          "420": 42,
+          "427": 36,
+          "431": 8,
+          "438": 27,
+          "449": 40,
+          "45": 1,
+          "46": 99,
+          "47": 154,
+          "480": 1,
+          "492": 8,
+          "495": 4,
+          "5": 5,
+          "50": 1,
+          "503": 5,
+          "53": 159,
+          "546": 23,
+          "56": 1,
+          "58": 182,
+          "586": 13,
+          "59": 18,
+          "67": 23,
+          "70": 14,
+          "71": 31,
+          "72": 1457,
+          "74": 31,
+          "77": 3,
+          "79": 473,
+          "80": 3
+        },
+        "global_comparisons": 0,
+        "lengths": {
+          "28": 3580
+        },
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 366,
+        "record_kinds": {
+          "ALCH": 12,
+          "ENCH": 166,
+          "IDLE": 28,
+          "INFO": 2587,
+          "MESG": 100,
+          "PACK": 97,
+          "PERK": 55,
+          "QUST": 261,
+          "RCPE": 14,
+          "SPEL": 87,
+          "TERM": 173
+        },
+        "subject_run_on_words": {
+          "0": 2824,
+          "1": 222,
+          "2": 515,
+          "4": 17
+        },
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 2153,
+      "record_payloads_deferred": 50531,
+      "source_bytes": 16202800,
+      "source_name": "OldWorldBlues.esm",
+      "source_sha256": "fd6cc6e582582ec035277150e106d12b6d78c7c60cbb506545e06d1fa7212295"
+    },
+    {
+      "counts": {
+        "absent_reference_words": 0,
+        "absent_run_on_words": 0,
+        "active_reference_words": 0,
+        "animation_group_words": {},
+        "comparison_operators": {},
+        "conditions": 0,
+        "flags": {},
+        "functions": {},
+        "global_comparisons": 0,
+        "lengths": {},
+        "nonfinite_float_comparisons": 0,
+        "nonzero_flag_padding": 0,
+        "nonzero_function_padding": 0,
+        "or_flags": 0,
+        "record_kinds": {},
+        "subject_run_on_words": {},
+        "uninterpreted_low_flags": 0,
+        "unknown_comparison_operators": 0,
+        "unverified_subject_selector_words": 0
+      },
+      "record_payloads_decoded": 3,
+      "record_payloads_deferred": 3,
+      "source_bytes": 2323,
+      "source_name": "TribalPack.esm",
+      "source_sha256": "342f42ce9835f57ee19be09f12ad0ba2c6182e86740338202fcea9011d62f328"
+    }
+  ],
+  "prior_full_inventory_coverage_equal": true,
+  "profile": "nv-original",
+  "record_payloads_deferred": 589639,
+  "retail_parity_accepted": false,
+  "rust_report_sha256": "77f173e06a8392e3c8b323b90e2edb046f8b428477c0142924411813b6b48266",
+  "schema_version": 1,
+  "source_findings": [
+    {
+      "condition": {
+        "bytes": 28,
+        "comparison_operator": "less",
+        "comparison_value": {
+          "float_bits": 1077936128
+        },
+        "field_decoded_offset": 297,
+        "flag_padding": [
+          78,
+          81,
+          7
+        ],
+        "flags": 144,
+        "form_id": 1289350,
+        "function_id": 575,
+        "function_padding": [
+          0,
+          0
+        ],
+        "parameter_words": [
+          1000413,
+          2
+        ],
+        "preceding_field_decoded_offset": 263,
+        "preceding_field_kind": "CTDA",
+        "record_file_offset": 237810504,
+        "record_kind": "INFO",
+        "reference_is_subject_selector": false,
+        "reference_word": 0,
+        "run_on_domain": "subject_selection",
+        "run_on_word": 0,
+        "sha256": "4ce810a7cd238dc1572ae6e59fd838d27b1958071c3ac0abea9dd4aebae667ea"
+      },
+      "scope": "source fields retained; handling/evaluation unverified",
+      "source_name": "FalloutNV.esm"
+    },
+    {
+      "condition": {
+        "bytes": 28,
+        "comparison_operator": "equal",
+        "comparison_value": {
+          "float_bits": 1065353216
+        },
+        "field_decoded_offset": 97,
+        "flag_padding": [
+          0,
+          0,
+          0
+        ],
+        "flags": 0,
+        "form_id": 106031,
+        "function_id": 289,
+        "function_padding": [
+          0,
+          0
+        ],
+        "parameter_words": [
+          0,
+          0
+        ],
+        "preceding_field_decoded_offset": 63,
+        "preceding_field_kind": "CTDA",
+        "record_file_offset": 242812383,
+        "record_kind": "IDLE",
+        "reference_is_subject_selector": false,
+        "reference_word": 0,
+        "run_on_domain": "subject_selection",
+        "run_on_word": 7,
+        "sha256": "c79b36b547e7f16b5f04b1e6be1122994261727e5ae13d9bf55e7410890ba178"
+      },
+      "scope": "source fields retained; handling/evaluation unverified",
+      "source_name": "FalloutNV.esm"
+    }
+  ],
+  "source_layout_fixture_equal": true,
+  "source_snapshot_sha256": "a931b4de22f702ff903d59f130fba3cb57d841becc54848858564edc559d8b3e",
+  "strict_unrelated_integrity_failure_retained": true
+}

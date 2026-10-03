@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "e80e9f284bc7f2f911a7c104c75f79b0655c6149",
-  "revision_note": "Checkpoint 20 verifies owning-table operand associations at 109cee6a2dd8bfba8f79884983801e214d8c1c56; prior evidence keeps its tested revision. Foreign declarations, loaded values, native effects and gameplay remain open.",
+  "last_verified_revision": "706c9b836a9334fe3646949092717d4b472fa905",
+  "revision_note": "Checkpoint 21 verifies all original condition fields at 706c9b836a9334fe3646949092717d4b472fa905; earlier evidence keeps its tested revision. Typed ownership, subject resolution, condition queries and gameplay remain unfinished.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -1055,6 +1055,35 @@
       ],
       "tolerance": "Exact source/table metadata, SCDA hashes, all 33-byte association tuple digests and counts; no runtime behavioral acceptance",
       "last_verified_revision": "109cee6a2dd8bfba8f79884983801e214d8c1c56"
+    },
+    {
+      "id": "fnv.conditions.source-fields",
+      "game_profile": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
+      "subsystem": "script_ob",
+      "requirement": "Decode bounded original CTDA fields with exact comparison unions, optional words, padding and source order, preserving short layouts and unverified values without migration or evaluation.",
+      "evidence": [
+        "reports/checkpoint-21-condition-fields.json",
+        "reports/checkpoint-21-verification.json",
+        "docs/condition-fields.md"
+      ],
+      "affected_content": "80627 condition fields in 32699 records across ten official plugins; all 148 condition function IDs bind to original descriptor metadata",
+      "status": "oracle-tested",
+      "tests": [
+        "crates/fallout-data/tests/conditions.rs",
+        "tools/condition-oracle",
+        "fallout-evidence --checkpoint 21"
+      ],
+      "known_gaps": [
+        "Unverified subject selector, low flag and nonzero padding source findings",
+        "Legacy short-layout loading/default/migration behavior",
+        "Function-specific parameter meanings and reference existence",
+        "Condition ownership/grouping, query effects and evaluation order",
+        "Numerical comparisons, original native errors and retail behavior",
+        "One original INFO has low flag 0x10 and nonzero flag padding; one IDLE has unverified subject selector 7",
+        "No runtime condition query implementation or retail gameplay acceptance"
+      ],
+      "tolerance": "Exact independently compared field/source rows, raw hashes and counts; no numerical or behavioral acceptance",
+      "last_verified_revision": "706c9b836a9334fe3646949092717d4b472fa905"
     }
   ]
 }

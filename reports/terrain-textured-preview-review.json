@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "checkpoint": 14,
+  "engine_revision": "25d011b9868ac111c5c82df562e1cd1ece8b2b32",
+  "preview_binary_sha256": "6b14500e858619b008f483d26d89a19d31a0688ce8672ef60a7580c72a33c285",
+  "source_snapshot_sha256": "a75ba362076dac7c95ce3382345fa27c8a17abfd54002e688586d0fe604eb80a",
+  "reviewed_at_utc": "2026-10-03T04:38:00+00:00",
+  "review_method": "Codex viewed all six actual local PNGs after the final renderer build. Every published-run PNG was then verified byte-identical to the visually reviewed image; this is separate from numeric and occupancy checks.",
+  "retail_parity_accepted": false,
+  "scope": "Inspection capture review only; no matched retail images or interactive input acceptance. Visible transitions, steep ridges and marker meshes remain manual comparison items.",
+  "captures": [
+    {
+      "cell_editor_id": "Goodsprings",
+      "capture_sha256": "9a4faa5b8bd1415a0c0ffc0b4b051b44eb210a26594247f2b437fe92e11df27e",
+      "observation": "A complete textured terrain tile is visible. Diffuse variation follows the surface; no obvious missing-triangle patch is visible from this camera. Retail material scale, orientation and seams are unverified."
+    },
+    {
+      "cell_editor_id": "GoodspringsSource",
+      "capture_sha256": "a4d914f21435310742bda64974f6330aad9827eb418077e08c0c292bd310c2d8",
+      "observation": "A complete textured terrain tile is visible with rock/dirt layers and steep relief. Hard transitions near the foreground need manual comparison; this inspection does not certify retail quadrant-edge blending."
+    },
+    {
+      "cell_editor_id": "NVDLC02PineCreek",
+      "capture_sha256": "c580d35b5593359986dc06a271bd0293031135e00b2ee8786b70532e4e760292",
+      "observation": "Textured steep terrain and narrow ridge-like strips are visible. This camera shows strong relief and texture transitions; height/axis interpretation and retail quadrant-edge behavior remain unaccepted and need a matching retail comparison."
+    },
+    {
+      "cell_editor_id": "TownCenter",
+      "capture_sha256": "df96702ecf3d71e42b49fdf648fb4bb791de578de3a82b588fddaafd82a4161d",
+      "observation": "The existing vertex-color inspector still shows the flat white source tile. It is a geometry smoke/regression view, not a textured/default-material reconstruction."
+    },
+    {
+      "cell_editor_id": "GSDocMitchellHouse",
+      "capture_sha256": "3d143e0905c6373c1e168ac3d639af699928314619e6aade054727e592a4e929",
+      "observation": "The fixed camera shows textured walls, furnishings and doorways; translucent red/cyan planes remain visible. The 400-reference assembly is a static unlit regression view. Retail visibility/material behavior, lighting, collision and gameplay remain unaccepted."
+    },
+    {
+      "cell_editor_id": "material-fixture",
+      "capture_sha256": "adb94d21132d76986c8da358832f87e799b5125f4c55f3010cc8e6487b39cb77",
+      "observation": "The 64-case original synthetic board is visible. The two textured-weight cases occupy the last row's last two tiles (red/blue mixture and red/green excess coverage); numeric sampled pixels match the fixed expectations. This is adapter coverage, not a retail image comparison."
+    }
+  ],
+  "retail_ui_blocker": {
+    "schema_version": 1,
+    "attempts": 3,
+    "recovery": [
+      "initial app enumeration",
+      "retry after delay",
+      "JavaScript reset and reinitialization"
+    ],
+    "error": "Computer Use native pipe is unavailable: failed to connect native pipe: The system cannot find the file specified. (os error 2)",
+    "retail_ui_actions_performed": 0,
+    "retail_game_launched": false,
+    "status": "manual retail comparison required; headless Rust GPU testing remains available",
+    "attempt_receipt_sha256": "74a620850e9a582d033ed14ad1dc2bdb1b8e9a15d71a7d4739ee75a0970b95b1"
+  },
+  "manual_test": {
+    "launcher": "target/debug/fallout-playtest.exe",
+    "launcher_binary_sha256": "c691dea84ec989a54586fbb611b066e1a9b8085fb596f841de77aa1d506e829c",
+    "configuration_sha256": "453134c8807f0168c59a59612c53cfdb63610d8457eaad0e856065291d1b167b",
+    "configuration_verified": true,
+    "interactive_input_tested": false,
+    "instructions": "docs/terrain-textured-preview.md"
+  }
+}

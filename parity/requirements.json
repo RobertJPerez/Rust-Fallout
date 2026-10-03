@@ -2,8 +2,8 @@
   "schema_version": 1,
   "profile": "nv-original",
   "profile_manifest_sha256": "919e6b0becead2a5c32e23ab98849ac5ce83f93a7f5a944962ef49c7a3dcb7a4",
-  "last_verified_revision": "0a4a210f59685d448ad0130620e7a2705a6963be",
-  "revision_note": "Checkpoint 14 adds bounded authored diffuse terrain inspection, shared DDS uploads, explicit tiling, incomplete-material rejection and 64 numeric GPU checks. Three textured cells plus interior/color regressions are captured; retail UI helper failed to connect, so direct camera/material/input testing remains open.",
+  "last_verified_revision": "25d011b9868ac111c5c82df562e1cd1ece8b2b32",
+  "revision_note": "Checkpoint 14 binds 108 source files and actual executable hashes to 136 tests, six source fixtures, 40 exact archive members and 64 numeric GPU cases. Historical corpus/collision/cache evidence retains its own revision and scope. No retail or gameplay scenario is accepted.",
   "accepted_scenarios": [],
   "requirements": [
     {
@@ -868,7 +868,9 @@
       "evidence": [
         "reports/terrain-textured-preview.json",
         "reports/checkpoint-14-verification.json",
-        "docs/terrain-textured-preview.md"
+        "docs/terrain-textured-preview.md",
+        "reports/terrain-textured-preview-review.json",
+        "reports/checkpoint-14-source-snapshot.json"
       ],
       "tests": [
         "crates/fallout-cli/src/textured_evidence.rs",
@@ -880,7 +882,7 @@
         "Computer-use native pipe unavailable after retry/reset; manual input and retail camera/material comparison are pending"
       ],
       "tolerance": "64 original GPU expectations retain the existing two-byte sRGB quantization tolerance; texture/body/weight provenance exact; occupancy is only a smoke check",
-      "last_verified_revision": null
+      "last_verified_revision": "25d011b9868ac111c5c82df562e1cd1ece8b2b32"
     }
   ]
 }

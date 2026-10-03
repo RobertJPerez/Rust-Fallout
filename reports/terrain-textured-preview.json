@@ -1,0 +1,2620 @@
+{
+  "build_profile": "debug",
+  "captures": [
+    {
+      "capture_sha256": "9a4faa5b8bd1415a0c0ffc0b4b051b44eb210a26594247f2b437fe92e11df27e",
+      "cell_editor_id": "Goodsprings",
+      "diffuse_textures": 7,
+      "drawn_triangles": 13824,
+      "drawn_vertices": 7803,
+      "height": 900,
+      "layer_draws": 27,
+      "log_sha256": "3390e20e9745ac61ca8f8225c003ec8269c96d75e4aaa58f4f44f62e24ee6122",
+      "mode": "authored diffuse inspection",
+      "overfull_vertices": 215,
+      "pixels_differing_from_top_left": 94459,
+      "report_sha256": "e19af303c8b5de76a0dcb91103f567fbec1b2984ba798346da6281660bcf51db",
+      "source_origin": [
+        -71680.0,
+        2048.0,
+        8444.0
+      ],
+      "texture_repeats_per_quadrant": 4.0,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "a4d914f21435310742bda64974f6330aad9827eb418077e08c0c292bd310c2d8",
+      "cell_editor_id": "GoodspringsSource",
+      "diffuse_textures": 8,
+      "drawn_triangles": 11776,
+      "drawn_vertices": 6647,
+      "height": 900,
+      "layer_draws": 23,
+      "log_sha256": "3390e20e9745ac61ca8f8225c003ec8269c96d75e4aaa58f4f44f62e24ee6122",
+      "mode": "authored diffuse inspection",
+      "overfull_vertices": 61,
+      "pixels_differing_from_top_left": 88547,
+      "report_sha256": "bbd09286a02a0c0f51ac7a2baaf3cfe37d6d2d26fbd44b67d729a8f5becd604e",
+      "source_origin": [
+        -63488.0,
+        -18432.0,
+        6844.0
+      ],
+      "texture_repeats_per_quadrant": 4.0,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "c580d35b5593359986dc06a271bd0293031135e00b2ee8786b70532e4e760292",
+      "cell_editor_id": "NVDLC02PineCreek",
+      "diffuse_textures": 8,
+      "drawn_triangles": 13312,
+      "drawn_vertices": 7514,
+      "height": 900,
+      "layer_draws": 26,
+      "log_sha256": "3390e20e9745ac61ca8f8225c003ec8269c96d75e4aaa58f4f44f62e24ee6122",
+      "mode": "authored diffuse inspection",
+      "overfull_vertices": 106,
+      "pixels_differing_from_top_left": 141273,
+      "report_sha256": "05a0365abb9e158ea6304e5857917c42baada6a2131fb258ac9de72a0df672e7",
+      "source_origin": [
+        18432.0,
+        -10240.0,
+        6228.0
+      ],
+      "texture_repeats_per_quadrant": 4.0,
+      "width": 1280
+    },
+    {
+      "capture_sha256": "df96702ecf3d71e42b49fdf648fb4bb791de578de3a82b588fddaafd82a4161d",
+      "cell_editor_id": "TownCenter",
+      "height": 900,
+      "log_sha256": "abc8c36945e73c782a32178ce26851863810716ebc7db0ae9e5549be6d816a1a",
+      "mode": "vertex-color regression",
+      "pixels_differing_from_top_left": 86687,
+      "report_sha256": "b65a38e65f94bf3e75615d4775c8903060dea189aff06fce16c0b8156a052711",
+      "width": 1280
+    },
+    {
+      "capture_sha256": "3d143e0905c6373c1e168ac3d639af699928314619e6aade054727e592a4e929",
+      "cell_editor_id": "GSDocMitchellHouse",
+      "height": 900,
+      "log_sha256": "424d017f5659bb97bfcbb40c25c83d726f64eaf13a4b020b9e0d57abb3290b25",
+      "mode": "interior regression",
+      "pixels_differing_from_top_left": 1151969,
+      "report_sha256": "300d4fe656c3b4aa8f2cab098070887a45ec381ae45783adb3a13b53e527f578",
+      "width": 1280
+    },
+    {
+      "capture_sha256": "adb94d21132d76986c8da358832f87e799b5125f4c55f3010cc8e6487b39cb77",
+      "cell_editor_id": "material-fixture",
+      "height": 900,
+      "log_sha256": "291af068363d7c88c4d3c5568835f42b918ca1a84aae35055b610696569c6837",
+      "mode": "original synthetic material and terrain weight expectations",
+      "pixels_differing_from_top_left": 634880,
+      "report_sha256": "4f06a86d02b6195243f864ddc8b547c698177d62251c8e46af857f39d5731a23",
+      "width": 1280
+    }
+  ],
+  "captures_kept_local": true,
+  "checkpoint": 14,
+  "engine_revision": "25d011b9868ac111c5c82df562e1cd1ece8b2b32",
+  "gpu_expectations_passed": 64,
+  "material_gpu_expectations": {
+    "all_passed": true,
+    "byte_tolerance": 2,
+    "cases": [
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-0-below",
+        "passed": true,
+        "pixel": [
+          80,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 512,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "name": "alpha-test-0-equal",
+        "passed": true,
+        "pixel": [
+          240,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 512,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-0-above",
+        "passed": true,
+        "pixel": [
+          400,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 512,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-1-below",
+        "passed": true,
+        "pixel": [
+          560,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 1536,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "alpha-test-1-equal",
+        "passed": true,
+        "pixel": [
+          720,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 1536,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "alpha-test-1-above",
+        "passed": true,
+        "pixel": [
+          880,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 1536,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          162,
+          209
+        ],
+        "name": "alpha-test-2-below",
+        "passed": true,
+        "pixel": [
+          1040,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 2560,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "name": "alpha-test-2-equal",
+        "passed": true,
+        "pixel": [
+          1200,
+          55
+        ],
+        "raster": {
+          "alpha_flags": 2560,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          162,
+          209
+        ],
+        "name": "alpha-test-2-above",
+        "passed": true,
+        "pixel": [
+          80,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 2560,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-3-below",
+        "passed": true,
+        "pixel": [
+          240,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 3584,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-3-equal",
+        "passed": true,
+        "pixel": [
+          400,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 3584,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          162,
+          209
+        ],
+        "name": "alpha-test-3-above",
+        "passed": true,
+        "pixel": [
+          560,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 3584,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "alpha-test-4-below",
+        "passed": true,
+        "pixel": [
+          720,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 4608,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          161,
+          209
+        ],
+        "name": "alpha-test-4-equal",
+        "passed": true,
+        "pixel": [
+          880,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 4608,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "name": "alpha-test-4-above",
+        "passed": true,
+        "pixel": [
+          1040,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 4608,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-5-below",
+        "passed": true,
+        "pixel": [
+          1200,
+          165
+        ],
+        "raster": {
+          "alpha_flags": 5632,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "alpha-test-5-equal",
+        "passed": true,
+        "pixel": [
+          80,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 5632,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-5-above",
+        "passed": true,
+        "pixel": [
+          240,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 5632,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          162,
+          209
+        ],
+        "name": "alpha-test-6-below",
+        "passed": true,
+        "pixel": [
+          400,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 6656,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-6-equal",
+        "passed": true,
+        "pixel": [
+          560,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 6656,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "alpha-test-6-above",
+        "passed": true,
+        "pixel": [
+          720,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 6656,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "alpha-test-7-below",
+        "passed": true,
+        "pixel": [
+          880,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 7680,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "alpha-test-7-equal",
+        "passed": true,
+        "pixel": [
+          1040,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 7680,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          162,
+          209
+        ],
+        "name": "alpha-test-7-above",
+        "passed": true,
+        "pixel": [
+          1200,
+          275
+        ],
+        "raster": {
+          "alpha_flags": 7680,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          100
+        ],
+        "name": "blend-source-factor-0",
+        "passed": true,
+        "pixel": [
+          80,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 33,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          162,
+          209
+        ],
+        "name": "blend-destination-factor-0",
+        "passed": true,
+        "pixel": [
+          240,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 3,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "expected_srgb8": [
+          0,
+          0,
+          0
+        ],
+        "measured_srgb8": [
+          0,
+          0,
+          0
+        ],
+        "name": "blend-source-factor-1",
+        "passed": true,
+        "pixel": [
+          400,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 35,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "expected_srgb8": [
+          0,
+          0,
+          0
+        ],
+        "measured_srgb8": [
+          0,
+          0,
+          0
+        ],
+        "name": "blend-destination-factor-1",
+        "passed": true,
+        "pixel": [
+          560,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 35,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.25,
+          0.0625,
+          0.015625
+        ],
+        "expected_srgb8": [
+          137,
+          71,
+          34
+        ],
+        "measured_srgb8": [
+          138,
+          71,
+          34
+        ],
+        "name": "blend-source-factor-2",
+        "passed": true,
+        "pixel": [
+          720,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 37,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.08,
+          0.09,
+          0.08
+        ],
+        "expected_srgb8": [
+          80,
+          85,
+          80
+        ],
+        "measured_srgb8": [
+          79,
+          85,
+          80
+        ],
+        "name": "blend-destination-factor-2",
+        "passed": true,
+        "pixel": [
+          880,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 67,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.25,
+          0.1875,
+          0.109375
+        ],
+        "expected_srgb8": [
+          137,
+          120,
+          93
+        ],
+        "measured_srgb8": [
+          137,
+          120,
+          93
+        ],
+        "name": "blend-source-factor-3",
+        "passed": true,
+        "pixel": [
+          1040,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 39,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.08,
+          0.27,
+          0.56
+        ],
+        "expected_srgb8": [
+          80,
+          142,
+          197
+        ],
+        "measured_srgb8": [
+          79,
+          142,
+          197
+        ],
+        "name": "blend-destination-factor-3",
+        "passed": true,
+        "pixel": [
+          1200,
+          385
+        ],
+        "raster": {
+          "alpha_flags": 99,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.08,
+          0.09,
+          0.08
+        ],
+        "expected_srgb8": [
+          80,
+          85,
+          80
+        ],
+        "measured_srgb8": [
+          81,
+          84,
+          81
+        ],
+        "name": "blend-source-factor-4",
+        "passed": true,
+        "pixel": [
+          80,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 41,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.0256,
+          0.1296,
+          0.4096
+        ],
+        "expected_srgb8": [
+          44,
+          101,
+          171
+        ],
+        "measured_srgb8": [
+          44,
+          101,
+          173
+        ],
+        "name": "blend-destination-factor-4",
+        "passed": true,
+        "pixel": [
+          240,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 131,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.42,
+          0.16,
+          0.045
+        ],
+        "expected_srgb8": [
+          173,
+          111,
+          60
+        ],
+        "measured_srgb8": [
+          173,
+          111,
+          60
+        ],
+        "name": "blend-source-factor-5",
+        "passed": true,
+        "pixel": [
+          400,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 43,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.1344,
+          0.23040001,
+          0.23040001
+        ],
+        "expected_srgb8": [
+          103,
+          132,
+          132
+        ],
+        "measured_srgb8": [
+          103,
+          132,
+          132
+        ],
+        "name": "blend-destination-factor-5",
+        "passed": true,
+        "pixel": [
+          560,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 163,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.25,
+          0.125,
+          0.0625
+        ],
+        "expected_srgb8": [
+          137,
+          99,
+          71
+        ],
+        "measured_srgb8": [
+          136,
+          99,
+          71
+        ],
+        "name": "blend-source-factor-6",
+        "passed": true,
+        "pixel": [
+          720,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 45,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.08,
+          0.18,
+          0.32
+        ],
+        "expected_srgb8": [
+          80,
+          118,
+          153
+        ],
+        "measured_srgb8": [
+          80,
+          118,
+          153
+        ],
+        "name": "blend-destination-factor-6",
+        "passed": true,
+        "pixel": [
+          880,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 195,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.25,
+          0.125,
+          0.0625
+        ],
+        "expected_srgb8": [
+          137,
+          99,
+          71
+        ],
+        "measured_srgb8": [
+          138,
+          99,
+          71
+        ],
+        "name": "blend-source-factor-7",
+        "passed": true,
+        "pixel": [
+          1040,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 47,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.08,
+          0.18,
+          0.32
+        ],
+        "expected_srgb8": [
+          80,
+          118,
+          153
+        ],
+        "measured_srgb8": [
+          80,
+          118,
+          153
+        ],
+        "name": "blend-destination-factor-7",
+        "passed": true,
+        "pixel": [
+          1200,
+          495
+        ],
+        "raster": {
+          "alpha_flags": 227,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.375,
+          0.1875,
+          0.09375
+        ],
+        "expected_srgb8": [
+          165,
+          120,
+          86
+        ],
+        "measured_srgb8": [
+          165,
+          120,
+          87
+        ],
+        "name": "blend-source-factor-8",
+        "passed": true,
+        "pixel": [
+          80,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 49,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.12,
+          0.27,
+          0.48
+        ],
+        "expected_srgb8": [
+          97,
+          142,
+          184
+        ],
+        "measured_srgb8": [
+          97,
+          142,
+          185
+        ],
+        "name": "blend-destination-factor-8",
+        "passed": true,
+        "pixel": [
+          240,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 259,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.125,
+          0.0625,
+          0.03125
+        ],
+        "expected_srgb8": [
+          99,
+          71,
+          49
+        ],
+        "measured_srgb8": [
+          100,
+          71,
+          50
+        ],
+        "name": "blend-source-factor-9",
+        "passed": true,
+        "pixel": [
+          400,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 51,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.04,
+          0.09,
+          0.16
+        ],
+        "expected_srgb8": [
+          56,
+          85,
+          111
+        ],
+        "measured_srgb8": [
+          56,
+          85,
+          111
+        ],
+        "name": "blend-destination-factor-9",
+        "passed": true,
+        "pixel": [
+          560,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 291,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.125,
+          0.0625,
+          0.03125
+        ],
+        "expected_srgb8": [
+          99,
+          71,
+          49
+        ],
+        "measured_srgb8": [
+          99,
+          71,
+          50
+        ],
+        "name": "blend-source-factor-10",
+        "passed": true,
+        "pixel": [
+          720,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 53,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.04,
+          0.09,
+          0.16
+        ],
+        "expected_srgb8": [
+          56,
+          85,
+          111
+        ],
+        "measured_srgb8": [
+          57,
+          85,
+          111
+        ],
+        "name": "blend-destination-factor-10",
+        "passed": true,
+        "pixel": [
+          880,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 323,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.33,
+          0.305,
+          0.3825
+        ],
+        "expected_srgb8": [
+          155,
+          150,
+          166
+        ],
+        "measured_srgb8": [
+          155,
+          149,
+          166
+        ],
+        "name": "source-alpha",
+        "passed": true,
+        "pixel": [
+          1040,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 4333,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.08,
+          0.09,
+          0.08
+        ],
+        "expected_srgb8": [
+          80,
+          85,
+          80
+        ],
+        "measured_srgb8": [
+          79,
+          85,
+          80
+        ],
+        "name": "darkening",
+        "passed": true,
+        "pixel": [
+          1200,
+          605
+        ],
+        "raster": {
+          "alpha_flags": 4163,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.41,
+          0.485,
+          0.7025
+        ],
+        "expected_srgb8": [
+          172,
+          185,
+          218
+        ],
+        "measured_srgb8": [
+          171,
+          185,
+          219
+        ],
+        "name": "additive",
+        "passed": true,
+        "pixel": [
+          80,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 4109,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          112,
+          161,
+          210
+        ],
+        "name": "blend-and-test-greater-below",
+        "passed": true,
+        "pixel": [
+          240,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 4845,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.40196082
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          210
+        ],
+        "name": "blend-and-test-greater-equal",
+        "passed": true,
+        "pixel": [
+          400,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 4845,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5019608
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.3646667,
+          0.29378432,
+          0.32999018
+        ],
+        "expected_srgb8": [
+          163,
+          147,
+          155
+        ],
+        "measured_srgb8": [
+          162,
+          148,
+          155
+        ],
+        "name": "blend-and-test-greater-above",
+        "passed": true,
+        "pixel": [
+          560,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 4845,
+          "alpha_threshold": 128,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.60196084
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "name": "culling-mode-1-ccw",
+        "passed": true,
+        "pixel": [
+          720,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "culling-mode-1-cw",
+        "passed": true,
+        "pixel": [
+          880,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": true,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "name": "culling-mode-2-ccw",
+        "passed": true,
+        "pixel": [
+          1040,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 2
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "name": "culling-mode-2-cw",
+        "passed": true,
+        "pixel": [
+          1200,
+          715
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 2
+        },
+        "reverse_winding": true,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          187,
+          137,
+          99
+        ],
+        "name": "culling-mode-3-ccw",
+        "passed": true,
+        "pixel": [
+          80,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 3
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          136,
+          100
+        ],
+        "name": "culling-mode-3-cw",
+        "passed": true,
+        "pixel": [
+          240,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 3
+        },
+        "reverse_winding": true,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.16,
+          0.36,
+          0.64
+        ],
+        "expected_srgb8": [
+          111,
+          162,
+          209
+        ],
+        "measured_srgb8": [
+          111,
+          162,
+          210
+        ],
+        "name": "depth-test-true-behind-background",
+        "passed": true,
+        "pixel": [
+          400,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 33,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": -1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          100
+        ],
+        "name": "depth-test-false-behind-background",
+        "passed": true,
+        "pixel": [
+          560,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 33,
+          "alpha_threshold": 0,
+          "depth_test": false,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": -1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5,
+          0.25,
+          0.125
+        ],
+        "expected_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "measured_srgb8": [
+          188,
+          137,
+          99
+        ],
+        "name": "depth-write-true-blocks-later-layer",
+        "passed": true,
+        "pixel": [
+          720,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.1,
+          0.8,
+          0.2
+        ],
+        "expected_srgb8": [
+          89,
+          231,
+          124
+        ],
+        "measured_srgb8": [
+          89,
+          231,
+          123
+        ],
+        "name": "depth-write-false-blocks-later-layer",
+        "passed": true,
+        "pixel": [
+          880,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": false,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.5,
+          0.25,
+          0.125,
+          0.5
+        ],
+        "source_z": 1.0
+      },
+      {
+        "expected_linear_rgb": [
+          0.5019608,
+          0.0,
+          0.49803922
+        ],
+        "expected_srgb8": [
+          188,
+          0,
+          187
+        ],
+        "measured_srgb8": [
+          188,
+          0,
+          187
+        ],
+        "name": "terrain-half-red-blue",
+        "passed": true,
+        "pixel": [
+          1040,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          1.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "source_z": 1.0,
+        "terrain_palette_rgba8": [
+          [
+            255,
+            0,
+            0,
+            255
+          ],
+          [
+            0,
+            0,
+            255,
+            255
+          ]
+        ],
+        "terrain_weights": [
+          128,
+          127
+        ]
+      },
+      {
+        "expected_linear_rgb": [
+          0.7490196,
+          0.7490196,
+          0.0
+        ],
+        "expected_srgb8": [
+          224,
+          224,
+          0
+        ],
+        "measured_srgb8": [
+          224,
+          224,
+          0
+        ],
+        "name": "terrain-overfull-red-green",
+        "passed": true,
+        "pixel": [
+          1200,
+          825
+        ],
+        "raster": {
+          "alpha_flags": 0,
+          "alpha_threshold": 0,
+          "depth_test": true,
+          "depth_write": true,
+          "draw_mode": 1
+        },
+        "reverse_winding": false,
+        "source_rgba": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "source_z": 1.0,
+        "terrain_palette_rgba8": [
+          [
+            0,
+            0,
+            255,
+            255
+          ],
+          [
+            255,
+            0,
+            0,
+            255
+          ],
+          [
+            0,
+            255,
+            0,
+            255
+          ]
+        ],
+        "terrain_weights": [
+          0,
+          191,
+          191
+        ]
+      }
+    ],
+    "dimensions": [
+      1280,
+      900
+    ],
+    "fixture": "synthetic-source-material-states",
+    "retail_parity_accepted": false,
+    "schema_version": 1,
+    "source_assets_used": false,
+    "tolerance_reason": "two sRGB bytes allow render target quantization; this is not a retail image tolerance"
+  },
+  "preview_binary_sha256": "6b14500e858619b008f483d26d89a19d31a0688ce8672ef60a7580c72a33c285",
+  "retail_parity_accepted": false,
+  "schema_version": 1,
+  "scope": "Three authored diffuse terrain captures bound to independently compared body/weight/texture bytes, interior and vertex-color regressions, 64 original numeric GPU expectations; no retail reference images, defaults, normal/specular shader or gameplay acceptance",
+  "source_snapshot_sha256": "a75ba362076dac7c95ce3382345fa27c8a17abfd54002e688586d0fe604eb80a",
+  "unsupported_material_fixtures": [
+    {
+      "capture_created": false,
+      "cell_editor_id": "TownCenter",
+      "exit_code": 1,
+      "log_sha256": "808a48494f5a9fb7449dec35636ea0ec031fd3a3be9486e9618e37774aed594d",
+      "reason": "missing base layers"
+    },
+    {
+      "capture_created": false,
+      "cell_editor_id": "NVDLC03SLVillage",
+      "exit_code": 1,
+      "log_sha256": "4d48b9f8c8feb937e85188d4bcb2de7496bd78682d41cc2718c61d545368e4f4",
+      "reason": "unapplied NULL default layers"
+    },
+    {
+      "capture_created": false,
+      "cell_editor_id": "NVDLC04DivideEast",
+      "exit_code": 1,
+      "log_sha256": "4d48b9f8c8feb937e85188d4bcb2de7496bd78682d41cc2718c61d545368e4f4",
+      "reason": "unapplied NULL default layers"
+    }
+  ]
+}

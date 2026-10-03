@@ -28,3 +28,22 @@ missing after retry and reset. Headless GPU tests ran independently of that help
 [GPU metadata](terrain-textured-preview.json) and checkpoint-specific source and
 verification reports bind actual inputs and executables. Captures remain local.
 Earlier immutable evidence remains unchanged. M1 and gameplay milestones stay open.
+
+Verification is bound to implementation
+[`25d011b`](https://github.com/RobertJPerez/Rust-Fallout/commit/25d011b9868ac111c5c82df562e1cd1ece8b2b32).
+All 108 source files match that commit and the current source bytes. The source
+snapshot SHA256 is `a75ba362076dac7c95ce3382345fa27c8a17abfd54002e688586d0fe604eb80a`.
+
+The three textured cells draw 27, 23 and 26 layer passes, sharing 7, 8 and 8 diffuse
+images respectively. All six published-run PNGs match the visually reviewed images
+exactly. [Capture review](terrain-textured-preview-review.json) records visible
+transitions, steep terrain, remaining marker meshes and the exact UI helper error.
+
+[Immutable verification](checkpoint-14-verification.json),
+[source snapshot](checkpoint-14-source-snapshot.json),
+[blend data metadata](checkpoint-14-terrain-blends.json) and
+[GPU metadata](checkpoint-14-terrain-textured-preview.json) remain separate from
+current aliases. Publication preflights every destination, and two filesystem
+regressions protect existing aliases and reject collisions before creating partial
+reports. Completion timestamps use UTC Unix seconds; `--no-publish` permits
+repeat runs into a fresh ignored local directory.

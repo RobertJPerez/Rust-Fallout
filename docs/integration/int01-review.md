@@ -103,3 +103,61 @@ Next: resolve the actor native preflight finding, reconcile the reviewed candida
 chain and approved source scopes, commit integration tooling, then build and run
 the independent frozen candidate proof in a scheduled private resource slot.
 Accepted gameplay scenarios remain empty; M1 is still the first unmet milestone.
+
+## Extended assignment and completed review
+
+The primary extended checkpoint 45 with ACT-03
+`7a0f4a9667e2bb8eb12dd78d6a166d753a4cbb0e` (parent FACT), native guard
+`e9df846f56018f0b9c847429ac13bb03f7396be1` (parent ACT-03), ASSET-03
+`a5e1f823baf4a47642654b73cf938ba5fac8f26c` (parent ASSET-02), and scratch
+clarification `186605cec067feb3407647b7c93fa615abb45d8c` (parent ASSET-03).
+Actual parents and complete changes were inspected before applying these chains.
+
+ACT-03 is accepted for candidate integration: it reuses the existing world core
+decoder, retains bit-exact core/source/winning parent facts and ordered
+XEZN/XMRC/XLCM occurrences, and checks field, record and binding budgets before
+allocation. Physical singleton occurrences, unsupported versions, nonfinite
+transforms and explicit null/missing/deleted/wrong-kind bindings are preserved.
+No initialization, inherited encounter-zone behavior or actor runtime is accepted.
+
+The native allocation finding above is resolved by `e9df846`. All four readers
+use a shared offline body guard that rejects oversized stored extents before
+read, and oversized announced decoded extents before creating the compressed
+vector or invoking inflate. The limit is the smaller of 64 MiB and the remaining
+256 MiB aggregate budget; checksum, actual length and successful ledger updates
+remain checked. Six callback tests distinguish rejection before read/inflate
+from unrelated errors and include exact-boundary and valid compressed admission.
+
+ASSET-03 is accepted for candidate integration within decoded source ancestry:
+ordered nullable references, raw node fields/float bits, duplicate bone ordinals,
+owners, footer reachability and unknown edges remain explicit. Rust uses a bounded
+iterative interval forest; the independent native reader uses parent/reachability
+walks and isolated factories with raw preflight. Neither invokes evaluated pose
+helpers. Unsupported source nodes do not become proof of complete ancestry.
+Clarification `186605c` accurately distinguishes count-bounded temporary relation
+maps from retained storage and supplies exact/minus-one and empty boundary tests;
+it changes no decoder, API, native reader or schema.
+
+`local/int01-extended-retained-audit.json` checks ACT-03's 604 committed source
+files, frozen binaries and three complete native/Rust phases; ASSET-03's 12
+source files and 707 retained evidence files; and clarification's three source
+files/four evidence files. `local/int01-native-guard-audit.json` independently
+checks the clean guard handoff's 606 committed files, actual frozen binaries and
+three complete projections. These are identity reviews, not rerun tests.
+
+Retained placement evidence observes 7,681 winners, 22,665 fields, 407 selected
+extras, 7,783 bindings and zero placement findings. Retained ASSET-03 evidence
+observes 169 authored inputs, 35 altered reports, and 32 sampled streams with
+992 decoded nodes, 250 instances and 2,121 ordered bone references. These counts
+are observations, not retail acceptance quotas. Sixteen immutable owner-authored
+placement/malformed/body input files were copied into this worktree with before
+and after digests; candidate verification must execute them afresh.
+
+All eleven approved handoffs applied cleanly on the candidate branch; only
+declared CLI/export wiring auto-merged. Exact upstream pins remain unchanged;
+checkpoint-45 source-read scopes record reviewed line ranges and whole-file
+digests. The original checkpoint-44 verification runner and its three guard
+tests remain byte-identical. Additive integration tools build privately, capture
+the complete source and binary cohort, and require specific negative diagnostics.
+Root approved the private build/proof resource slot after this guard review.
+Later XLKR, animation and runtime source-cache work remain outside checkpoint 45.

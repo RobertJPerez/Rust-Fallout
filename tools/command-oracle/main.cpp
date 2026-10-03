@@ -56,6 +56,9 @@ static std::string descriptors(const SourceImage& source, uint32_t start, size_t
             {"needs_parent_word",std::to_string(source.number(at+16,2))},{"parameters",array(parameters)},
             {"execute_handler_present",source.number(at+24,4) ? "true" : "false"},
             {"parse_handler_present",source.number(at+28,4) ? "true" : "false"},
+            {"parse_convention",json_quote(source.number(at+28,4)==0x005b1ba0 ? "vanilla-default" :
+                (source.number(at+28,4)==0x005b3c70 || source.number(at+28,4)==0x005b3ca0 ||
+                 source.number(at+28,4)==0x005b3c40 || source.number(at+28,4)==0x005b3cd0) ? "vanilla-message" : "unverified")},
             {"condition_handler_present",source.number(at+32,4) ? "true" : "false"},
             {"flags",std::to_string(source.number(at+36,4))},{"implementation_status",json_quote("metadata-decoded; behavior unimplemented")}}));
     }

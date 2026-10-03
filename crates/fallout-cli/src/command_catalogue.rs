@@ -34,6 +34,7 @@ pub(super) struct Descriptor {
     pub parameters: Vec<Parameter>,
     pub execute_handler_present: bool,
     pub parse_handler_present: bool,
+    pub parse_convention: &'static str,
     pub condition_handler_present: bool,
     pub flags: u32,
     pub implementation_status: &'static str,
@@ -123,6 +124,13 @@ fn descriptors(
             parameters,
             execute_handler_present: u32_at(bytes, 24)? != 0,
             parse_handler_present: u32_at(bytes, 28)? != 0,
+            // Pinned ScriptAnalyzer g_gameParseCommands and message parse list.
+            // This identifies an operand layout only; no function is invoked.
+            parse_convention: match u32_at(bytes, 28)? {
+                0x005b1ba0 => "vanilla-default",
+                0x005b3c70 | 0x005b3ca0 | 0x005b3c40 | 0x005b3cd0 => "vanilla-message",
+                _ => "unverified",
+            },
             condition_handler_present: u32_at(bytes, 32)? != 0,
             flags: u32_at(bytes, 36)?,
             implementation_status: "metadata-decoded; behavior unimplemented",

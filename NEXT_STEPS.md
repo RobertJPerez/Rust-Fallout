@@ -96,8 +96,10 @@ Automated data, cache and GPU checks pass; no retail/gameplay gate is accepted.
    Expression inspection now compares 53,404 envelopes and 149,082 tokens from
    all 14,514 compiled bodies. All 143 embedded command IDs bind to vanilla
    metadata. See [compiled expressions](docs/script-expressions.md). Native
-   argument payloads remain opaque; continue their decoding, expression table
-   binding, postfix structure and control-flow/behavior evidence.
+   arguments now decode across 67,931 calls, with 80,377 regular operands and
+   75 message substitutions. ShowMessage trailing words remain uninterpreted;
+   see [native operands](docs/native-arguments.md). Continue table/reference binding,
+   postfix structure and control-flow/behavior evidence.
 
 5. Finish the real interior's rendering and measured acceptance, then Goodsprings.
    `fallout-preview --cell GSDocMitchellHouse` now assembles 400 of 435 references

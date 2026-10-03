@@ -1,5 +1,6 @@
 //! Checkpoint tooling stays separate from the content-inspection CLI. This runner
 //! records the commands it actually executes and publishes metadata, never assets.
+mod argument_evidence;
 mod binding_evidence;
 mod catalogue_evidence;
 mod expression_evidence;
@@ -37,7 +38,7 @@ struct Args {
     run_directory: PathBuf,
     #[arg(long)]
     install: PathBuf,
-    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=18))]
+    #[arg(long, default_value_t = 7, value_parser = clap::value_parser!(u8).range(7..=19))]
     checkpoint: u8,
     /// Repeat verification into the fresh local directory, preserving published reports.
     #[arg(long)]
@@ -325,7 +326,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
     let command_oracle = root.join("local/command-oracle-build/Release/command-oracle.exe");
-    let command_digest = if matches!(args.checkpoint, 16 | 18) {
+    let command_digest = if matches!(args.checkpoint, 16 | 18 | 19) {
         Some(digest(&command_oracle)?)
     } else {
         None
@@ -338,8 +339,14 @@ fn run(args: Args) -> Result<()> {
     };
     let expression_oracle =
         root.join("local/expression-oracle-build/Release/expression-oracle.exe");
-    let expression_digest = if args.checkpoint == 18 {
+    let expression_digest = if matches!(args.checkpoint, 18 | 19) {
         Some(digest(&expression_oracle)?)
+    } else {
+        None
+    };
+    let argument_oracle = root.join("local/argument-oracle-build/Release/argument-oracle.exe");
+    let argument_digest = if args.checkpoint == 19 {
+        Some(digest(&argument_oracle)?)
     } else {
         None
     };
@@ -466,6 +473,21 @@ fn run(args: Args) -> Result<()> {
             &cli_path,
             &expression_oracle,
             &command_oracle,
+            &args.install,
+        )?)
+    } else {
+        None
+    };
+    let argument_evidence = if args.checkpoint == 19 {
+        Some(argument_evidence::run(
+            &root,
+            &destination,
+            &cli_path,
+            argument_evidence::Oracles {
+                arguments: &argument_oracle,
+                expressions: &expression_oracle,
+                catalogue: &command_oracle,
+            },
             &args.install,
         )?)
     } else {
@@ -629,6 +651,9 @@ fn run(args: Args) -> Result<()> {
         || binding_digest
             .as_ref()
             .is_some_and(|expected| digest(&binding_oracle).as_ref().ok() != Some(expected))
+        || argument_digest
+            .as_ref()
+            .is_some_and(|expected| digest(&argument_oracle).as_ref().ok() != Some(expected))
         || expression_digest
             .as_ref()
             .is_some_and(|expected| digest(&expression_oracle).as_ref().ok() != Some(expected))
@@ -771,6 +796,24 @@ fn run(args: Args) -> Result<()> {
         publication.push((
             checkpoint_path(publication_root, args.checkpoint, "script-expressions"),
             expressions,
+        ));
+    } else if let Some(mut arguments) = argument_evidence {
+        arguments["checkpoint"] = args.checkpoint.into();
+        arguments["engine_revision"] = revision.clone().into();
+        arguments["source_snapshot_sha256"] = source["sha256"].clone();
+        verification
+            .as_object_mut()
+            .ok_or("Missing verification object")?
+            .remove("fresh_collision_comparison");
+        verification["native_arguments"] = arguments.clone();
+        verification["argument_oracle_binary_sha256"] = argument_digest.into();
+        verification["expression_oracle_binary_sha256"] = expression_digest.into();
+        verification["command_oracle_binary_sha256"] = command_digest.into();
+        verification["presentation_evidence_origin_checkpoint"] = 14.into();
+        verification["presentation_scope"] = "Prior checkpoint 14 GPU evidence and separately scoped startup fix; neither reexecuted in this operand checkpoint".into();
+        publication.push((
+            checkpoint_path(publication_root, args.checkpoint, "native-arguments"),
+            arguments,
         ));
     } else if let Some(mut bindings) = binding_evidence {
         bindings["checkpoint"] = args.checkpoint.into();

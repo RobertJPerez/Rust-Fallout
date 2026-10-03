@@ -42,7 +42,9 @@ checks all 28,463 top-level caller associations. Original stale counts and repea
 variable indices remain explicit; see [script bindings](docs/script-bindings.md).
 Expression inspection now independently checks 53,404 envelopes and 149,082 tokens,
 including 16,320 embedded calls. Arguments and evaluation remain unfinished; see
-[compiled expressions](docs/script-expressions.md).
+[compiled expressions](docs/script-expressions.md). Native operands now preserve
+exact typed bits across 67,931 calls; see [native arguments](docs/native-arguments.md).
+Reference values and command behavior remain unfinished.
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 
@@ -163,7 +165,7 @@ record the evidence and its limits:
   standalone heading/audio markers remain visible.
 - Strict deferred indexing reproduces all selected cell fields while leaving 585,196
   other record bodies explicitly unvalidated. Access still enforces normal strict checks.
-- 158 tests pass, including malformed compression, forward/cyclic links,
+- 164 tests pass, including malformed compression, forward/cyclic links,
   master ordering, identity collisions, deterministic plans, and interrupted cache publication.
 - 64 asset-free GPU cases pass for source alpha comparisons, blend factors, face
   culling and depth states. [Material states](docs/material-states.md) records their scope.

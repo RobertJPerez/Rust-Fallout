@@ -160,3 +160,10 @@ agree. Shared offline C++ PE helpers remain separate from Rust runtime code.
 Microsoft CRT documentation identifies historical parsing differences; current
 CRT boundary comparisons do not certify original values, rounding or evaluation.
 See [compiled expressions](script-expressions.md).
+
+Checkpoint 19 inspects native extraction classifications and message argument
+structure. Original Rust and C++ readers preserve typed bits and trailing hashes;
+all 67,931 authored instruction/expression calls agree. The shared offline
+expression reader and descriptor catalogue are freshly compared after refactoring.
+ShowMessage trailing words retain unverified semantics. Native type checks,
+conversions and behavior are unfinished; see [native operands](native-arguments.md).

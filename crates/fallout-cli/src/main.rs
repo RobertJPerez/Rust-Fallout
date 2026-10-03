@@ -1,3 +1,4 @@
+mod argument_inspection;
 mod collision;
 mod command_catalogue;
 mod expression_inspection;
@@ -61,6 +62,15 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Decode native operands from vanilla compiled scripts; invokes no handler.
+    NativeArguments {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        defer_unrelated_payloads: bool,
+        #[arg(long)]
+        comparison_bundle: Option<PathBuf>,
+    },
     /// Inspect vanilla expression tokens without evaluating or executing them.
     Expressions {
         #[arg(long)]
@@ -339,6 +349,26 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
+        Command::NativeArguments {
+            install,
+            defer_unrelated_payloads,
+            comparison_bundle,
+        } => {
+            let report = argument_inspection::inspect(
+                &install,
+                defer_unrelated_payloads,
+                comparison_bundle.as_deref(),
+            )?;
+            let failed = report["issues"] != 0
+                || !report["unresolved_command_ids"]
+                    .as_array()
+                    .ok_or("Missing command bindings")?
+                    .is_empty();
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("native argument inspection has issues; see report".into());
+            }
+        }
         Command::Expressions {
             install,
             defer_unrelated_payloads,

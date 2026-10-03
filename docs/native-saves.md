@@ -112,6 +112,25 @@ length is checked before allocation. META must agree with STAT's identity,
 revision, clocks, schema, length and cohort. Restoring also validates complete
 local schemas, content versions, all persistent links and pending event order.
 
+Current snapshot decoding and explicit schema-1/2 migration first traverse the
+bounded JSON input without constructing owned state or collection vectors. The
+pass counts references, script instances, pending events, aggregate locals and
+items, inventory banks, per-context arguments, and per-item/aggregate links and
+opaque bytes. Optional null item facts contribute no links. Escaped field names
+and positional struct arrays use the same limits as ordinary object fields.
+Every nested value is traversed with a recursion bound, including malformed or
+irrelevant fields; `IgnoredAny` is not used for this admission pass. JSON may use
+string scratch space up to the input byte limit. This is collection admission,
+not a complete heap ceiling.
+
+The existing strict DTO decoder and restoration validation still run afterward,
+so unknown/duplicate fields, invalid values, identity/link errors and unsupported
+schemas remain rejected. Oversized collections return the existing capacity
+errors before owned deserialization. Snapshot and native-envelope schemas and
+explicit migration semantics are unchanged. `snapshot_admission` tests cover
+early rejection, aggregate and exact limits, escaped names, positional current
+and legacy forms, malformed/deep input and source-bound restoration.
+
 Checkpoint 28's in-memory schema 1 can be migrated explicitly with
 `Snapshot::migrate_v1`, supplying a campaign identity. It preserves supplied
 values and assigns revision zero to the new bookkeeping field. Schema 2 raw snapshots

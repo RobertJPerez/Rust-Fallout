@@ -18,6 +18,8 @@ use std::{
     io::Write,
 };
 
+mod admission;
+
 pub const SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,6 +166,7 @@ impl Snapshot {
             return Err(Error::Capacity("legacy snapshot bytes"));
         }
         CampaignId::from_bytes(campaign.bytes())?;
+        admission::check(bytes, limits, admission::Schema::V1)?;
         let old: LegacySnapshot = serde_json::from_slice(bytes)?;
         if old.schema_version != 1 || old.profile != ProfileId::NvOriginal {
             return Err(Error::Invalid(
@@ -195,6 +198,7 @@ impl Snapshot {
         if bytes.len() > limits.max_snapshot_bytes {
             return Err(Error::Capacity("legacy snapshot bytes"));
         }
+        admission::check(bytes, limits, admission::Schema::V2)?;
         let old: LegacyV2 = serde_json::from_slice(bytes)?;
         if old.schema_version != 2 || old.profile != ProfileId::NvOriginal {
             return Err(Error::Invalid(
@@ -233,6 +237,7 @@ impl Snapshot {
         if bytes.len() > limits.max_snapshot_bytes {
             return Err(Error::Capacity("snapshot bytes"));
         }
+        admission::check(bytes, limits, admission::Schema::Current)?;
         let snapshot: Self = serde_json::from_slice(bytes)?;
         snapshot.check_budgets(limits)?;
         Ok(snapshot)

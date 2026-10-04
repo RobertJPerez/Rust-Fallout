@@ -47,6 +47,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
     pub(super) include_actor_context: bool,
     pub(super) equipment_item: Option<std::num::NonZeroU64>,
+    pub(super) equipment_model_role: Option<actors::dependencies::equipment::Role>,
     pub(super) inventory_boot_request: Option<&'a Path>,
 }
 
@@ -233,6 +234,29 @@ pub(super) fn package_context(
             Default::default(),
         )?;
         report["equipment_item"] = serde_json::to_value(selection)?;
+        if let Some(role) = options.equipment_model_role {
+            use fallout_runtime::actor_rules::equipment_render;
+            let assets = ArchiveAssets::open_nv(install)?;
+            let request = equipment_render::Requests::prepare(
+                &world,
+                &content,
+                equipment_render::Choice {
+                    owner,
+                    item: world.item_handle(fallout_runtime::inventory::ItemId(item))?,
+                    actor: options.actor_root.clone(),
+                    role,
+                },
+                Default::default(),
+            )?;
+            report["equipment_model"] = serde_json::to_value(request.observe(
+                &world,
+                &content,
+                &mut store,
+                &actors,
+                &assets,
+                Default::default(),
+            )?)?;
+        }
     }
     if let Some(request_path) = options.inventory_boot_request {
         let owner = options

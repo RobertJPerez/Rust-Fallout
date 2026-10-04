@@ -1417,3 +1417,22 @@ fields/work visits, parts/names, name/raw bytes, bindings/headers and projection
 
 The request cannot map a contact to a limb, choose a model, evaluate damage or
 limb health, perform gore/dismemberment, or mutate canonical actor state.
+
+## Equipment model requests from canonical item selections
+
+The optional `actor-package-context --equipment-item ID --equipment-model-role
+ROLE` consumer joins an exact current canonical inventory lot to the existing
+equipment source producer. It obtains the model choice's source key from the
+private ACT16 selection, with caller-supplied actor context, role and weapon mod
+mask. Complete lot facts and exact source/model provenance remain separate in
+`equipment_model.selection` and `equipment_model.model`. The model decoder and
+standalone source producer are reused unchanged.
+
+The runtime request seals the current item handle, campaign/source cohort and
+canonical revision. Cold-restored or foreign handles, missing/transferred lots,
+changed state and changed source cohorts refuse. A fresh request can admit a
+specific persistent lot after strict cold restore. Inventory presence, unknown
+equipped slots or raw modification keys never infer an equipped model. This
+request does not render, attach, equip or mutate anything; original behavior and
+equipped-state verification remain false. See `docs/actor-rules.md` for the
+exact producer boundary and limits.

@@ -302,6 +302,8 @@ pub(super) struct Options {
     pub(super) script_root: Option<FormKey>,
     pub(super) ai_root: Option<FormKey>,
     pub(super) initialization_root: Option<FormKey>,
+    pub(super) effect_root: Option<FormKey>,
+    pub(super) effect_field: Option<usize>,
     pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
@@ -428,6 +430,7 @@ pub(super) fn inspect(
         || options.include_dependencies
         || options.voice_root.is_some()
         || options.initialization_root.is_some()
+        || options.effect_root.is_some()
     {
         Some(actors::associations::Catalogue::load(
             &mut store,
@@ -528,6 +531,19 @@ pub(super) fn inspect(
             Default::default(),
         )?;
         report["actor_initialization_inputs"] = json!({"manifest": manifest});
+    }
+    if let Some(root) = &options.effect_root {
+        let manifest = actors::effect_inputs::request(
+            &mut store,
+            &catalogue,
+            associations.as_ref().expect("effect associations loaded"),
+            root,
+            options
+                .effect_field
+                .ok_or("effect root requires a physical field index")?,
+            Default::default(),
+        )?;
+        report["actor_effect_inputs"] = json!({"manifest": manifest});
     }
     if let Some(root) = &options.script_root {
         let scripts =
@@ -822,6 +838,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         return Err(
             "independent actor source comparison differs in actor_initialization_inputs".into(),
         );
+    }
+    if report.get("actor_effect_inputs").is_some()
+        && report.get("actor_effect_inputs") != oracle.get("actor_effect_inputs")
+    {
+        return Err("independent actor source comparison differs in actor_effect_inputs".into());
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,

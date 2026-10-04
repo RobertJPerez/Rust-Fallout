@@ -1346,6 +1346,8 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             script_root,
             ai_root,
             initialization_root,
+            effect_root,
+            effect_field,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -1371,6 +1373,8 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     script_root,
                     ai_root,
                     initialization_root,
+                    effect_root,
+                    effect_field,
                     creature_model_directory,
                 },
             )?;

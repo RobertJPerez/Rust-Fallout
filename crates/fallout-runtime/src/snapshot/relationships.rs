@@ -136,7 +136,7 @@ pub(super) fn check(snapshot: &Snapshot, limits: Limits) -> Result<()> {
         prior_sequence = event.sequence;
         prior_clocks = event.arrived;
     }
-    // Content existence, definition versions, local declaration kinds and
-    // compiled event sites still require the loaded catalogue during restore.
+    // Source definition versions, declaration kinds and compiled event sites
+    // are checked separately against immutable source schemas.
     Ok(())
 }

@@ -166,3 +166,14 @@ CELL through existing `CellModelPlan::load` and its unchanged strict graph/model
 ceilings. It performs no extra census, predecessor fallback or quota lift. The
 plan can be retained by a host separately from spatial grid plans; this source
 API creates no residency, persistent-actor simulation or canonical state change.
+
+`persistent-cell-sources --install ... --load-order ... --world Base.esm:100`
+consumes that separately selected source group. Optional `--index-cache` uses the
+existing protected header index. The report retains the persistent request,
+winning entry including any misleading XCLC, model plan and bounded dependency
+usage. The request itself never contains a grid. A selection/factory refusal
+retains its source error and emits no model plan or residency; it exits 1.
+Successful whole-plan preparation exits 0 and separately reports incomplete
+model selection. Existing graph/model ceilings remain unchanged for installed
+worlds with large persistent groups. Runtime, activation, lookup and parity fields
+remain false; no persistent actor is created, simulated or removed.

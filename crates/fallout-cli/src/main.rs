@@ -473,6 +473,17 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Prepare an explicit world's separately selected persistent CELL source plan.
+    PersistentCellSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+    },
     /// Prepare a whole ordered explicit WRLD/XCLC CELL source-plan set.
     GridSetSources {
         #[arg(long)]
@@ -1421,6 +1432,24 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::PersistentCellSources {
+            install,
+            load_order,
+            index_cache,
+            world,
+        } => {
+            let report = world_preparation_inspection::persistent_cell(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&world)?,
+            )?;
+            let prepared = report["source_plan_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("persistent CELL source plan refused; see report".into());
             }
         }
         Command::GridSetSources {

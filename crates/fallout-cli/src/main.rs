@@ -255,6 +255,8 @@ enum Command {
         package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
         #[arg(long, requires = "explicit_subject")]
         include_actor_context: bool,
+        #[arg(long, requires = "explicit_subject")]
+        equipment_item: Option<std::num::NonZeroU64>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1005,6 +1007,7 @@ fn run(args: Args) -> Result<()> {
             include_stat_requests,
             package_capability,
             include_actor_context,
+            equipment_item,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1020,6 +1023,7 @@ fn run(args: Args) -> Result<()> {
                     include_stat_requests,
                     package_capability,
                     include_actor_context,
+                    equipment_item,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

@@ -45,6 +45,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) include_stat_requests: bool,
     pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
     pub(super) include_actor_context: bool,
+    pub(super) equipment_item: Option<std::num::NonZeroU64>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -68,7 +69,8 @@ pub(super) fn package_context(
     let mut store = order.store(install, cache)?;
     let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
     let world = World::restore(&scripts, snapshot, limits)?;
-    let before_observation = options.include_actor_context.then(|| world.snapshot());
+    let before_observation = (options.include_actor_context || options.equipment_item.is_some())
+        .then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
     let inventory = inventory::Catalogue::load(&mut store, Default::default())?;
     let actors = actors::Catalogue::load(&inventory, Default::default())?;
@@ -191,6 +193,26 @@ pub(super) fn package_context(
         if before_observation.as_ref() != Some(&world.snapshot()) {
             return Err("actor context changed canonical state".into());
         }
+    }
+    if let Some(item) = options.equipment_item {
+        let owner = options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId)
+            .ok_or("equipment item requires an explicit canonical owner")?;
+        let selection = fallout_runtime::actor_rules::equipment::observe(
+            &world,
+            &content,
+            owner,
+            fallout_runtime::inventory::ItemId(item),
+            Default::default(),
+        )?;
+        report["equipment_item"] = serde_json::to_value(selection)?;
+    }
+    if before_observation
+        .as_ref()
+        .is_some_and(|before| before != &world.snapshot())
+    {
+        return Err("actor item/context observation changed canonical state".into());
     }
     Ok(report)
 }

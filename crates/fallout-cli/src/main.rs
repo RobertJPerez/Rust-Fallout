@@ -473,6 +473,20 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Prepare a whole ordered explicit WRLD/XCLC CELL source-plan set.
+    GridSetSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        /// Repeat for each explicit signed i32 pair, in the requested order.
+        #[arg(long, required = true, allow_hyphen_values = true)]
+        grid: Vec<String>,
+    },
     /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
     GridTerrainSources {
         #[arg(long)]
@@ -1407,6 +1421,28 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::GridSetSources {
+            install,
+            load_order,
+            index_cache,
+            world,
+            grid,
+        } => {
+            let report = world_preparation_inspection::grid_set(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                world_preparation_inspection::GridSetInput {
+                    world: parse_cell_key(&world)?,
+                    grids: world_preparation_inspection::parse_grid_set(&grid)?,
+                },
+            )?;
+            let prepared = report["source_plans_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("explicit CELL source-plan set refused; see report".into());
             }
         }
         Command::GridTerrainSources {

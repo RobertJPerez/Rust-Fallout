@@ -1,5 +1,71 @@
 # NV animation source framing
 
+## V3-ASSET-10 exact rigid attachment from stored locals
+
+`nif_animation::attachment::evaluate` takes immutable skeleton and attachment
+containers, both expected SHA256 values, an exact skeleton node ID and raw name
+bytes, an exact attachment footer-root ID, caller affine placement and the
+explicit `StoredNiAvLocals` source policy. Its contract is
+`engineering-source-local-rigid-attachment-v1`. Expected hashes are checked
+before source decoding or additional result allocation. Existing `nif_scene`
+decodes both containers; assets supplies no second importer, socket lookup,
+actor/equipment selection or persistent pose authority.
+
+The selected skeleton object must be a decoded reachable node with the exact
+raw name. Explicit block identity resolves duplicate names; no search, case
+folding or string conversion changes the selection. The attachment object must
+be a decoded node and an exact parentless footer root. Unknown scene edges and
+unreachable objects refuse. The result retains the selected-node-to-footer
+path, root block spans/hashes, raw local transform words, flags and unapplied
+controller IDs. Stored source locals can already be animated; this request
+does not establish a bind pose, evaluate controllers or invent missing sockets.
+
+Let `N` be the selected skeleton node's stored source-world affine, `P` the
+explicit caller matrix from attachment source-parent axes to node axes, and
+`R` the attachment root's authored local. The result separately exposes:
+
+- `attachment_source_to_skeleton_source = N * P`, for attachment meshes whose
+  existing source-world transforms already include `R`.
+- `root_to_skeleton_source = N * P * R`, for coordinates local to the root.
+
+Both use original source axes/units and column-vector affine rows. The consumer
+applies the first mapping to existing source-world meshes once. Applying the
+second to those meshes repeats the root transform. Finite shear, reflection,
+nonuniform and zero forward placements are admitted without inverse,
+orthogonalization or normalization; nonfinite inputs and accumulated overflow
+refuse. Runtime/world placement and presentation coordinate conversion remain
+their respective consumers' explicit operations.
+
+Default source admission is 64MiB per container, 128MiB combined input, 16,384
+blocks and 32MiB logical scene arrays per container. Attachment additionally
+bounds result/maps/hash/name storage to 4MiB, source-list/map visits, ancestry
+and affine coefficients to one million work units, and skeleton path depth to
+1,024. Hash work is bounded by admitted input size. Logical charges exclude
+allocator overhead and vector spare capacity; they are not a process-memory
+measurement. Failed evaluations return no partial mapping and never mutate
+input. Whole-source hashes remain part of every successful receipt.
+
+`fallout nif-rigid-attachment SKELETON ATTACHMENT --request REQUEST_JSON
+--output REPORT` reaches the production API. Schema1 JSON requires both
+`expected_*_sha256` arrays of32 byte integers, `node`, `node_name_bytes`,
+`attachment_root`, the 3x4 `attachment_parent_to_node` matrix and
+`source_policy: "stored_ni_av_locals"`. Unknown/missing fields and unsupported
+schemas refuse. JSON is bounded to64KiB and inputs to64MiB each. Reports bind
+all three input hashes and cannot be created inside any source/request tree.
+The independent `tools/nif-animation-oracle/check_attachment.py` uses a second
+authored pair with literal noncommuting matrix expectations. All results retain
+`retail_behavior_verified: false`; saved equipment, animated sockets and retail
+first/third-person attachment behavior remain separate work.
+
+All 21 focused attachment/pose tests pass, including nine new attachment cases,
+with 36 CLI tests, affected-package all-target warnings-denied Clippy, formatting
+and build. The frozen independent consumer passes three different authored
+placements and twelve intended identity/name/root/schema/publication refusals.
+Inputs and frozen executable stay unchanged. One initial fixture compile error
+(`.5` instead of `0.5`) is preserved alongside the corrected passing check in
+`local/v3-asset-10`. This is a bounded engineering producer; authored agreement
+does not establish original equipment selection or visible retail animation.
+
 ## V3-ASSET-06 explicit-time local visibility
 
 `nif_animation::visibility::evaluate` connects the existing raw Boolean/key

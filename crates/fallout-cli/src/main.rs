@@ -579,6 +579,22 @@ enum Command {
         #[arg(long, required = true, allow_hyphen_values = true)]
         grid: Vec<String>,
     },
+    /// Consume immutable CPU terrain patches for an explicit ordered grid set.
+    TerrainPatchSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        #[arg(long, required = true, allow_hyphen_values = true)]
+        grid: Vec<String>,
+        /// Explicit zero-based patch indices, repeated in comparison order.
+        #[arg(long)]
+        seam: Vec<String>,
+    },
     /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
     GridTerrainSources {
         #[arg(long)]
@@ -1685,6 +1701,30 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !prepared {
                 return Err("explicit CELL source-plan set refused; see report".into());
+            }
+        }
+        Command::TerrainPatchSources {
+            install,
+            load_order,
+            index_cache,
+            world,
+            grid,
+            seam,
+        } => {
+            let report = world_preparation_inspection::terrain_patches(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                world_preparation_inspection::GridPatchInput {
+                    world: parse_cell_key(&world)?,
+                    grids: world_preparation_inspection::parse_grid_set(&grid)?,
+                    seams: world_preparation_inspection::parse_seam_set(&seam)?,
+                },
+            )?;
+            let prepared = report["cpu_bundle_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("source CPU terrain patch bundle refused; see report".into());
             }
         }
         Command::GridTerrainSources {

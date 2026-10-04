@@ -53,6 +53,19 @@ padding, source alpha words and repeated texture references. They verify literal
 positions/indices/weights/source spans, all seam mismatch words, caller order,
 strict refusal, cohort reuse, protected pin lifetime and every exact/one-under
 aggregate bound. No new parser, terrain algorithm, importer, cache or job pool is
-introduced. Actual owned CLI and frozen installed-source observation follow the
-producer handoff.
+introduced.
+
+`terrain-patch-sources --install PATH --load-order ORDER --world Origin.esm:HEX`
+accepts repeated `--grid=x,y` flags in caller order, with optional repeated
+`--seam=first,second` zero-based patch pairs. `--index-cache` reuses the existing
+source-bound plugin cache. The owned headless consumer requests each cell from
+the sealed directory and consumes the exact bundle. It emits complete source/CPU
+receipts and SHA-256 hashes of the actual borrowed surface, mesh and blend JSON
+bytes. Its directory summary avoids expanding every unrelated world entry.
+
+Any source/CPU/seam refusal leaves a null bundle and an empty hash list, emits
+the source error, and returns nonzero. Missing, ambiguous and default material
+coverage can coexist with a prepared CPU bundle; image decoding, material
+readiness, GPU/collision admission and world activation remain false. Frozen
+native authored-pair and selected installed-source proofs follow the CLI handoff.
 

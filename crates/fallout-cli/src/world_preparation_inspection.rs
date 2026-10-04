@@ -84,6 +84,94 @@ pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
         .collect()
 }
 
+pub(super) struct GridPatchInput {
+    pub world: FormKey,
+    pub grids: Vec<[i32; 2]>,
+    pub seams: Vec<[usize; 2]>,
+}
+pub(super) fn parse_seam_set(values: &[String]) -> Result<Vec<[usize; 2]>> {
+    if values.len() > 8 {
+        return Err("explicit seam set permits at most 8 pairs".into());
+    }
+    values
+        .iter()
+        .map(|value| {
+            let (first, second) = value
+                .split_once(',')
+                .ok_or("seam must be two unsigned patch indices")?;
+            Ok([first.parse::<usize>()?, second.parse::<usize>()?])
+        })
+        .collect()
+}
+/// Consumes the same private immutable CPU bundle that a future upload caller borrows.
+pub(super) fn terrain_patches(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    input: GridPatchInput,
+) -> Result<Value> {
+    if input.grids.is_empty() || input.grids.len() > 8 || input.seams.len() > 8 {
+        return Err("explicit terrain bundle requires 1..=8 grids and at most 8 seams".into());
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Explicit private grid requests consume an immutable source CPU terrain patch bundle",
+        "requested_world":input.world,"explicit_grids":input.grids,"explicit_seams":input.seams,
+        "grid_directory":null,"cell_grid_requests":null,"terrain_patch_bundle":null,
+        "patch_hashes":[],"source_error":null,"cpu_bundle_prepared":false,
+        "source_materials_prepared":false,"texture_images_decoded":false,
+        "seams_repaired":false,"rendering_admitted":false,"collision_admitted":false,
+        "current_cell_changed":false,"activation_applied":false,"runtime_ready":false,
+        "lookup_precedence_verified":false,"retail_parity_accepted":false});
+    let consumed = (|| -> Result<()> {
+        let directory = CellGridSources::load(&mut store, &input.world, Default::default())?;
+        let metadata = directory.metadata();
+        report["grid_directory"] = json!({"world":metadata.world,
+            "world_source_ordinal":metadata.world_source_ordinal,"world_header":metadata.world_header,
+            "source_cohort_sha256":metadata.source_cohort_sha256,"usage":metadata.usage});
+        let requests = input
+            .grids
+            .iter()
+            .map(|grid| directory.request(*grid))
+            .collect::<fallout_data::Result<Vec<_>>>()?;
+        report["cell_grid_requests"] = serde_json::to_value(&requests)?;
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        let bundle = fallout_data::terrain::patches::TerrainPatchBundle::load(
+            &directory,
+            &mut store,
+            &requests,
+            assets.mounts(),
+            &input.seams,
+            Default::default(),
+        )?;
+        bundle.validate_sources(&mut store)?;
+        // These bytes hash actual borrowed outputs, never a second terrain evaluator.
+        let mut hashes = Vec::with_capacity(bundle.patches().len());
+        for patch in bundle.patches() {
+            let surface = serde_json::to_vec(&patch.surface)?;
+            let geometry = serde_json::to_vec(&patch.mesh)?;
+            let blend = serde_json::to_vec(&patch.blends)?;
+            hashes.push(json!({"patch_identity":patch.identity,
+                "source_plan_identity":patch.source().identity,"cell":patch.source().root,
+                "surface_sha256":format!("{:x}",Sha256::digest(&surface)),"surface_json_bytes":surface.len(),
+                "geometry_sha256":format!("{:x}",Sha256::digest(&geometry)),"geometry_json_bytes":geometry.len(),
+                "blend_sha256":format!("{:x}",Sha256::digest(&blend)),"blend_json_bytes":blend.len()}));
+        }
+        // Publish together only after source validation, all builders, seams and hashes succeed.
+        let receipt = serde_json::to_value(bundle.receipt())?;
+        report["terrain_patch_bundle"] = receipt;
+        report["patch_hashes"] = json!(hashes);
+        report["cpu_bundle_prepared"] = json!(true);
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
 pub(super) fn water(
     install: &Path,
     order_path: &Path,
@@ -1277,6 +1365,427 @@ mod tests {
             source_timeout_ms: 10_000,
         }
     }
+
+    fn patch_pair_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let layer = |tag: &[u8; 4], quad: u8, index: i16| {
+            field(
+                tag,
+                &[
+                    if mode == "default-material" {
+                        0_u32
+                    } else {
+                        0x400_u32
+                    }
+                    .to_le_bytes()
+                    .as_slice(),
+                    &[quad, 77],
+                    &index.to_le_bytes(),
+                ]
+                .concat(),
+            )
+        };
+        let mut cells = Vec::new();
+        for i in 0..2_u32 {
+            let hidden = if mode == "hide" && i == 1 { 16 } else { 1 << i };
+            let x = if mode == "noncardinal" && i == 1 {
+                2_i32
+            } else {
+                i as i32
+            };
+            let grid = [
+                x.to_le_bytes(),
+                0_i32.to_le_bytes(),
+                (0xaabbcc00_u32 | hidden).to_le_bytes(),
+            ]
+            .concat();
+            let cell = record(
+                b"CELL",
+                0x200 + i,
+                &[field(b"DATA", &[0]), field(b"XCLC", &grid)].concat(),
+            );
+            let mut land = field(b"DATA", &[7, 0, 0, 0]);
+            let mut normals = [255_u8, 0, 0].repeat(1089);
+            normals[3..6].copy_from_slice(&[0, 0, 127]);
+            if i == 1 && mode == "zero-normal" {
+                normals[..3].fill(0);
+            }
+            if i == 1 && mode == "short-normal" {
+                normals.pop();
+            }
+            land.extend(field(b"VNML", &normals));
+            let mut heights = if i == 0 {
+                0x3fa00000_u32
+            } else {
+                0x40100000_u32
+            }
+            .to_le_bytes()
+            .to_vec();
+            let mut deltas = vec![0; 1089];
+            deltas[..3].copy_from_slice(&[2, 3, 255]);
+            deltas[33..35].copy_from_slice(&[252, 5]);
+            heights.extend(deltas);
+            heights.extend([7, 11, 13]);
+            if !(i == 1 && mode == "missing-height") {
+                land.extend(field(b"VHGT", &heights));
+            }
+            let colors: Vec<u8> = (0..1089)
+                .flat_map(|j| {
+                    [
+                        (j % 256) as u8,
+                        ((3 * j) % 256) as u8,
+                        (255 - j % 256) as u8,
+                    ]
+                })
+                .collect();
+            land.extend(field(b"VCLR", &colors));
+            for q in 0..4 {
+                land.extend(layer(b"BTXT", q, -1));
+            }
+            land.extend(layer(
+                b"ATXT",
+                0,
+                if i == 1 && mode == "layer-order" {
+                    1
+                } else {
+                    0
+                },
+            ));
+            let alpha: Vec<u8> = [
+                (0_u16, 0x3f000000_u32),
+                (1, 0x3fa00000),
+                (2, 0xbe800000),
+                (288, 0x3e800000),
+            ]
+            .into_iter()
+            .flat_map(|(at, bits)| {
+                [at.to_le_bytes().as_slice(), &[13, 29], &bits.to_le_bytes()].concat()
+            })
+            .collect();
+            land.extend(field(b"VTXT", &alpha));
+            land.extend(layer(b"ATXT", 0, 1));
+            land.extend(field(
+                b"VTXT",
+                &[
+                    0_u16.to_le_bytes().as_slice(),
+                    &[17, 19],
+                    &0x3f400000_u32.to_le_bytes(),
+                ]
+                .concat(),
+            ));
+            let mut lands = record(b"LAND", 0x300 + i, &land);
+            if i == 1 && mode == "missing-land" {
+                lands.clear();
+            }
+            if i == 1 && mode == "multiple-land" {
+                lands.extend(record(b"LAND", 0x399, &land));
+            }
+            if i == 1 && mode == "deleted-land" {
+                lands[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+            }
+            cells.extend([cell, group(0x200 + i, 6, &group(0x200 + i, 9, &lands))].concat());
+        }
+        let header = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let texture = if mode == "missing-material" {
+            b"missing.dds\0".as_slice()
+        } else {
+            b"land/a.dds\0"
+        };
+        fs::write(
+            root.join("Data/Base.esm"),
+            [
+                record(b"TES4", 0, &header),
+                record(b"WRLD", 0x100, &field(b"DATA", &[0])),
+                group(0x100, 1, &cells),
+                record(b"LTEX", 0x400, &field(b"TNAM", &0x500_u32.to_le_bytes())),
+                record(b"TXST", 0x500, &field(b"TX00", texture)),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        archive(root, "terrain", b"textures\\land", b"a.dds", &[31, 47, 63]);
+        if mode == "ambiguous-material" {
+            archive(
+                root,
+                "other-terrain",
+                b"textures\\land",
+                b"a.dds",
+                &[79, 83],
+            );
+        }
+        fs::write(root.join("order.json"), r#"["Base.esm"]"#).unwrap();
+        fs::write(
+            root.join("terrain-patch-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_TERRAIN_PATCH_FIXTURE={}", root.display());
+    }
+    fn patch_input(grids: Vec<[i32; 2]>, seams: Vec<[usize; 2]>) -> GridPatchInput {
+        GridPatchInput {
+            world: crate::parse_cell_key("Base.esm:100").unwrap(),
+            grids,
+            seams,
+        }
+    }
+    #[test]
+    fn cli_patch_pair_consumes_literal_geometry_weights_source_spans_and_actual_hashes() {
+        let root = directory();
+        patch_pair_fixture(&root, "valid");
+        let before = Sha256::digest(fs::read(root.join("Data/Base.esm")).unwrap());
+        let report = terrain_patches(
+            &root,
+            &root.join("order.json"),
+            None,
+            patch_input(vec![[0, 0], [1, 0]], vec![[0, 1]]),
+        )
+        .unwrap();
+        assert_eq!(report["cpu_bundle_prepared"], true);
+        let bundle = &report["terrain_patch_bundle"];
+        assert_eq!(bundle["usage"]["vertices"], 2178);
+        assert_eq!(bundle["usage"]["indices"], 9216);
+        assert_eq!(bundle["usage"]["weights"], 3468);
+        assert_eq!(bundle["usage"]["source_read_bytes"], 15706);
+        let first = &bundle["patches"][0];
+        let second = &bundle["patches"][1];
+        assert_eq!(
+            first["source_plan"]["terrain"]["cell"]["header"]["offset"],
+            97
+        );
+        assert_eq!(
+            first["source_plan"]["terrain"]["landscapes"][0]["header"]["offset"],
+            194
+        );
+        assert_eq!(first["mesh"]["local_positions"][0], json!([0., 0., 26.]));
+        assert_eq!(first["mesh"]["local_positions"][1], json!([128., 0., 50.]));
+        assert_eq!(first["mesh"]["local_positions"][33], json!([0., 128., -6.]));
+        assert_eq!(
+            first["mesh"]["indices"].as_array().unwrap()[..6],
+            json!([16, 17, 50, 16, 50, 49]).as_array().unwrap()[..]
+        );
+        assert_eq!(second["mesh"]["local_positions"][0], json!([0., 0., 34.]));
+        assert_eq!(
+            first["mesh"]["normal_bits"][0],
+            json!([0xbf800000_u32, 0, 0])
+        );
+        assert_eq!(first["mesh"]["colors"][1088], json!([64, 192, 191]));
+        assert_eq!(
+            first["blends"]["quadrants"][0]["overlays"][0]["weights"][0],
+            127
+        );
+        assert_eq!(
+            first["blends"]["quadrants"][0]["overlays"][1]["weights"][0],
+            191
+        );
+        assert_eq!(first["blends"]["quadrants"][0]["base"]["weights"][288], 192);
+        assert_eq!(
+            bundle["seams"][0]["comparison"]["mismatches"]
+                .as_array()
+                .unwrap()
+                .len(),
+            33
+        );
+        for (index, patch) in bundle["patches"].as_array().unwrap().iter().enumerate() {
+            for (object, key) in [
+                ("surface", "surface_sha256"),
+                ("mesh", "geometry_sha256"),
+                ("blends", "blend_sha256"),
+            ] {
+                // JSON Value object order differs from the typed serialization; compare an independent
+                // fresh factory's borrowed typed outputs below instead of treating a report as authority.
+                assert!(patch[object].is_object());
+                assert_eq!(
+                    report["patch_hashes"][index][key].as_str().unwrap().len(),
+                    64
+                );
+            }
+        }
+        let order = Order::read(&root.join("order.json")).unwrap();
+        let mut store = order.store(&root, None).unwrap();
+        let dir = CellGridSources::load(
+            &mut store,
+            &crate::parse_cell_key("Base.esm:100").unwrap(),
+            Default::default(),
+        )
+        .unwrap();
+        let requests = [dir.request([0, 0]).unwrap(), dir.request([1, 0]).unwrap()];
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(&root).unwrap();
+        let actual = fallout_data::terrain::patches::TerrainPatchBundle::load(
+            &dir,
+            &mut store,
+            &requests,
+            assets.mounts(),
+            &[[0, 1]],
+            Default::default(),
+        )
+        .unwrap();
+        for (i, patch) in actual.patches().iter().enumerate() {
+            for (key, bytes) in [
+                (
+                    "surface_sha256",
+                    serde_json::to_vec(&patch.surface).unwrap(),
+                ),
+                ("geometry_sha256", serde_json::to_vec(&patch.mesh).unwrap()),
+                ("blend_sha256", serde_json::to_vec(&patch.blends).unwrap()),
+            ] {
+                assert_eq!(
+                    report["patch_hashes"][i][key],
+                    format!("{:x}", Sha256::digest(bytes))
+                );
+            }
+        }
+        assert_eq!(
+            report["terrain_patch_bundle"]["identity"],
+            actual.identity()
+        );
+        assert_eq!(
+            Sha256::digest(fs::read(root.join("Data/Base.esm")).unwrap()),
+            before
+        );
+        for flag in [
+            "source_materials_prepared",
+            "texture_images_decoded",
+            "seams_repaired",
+            "rendering_admitted",
+            "collision_admitted",
+            "current_cell_changed",
+            "activation_applied",
+            "runtime_ready",
+            "lookup_precedence_verified",
+            "retail_parity_accepted",
+        ] {
+            assert_eq!(report[flag], false);
+        }
+    }
+    #[test]
+    fn cli_patch_refusals_publish_no_partial_bundle_and_material_coverage_stays_separate() {
+        for mode in [
+            "missing-land",
+            "multiple-land",
+            "deleted-land",
+            "missing-height",
+            "short-normal",
+            "zero-normal",
+            "hide",
+            "layer-order",
+            "noncardinal",
+        ] {
+            let root = directory();
+            patch_pair_fixture(&root, mode);
+            let grids = if mode == "noncardinal" {
+                vec![[0, 0], [2, 0]]
+            } else {
+                vec![[0, 0], [1, 0]]
+            };
+            let report = terrain_patches(
+                &root,
+                &root.join("order.json"),
+                None,
+                patch_input(grids, vec![[0, 1]]),
+            )
+            .unwrap();
+            assert_eq!(report["cpu_bundle_prepared"], false, "{mode}");
+            assert!(report["terrain_patch_bundle"].is_null(), "{mode}");
+            assert_eq!(report["patch_hashes"], json!([]), "{mode}");
+            assert!(report["source_error"].is_string(), "{mode}");
+        }
+        let root = directory();
+        patch_pair_fixture(&root, "valid");
+        for (grids, seams) in [
+            (vec![[0, 0], [0, 0]], vec![]),
+            (vec![[2, 0]], vec![]),
+            (vec![[0, 0], [1, 0]], vec![[0, 2]]),
+        ] {
+            let report = terrain_patches(
+                &root,
+                &root.join("order.json"),
+                None,
+                patch_input(grids, seams),
+            )
+            .unwrap();
+            assert_eq!(report["cpu_bundle_prepared"], false);
+            assert!(report["terrain_patch_bundle"].is_null());
+        }
+        for mode in ["missing-material", "ambiguous-material", "default-material"] {
+            let root = directory();
+            patch_pair_fixture(&root, mode);
+            let report = terrain_patches(
+                &root,
+                &root.join("order.json"),
+                None,
+                patch_input(vec![[0, 0], [1, 0]], vec![]),
+            )
+            .unwrap();
+            assert_eq!(report["cpu_bundle_prepared"], true, "{mode}");
+            assert_eq!(report["source_materials_prepared"], false);
+            assert_eq!(report["texture_images_decoded"], false);
+            assert_eq!(report["runtime_ready"], false);
+        }
+    }
+    #[test]
+    fn cli_patch_grid_and_seam_flags_preserve_explicit_order_and_bounds() {
+        use clap::Parser;
+        let args = [
+            "fallout-cli",
+            "terrain-patch-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+            "--world",
+            "Base.esm:100",
+        ];
+        assert!(crate::Args::try_parse_from(args).is_err());
+        let parsed = crate::Args::try_parse_from(args.into_iter().chain([
+            "--grid=-18,0",
+            "--grid=1,0",
+            "--seam=1,0",
+            "--seam=0,1",
+        ]))
+        .unwrap();
+        match parsed.command {
+            crate::Command::TerrainPatchSources { grid, seam, .. } => {
+                assert_eq!(parse_grid_set(&grid).unwrap(), [[-18, 0], [1, 0]]);
+                assert_eq!(parse_seam_set(&seam).unwrap(), [[1, 0], [0, 1]]);
+            }
+            _ => panic!("terrain patch command changed"),
+        }
+        for value in ["0", "0,1,2", "-1,0", ",", "18446744073709551616,0"] {
+            assert!(parse_seam_set(&[value.into()]).is_err());
+        }
+        assert!(parse_seam_set(&vec!["0,1".into(); 9]).is_err());
+        assert!(parse_seam_set(&[]).unwrap().is_empty());
+        for (grids, seams) in [
+            (vec![], vec![]),
+            (vec![[0, 0]; 9], vec![]),
+            (vec![[0, 0]], vec![[0, 1]; 9]),
+        ] {
+            assert!(
+                terrain_patches(
+                    Path::new("absent"),
+                    Path::new("absent"),
+                    None,
+                    patch_input(grids, seams)
+                )
+                .is_err()
+            );
+        }
+    }
+
     fn grid_fixture(root: &Path, duplicate: bool) {
         cell_fixture(root, b"m.nif", b"t.dds");
         let group = |label: u32, kind: i32, body: &[u8]| {

@@ -8,8 +8,9 @@ use fallout_runtime::{
     Limits,
     identity::Value as LocalValue,
     save::{
-        Captured, Recovery, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask,
-        SaveStatus, SaveWorker, format,
+        AvailabilityError, AvailabilityPoll, AvailabilityRequest, AvailabilityTask, Captured,
+        Recovery, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask, SaveStatus,
+        SaveWorker, format,
     },
 };
 use serde_json::{Value, json};
@@ -67,16 +68,84 @@ pub(super) fn load(install: &Path, order_path: &Path, root: &Path) -> Result<Val
 pub(super) fn availability(install: &Path, order_path: &Path, root: &Path) -> Result<Value> {
     let order = Order::read(order_path)?;
     let mut store = order.store(install, None)?;
-    let catalogue =
-        loaded_scripts::Catalogue::load(&mut store, loaded_scripts::Limits::default(), |_, _| {
-            Ok(())
-        })?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits::default(),
+        |_, _| Ok(()),
+    )?);
+    let weak = Arc::downgrade(&catalogue);
     let repository = Repository::open(root, &[install.into()])?;
-    let report = repository.inspect_availability(&catalogue, Limits::default())?;
+    let cohort = fallout_runtime::snapshot::cohort(&catalogue)?;
+    let request =
+        AvailabilityRequest::new(NonZeroU64::new(1).unwrap(), repository.campaign(), &cohort)?;
+    let current =
+        AvailabilityRequest::new(NonZeroU64::new(2).unwrap(), repository.campaign(), &cohort)?;
+    let (mut task, gate) = AvailabilityTask::start_gated(
+        repository.clone(),
+        Arc::clone(&catalogue),
+        Limits::default(),
+        request.clone(),
+    )?;
+    if !matches!(task.try_poll(), AvailabilityPoll::Pending)
+        || !matches!(task.try_poll(), AvailabilityPoll::Pending)
+    {
+        return Err("Held availability read did not remain pending".into());
+    }
+    gate.release()?;
+    // This CLI may join off frame; a menu host continues nonblocking polling.
+    task.finish()?;
+    let report = match task.try_poll() {
+        AvailabilityPoll::Ready(candidate) => candidate.take_for(&request)?,
+        AvailabilityPoll::Failed(error) => return Err(error.into()),
+        state => return Err(format!("Availability did not complete: {state:?}").into()),
+    };
+    if !matches!(task.try_poll(), AvailabilityPoll::Delivered) || task.cancel() {
+        return Err("Accepted availability was delivered again or revoked".into());
+    }
+    let (mut cancelled, held) = AvailabilityTask::start_gated(
+        repository.clone(),
+        Arc::clone(&catalogue),
+        Limits::default(),
+        request.clone(),
+    )?;
+    if !matches!(cancelled.try_poll(), AvailabilityPoll::Pending) || !cancelled.cancel() {
+        return Err("Held availability cancellation failed".into());
+    }
+    cancelled.finish()?;
+    if !matches!(cancelled.try_poll(), AvailabilityPoll::Cancelled)
+        || !matches!(held.release(), Err(AvailabilityError::Cancelled))
+    {
+        return Err("Cancelled availability gate revived the job".into());
+    }
+    let mut superseded = AvailabilityTask::start(
+        repository,
+        Arc::clone(&catalogue),
+        Limits::default(),
+        request.clone(),
+    )?;
+    superseded.finish()?;
+    let AvailabilityPoll::Ready(candidate) = superseded.try_poll() else {
+        return Err("Supersession check needs a completed availability report".into());
+    };
+    if !matches!(
+        candidate.take_for(&current),
+        Err(AvailabilityError::Superseded)
+    ) {
+        return Err("Superseded availability report was admitted".into());
+    }
+    drop(catalogue);
+    if weak.upgrade().is_some() {
+        return Err("Availability result retained source storage".into());
+    }
     Ok(json!({
         "schema_version":1,"profile":"nv-original","availability":report,
         "scope":"Separate read-only source-bound slot observations; choose an explicit Recovery policy for a later load",
         "pair_is_atomic":false,"slot_selected":false,"current_repaired":false,
+        "availability_task_probe":{"request":request,"superseding_request":current,
+            "held_read_pending_polls":2,"single_candidate_delivered":true,"candidate_identity_checked":true,
+            "accepted_report_survives_later_cancel":true,"held_cancel_revokes_gate":true,
+            "superseded_report_refused":true,"worker_source_released":true,
+            "host_world_replaced":false,"callbacks_dispatched":false},
         "original_live_state_captured":false,"retail_parity_accepted":false
     }))
 }

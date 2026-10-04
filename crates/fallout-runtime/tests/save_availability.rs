@@ -16,6 +16,384 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path, process::Command, sync::Arc};
 
+fn availability_request(
+    repository: &Repository,
+    catalogue: &Catalogue,
+    id: u64,
+) -> save::AvailabilityRequest {
+    save::AvailabilityRequest::new(
+        id.try_into().unwrap(),
+        repository.campaign(),
+        &fallout_runtime::snapshot::cohort(catalogue).unwrap(),
+    )
+    .unwrap()
+}
+fn async_availability(
+    repository: &Repository,
+    catalogue: Arc<Catalogue>,
+    limits: Limits,
+) -> Report {
+    let request = availability_request(repository, &catalogue, 1);
+    let mut task =
+        save::AvailabilityTask::start(repository.clone(), catalogue, limits, request.clone())
+            .unwrap();
+    task.finish().unwrap();
+    let save::AvailabilityPoll::Ready(candidate) = task.try_poll() else {
+        panic!("availability required")
+    };
+    let report = candidate.take_for(&request).unwrap();
+    assert!(matches!(task.try_poll(), save::AvailabilityPoll::Delivered));
+    assert!(!task.cancel());
+    report
+}
+fn availability_entries(root: &Path) -> BTreeMap<String, Option<Vec<u8>>> {
+    fs::read_dir(root)
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let kind = entry.file_type().unwrap();
+            (
+                entry.file_name().to_str().unwrap().to_owned(),
+                if kind.is_file() {
+                    Some(fs::read(entry.path()).unwrap())
+                } else {
+                    None
+                },
+            )
+        })
+        .collect()
+}
+#[test]
+fn availability_task_gate_defers_actual_slot_read_and_returns_one_source_bound_observation() {
+    let root = tempfile::tempdir().unwrap();
+    let (catalogue, repository, [first, _]) = setup(root.path());
+    let catalogue = Arc::new(catalogue);
+    let request = availability_request(&repository, &catalogue, 17);
+    let (mut task, gate) = save::AvailabilityTask::start_gated(
+        repository.clone(),
+        Arc::clone(&catalogue),
+        Limits::default(),
+        request.clone(),
+    )
+    .unwrap();
+    assert_eq!(task.request(), &request);
+    assert!(matches!(task.try_poll(), save::AvailabilityPoll::Pending));
+    assert!(matches!(task.try_poll(), save::AvailabilityPoll::Pending));
+    // The read observes a change made after spawn, never a pair frozen there.
+    let current = fs::read(repository.path().join("current.frsv")).unwrap();
+    fs::write(
+        repository.path().join("current.frsv"),
+        wrong_local(&current),
+    )
+    .unwrap();
+    let before = directory_bytes(repository.path());
+    gate.release().unwrap();
+    task.finish().unwrap();
+    assert_eq!(Arc::strong_count(&catalogue), 1);
+    let save::AvailabilityPoll::Ready(candidate) = task.try_poll() else {
+        panic!("report required")
+    };
+    assert_eq!(candidate.request(), &request);
+    let report = candidate.take_for(&request).unwrap();
+    assert_eq!(
+        rejected(report.current(), Code::IncompatibleLocal).local_index(),
+        Some(42)
+    );
+    assert_eq!(
+        loadable(report.previous()).state_revision,
+        first.state_revision
+    );
+    assert_eq!(
+        report,
+        repository
+            .inspect_availability(Arc::clone(&catalogue), Limits::default())
+            .unwrap()
+    );
+    assert!(matches!(task.try_poll(), save::AvailabilityPoll::Delivered));
+    assert!(!task.cancel());
+    assert_eq!(directory_bytes(repository.path()), before);
+}
+#[test]
+fn availability_task_preserves_actual_missing_invalid_io_and_byte_budget_slot_reasons() {
+    for case in 0..10 {
+        if case == 9 && !cfg!(windows) {
+            continue;
+        }
+        let root = tempfile::tempdir().unwrap();
+        let (catalogue, repository, _) = setup(root.path());
+        let catalogue = Arc::new(catalogue);
+        let current = repository.path().join("current.frsv");
+        let previous = repository.path().join("previous.frsv");
+        let wire = fs::read(&current).unwrap();
+        let mut limits = Limits::default();
+        match case {
+            1 => fs::write(&current, wrong_local(&wire)).unwrap(),
+            2 => fs::write(&current, b"broken native container").unwrap(),
+            3 => fs::remove_file(&current).unwrap(),
+            4 => fs::remove_file(&previous).unwrap(),
+            5 => limits.max_locals = 2,
+            6 => {
+                limits.max_snapshot_bytes = format::decode(&wire, limits)
+                    .unwrap()
+                    .metadata
+                    .snapshot_bytes
+                    - 1
+            }
+            7 => {
+                fs::remove_file(&current).unwrap();
+                fs::create_dir(&current).unwrap();
+            }
+            8 => limits.max_snapshot_bytes = usize::MAX,
+            _ => {}
+        }
+        let before = availability_entries(repository.path());
+        let held_slot = if case == 9 {
+            let file = fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&current)
+                .unwrap();
+            file.lock().unwrap();
+            Some(file)
+        } else {
+            None
+        };
+        let report = async_availability(&repository, Arc::clone(&catalogue), limits);
+        assert_eq!(
+            report,
+            repository
+                .inspect_availability(Arc::clone(&catalogue), limits)
+                .unwrap()
+        );
+        match case {
+            0 => {
+                assert_eq!(loadable(report.current()).generation, 2);
+                assert_eq!(loadable(report.previous()).generation, 1);
+            }
+            1 => {
+                let reason = rejected(report.current(), Code::IncompatibleLocal);
+                assert_eq!(reason.local_index(), Some(42));
+                assert!(!reason.truncated());
+                loadable(report.previous());
+            }
+            2 => {
+                rejected(report.current(), Code::NativeFormat);
+                loadable(report.previous());
+            }
+            3 => {
+                assert!(matches!(report.current(), Availability::Missing));
+                loadable(report.previous());
+            }
+            4 => {
+                loadable(report.current());
+                assert!(matches!(report.previous(), Availability::Missing));
+            }
+            5 => {
+                assert_eq!(
+                    rejected(report.current(), Code::RuntimeCapacity).budget(),
+                    Some("saved locals")
+                );
+                rejected(report.previous(), Code::RuntimeCapacity);
+            }
+            6 => {
+                assert_eq!(
+                    rejected(report.current(), Code::NativeFormat).message(),
+                    "native save format: save file exceeds byte budget"
+                );
+                loadable(report.previous());
+            }
+            7 => {
+                rejected(report.current(), Code::NativeFormat);
+                loadable(report.previous());
+            }
+            9 => {
+                let reason = rejected(report.current(), Code::Io);
+                assert!(reason.io_kind().is_some());
+                assert!(reason.raw_os_error().is_some());
+                loadable(report.previous());
+            }
+            _ => {
+                assert_eq!(
+                    rejected(report.current(), Code::NativeFormat).message(),
+                    "native save format: save file budget overflow"
+                );
+                rejected(report.previous(), Code::NativeFormat);
+            }
+        }
+        assert_eq!(Arc::strong_count(&catalogue), 1);
+        drop(held_slot);
+        assert_eq!(availability_entries(repository.path()), before);
+    }
+}
+#[test]
+fn availability_task_revalidates_marker_without_writer_lock_and_rejects_wrong_current_identity() {
+    let root = tempfile::tempdir().unwrap();
+    let (catalogue, repository, _) = setup(root.path());
+    let catalogue = Arc::new(catalogue);
+    let before = directory_bytes(repository.path());
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(repository.path().join("writer.lock"))
+        .unwrap();
+    lock.lock().unwrap();
+    let report = async_availability(&repository, Arc::clone(&catalogue), Limits::default());
+    loadable(report.current());
+    loadable(report.previous());
+    drop(lock);
+    assert_eq!(directory_bytes(repository.path()), before);
+    for current in [
+        save::AvailabilityRequest::new(
+            2.try_into().unwrap(),
+            repository.campaign(),
+            report.catalogue_fingerprint(),
+        )
+        .unwrap(),
+        save::AvailabilityRequest::new(
+            1.try_into().unwrap(),
+            CampaignId::from_bytes([0x33; 16]).unwrap(),
+            report.catalogue_fingerprint(),
+        )
+        .unwrap(),
+        save::AvailabilityRequest::new(
+            1.try_into().unwrap(),
+            repository.campaign(),
+            &"f".repeat(64),
+        )
+        .unwrap(),
+    ] {
+        let request = availability_request(&repository, &catalogue, 1);
+        let mut task = save::AvailabilityTask::start(
+            repository.clone(),
+            Arc::clone(&catalogue),
+            Limits::default(),
+            request,
+        )
+        .unwrap();
+        task.finish().unwrap();
+        let save::AvailabilityPoll::Ready(candidate) = task.try_poll() else {
+            panic!("report required")
+        };
+        assert!(matches!(
+            candidate.take_for(&current),
+            Err(save::AvailabilityError::Superseded)
+        ));
+        assert_eq!(directory_bytes(repository.path()), before);
+    }
+    fs::write(
+        repository.path().join(".rust-fallout-saves"),
+        b"invalid marker",
+    )
+    .unwrap();
+    let before = directory_bytes(repository.path());
+    let request = availability_request(&repository, &catalogue, 1);
+    let mut task =
+        save::AvailabilityTask::start(repository.clone(), catalogue, Limits::default(), request)
+            .unwrap();
+    task.finish().unwrap();
+    assert!(
+        matches!(task.try_poll(),save::AvailabilityPoll::Failed(error) if matches!(&*error,save::AvailabilityError::Save(_)))
+    );
+    assert_eq!(directory_bytes(repository.path()), before);
+}
+#[test]
+fn availability_task_native_source_invalid_report_matches_fresh_worker_without_slot_writes() {
+    let temp = tempfile::tempdir().unwrap();
+    let retained =
+        std::env::var_os("FALLOUT_AVAILABILITY_TASK_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    fs::create_dir_all(root).unwrap();
+    let (catalogue, repository, [first, second]) = setup(root);
+    let catalogue = Arc::new(catalogue);
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    let valid = async_availability(&repository, Arc::clone(&catalogue), Limits::default());
+    let wire = fs::read(repository.path().join("current.frsv")).unwrap();
+    fs::write(root.join("valid.current.frsv"), &wire).unwrap();
+    fs::write(
+        root.join("expected.previous.json"),
+        first.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("expected.current.json"),
+        second.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("valid.report.json"),
+        serde_json::to_vec_pretty(&valid).unwrap(),
+    )
+    .unwrap();
+    let invalid = wrong_local(&wire);
+    format::decode(&invalid, Limits::default()).unwrap();
+    fs::write(repository.path().join("current.frsv"), invalid).unwrap();
+    let report = async_availability(&repository, Arc::clone(&catalogue), Limits::default());
+    assert_eq!(
+        rejected(report.current(), Code::IncompatibleLocal).local_index(),
+        Some(42)
+    );
+    loadable(report.previous());
+    fs::write(
+        root.join("invalid.report.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    let before = directory_bytes(repository.path());
+    let weak = Arc::downgrade(&catalogue);
+    drop(catalogue);
+    assert!(weak.upgrade().is_none());
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "cold_availability_task_helper",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("FALLOUT_AVAILABILITY_TASK_COLD_ROOT", root)
+        .output()
+        .unwrap();
+    fs::write(root.join("cold.stdout.txt"), &child.stdout).unwrap();
+    fs::write(root.join("cold.stderr.txt"), &child.stderr).unwrap();
+    assert!(
+        child.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+    assert_eq!(directory_bytes(repository.path()), before);
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+#[test]
+#[ignore = "fresh read-only source-bound asynchronous observer invoked by parent"]
+fn cold_availability_task_helper() {
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_AVAILABILITY_TASK_COLD_ROOT").unwrap());
+    let catalogue = Arc::new(load(&root, &["FalloutNV.esm"]));
+    let weak = Arc::downgrade(&catalogue);
+    let repository = Repository::open(&root.join("native"), &[]).unwrap();
+    let before = directory_bytes(repository.path());
+    let report = async_availability(&repository, catalogue, Limits::default());
+    assert!(weak.upgrade().is_none());
+    assert_eq!(
+        serde_json::to_value(&report).unwrap(),
+        serde_json::from_slice::<serde_json::Value>(
+            &fs::read(root.join("invalid.report.json")).unwrap()
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        rejected(report.current(), Code::IncompatibleLocal).local_index(),
+        Some(42)
+    );
+    loadable(report.previous());
+    fs::write(
+        root.join("cold.task.report.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(directory_bytes(repository.path()), before);
+}
+
 fn seed(catalogue: &Catalogue) -> World<'_> {
     let mut world = World::with_campaign(
         catalogue,

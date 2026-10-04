@@ -938,6 +938,18 @@ fn cli_saved_pending_copy_helper() {
         ("zero-activation", "activation", json!(0), "nonzero"),
         ("missing-intent", "intent", Json::Null, "missing field"),
         ("faithful", "intent", json!("faithful"), "unknown variant"),
+        (
+            "intent-object-null",
+            "intent",
+            json!({"engineering":null}),
+            "expected a string",
+        ),
+        (
+            "intent-object-map",
+            "intent",
+            json!({"engineering":{}}),
+            "expected a string",
+        ),
         ("initializer", "initial_numbers", json!([]), "unknown field"),
         (
             "request-schema",
@@ -1053,6 +1065,6 @@ fn cli_saved_pending_copy_helper() {
     fs::write(evidence.join("scope.json"), serde_json::to_vec_pretty(&json!({
         "scope":"strict_current_snapshot_engineering_copy_only","original_executed":false,
         "input_schema":before.schema_version,"canonical_expected_snapshot":expected_saved_copy(before),
-        "actual_cli_calls":16,"retail_parity_accepted":false
+        "actual_cli_calls":18,"retail_parity_accepted":false
     })).unwrap()).unwrap();
 }

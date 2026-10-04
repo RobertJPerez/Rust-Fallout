@@ -1101,6 +1101,19 @@ fn cli_saved_foreign_copy_helper() {
     let (output, report, result, _) = run("cold-old-head", &install, &after, &request, "new", &[]);
     assert!(!output.status.success() && report.is_none() && !result.exists());
     let mut faithful = request.clone();
+    for (name, intent) in [
+        (
+            "intent-object-engineering-null",
+            json!({"engineering":null}),
+        ),
+        ("intent-object-faithful-null", json!({"faithful":null})),
+    ] {
+        let mut invalid = request.clone();
+        invalid["intent"] = intent;
+        let (output, report, result, _) = run(name, &install, &before, &invalid, "new", &[]);
+        assert!(!output.status.success() && report.is_none() && !result.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("expected a string"));
+    }
     faithful["intent"] = json!("faithful");
     let (output, report, result, _) = run("faithful", &install, &before, &faithful, "new", &[]);
     assert!(!output.status.success() && !result.exists());

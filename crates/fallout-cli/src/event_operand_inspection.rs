@@ -1272,10 +1272,18 @@ pub(super) fn boot_saved_quest_set(
     write_saved_copy_result(result_path, result_bytes)?;
     Ok(report)
 }
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 enum SavedIntent {
     Engineering,
+}
+impl<'de> serde::Deserialize<'de> for SavedIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        match <String as serde::Deserialize>::deserialize(deserializer)?.as_str() {
+            "engineering" => Ok(Self::Engineering),
+            value => Err(serde::de::Error::unknown_variant(value, &["engineering"])),
+        }
+    }
 }
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1302,11 +1310,23 @@ struct SavedBatchRequest {
     maximum_report_bytes: usize,
 }
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 enum SavedForeignIntent {
     Faithful,
     Engineering,
+}
+impl<'de> serde::Deserialize<'de> for SavedForeignIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        match <String as serde::Deserialize>::deserialize(deserializer)?.as_str() {
+            "faithful" => Ok(Self::Faithful),
+            "engineering" => Ok(Self::Engineering),
+            value => Err(serde::de::Error::unknown_variant(
+                value,
+                &["faithful", "engineering"],
+            )),
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]

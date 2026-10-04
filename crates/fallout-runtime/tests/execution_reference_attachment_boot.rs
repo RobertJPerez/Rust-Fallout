@@ -1204,6 +1204,17 @@ fn cli_reference_attachment_boot_helper() {
             .unwrap() = json!(value + 1);
         refused(&format!("ceiling-{group}-{field}"), &before, &invalid);
     }
+    for (name, intent) in [
+        (
+            "intent-object-engineering-null",
+            json!({"engineering":null}),
+        ),
+        ("intent-object-faithful-null", json!({"faithful":null})),
+    ] {
+        let mut invalid = request.clone();
+        invalid["intent"] = intent;
+        refused(name, &before, &invalid);
+    }
     for (name, raw) in [
         (
             "duplicate-request-field",

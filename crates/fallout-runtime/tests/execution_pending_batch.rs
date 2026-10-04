@@ -830,6 +830,16 @@ fn cli_saved_batch_helper() {
     cap["maximum_report_bytes"] = json!(report_bytes - 1);
     let (output, report, result, _) = run("report-bound-c", &initial, &cap, None, "new", &[]);
     assert!(!output.status.success() && report.is_none() && !result.exists());
+    for (name, intent) in [
+        ("intent-object-null", json!({"engineering":null})),
+        ("intent-object-map", json!({"engineering":{}})),
+    ] {
+        let mut invalid = request.clone();
+        invalid["intent"] = intent;
+        let (output, report, result, _) = run(name, &initial, &invalid, None, "new", &[]);
+        assert!(!output.status.success() && report.is_none() && !result.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("expected a string"));
+    }
     for (name, variant) in [
         ("wrong-first-head", 0),
         ("skipped-second", 1),
@@ -1044,5 +1054,5 @@ fn cli_saved_batch_helper() {
         fs::read(install.join("Data/FalloutNV.esm")).unwrap(),
         source
     );
-    fs::write(evidence.join("acceptance.json"),serde_json::to_vec_pretty(&json!({"schema_version":1,"cases":56,"scope":"explicit strict saved engineering prefix","original_launches":0,"faithful_execution_admitted":false,"gameplay_accepted":false})).unwrap()).unwrap();
+    fs::write(evidence.join("acceptance.json"),serde_json::to_vec_pretty(&json!({"schema_version":1,"cases":58,"scope":"explicit strict saved engineering prefix","original_launches":0,"faithful_execution_admitted":false,"gameplay_accepted":false})).unwrap()).unwrap();
 }

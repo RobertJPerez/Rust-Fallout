@@ -900,6 +900,16 @@ fn cli_saved_reference_copy_helper() {
     }
     for (name, field, value) in [
         ("schema", "schema_version", json!(2)),
+        (
+            "intent-object-engineering-null",
+            "intent",
+            json!({"engineering":null}),
+        ),
+        (
+            "intent-object-faithful-null",
+            "intent",
+            json!({"faithful":null}),
+        ),
         ("zero", "sequence", json!(0)),
         ("later-head", "sequence", json!(2)),
         ("owner", "owner", json!({"kind":"fragment","activation":2})),

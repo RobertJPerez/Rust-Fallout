@@ -71,6 +71,21 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve explicit CELL water inputs and consume one declared noise member.
+    CellWaterSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Preserve an explicit winning CELL's exact lighting and template declarations.
     CellLightingSources {
         #[arg(long)]

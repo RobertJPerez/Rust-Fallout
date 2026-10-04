@@ -124,6 +124,113 @@ pub struct Observation<'a> {
     pub scope: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Operation {
+    Eligibility,
+    Selection,
+    Scheduling,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnsupportedDependency {
+    OriginalConditionTruth,
+    ConditionGrouping,
+    EffectivePackageSelection,
+    ScheduleWordInterpretation,
+    PackageExecution,
+}
+#[derive(Debug, Clone, Copy, Serialize, thiserror::Error)]
+#[error("actor package {operation:?} execution unsupported: {dependencies:?}")]
+pub struct Refusal {
+    pub operation: Operation,
+    pub dependencies: &'static [UnsupportedDependency],
+}
+fn refusal(operation: Operation) -> Refusal {
+    use UnsupportedDependency::*;
+    Refusal {
+        operation,
+        dependencies: match operation {
+            Operation::Eligibility => &[OriginalConditionTruth, ConditionGrouping],
+            Operation::Selection => &[
+                OriginalConditionTruth,
+                ConditionGrouping,
+                EffectivePackageSelection,
+            ],
+            Operation::Scheduling => &[
+                OriginalConditionTruth,
+                ConditionGrouping,
+                EffectivePackageSelection,
+                ScheduleWordInterpretation,
+                PackageExecution,
+            ],
+        },
+    }
+}
+#[derive(Debug, Clone, Copy)]
+pub struct CapabilityLimits {
+    pub requests: Limits,
+    pub max_fields: usize,
+    pub max_event_fields: usize,
+    pub max_scripts: usize,
+    pub max_script_entries: usize,
+    pub max_visits: usize,
+    pub max_projection_bytes: usize,
+}
+impl Default for CapabilityLimits {
+    fn default() -> Self {
+        Self {
+            requests: Limits::default(),
+            max_fields: 65_536,
+            max_event_fields: 16_384,
+            max_scripts: 4096,
+            max_script_entries: 65_536,
+            max_visits: 2_000_000,
+            max_projection_bytes: 32 * 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Default, Serialize)]
+pub struct CapabilityCounts {
+    pub fields: usize,
+    pub event_fields: usize,
+    pub scripts: usize,
+    pub script_entries: usize,
+    pub visits: usize,
+}
+#[derive(Serialize)]
+pub struct PackageInputs<'a> {
+    pub occurrence_index: usize,
+    /// All existing physical scalar fields, including opaque fields and findings.
+    pub source: Option<&'a actors::packages::Definition>,
+    pub dependency_findings: &'a [actors::fields::Finding],
+    pub event_fields: &'a [package_dependencies::EventField],
+    pub scripts: &'a [package_dependencies::Embedded<'a>],
+    pub physical_source_complete: bool,
+}
+#[derive(Serialize)]
+pub struct Capability<'a> {
+    pub observation: Observation<'a>,
+    pub actor_fields: &'a [actors::fields::Field],
+    pub actor_findings: &'a [actors::fields::Finding],
+    pub package_inputs: Vec<PackageInputs<'a>>,
+    /// Complete retained physical source is separate from usable semantics.
+    /// This may be true for zero CTDA, repeated or unknown physical fields.
+    pub physical_source_complete: bool,
+    pub counts: CapabilityCounts,
+    pub refusal: Refusal,
+    pub execution_admitted: bool,
+    pub state_changed: bool,
+    pub scope: &'static str,
+}
+impl Capability<'_> {
+    /// No executor exists behind this capability. Empty or source-complete
+    /// declarations never grant an operation or silently complete a no-op AI.
+    pub fn require_execution(&self) -> Result<(), Refusal> {
+        Err(self.refusal)
+    }
+}
+
 fn same_sources(left: &[SourceReceipt], right: &[SourceReceipt]) -> bool {
     left.len() == right.len()
         && left.iter().zip(right).all(|(a, b)| {
@@ -159,6 +266,125 @@ impl Write for ProjectionBudget {
 }
 
 impl<'a> Requests<'a> {
+    pub fn capability<'b>(
+        &'b self,
+        world: &'b World<'_>,
+        content: &Content,
+        explicit_subject: Option<ReferenceId>,
+        operation: Operation,
+        limits: CapabilityLimits,
+    ) -> Result<Capability<'b>, Error> {
+        // The shared adapter supplies exact faithful refusals, including the
+        // source site and descriptor/subject/operand inputs. No query truth is
+        // copied from an engineering observation or privately interpreted.
+        let observation = self.observe(
+            world,
+            content,
+            explicit_subject,
+            condition::Intent::Faithful,
+            limits.requests,
+        )?;
+        let mut counts = CapabilityCounts {
+            fields: self.actor.fields.len(),
+            visits: self.visits,
+            ..Default::default()
+        };
+        admit(counts.fields, limits.max_fields, "capability field")?;
+        counts.visits = counts
+            .visits
+            .checked_add(self.actor.fields.len())
+            .and_then(|n| n.checked_add(self.actor.findings.len()))
+            .and_then(|n| n.checked_add(self.issues.len()))
+            .ok_or(Error::Capacity("capability visit"))?;
+        admit(counts.visits, limits.max_visits, "capability visit")?;
+        let mut inputs = Vec::new();
+        for (index, occurrence) in self.occurrences.iter().enumerate() {
+            let mut input = PackageInputs {
+                occurrence_index: index,
+                source: None,
+                dependency_findings: &[],
+                event_fields: &[],
+                scripts: &[],
+                physical_source_complete: false,
+            };
+            if let Some(package) = occurrence.package {
+                input.source = Some(package.source_definition());
+                input.dependency_findings = &package.findings;
+                input.event_fields = &package.event_fields;
+                input.scripts = &package.scripts;
+                input.physical_source_complete = package.record().is_some()
+                    && package.conditions.is_some()
+                    && package.source.decoded_record_sha256.is_some();
+                counts.fields = counts
+                    .fields
+                    .checked_add(package.source_definition().fields.len())
+                    .ok_or(Error::Capacity("capability field"))?;
+                counts.event_fields = counts
+                    .event_fields
+                    .checked_add(package.event_fields.len())
+                    .ok_or(Error::Capacity("capability event field"))?;
+                counts.scripts = counts
+                    .scripts
+                    .checked_add(package.scripts.len())
+                    .ok_or(Error::Capacity("capability script"))?;
+                admit(counts.fields, limits.max_fields, "capability field")?;
+                admit(
+                    counts.event_fields,
+                    limits.max_event_fields,
+                    "capability event field",
+                )?;
+                admit(counts.scripts, limits.max_scripts, "capability script")?;
+                let mut entries = 0usize;
+                for script in &package.scripts {
+                    entries = entries
+                        .checked_add(script.declarations.len())
+                        .and_then(|n| n.checked_add(script.references.len()))
+                        .and_then(|n| n.checked_add(script.issues.len()))
+                        .ok_or(Error::Capacity("capability script entry"))?;
+                }
+                counts.script_entries = counts
+                    .script_entries
+                    .checked_add(entries)
+                    .ok_or(Error::Capacity("capability script entry"))?;
+                admit(
+                    counts.script_entries,
+                    limits.max_script_entries,
+                    "capability script entry",
+                )?;
+                counts.visits = counts
+                    .visits
+                    .checked_add(package.source_definition().fields.len())
+                    .and_then(|n| n.checked_add(package.source_definition().findings.len()))
+                    .and_then(|n| n.checked_add(package.findings.len()))
+                    .and_then(|n| n.checked_add(package.event_fields.len()))
+                    .and_then(|n| n.checked_add(package.scripts.len()))
+                    .and_then(|n| n.checked_add(entries))
+                    .ok_or(Error::Capacity("capability visit"))?;
+                admit(counts.visits, limits.max_visits, "capability visit")?;
+            }
+            inputs.push(input);
+        }
+        let result = Capability {
+            observation,
+            actor_fields: &self.actor.fields,
+            actor_findings: &self.actor.findings,
+            physical_source_complete: inputs.iter().all(|input| input.physical_source_complete),
+            package_inputs: inputs,
+            counts,
+            refusal: refusal(operation),
+            execution_admitted: false,
+            state_changed: false,
+            scope: "Complete retained authored PACK fields and existing faithful condition/event/embedded-unit inputs; physical source completeness never admits eligibility, effective selection, schedule interpretation or AI execution",
+        };
+        serde_json::to_writer(
+            &mut ProjectionBudget {
+                bytes: 0,
+                maximum: limits.max_projection_bytes,
+            },
+            &result,
+        )?;
+        Ok(result)
+    }
     pub fn prepare(
         world: &World<'_>,
         actors: &'a actors::Catalogue<'a>,

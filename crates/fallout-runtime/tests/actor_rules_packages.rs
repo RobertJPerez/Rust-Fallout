@@ -8,7 +8,9 @@ use fallout_data::{
 };
 use fallout_runtime::{
     Limits as WorldLimits, World,
-    actor_rules::packages::{Error, Limits, Requests},
+    actor_rules::packages::{
+        CapabilityLimits, Error, Limits, Operation, Requests, UnsupportedDependency,
+    },
     execution::condition::{Intent, Outcome, Unsupported},
     foreign::Content,
     inventory::Facts,
@@ -523,4 +525,398 @@ fn changed_content_cohort_is_rejected_before_host_requests_are_prepared() {
             .is_ok()
         );
     });
+}
+
+fn capability_fixture(path: &Path, declared: bool, rich: bool) {
+    let mut npc = [field(b"ACBS", &[0; 24]), field(b"DATA", &[0; 11])].concat();
+    if declared {
+        for _ in 0..2 {
+            npc.extend(field(b"PKID", &0x200_u32.to_le_bytes()));
+        }
+    }
+    let mut package = [field(b"PKDT", &[0xa5; 12]), field(b"PSDT", &[0xff; 8])].concat();
+    if rich {
+        package.extend(ctda(47, 0));
+        package.extend(field(b"POBA", &[]));
+        package.extend(field(b"INAM", &0x400_u32.to_le_bytes()));
+        package.extend(unit(&[(1, 1)], &[(b"SCRO", 0x300)]));
+        package.extend(field(b"POCA", &[]));
+        package.extend(field(b"TNAM", &0x300_u32.to_le_bytes()));
+        package.extend(field(b"SCHR", &[0; 20]));
+    }
+    fs::write(
+        path.join("FalloutNV.esm"),
+        [
+            header(&[]),
+            disk(b"NPC_", 0x100, 0, &npc),
+            disk(b"PACK", 0x200, 0, &package),
+            disk(b"MISC", 0x300, 0, &[]),
+            disk(b"IDLE", 0x400, 0, &[]),
+        ]
+        .concat(),
+    )
+    .unwrap();
+}
+fn retain_capability(
+    name: &str,
+    path: &Path,
+    world: &World<'_>,
+    capability: &fallout_runtime::actor_rules::packages::Capability<'_>,
+) {
+    if let Some(root) = std::env::var_os("FALLOUT_ACTOR_PACKAGE_CAPABILITY_EVIDENCE_DIR") {
+        let case = Path::new(&root).join(name);
+        fs::create_dir_all(case.join("Data")).unwrap();
+        fs::copy(path.join("FalloutNV.esm"), case.join("Data/FalloutNV.esm")).unwrap();
+        fs::write(case.join("order.json"), b"[\"FalloutNV.esm\"]").unwrap();
+        fs::write(
+            case.join("snapshot.json"),
+            world
+                .snapshot()
+                .encode(WorldLimits::default().max_snapshot_bytes)
+                .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            case.join("expected-capability.json"),
+            serde_json::to_vec(capability).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn source_complete_zero_conditions_and_empty_lists_refuse_every_operation_without_noop_ai() {
+    let directory = tempfile::tempdir().unwrap();
+    for (name, declared) in [("empty", false), ("zero-conditions", true)] {
+        capability_fixture(directory.path(), declared, false);
+        with_sources(
+            directory.path(),
+            |world, content, actors, links, packages, subject| {
+                let before = world.snapshot();
+                let requests = Requests::prepare(
+                    world,
+                    actors,
+                    links,
+                    packages,
+                    &form(0x100),
+                    Default::default(),
+                )
+                .unwrap();
+                for operation in [
+                    Operation::Eligibility,
+                    Operation::Selection,
+                    Operation::Scheduling,
+                ] {
+                    let result = requests
+                        .capability(world, content, Some(subject), operation, Default::default())
+                        .unwrap();
+                    assert!(result.physical_source_complete);
+                    assert!(!result.execution_admitted && !result.state_changed);
+                    assert_eq!(result.observation.condition_requests, 0);
+                    assert_eq!(result.observation.intent, Intent::Faithful);
+                    assert_eq!(result.package_inputs.len(), if declared { 2 } else { 0 });
+                    let refusal = result.require_execution().unwrap_err();
+                    assert_eq!(refusal.operation, operation);
+                    assert_eq!(
+                        refusal.dependencies.len(),
+                        match operation {
+                            Operation::Eligibility => 2,
+                            Operation::Selection => 3,
+                            Operation::Scheduling => 5,
+                        }
+                    );
+                    assert!(
+                        refusal
+                            .dependencies
+                            .contains(&UnsupportedDependency::OriginalConditionTruth)
+                    );
+                    if declared {
+                        assert!(std::ptr::eq(
+                            result.package_inputs[0].source.unwrap(),
+                            packages.get(&form(0x200)).unwrap().source_definition()
+                        ));
+                        assert!(std::ptr::eq(
+                            result.package_inputs[0].source.unwrap(),
+                            result.package_inputs[1].source.unwrap()
+                        ));
+                        assert!(matches!(
+                            result.package_inputs[0].source.unwrap().fields[0].value,
+                            fallout_data::actors::packages::Value::General {
+                                package_type: 165,
+                                ..
+                            }
+                        ));
+                    }
+                    assert_eq!(world.snapshot(), before);
+                    if operation == Operation::Scheduling {
+                        retain_capability(name, directory.path(), world, &result);
+                    }
+                }
+            },
+        );
+    }
+    fixture(directory.path(), 1, 0);
+    with_sources(
+        directory.path(),
+        |world, content, actors, links, packages, subject| {
+            let requests = Requests::prepare(
+                world,
+                actors,
+                links,
+                packages,
+                &form(0x100),
+                Default::default(),
+            )
+            .unwrap();
+            let result = requests
+                .capability(
+                    world,
+                    content,
+                    Some(subject),
+                    Operation::Eligibility,
+                    Default::default(),
+                )
+                .unwrap();
+            assert!(!result.physical_source_complete);
+            assert_eq!(
+                result
+                    .package_inputs
+                    .iter()
+                    .map(|input| input.physical_source_complete)
+                    .collect::<Vec<_>>(),
+                vec![true, true, true, false, false, false, false]
+            );
+            assert!(
+                result.package_inputs[3..]
+                    .iter()
+                    .all(|input| input.source.is_none())
+            );
+            assert!(
+                result
+                    .observation
+                    .packages
+                    .iter()
+                    .flat_map(|package| &package.conditions)
+                    .all(|site| matches!(site.outcome, Outcome::Unsupported { .. }))
+            );
+            assert_eq!(result.observation.query_contributions, 0);
+            assert!(result.require_execution().is_err());
+            retain_capability("partial", directory.path(), world, &result);
+        },
+    );
+}
+
+#[test]
+fn capability_borrows_existing_events_compiled_units_findings_and_enforces_every_bound() {
+    let directory = tempfile::tempdir().unwrap();
+    capability_fixture(directory.path(), true, true);
+    with_sources(
+        directory.path(),
+        |world, content, actors, links, packages, subject| {
+            let requests = Requests::prepare(
+                world,
+                actors,
+                links,
+                packages,
+                &form(0x100),
+                Default::default(),
+            )
+            .unwrap();
+            let result = requests
+                .capability(
+                    world,
+                    content,
+                    Some(subject),
+                    Operation::Scheduling,
+                    Default::default(),
+                )
+                .unwrap();
+            let original = packages.get(&form(0x200)).unwrap();
+            assert!(result.physical_source_complete);
+            assert!(std::ptr::eq(
+                result.package_inputs[0].event_fields,
+                original.event_fields.as_slice()
+            ));
+            assert!(std::ptr::eq(
+                result.package_inputs[0].scripts,
+                original.scripts.as_slice()
+            ));
+            assert_eq!(result.package_inputs[0].scripts.len(), 2);
+            assert_eq!(
+                result.package_inputs[0].scripts[0].version.compiled_bytes,
+                Some(14)
+            );
+            assert_eq!(
+                result.package_inputs[0].scripts[1].version.compiled_bytes,
+                None
+            );
+            assert_eq!(
+                result.package_inputs[0].dependency_findings[0].code,
+                "package_event_link_schema_kind_mismatch"
+            );
+            assert_eq!(result.observation.query_contributions, 0);
+            assert!(
+                result
+                    .observation
+                    .packages
+                    .iter()
+                    .flat_map(|package| &package.conditions)
+                    .all(|site| matches!(
+                        site.outcome,
+                        Outcome::Unsupported {
+                            reason: Unsupported::UnverifiedRetailSemantics,
+                            ..
+                        }
+                    ))
+            );
+            assert_eq!(result.counts.scripts, 4);
+            assert!(result.counts.event_fields > 0 && result.counts.script_entries > 0);
+            let exact = CapabilityLimits {
+                max_fields: result.counts.fields,
+                max_event_fields: result.counts.event_fields,
+                max_scripts: result.counts.scripts,
+                max_script_entries: result.counts.script_entries,
+                max_visits: result.counts.visits,
+                max_projection_bytes: serde_json::to_vec(&result).unwrap().len(),
+                ..Default::default()
+            };
+            requests
+                .capability(world, content, Some(subject), Operation::Scheduling, exact)
+                .unwrap();
+            for limits in [
+                CapabilityLimits {
+                    max_fields: exact.max_fields - 1,
+                    ..exact
+                },
+                CapabilityLimits {
+                    max_event_fields: exact.max_event_fields - 1,
+                    ..exact
+                },
+                CapabilityLimits {
+                    max_scripts: exact.max_scripts - 1,
+                    ..exact
+                },
+                CapabilityLimits {
+                    max_script_entries: exact.max_script_entries - 1,
+                    ..exact
+                },
+                CapabilityLimits {
+                    max_visits: exact.max_visits - 1,
+                    ..exact
+                },
+                CapabilityLimits {
+                    max_projection_bytes: exact.max_projection_bytes - 1,
+                    ..exact
+                },
+                CapabilityLimits {
+                    requests: Limits {
+                        max_conditions: 1,
+                        ..Default::default()
+                    },
+                    ..exact
+                },
+            ] {
+                assert!(
+                    requests
+                        .capability(world, content, Some(subject), Operation::Scheduling, limits)
+                        .is_err()
+                );
+            }
+            retain_capability("rich", directory.path(), world, &result);
+        },
+    );
+}
+
+#[test]
+fn capability_uses_fresh_canonical_restore_and_rejects_campaign_content_and_reference_mismatch() {
+    let directory = tempfile::tempdir().unwrap();
+    capability_fixture(directory.path(), true, true);
+    with_sources(
+        directory.path(),
+        |world, content, actors, links, packages, subject| {
+            let requests = Requests::prepare(
+                world,
+                actors,
+                links,
+                packages,
+                &form(0x100),
+                Default::default(),
+            )
+            .unwrap();
+            let snapshot = world.snapshot();
+            let restored =
+                World::restore(world.catalogue(), snapshot.clone(), WorldLimits::default())
+                    .unwrap();
+            let a = requests
+                .capability(
+                    world,
+                    content,
+                    Some(subject),
+                    Operation::Selection,
+                    Default::default(),
+                )
+                .unwrap();
+            let b = requests
+                .capability(
+                    &restored,
+                    content,
+                    Some(subject),
+                    Operation::Selection,
+                    Default::default(),
+                )
+                .unwrap();
+            assert_eq!(
+                serde_json::to_value(a).unwrap(),
+                serde_json::to_value(b).unwrap()
+            );
+            assert_eq!(restored.snapshot(), snapshot);
+            let other = World::new(world.catalogue(), WorldLimits::default()).unwrap();
+            assert!(matches!(
+                requests.capability(
+                    &other,
+                    content,
+                    None,
+                    Operation::Eligibility,
+                    Default::default()
+                ),
+                Err(Error::ContextChanged)
+            ));
+            let missing = fallout_runtime::identity::ReferenceId(999.try_into().unwrap());
+            assert!(matches!(
+                requests.capability(
+                    world,
+                    content,
+                    Some(missing),
+                    Operation::Eligibility,
+                    Default::default()
+                ),
+                Err(Error::State(fallout_runtime::Error::MissingReference))
+            ));
+            let other_dir = tempfile::tempdir().unwrap();
+            fixture(other_dir.path(), 1, 0x20);
+            let mut other_store = RecordStore::open_nv_headers(
+                other_dir.path(),
+                &["FalloutNV.esm".into()],
+                Default::default(),
+            )
+            .unwrap();
+            let scripts = loaded_scripts::Catalogue::load(
+                &mut other_store,
+                Default::default(),
+                |_, _| Ok(()),
+            )
+            .unwrap();
+            let other_content = Content::load(&mut other_store, &scripts, 100).unwrap();
+            assert!(matches!(
+                requests.capability(
+                    world,
+                    &other_content,
+                    Some(subject),
+                    Operation::Eligibility,
+                    Default::default()
+                ),
+                Err(Error::Content(_))
+            ));
+        },
+    );
 }

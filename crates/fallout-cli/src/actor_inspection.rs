@@ -43,6 +43,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) condition_executable: Option<&'a Path>,
     pub(super) include_faction_requests: bool,
     pub(super) include_stat_requests: bool,
+    pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -152,7 +153,34 @@ pub(super) fn package_context(
         report["stat_requests"] =
             serde_json::to_value(requests.observe(&world, stats::Limits::default())?)?;
     }
+    if let Some(operation) = options.package_capability {
+        let capability = requests.capability(
+            &world,
+            &content,
+            options
+                .explicit_subject
+                .map(fallout_runtime::identity::ReferenceId),
+            operation,
+            packages::CapabilityLimits::default(),
+        )?;
+        capability
+            .require_execution()
+            .expect_err("package execution is unsupported");
+        report["package_capability"] = serde_json::to_value(capability)?;
+    }
     Ok(report)
+}
+
+pub(super) fn parse_package_operation(
+    raw: &str,
+) -> std::result::Result<fallout_runtime::actor_rules::packages::Operation, String> {
+    use fallout_runtime::actor_rules::packages::Operation;
+    match raw {
+        "eligibility" => Ok(Operation::Eligibility),
+        "selection" => Ok(Operation::Selection),
+        "scheduling" => Ok(Operation::Scheduling),
+        _ => Err("expected eligibility, selection or scheduling".into()),
+    }
 }
 
 #[derive(Default)]

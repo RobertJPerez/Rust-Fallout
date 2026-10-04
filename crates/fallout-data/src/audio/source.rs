@@ -5,7 +5,7 @@ use crate::{
     resource_jobs::{
         ArchiveInput, Artifact, Generation, JobError, JobHandle, JobToken, ResourceJobs,
     },
-    vfs::{AssetPath, AssetSource, MountIndex},
+    vfs::{AssetPath, MountIndex},
 };
 use std::sync::Arc;
 use thiserror::Error as ThisError;

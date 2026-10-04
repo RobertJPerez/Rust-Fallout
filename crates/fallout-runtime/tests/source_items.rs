@@ -10,10 +10,10 @@ use fallout_runtime::{
     events::{Clocks, Context, Trigger},
     foreign::Content,
     identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value},
-    inventory::{Ammo, Condition, Facts, OpaqueExtra, Ownership, ViewLimits},
+    inventory::{Ammo, Condition, Facts, ItemHandle, ItemId, OpaqueExtra, Ownership, ViewLimits},
     save::{Captured, Recovery, Repository, SaveWorker},
     snapshot::Snapshot,
-    source_items::{self, Failure, Policy, Role, SourceInventoryLimits},
+    source_items::{self, Failure, Policy, Role, SourceFactsLimits, SourceInventoryLimits},
     state::initialization,
 };
 use std::num::NonZeroU32;
@@ -1135,6 +1135,744 @@ fn cold_source_inventory_helper() {
     fs::write(
         root.join(&phase).join("cold.view.json"),
         serde_json::to_vec_pretty(&view).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+}
+
+fn facts_fixture_at(root: &std::path::Path) -> (Catalogue, Content) {
+    drop(initialization_fixture_at(root));
+    let mut bytes = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    bytes.extend(record(b"ACTI", 0x101, 0, &[]));
+    std::fs::write(root.join("FalloutNV.esm"), bytes).unwrap();
+    let mut store =
+        RecordStore::open_nv_headers(root, &["FalloutNV.esm".into()], plugin::Limits::default())
+            .unwrap();
+    let catalogue = Catalogue::load(&mut store, CatalogueLimits::default(), |_, _| Ok(())).unwrap();
+    let content = Content::load(&mut store, &catalogue, 100).unwrap();
+    (catalogue, content)
+}
+fn facts_fixture() -> (tempfile::TempDir, Catalogue, Content) {
+    let root = tempfile::tempdir().unwrap();
+    let (catalogue, content) = facts_fixture_at(root.path());
+    (root, catalogue, content)
+}
+fn facts_world<'a>(
+    catalogue: &'a Catalogue,
+    content: &Content,
+    limits: Limits,
+) -> (World<'a>, [(ItemHandle, Facts); 2]) {
+    let (mut world, owner, lots) = initialization_world(catalogue, limits);
+    let stage = world
+        .stage_source_inventory_initialization(
+            content,
+            &policy(),
+            owner,
+            &lots,
+            SourceInventoryLimits::default(),
+        )
+        .unwrap();
+    let receipt = world
+        .commit_source_inventory_initialization(content, &policy(), stage)
+        .unwrap();
+    let peer = ReferenceId(2.try_into().unwrap());
+    world.initialize_inventory(peer).unwrap();
+    let mut third = lots[0].0.clone();
+    third.base = form(0x101);
+    let third = world
+        .add_source_item(content, &policy(), peer, third, 5.try_into().unwrap())
+        .unwrap()
+        .0;
+    let mut first = Facts::unknown(form(0x101));
+    first.condition = Some(Condition::Float32 { bits: 0x7fc0_1234 });
+    first.equipped_slots = Some(Vec::new());
+    first.modifications = Some(Vec::new());
+    first.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 128, 255, 0],
+    }];
+    let mut second = Facts::unknown(form(0x100));
+    second.condition = Some(Condition::Float64 {
+        bits: 0x8000_0000_0000_0000,
+    });
+    second.ownership = Some(Ownership::Unowned);
+    let handles = [
+        world.item_handle(receipt.item_ids()[0]).unwrap(),
+        world.item_handle(third).unwrap(),
+    ];
+    (world, [(handles[0], first), (handles[1], second)])
+}
+fn assert_facts_before(world: &World<'_>, before: &Snapshot) {
+    assert_eq!(&world.snapshot(), before);
+    for bank in &before.inventory_banks {
+        for base in [form(0x100), form(0x101)] {
+            let expected = bank
+                .items
+                .iter()
+                .filter(|item| item.facts().base == base)
+                .map(|item| u64::from(item.count()))
+                .sum::<u64>();
+            let trace = world.inventory_count_trace(bank.owner, &base).unwrap();
+            assert_eq!(trace.result, expected);
+            assert_eq!(
+                trace.contributions,
+                bank.items
+                    .iter()
+                    .filter(|item| item.facts().base == base)
+                    .map(|item| (item.id(), item.count()))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+#[test]
+fn source_facts_sequential_bad_last_gap_and_batch_refusal_preserve_the_whole_bank() {
+    let (_root, catalogue, content) = facts_fixture();
+    let (mut world, mut edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    edits[1].1.base = form(0x777);
+    assert!(
+        world
+            .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+            .is_err()
+    );
+    assert_facts_before(&world, &before);
+    let id = world.item_id(edits[0].0).unwrap();
+    world
+        .replace_source_item_facts(&content, &policy(), id, edits[0].1.clone())
+        .unwrap();
+    assert!(
+        world
+            .replace_source_item_facts(
+                &content,
+                &policy(),
+                world.item_id(edits[1].0).unwrap(),
+                edits[1].1.clone()
+            )
+            .is_err()
+    );
+    assert_ne!(world.snapshot(), before);
+    assert_eq!(world.revision(), 9);
+    if let Some(root) = std::env::var_os("FALLOUT_SOURCE_FACTS_EVIDENCE") {
+        let root = std::path::PathBuf::from(root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("legacy.before.json"),
+            before.encode(1 << 20).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("legacy.partial.json"),
+            world.snapshot().encode(1 << 20).unwrap(),
+        )
+        .unwrap();
+    }
+}
+#[test]
+fn source_facts_cross_owner_edit_keeps_lot_ids_quantities_and_other_lots_exact() {
+    let (_root, catalogue, content) = facts_fixture();
+    let (mut world, edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    assert_eq!(stage.rows().len(), 2);
+    assert_eq!(stage.usage().lots, 2);
+    assert_eq!(stage.usage().links, 18);
+    assert_eq!(stage.usage().extra_bytes, 10);
+    assert_eq!(stage.usage().source_checks, 2);
+    for (row, (_, facts)) in stage.rows().iter().zip(&edits) {
+        assert_eq!(row.replacement(), facts);
+    }
+    assert_facts_before(&world, &before);
+    let receipt = world
+        .commit_source_item_facts(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(receipt.before_revision(), 8);
+    assert_eq!(receipt.after_revision(), 9);
+    assert_eq!(receipt.campaign(), world.campaign());
+    assert_eq!(
+        receipt.catalogue_fingerprint(),
+        world.catalogue_fingerprint()
+    );
+    assert_eq!(receipt.policy_sha256(), policy().sha256());
+    assert_eq!(
+        receipt
+            .item_ids()
+            .iter()
+            .map(|id| id.0.get())
+            .collect::<Vec<_>>(),
+        [1, 3]
+    );
+    assert_eq!(receipt.proofs().len(), 2);
+    for proof in receipt.proofs() {
+        assert_eq!(proof.state_revision, 8);
+        assert_eq!(proof.forms.len(), 1);
+        assert_eq!(proof.forms[0].role, Role::Base);
+    }
+    let mut expected = serde_json::to_value(&before).unwrap();
+    expected["state_revision"] = 9.into();
+    for (handle, facts) in &edits {
+        let id = world.item_id(*handle).unwrap();
+        let old = before
+            .inventory_banks
+            .iter()
+            .flat_map(|bank| &bank.items)
+            .find(|item| item.id() == id)
+            .unwrap();
+        let item = world.item(id).unwrap();
+        assert_eq!(item.owner(), old.owner());
+        assert_eq!(item.count(), old.count());
+        assert_eq!(item.facts(), facts);
+        let row = expected["inventory_banks"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .flat_map(|bank| bank["items"].as_array_mut().unwrap())
+            .find(|item| item["id"] == id.0.get())
+            .unwrap();
+        row["facts"] = serde_json::to_value(facts).unwrap();
+    }
+    let expected: Snapshot = serde_json::from_value(expected).unwrap();
+    assert_facts_before(&world, &expected);
+    let owner = ReferenceId(1.try_into().unwrap());
+    let peer = ReferenceId(2.try_into().unwrap());
+    assert_eq!(
+        receipt
+            .count_changes()
+            .iter()
+            .map(|row| (
+                row.owner().0.get(),
+                row.base().local_id,
+                row.before(),
+                row.after()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (1, 0x100, 13, 2),
+            (1, 0x101, 0, 11),
+            (2, 0x100, 0, 5),
+            (2, 0x101, 5, 0)
+        ]
+    );
+    assert_eq!(world.inventory_count(owner, &form(0x101)).unwrap(), 11);
+    assert_eq!(world.inventory_count(peer, &form(0x101)).unwrap(), 0);
+}
+#[test]
+fn source_facts_same_owner_swap_and_net_link_byte_capacity_are_order_independent() {
+    let (_root, catalogue, content) = facts_fixture();
+    let limits = Limits {
+        max_total_item_links: 24,
+        max_total_item_bytes: 9,
+        ..Limits::default()
+    };
+    let (mut world, edits) = facts_world(&catalogue, &content, limits);
+    let before = world.snapshot();
+    let second = world.item_handle(ItemId(2.try_into().unwrap())).unwrap();
+    let mut bigger = world.item_by_handle(edits[0].0).unwrap().facts().clone();
+    bigger.base = form(0x101);
+    bigger.extra_fields[0].bytes = vec![0, 255, 128, 1, 2, 3];
+    bigger.equipped_slots = Some(vec![7, 1, 9, 10]);
+    let smaller = Facts::unknown(form(0x100));
+    let edits = [(edits[0].0, bigger), (second, smaller)];
+    // Sequential first replacement exceeds both aggregate byte and link room;
+    // replacing the second lot in the same operation supplies that room.
+    assert!(
+        world
+            .replace_source_item_facts(
+                &content,
+                &policy(),
+                ItemId(1.try_into().unwrap()),
+                edits[0].1.clone()
+            )
+            .is_err()
+    );
+    assert_facts_before(&world, &before);
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    world
+        .commit_source_item_facts(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(world.revision(), before.state_revision + 1);
+    assert_eq!(world.snapshot().next_item, before.next_item);
+    assert_eq!(
+        world
+            .inventory_count(ReferenceId(1.try_into().unwrap()), &form(0x100))
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        world
+            .inventory_count(ReferenceId(1.try_into().unwrap()), &form(0x101))
+            .unwrap(),
+        11
+    );
+    let mut alternate = World::restore(&catalogue, before, limits).unwrap();
+    let reversed = edits
+        .iter()
+        .rev()
+        .map(|(handle, facts)| {
+            (
+                alternate
+                    .item_handle(world.item_id(*handle).unwrap())
+                    .unwrap(),
+                facts.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let stage = alternate
+        .stage_source_item_facts(&content, &policy(), &reversed, SourceFactsLimits::default())
+        .unwrap();
+    alternate
+        .commit_source_item_facts(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(alternate.snapshot(), world.snapshot());
+}
+#[test]
+fn source_facts_bad_last_source_or_fact_and_duplicate_item_refuse_before_publication() {
+    let (_root, catalogue, content) = facts_fixture();
+    let (world, edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    let mut variants = Vec::new();
+    for base in [form(0x110), form(0x200), form(0x777)] {
+        let mut facts = edits[1].1.clone();
+        facts.base = base;
+        variants.push(facts);
+    }
+    let mut facts = edits[1].1.clone();
+    facts.equipped_slots = Some(vec![7, 7]);
+    variants.push(facts);
+    let mut facts = edits[1].1.clone();
+    facts.ownership = Some(Ownership::Live {
+        reference: ReferenceId(999.try_into().unwrap()),
+    });
+    variants.push(facts);
+    let mut facts = edits[1].1.clone();
+    facts.script_instance = Some(InstanceId(999.try_into().unwrap()));
+    variants.push(facts);
+    let mut facts = edits[1].1.clone();
+    facts.modifications = Some(vec![form(0x113), form(0x777)]);
+    variants.push(facts);
+    let mut facts = edits[1].1.clone();
+    facts.ammo = Some(Ammo {
+        base: form(0x113),
+        count: 0,
+    });
+    variants.push(facts);
+    for facts in variants {
+        let bad = [edits[0].clone(), (edits[1].0, facts)];
+        assert!(
+            world
+                .stage_source_item_facts(&content, &policy(), &bad, SourceFactsLimits::default())
+                .is_err()
+        );
+        assert_facts_before(&world, &before);
+    }
+    let duplicate = [edits[0].clone(), edits[0].clone()];
+    assert!(matches!(
+        world.stage_source_item_facts(
+            &content,
+            &policy(),
+            &duplicate,
+            SourceFactsLimits::default()
+        ),
+        Err(Failure::State(fallout_runtime::Error::Invalid(_)))
+    ));
+    assert_facts_before(&world, &before);
+    let mut bad = edits;
+    bad[1].1.ownership = Some(Ownership::Faction {
+        key: form(0x111),
+        rank: -3,
+    });
+    let missing = Policy::new(&[(Role::Base, &[*b"ACTI"])]).unwrap();
+    assert!(matches!(
+        world.stage_source_item_facts(&content, &missing, &bad, SourceFactsLimits::default()),
+        Err(Failure::MissingRule(Role::FactionOwner))
+    ));
+    assert_facts_before(&world, &before);
+}
+#[test]
+fn source_facts_exact_one_under_copy_lot_link_source_and_net_canonical_bounds() {
+    let (_root, catalogue, content) = facts_fixture();
+    let (world, edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    let usage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap()
+        .usage();
+    let exact = SourceFactsLimits {
+        max_lots: 2,
+        max_links: 18,
+        max_source_checks: 2,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    assert_eq!(
+        world
+            .stage_source_item_facts(&content, &policy(), &edits, exact)
+            .unwrap()
+            .usage(),
+        usage
+    );
+    for limits in [
+        SourceFactsLimits {
+            max_lots: 1,
+            ..exact
+        },
+        SourceFactsLimits {
+            max_links: 17,
+            ..exact
+        },
+        SourceFactsLimits {
+            max_source_checks: 1,
+            ..exact
+        },
+        SourceFactsLimits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..exact
+        },
+        SourceFactsLimits {
+            max_copied_bytes: 0,
+            ..exact
+        },
+    ] {
+        assert!(
+            world
+                .stage_source_item_facts(&content, &policy(), &edits, limits)
+                .is_err()
+        );
+        assert_facts_before(&world, &before);
+    }
+    for limits in [
+        Limits {
+            max_total_item_links: 24,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_bytes: 9,
+            ..Limits::default()
+        },
+        Limits {
+            max_item_links: 8,
+            ..Limits::default()
+        },
+        Limits {
+            max_item_bytes: 6,
+            ..Limits::default()
+        },
+    ] {
+        let (world, edits) = facts_world(&catalogue, &content, limits);
+        let before = world.snapshot();
+        let mut bad = edits.clone();
+        bad[0].1 = world.item_by_handle(edits[0].0).unwrap().facts().clone();
+        bad[1].1 = world.item_by_handle(edits[1].0).unwrap().facts().clone();
+        bad[0].1.equipped_slots = Some((0..10).collect());
+        bad[0].1.extra_fields[0].bytes = vec![255; 7];
+        assert!(
+            world
+                .stage_source_item_facts(&content, &policy(), &bad, SourceFactsLimits::default())
+                .is_err()
+        );
+        assert_facts_before(&world, &before);
+    }
+}
+#[test]
+fn source_facts_empty_identical_exhausted_revision_and_drop_semantics_are_explicit() {
+    let (_root, catalogue, content) = facts_fixture();
+    let (mut world, edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    assert!(
+        world
+            .stage_source_item_facts(&content, &policy(), &[], SourceFactsLimits::default())
+            .is_err()
+    );
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    drop(stage);
+    assert_facts_before(&world, &before);
+    let identical = edits
+        .iter()
+        .map(|(handle, _)| {
+            (
+                *handle,
+                world.item_by_handle(*handle).unwrap().facts().clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let stage = world
+        .stage_source_item_facts(
+            &content,
+            &policy(),
+            &identical,
+            SourceFactsLimits::default(),
+        )
+        .unwrap();
+    assert!(stage.count_changes().is_empty());
+    let receipt = world
+        .commit_source_item_facts(&content, &policy(), stage)
+        .unwrap();
+    assert!(receipt.count_changes().is_empty());
+    let mut expected = before;
+    expected.state_revision += 1;
+    assert_facts_before(&world, &expected);
+    let ids = edits
+        .iter()
+        .map(|(handle, _)| world.item_id(*handle).unwrap())
+        .collect::<Vec<_>>();
+    expected.state_revision = u64::MAX;
+    world.replace_from_snapshot(expected.clone()).unwrap();
+    let current = edits
+        .iter()
+        .zip(ids)
+        .map(|((_, facts), id)| (world.item_handle(id).unwrap(), facts.clone()))
+        .collect::<Vec<_>>();
+    assert!(
+        world
+            .stage_source_item_facts(&content, &policy(), &current, SourceFactsLimits::default())
+            .is_err()
+    );
+    assert_facts_before(&world, &expected);
+}
+#[test]
+fn source_facts_stale_handles_stages_policy_content_and_peer_commit_never_partly_edit() {
+    let (_root, catalogue, content) = facts_fixture();
+    let (mut world, edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    let changed = Policy::new(&[(Role::Base, &[*b"ACTI", *b"MISC"])]).unwrap();
+    assert!(matches!(
+        world.commit_source_item_facts(&content, &changed, stage),
+        Err(Failure::Policy("facts edit policy changed"))
+    ));
+    assert_facts_before(&world, &before);
+    let other = tempfile::tempdir().unwrap();
+    drop(facts_fixture_at(other.path()));
+    let mut bytes = std::fs::read(other.path().join("FalloutNV.esm")).unwrap();
+    bytes.extend(record(b"MISC", 0x114, 0, &[]));
+    std::fs::write(other.path().join("FalloutNV.esm"), bytes).unwrap();
+    let mut store = RecordStore::open_nv_headers(
+        other.path(),
+        &["FalloutNV.esm".into()],
+        plugin::Limits::default(),
+    )
+    .unwrap();
+    let other_catalogue =
+        Catalogue::load(&mut store, CatalogueLimits::default(), |_, _| Ok(())).unwrap();
+    let other_content = Content::load(&mut store, &other_catalogue, 100).unwrap();
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    assert!(
+        world
+            .commit_source_item_facts(&other_content, &policy(), stage)
+            .is_err()
+    );
+    assert_facts_before(&world, &before);
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    let mut foreign = before.clone();
+    foreign.campaign = CampaignId::from_bytes([36; 16]).unwrap();
+    let mut foreign_world = World::restore(&catalogue, foreign.clone(), Limits::default()).unwrap();
+    assert!(
+        foreign_world
+            .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+            .is_err()
+    );
+    assert!(
+        foreign_world
+            .commit_source_item_facts(&content, &policy(), stage)
+            .is_err()
+    );
+    assert_facts_before(&foreign_world, &foreign);
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(
+        world
+            .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+            .is_err()
+    );
+    assert!(
+        world
+            .commit_source_item_facts(&content, &policy(), stage)
+            .is_err()
+    );
+    assert_facts_before(&world, &before);
+    let edits = [
+        (
+            world.item_handle(ItemId(1.try_into().unwrap())).unwrap(),
+            edits[0].1.clone(),
+        ),
+        (
+            world.item_handle(ItemId(3.try_into().unwrap())).unwrap(),
+            edits[1].1.clone(),
+        ),
+    ];
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    world
+        .remove_item_quantity(ItemId(3.try_into().unwrap()), 1.try_into().unwrap())
+        .unwrap();
+    let after = world.snapshot();
+    assert!(
+        world
+            .commit_source_item_facts(&content, &policy(), stage)
+            .is_err()
+    );
+    assert_facts_before(&world, &after);
+    let winner = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    let loser = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    world
+        .commit_source_item_facts(&content, &policy(), winner)
+        .unwrap();
+    let after = world.snapshot();
+    assert!(
+        world
+            .commit_source_item_facts(&content, &policy(), loser)
+            .is_err()
+    );
+    assert_facts_before(&world, &after);
+}
+#[test]
+fn source_facts_before_current_native_and_two_fresh_cold_consumers_are_exact() {
+    use std::{fs, process::Command};
+    let temporary = tempfile::tempdir().unwrap();
+    let retained = std::env::var_os("FALLOUT_SOURCE_FACTS_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained
+        .as_deref()
+        .unwrap_or(temporary.path())
+        .join("native-boundary");
+    fs::create_dir_all(&root).unwrap();
+    let (catalogue, content) = facts_fixture_at(&root);
+    let (mut world, edits) = facts_world(&catalogue, &content, Limits::default());
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let mut worker = SaveWorker::start(repository.clone(), 2).unwrap();
+    let first = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    let stage = world
+        .stage_source_item_facts(&content, &policy(), &edits, SourceFactsLimits::default())
+        .unwrap();
+    let receipt = world
+        .commit_source_item_facts(&content, &policy(), stage)
+        .unwrap();
+    let after = world.snapshot();
+    let second = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    worker.finish().unwrap();
+    assert_eq!(first.wait().unwrap().metadata.generation, 1);
+    assert_eq!(second.wait().unwrap().metadata.generation, 2);
+    fs::write(
+        root.join("expected.before.json"),
+        before.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("expected.after.json"),
+        after.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("facts.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    let current = fs::read(repository.path().join("current.frsv")).unwrap();
+    let previous = fs::read(repository.path().join("previous.frsv")).unwrap();
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    drop(world);
+    drop(catalogue);
+    drop(content);
+    for (phase, snapshot, wire) in [("before", &before, &previous), ("after", &after, &current)] {
+        let phase_root = root.join(phase);
+        fs::create_dir(&phase_root).unwrap();
+        let copy = Repository::create(&phase_root.join("native"), &[], snapshot.campaign).unwrap();
+        fs::write(copy.path().join("current.frsv"), wire).unwrap();
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_source_facts_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_SOURCE_FACTS_COLD_ROOT", &root)
+            .env("FALLOUT_SOURCE_FACTS_COLD_PHASE", phase)
+            .output()
+            .unwrap();
+        fs::write(phase_root.join("cold.stdout.txt"), &child.stdout).unwrap();
+        fs::write(phase_root.join("cold.stderr.txt"), &child.stderr).unwrap();
+        assert!(
+            child.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert_eq!(fs::read(copy.path().join("current.frsv")).unwrap(), *wire);
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        current
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        previous
+    );
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+#[test]
+#[ignore = "fresh source facts consumer invoked by parent"]
+fn cold_source_facts_helper() {
+    use std::fs;
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_SOURCE_FACTS_COLD_ROOT").unwrap());
+    let phase = std::env::var("FALLOUT_SOURCE_FACTS_COLD_PHASE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let repository = Repository::open(&root.join(&phase).join("native"), &[]).unwrap();
+    let (world, receipt) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    let expected = Snapshot::decode(
+        &fs::read(root.join(format!("expected.{phase}.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    assert_facts_before(&world, &expected);
+    let views = [1, 2]
+        .iter()
+        .map(|id| {
+            world
+                .inventory_view(
+                    ReferenceId((*id).try_into().unwrap()),
+                    ViewLimits {
+                        max_items: 2,
+                        max_links: 16,
+                        max_extra_bytes: 7,
+                    },
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    fs::write(
+        root.join(&phase).join("cold.restored.json"),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.views.json"),
+        serde_json::to_vec_pretty(&views).unwrap(),
     )
     .unwrap();
     fs::write(

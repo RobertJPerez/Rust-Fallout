@@ -562,8 +562,429 @@ fn initialization_next_item(next: u64, lots: usize) -> Result<u64> {
     next.checked_add(u64::try_from(lots).map_err(|_| Error::Capacity("item identities"))?)
         .ok_or(Error::Capacity("item identities"))
 }
+fn source_fact_copies(
+    facts: &Facts,
+    cohort_bytes: usize,
+    policy_bytes: usize,
+    usage: &mut SourceInventoryUsage,
+    limits: SourceInventoryLimits,
+) -> Result<()> {
+    usage.links = usage
+        .links
+        .checked_add(facts.links())
+        .ok_or(Error::Capacity("total item links"))?;
+    usage.extra_bytes = usage
+        .extra_bytes
+        .checked_add(facts.extra_bytes()?)
+        .ok_or(Error::Capacity("total item extra bytes"))?;
+    for bytes in [
+        size_of::<crate::source_items::Proof>(),
+        cohort_bytes,
+        policy_bytes,
+        facts_copy_payload(facts)?,
+        size_of::<BTreeSet<u16>>(),
+    ] {
+        initialization_charge(usage, bytes, limits)?;
+    }
+    initialization_table(
+        usage,
+        facts.equipped_slots.as_ref().map_or(0, Vec::len),
+        size_of::<u16>(),
+        limits,
+    )?;
+    initialization_source_key(usage, &facts.base, limits)?;
+    if let Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) = &facts.ownership {
+        initialization_source_key(usage, key, limits)?;
+    }
+    if let Some(ammo) = &facts.ammo {
+        initialization_source_key(usage, &ammo.base, limits)?;
+    }
+    if let Some(modifications) = &facts.modifications {
+        for key in modifications {
+            initialization_source_key(usage, key, limits)?;
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SourceFactsLimits {
+    pub max_lots: usize,
+    /// Original and replacement Facts links, including repeated supplied values.
+    pub max_links: usize,
+    pub max_source_checks: usize,
+    /// Logical stage and described validation/lookup copies, not process peak.
+    pub max_copied_bytes: usize,
+}
+impl Default for SourceFactsLimits {
+    fn default() -> Self {
+        Self {
+            max_lots: 256,
+            max_links: 32_768,
+            max_source_checks: 32_768,
+            max_copied_bytes: 2 * 1024 * 1024,
+        }
+    }
+}
+/// Lots counts edits; links and opaque bytes include originals and replacements.
+/// Source checks count replacement roles only. Copy admission reuses the source
+/// inventory staging charges and their capacity failure categories.
+pub type SourceFactsUsage = SourceInventoryUsage;
+#[derive(Debug)]
+pub struct SourceFactsRow {
+    original: Item,
+    replacement: Facts,
+}
+impl SourceFactsRow {
+    pub fn original(&self) -> &Item {
+        &self.original
+    }
+    pub fn replacement(&self) -> &Facts {
+        &self.replacement
+    }
+}
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct SourceFactsCountChange {
+    owner: ReferenceId,
+    base: FormKey,
+    before: u64,
+    after: u64,
+}
+impl SourceFactsCountChange {
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn base(&self) -> &FormKey {
+        &self.base
+    }
+    pub fn before(&self) -> u64 {
+        self.before
+    }
+    pub fn after(&self) -> u64 {
+        self.after
+    }
+}
+#[derive(Debug)]
+#[must_use = "staging edits no lots; commit the facts batch or drop it"]
+pub struct StagedSourceFacts {
+    epoch: u64,
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    revision: u64,
+    next_item: u64,
+    rows: Vec<SourceFactsRow>,
+    proofs: Vec<crate::source_items::Proof>,
+    counts: Vec<SourceFactsCountChange>,
+    added_links: usize,
+    added_bytes: usize,
+    removed_links: usize,
+    removed_bytes: usize,
+    usage: SourceFactsUsage,
+}
+impl StagedSourceFacts {
+    pub fn rows(&self) -> &[SourceFactsRow] {
+        &self.rows
+    }
+    pub fn count_changes(&self) -> &[SourceFactsCountChange] {
+        &self.counts
+    }
+    pub fn usage(&self) -> SourceFactsUsage {
+        self.usage
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct SourceFactsReceipt {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    before_revision: u64,
+    after_revision: u64,
+    item_ids: Vec<ItemId>,
+    proofs: Vec<crate::source_items::Proof>,
+    counts: Vec<SourceFactsCountChange>,
+    usage: SourceFactsUsage,
+}
+impl SourceFactsReceipt {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn policy_sha256(&self) -> &str {
+        &self.policy_sha256
+    }
+    pub fn before_revision(&self) -> u64 {
+        self.before_revision
+    }
+    pub fn after_revision(&self) -> u64 {
+        self.after_revision
+    }
+    pub fn item_ids(&self) -> &[ItemId] {
+        &self.item_ids
+    }
+    pub fn proofs(&self) -> &[crate::source_items::Proof] {
+        &self.proofs
+    }
+    pub fn count_changes(&self) -> &[SourceFactsCountChange] {
+        &self.counts
+    }
+    pub fn usage(&self) -> SourceFactsUsage {
+        self.usage
+    }
+}
+#[derive(Default)]
+struct SourceFactsDelta {
+    before: u64,
+    outgoing: u64,
+    incoming: u64,
+}
+fn source_facts_count_after(before: u64, outgoing: u64, incoming: u64) -> Result<u64> {
+    before
+        .checked_sub(outgoing)
+        .ok_or_else(|| Error::Invalid("source facts count index inconsistent".into()))?
+        .checked_add(incoming)
+        .ok_or(Error::Capacity("source facts count"))
+}
 
 impl World<'_> {
+    fn source_facts_membership(&self, item: &Item) -> Result<()> {
+        self.inventory_owner(item.owner)?;
+        if !self.inventory_banks[&item.owner].contains(&item.id) {
+            return Err(Error::Invalid(
+                "source facts bank membership inconsistent".into(),
+            ));
+        }
+        Ok(())
+    }
+    /// Empty or duplicate groups refuse. A nonempty explicit edit publishes one
+    /// revision even when the supplied facts equal the originals, matching the
+    /// existing single-lot replacement operation.
+    pub fn stage_source_item_facts(
+        &self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        edits: &[(ItemHandle, Facts)],
+        limits: SourceFactsLimits,
+    ) -> crate::source_items::Result<StagedSourceFacts> {
+        content.validate_world(self)?;
+        if edits.is_empty() {
+            return Err(Error::Invalid("empty source facts edits".into()).into());
+        }
+        if edits.len() > limits.max_lots {
+            return Err(Error::Capacity("source facts lots").into());
+        }
+        let copies = SourceInventoryLimits {
+            max_lots: limits.max_lots,
+            max_source_checks: limits.max_source_checks,
+            max_copied_bytes: limits.max_copied_bytes,
+        };
+        let mut usage = SourceFactsUsage {
+            lots: edits.len(),
+            ..SourceFactsUsage::default()
+        };
+        for bytes in [
+            size_of::<StagedSourceFacts>(),
+            size_of::<BTreeSet<ItemId>>(),
+            size_of::<BTreeMap<(ReferenceId, &FormKey), SourceFactsDelta>>(),
+            self.cohort.len(),
+            policy.sha256().len(),
+        ] {
+            initialization_charge(&mut usage, bytes, copies)?;
+        }
+        let mut removed_links = 0_usize;
+        let mut removed_bytes = 0_usize;
+        // Borrowed-only precharge. Original facts are retained to compare exact
+        // lot authority at commit, and replacement source roles use the same
+        // bounded admission as source inventory initialization.
+        for (handle, replacement) in edits {
+            let item = self.item_by_handle(*handle)?;
+            self.source_facts_membership(item)?;
+            for bytes in [
+                size_of::<SourceFactsRow>(),
+                size_of::<ItemId>(),
+                facts_copy_payload(&item.facts)?,
+            ] {
+                initialization_charge(&mut usage, bytes, copies)?;
+            }
+            removed_links = removed_links
+                .checked_add(item.facts.links())
+                .ok_or(Error::Capacity("source facts links"))?;
+            removed_bytes = removed_bytes
+                .checked_add(item.facts.extra_bytes()?)
+                .ok_or(Error::Capacity("source facts extra bytes"))?;
+            source_fact_copies(
+                replacement,
+                self.cohort.len(),
+                policy.sha256().len(),
+                &mut usage,
+                copies,
+            )?;
+        }
+        let added_links = usage.links;
+        let added_bytes = usage.extra_bytes;
+        usage.links = usage
+            .links
+            .checked_add(removed_links)
+            .ok_or(Error::Capacity("source facts links"))?;
+        usage.extra_bytes = usage
+            .extra_bytes
+            .checked_add(removed_bytes)
+            .ok_or(Error::Capacity("source facts extra bytes"))?;
+        if usage.links > limits.max_links {
+            return Err(Error::Capacity("source facts links").into());
+        }
+        self.item_capacity_changes(added_links, added_bytes, removed_links, removed_bytes)?;
+        self.next_revision()?;
+        let mut unique = BTreeSet::new();
+        let mut deltas = BTreeMap::<(ReferenceId, &FormKey), SourceFactsDelta>::new();
+        for (handle, facts) in edits {
+            let item = self.item_by_handle(*handle)?;
+            if !unique.insert(item.id) {
+                return Err(Error::Invalid("duplicate source facts item".into()).into());
+            }
+            if item.facts.base == facts.base {
+                continue;
+            }
+            for (base, outgoing) in [(&item.facts.base, true), (&facts.base, false)] {
+                let delta = match deltas.entry((item.owner, base)) {
+                    Entry::Vacant(entry) => {
+                        for bytes in [
+                            size_of::<((ReferenceId, &FormKey), SourceFactsDelta)>(),
+                            size_of::<SourceFactsCountChange>(),
+                            base.origin_plugin.len(),
+                            size_of::<(ReferenceId, FormKey)>(),
+                            base.origin_plugin.len(),
+                        ] {
+                            initialization_charge(&mut usage, bytes, copies)?;
+                        }
+                        entry.insert(SourceFactsDelta {
+                            before: self.count_total(item.owner, base),
+                            ..SourceFactsDelta::default()
+                        })
+                    }
+                    Entry::Occupied(entry) => entry.into_mut(),
+                };
+                let value = if outgoing {
+                    &mut delta.outgoing
+                } else {
+                    &mut delta.incoming
+                };
+                *value = value
+                    .checked_add(u64::from(item.count.get()))
+                    .ok_or(Error::Capacity("source facts count"))?;
+            }
+        }
+        // Check all net totals before cloning keys or producing owned diagnostics.
+        for delta in deltas.values() {
+            source_facts_count_after(delta.before, delta.outgoing, delta.incoming)?;
+        }
+        let mut proofs = Vec::with_capacity(edits.len());
+        for (_, facts) in edits {
+            proofs.push(crate::source_items::validate(self, content, policy, facts)?);
+        }
+        let counts = deltas
+            .into_iter()
+            .map(|((owner, base), delta)| {
+                Ok(SourceFactsCountChange {
+                    owner,
+                    base: base.clone(),
+                    before: delta.before,
+                    after: source_facts_count_after(delta.before, delta.outgoing, delta.incoming)?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(StagedSourceFacts {
+            epoch: self.epoch,
+            campaign: self.campaign,
+            catalogue_sha256: self.cohort.clone(),
+            policy_sha256: policy.sha256().into(),
+            revision: self.revision,
+            next_item: self.next_item,
+            rows: edits
+                .iter()
+                .map(|(handle, replacement)| SourceFactsRow {
+                    original: self.items[&handle.id].clone(),
+                    replacement: replacement.clone(),
+                })
+                .collect(),
+            proofs,
+            counts,
+            added_links,
+            added_bytes,
+            removed_links,
+            removed_bytes,
+            usage,
+        })
+    }
+    pub fn commit_source_item_facts(
+        &mut self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        stage: StagedSourceFacts,
+    ) -> crate::source_items::Result<SourceFactsReceipt> {
+        if stage.epoch != self.epoch {
+            return Err(Error::StaleHandle.into());
+        }
+        content.validate_world(self)?;
+        if stage.campaign != self.campaign || stage.catalogue_sha256 != self.cohort {
+            return Err(Error::DefinitionChanged.into());
+        }
+        if stage.policy_sha256 != policy.sha256() {
+            return Err(crate::source_items::Failure::Policy(
+                "facts edit policy changed",
+            ));
+        }
+        if stage.revision != self.revision || stage.next_item != self.next_item {
+            return Err(Error::Invalid("source facts boundary changed".into()).into());
+        }
+        for row in &stage.rows {
+            if self.item(row.original.id)? != &row.original {
+                return Err(Error::Invalid("source facts lot changed".into()).into());
+            }
+            self.source_facts_membership(&row.original)?;
+        }
+        for count in &stage.counts {
+            if self.count_total(count.owner, &count.base) != count.before {
+                return Err(Error::Invalid("source facts count observation changed".into()).into());
+            }
+        }
+        let (links, bytes) = self.item_capacity_changes(
+            stage.added_links,
+            stage.added_bytes,
+            stage.removed_links,
+            stage.removed_bytes,
+        )?;
+        let revision = self.next_revision()?;
+        let item_ids = stage.rows.iter().map(|row| row.original.id).collect();
+        let before_revision = self.revision;
+        // All admission is complete. Move facts into the exact existing lots;
+        // quantities, owners, bank membership, IDs and allocators stay intact.
+        for row in stage.rows {
+            self.items
+                .get_mut(&row.original.id)
+                .expect("observed lot")
+                .facts = row.replacement;
+        }
+        for count in &stage.counts {
+            self.set_count_total(count.owner, count.base.clone(), count.after);
+        }
+        self.item_links = links;
+        self.item_bytes = bytes;
+        self.revision = revision;
+        Ok(SourceFactsReceipt {
+            campaign: stage.campaign,
+            catalogue_sha256: stage.catalogue_sha256,
+            policy_sha256: stage.policy_sha256,
+            before_revision,
+            after_revision: revision,
+            item_ids,
+            proofs: stage.proofs,
+            counts: stage.counts,
+            usage: stage.usage,
+        })
+    }
     fn source_inventory_capacity(
         &self,
         owner: ReferenceId,
@@ -623,44 +1044,14 @@ impl World<'_> {
         // Borrowed-only admission first: no Facts, Proof or diagnostic source
         // key is cloned until all described logical staging copies fit.
         for (facts, _) in lots {
-            usage.links = usage
-                .links
-                .checked_add(facts.links())
-                .ok_or(Error::Capacity("total item links"))?;
-            usage.extra_bytes = usage
-                .extra_bytes
-                .checked_add(facts.extra_bytes()?)
-                .ok_or(Error::Capacity("total item extra bytes"))?;
-            for bytes in [
-                size_of::<(Facts, NonZeroU32)>(),
-                size_of::<crate::source_items::Proof>(),
+            initialization_charge(&mut usage, size_of::<(Facts, NonZeroU32)>(), limits)?;
+            source_fact_copies(
+                facts,
                 self.cohort.len(),
                 policy.sha256().len(),
-                facts_copy_payload(facts)?,
-                size_of::<BTreeSet<u16>>(),
-            ] {
-                initialization_charge(&mut usage, bytes, limits)?;
-            }
-            initialization_table(
                 &mut usage,
-                facts.equipped_slots.as_ref().map_or(0, Vec::len),
-                size_of::<u16>(),
                 limits,
             )?;
-            initialization_source_key(&mut usage, &facts.base, limits)?;
-            if let Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) =
-                &facts.ownership
-            {
-                initialization_source_key(&mut usage, key, limits)?;
-            }
-            if let Some(ammo) = &facts.ammo {
-                initialization_source_key(&mut usage, &ammo.base, limits)?;
-            }
-            if let Some(modifications) = &facts.modifications {
-                for key in modifications {
-                    initialization_source_key(&mut usage, key, limits)?;
-                }
-            }
         }
         let (_, _, final_next_item) =
             self.source_inventory_capacity(owner, lots.len(), usage.links, usage.extra_bytes)?;
@@ -1398,5 +1789,15 @@ mod source_inventory_tests {
         assert!(initialization_next_item(u64::MAX - 2, 3).is_err());
         assert_eq!(initialization_next_item(u64::MAX, 0).unwrap(), u64::MAX);
         assert!(initialization_next_item(0, 0).is_err());
+    }
+    #[test]
+    fn source_facts_net_counts_accept_full_swap_and_refuse_overflow_or_underflow() {
+        assert_eq!(source_facts_count_after(u64::MAX, 1, 1).unwrap(), u64::MAX);
+        assert_eq!(
+            source_facts_count_after(u64::MAX, u64::MAX, u64::MAX).unwrap(),
+            u64::MAX
+        );
+        assert!(source_facts_count_after(u64::MAX, 0, 1).is_err());
+        assert!(source_facts_count_after(0, 1, 0).is_err());
     }
 }

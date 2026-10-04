@@ -595,6 +595,16 @@ enum Command {
         #[arg(long)]
         install: PathBuf,
     },
+    /// Observe explicit NV configuration sources; runtime precedence remains unverified.
+    VfsProfile {
+        #[arg(long)]
+        install: PathBuf,
+        /// Explicit Windows Known Folder Documents root, including redirects.
+        #[arg(long)]
+        documents: PathBuf,
+        #[arg(long)]
+        local_appdata: PathBuf,
+    },
     /// Count all top-level ESM/ESP records and BSA entries, preserving unknowns.
     Census {
         #[arg(long)]
@@ -1821,6 +1831,34 @@ fn run(args: Args) -> Result<()> {
             if !complete {
                 return Err("baseline is missing required inputs; see the report".into());
             }
+        }
+        Command::VfsProfile {
+            install,
+            documents,
+            local_appdata,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for root in [&documents, &local_appdata] {
+                    if parent.starts_with(protected_tree(root)?) {
+                        return Err(
+                            "profile report output must be outside all configuration source roots"
+                                .into(),
+                        );
+                    }
+                }
+            }
+            let report = fallout_data::vfs::profile::observe(
+                &install,
+                &documents,
+                &local_appdata,
+                Default::default(),
+            )?;
+            emit(&report, output, &install)?;
         }
         Command::Census {
             install,

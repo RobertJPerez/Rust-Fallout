@@ -356,7 +356,7 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
             .map(|s| scene.overlap_sphere(s.center, s.radius, QueryBudget::default()))
             .transpose()?
             .unwrap_or_default(),
-        query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; convex/packed shell margins excluded; source axes retained",
+        query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; certified convex cuboids use exact eight-corner vertex hull with source-f32 supporting-plane certificate; convex/packed shell margins excluded; source axes retained",
         faithful_ready: scene.faithful_ready(),
     })
 }

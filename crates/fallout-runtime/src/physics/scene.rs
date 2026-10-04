@@ -58,6 +58,85 @@ fn charge(left: &mut usize, count: usize, name: &'static str) -> QueryResult<()>
     *left = left.checked_sub(count).ok_or(QueryError::Budget(name))?;
     Ok(())
 }
+
+/// This bounded family is the actual convex hull of all eight authored corners,
+/// not a bounds approximation of arbitrary collision vertices or visual meshes.
+fn convex_cuboid(block: u32, vertices: &[[f32; 4]], planes: &[[f32; 4]]) -> QueryResult<Shape> {
+    let refused = || {
+        unsupported(
+            block,
+            "convex source is not a certified eight-corner cuboid",
+        )
+    };
+    if vertices.len() != 8
+        || planes.len() != 6
+        || vertices
+            .iter()
+            .any(|v| v[3] != 0. || v.iter().any(|x| !x.is_finite()))
+        || planes.iter().any(|p| p.iter().any(|x| !x.is_finite()))
+    {
+        return Err(refused());
+    }
+    let minimum: [f32; 3] =
+        std::array::from_fn(|i| vertices.iter().map(|v| v[i]).fold(f32::INFINITY, f32::min));
+    let maximum: [f32; 3] = std::array::from_fn(|i| {
+        vertices
+            .iter()
+            .map(|v| v[i])
+            .fold(f32::NEG_INFINITY, f32::max)
+    });
+    if (0..3).any(|i| minimum[i] >= maximum[i]) {
+        return Err(refused());
+    }
+    let mut corners = 0u8;
+    for vertex in vertices {
+        let mut corner = 0;
+        for i in 0..3 {
+            if vertex[i] == maximum[i] {
+                corner |= 1 << i;
+            } else if vertex[i] != minimum[i] {
+                return Err(refused());
+            }
+        }
+        let bit = 1 << corner;
+        if corners & bit != 0 {
+            return Err(refused());
+        }
+        corners |= bit;
+    }
+    let mut faces = 0u8;
+    for plane in planes {
+        if plane[..3].iter().filter(|v| **v != 0.).count() != 1 {
+            return Err(refused());
+        }
+        let axis = plane[..3]
+            .iter()
+            .position(|v| *v != 0.)
+            .expect("one plane axis");
+        let positive = plane[axis] > 0.;
+        let boundary = if positive {
+            maximum[axis]
+        } else {
+            minimum[axis]
+        };
+        // Exact source-f32 product relation allows authored normal drift while
+        // keeping raw planes. Query geometry is explicitly the vertex hull.
+        if plane[3] != -(plane[axis] * boundary) {
+            return Err(refused());
+        }
+        let bit = 1 << (2 * axis + usize::from(positive));
+        if faces & bit != 0 {
+            return Err(refused());
+        }
+        faces |= bit;
+    }
+    Ok(Shape::ConvexCuboid {
+        minimum: minimum.map(f64::from),
+        maximum: maximum.map(f64::from),
+        _source_vertices: Box::new(vertices.try_into().expect("eight checked source vertices")),
+        _source_planes: Box::new(planes.try_into().expect("six checked source planes")),
+    })
+}
 fn geometry(
     block: u32,
     data: &Data,
@@ -168,8 +247,17 @@ fn geometry(
             }
             return Ok(result);
         }
-        Data::ConvexVertices { .. } => {
-            return Err(unsupported(block, "convex hull core query not implemented"));
+        Data::ConvexVertices {
+            vertices,
+            planes,
+            radius: r,
+            material,
+            ..
+        } => {
+            radius(block, *r)?;
+            charge(elements, vertices.len(), "convex source elements")?;
+            charge(elements, planes.len(), "convex source elements")?;
+            (convex_cuboid(block, vertices, planes)?, *material, *r)
         }
         _ => {
             return Err(unsupported(

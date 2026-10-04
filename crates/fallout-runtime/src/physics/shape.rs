@@ -4,7 +4,18 @@ use super::{QueryError, QueryResult, math::*};
 pub(super) enum Shape {
     Sphere(f64),
     Box(V),
-    Capsule { a: V, b: V, radius: f64 },
+    ConvexCuboid {
+        minimum: V,
+        maximum: V,
+        // Retain the authored certificate verbatim, including signed zero.
+        _source_vertices: Box<[[f32; 4]; 8]>,
+        _source_planes: Box<[[f32; 4]; 6]>,
+    },
+    Capsule {
+        a: V,
+        b: V,
+        radius: f64,
+    },
     Triangle([V; 3]),
 }
 
@@ -177,6 +188,30 @@ fn capsule_contains(p: V, a: V, b: V, radius: f64) -> QueryResult<bool> {
     Ok(distance < radius)
 }
 
+fn cuboid_distance2(p: V, minimum: V, maximum: V) -> f64 {
+    (0..3)
+        .map(|i| (p[i] - p[i].clamp(minimum[i], maximum[i])).powi(2))
+        .sum()
+}
+
+fn cuboid_ray(o: V, d: V, minimum: V, maximum: V) -> Option<f64> {
+    let mut enter: f64 = 0.;
+    let mut exit = f64::INFINITY;
+    for i in 0..3 {
+        if d[i] == 0. {
+            if o[i] < minimum[i] || o[i] > maximum[i] {
+                return None;
+            }
+        } else {
+            let a = (minimum[i] - o[i]) / d[i];
+            let b = (maximum[i] - o[i]) / d[i];
+            enter = enter.max(a.min(b));
+            exit = exit.min(a.max(b));
+        }
+    }
+    (enter <= exit).then_some(enter)
+}
+
 /// Closest point lies either on a triangle edge or inside its perpendicular
 /// projection. Degenerate triangles remain lines/points for distance queries.
 fn triangle_distance2(p: V, [a, b, c]: [V; 3]) -> f64 {
@@ -213,12 +248,10 @@ impl Shape {
     pub fn overlap(&self, p: V, r: f64) -> bool {
         match *self {
             Self::Sphere(radius) => dot(p, p) <= (r + radius) * (r + radius),
-            Self::Box(extents) => {
-                (0..3)
-                    .map(|i| (p[i].abs() - extents[i]).max(0.).powi(2))
-                    .sum::<f64>()
-                    <= r * r
-            }
+            Self::Box(extents) => cuboid_distance2(p, extents.map(|v| -v), extents) <= r * r,
+            Self::ConvexCuboid {
+                minimum, maximum, ..
+            } => cuboid_distance2(p, minimum, maximum) <= r * r,
             Self::Capsule { a, b, radius } => {
                 segment_distance2(p, a, b) <= (r + radius) * (r + radius)
             }
@@ -231,23 +264,10 @@ impl Shape {
         }
         Ok(match *self {
             Self::Sphere(radius) => sphere_ray(o, d, [0.; 3], radius)?,
-            Self::Box(extents) => {
-                let mut enter: f64 = 0.;
-                let mut exit = f64::INFINITY;
-                for i in 0..3 {
-                    if d[i] == 0. {
-                        if o[i].abs() > extents[i] {
-                            return Ok(None);
-                        }
-                    } else {
-                        let a = (-extents[i] - o[i]) / d[i];
-                        let b = (extents[i] - o[i]) / d[i];
-                        enter = enter.max(a.min(b));
-                        exit = exit.min(a.max(b));
-                    }
-                }
-                (enter <= exit).then_some(enter)
-            }
+            Self::Box(extents) => cuboid_ray(o, d, extents.map(|v| -v), extents),
+            Self::ConvexCuboid {
+                minimum, maximum, ..
+            } => cuboid_ray(o, d, minimum, maximum),
             Self::Capsule { a, b, radius } => {
                 // Axis projection loses source offsets for long/thin geometry.
                 if 128. * f64::EPSILON * (length(sub(o, a)) + length(sub(b, a))) > radius {

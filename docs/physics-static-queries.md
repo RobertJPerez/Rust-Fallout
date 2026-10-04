@@ -2,7 +2,8 @@
 
 `fallout_runtime::physics::StaticScene` consumes the existing collision decoder.
 Its first engineering slice supports spheres, box half extents, equal-radius
-capsules, and uncompressed packed triangles, including shared shape DAGs,
+capsules, certified eight-corner convex cuboids, and uncompressed packed triangles,
+including shared shape DAGs,
 transform/list/MOPP wrappers, and active `bhkRigidBodyT` poses. Unsupported selected
 geometry fails the whole build. There is no visual mesh collider or second parser.
 
@@ -35,12 +36,22 @@ triangle index, material, source body/subpart filter words, welding and shell ra
 All filters are included in this engineering slice; no retail filter behavior is
 inferred. Nonzero list overrides are explicitly unsupported.
 
-Convex hulls and compressed packed vertices remain unsupported in this first
+General convex hulls and compressed packed vertices remain unsupported in this first
 slice. Box/packed convex shell margins are retained but **excluded from core
 queries**. MOPP code is retained by decoding; exhaustive child queries need no
 interpretation of its acceleration instructions. There is no constraint solver,
 body activation, dynamic response, character sweep/step controller or measured
 retail unit conversion. `faithful_ready()` always returns false.
+
+A `bhkConvexVerticesShape` is admitted only when eight finite `w=0` vertices
+are exactly the eight distinct corners of a nondegenerate cuboid and six finite
+outward planes cover each axis face once. Each plane's offset must equal its
+normal times the corresponding vertex coordinate under source binary32 rounding.
+Queries use the exact cuboid vertex hull. The authored planes can differ from
+that hull by binary32 rounding; their complete words remain retained alongside
+the source vertices and shell radius. This certificate uses no contact or
+transform tolerance. Missing, duplicated, interior or nonaxis vertices/planes
+refuse before publication. Arbitrary convex geometry never becomes its bounds.
 
 Build limits bound input block indexing, all shape visits (including shared
 paths), expanded primitive occurrences and geometry elements. Iterative traversal

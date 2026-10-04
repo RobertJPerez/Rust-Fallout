@@ -993,6 +993,7 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             original_trace,
             replacement_trace,
             replacement_copy,
+            replacement_multi_copy,
         } => {
             let report = script_trace::inspect(script_trace::Inputs {
                 install: &install,
@@ -1003,6 +1004,7 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
                 original: original_trace.as_deref(),
                 replacement: replacement_trace.as_deref(),
                 replacement_copy: replacement_copy.as_deref(),
+                replacement_multi_copy: replacement_multi_copy.as_deref(),
             })?;
             emit(&report, output, &protected_tree(&install)?)?;
             if report["comparison"]["status"] != "matched" {

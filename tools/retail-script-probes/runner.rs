@@ -26,6 +26,7 @@ pub(crate) struct Inputs<'a> {
     pub original: Option<&'a Path>,
     pub replacement: Option<&'a Path>,
     pub replacement_copy: Option<&'a Path>,
+    pub replacement_multi_copy: Option<&'a Path>,
 }
 
 fn bounded_bytes(path: &Path, maximum: usize) -> Result<Vec<u8>> {
@@ -50,7 +51,16 @@ fn read<T: DeserializeOwned>(path: &Path) -> Result<(T, String)> {
     ))
 }
 pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
-    if inputs.replacement.is_some() && inputs.replacement_copy.is_some() {
+    if [
+        inputs.replacement,
+        inputs.replacement_copy,
+        inputs.replacement_multi_copy,
+    ]
+    .iter()
+    .filter(|input| input.is_some())
+    .count()
+        > 1
+    {
         return Err("choose imported replacement or actual engineering copy".into());
     }
     let (manifest, manifest_sha256): (trace::Manifest, _) = read(inputs.manifest)?;
@@ -58,6 +68,10 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
     let replacement = inputs.replacement.map(read::<trace::Capture>).transpose()?;
     let copy_request = inputs
         .replacement_copy
+        .map(read::<copy_probe::Request>)
+        .transpose()?;
+    let multi_request = inputs
+        .replacement_multi_copy
         .map(read::<copy_probe::Request>)
         .transpose()?;
     let receipt = bounded_bytes(inputs.profile_receipt, 1024 * 1024)?;
@@ -79,7 +93,9 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
     let mut store = order.store(inputs.install, inputs.cache)?;
     let catalogue = Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
     let sources = PreparedSources::load(&catalogue, &model, &signatures, Default::default())?;
-    let copy_observation = if let Some((request, digest)) = &copy_request {
+    let mut copy_observation = None;
+    let mut multi_observation = None;
+    if let Some((request, digest)) = copy_request.as_ref().or(multi_request.as_ref()) {
         let content = Content::load(&mut store, &catalogue, 1_000_000)?;
         let producer = File::open(std::env::current_exe()?)?;
         let mut limited = producer.take(256 * 1024 * 1024 + 1);
@@ -87,23 +103,38 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
         if bytes > 256 * 1024 * 1024 {
             return Err("copy producer executable byte budget exceeded".into());
         }
-        Some(copy_probe::observe(
-            &sources,
-            &content,
-            &manifest,
-            request,
-            &producer_sha256,
-            digest,
-            Default::default(),
-        )?)
-    } else {
-        None
-    };
+        if multi_request.is_some() {
+            multi_observation = Some(copy_probe::observe_multi_copy(
+                &sources,
+                &content,
+                &manifest,
+                request,
+                &producer_sha256,
+                digest,
+                Default::default(),
+            )?);
+        } else {
+            copy_observation = Some(copy_probe::observe(
+                &sources,
+                &content,
+                &manifest,
+                request,
+                &producer_sha256,
+                digest,
+                Default::default(),
+            )?);
+        }
+    }
     let actual_replacement = replacement
         .as_ref()
         .map(|(capture, _)| capture)
         .or_else(|| {
             copy_observation
+                .as_ref()
+                .map(|observation| &observation.capture)
+        })
+        .or_else(|| {
+            multi_observation
                 .as_ref()
                 .map(|observation| &observation.capture)
         });
@@ -120,7 +151,7 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
         actual_replacement,
         &comparison,
     )?;
-    Ok(json!({
+    let mut report = json!({
         "schema_version": 1,
         "scope": "imported_semantic_observations_against_prepared_source",
         "manifest_sha256": manifest_sha256,
@@ -136,5 +167,36 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
         "retail_execution_performed": false,
         "capture_transport_authenticated": false,
         "faithful_execution_admitted": false,
-    }))
+    });
+    if multi_request.is_some() {
+        report["schema_version"] = json!(2);
+        report["multi_copy_request_sha256"] = json!(multi_request.as_ref().map(|(_, hash)| hash));
+        report["replacement_observation"] = serde_json::to_value(multi_observation)?;
+        // Count the complete encoded report before the host emits any bytes.
+        let mut counter = ReportBudget {
+            written: 0,
+            maximum: 8 * 1024 * 1024,
+        };
+        serde_json::to_writer_pretty(&mut counter, &report)?;
+        std::io::Write::write_all(&mut counter, b"\n")?;
+    }
+    Ok(report)
+}
+
+struct ReportBudget {
+    written: usize,
+    maximum: usize,
+}
+impl std::io::Write for ReportBudget {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.written = self
+            .written
+            .checked_add(bytes.len())
+            .filter(|&total| total <= self.maximum)
+            .ok_or_else(|| std::io::Error::other("multi-copy report byte budget exceeded"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }

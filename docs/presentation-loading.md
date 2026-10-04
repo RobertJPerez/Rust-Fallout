@@ -18,6 +18,12 @@ worker. A cancelled or superseded epoch cannot yield an admitted result. Closing
 the window cancels this host's request; opaque source operations finish their
 existing bounded work before dropping their result.
 
+Close retains a cancelled preparation owner in the draining phase, including any
+result queued before the close message. It does not implicitly drop that queued
+scene on the window update. If updates continue, the same bounded retirement
+path consumes the result. If the application exits, remaining app-owned payloads
+are released during teardown outside the update loop.
+
 In-window cancellation retains the worker until it returns, without joining an
 active decoder in the update loop. Retry during that wait or GPU disposal is
 ignored rather than queued. A result queued immediately before cancellation goes

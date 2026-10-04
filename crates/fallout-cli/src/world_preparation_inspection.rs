@@ -1994,7 +1994,7 @@ mod tests {
         let parsed = crate::Args::try_parse_from(args).unwrap();
         assert!(matches!(
             parsed.command,
-            crate::Command::PersistentCellSources { .. }
+            crate::Command::World(crate::WorldCommand::PersistentCellSources { .. })
         ));
         assert!(crate::Args::try_parse_from(args.into_iter().chain(["--grid=0,0"])).is_err());
     }

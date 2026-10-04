@@ -1,8 +1,11 @@
 # Eight agents building one usable engine
 
 Prepared October 4, 2026 UTC for Robert Perez. This replaces the six-agent team.
-Setup is paused. Start Agent 1 first, then the seven worker sessions. Submitting
-the coordinator prompt authorizes activation; preparing these files does not.
+The prepared team was activated under Robert's continuous-work instruction.
+The current run, leases and STOP state are in `local/team/control.json` and the
+lane assignments. Continue an active run rather than creating a new run ID for
+each follow-up message. After a stop, Agent 1 reconciles preservation and leases
+before activating another authorized run.
 
 The immediate product target is a source-driven New Vegas route with visible
 actors, collision, scripts, dialogue consequences and cold Continue. NV and each
@@ -76,6 +79,13 @@ unchanged failing experiment or manufacture a new inspector just to stay busy.
    send an integration-priority message. Coordinator handles that lane next.
    Independent measured consumer work may continue; do not grow an unlimited
    dependent branch. There is no instruction to waste credits polling.
+7. A handoff finishes a slice. It never finishes the continuous authorized Goal
+   or requires Robert to restart the session. Select the next ready task or a
+   bounded independent task within ownership. Leave the Goal active across normal
+   turn endings. Agent 1 counts ready work at every handoff and refills before a
+   lane has fewer than six tasks, aiming for twelve. If another lane needs help,
+   scoped read-only review can start immediately; writing ownership transfers
+   only after a preserved clean boundary and notification to both owners.
 
 ## Coordinator work is engineering work
 

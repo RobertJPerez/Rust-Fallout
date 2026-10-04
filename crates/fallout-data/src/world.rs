@@ -2,6 +2,7 @@
 //! Coordinates remain in source units. No renderer or simulation is implied.
 pub mod dependencies;
 pub mod preparation;
+pub mod residency;
 
 use crate::{
     Result,

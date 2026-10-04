@@ -4,6 +4,7 @@ mod input;
 mod loading;
 mod material;
 mod model;
+mod pose;
 mod scene;
 mod startup;
 mod terrain;
@@ -42,6 +43,12 @@ struct Options {
     /// Archive path, for example meshes/furniture/chair01.nif.
     #[arg(long, requires = "install")]
     model: Option<String>,
+    /// Display exactly this source skin geometry in its stored local pose.
+    #[arg(long, requires_all = ["model", "skin_weight_tolerance"])]
+    skin_geometry: Option<u32>,
+    /// Validate raw unit weight sums; never repair or normalize weights.
+    #[arg(long, requires = "skin_geometry")]
+    skin_weight_tolerance: Option<f64>,
     /// Interior CELL editor ID, for example GSDocMitchellHouse.
     #[arg(long, requires_all = ["load_order", "install"])]
     cell: Option<String>,
@@ -298,6 +305,12 @@ fn prepare_scene(
         scene::load_model(
             options.install.as_deref().expect("clap requires install"),
             &AssetPath::new(name.as_bytes())?,
+            options.skin_geometry.map(|geometry| pose::SkinRequest {
+                geometry,
+                absolute_weight_tolerance: options
+                    .skin_weight_tolerance
+                    .expect("clap requires tolerance"),
+            }),
         )?
     } else if let Some(name) = &options.terrain {
         terrain::load(

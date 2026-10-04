@@ -17,6 +17,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
+quick-xml = { version = "=0.42.0", default-features = false }
 
 [lints]
 workspace = true

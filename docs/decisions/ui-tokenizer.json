@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "scope": "Exact quick-xml tokenizer dependency for the existing source UI presentation consumer",
+  "package": {
+    "name": "quick-xml",
+    "version": "0.42.0",
+    "default_features": false,
+    "archive_url": "https://static.crates.io/crates/quick-xml/quick-xml-0.42.0.crate",
+    "archive_sha256": "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b",
+    "declared_license": "MIT",
+    "declared_rust_version": "1.86",
+    "vcs": {
+      "git": {
+        "sha1": "36a2c52a4f6c90878c3f60c3c3b5c62efaef28a9"
+      },
+      "path_in_vcs": ""
+    },
+    "normal_dependency": "Existing memchr, with no optional features or build script",
+    "bundled_license": "docs/licenses/quick-xml-LICENSE-MIT.md"
+  },
+  "consumer_contract": [
+    "Use bounded already-admitted source bytes through Reader::from_reader(slice) or from_str; do not let the tokenizer open files.",
+    "Preserve raw source spans, ordered attributes/text/entity references, include declarations and unknown UI operators. GeneralRef is a source observation, not an instruction to resolve a custom entity.",
+    "Do not execute or fetch DTD/external entities. Preserve DocType as source data or explicitly refuse it; do not supply an entity resolver or derive runtime traits/defaults from unresolved source.",
+    "Charge source bytes, depth, events, retained raw/string bytes and output before copying. Preserve whitespace instead of global trimming; unavailable encodings or malformed input refuse explicitly.",
+    "Source UI structure is separate from original tile evaluation, fonts, input navigation and gameplay acceptance."
+  ],
+  "primary_api_references": [
+    "https://docs.rs/quick-xml/0.42.0/quick_xml/reader/struct.Reader.html",
+    "https://docs.rs/quick-xml/0.42.0/quick_xml/reader/struct.Config.html",
+    "https://docs.rs/quick-xml/0.42.0/quick_xml/events/enum.Event.html"
+  ],
+  "source_review": "Packaged manifests, MIT notice, VCS metadata and entire slice-reader implementation read; API documentation reviewed. No full transitive per-file or retail UI evaluation audit claimed.",
+  "validation": {
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 check --locked -p fallout-preview --all-targets --jobs 1",
+    "exit_code": 0,
+    "source_unchanged": true,
+    "existing_package_count_unchanged": 430,
+    "new_package_count": 1,
+    "existing_package_edges_unchanged_except_preview_to_quick_xml": true,
+    "receipt_sha256": "089c4e98d9a9272f1dacb45171d27fe47420f3b01ad033126a40b1832caef8cb",
+    "log_sha256": "1af06c2dee7d768e532a63cfea345c318f2aef44f541f7f33399cf05ae00ad45",
+    "source_ui_tokenization_or_retail_behavior_verified": false
+  }
+}

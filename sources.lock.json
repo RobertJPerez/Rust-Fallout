@@ -2050,6 +2050,33 @@
         "Implementation and behavior not audited in this checkpoint"
       ],
       "test_data_provenance": "No build or test performed for this catalog entry"
+    },
+    {
+      "url": "https://github.com/tafia/quick-xml",
+      "commit": "36a2c52a4f6c90878c3f60c3c3b5c62efaef28a9",
+      "role": "Pinned source UI tokenizer dependency for the existing preview consumer",
+      "inspected_paths": [
+        "Cargo.toml",
+        "Cargo.toml.orig",
+        "LICENSE-MIT.md",
+        ".cargo_vcs_info.json",
+        "src/reader/slice_reader.rs"
+      ],
+      "license_status": "Packaged MIT declaration and complete notice reviewed; bundled notice. No full transitive per-file audit claimed.",
+      "license_files": [
+        "LICENSE-MIT.md"
+      ],
+      "language": "Rust",
+      "build_result": "Exact0.42.0 package resolved; locked preview all-target check passed with source identities unchanged and all430 existing package identities unchanged.",
+      "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 check --locked -p fallout-preview --all-targets --jobs 1",
+      "supported_variants_verified": [
+        "Dependency compilation in the existing Windows MSVC preview configuration"
+      ],
+      "known_omissions": [
+        "No UI source, tile evaluation, font, input navigation or retail behavior acceptance from this dependency check"
+      ],
+      "test_data_provenance": "Source-only dependency check; no game assets or upstream example assets executed",
+      "notes": "Exact crates.io0.42.0 archive SHA41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b and packaged VCS metadata; no default/optional features, no build script, only existing memchr normal dependency. Reader operates on bounded admitted bytes; custom entities and include/operator semantics remain explicit source observations."
     }
   ],
   "other_references": [

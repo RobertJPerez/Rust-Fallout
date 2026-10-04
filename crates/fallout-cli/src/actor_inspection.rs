@@ -10,6 +10,106 @@ use fallout_data::{
 use serde_json::{Value, json};
 use std::{io::Read, path::Path};
 
+fn condition_signatures(
+    descriptors: &command_catalogue::Catalogue,
+) -> condition_operands::Signatures {
+    descriptors
+        .script_commands
+        .iter()
+        .filter(|row| row.condition_handler_present)
+        .map(|row| {
+            (
+                (row.id - 0x1000) as u16,
+                condition_operands::Signature {
+                    parameters: row
+                        .parameters
+                        .iter()
+                        .map(|parameter| condition_operands::Parameter {
+                            type_id: parameter.type_id,
+                            optional_word: parameter.optional_word,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect()
+}
+
+pub(super) struct ContextOptions<'a> {
+    pub(super) actor_root: &'a FormKey,
+    pub(super) snapshot: &'a Path,
+    pub(super) explicit_subject: Option<std::num::NonZeroU64>,
+    pub(super) engineering_observation: bool,
+    pub(super) condition_executable: Option<&'a Path>,
+}
+
+/// Restore the existing canonical snapshot, then make read-only host requests.
+pub(super) fn package_context(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    options: ContextOptions<'_>,
+) -> Result<Value> {
+    use fallout_runtime::{
+        World, actor_rules::packages, execution::condition, foreign::Content, snapshot::Snapshot,
+    };
+    let limits = fallout_runtime::Limits::default();
+    let mut snapshot_source = baseline::open_source(options.snapshot)?;
+    let mut snapshot_bytes = Vec::new();
+    (&mut snapshot_source)
+        .take(limits.max_snapshot_bytes as u64 + 1)
+        .read_to_end(&mut snapshot_bytes)?;
+    let snapshot = Snapshot::decode(&snapshot_bytes, limits)?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
+    let world = World::restore(&scripts, snapshot, limits)?;
+    let content = Content::load(&mut store, &scripts, 2_000_000)?;
+    let inventory = inventory::Catalogue::load(&mut store, Default::default())?;
+    let actors = actors::Catalogue::load(&inventory, Default::default())?;
+    let associations =
+        actors::associations::Catalogue::load(&mut store, &actors, Default::default())?;
+    let package_sources = actors::packages::Catalogue::load(&mut store, Default::default())?;
+    let executable = install.join("FalloutNV.exe");
+    let descriptors =
+        command_catalogue::inspect(options.condition_executable.unwrap_or(&executable))?;
+    let dependencies = actors::package_dependencies::Catalogue::load(
+        &mut store,
+        &package_sources,
+        &scripts,
+        &condition_signatures(&descriptors),
+        Default::default(),
+    )?;
+    let requests = packages::Requests::prepare(
+        &world,
+        &actors,
+        &associations,
+        &dependencies,
+        options.actor_root,
+        packages::Limits::default(),
+    )?;
+    let intent = if options.engineering_observation {
+        condition::Intent::EngineeringObservation
+    } else {
+        condition::Intent::Faithful
+    };
+    let observation = requests.observe(
+        &world,
+        &content,
+        options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId),
+        intent,
+        packages::Limits::default(),
+    )?;
+    let (snapshot_bytes, snapshot_sha256) = baseline::digest_file(options.snapshot)?;
+    Ok(json!({"schema_version":1,"profile":"nv-original",
+        "snapshot_input":{"bytes":snapshot_bytes,"sha256":snapshot_sha256},
+        "descriptor_receipt":{"source_bytes":descriptors.source_bytes,"source_sha256":descriptors.source_sha256,
+            "source_version_profile":descriptors.source_version_profile},
+        "observation":observation,"state_changed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}))
+}
+
 #[derive(Default)]
 pub(super) struct Options {
     pub(super) include_associations: bool,
@@ -21,6 +121,7 @@ pub(super) struct Options {
     pub(super) include_package_dependencies: bool,
     pub(super) include_dependencies: bool,
     pub(super) include_render_dependencies: bool,
+    pub(super) include_template_dependencies: bool,
     pub(super) dependency_roots: Vec<FormKey>,
 }
 
@@ -64,6 +165,11 @@ pub(super) fn inspect(
             "render dependencies require --include-dependencies and an explicit --dependency-root"
                 .into(),
         );
+    }
+    if options.include_template_dependencies
+        && (!options.include_dependencies || options.dependency_roots.is_empty())
+    {
+        return Err("template dependencies require --include-dependencies and an explicit --dependency-root".into());
     }
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -142,26 +248,7 @@ pub(super) fn inspect(
         ));
         if options.include_package_dependencies {
             let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
-            let signatures: condition_operands::Signatures = descriptors
-                .script_commands
-                .iter()
-                .filter(|row| row.condition_handler_present)
-                .map(|row| {
-                    (
-                        (row.id - 0x1000) as u16,
-                        condition_operands::Signature {
-                            parameters: row
-                                .parameters
-                                .iter()
-                                .map(|parameter| condition_operands::Parameter {
-                                    type_id: parameter.type_id,
-                                    optional_word: parameter.optional_word,
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .collect();
+            let signatures = condition_signatures(&descriptors);
             let scripts =
                 loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
             let dependencies = actors::package_dependencies::Catalogue::load(
@@ -211,7 +298,20 @@ pub(super) fn inspect(
         let mut manifests = Vec::new();
         let mut render_manifests = Vec::new();
         let mut render_remaining = actors::dependencies::RenderLimits::default();
+        let mut template_remaining = actors::dependencies::TemplateLimits::default();
+        let mut template_manifests = Vec::new();
         for root in &options.dependency_roots {
+            if options.include_template_dependencies {
+                let template = dependencies.template_manifest(root, template_remaining)?;
+                template_remaining.closure.max_nodes -= template.structural_closure.nodes.len();
+                template_remaining.closure.max_edges -=
+                    template.structural_closure.edge_indices.len();
+                template_remaining.max_sources -= template.candidate_sources.len();
+                template_remaining.max_links -= template.links.len();
+                template_remaining.max_field_visits -= template.field_visits;
+                template_remaining.max_issues -= template.issues.len();
+                template_manifests.push(template);
+            }
             let render = if options.include_render_dependencies {
                 Some(dependencies.render_manifest(
                     root,
@@ -250,6 +350,13 @@ pub(super) fn inspect(
             report["actor_render_dependencies"] = json!({"manifests":render_manifests});
             report["scope"] = json!(format!(
                 "{}; selected authored actor render roles with explicit unsupported template/equipment selection",
+                report["scope"].as_str().unwrap_or_default()
+            ));
+        }
+        if options.include_template_dependencies {
+            report["actor_template_dependencies"] = json!({"manifests":template_manifests});
+            report["scope"] = json!(format!(
+                "{}; pinned template category declaration requests and exact candidate origins, no effective inheritance",
                 report["scope"].as_str().unwrap_or_default()
             ));
         }
@@ -328,6 +435,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err(
             "independent actor source comparison differs in actor_render_dependencies".into(),
+        );
+    }
+    if report.get("actor_template_dependencies").is_some()
+        && report.get("actor_template_dependencies") != oracle.get("actor_template_dependencies")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_template_dependencies".into(),
         );
     }
     if report.get("actor_package_dependencies").is_some()

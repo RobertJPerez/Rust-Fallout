@@ -1,5 +1,6 @@
 //! A small inspection host for the production decoder, not a gameplay runtime.
 mod fixture;
+mod input;
 mod material;
 mod model;
 mod scene;
@@ -191,7 +192,7 @@ fn run() -> model::Result<AppExit> {
         ),
     }
     eprintln!(
-        "Tab: orbit/fly; fly: WASD, Q/E vertical, arrows look, Shift faster; R: reset; Esc: close"
+        "Tab/Select: orbit/fly; WASD/left stick: move; Q/E or shoulders: vertical/zoom; arrows/right stick or right-drag: look; wheel: orbit zoom; Shift/left stick click: faster; R/Y: reset; Esc/Start: close"
     );
     if let Some(path) = &options.report
         && !options.material_fixture
@@ -224,6 +225,13 @@ fn run() -> model::Result<AppExit> {
         home,
     };
     let headless = options.headless;
+    let input_context = if headless || options.material_fixture {
+        input::Context::Suspended
+    } else if navigation.fly {
+        input::Context::Fly
+    } else {
+        input::Context::Orbit
+    };
     let mut plugins = DefaultPlugins
         .set(WindowPlugin {
             primary_window: (!headless).then(|| Window {
@@ -259,6 +267,8 @@ fn run() -> model::Result<AppExit> {
     }
     app.add_plugins(plugins)
         .add_plugins(material::InspectionPlugin)
+        .add_plugins(input::InspectionInputPlugin)
+        .insert_resource(input_context)
         .insert_resource(options)
         .insert_resource(prepared)
         .insert_resource(orbit)
@@ -385,9 +395,14 @@ fn setup(
     });
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Bevy separates camera, input, time and application exit owners"
+)]
 fn controls(
     options: Res<Options>,
-    keys: Res<ButtonInput<KeyCode>>,
+    actions: Res<input::Actions>,
+    mut context: ResMut<input::Context>,
     time: Res<Time>,
     mut orbit: ResMut<Orbit>,
     mut navigation: ResMut<Navigation>,
@@ -397,46 +412,49 @@ fn controls(
     if options.material_fixture {
         return;
     }
-    if keys.just_pressed(KeyCode::Escape) {
+    if actions.close {
         exit.write(AppExit::Success);
+        return;
     }
     let delta = time.delta_secs().min(0.1);
-    let direction = |positive, negative| {
-        f32::from(u8::from(keys.pressed(positive))) - f32::from(u8::from(keys.pressed(negative)))
-    };
-    if keys.just_pressed(KeyCode::Tab) {
+    if actions.toggle {
         navigation.fly = !navigation.fly;
+        *context = if navigation.fly {
+            input::Context::Fly
+        } else {
+            input::Context::Orbit
+        };
+        // The current sample belongs to the old camera mode. The input owner
+        // quarantines its held buttons/sticks on the next context sample.
+        return;
     }
     if navigation.fly {
         for mut transform in &mut cameras {
-            if keys.just_pressed(KeyCode::KeyR) {
+            if actions.reset {
                 *transform = navigation.home;
+                continue;
             }
-            let yaw = direction(KeyCode::ArrowLeft, KeyCode::ArrowRight) * delta;
-            let pitch = direction(KeyCode::ArrowUp, KeyCode::ArrowDown) * delta;
+            let yaw = -actions.look.x * delta - actions.pointer_look.x * 0.003;
+            let pitch = actions.look.y * delta - actions.pointer_look.y * 0.003;
             transform.rotate_y(yaw);
             // Keep a small margin from vertical to avoid an ambiguous up direction.
             let current_pitch = transform.forward().y.asin();
             transform.rotate_local_x((current_pitch + pitch).clamp(-1.5, 1.5) - current_pitch);
-            let movement = transform.forward().as_vec3() * direction(KeyCode::KeyW, KeyCode::KeyS)
-                + transform.right().as_vec3() * direction(KeyCode::KeyD, KeyCode::KeyA)
-                + Vec3::Y * direction(KeyCode::KeyE, KeyCode::KeyQ);
-            let speed = if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) {
-                600.
-            } else {
-                180.
-            };
-            transform.translation += movement.normalize_or_zero() * speed * delta;
+            let movement = transform.forward().as_vec3() * actions.movement.y
+                + transform.right().as_vec3() * actions.movement.x
+                + Vec3::Y * actions.movement.z;
+            let speed = if actions.fast { 600. } else { 180. };
+            transform.translation += movement.clamp_length_max(1.) * speed * delta;
         }
         return;
     }
-    orbit.yaw += (direction(KeyCode::KeyD, KeyCode::KeyA)
-        + direction(KeyCode::ArrowRight, KeyCode::ArrowLeft))
-        * delta;
-    orbit.pitch = (orbit.pitch + direction(KeyCode::KeyW, KeyCode::KeyS) * delta).clamp(-1.4, 1.4);
-    orbit.distance = (orbit.distance * (direction(KeyCode::KeyE, KeyCode::KeyQ) * delta).exp())
+    orbit.yaw += (actions.movement.x + actions.look.x) * delta + actions.pointer_look.x * 0.003;
+    orbit.pitch = (orbit.pitch + (actions.movement.y + actions.look.y) * delta
+        - actions.pointer_look.y * 0.003)
+        .clamp(-1.4, 1.4);
+    orbit.distance = (orbit.distance * (actions.movement.z * delta - actions.scroll * 0.1).exp())
         .clamp(orbit.radius * 0.1, orbit.radius * 20.);
-    if keys.just_pressed(KeyCode::KeyR) {
+    if actions.reset {
         orbit.yaw = 2.5;
         orbit.pitch = 0.3;
         orbit.distance = orbit.radius * 3.;
@@ -520,5 +538,69 @@ fn main() -> std::process::ExitCode {
             eprintln!("{error}");
             std::process::ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn camera_consumer_retains_analog_speed_and_does_not_apply_old_mode_actions() {
+        let mut app = App::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(Duration::from_millis(50));
+        app.insert_resource(time)
+            .insert_resource(
+                Options::try_parse_from([
+                    "fallout-preview",
+                    "--model",
+                    "fixture.nif",
+                    "--install",
+                    ".",
+                ])
+                .unwrap(),
+            )
+            .insert_resource(Orbit {
+                center: Vec3::ZERO,
+                radius: 1.,
+                yaw: 0.,
+                pitch: 0.,
+                distance: 3.,
+            })
+            .insert_resource(Navigation {
+                fly: true,
+                home: Transform::IDENTITY,
+            })
+            .insert_resource(input::Context::Fly)
+            .insert_resource(input::Actions {
+                movement: Vec3::Y * 0.5,
+                ..default()
+            })
+            .add_message::<AppExit>()
+            .add_systems(Update, controls);
+        let camera = app
+            .world_mut()
+            .spawn((Camera3d::default(), Transform::IDENTITY))
+            .id();
+        app.update();
+        let position = app.world().get::<Transform>(camera).unwrap().translation;
+        // Half stick deflection, 180 source units/second, 50 ms: 4.5 units.
+        assert!((position - Vec3::new(0., 0., -4.5)).length() < 1e-5);
+        *app.world_mut().resource_mut::<input::Actions>() = input::Actions {
+            movement: Vec3::Y,
+            toggle: true,
+            ..default()
+        };
+        app.update();
+        assert_eq!(
+            app.world().get::<Transform>(camera).unwrap().translation,
+            position
+        );
+        assert_eq!(
+            *app.world().resource::<input::Context>(),
+            input::Context::Orbit
+        );
+        assert!(!app.world().resource::<Navigation>().fly);
     }
 }

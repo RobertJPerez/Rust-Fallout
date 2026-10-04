@@ -37,6 +37,7 @@ mod script_trace;
 mod shared_runtime_inspection;
 mod source_item_inspection;
 mod terrain_compare;
+mod world_preparation_inspection;
 
 use clap::{Parser, Subcommand};
 use fallout_data::{
@@ -95,6 +96,19 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Evaluate linked translation/scale at explicit source time; playback unverified.
+    NifSourcePose {
+        input: PathBuf,
+        /// Sample exact NiVisController local visibility; parent/clock semantics unapplied.
+        #[arg(long)]
+        local_visibility: bool,
+        #[arg(long)]
+        object: u32,
+        #[arg(long)]
+        controller: u32,
+        #[arg(long, allow_hyphen_values = true)]
+        source_time: f64,
+    },
     /// Decode bounded authored animation framing and compare raw native fields.
     NifAnimation {
         input: PathBuf,
@@ -223,6 +237,28 @@ enum Command {
         dependency_roots: Vec<identity::FormKey>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
         include_render_dependencies: bool,
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
+        include_template_dependencies: bool,
+    },
+    /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
+    ActorPackageContext {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long, value_parser = actor_inspection::parse_root)]
+        actor_root: identity::FormKey,
+        #[arg(long)]
+        native_snapshot: PathBuf,
+        #[arg(long)]
+        explicit_subject: Option<std::num::NonZeroU64>,
+        #[arg(long)]
+        engineering_observation: bool,
+        /// Exact pinned descriptor image, also usable with authored plugin fixtures.
+        #[arg(long)]
+        condition_executable: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -366,6 +402,9 @@ enum Command {
         original_trace: Option<PathBuf>,
         #[arg(long)]
         replacement_trace: Option<PathBuf>,
+        /// Produce engineering own-local copies through canonical commit APIs.
+        #[arg(long, conflicts_with = "replacement_trace")]
+        replacement_copy: Option<PathBuf>,
     },
     /// Inspect source operands against explicit live engineering storage.
     EventOperands {
@@ -454,6 +493,24 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+    },
+    /// Prepare an explicitly requested winning topic/INFO for source consumers.
+    ConversationSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Canonical origin-plugin:local-hex-id; never a runtime load-order slot.
+        #[arg(long)]
+        topic: String,
+        #[arg(long)]
+        info: String,
+        #[arg(long)]
+        speaker: Option<String>,
+        #[arg(long)]
+        bind_result_fragments: bool,
     },
     /// Preserve authored quest/dialogue sections and condition/script ownership.
     Narrative {
@@ -807,6 +864,68 @@ fn emit(value: &impl Serialize, output: Option<&Path>, source: &Path) -> Result<
     Ok(())
 }
 
+#[cfg(test)]
+mod numeric_transport_tests {
+    #[test]
+    fn json_ray_coordinates_keep_the_requested_binary64_words() {
+        // These words come from a near-tangent analytic ray. Moving either
+        // value by one ULP changes the intersection, before physics even runs.
+        let text = "[-229.11445911534562,610.4858273951352,-758.1652980544283,0.23005015640173943,-0.6101330235002654,0.7581652980544282]";
+        let expected = [
+            0xc06ca3a9a629a46f,
+            0x408313e2f9792cda,
+            0xc087b15287c94ee5,
+            0x3fcd72489517b330,
+            0xbfe38635b0c4956b,
+            0x3fe842e3df036338,
+        ];
+        let typed: Vec<f64> = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            typed
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        let report: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            report
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_f64().unwrap().to_bits())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    #[test]
+    fn json_round_trips_finite_words_across_the_binary64_range() {
+        let mut words = vec![
+            0,
+            1 << 63,
+            1,
+            (1 << 63) | 1,
+            f64::MAX.to_bits(),
+            (-f64::MAX).to_bits(),
+        ];
+        let mut seed = 0x8a5cd789635d2dff_u64;
+        for _ in 0..1024 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            if f64::from_bits(seed).is_finite() {
+                words.push(seed);
+            }
+        }
+        for word in words {
+            let text = serde_json::to_string(&f64::from_bits(word)).unwrap();
+            let restored: f64 = serde_json::from_str(&text).unwrap();
+            assert_eq!(restored.to_bits(), word, "JSON changed {word:016x}: {text}");
+        }
+    }
+}
+
 fn protected_tree(source: &Path) -> Result<PathBuf> {
     let source = source.canonicalize()?;
     let directory = if source.is_file() {
@@ -925,6 +1044,7 @@ fn run(args: Args) -> Result<()> {
             include_dependencies,
             dependency_roots,
             include_render_dependencies,
+            include_template_dependencies,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -941,6 +1061,7 @@ fn run(args: Args) -> Result<()> {
                     include_dependencies,
                     dependency_roots,
                     include_render_dependencies,
+                    include_template_dependencies,
                 },
             )?;
             if let Some(oracle) = compare_oracle {
@@ -983,6 +1104,30 @@ fn run(args: Args) -> Result<()> {
             {
                 return Err("actor source inspection retains source findings; see report".into());
             }
+        }
+        Command::ActorPackageContext {
+            install,
+            load_order,
+            index_cache,
+            actor_root,
+            native_snapshot,
+            explicit_subject,
+            engineering_observation,
+            condition_executable,
+        } => {
+            let report = actor_inspection::package_context(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                actor_inspection::ContextOptions {
+                    actor_root: &actor_root,
+                    snapshot: &native_snapshot,
+                    explicit_subject,
+                    engineering_observation,
+                    condition_executable: condition_executable.as_deref(),
+                },
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::BaseInventory {
             install,
@@ -1146,6 +1291,7 @@ fn run(args: Args) -> Result<()> {
             profile_receipt,
             original_trace,
             replacement_trace,
+            replacement_copy,
         } => {
             let report = script_trace::inspect(script_trace::Inputs {
                 install: &install,
@@ -1155,6 +1301,7 @@ fn run(args: Args) -> Result<()> {
                 profile_receipt: &profile_receipt,
                 original: original_trace.as_deref(),
                 replacement: replacement_trace.as_deref(),
+                replacement_copy: replacement_copy.as_deref(),
             })?;
             emit(&report, output, &protected_tree(&install)?)?;
             if report["comparison"]["status"] != "matched" {
@@ -1324,6 +1471,29 @@ fn run(args: Args) -> Result<()> {
             if failed {
                 return Err("dialogue membership has unresolved topic links; see report".into());
             }
+        }
+        Command::ConversationSources {
+            install,
+            load_order,
+            index_cache,
+            topic,
+            info,
+            speaker,
+            bind_result_fragments,
+        } => {
+            let request = world_preparation_inspection::Input {
+                topic: parse_cell_key(&topic)?,
+                info: parse_cell_key(&info)?,
+                speaker: speaker.as_deref().map(parse_cell_key).transpose()?,
+                bind_result_fragments,
+            };
+            let report = world_preparation_inspection::conversation(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                request,
+            )?;
+            emit(&report, output, &install)?;
         }
         Command::Narrative {
             install,
@@ -1637,6 +1807,41 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifSourcePose {
+            input,
+            local_visibility,
+            object,
+            controller,
+            source_time,
+        } => {
+            if local_visibility {
+                let report = nif_animation_inspection::inspect_visibility(
+                    &input,
+                    fallout_data::nif_animation::visibility::Request {
+                        object,
+                        controller,
+                        source_time,
+                    },
+                )?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("local visibility sample refused; see report".into());
+                }
+                return Ok(());
+            }
+            let report = nif_animation_inspection::inspect_pose(
+                &input,
+                fallout_data::nif_animation::pose::Request {
+                    object,
+                    controller,
+                    source_time,
+                },
+            )?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("linked source pose refused; see report".into());
             }
         }
         Command::NifAnimation {

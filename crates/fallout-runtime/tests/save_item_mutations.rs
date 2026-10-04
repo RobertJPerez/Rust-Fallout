@@ -6,7 +6,7 @@ use fallout_runtime::{
     events::Context,
     foreign::Content,
     identity::{CampaignId, Owner, ReferenceId, ReferenceValue, Value},
-    inventory::{Ammo, Condition, Facts, OpaqueExtra, Ownership},
+    inventory::{Ammo, Condition, Facts, OpaqueExtra, Ownership, ViewLimits},
     query::{Entry, GET_ITEM_COUNT_COMMAND, GET_ITEM_COUNT_CONDITION, Request},
     save::{self, Captured, CompletionError, Recovery, Repository, SaveWorker, format},
     snapshot::Snapshot,
@@ -162,7 +162,31 @@ fn observations(
             assert_eq!(pair[0], pair[1]);
         }
     }
-    json!({"counts":counts,"calls":calls})
+    let views = owners
+        .iter()
+        .map(|&owner| {
+            let view = world
+                .inventory_view(
+                    owner,
+                    ViewLimits {
+                        max_items: 8,
+                        max_links: 128,
+                        max_extra_bytes: 4096,
+                    },
+                )
+                .unwrap();
+            let bank = snapshot
+                .inventory_banks
+                .iter()
+                .find(|bank| bank.owner == owner);
+            assert_eq!(view.items(), bank.map(|bank| bank.items.as_slice()));
+            assert_eq!(view.revision(), snapshot.state_revision);
+            assert_eq!(view.campaign(), snapshot.campaign);
+            assert_eq!(view.catalogue_fingerprint(), snapshot.catalogue_sha256);
+            view
+        })
+        .collect::<Vec<_>>();
+    json!({"counts":counts,"calls":calls,"inventory_views":views})
 }
 fn archive(
     root: &Path,

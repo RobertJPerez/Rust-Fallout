@@ -289,19 +289,69 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
 }
 
 pub fn source_camera(position: [f64; 3], target: [f64; 3], origin: [f64; 3]) -> Result<Transform> {
-    if position.iter().chain(&target).any(|v| !v.is_finite()) {
+    if position
+        .iter()
+        .chain(&target)
+        .chain(&origin)
+        .any(|v| !v.is_finite())
+    {
         return Err("camera coordinates must be finite".into());
     }
     let position =
         Vec3::from_array(coordinates::source_to_view(position, origin).map(|v| v as f32));
     let target = Vec3::from_array(coordinates::source_to_view(target, origin).map(|v| v as f32));
     let direction = target - position;
+    // Finite endpoints can subtract to infinity, and a finite direction can
+    // overflow while computing its length. Bevy look_to substitutes NEG_Z when
+    // Dir3 conversion fails; a source camera must refuse that changed facing.
+    let (facing, length) = Dir3::new_and_length(direction)
+        .map_err(|_| "camera direction must have a finite nonzero length")?;
     if !position.is_finite()
         || !target.is_finite()
-        || direction.length() < 0.001
-        || direction.normalize().cross(Vec3::Y).length() < 0.001
+        || length < 0.001
+        || facing.cross(Vec3::Y).length() < 0.001
     {
         return Err("camera position/target must define a finite nonvertical view".into());
     }
-    Ok(Transform::from_translation(position).looking_at(target, Vec3::Y))
+    Ok(Transform::from_translation(position).looking_to(facing, Dir3::Y))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_camera_rejects_finite_endpoint_subtraction_and_length_overflow() {
+        let max = f64::from(f32::MAX);
+        assert!(source_camera([-max, 0., 0.], [max, 0., 0.], [0.; 3]).is_err());
+        assert!(source_camera([0.; 3], [1e30, 0., 0.], [0.; 3]).is_err());
+    }
+
+    #[test]
+    fn source_camera_rejects_degenerate_nonfinite_and_narrowing_failures() {
+        for (position, target, origin) in [
+            ([0.; 3], [0.; 3], [0.; 3]),
+            ([0.; 3], [0., 0., 10.], [0.; 3]),
+            ([0.; 3], [0.0001, 0., 0.], [0.; 3]),
+            ([f64::NAN, 0., 0.], [1.; 3], [0.; 3]),
+            ([0.; 3], [f64::INFINITY, 0., 0.], [0.; 3]),
+            ([0.; 3], [1.; 3], [f64::NAN, 0., 0.]),
+            ([f64::MAX, 0., 0.], [0.; 3], [-f64::MAX, 0., 0.]),
+            ([1e20, 0., 0.], [1e20 + 1., 0., 0.], [0.; 3]),
+        ] {
+            assert!(source_camera(position, target, origin).is_err());
+        }
+    }
+
+    #[test]
+    fn source_camera_keeps_declared_facing_and_rebased_position() {
+        // The source +Y direction is view -Z; +X remains +X. These expectations
+        // are basis vectors, independent of the production camera calculation.
+        for (target, facing) in [([10., 25., 30.], Vec3::NEG_Z), ([15., 20., 30.], Vec3::X)] {
+            let camera = source_camera([10., 20., 30.], target, [9., 18., 27.]).unwrap();
+            assert_eq!(camera.translation, Vec3::new(1., 3., -2.));
+            assert!((camera.forward().as_vec3() - facing).length() < 1e-6);
+            assert!(camera.rotation.is_finite());
+        }
+    }
 }

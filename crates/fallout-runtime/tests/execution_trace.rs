@@ -12,7 +12,7 @@ use fallout_data::{
 use fallout_runtime::{
     World,
     events::{Context, Trigger},
-    execution::{local_copy, native, trace::*},
+    execution::{copy_probe, local_copy, native, trace::*},
     foreign::Content,
     identity::{CampaignId, Owner, Value},
     programs::PreparedSources,
@@ -488,6 +488,151 @@ fn malformed_source_words_schemas_and_exact_limits_have_precise_refusals() {
 }
 
 #[test]
+fn encoded_source_caller_and_assignment_destination_cannot_be_relabelled() {
+    let prefixed = [
+        vec![0x1c, 0, 1, 0],
+        instruction(0x102f, &[1, 0, b'r', 1, 0]),
+    ]
+    .concat();
+    let (_directory, catalogue, _) = fixture(&event(&prefixed));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut manifest = manifest(
+        plan,
+        sources.source_cohort_sha256(),
+        Operation::GetItemCount,
+        10,
+    );
+    manifest.steps[0].caller.calling_reference = Some(form(0x100));
+    let original = capture(
+        &manifest,
+        Producer::Original,
+        StepOutput {
+            return_value: Some(Word::binary64(0)),
+            successor_scda_offset: None,
+            writes: vec![],
+            error: None,
+        },
+    );
+    let replacement = capture(
+        &manifest,
+        Producer::Replacement,
+        original.steps[0].output.clone(),
+    );
+    assert_eq!(
+        compare(
+            &sources,
+            &manifest,
+            Some(&original),
+            Some(&replacement),
+            Default::default()
+        )
+        .unwrap()
+        .status,
+        Status::Matched
+    );
+    manifest.steps[0].caller.calling_reference = Some(form(0x14));
+    let wrong_original = capture(
+        &manifest,
+        Producer::Original,
+        original.steps[0].output.clone(),
+    );
+    let wrong_replacement = capture(
+        &manifest,
+        Producer::Replacement,
+        original.steps[0].output.clone(),
+    );
+    assert!(
+        compare(
+            &sources,
+            &manifest,
+            Some(&wrong_original),
+            Some(&wrong_replacement),
+            Default::default()
+        )
+        .is_err(),
+        "An encoded static caller cannot be relabelled as the player"
+    );
+    let (_directory, catalogue, _) = fixture(&event(&copy()));
+    let sources = crate::sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let manifest = crate::manifest(
+        plan,
+        sources.source_cohort_sha256(),
+        Operation::Assignment,
+        10,
+    );
+    let mut wrong = output();
+    wrong.writes[0].index = 1;
+    let original = capture(&manifest, Producer::Original, wrong.clone());
+    let replacement = capture(&manifest, Producer::Replacement, wrong);
+    assert!(
+        compare(
+            &sources,
+            &manifest,
+            Some(&original),
+            Some(&replacement),
+            Default::default()
+        )
+        .is_err(),
+        "Both captures naming the wrong local cannot change the encoded destination"
+    );
+}
+
+#[test]
+fn encoded_expression_callers_and_foreign_local_scope_are_not_assumed_from_host_roles() {
+    let expression = [
+        vec![b'r', 1, 0, b'X', 0x2f, 0x10, 5, 0],
+        vec![1, 0, b'r', 1, 0],
+    ]
+    .concat();
+    let payload = [
+        vec![b'f', 2, 0],
+        (expression.len() as u16).to_le_bytes().to_vec(),
+        expression,
+    ]
+    .concat();
+    let (_directory, catalogue, _) = fixture(&event(&instruction(0x15, &payload)));
+    let prepared = sources(&catalogue);
+    let plan = prepared.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = manifest(
+        plan,
+        prepared.source_cohort_sha256(),
+        Operation::GetItemCount,
+        22,
+    );
+    case.steps[0].caller.calling_reference = Some(form(0x100));
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_ok());
+    case.steps[0].caller.calling_reference = None;
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_err());
+    // This source's foreign read needs an independently identified external bank;
+    // schema1 own-local writes cannot pretend that host caller roles provide it.
+    let (_directory, catalogue, _) = fixture(&event(&instruction(
+        0x15,
+        &[b'f', 2, 0, 6, 0, b'r', 1, 0, b'f', 1, 0],
+    )));
+    let prepared = sources(&catalogue);
+    let plan = prepared.get(&definition(&catalogue)).unwrap().plan();
+    let case = manifest(
+        plan,
+        prepared.source_cohort_sha256(),
+        Operation::Assignment,
+        10,
+    );
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_err());
+    let branch = [
+        instruction(0x16, &[0, 0, 6, 0, b'r', 1, 0, b'f', 1, 0]),
+        instruction(0x19, &[]),
+    ]
+    .concat();
+    let (_directory, catalogue, _) = fixture(&event(&branch));
+    let prepared = sources(&catalogue);
+    let plan = prepared.get(&definition(&catalogue)).unwrap().plan();
+    let case = manifest(plan, prepared.source_cohort_sha256(), Operation::Branch, 10);
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_err());
+}
+
+#[test]
 fn actual_engineering_copy_supplies_replacement_bits_via_canonical_commit() {
     let (_directory, catalogue, content) = fixture(&event(&copy()));
     let sources = sources(&catalogue);
@@ -687,6 +832,547 @@ fn engineering_count_without_original_numeric_return_is_not_a_completed_native_o
     );
 }
 
+fn copy_request() -> copy_probe::Request {
+    copy_probe::Request {
+        schema_version: 1,
+        campaign: CampaignId::from_bytes([0x31; 16]).unwrap(),
+        activation: 1.try_into().unwrap(),
+        initializers: vec![
+            copy_probe::Initializer {
+                index: 1,
+                value: Value::Number {
+                    bits: 0x8000000000000000,
+                },
+            },
+            copy_probe::Initializer {
+                index: 2,
+                value: Value::Number {
+                    bits: 0xc010000000000000,
+                },
+            },
+        ],
+    }
+}
+fn own_case(plan: &fallout_data::obscript::definition_plan::Plan<'_>, cohort: &str) -> Manifest {
+    let mut case = manifest(plan, cohort, Operation::Assignment, 10);
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    case.steps[0].operands = vec![Word::binary64(0x8000000000000000)];
+    case
+}
+
+#[test]
+fn standalone_copy_producer_commits_real_ordered_bits_and_restores_the_canonical_snapshot() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = own_case(plan, sources.source_cohort_sha256());
+    let mut repeated = case.steps[0].clone();
+    repeated.event_ordinal = 1;
+    case.steps.push(repeated);
+    let observed = copy_probe::observe(
+        &sources,
+        &content,
+        &case,
+        &copy_request(),
+        &"c".repeat(64),
+        &"d".repeat(64),
+        copy_probe::Limits {
+            maximum_steps: 2,
+            maximum_initializers: 2,
+        },
+    )
+    .unwrap();
+    assert!(observed.unsupported.is_none());
+    assert_eq!(observed.capture.finish, Finish::Completed);
+    assert_eq!(observed.capture.producer, Producer::Replacement);
+    assert_eq!(observed.committed.len(), 2);
+    assert_eq!(observed.capture.steps.len(), 2);
+    assert!(observed.canonical_restore_verified);
+    assert!(!observed.faithful_execution_admitted);
+    for (ordinal, step) in observed.capture.steps.iter().enumerate() {
+        assert_eq!(step.input.event_ordinal, ordinal as u32);
+        assert_eq!(
+            step.output.writes,
+            vec![LocalWrite {
+                index: 2,
+                value: Word::binary64(0x8000000000000000)
+            }]
+        );
+        assert_eq!(step.output.successor_scda_offset, Some(22));
+        assert!(!observed.committed[ordinal].trace.original_behavior_verified);
+    }
+    assert!(observed.final_snapshot.pending_events.is_empty());
+    assert_eq!(observed.final_snapshot.instances.len(), 1);
+    assert_eq!(
+        observed.final_snapshot.instances[0]
+            .locals
+            .iter()
+            .find(|local| local.index == 2)
+            .unwrap()
+            .value,
+        Value::Number {
+            bits: 0x8000000000000000
+        }
+    );
+    assert_ne!(observed.initial_snapshot, observed.final_snapshot);
+    assert_eq!(
+        compare(
+            &sources,
+            &case,
+            None,
+            Some(&observed.capture),
+            Default::default()
+        )
+        .unwrap()
+        .status,
+        Status::Blocked
+    );
+}
+
+#[test]
+fn standalone_copy_refuses_duplicate_skipped_and_reversed_event_ordinals_atomically() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    for ordinals in [[0, 0], [0, 2], [1, 0], [1, 2]] {
+        let mut case = own_case(plan, sources.source_cohort_sha256());
+        case.steps.push(case.steps[0].clone());
+        for (input, ordinal) in case.steps.iter_mut().zip(ordinals) {
+            input.event_ordinal = ordinal;
+        }
+        if ordinals == [0, 0] {
+            assert_eq!(
+                compare(
+                    &sources,
+                    &case,
+                    Some(&capture(&case, Producer::Original, output())),
+                    Some(&capture(&case, Producer::Replacement, output())),
+                    Default::default()
+                )
+                .unwrap()
+                .status,
+                Status::Matched
+            );
+        }
+        let result = copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default(),
+        );
+        // The general trace schema already refuses skipped/reversed events.
+        // A grouped same-event trace is valid to import, but cannot be replayed
+        // as multiple complete events by this narrower producer.
+        if ordinals != [0, 0] {
+            assert!(matches!(result, Err(copy_probe::Error::Trace(_))));
+            continue;
+        }
+        let observed = result.unwrap();
+        assert_eq!(observed.capture.finish, Finish::Unsupported, "{ordinals:?}");
+        let unsupported = observed.unsupported.unwrap();
+        assert_eq!(unsupported.step, Some(if ordinals[0] == 0 { 1 } else { 0 }));
+        assert!(
+            unsupported
+                .detail
+                .contains("consecutive distinct event ordinals")
+        );
+        assert!(observed.capture.steps.is_empty() && observed.committed.is_empty());
+        assert_eq!(observed.initial_snapshot, observed.final_snapshot);
+        assert!(observed.final_snapshot.pending_events.is_empty());
+    }
+}
+
+#[test]
+fn standalone_copy_producer_refuses_unknown_scopes_conversion_branches_and_wrong_operand_bits() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let case = own_case(plan, sources.source_cohort_sha256());
+    let mut cases = Vec::new();
+    let mut wrong = case.clone();
+    wrong.steps[0].caller.calling_reference = Some(form(0x14));
+    cases.push(wrong);
+    let mut wrong = case.clone();
+    wrong.steps[0].caller.activation = 2;
+    cases.push(wrong);
+    let mut wrong = case.clone();
+    wrong.steps[0].operands[0] = Word::binary64(0);
+    cases.push(wrong);
+    let mut wrong = case;
+    wrong.purpose = Operation::Conversion;
+    wrong.steps[0].operation = Operation::Conversion;
+    cases.push(wrong);
+    for case in cases {
+        let result = copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default(),
+        )
+        .unwrap();
+        assert!(result.unsupported.is_some());
+        assert_eq!(result.capture.finish, Finish::Unsupported);
+        assert!(result.capture.steps.is_empty() && result.committed.is_empty());
+        assert_eq!(result.initial_snapshot, result.final_snapshot);
+    }
+    let branch = [
+        instruction(0x16, &[0, 0, 3, 0, b'f', 1, 0]),
+        instruction(0x19, &[]),
+    ]
+    .concat();
+    let (_directory, catalogue, content) = fixture(&event(&branch));
+    let sources = crate::sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = manifest(plan, sources.source_cohort_sha256(), Operation::Branch, 10);
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    let result = copy_probe::observe(
+        &sources,
+        &content,
+        &case,
+        &copy_request(),
+        &"c".repeat(64),
+        &"d".repeat(64),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.capture.finish, Finish::Unsupported);
+    assert_eq!(result.initial_snapshot, result.final_snapshot);
+}
+
+#[test]
+fn standalone_copy_inputs_have_exact_limits_and_finite_explicit_numeric_slots() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let case = own_case(plan, sources.source_cohort_sha256());
+    for limits in [
+        copy_probe::Limits {
+            maximum_steps: 0,
+            maximum_initializers: 2,
+        },
+        copy_probe::Limits {
+            maximum_steps: 1,
+            maximum_initializers: 1,
+        },
+    ] {
+        assert!(matches!(
+            copy_probe::observe(
+                &sources,
+                &content,
+                &case,
+                &copy_request(),
+                &"c".repeat(64),
+                &"d".repeat(64),
+                limits
+            ),
+            Err(copy_probe::Error::Capacity(_))
+        ));
+    }
+    for bits in [0x7ff8000000000001, 0x7ff0000000000000, 0xfff0000000000000] {
+        let mut request = copy_request();
+        request.initializers[0].value = Value::Number { bits };
+        assert!(matches!(
+            copy_probe::observe(
+                &sources,
+                &content,
+                &case,
+                &request,
+                &"c".repeat(64),
+                &"d".repeat(64),
+                Default::default()
+            ),
+            Err(copy_probe::Error::Input("initializer must be finite"))
+        ));
+    }
+    let mut request = copy_request();
+    request.initializers[1].index = 1;
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &request,
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Input("duplicate local initializer"))
+    ));
+    let mut request = copy_request();
+    request.initializers[0].value = Value::Uninitialized;
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &request,
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Input(_))
+    ));
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"a".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Input(
+            "replacement producer cannot be the original executable"
+        ))
+    ));
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"C".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Trace(_))
+    ));
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"c".repeat(64),
+            "missing",
+            Default::default()
+        ),
+        Err(copy_probe::Error::Trace(_))
+    ));
+}
+
+#[test]
+fn standalone_copy_discards_an_earlier_preview_effect_when_a_later_source_operation_is_unmeasured()
+{
+    let body = [
+        event(&copy()),
+        event(&instruction(0x15, &[b's', 2, 0, 1, 0, b'1'])),
+    ]
+    .concat();
+    let (_directory, catalogue, content) = fixture(&body);
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = own_case(plan, sources.source_cohort_sha256());
+    let mut later = case.steps[0].clone();
+    later.event_ordinal = 1;
+    later.begin_scda_offset = 26;
+    later.scda_offset = 36;
+    later.operands = vec![Word::binary64(0x3ff0000000000000)];
+    case.steps.push(later);
+    let result = copy_probe::observe(
+        &sources,
+        &content,
+        &case,
+        &copy_request(),
+        &"c".repeat(64),
+        &"d".repeat(64),
+        Default::default(),
+    )
+    .unwrap();
+    let unsupported = result.unsupported.unwrap();
+    assert_eq!(unsupported.step, Some(1));
+    assert!(unsupported.detail.contains("ExpressionShape"));
+    assert_eq!(result.capture.finish, Finish::Unsupported);
+    assert!(result.capture.steps.is_empty() && result.committed.is_empty());
+    assert_eq!(result.initial_snapshot, result.final_snapshot);
+    assert!(result.final_snapshot.pending_events.is_empty());
+    assert_eq!(
+        result.final_snapshot.instances[0]
+            .locals
+            .iter()
+            .find(|local| local.index == 2)
+            .unwrap()
+            .value,
+        Value::Number {
+            bits: 0xc010000000000000
+        }
+    );
+}
+
+#[test]
+#[ignore = "requires a built standalone CLI and prior authored source evidence, no retail launch"]
+fn cli_copy_producer_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_INPUT").expect("input"));
+    let evidence =
+        std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let mut case: Manifest =
+        serde_json::from_slice(&fs::read(input.join("manifest.json")).unwrap()).unwrap();
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    case.steps[0].operands = vec![Word::binary64(0x8000000000000000)];
+    let case_path = evidence.join("manifest.json");
+    fs::write(&case_path, serde_json::to_vec_pretty(&case).unwrap()).unwrap();
+    let request = serde_json::json!({"schema_version":1,"campaign":([49_u8;16]),"activation":1,"initializers":[
+        {"index":1,"value":{"kind":"number","bits":0x8000000000000000_u64}},
+        {"index":2,"value":{"kind":"number","bits":0xc010000000000000_u64}}]});
+    let request_path = evidence.join("copy-request.json");
+    fs::write(&request_path, serde_json::to_vec_pretty(&request).unwrap()).unwrap();
+    let report_path = evidence.join("report.json");
+    let output = std::process::Command::new(&cli)
+        .args(["script-trace", "--install"])
+        .arg(input.join("authored-source-copy"))
+        .arg("--load-order")
+        .arg(input.join("order.json"))
+        .arg("--manifest")
+        .arg(&case_path)
+        .arg("--profile-receipt")
+        .arg(input.join("profile-receipt.txt"))
+        .arg("--replacement-copy")
+        .arg(&request_path)
+        .arg("--output")
+        .arg(&report_path)
+        .output()
+        .unwrap();
+    fs::write(evidence.join("stdout.txt"), &output.stdout).unwrap();
+    fs::write(evidence.join("stderr.txt"), &output.stderr).unwrap();
+    assert!(!output.status.success()); // Original is absent even though the copy ran.
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+    assert_eq!(report["comparison"]["status"], "blocked");
+    assert_eq!(
+        report["replacement_observation"]["capture"]["finish"],
+        "completed"
+    );
+    assert_eq!(
+        report["replacement_observation"]["committed"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        report["replacement_observation"]["capture"]["steps"][0]["output"]["writes"][0]["value"]["bits"],
+        "8000000000000000"
+    );
+    assert_eq!(
+        report["replacement_observation"]["canonical_restore_verified"],
+        true
+    );
+    assert_eq!(report["retail_execution_performed"], false);
+    assert_eq!(report["faithful_execution_admitted"], false);
+    let producer: &str = report["replacement_observation"]["capture"]["producer_executable_sha256"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        producer,
+        format!("{:x}", Sha256::digest(fs::read(&cli).unwrap()))
+    );
+    fs::write(
+        evidence.join("replacement-capture.json"),
+        serde_json::to_vec_pretty(&report["replacement_observation"]["capture"]).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        evidence.join("canonical-snapshot.json"),
+        serde_json::to_vec_pretty(&report["replacement_observation"]["final_snapshot"]).unwrap(),
+    )
+    .unwrap();
+    for (name, ordinals) in [
+        ("duplicate", [0, 0]),
+        ("skipped", [0, 2]),
+        ("reversed", [1, 0]),
+        ("ordered", [0, 1]),
+    ] {
+        let mut two_events = case.clone();
+        two_events.steps.push(two_events.steps[0].clone());
+        for (input, ordinal) in two_events.steps.iter_mut().zip(ordinals) {
+            input.event_ordinal = ordinal;
+        }
+        let manifest_path = evidence.join(format!("{name}-manifest.json"));
+        let report_path = evidence.join(format!("{name}-report.json"));
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&two_events).unwrap(),
+        )
+        .unwrap();
+        let output = std::process::Command::new(&cli)
+            .args(["script-trace", "--install"])
+            .arg(input.join("authored-source-copy"))
+            .arg("--load-order")
+            .arg(input.join("order.json"))
+            .arg("--manifest")
+            .arg(&manifest_path)
+            .arg("--profile-receipt")
+            .arg(input.join("profile-receipt.txt"))
+            .arg("--replacement-copy")
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(evidence.join(format!("{name}-stdout.txt")), &output.stdout).unwrap();
+        fs::write(evidence.join(format!("{name}-stderr.txt")), &output.stderr).unwrap();
+        assert!(!output.status.success()); // Original capture is always absent.
+        if name == "skipped" || name == "reversed" {
+            assert!(!report_path.exists()); // Invalid manifest, no execution.
+            assert!(String::from_utf8_lossy(&output.stderr).contains("event ordinals"));
+            continue;
+        }
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+        let observation = &report["replacement_observation"];
+        if name == "duplicate" {
+            assert_eq!(observation["capture"]["finish"], "unsupported");
+            assert_eq!(observation["unsupported"]["step"], 1);
+            assert!(observation["committed"].as_array().unwrap().is_empty());
+            assert!(
+                observation["capture"]["steps"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                observation["initial_snapshot"],
+                observation["final_snapshot"]
+            );
+        } else {
+            assert_eq!(observation["capture"]["finish"], "completed");
+            assert_eq!(observation["committed"].as_array().unwrap().len(), 2);
+            for (index, step) in observation["capture"]["steps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .enumerate()
+            {
+                assert_eq!(step["input"]["event_ordinal"], index);
+            }
+        }
+    }
+}
+
 #[test]
 #[ignore = "requires an explicitly supplied built CLI and read-only retail metadata executable"]
 fn cli_import_helper() {
@@ -796,4 +1482,38 @@ fn cli_import_helper() {
         report["comparison"]["first_difference"]["field"],
         "local_writes"
     );
+    let mut wrong_scope = replacement;
+    wrong_scope.steps[0].output.writes[0].index = 1;
+    let wrong_path = evidence.join("wrong-source-destination.json");
+    fs::write(
+        &wrong_path,
+        serde_json::to_vec_pretty(&wrong_scope).unwrap(),
+    )
+    .unwrap();
+    let report_path = evidence.join("wrong-source-destination-report.json");
+    let output = std::process::Command::new(cli)
+        .args(["script-trace", "--install"])
+        .arg(&install)
+        .arg("--load-order")
+        .arg(evidence.join("order.json"))
+        .arg("--manifest")
+        .arg(evidence.join("manifest.json"))
+        .arg("--profile-receipt")
+        .arg(evidence.join("profile-receipt.txt"))
+        .arg("--original-trace")
+        .arg(evidence.join("original-synthetic.json"))
+        .arg("--replacement-trace")
+        .arg(wrong_path)
+        .arg("--output")
+        .arg(&report_path)
+        .output()
+        .unwrap();
+    fs::write(
+        evidence.join("wrong-source-destination.stderr"),
+        &output.stderr,
+    )
+    .unwrap();
+    assert!(!output.status.success());
+    assert!(!report_path.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("source destination"));
 }

@@ -4,7 +4,7 @@ use fallout_runtime::{
     Limits, World,
     events::Context,
     identity::{InstanceId, Owner, ReferenceId},
-    inventory::{Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership},
+    inventory::{Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, ViewLimits, ViewUsage},
     save::{Captured, Recovery, Repository},
     snapshot::Snapshot,
 };
@@ -54,6 +54,152 @@ fn missing_initialization_differs_from_an_explicit_empty_bank() {
     let before = w.snapshot();
     assert!(w.initialize_inventory(owner).is_err());
     assert_eq!(before, w.snapshot());
+}
+
+#[test]
+fn immutable_views_preserve_unknown_empty_and_campaign_source_revision() {
+    let (_dir, catalogue) = fixture();
+    let mut world = World::new(&catalogue, Limits::default()).unwrap();
+    let owner = world.register_reference(Some(form(0x100))).unwrap();
+    let zero = ViewLimits {
+        max_items: 0,
+        max_links: 0,
+        max_extra_bytes: 0,
+    };
+    let before = world.snapshot();
+    let unknown = world.inventory_view(owner, zero).unwrap();
+    assert_eq!(unknown.items(), None);
+    assert_eq!(unknown.usage(), ViewUsage::default());
+    assert_eq!(unknown.campaign(), world.campaign());
+    assert_eq!(
+        unknown.catalogue_fingerprint(),
+        world.catalogue_fingerprint()
+    );
+    assert_eq!(unknown.revision(), world.revision());
+    assert_eq!(unknown.boundary(), world.clocks());
+    assert_eq!(unknown.owner(), owner);
+    assert_eq!(unknown.authored(), Some(&form(0x100)));
+    assert_eq!(world.snapshot(), before);
+    assert!(matches!(
+        world.inventory_view(ReferenceId(999.try_into().unwrap()), zero),
+        Err(fallout_runtime::Error::MissingReference)
+    ));
+    assert_eq!(world.snapshot(), before);
+    world.initialize_inventory(owner).unwrap();
+    let empty = world.inventory_view(owner, zero).unwrap();
+    assert_eq!(empty.items(), Some([].as_slice()));
+    assert!(empty.revision() > unknown.revision());
+    assert!(unknown.items().is_none());
+}
+
+#[test]
+fn owned_lot_views_survive_mutation_world_drop_and_thread_transfer_without_merging() {
+    let (_dir, catalogue) = fixture();
+    let mut world = World::new(&catalogue, Limits::default()).unwrap();
+    let a = world.register_reference(None).unwrap();
+    let b = world.register_reference(None).unwrap();
+    world.initialize_inventory(a).unwrap();
+    world.initialize_inventory(b).unwrap();
+    let first = world.add_item(a, facts(), quantity(u32::MAX)).unwrap();
+    let mut second_facts = facts();
+    second_facts.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abd,
+    });
+    let second = world
+        .add_item(a, second_facts.clone(), quantity(u32::MAX))
+        .unwrap();
+    let limits = ViewLimits {
+        max_items: 2,
+        max_links: 12,
+        max_extra_bytes: 6,
+    };
+    let old = world.inventory_view(a, limits).unwrap();
+    assert_eq!(
+        old.items()
+            .unwrap()
+            .iter()
+            .map(|item| item.id())
+            .collect::<Vec<_>>(),
+        [first, second]
+    );
+    assert_eq!(old.items().unwrap()[0].facts(), &facts());
+    assert_eq!(old.items().unwrap()[1].facts(), &second_facts);
+    assert_eq!(
+        old.items()
+            .unwrap()
+            .iter()
+            .map(|item| u64::from(item.count()))
+            .sum::<u64>(),
+        2 * u64::from(u32::MAX)
+    );
+    world.transfer_item(first, b).unwrap();
+    world.remove_item_quantity(second, quantity(1)).unwrap();
+    let current = world.inventory_view(a, limits).unwrap();
+    assert!(current.revision() > old.revision());
+    assert_eq!(current.items().unwrap().len(), 1);
+    assert_eq!(current.items().unwrap()[0].count(), u32::MAX - 1);
+    drop(world);
+    std::thread::spawn(move || {
+        assert_eq!(old.items().unwrap().len(), 2);
+        assert_eq!(old.items().unwrap()[0].owner(), a);
+        assert_eq!(old.items().unwrap()[1].count(), u32::MAX);
+        assert_eq!(old.items().unwrap()[1].facts(), &second_facts);
+    })
+    .join()
+    .unwrap();
+}
+
+#[test]
+fn view_admission_accepts_exact_limits_and_refuses_one_over_without_mutation() {
+    let (_dir, catalogue) = fixture();
+    let mut world = World::new(&catalogue, Limits::default()).unwrap();
+    let owner = world.register_reference(None).unwrap();
+    world.initialize_inventory(owner).unwrap();
+    world.add_item(owner, facts(), quantity(2)).unwrap();
+    world.add_item(owner, facts(), quantity(3)).unwrap();
+    let exact = ViewLimits {
+        max_items: 2,
+        max_links: 12,
+        max_extra_bytes: 6,
+    };
+    let view = world.inventory_view(owner, exact).unwrap();
+    assert_eq!(
+        view.usage(),
+        ViewUsage {
+            items: 2,
+            links: 12,
+            extra_bytes: 6
+        }
+    );
+    let before = world.snapshot();
+    for (limits, expected) in [
+        (
+            ViewLimits {
+                max_items: 1,
+                ..exact
+            },
+            "inventory view items",
+        ),
+        (
+            ViewLimits {
+                max_links: 11,
+                ..exact
+            },
+            "inventory view links",
+        ),
+        (
+            ViewLimits {
+                max_extra_bytes: 5,
+                ..exact
+            },
+            "inventory view extra bytes",
+        ),
+    ] {
+        assert!(
+            matches!(world.inventory_view(owner, limits), Err(fallout_runtime::Error::Capacity(label)) if label == expected)
+        );
+        assert_eq!(world.snapshot(), before);
+    }
 }
 #[test]
 fn split_transfer_and_removal_conserve_counts_and_keep_exact_facts() {

@@ -62,3 +62,13 @@ and restores exact pose/enable and script links in a fresh child process. This
 producer verification does not establish a completed preview consumer or retail
 gameplay equivalence. Presentation binds the tested producer under REF-STATE;
 runtime never stores render entities as authority.
+
+`reference_state_transactions` exercises the real prepared source-local-copy
+engineering consumer against a reference-state stage at the same global revision.
+Both winner orders are checked against the complete canonical snapshot; the loser
+cannot return a success receipt, write a local, acknowledge an event or alter
+reference state, inventory or clocks. Inventory and clock changes invalidate
+both kinds of stage. Restore, other campaigns and changed whole source cohorts
+also refuse old authority. Winner snapshots pass existing native publication and
+source-bound restoration. Original assignment conversion and callback behavior
+remain unverified; these are explicit engineering transactions.

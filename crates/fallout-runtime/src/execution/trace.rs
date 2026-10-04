@@ -2,7 +2,7 @@
 //! A match is evidence about the supplied captures, never execution permission.
 use fallout_data::{
     identity::FormKey,
-    loaded_scripts::Handle,
+    loaded_scripts::{Handle, ReferenceStatus},
     obscript::{self, arguments, expression},
 };
 use serde::{Deserialize, Serialize};
@@ -267,6 +267,35 @@ fn input(input: &StepInput, words: &mut usize, limits: Limits) -> Result<()> {
     Ok(())
 }
 
+fn assignment_destination(
+    plan: &obscript::definition_plan::Plan<'_>,
+    offset: usize,
+) -> Result<u32> {
+    let index = plan
+        .control()
+        .instructions()
+        .binary_search_by_key(&offset, |instruction| instruction.bytes.start)
+        .map_err(|_| Error::Source("assignment source position"))?;
+    let statement = plan
+        .statement(index)
+        .ok_or(Error::Source("assignment source envelope"))?;
+    let expression::StatementKind::Assignment(expression::Target::Local {
+        index,
+        context_reference: None,
+        ..
+    }) = statement.kind()
+    else {
+        return Err(Error::Source(
+            "capture schema needs an own-local destination",
+        ));
+    };
+    let destination = u32::from(*index);
+    if plan.source().declaration(destination).is_none() {
+        return Err(Error::Source("assignment destination declaration"));
+    }
+    Ok(destination)
+}
+
 /// Validate source positions through the existing plan. Conversion names the
 /// probe's purpose; its assignment envelope does not prove a conversion rule.
 pub fn validate_manifest(
@@ -372,9 +401,30 @@ pub fn validate_manifest(
         if !matches {
             return Err(Error::Source("operation/SCDA position"));
         }
+        if step.operation != Operation::GetItemCount
+            && plan.statement(index).is_some_and(|statement| {
+                statement.plan().tokens().iter().any(|token| {
+                    matches!(
+                        token.kind,
+                        expression::Kind::Local {
+                            context_reference: Some(_),
+                            ..
+                        }
+                    )
+                })
+            })
+        {
+            return Err(Error::Source("foreign local probe scope is unavailable"));
+        }
+        if matches!(
+            step.operation,
+            Operation::Assignment | Operation::Conversion
+        ) {
+            assignment_destination(plan, offset)?;
+        }
         if step.operation == Operation::GetItemCount {
-            let raw = if instruction.kind() == obscript::Kind::NativeCommand {
-                instruction.operands
+            let (raw, caller_index) = if instruction.kind() == obscript::Kind::NativeCommand {
+                (instruction.operands, instruction.calling_reference)
             } else {
                 plan.statement(index)
                     .and_then(|statement| {
@@ -383,13 +433,28 @@ pub fn validate_manifest(
                                 return None;
                             }
                             match &token.kind {
-                                expression::Kind::Command { arguments, .. } => Some(*arguments),
+                                expression::Kind::Command {
+                                    arguments,
+                                    context_reference,
+                                    ..
+                                } => Some((*arguments, *context_reference)),
                                 _ => None,
                             }
                         })
                     })
                     .ok_or(Error::Source("native argument position"))?
             };
+            if let Some(caller_index) = caller_index {
+                let caller = plan
+                    .source()
+                    .reference(u32::from(caller_index))
+                    .filter(|reference| reference.status == ReferenceStatus::DefinedForm)
+                    .and_then(|reference| reference.form_key.as_ref())
+                    .ok_or(Error::Source("encoded caller has no static source binding"))?;
+                if Some(caller) != step.caller.calling_reference.as_ref() {
+                    return Err(Error::Source("encoded caller source binding"));
+                }
+            }
             // Reuse the already evidenced vanilla inventory-object/form-list
             // descriptor. This is an encoded reference join, not retail coercion.
             let parameters = [arguments::Parameter {
@@ -543,6 +608,22 @@ pub fn compare(
                     Some(index),
                     "step_input",
                 ));
+            }
+            if matches!(
+                step.input.operation,
+                Operation::Assignment | Operation::Conversion
+            ) {
+                let destination = assignment_destination(plan, step.input.scda_offset as usize)?;
+                if step
+                    .output
+                    .writes
+                    .iter()
+                    .any(|write| write.index != destination)
+                {
+                    return Err(Error::Source(
+                        "observed local write is not the source destination",
+                    ));
+                }
             }
             if let Some(offset) = step.output.successor_scda_offset
                 && plan

@@ -196,9 +196,16 @@ pub(super) fn inspect(
     } else {
         None
     };
+    // Keep the old comparison field stable. Execution admission additionally
+    // binds every source receipt and resolved reference, so its digest must be
+    // exported under a distinct name instead of treating the two as aliases.
     Ok(
         json!({"schema_version":1,"profile":"nv-original","scope":"Winning source versions with complete delimiter/expression plans and encoded owning-table associations; no VM execution permission",
         "explicit_load_order":order.names,"load_order_sha256":order.sha256,"source_cohort_sha256":catalogue.winning_content_sha256(),
+        "source_cohort_sha256_domain":"legacy_winning_definitions",
+        "winning_definitions_sha256":catalogue.winning_content_sha256(),
+        "prepared_source_cohort_sha256":fallout_runtime::snapshot::cohort(&catalogue)?,
+        "prepared_source_cohort_sha256_domain":"fallout_runtime::snapshot::cohort",
         "sources":catalogue.sources,"source_counts":catalogue.counts,"counts":counts,"compiled_bodies":compiled,
         "prepared_expressions":total_expressions,"prepared_tokens":total_tokens,"prepared_nodes":total_nodes,"prepared_operand_uses":total_uses,
         "executable_source_sha256":descriptors.source_sha256,"operator_descriptors":descriptors.operators,

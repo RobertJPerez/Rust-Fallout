@@ -6,6 +6,15 @@ The request uses schema version 1, the complete `source_cohort_sha256`, and
 `roots` containing exact existing definition handles. A stale cohort or handle
 is refused before a report can imply that a different winning source was used.
 
+To build a request from the normal `source-plans` report, use
+`prepared_source_cohort_sha256` with the caller-selected exact definition handles.
+That digest uses the same complete source-receipt and resolved-reference domain
+as `PreparedSources`. `winning_definitions_sha256` identifies winning definitions
+only. The historical report field `source_cohort_sha256` remains an alias for
+that narrower digest for existing comparison tools; its explicit domain is
+`legacy_winning_definitions`. It is not an admission-request digest. The request
+still names its full digest `source_cohort_sha256`; no check is weakened.
+
 Root priority is canonical `ScriptKey` order; dependencies are traversed breadth
 first in physical operand order. A declared SCPT form reference and a resolved
 static quest foreign-local declaration can add an edge. These are source

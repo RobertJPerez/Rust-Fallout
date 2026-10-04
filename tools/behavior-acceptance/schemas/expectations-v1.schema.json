@@ -29,6 +29,6 @@
   },
   "allOf": [
     {"if": {"properties": {"evidence_class": {"const": "synthetic_fixture"}}, "required": ["evidence_class"]}, "then": {"properties": {"oracle": {"properties": {"kind": {"const": "independent_fixture"}}}}}},
-    {"if": {"properties": {"evidence_class": {"const": "engineering_capture"}}, "required": ["evidence_class"]}, "then": {"properties": {"oracle": {"properties": {"kind": {"const": "frozen_engine_capture"}}}, "provenance_pins": {"properties": {"binary_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "profile_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}}}}
+    {"if": {"properties": {"evidence_class": {"const": "engineering_capture"}}, "required": ["evidence_class"]}, "then": {"properties": {"oracle": {"properties": {"kind": {"const": "frozen_engine_capture"}}}, "provenance_pins": {"properties": {"binary_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "profile_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "content_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}}}}
   ]
 }

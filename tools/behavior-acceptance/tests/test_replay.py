@@ -120,6 +120,47 @@ def fixture_expectation(timeline=None):
     }
 
 
+def engineering_envelope_fixture():
+    # Synthetic values exercise the engineering contract; no process was run.
+    capture = fixture_capture()
+    expectation = fixture_expectation()
+    capture["evidence_class"] = "engineering_capture"
+    capture["provenance"].update(
+        {
+            "binary_sha256": "c" * 64,
+            "profile_id": "nv-original-profile",
+            "profile_fingerprint_sha256": "d" * 64,
+            "content_fingerprint_sha256": "e" * 64,
+            "process": {
+                "pid": 1732,
+                "started_utc": "2026-10-04T14:00:00Z",
+                "ended_utc": "2026-10-04T14:00:01Z",
+                "exit_code": 0,
+            },
+        }
+    )
+    capture["timeline"][0]["source"].update(
+        kind="physical", device="gamepad", control="activate", device_id="pad-1"
+    )
+    resign_timeline(capture)
+
+    expectation["evidence_class"] = "engineering_capture"
+    expectation["oracle"].update(
+        kind="frozen_engine_capture", id="unit-test-engineering-envelope"
+    )
+    expectation["expected_timeline"] = copy.deepcopy(capture["timeline"])
+    expectation["provenance_pins"].update(
+        {
+            "binary_sha256": "c" * 64,
+            "profile_id": "nv-original-profile",
+            "profile_fingerprint_sha256": "d" * 64,
+            "content_fingerprint_sha256": "e" * 64,
+        }
+    )
+    expectation["oracle"]["sha256"] = replay._sha256(expectation["expected_timeline"])
+    return capture, expectation
+
+
 def resign_timeline(capture):
     capture["trace_sha256"] = replay._sha256(capture["timeline"])
 
@@ -191,6 +232,49 @@ class ReplayTests(unittest.TestCase):
         result = replay.compare(capture, fixture_expectation())
         self.assertEqual(result["status"], "failed")
         self.assertTrue(any(m.get("path") == "/provenance/source_revision" for m in result["mismatches"]))
+
+    def test_engineering_capture_requires_and_matches_all_fingerprints(self):
+        capture, expectation = engineering_envelope_fixture()
+        result = replay.compare(capture, expectation)
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["classification"], "engineering_replay_validation")
+        self.assertIs(result["retail_pass"], False)
+
+        for field in ("binary_sha256", "profile_fingerprint_sha256", "content_fingerprint_sha256"):
+            capture, expectation = engineering_envelope_fixture()
+            capture["provenance"][field] = "0" * 64
+            result = replay.compare(capture, expectation)
+            self.assertEqual(result["status"], "failed")
+            self.assertTrue(
+                any(m.get("path") == f"/provenance/{field}" for m in result["mismatches"])
+            )
+
+        capture, expectation = engineering_envelope_fixture()
+        capture["provenance"]["content_fingerprint_sha256"] = None
+        result = replay.compare(capture, expectation)
+        self.assertEqual(result["classification"], "invalid_receipt")
+
+        capture, expectation = engineering_envelope_fixture()
+        expectation["provenance_pins"]["content_fingerprint_sha256"] = None
+        result = replay.compare(capture, expectation)
+        self.assertEqual(result["classification"], "invalid_receipt")
+
+        capture, expectation = engineering_envelope_fixture()
+        capture["provenance"]["process"] = None
+        result = replay.compare(capture, expectation)
+        self.assertEqual(result["classification"], "invalid_receipt")
+
+    def test_damaged_trace_and_truncated_capture_are_rejected(self):
+        capture = fixture_capture()
+        capture["timeline"][0]["action"] = "unrecorded-action"
+        result = replay.compare(capture, fixture_expectation())
+        self.assertEqual(result["classification"], "invalid_receipt")
+
+        with tempfile.TemporaryDirectory() as directory:
+            damaged = Path(directory) / "truncated-capture.json"
+            damaged.write_bytes(b'{"format":"rust-fallout.behavior-capture",')
+            with self.assertRaisesRegex(replay.ReceiptError, "not valid UTF-8 JSON"):
+                replay.load_json(damaged)
 
     def test_unknown_retail_claim_class_is_refused_by_v1(self):
         capture = fixture_capture()

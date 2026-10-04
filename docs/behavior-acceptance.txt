@@ -32,6 +32,9 @@ The process exits 0 for a matching receipt, 1 for behavioral/provenance mismatch
 and 2 for malformed or unsupported inputs. A fixture result is labeled
 `synthetic_fixture_validation`; a frozen host result is labeled
 `engineering_replay_validation`. This v1 tool never emits a retail-pass result.
+Engineering captures require a source revision, binary hash, profile identity and
+hash, content hash, and bounded process record. Expectations pin the revision,
+profile identity, and all three hashes.
 
 Each state observation carries source-qualified inventory lots, exact quest fields,
 pending and acknowledged event identities, canonical and visible revisions, and a

@@ -9,7 +9,7 @@ Start team v2: inspect preserved state and leases, then reconcile global control
 
 First adopt a9164c3 and its paused handoff. Checkpoint45 is incomplete: its full runtime regression passed, but operand capture failed because its cache directory was missing. Fix and cheaply smoke-test setup before a fresh committed full proof. Preserve both failed attempts. Keep later cache/save/RACE/animation work outside fixed45. Then review their handoffs rather than reimplementing them. Record original-to-integrated commit mappings.
 
-Keep one heavy proof at a time, one active task per worker and at most two new unmerged handoffs. Only you promote/push main or publish checkpoint/parity claims. Never hide findings to make a gate green.
+Keep one heavy proof at a time, one active task per worker and at most six new unmerged handoffs per worker. Only you promote/push main or publish checkpoint/parity claims. Never hide findings to make a gate green.
 
 This is Robert Perez's team-v2 startup instruction. It supersedes the old four-agent role/ownership instructions in this checkout. Read the entire master brief at C:\Users\robjp\Downloads\Fallout_Rust_Codex_Master_Brief.txt and the CURRENT G:\Rust-Fallout\AGENTS.md, docs\agents\team-v2\team-plan.md, operating-contract.txt, ownership.json, NEXT_STEPS.md and latest verified checkpoint.
 

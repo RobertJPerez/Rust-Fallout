@@ -12,6 +12,9 @@ use std::borrow::Cow;
 mod prepared;
 pub use prepared::{BatchLimits, PoseBatch, PreparationUsage, PreparedSource, SampleLimits};
 
+mod set;
+pub use set::{LocalObservation, PoseSet, SetAncestor, SetLimits, SetObjectPose, evaluate_set};
+
 pub const CONTRACT: &str = "engineering-linked-source-pose-v1";
 
 #[derive(Clone, Copy, Debug)]
@@ -299,6 +302,85 @@ struct SourceView<'a> {
     scene: &'a nif_scene::Scene,
     storage: SourceStorage<'a>,
 }
+
+struct LinkedChannels<'a> {
+    object: &'a nif_scene::Object,
+    controller: &'a Controller,
+    interpolator: &'a TransformInterpolator,
+    interpolator_id: u32,
+    data: &'a keyframe::Block,
+    data_id: u32,
+}
+
+fn admit_channels<'a>(
+    view: &'a SourceView<'_>,
+    request: Request,
+    budget: &Budget<'_>,
+) -> Result<LinkedChannels<'a>> {
+    if !request.source_time.is_finite() {
+        return Err(budget.fail("requested source time must be finite"));
+    }
+    let object = view
+        .object(request.object)
+        .ok_or_else(|| budget.fail("selected object is not decoded"))?;
+    if object.controller != Some(request.controller) {
+        return Err(budget.fail("selected object.controller differs from requested controller"));
+    }
+    let controller = view
+        .animation(request.controller)
+        .and_then(|b| match &b.data {
+            Data::TransformController { controller } => Some(controller),
+            _ => None,
+        })
+        .ok_or_else(|| budget.fail("selected controller is not a decoded NiTransformController"))?;
+    if controller.target != Some(request.object) {
+        return Err(budget.fail("selected controller.target differs from requested object"));
+    }
+    if controller.next_controller.is_some() {
+        return Err(budget.fail("controller chain is unapplied"));
+    }
+    let interpolator_id = controller
+        .interpolator
+        .ok_or_else(|| budget.fail("missing transform interpolator"))?;
+    let interpolator = view
+        .animation(interpolator_id)
+        .and_then(|b| match &b.data {
+            Data::TransformInterpolator { interpolator } => Some(interpolator),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            budget.fail("controller interpolator is not a decoded NiTransformInterpolator")
+        })?;
+    let data_id = interpolator
+        .data
+        .ok_or_else(|| budget.fail("missing transform key data"))?;
+    let data = view
+        .keys(data_id)
+        .ok_or_else(|| budget.fail("interpolator data is not decoded NiTransformData"))?;
+    if !matches!(data.data.rotation, keyframe::Rotation::Absent) {
+        return Err(budget.fail("rotation key mapping is unapplied"));
+    }
+    Ok(LinkedChannels {
+        object,
+        controller,
+        interpolator,
+        interpolator_id,
+        data,
+        data_id,
+    })
+}
+
+fn sample_channels(
+    linked: &LinkedChannels<'_>,
+    time: f64,
+    budget: &mut sampling::Budget,
+) -> Result<(sampling::Diagnostic, sampling::Diagnostic, Affine)> {
+    let translation =
+        sampling::evaluate(linked.data, sampling::Channel::Translation, time, budget)?;
+    let scale = sampling::evaluate(linked.data, sampling::Channel::Scale, time, budget)?;
+    let local = component_local(linked.object.transform, &translation, &scale);
+    Ok((translation, scale, local))
+}
 impl SourceView<'_> {
     fn source_span(&self, block: u32) -> SourceSpan {
         match &self.storage {
@@ -444,64 +526,22 @@ fn evaluate_loaded(
         SourceStorage::Prepared(_) => 4,
     };
     budget.charge(visits)?;
-    let object = view
-        .object(request.object)
-        .ok_or_else(|| budget.fail("selected object is not decoded"))?;
-    if object.controller != Some(request.controller) {
-        return Err(budget.fail("selected object.controller differs from requested controller"));
-    }
-    let controller = view
-        .animation(request.controller)
-        .and_then(|b| match &b.data {
-            Data::TransformController { controller } => Some(controller),
-            _ => None,
-        })
-        .ok_or_else(|| budget.fail("selected controller is not a decoded NiTransformController"))?;
-    if controller.target != Some(request.object) {
-        return Err(budget.fail("selected controller.target differs from requested object"));
-    }
-    if controller.next_controller.is_some() {
-        return Err(budget.fail("controller chain is unapplied"));
-    }
-    let interpolator_id = controller
-        .interpolator
-        .ok_or_else(|| budget.fail("missing transform interpolator"))?;
-    let interpolator = view
-        .animation(interpolator_id)
-        .and_then(|b| match &b.data {
-            Data::TransformInterpolator { interpolator } => Some(interpolator),
-            _ => None,
-        })
-        .ok_or_else(|| {
-            budget.fail("controller interpolator is not a decoded NiTransformInterpolator")
-        })?;
-    let data_id = interpolator
-        .data
-        .ok_or_else(|| budget.fail("missing transform key data"))?;
-    let data = view
-        .keys(data_id)
-        .ok_or_else(|| budget.fail("interpolator data is not decoded NiTransformData"))?;
-    if !matches!(data.data.rotation, keyframe::Rotation::Absent) {
-        return Err(budget.fail("rotation key mapping is unapplied"));
-    }
+    let linked = admit_channels(&view, request, &budget)?;
+    let LinkedChannels {
+        object,
+        controller,
+        interpolator,
+        interpolator_id,
+        data_id,
+        ..
+    } = linked;
     let mapping = view.mapping(request.object, &mut budget)?;
     budget.reserve::<ObjectPose>(1)?;
     // Whole source, four spans and two borrowed-source sampling receipts.
     budget.reserve::<u8>(7 * 64)?;
     let mut sampling_budget = sampling::Budget::new(limits.sampling);
-    let translation = sampling::evaluate(
-        data,
-        sampling::Channel::Translation,
-        request.source_time,
-        &mut sampling_budget,
-    )?;
-    let scale = sampling::evaluate(
-        data,
-        sampling::Channel::Scale,
-        request.source_time,
-        &mut sampling_budget,
-    )?;
-    let local = component_local(object.transform, &translation, &scale);
+    let (translation, scale, local) =
+        sample_channels(&linked, request.source_time, &mut sampling_budget)?;
     let (world, ancestors) =
         mapping.compose_with_spans(local, &mut budget, limits.ancestry_depth, |id| {
             view.source_span(id)

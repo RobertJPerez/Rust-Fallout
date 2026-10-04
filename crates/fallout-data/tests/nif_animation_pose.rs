@@ -604,6 +604,224 @@ fn aggregate_batch_output_traversal_and_sampler_limits_have_exact_ceilings() {
     }
 }
 
+fn set_fixture() -> Blocks {
+    let mut source = blocks();
+    source[0].1 = node(NULL, &[1], [10., 20., 30.], R90, 3.);
+    source[1].1 = node(2, &[5], [99., 98., 97.], R90, 7.);
+    let mut child_keys = words_vec(&[0, 2, 1]);
+    floats(&mut child_keys, &[0., 1., 0., 2., 2., 3., 2., 4.]);
+    words(&mut child_keys, &[2, 1]);
+    floats(&mut child_keys, &[0., 2., 2., 4.]);
+    source.extend([
+        (
+            "NiNode",
+            node(
+                6,
+                &[],
+                [44., 45., 46.],
+                [[0., 1., 0.], [-1., 0., 0.], [0., 0., 1.]],
+                9.,
+            ),
+        ),
+        ("NiTransformController", controller(5, 7)),
+        ("NiTransformInterpolator", interpolator(8)),
+        ("NiTransformData", child_keys),
+    ]);
+    source
+}
+fn words_vec(values: &[u32]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    words(&mut bytes, values);
+    bytes
+}
+fn set_requests() -> [Request; 2] {
+    [
+        request(1.),
+        Request {
+            object: 5,
+            controller: 6,
+            source_time: 1.,
+        },
+    ]
+}
+
+#[test]
+fn explicit_parent_child_set_composes_noncommuting_three_node_source_once() {
+    let bytes = container(&set_fixture());
+    let selected = set_requests();
+    assert!(
+        pose::evaluate(&bytes, "one child", selected[1], Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("ancestor 1 controller is unapplied")
+    );
+    let set = pose::evaluate_set(&bytes, "set", &selected, Default::default()).unwrap();
+    assert_eq!(
+        set.objects[0].channel.local,
+        [[0., -2., 0., 5.], [2., 0., 0., 3.], [0., 0., 2., 6.]]
+    );
+    assert_eq!(
+        set.objects[0].source_world,
+        [[-6., 0., 0., 1.], [0., -6., 0., 35.], [0., 0., 6., 48.]]
+    );
+    assert_eq!(
+        set.objects[1].channel.local,
+        [[0., 3., 0., 2.], [-3., 0., 0., 1.], [0., 0., 3., 3.]]
+    );
+    assert_eq!(
+        set.objects[1].source_world,
+        [[0., -18., 0., -11.], [18., 0., 0., 29.], [0., 0., 18., 66.]]
+    );
+    assert_eq!(
+        set.objects[1]
+            .ancestors
+            .iter()
+            .map(|a| (a.source.block, a.applied_object))
+            .collect::<Vec<_>>(),
+        [(1, Some(1)), (0, None)]
+    );
+    assert_eq!(
+        set.objects[1].ancestors[0].effective_local,
+        set.objects[0].channel.local
+    );
+    assert_eq!(set.propagated_objects, 3);
+    assert!(!set.retail_behavior_verified);
+}
+
+#[test]
+fn pose_set_request_permutation_changes_only_observation_order() {
+    let bytes = container(&set_fixture());
+    let selected = set_requests();
+    let first = pose::evaluate_set(&bytes, "permutation", &selected, Default::default()).unwrap();
+    let second = pose::evaluate_set(
+        &bytes,
+        "permutation",
+        &[selected[1], selected[0]],
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&first.objects[0]).unwrap(),
+        serde_json::to_value(&second.objects[1]).unwrap()
+    );
+    assert_eq!(
+        serde_json::to_value(&first.objects[1]).unwrap(),
+        serde_json::to_value(&second.objects[0]).unwrap()
+    );
+    assert_eq!(
+        (first.retained_bytes, first.work_units),
+        (second.retained_bytes, second.work_units)
+    );
+}
+
+#[test]
+fn pose_set_duplicates_missing_controlled_ancestor_and_bad_later_channel_refuse() {
+    let bytes = container(&set_fixture());
+    let selected = set_requests();
+    for (requests, expected) in [
+        (
+            vec![selected[0], selected[0]],
+            "duplicate pose set object 1",
+        ),
+        (
+            vec![selected[1]],
+            "required ancestor 1 controller 2 is not explicitly selected",
+        ),
+        (
+            vec![
+                selected[0],
+                Request {
+                    controller: 7,
+                    ..selected[1]
+                },
+            ],
+            "object.controller differs",
+        ),
+        (
+            vec![
+                selected[0],
+                Request {
+                    source_time: 3.,
+                    ..selected[1]
+                },
+            ],
+            "extrapolate",
+        ),
+        (
+            vec![
+                selected[0],
+                Request {
+                    source_time: f64::NAN,
+                    ..selected[1]
+                },
+            ],
+            "source time must be finite",
+        ),
+    ] {
+        let error =
+            pose::evaluate_set(&bytes, "refusal", &requests, Default::default()).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut source = set_fixture();
+    source[5].1 = node(6, &[0], [44., 45., 46.], ID, 9.);
+    assert!(
+        pose::evaluate_set(&container(&source), "cycle", &selected, Default::default()).is_err()
+    );
+}
+
+#[test]
+fn pose_set_exact_aggregate_arrays_work_sampling_depth_and_count_limits() {
+    let bytes = container(&set_fixture());
+    let selected = set_requests();
+    let baseline = pose::evaluate_set(&bytes, "bounds", &selected, Default::default()).unwrap();
+    let exact = pose::SetLimits {
+        requests: 2,
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        ancestry_depth: 3,
+        sampling: sampling::Limits {
+            validation_work: baseline.sample_work.validation_units,
+            sampling_work: baseline.sample_work.sampling_units,
+        },
+        ..Default::default()
+    };
+    assert!(pose::evaluate_set(&bytes, "exact", &selected, exact).is_ok());
+    for limits in [
+        pose::SetLimits {
+            requests: 1,
+            ..exact
+        },
+        pose::SetLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::SetLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::SetLimits {
+            ancestry_depth: 2,
+            ..exact
+        },
+        pose::SetLimits {
+            sampling: sampling::Limits {
+                validation_work: exact.sampling.validation_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+        pose::SetLimits {
+            sampling: sampling::Limits {
+                sampling_work: exact.sampling.sampling_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+    ] {
+        assert!(pose::evaluate_set(&bytes, "one over", &selected, limits).is_err());
+    }
+}
+
 #[test]
 fn rotation_keys_refuse_instead_of_quaternion_normalization_or_angle_guess() {
     let mut blocks = blocks();

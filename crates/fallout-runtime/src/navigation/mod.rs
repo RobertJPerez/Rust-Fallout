@@ -1,5 +1,6 @@
 //! Bounded paths through source-authored triangles. Eligibility/cost decisions are
 //! explicit caller inputs; paths are proposals, never canonical actor movement.
+pub mod corridor;
 use fallout_data::{identity::FormKey, navigation::SourceMesh};
 use serde::{Deserialize, Serialize};
 use std::{

@@ -3,6 +3,17 @@ use std::path::PathBuf;
 
 #[derive(Subcommand)]
 pub(crate) enum PhysicsCommand {
+    /// Certify an internally generated same-cell source triangle corridor.
+    NavigationCorridor {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Inspect an explicit source CELL set under shared navigation and route limits.
     NavigationCellSet {
         #[arg(long)]

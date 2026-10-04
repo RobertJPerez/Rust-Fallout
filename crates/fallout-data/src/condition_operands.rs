@@ -12,6 +12,10 @@ use crate::{
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+#[path = "condition_record.rs"]
+mod record;
+pub use record::{ConditionSite, PreparedRecord, RecordIdentity, RecordLimits, prepare_record};
+
 #[derive(Debug, Clone, Copy)]
 pub struct Parameter {
     pub type_id: u32,

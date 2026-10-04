@@ -410,6 +410,96 @@ fn physical_tail_mips_and_existing_bc_format_clamp_payload_policies_keep_exact_b
 }
 
 #[test]
+fn incompatible_raw_mip_layouts_refuse_before_decoder_even_when_payload_and_cap_pass() {
+    // Independent pinned uploader derivation: raw9x4 BC1 mips24+8, rounded
+    // descriptor12x4 mips24+16. The retained32 bytes cannot supply slice24..40.
+    for (width, height, levels, bc1_bytes, physical_pixels, failing_mip) in [
+        (9, 4, 2, 32, 80, 1),
+        (4, 9, 2, 32, 80, 1),
+        (9, 9, 2, 80, 208, 1),
+        (17, 4, 2, 56, 128, 1),
+        (4, 17, 2, 56, 128, 1),
+        // First downsample still agrees; the third mip exposes the mismatch.
+        (19, 4, 3, 72, 160, 2),
+        (4, 19, 3, 72, 160, 2),
+    ] {
+        for fourcc in [b"DXT1", b"DXT2", b"DXT3", b"DXT4", b"DXT5"] {
+            let bytes = authored_dds_extent(width, height, levels, fourcc);
+            let expected_bytes = if fourcc == b"DXT1" {
+                bc1_bytes
+            } else {
+                bc1_bytes * 2
+            };
+            assert_eq!(bytes.len(), 128 + expected_bytes);
+            assert_eq!(
+                model::diffuse_physical_mip_pixels(width, height, levels).unwrap(),
+                physical_pixels
+            );
+            for clamp in 0..4 {
+                let error =
+                    model::decode_diffuse_bounded(&bytes, clamp, physical_pixels, bytes.len())
+                        .expect_err("Incompatible mip data must never reach upload");
+                assert!(
+                    error
+                        .to_string()
+                        .contains(&format!("mip {failing_mip} raw block layout")),
+                    "{error}"
+                );
+                assert!(model::decode_diffuse(&bytes, clamp).is_err());
+            }
+            // Invalid DDS header would fail in ddsfile; layout refusal wins,
+            // proving that the source payload has not entered Image::from_buffer.
+            let mut invalid = bytes;
+            invalid[4..8].copy_from_slice(&0u32.to_le_bytes());
+            let error = model::decode_diffuse(&invalid, 0).expect_err("Predecode layout refusal");
+            assert!(error.to_string().contains("raw block layout"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn compatible_unaligned_single_mip_and_mip_tails_retain_exact_source_bytes() {
+    // Literal independent totals include a base whose multi-mip form refuses.
+    for (width, height, levels, bc1_bytes, physical_pixels) in [
+        (9, 4, 1, 24, 48),
+        (4, 9, 1, 24, 48),
+        (5, 5, 3, 48, 96),
+        (7, 5, 3, 48, 96),
+        (12, 12, 4, 120, 240),
+        (16, 16, 5, 184, 368),
+    ] {
+        for fourcc in [b"DXT1", b"DXT2", b"DXT3", b"DXT4", b"DXT5"] {
+            let bytes = authored_dds_extent(width, height, levels, fourcc);
+            let expected_bytes = if fourcc == b"DXT1" {
+                bc1_bytes
+            } else {
+                bc1_bytes * 2
+            };
+            assert_eq!(bytes.len(), 128 + expected_bytes);
+            assert_eq!(
+                model::diffuse_physical_mip_pixels(width, height, levels).unwrap(),
+                physical_pixels
+            );
+            for clamp in 0..4 {
+                let bounded =
+                    model::decode_diffuse_bounded(&bytes, clamp, physical_pixels, bytes.len())
+                        .unwrap();
+                let default = model::decode_diffuse(&bytes, clamp).unwrap();
+                assert_eq!(bounded.data.as_ref().unwrap(), &bytes[128..]);
+                assert_eq!(default.data, bounded.data);
+                assert_eq!(bounded.texture_descriptor.mip_level_count, levels);
+            }
+            assert!(
+                model::decode_diffuse_bounded(&bytes, 0, physical_pixels - 1, bytes.len()).is_err()
+            );
+            assert!(
+                model::decode_diffuse_bounded(&bytes, 0, physical_pixels, bytes.len() - 1).is_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn hostile_dimensions_optional_mip_header_and_unsupported_formats_never_expand_admission() {
     let valid = authored_dds_extent(4, 4, 1, b"DXT1");
     for (offset, value) in [

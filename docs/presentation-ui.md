@@ -284,6 +284,12 @@ physical mip texels must fit 4,194,304 (16 MiB virtual RGBA). Before the image
 decoder runs, checked admission rounds the base dimensions to BC's 4x4 blocks,
 then rounds every mip of that Bevy image extent to whole blocks. This includes
 sub-block tail mips. The texture receipt reports this same physical count.
+Each raw DDS mip's block rows and columns must also match the corresponding mip
+of Bevy's rounded base extent, before decoding and again against the returned
+descriptor. Incompatible layouts refuse; no padding or replacement mip data is
+invented. For example, raw 9x4 BC1 with two mips retains 24+8 bytes, while the
+rounded 12x4 image upload needs 24+16; it refuses before any image or report is
+admitted. Its single-mip form and compatible unaligned/tail layouts remain valid.
 These counts describe admission rather than measured peak memory. Complete report
 serialization is admitted before creating a fresh report; later I/O or cancellation can leave a
 diagnostic report without a capture. Source receipts are preparation snapshots,

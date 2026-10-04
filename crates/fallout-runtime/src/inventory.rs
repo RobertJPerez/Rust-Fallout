@@ -7,6 +7,7 @@ use crate::{
 use fallout_data::identity::FormKey;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     mem::size_of,
     num::{NonZeroU32, NonZeroU64},
     ops::Bound,
@@ -342,6 +343,39 @@ fn page_charge(usage: &mut PageUsage, bytes: usize, limits: PageLimits) -> Resul
     }
     Ok(())
 }
+fn facts_copy_payload(facts: &Facts) -> Result<usize> {
+    let mut bytes = 0_usize;
+    let mut add = |value| -> Result<()> {
+        bytes = bytes
+            .checked_add(value)
+            .ok_or(Error::Capacity("item copied bytes"))?;
+        Ok(())
+    };
+    let table = |count: usize, width: usize| {
+        page_table(count, width).map_err(|_| Error::Capacity("item copied bytes"))
+    };
+    add(facts.base.origin_plugin.len())?;
+    if let Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) = &facts.ownership {
+        add(key.origin_plugin.len())?;
+    }
+    if let Some(ammo) = &facts.ammo {
+        add(ammo.base.origin_plugin.len())?;
+    }
+    if let Some(slots) = &facts.equipped_slots {
+        add(table(slots.len(), size_of::<u16>())?)?;
+    }
+    if let Some(modifications) = &facts.modifications {
+        add(table(modifications.len(), size_of::<FormKey>())?)?;
+        for key in modifications {
+            add(key.origin_plugin.len())?;
+        }
+    }
+    add(table(facts.extra_fields.len(), size_of::<OpaqueExtra>())?)?;
+    for field in &facts.extra_fields {
+        add(field.bytes.len())?;
+    }
+    Ok(bytes)
+}
 fn page_fact_copies(facts: &Facts, usage: &mut PageUsage, limits: PageLimits) -> Result<()> {
     usage.links = usage
         .links
@@ -358,38 +392,420 @@ fn page_fact_copies(facts: &Facts, usage: &mut PageUsage, limits: PageLimits) ->
         return Err(Error::Capacity("inventory page extra bytes"));
     }
     page_charge(usage, size_of::<Item>(), limits)?;
-    page_charge(usage, facts.base.origin_plugin.len(), limits)?;
-    if let Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) = &facts.ownership {
-        page_charge(usage, key.origin_plugin.len(), limits)?;
-    }
-    if let Some(ammo) = &facts.ammo {
-        page_charge(usage, ammo.base.origin_plugin.len(), limits)?;
-    }
-    if let Some(slots) = &facts.equipped_slots {
-        page_charge(usage, page_table(slots.len(), size_of::<u16>())?, limits)?;
-    }
-    if let Some(modifications) = &facts.modifications {
-        page_charge(
-            usage,
-            page_table(modifications.len(), size_of::<FormKey>())?,
-            limits,
-        )?;
-        for key in modifications {
-            page_charge(usage, key.origin_plugin.len(), limits)?;
-        }
-    }
     page_charge(
         usage,
-        page_table(facts.extra_fields.len(), size_of::<OpaqueExtra>())?,
+        facts_copy_payload(facts).map_err(|_| Error::Capacity("inventory page copied bytes"))?,
         limits,
-    )?;
-    for field in &facts.extra_fields {
-        page_charge(usage, field.bytes.len(), limits)?;
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SourceInventoryLimits {
+    pub max_lots: usize,
+    pub max_source_checks: usize,
+    /// Logical staged values and described temporary lookup/validation copies;
+    /// excludes allocator overhead and commit/process peak memory.
+    pub max_copied_bytes: usize,
+}
+impl Default for SourceInventoryLimits {
+    fn default() -> Self {
+        Self {
+            max_lots: 256,
+            max_source_checks: 32_768,
+            max_copied_bytes: 2 * 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct SourceInventoryUsage {
+    pub lots: usize,
+    pub source_checks: usize,
+    pub links: usize,
+    pub extra_bytes: usize,
+    pub copied_bytes: usize,
+}
+#[derive(Debug)]
+#[must_use = "staging reserves no bank or IDs; commit initialization or drop it"]
+pub struct StagedSourceInventory {
+    epoch: u64,
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    revision: u64,
+    next_item: u64,
+    final_next_item: u64,
+    owner: ReferenceId,
+    authored: Option<FormKey>,
+    lots: Vec<(Facts, NonZeroU32)>,
+    proofs: Vec<crate::source_items::Proof>,
+    counts: Vec<(FormKey, u64)>,
+    usage: SourceInventoryUsage,
+}
+impl StagedSourceInventory {
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn lots(&self) -> &[(Facts, NonZeroU32)] {
+        &self.lots
+    }
+    pub fn usage(&self) -> SourceInventoryUsage {
+        self.usage
+    }
+}
+/// Original source checks and published IDs are observations, not a reusable
+/// source policy or a way to deserialize initialization authority.
+#[derive(Debug, Serialize)]
+pub struct SourceInventoryReceipt {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    before_revision: u64,
+    after_revision: u64,
+    owner: ReferenceId,
+    item_ids: Vec<ItemId>,
+    proofs: Vec<crate::source_items::Proof>,
+    usage: SourceInventoryUsage,
+}
+impl SourceInventoryReceipt {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn policy_sha256(&self) -> &str {
+        &self.policy_sha256
+    }
+    pub fn before_revision(&self) -> u64 {
+        self.before_revision
+    }
+    pub fn after_revision(&self) -> u64 {
+        self.after_revision
+    }
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn item_ids(&self) -> &[ItemId] {
+        &self.item_ids
+    }
+    pub fn proofs(&self) -> &[crate::source_items::Proof] {
+        &self.proofs
+    }
+    pub fn usage(&self) -> SourceInventoryUsage {
+        self.usage
+    }
+}
+fn initialization_charge(
+    usage: &mut SourceInventoryUsage,
+    bytes: usize,
+    limits: SourceInventoryLimits,
+) -> Result<()> {
+    usage.copied_bytes = usage
+        .copied_bytes
+        .checked_add(bytes)
+        .ok_or(Error::Capacity("source inventory copied bytes"))?;
+    if usage.copied_bytes > limits.max_copied_bytes {
+        return Err(Error::Capacity("source inventory copied bytes"));
     }
     Ok(())
 }
+fn initialization_table(
+    usage: &mut SourceInventoryUsage,
+    count: usize,
+    width: usize,
+    limits: SourceInventoryLimits,
+) -> Result<()> {
+    initialization_charge(
+        usage,
+        count
+            .checked_mul(width)
+            .ok_or(Error::Capacity("source inventory copied bytes"))?,
+        limits,
+    )
+}
+fn initialization_source_key(
+    usage: &mut SourceInventoryUsage,
+    key: &FormKey,
+    limits: SourceInventoryLimits,
+) -> Result<()> {
+    usage.source_checks = usage
+        .source_checks
+        .checked_add(1)
+        .ok_or(Error::Capacity("source inventory source checks"))?;
+    if usage.source_checks > limits.max_source_checks {
+        return Err(Error::Capacity("source inventory source checks"));
+    }
+    // One retained CheckedForm key plus the two existing canonical plugin-name
+    // temporaries in Facts validation and Content::source_form. No header body
+    // or second content index is copied.
+    for bytes in [
+        size_of::<crate::source_items::CheckedForm>(),
+        key.origin_plugin.len(),
+        size_of::<String>(),
+        key.origin_plugin.len(),
+        size_of::<String>(),
+        key.origin_plugin.len(),
+    ] {
+        initialization_charge(usage, bytes, limits)?;
+    }
+    Ok(())
+}
+fn initialization_count(total: u64, added: u64) -> Result<u64> {
+    total
+        .checked_add(added)
+        .ok_or(Error::Capacity("inventory count"))
+}
+fn initialization_next_item(next: u64, lots: usize) -> Result<u64> {
+    if next == 0 {
+        return Err(Error::Invalid("zero item allocator".into()));
+    }
+    next.checked_add(u64::try_from(lots).map_err(|_| Error::Capacity("item identities"))?)
+        .ok_or(Error::Capacity("item identities"))
+}
 
 impl World<'_> {
+    fn source_inventory_capacity(
+        &self,
+        owner: ReferenceId,
+        lots: usize,
+        links: usize,
+        bytes: usize,
+    ) -> Result<(usize, usize, u64)> {
+        self.reference_origin(owner)?;
+        if self.inventory_banks.contains_key(&owner) {
+            return Err(Error::Invalid("inventory already initialized".into()));
+        }
+        if self.inventory_banks.len() >= self.limits.max_inventory_banks {
+            return Err(Error::Capacity("inventory banks"));
+        }
+        if self
+            .items
+            .len()
+            .checked_add(lots)
+            .ok_or(Error::Capacity("item instances"))?
+            > self.limits.max_item_instances
+        {
+            return Err(Error::Capacity("item instances"));
+        }
+        let next = initialization_next_item(self.next_item, lots)?;
+        let (links, bytes) = self.item_capacity_changes(links, bytes, 0, 0)?;
+        self.next_revision()?;
+        Ok((links, bytes, next))
+    }
+    /// Every caller-supplied lot is checked before creating the bank. An empty
+    /// list explicitly initializes an empty bank; it still publishes one revision.
+    pub fn stage_source_inventory_initialization(
+        &self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        owner: ReferenceId,
+        lots: &[(Facts, NonZeroU32)],
+        limits: SourceInventoryLimits,
+    ) -> crate::source_items::Result<StagedSourceInventory> {
+        content.validate_world(self)?;
+        let authored = self.reference_origin(owner)?;
+        if lots.len() > limits.max_lots {
+            return Err(Error::Capacity("source inventory lots").into());
+        }
+        let mut usage = SourceInventoryUsage {
+            lots: lots.len(),
+            ..SourceInventoryUsage::default()
+        };
+        for bytes in [
+            size_of::<StagedSourceInventory>(),
+            size_of::<BTreeMap<&FormKey, u64>>(),
+            self.cohort.len(),
+            policy.sha256().len(),
+            authored.map_or(0, |key| key.origin_plugin.len()),
+        ] {
+            initialization_charge(&mut usage, bytes, limits)?;
+        }
+        // Borrowed-only admission first: no Facts, Proof or diagnostic source
+        // key is cloned until all described logical staging copies fit.
+        for (facts, _) in lots {
+            usage.links = usage
+                .links
+                .checked_add(facts.links())
+                .ok_or(Error::Capacity("total item links"))?;
+            usage.extra_bytes = usage
+                .extra_bytes
+                .checked_add(facts.extra_bytes()?)
+                .ok_or(Error::Capacity("total item extra bytes"))?;
+            for bytes in [
+                size_of::<(Facts, NonZeroU32)>(),
+                size_of::<crate::source_items::Proof>(),
+                self.cohort.len(),
+                policy.sha256().len(),
+                facts_copy_payload(facts)?,
+                size_of::<BTreeSet<u16>>(),
+            ] {
+                initialization_charge(&mut usage, bytes, limits)?;
+            }
+            initialization_table(
+                &mut usage,
+                facts.equipped_slots.as_ref().map_or(0, Vec::len),
+                size_of::<u16>(),
+                limits,
+            )?;
+            initialization_source_key(&mut usage, &facts.base, limits)?;
+            if let Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) =
+                &facts.ownership
+            {
+                initialization_source_key(&mut usage, key, limits)?;
+            }
+            if let Some(ammo) = &facts.ammo {
+                initialization_source_key(&mut usage, &ammo.base, limits)?;
+            }
+            if let Some(modifications) = &facts.modifications {
+                for key in modifications {
+                    initialization_source_key(&mut usage, key, limits)?;
+                }
+            }
+        }
+        let (_, _, final_next_item) =
+            self.source_inventory_capacity(owner, lots.len(), usage.links, usage.extra_bytes)?;
+        let mut totals = BTreeMap::<&FormKey, u64>::new();
+        for (facts, count) in lots {
+            let total = match totals.entry(&facts.base) {
+                Entry::Vacant(entry) => {
+                    for bytes in [
+                        size_of::<(&FormKey, u64)>(),
+                        size_of::<(FormKey, u64)>(),
+                        facts.base.origin_plugin.len(),
+                        size_of::<(ReferenceId, FormKey)>(),
+                        facts.base.origin_plugin.len(),
+                    ] {
+                        initialization_charge(&mut usage, bytes, limits)?;
+                    }
+                    if self.count_total(owner, &facts.base) != 0 {
+                        return Err(Error::Invalid(
+                            "uninitialized inventory count index inconsistent".into(),
+                        )
+                        .into());
+                    }
+                    entry.insert(0)
+                }
+                Entry::Occupied(entry) => entry.into_mut(),
+            };
+            *total = initialization_count(*total, u64::from(count.get()))?;
+        }
+        let mut proofs = Vec::with_capacity(lots.len());
+        for (facts, _) in lots {
+            proofs.push(crate::source_items::validate(self, content, policy, facts)?);
+        }
+        Ok(StagedSourceInventory {
+            epoch: self.epoch,
+            campaign: self.campaign,
+            catalogue_sha256: self.cohort.clone(),
+            policy_sha256: policy.sha256().into(),
+            revision: self.revision,
+            next_item: self.next_item,
+            final_next_item,
+            owner,
+            authored: authored.cloned(),
+            lots: lots.to_vec(),
+            proofs,
+            counts: totals
+                .into_iter()
+                .map(|(key, total)| (key.clone(), total))
+                .collect(),
+            usage,
+        })
+    }
+    pub fn commit_source_inventory_initialization(
+        &mut self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        stage: StagedSourceInventory,
+    ) -> crate::source_items::Result<SourceInventoryReceipt> {
+        if stage.epoch != self.epoch {
+            return Err(Error::StaleHandle.into());
+        }
+        content.validate_world(self)?;
+        if stage.campaign != self.campaign || stage.catalogue_sha256 != self.cohort {
+            return Err(Error::DefinitionChanged.into());
+        }
+        if stage.policy_sha256 != policy.sha256() {
+            return Err(crate::source_items::Failure::Policy(
+                "initialization policy changed",
+            ));
+        }
+        if stage.revision != self.revision
+            || stage.next_item != self.next_item
+            || self.reference_origin(stage.owner)? != stage.authored.as_ref()
+        {
+            return Err(
+                Error::Invalid("source inventory initialization boundary changed".into()).into(),
+            );
+        }
+        let (links, bytes, next_item) = self.source_inventory_capacity(
+            stage.owner,
+            stage.lots.len(),
+            stage.usage.links,
+            stage.usage.extra_bytes,
+        )?;
+        if next_item != stage.final_next_item {
+            return Err(Error::Invalid("source inventory allocator changed".into()).into());
+        }
+        for (base, _) in &stage.counts {
+            if self.count_total(stage.owner, base) != 0 {
+                return Err(
+                    Error::Invalid("uninitialized inventory count index changed".into()).into(),
+                );
+            }
+        }
+        let revision = self.next_revision()?;
+        let mut items = Vec::with_capacity(stage.lots.len());
+        let mut item_ids = Vec::with_capacity(stage.lots.len());
+        let mut next = stage.next_item;
+        // Allocate local rows/IDs before publishing; every fallible calculation
+        // is complete before the bank or any canonical counter changes.
+        for (facts, count) in stage.lots {
+            let id = ItemId(
+                NonZeroU64::new(next)
+                    .ok_or_else(|| Error::Invalid("zero item allocator".into()))?,
+            );
+            next = next
+                .checked_add(1)
+                .ok_or(Error::Capacity("item identities"))?;
+            if self.items.contains_key(&id) {
+                return Err(
+                    Error::Invalid("source inventory item identity occupied".into()).into(),
+                );
+            }
+            items.push(Item {
+                id,
+                owner: stage.owner,
+                count,
+                facts,
+            });
+            item_ids.push(id);
+        }
+        let bank = item_ids.iter().copied().collect();
+        let before_revision = self.revision;
+        self.inventory_banks.insert(stage.owner, bank);
+        for item in items {
+            self.items.insert(item.id, item);
+        }
+        for (base, total) in stage.counts {
+            self.set_count_total(stage.owner, base, total);
+        }
+        self.next_item = next_item;
+        self.item_links = links;
+        self.item_bytes = bytes;
+        self.revision = revision;
+        Ok(SourceInventoryReceipt {
+            campaign: stage.campaign,
+            catalogue_sha256: stage.catalogue_sha256,
+            policy_sha256: stage.policy_sha256,
+            before_revision,
+            after_revision: revision,
+            owner: stage.owner,
+            item_ids,
+            proofs: stage.proofs,
+            usage: stage.usage,
+        })
+    }
     /// Two bounded BTreeSet ranges: precharge borrowed rows, then copy only the
     /// admitted slice. No Snapshot, whole-bank view, skipped prefix or retained
     /// temporary row/key list is materialized.
@@ -606,16 +1022,29 @@ impl World<'_> {
         )
     }
     fn item_capacity(&self, f: &Facts, replacing: Option<&Facts>) -> Result<(usize, usize)> {
+        self.item_capacity_changes(
+            f.links(),
+            f.extra_bytes()?,
+            replacing.map_or(0, Facts::links),
+            replacing.map(Facts::extra_bytes).transpose()?.unwrap_or(0),
+        )
+    }
+    fn item_capacity_changes(
+        &self,
+        added_links: usize,
+        added_bytes: usize,
+        removed_links: usize,
+        removed_bytes: usize,
+    ) -> Result<(usize, usize)> {
         let links = self
             .item_links
-            .checked_sub(replacing.map_or(0, Facts::links))
-            .and_then(|n| n.checked_add(f.links()))
+            .checked_sub(removed_links)
+            .and_then(|n| n.checked_add(added_links))
             .ok_or(Error::Capacity("total item links"))?;
-        let prior = replacing.map(Facts::extra_bytes).transpose()?.unwrap_or(0);
         let bytes = self
             .item_bytes
-            .checked_sub(prior)
-            .and_then(|n| n.checked_add(f.extra_bytes().ok()?))
+            .checked_sub(removed_bytes)
+            .and_then(|n| n.checked_add(added_bytes))
             .ok_or(Error::Capacity("total item extra bytes"))?;
         if links > self.limits.max_total_item_links || bytes > self.limits.max_total_item_bytes {
             return Err(Error::Capacity("total item extra state"));
@@ -939,5 +1368,35 @@ mod page_tests {
             ids.range((Bound::Excluded(last), Bound::Unbounded)).count(),
             0
         );
+    }
+}
+
+#[cfg(test)]
+mod source_inventory_tests {
+    use super::*;
+    #[test]
+    fn logical_staging_copy_arithmetic_refuses_addition_and_table_overflow() {
+        let limits = SourceInventoryLimits {
+            max_copied_bytes: usize::MAX,
+            ..SourceInventoryLimits::default()
+        };
+        let mut usage = SourceInventoryUsage {
+            copied_bytes: 1,
+            ..SourceInventoryUsage::default()
+        };
+        assert!(initialization_charge(&mut usage, usize::MAX, limits).is_err());
+        assert!(
+            initialization_table(&mut SourceInventoryUsage::default(), usize::MAX, 2, limits)
+                .is_err()
+        );
+    }
+    #[test]
+    fn cumulative_counts_and_whole_id_span_do_not_wrap() {
+        assert_eq!(initialization_count(u64::MAX - 1, 1).unwrap(), u64::MAX);
+        assert!(initialization_count(u64::MAX - 1, 2).is_err());
+        assert_eq!(initialization_next_item(u64::MAX - 2, 2).unwrap(), u64::MAX);
+        assert!(initialization_next_item(u64::MAX - 2, 3).is_err());
+        assert_eq!(initialization_next_item(u64::MAX, 0).unwrap(), u64::MAX);
+        assert!(initialization_next_item(0, 0).is_err());
     }
 }

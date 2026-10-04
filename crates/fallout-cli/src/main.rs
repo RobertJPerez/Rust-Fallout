@@ -362,6 +362,12 @@ enum Command {
             conflicts_with = "engineering_event_commit"
         )]
         host_requirements: Option<PathBuf>,
+        /// Explicit source selections and retained state for atomic group admission.
+        #[arg(long, requires = "source_reference_repository", conflicts_with_all = ["engineering_event_commit", "host_snapshot", "host_requirements"])]
+        source_reference_group: Option<PathBuf>,
+        /// New native repository for the explicit group before/current boundaries.
+        #[arg(long, requires = "source_reference_group", conflicts_with_all = ["engineering_event_commit", "host_snapshot", "host_requirements"])]
+        source_reference_repository: Option<PathBuf>,
     },
     /// Prepare bounded source windows for explicit engineering pending events.
     EventFrames {
@@ -1150,6 +1156,8 @@ fn run(args: Args) -> Result<()> {
             engineering_event_commit,
             host_snapshot,
             host_requirements,
+            source_reference_group,
+            source_reference_repository,
         } => {
             let report = script_state_inspection::inspect(
                 &install,
@@ -1157,6 +1165,9 @@ fn run(args: Args) -> Result<()> {
                 index_cache.as_deref(),
                 engineering_event_commit.as_deref(),
                 host_snapshot.as_deref().zip(host_requirements.as_deref()),
+                source_reference_group
+                    .as_deref()
+                    .zip(source_reference_repository.as_deref()),
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }

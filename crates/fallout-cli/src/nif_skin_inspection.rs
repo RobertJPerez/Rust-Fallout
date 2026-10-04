@@ -252,6 +252,66 @@ pub fn inspect_influences(input: &Path, request_path: &Path) -> Result<Influence
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SharedGeometryRequest {
+    geometry: u32,
+    weights: InfluenceWeightPolicy,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SharedSkinRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometries: Vec<SharedGeometryRequest>,
+}
+#[derive(Serialize)]
+pub struct SharedSkinReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<nif_skin::pose::GeometryBatch>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_shared_skin(input: &Path, request_path: &Path) -> Result<SharedSkinReport> {
+    let request: SharedSkinRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.geometries.len() > 64 {
+        return Err("shared skin requires schema1 and at most64 geometry requests".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let geometries: Vec<_> = request
+        .geometries
+        .iter()
+        .map(|request| nif_skin::pose::Request {
+            geometry: request.geometry,
+            weights: request.weights.policy(),
+        })
+        .collect();
+    let evaluated = nif_skin::pose::evaluate_many(
+        &bytes,
+        &input.display().to_string(),
+        request.expected_source_sha256,
+        &geometries,
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(SharedSkinReport {
+        schema_version: 1,
+        contract: "engineering-shared-source-skin-batch-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ExternalBoneRequest {
     bone_ordinal: usize,
     rig_node: u32,

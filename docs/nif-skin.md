@@ -695,3 +695,87 @@ frozen pinned native executable without rebuilding it. Initial test expectation
 failure, original draft proofs and byte-exact preservation/restoration before
 the pose-set correction remain immutable beside fresh validation03, binary02
 and consumer02 evidence in ignored `local/v3-asset-20`.
+
+## Reusable source and shared-skeleton geometry batches
+
+`pose::PreparedSkinSource::prepare(bytes, source, PreparationLimits)` owns the
+existing NIF index, skin/binding catalogue, Scene and a bounded validated geometry
+owner map. The private-field object retains no borrow of caller bytes and exposes
+no public decoded-catalogue constructor, serialization, mutation or global cache.
+`source_sha256()` and `usage()` are read-only observations. Exact source spans,
+binary32 words and decoded arrays remain owned after the caller changes or drops
+its input. Preparation records one existing binding decode and one Scene decode;
+subsequent evaluations borrow those same internal catalogues.
+
+`PreparedSkinSource::evaluate_many(source, expected_source_sha256, &[Request],
+BatchEvaluationLimits)` requires the preparation's exact whole-source identity
+and a nonempty, ordered set of unique explicit geometries. Each geometry keeps
+its own geometry/data/instance/skin-data/root IDs, source bone order, authored skin
+mapping, weight policy, normals and placement. All numeric accumulation uses the
+existing private evaluator. A second geometry never inherits a first geometry's
+palette or raw weights. Complete observation permutation changes only output
+order. Later failure returns no completed batch. Preparation remains immutable;
+a failed evaluation does not publish partial geometry output.
+
+`pose::evaluate_many(bytes, source, expected_source_sha256, &[Request], BatchLimits)`
+is the convenience preparation/batch wrapper. Its private preparation verifies
+the exact expected hash before decoding. Existing one-shot, sampled-source and
+compact-influence paths retain their original validation order and observations;
+their shared numeric body now receives a private borrowed decoded view. No public
+matrix or catalogue becomes source authority.
+
+Preparation independently bounds the existing source decoder and admits its
+declared array/check allowances under defaults of 512 MiB and 64 million units
+(448 MiB and 48 million units declared by the default decoder). Additional header,
+hash and owner-map elements default to four MiB; source hash byte visits, owner
+admission and map initialization to 128 million units. Input and block/index/Scene
+caps remain active. Batch evaluation separately defaults to 64 geometries,
+128 MiB charged elements and 128 million units, with the existing per-geometry
+64 MiB, sixteen million units and depth1,024 caps. Complete batch output headers
+are admitted before allocation; each next geometry receives remaining aggregate
+allowances as well as its own caps.
+
+`GeometryBatch.preparation` describes the completed preparation phase. Batch
+`retained_bytes`/`work_units` describe the current evaluation phase, including
+charged temporary elements and complete output headers. The separate source
+binding retention figure includes existing skin/partition/binding elements,
+excluding independently block-bounded index/Scene storage. Preparation usage is
+repeated as provenance on each evaluation, not charged as decoding that ran again.
+These logical counters exclude allocator overhead and spare capacity and do not
+measure process memory or playback speed.
+
+The owned consumer is:
+
+```text
+fallout nif-skin INPUT --shared-skin-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 requires `expected_source_sha256` (32 byte integers) and
+`geometries`, each with exact `geometry` and an explicit raw `weights` policy.
+Input/request limits are 64 MiB/64 KiB; output must be outside both directories.
+Other source/pose modes conflict. Semantic refusal returns `evaluation: null`,
+exact error and nonzero exit. Controllers remain recorded as unapplied; source
+local engineering deformation does not establish animated actor or retail
+playback. `tools/nif-skin-oracle/check_shared.py` provides a second independent
+two-geometry source with different mappings and noncommuting transforms, literal
+positions/normals/palettes/placement, full permutation and request refusals.
+
+Validation passes 70 focused pose/clip/skin tests (seven new shared-source cases),
+38 serial CLI tests, affected all-target Clippy with warnings denied, formatting
+and the CLI build. Tests drop/mutate the caller's input, reuse one preparation,
+exercise independent and aggregate exact/one-under caps, and preserve complete
+permuted observations. The frozen second source passes two literal geometries,
+both full palettes, full permutation and twelve intended refusals.
+
+Installed source `4c89ebbb...` has geometries1/47 sharing root0. Their 37/15
+palettes, 444/180 coefficients and 2,954/392 vertices retain independent source
+identity and raw weights through one preparation. All palette coefficients meet
+the exact-rational bounds from preserved native source transforms, with maximum
+absolute error `7.530293869397177e-15`; deliberate mutation is rejected. Raw sum
+error is at most `7.450580596923828e-08`, checked with the explicitly recorded
+tolerance `1.9371509552001953e-07` without altering weights. Each original pose,
+earlier source schemas1/2/3, sampled-skin receipt and full compact-influence receipt
+remain byte-identical to frozen20. Engineering output does not establish original
+deformation or playback. Immutable checks and the frozen executable stay in
+ignored `local/v3-asset-13`. This single producer also closes the coordinator's
+refined reusable-source alias ASSET21.

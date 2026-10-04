@@ -2,9 +2,15 @@
 //! pose. Controller playback, external rigs and retail normal rules are separate.
 
 use super::{Data, Transform, binding};
-use crate::{Error, Result, nif_animation, nif_scene};
+use crate::{Error, Result, nif, nif_animation, nif_scene};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+
+mod batch;
+pub use batch::{
+    BatchEvaluationLimits, BatchLimits, GeometryBatch, GeometryLimits, PreparationLimits,
+    PreparationUsage, PreparedSkinSource, evaluate_many,
+};
 
 /// Column-vector affine rows, in original NIF coordinates and units.
 pub type Affine = [[f64; 4]; 3];
@@ -363,17 +369,68 @@ fn evaluate_inner(
     selected: Option<SampleOverride<'_>>,
     table: Option<&super::influences::Table>,
 ) -> Result<Evaluation> {
-    let mut budget = Budget {
+    let budget = Budget {
         source,
         storage: limits.array_bytes,
         work: limits.work_units,
     };
-    if let WeightPolicy::RequireUnitSum { absolute_tolerance } = request.weights
+    validate_weight_policy(request.weights, &budget)?;
+    let (index, decoded, scene) = binding::decode_with_scene(bytes, source, limits.source)?;
+    evaluate_decoded(
+        DecodedView {
+            hash: SourceHash::Input(bytes),
+            source,
+            index: &index,
+            decoded: &decoded,
+            scene: &scene,
+        },
+        request,
+        limits,
+        selected,
+        table,
+        budget,
+    )
+}
+
+fn validate_weight_policy(weights: WeightPolicy, budget: &Budget<'_>) -> Result<()> {
+    if let WeightPolicy::RequireUnitSum { absolute_tolerance } = weights
         && (!absolute_tolerance.is_finite() || !(0. ..=1.).contains(&absolute_tolerance))
     {
         return Err(budget.fail("weight tolerance must be finite in [0,1]"));
     }
-    let (index, decoded, scene) = binding::decode_with_scene(bytes, source, limits.source)?;
+    Ok(())
+}
+
+/// Private borrowed authority created only by the existing source decoder.
+#[derive(Clone, Copy)]
+enum SourceHash<'a> {
+    Input(&'a [u8]),
+    Prepared(&'a str),
+}
+#[derive(Clone, Copy)]
+struct DecodedView<'a> {
+    source: &'a str,
+    hash: SourceHash<'a>,
+    index: &'a nif::NifIndex,
+    decoded: &'a binding::Source,
+    scene: &'a nif_scene::Scene,
+}
+
+fn evaluate_decoded(
+    view: DecodedView<'_>,
+    request: Request,
+    limits: Limits,
+    selected: Option<SampleOverride<'_>>,
+    table: Option<&super::influences::Table>,
+    mut budget: Budget<'_>,
+) -> Result<Evaluation> {
+    let DecodedView {
+        hash,
+        source,
+        index,
+        decoded,
+        scene,
+    } = view;
     // An unknown node may contain a hidden link to a selected bone. The old
     // catalogue deliberately certifies only decoded ancestry, so refuse here.
     if !decoded.bindings.unsupported_scene_edges.is_empty() {
@@ -560,7 +617,10 @@ fn evaluate_inner(
         } else {
             "engineering-source-local-skin-v1"
         },
-        source_sha256: format!("{:x}", Sha256::digest(bytes)),
+        source_sha256: match hash {
+            SourceHash::Prepared(digest) => digest.to_owned(),
+            SourceHash::Input(bytes) => format!("{:x}", Sha256::digest(bytes)),
+        },
         geometry: request.geometry,
         geometry_data,
         instance: owner.instance,
@@ -590,7 +650,7 @@ fn evaluate_inner(
             }
             record_controller(
                 id,
-                &scene,
+                scene,
                 &objects,
                 &mut controller_seen,
                 &mut result,
@@ -614,7 +674,7 @@ fn evaluate_inner(
             }
             record_controller(
                 cursor,
-                &scene,
+                scene,
                 &objects,
                 &mut controller_seen,
                 &mut result,

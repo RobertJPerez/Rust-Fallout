@@ -10,6 +10,106 @@ use fallout_data::{
 use serde_json::{Value, json};
 use std::{io::Read, path::Path};
 
+fn condition_signatures(
+    descriptors: &command_catalogue::Catalogue,
+) -> condition_operands::Signatures {
+    descriptors
+        .script_commands
+        .iter()
+        .filter(|row| row.condition_handler_present)
+        .map(|row| {
+            (
+                (row.id - 0x1000) as u16,
+                condition_operands::Signature {
+                    parameters: row
+                        .parameters
+                        .iter()
+                        .map(|parameter| condition_operands::Parameter {
+                            type_id: parameter.type_id,
+                            optional_word: parameter.optional_word,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect()
+}
+
+pub(super) struct ContextOptions<'a> {
+    pub(super) actor_root: &'a FormKey,
+    pub(super) snapshot: &'a Path,
+    pub(super) explicit_subject: Option<std::num::NonZeroU64>,
+    pub(super) engineering_observation: bool,
+    pub(super) condition_executable: Option<&'a Path>,
+}
+
+/// Restore the existing canonical snapshot, then make read-only host requests.
+pub(super) fn package_context(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    options: ContextOptions<'_>,
+) -> Result<Value> {
+    use fallout_runtime::{
+        World, actor_rules::packages, execution::condition, foreign::Content, snapshot::Snapshot,
+    };
+    let limits = fallout_runtime::Limits::default();
+    let mut snapshot_source = baseline::open_source(options.snapshot)?;
+    let mut snapshot_bytes = Vec::new();
+    (&mut snapshot_source)
+        .take(limits.max_snapshot_bytes as u64 + 1)
+        .read_to_end(&mut snapshot_bytes)?;
+    let snapshot = Snapshot::decode(&snapshot_bytes, limits)?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
+    let world = World::restore(&scripts, snapshot, limits)?;
+    let content = Content::load(&mut store, &scripts, 2_000_000)?;
+    let inventory = inventory::Catalogue::load(&mut store, Default::default())?;
+    let actors = actors::Catalogue::load(&inventory, Default::default())?;
+    let associations =
+        actors::associations::Catalogue::load(&mut store, &actors, Default::default())?;
+    let package_sources = actors::packages::Catalogue::load(&mut store, Default::default())?;
+    let executable = install.join("FalloutNV.exe");
+    let descriptors =
+        command_catalogue::inspect(options.condition_executable.unwrap_or(&executable))?;
+    let dependencies = actors::package_dependencies::Catalogue::load(
+        &mut store,
+        &package_sources,
+        &scripts,
+        &condition_signatures(&descriptors),
+        Default::default(),
+    )?;
+    let requests = packages::Requests::prepare(
+        &world,
+        &actors,
+        &associations,
+        &dependencies,
+        options.actor_root,
+        packages::Limits::default(),
+    )?;
+    let intent = if options.engineering_observation {
+        condition::Intent::EngineeringObservation
+    } else {
+        condition::Intent::Faithful
+    };
+    let observation = requests.observe(
+        &world,
+        &content,
+        options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId),
+        intent,
+        packages::Limits::default(),
+    )?;
+    let (snapshot_bytes, snapshot_sha256) = baseline::digest_file(options.snapshot)?;
+    Ok(json!({"schema_version":1,"profile":"nv-original",
+        "snapshot_input":{"bytes":snapshot_bytes,"sha256":snapshot_sha256},
+        "descriptor_receipt":{"source_bytes":descriptors.source_bytes,"source_sha256":descriptors.source_sha256,
+            "source_version_profile":descriptors.source_version_profile},
+        "observation":observation,"state_changed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}))
+}
+
 #[derive(Default)]
 pub(super) struct Options {
     pub(super) include_associations: bool,
@@ -142,26 +242,7 @@ pub(super) fn inspect(
         ));
         if options.include_package_dependencies {
             let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
-            let signatures: condition_operands::Signatures = descriptors
-                .script_commands
-                .iter()
-                .filter(|row| row.condition_handler_present)
-                .map(|row| {
-                    (
-                        (row.id - 0x1000) as u16,
-                        condition_operands::Signature {
-                            parameters: row
-                                .parameters
-                                .iter()
-                                .map(|parameter| condition_operands::Parameter {
-                                    type_id: parameter.type_id,
-                                    optional_word: parameter.optional_word,
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .collect();
+            let signatures = condition_signatures(&descriptors);
             let scripts =
                 loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
             let dependencies = actors::package_dependencies::Catalogue::load(

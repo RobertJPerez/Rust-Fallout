@@ -36,19 +36,31 @@ use std::{
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "cell", "terrain", "material_fixture"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture"])))]
+#[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
     #[arg(long)]
     install: Option<PathBuf>,
     /// Archive path, for example meshes/furniture/chair01.nif.
     #[arg(long, requires = "install")]
     model: Option<String>,
+    /// Exact bounded local NIF input; diffuse paths use the same archive lookup.
+    #[arg(long, requires = "install")]
+    model_file: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
-    #[arg(long, requires_all = ["model", "skin_weight_tolerance"])]
+    #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
     /// Validate raw unit weight sums; never repair or normalize weights.
     #[arg(long, requires = "skin_geometry")]
     skin_weight_tolerance: Option<f64>,
+    /// Evaluate this exact source object at the caller's explicit source time.
+    #[arg(long, requires_all = ["model_source", "pose_controller", "pose_time"], conflicts_with = "skin_geometry")]
+    pose_object: Option<u32>,
+    #[arg(long, requires = "pose_object")]
+    pose_controller: Option<u32>,
+    /// Direct source key time; authored clock flags/frequency remain unapplied.
+    #[arg(long, requires = "pose_object", allow_hyphen_values = true)]
+    pose_time: Option<f64>,
     /// Interior CELL editor ID, for example GSDocMitchellHouse.
     #[arg(long, requires_all = ["load_order", "install"])]
     cell: Option<String>,
@@ -196,7 +208,11 @@ struct Loading {
     phase: Phase,
 }
 
-fn output_path(path: &Path, install: Option<&Path>) -> model::Result<PathBuf> {
+fn output_path(
+    path: &Path,
+    install: Option<&Path>,
+    source_file: Option<&Path>,
+) -> model::Result<PathBuf> {
     let name = path.file_name().ok_or("output needs a file name")?;
     let parent = path
         .parent()
@@ -208,6 +224,15 @@ fn output_path(path: &Path, install: Option<&Path>) -> model::Result<PathBuf> {
     {
         return Err("output must be outside the installation".into());
     }
+    if let Some(source) = source_file {
+        let parent = source
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        if result.starts_with(parent.canonicalize()?) {
+            return Err("output must be outside the explicit model source directory".into());
+        }
+    }
     if result.try_exists()? {
         return Err(format!("output already exists: {}", result.display()).into());
     }
@@ -217,10 +242,18 @@ fn output_path(path: &Path, install: Option<&Path>) -> model::Result<PathBuf> {
 fn run() -> model::Result<AppExit> {
     let mut options = Options::parse();
     if let Some(path) = &options.capture {
-        options.capture = Some(output_path(path, options.install.as_deref())?);
+        options.capture = Some(output_path(
+            path,
+            options.install.as_deref(),
+            options.model_file.as_deref(),
+        )?);
     }
     if let Some(path) = &options.report {
-        options.report = Some(output_path(path, options.install.as_deref())?);
+        options.report = Some(output_path(
+            path,
+            options.install.as_deref(),
+            options.model_file.as_deref(),
+        )?);
     }
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
@@ -293,6 +326,25 @@ fn prepare_scene(
     epoch: u64,
 ) -> model::Result<ReadyScene> {
     context.stage("Reading source data")?;
+    let pose = options
+        .skin_geometry
+        .map(|geometry| {
+            pose::Request::Skin(pose::SkinRequest {
+                geometry,
+                absolute_weight_tolerance: options
+                    .skin_weight_tolerance
+                    .expect("clap requires tolerance"),
+            })
+        })
+        .or_else(|| {
+            options.pose_object.map(|object| {
+                pose::Request::Object(pose::ObjectRequest {
+                    object,
+                    controller: options.pose_controller.expect("clap requires controller"),
+                    source_time: options.pose_time.expect("clap requires source time"),
+                })
+            })
+        });
     let mut cell_sources = None;
     let (prepared, report) = if options.material_fixture {
         let (prepared, report) = fixture::prepare()?;
@@ -301,12 +353,13 @@ fn prepare_scene(
         scene::load_model(
             options.install.as_deref().expect("clap requires install"),
             &AssetPath::new(name.as_bytes())?,
-            options.skin_geometry.map(|geometry| pose::SkinRequest {
-                geometry,
-                absolute_weight_tolerance: options
-                    .skin_weight_tolerance
-                    .expect("clap requires tolerance"),
-            }),
+            pose,
+        )?
+    } else if let Some(path) = &options.model_file {
+        scene::load_model_file(
+            options.install.as_deref().expect("clap requires install"),
+            path,
+            pose,
         )?
     } else if let Some(name) = &options.terrain {
         terrain::load(
@@ -759,6 +812,61 @@ fn main() -> std::process::ExitCode {
 mod tests {
     use super::*;
     use std::sync::mpsc;
+
+    #[test]
+    fn explicit_model_source_directory_remains_read_only_for_outputs() {
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/preview-source-output-test");
+        let inputs = root.join("inputs");
+        std::fs::create_dir_all(&inputs).unwrap();
+        let source = inputs.join("authored.packet");
+        let error = output_path(&inputs.join("forbidden.png"), None, Some(&source)).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("outside the explicit model source directory")
+        );
+        assert!(output_path(&root.join("permitted.png"), None, Some(&source)).is_ok());
+    }
+
+    #[test]
+    fn pose_request_requires_exact_controller_time_and_one_model_source() {
+        let base = [
+            "fallout-preview",
+            "--install",
+            "authored-empty-install",
+            "--model-file",
+            "authored.packet",
+            "--pose-object",
+            "1",
+        ];
+        assert!(Options::try_parse_from(base).is_err());
+        let mut arguments = base.to_vec();
+        arguments.extend(["--pose-controller", "2", "--pose-time", "-1.5"]);
+        let parsed = Options::try_parse_from(&arguments).unwrap();
+        assert_eq!(parsed.pose_time, Some(-1.5));
+        assert!(parsed.model.is_none() && parsed.model_file.is_some());
+        arguments.extend(["--skin-geometry", "5", "--skin-weight-tolerance", "0"]);
+        assert!(Options::try_parse_from(&arguments).is_err());
+        assert!(
+            Options::try_parse_from([
+                "fallout-preview",
+                "--install",
+                "authored-empty-install",
+                "--cell",
+                "TestCell",
+                "--load-order",
+                "order.json",
+                "--pose-object",
+                "1",
+                "--pose-controller",
+                "2",
+                "--pose-time",
+                "0",
+            ])
+            .is_err()
+        );
+    }
 
     fn loading_app(phase: Phase) -> App {
         let mut app = App::new();

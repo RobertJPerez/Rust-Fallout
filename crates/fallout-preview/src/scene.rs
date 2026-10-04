@@ -14,6 +14,7 @@ use fallout_data::{
 use serde::Serialize;
 use std::{
     collections::BTreeMap,
+    io::Read,
     path::Path,
     sync::{Arc, Mutex},
     thread,
@@ -107,11 +108,41 @@ pub struct CellReport {
 pub fn load_model(
     install: &Path,
     path: &AssetPath,
-    skin: Option<crate::pose::SkinRequest>,
+    pose: Option<crate::pose::Request>,
 ) -> Result<(Prepared, Report)> {
     let assets = ArchiveAssets::open_nv(install)?;
     let mut textures = Textures::default();
-    let (model, report) = model::load(&assets, path, &mut textures, skin)?;
+    let (model, report) = model::load(&assets, path, &mut textures, pose)?;
+    Ok(single_model(model, report, textures))
+}
+
+pub fn load_model_file(
+    install: &Path,
+    path: &Path,
+    pose: Option<crate::pose::Request>,
+) -> Result<(Prepared, Report)> {
+    let mut bytes = Vec::new();
+    baseline::open_source(path)?
+        .take(64 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 64 * 1024 * 1024 {
+        return Err("Explicit model source file exceeds 64 MiB".into());
+    }
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("Explicit model source requires a Unicode filename")?;
+    let label = AssetPath::new(format!("local-source/{filename}").as_bytes())?;
+    let assets = ArchiveAssets::open_nv(install)?;
+    let mut textures = Textures::default();
+    let (model, mut report) =
+        model::from_bytes_with_pose(&assets, &label, &bytes, &mut textures, pose)?;
+    report.schema_version = 3;
+    report.source_file = Some(Box::new(path.to_path_buf()));
+    Ok(single_model(model, report, textures))
+}
+
+fn single_model(model: Model, report: model::Report, textures: Textures) -> (Prepared, Report) {
     let prepared = Prepared {
         center: model.center,
         radius: model.radius,
@@ -124,7 +155,7 @@ pub fn load_model(
             key: None,
         }],
     };
-    Ok((prepared, Report::Model(report)))
+    (prepared, Report::Model(report))
 }
 
 pub fn load_cell(

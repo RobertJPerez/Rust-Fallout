@@ -2057,6 +2057,24 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
             }
         }
+        WorldCommand::PlacedLinkedSources {
+            install,
+            load_order,
+            index_cache,
+            reference,
+        } => {
+            let report = world_preparation_inspection::linked(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&reference)?,
+            )?;
+            let prepared = report["source_request_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("Placed linked source request refused; see report".into());
+            }
+        }
         WorldCommand::CellOwnershipSources {
             install,
             load_order,

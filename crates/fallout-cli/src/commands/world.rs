@@ -71,6 +71,17 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve exact placed linked-reference and raw source color inputs.
+    PlacedLinkedSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        reference: String,
+    },
     /// Preserve exact FNV CELL owner and signed rank source inputs.
     CellOwnershipSources {
         #[arg(long)]

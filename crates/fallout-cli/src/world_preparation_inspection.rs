@@ -14,6 +14,7 @@ use fallout_data::{
         doors::DoorDestination,
         environment::CellEnvironmentSources,
         lighting::CellLightingSources,
+        linked::PlacedLinkedSources,
         ownership::CellOwnershipSources,
         preparation::CellModelPlan,
         regions::CellRegionSources,
@@ -175,6 +176,40 @@ pub(super) fn water(
     })();
     if let Err(error) = consumed {
         report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) fn linked(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    reference: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let prepared = PlacedLinkedSources::load(&mut store, &reference, Default::default());
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact placed linked-reference and raw color source declarations",
+        "requested_reference":reference,"linked_sources":null,"source_request_prepared":false,"source_error":null,
+        "link_declared":false,"color_declared":false,"link_header_source_available":false,"link_resolution_status":"absent",
+        "target_body_decoded":false,"target_placement_admitted":false,"runtime_binding_evaluated":false,
+        "native_get_linked_ref_executed":false,"actor_package_selected":false,"chain_walked":false,
+        "runtime_ready":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(sources) => {
+            let r = sources.receipt();
+            report["link_declared"] = json!(r.link.is_some());
+            report["color_declared"] = json!(r.color.is_some());
+            report["link_header_source_available"] =
+                json!(r.link.as_ref().is_some_and(|l| l.header_source_available));
+            report["link_resolution_status"] =
+                json!(r.link.as_ref().map_or("absent", |l| l.target.status));
+            report["linked_sources"] = serde_json::to_value(&sources)?;
+            report["source_request_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
     }
     provenance(&mut report, &order, &mut store)?;
     Ok(report)
@@ -2538,6 +2573,295 @@ mod tests {
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
         }
+    }
+
+    fn linked_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let origin = if mode == "player" {
+            "FalloutNV.esm"
+        } else {
+            "Base.esm"
+        };
+        let mut body = field(b"NAME", &[0, 5, 0, 0]);
+        if mode != "absent" {
+            body.extend(field(b"XCLP", &[1, 2, 3, 170, 4, 5, 6, 187]));
+            body.extend(field(b"ZZZZ", &[91, 92]));
+        }
+        if !["absent", "color-only"].contains(&mode) {
+            let raw = match mode {
+                "null" => 0_u32,
+                "missing" => 0x999,
+                "player" => 0x14,
+                _ => 0x200,
+            };
+            if mode == "truncated" {
+                body.extend(b"XLKR\x04\0\0");
+            } else {
+                body.extend(field(b"XLKR", &raw.to_le_bytes()));
+            }
+        }
+        if mode != "bad-core" {
+            body.extend(field(b"DATA", &[0; 24]));
+        }
+        match mode {
+            "duplicate-link" => body.extend(field(b"XLKR", &[0; 4])),
+            "duplicate-color" => body.extend(field(b"XCLP", &[0; 8])),
+            "bad-link-width" => {
+                body = [
+                    field(b"NAME", &[0, 5, 0, 0]),
+                    field(b"DATA", &[0; 24]),
+                    field(b"XLKR", &[0; 3]),
+                ]
+                .concat()
+            }
+            "bad-color-width" => {
+                body = [
+                    field(b"NAME", &[0, 5, 0, 0]),
+                    field(b"DATA", &[0; 24]),
+                    field(b"XCLP", &[0; 7]),
+                ]
+                .concat()
+            }
+            _ => {}
+        }
+        let hedr = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let kind = match mode {
+            "root-achr" => b"ACHR",
+            "root-acre" => b"ACRE",
+            _ => b"REFR",
+        };
+        let base = [
+            record(b"TES4", 0, &hedr),
+            record(kind, 0x100, &body),
+            record(b"PGRE", 0x200, &field(b"ZZZZ", &[1])),
+        ]
+        .concat();
+        fs::write(root.join("Data").join(origin), base).unwrap();
+        let master = if mode == "missing-master" {
+            "Missing.esm"
+        } else {
+            origin
+        };
+        let patch_header = [
+            hedr,
+            field(b"MAST", &[master.as_bytes(), &[0]].concat()),
+            field(b"DATA", &[0; 8]),
+        ]
+        .concat();
+        let mut target = record(
+            if mode == "wrong-record-kind" {
+                b"STAT"
+            } else {
+                b"PBEA"
+            },
+            0x200,
+            &[1, 2, 3],
+        );
+        if mode == "deleted" {
+            target[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        }
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [record(b"TES4", 0, &patch_header), target].concat(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("order.json"),
+            serde_json::to_vec(&json!([origin, "Patch.esp"])).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("linked-case.json"),
+            serde_json::to_vec(&json!({"mode":mode,"origin":origin})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_LINKED_FIXTURE={}", root.display());
+    }
+    fn linked_report(root: &Path, mode: &str) -> Value {
+        let key = if mode == "player" {
+            "FalloutNV.esm:100"
+        } else {
+            "Base.esm:100"
+        };
+        linked(
+            root,
+            &root.join("order.json"),
+            None,
+            crate::parse_cell_key(key).unwrap(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn cli_linked_preserves_exact_field_spans_raw_unused_color_bytes_and_deferred_projectile_header()
+     {
+        for mode in ["valid", "root-achr", "root-acre"] {
+            let root = directory();
+            linked_fixture(&root, mode);
+            let report = linked_report(&root, mode);
+            assert_eq!(report["source_request_prepared"], true);
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["link_declared"], true);
+            assert_eq!(report["color_declared"], true);
+            assert_eq!(report["link_header_source_available"], true);
+            assert_eq!(report["link_resolution_status"], "resolved");
+            let s = &report["linked_sources"];
+            assert_eq!(s["placed"]["header"]["offset"], 42);
+            assert_eq!(s["usage"]["read_bytes"], 72);
+            assert_eq!(s["placement"]["unhandled_fields"]["XLKR"], 1);
+            assert_eq!(s["placement"]["unhandled_fields"]["XCLP"], 1);
+            let link = &s["link"];
+            assert_eq!(link["raw"], 0x200);
+            assert_eq!(link["target"]["key"]["local_id"], 0x200);
+            assert_eq!(link["target"]["status"], "resolved");
+            assert_eq!(link["source"]["source_ordinal"], 1);
+            assert_eq!(link["source"]["source_plugin"], "Patch.esp");
+            assert_eq!(link["source"]["header"]["offset"], 71);
+            assert_eq!(link["source"]["header"]["kind"], json!(b"PBEA")); // Body intentionally lacks a valid placement.
+            assert_eq!(link["field"]["physical_field_ordinal"], 3);
+            assert_eq!(link["field"]["logical_field_ordinal"], 3);
+            assert_eq!(link["field"]["site"]["decoded_header_offset"], 32);
+            assert_eq!(link["field"]["site"]["span"]["decoded_offset"], 38);
+            assert_eq!(link["field"]["physical_framing_offset"], 98);
+            let color = &s["color"];
+            assert_eq!(color["raw"], json!([1, 2, 3, 170, 4, 5, 6, 187]));
+            assert_eq!(color["field"]["physical_field_ordinal"], 1);
+            assert_eq!(color["field"]["site"]["decoded_header_offset"], 10);
+            assert_eq!(color["field"]["site"]["span"]["decoded_offset"], 16);
+            assert_eq!(color["field"]["site"]["span"]["bytes"], 8);
+            assert_eq!(color["field"]["physical_framing_offset"], 76);
+            for flag in [
+                "target_body_decoded",
+                "target_placement_admitted",
+                "runtime_binding_evaluated",
+                "native_get_linked_ref_executed",
+                "actor_package_selected",
+                "chain_walked",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[flag], false);
+            }
+        }
+    }
+    #[test]
+    fn cli_linked_absent_color_only_unavailable_player_and_strict_factory_failures_remain_distinct()
+    {
+        for mode in [
+            "absent",
+            "color-only",
+            "null",
+            "missing",
+            "deleted",
+            "wrong-record-kind",
+            "player",
+            "duplicate-link",
+            "duplicate-color",
+            "bad-link-width",
+            "bad-color-width",
+            "truncated",
+            "bad-core",
+            "missing-master",
+        ] {
+            let root = directory();
+            linked_fixture(&root, mode);
+            if mode == "missing-master" {
+                assert!(
+                    linked(
+                        &root,
+                        &root.join("order.json"),
+                        None,
+                        crate::parse_cell_key("Base.esm:100").unwrap()
+                    )
+                    .is_err()
+                );
+                continue;
+            }
+            let report = linked_report(&root, mode);
+            let refused = [
+                "duplicate-link",
+                "duplicate-color",
+                "bad-link-width",
+                "bad-color-width",
+                "truncated",
+                "bad-core",
+            ]
+            .contains(&mode);
+            assert_eq!(report["source_request_prepared"], !refused);
+            assert_eq!(report["linked_sources"].is_null(), refused);
+            assert_eq!(report["source_error"].is_null(), !refused);
+            if !refused {
+                let declared = !["absent", "color-only"].contains(&mode);
+                let status = match mode {
+                    "absent" | "color-only" => "absent",
+                    "player" => "runtime-player-binding-unimplemented",
+                    _ => mode,
+                };
+                assert_eq!(report["link_declared"], declared);
+                assert_eq!(report["color_declared"], mode != "absent");
+                assert_eq!(report["link_resolution_status"], status);
+                assert_eq!(report["link_header_source_available"], false);
+                assert_eq!(report["linked_sources"]["link"].is_null(), !declared);
+                if mode == "player" {
+                    assert_eq!(
+                        report["linked_sources"]["link"]["target"]["key"]["origin_plugin"],
+                        "falloutnv.esm"
+                    );
+                    assert_eq!(
+                        report["linked_sources"]["link"]["target"]["key"]["local_id"],
+                        0x14
+                    );
+                    assert!(report["linked_sources"]["link"]["source"].is_null());
+                }
+            }
+            assert_eq!(report["target_placement_admitted"], false);
+            assert_eq!(report["native_get_linked_ref_executed"], false);
+        }
+        let root = directory();
+        linked_fixture(&root, "valid");
+        for key in ["Base.esm:999", "Base.esm:200"] {
+            let r = linked(
+                &root,
+                &root.join("order.json"),
+                None,
+                crate::parse_cell_key(key).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(r["source_request_prepared"], false);
+            assert!(r["linked_sources"].is_null());
+        }
+    }
+    #[test]
+    fn cli_linked_requires_an_explicit_canonical_reference() {
+        use clap::Parser;
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "placed-linked-sources",
+                "--install",
+                "authored",
+                "--load-order",
+                "order.json"
+            ])
+            .is_err()
+        );
+        let parsed = crate::Args::try_parse_from([
+            "fallout",
+            "placed-linked-sources",
+            "--install",
+            "authored",
+            "--load-order",
+            "order.json",
+            "--reference",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::World(crate::WorldCommand::PlacedLinkedSources { .. })
+        ));
     }
 
     fn ownership_fixture(root: &Path, mode: &str) {

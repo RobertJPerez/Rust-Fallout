@@ -221,6 +221,23 @@ explicitly, even if container checksums match. Load current against its catalogu
 to prepare its schemas before changing/removing instances and recapturing; if it
 cannot restore, select explicit previous recovery and repair. Publication never
 guesses missing declaration kinds or silently falls back to intrinsic checks.
+
+Deterministically gated queue tests observe schema ownership directly with weak
+handles. Active and queued captures retain the removed instance's schema after
+the world and catalogue are dropped. Successful publication and repository
+failure release that context before returning their results; retained sticky
+statuses keep only the receipt or error. Writer panic releases active and queued
+contexts at shutdown. A rejected capture transfers its context to the caller,
+while dropping a result receiver still permits accepted publication.
+
+A one-live-instance fixture with two removed definitions exercises the retained
+source-cache bound: capture refuses before cloning any schema, and its failed
+publication leaves current bytes unchanged. These are source-context ownership
+and process-lifetime checks, not a measurement of total heap use. Set
+`FALLOUT_SOURCE_CONTEXT_EVIDENCE` to a fresh existing private directory when
+running `save::worker::source_context_tests` to preserve authored inputs, exact
+snapshots, repository slots and the asserted lifetime observations.
+
 Uninitialized unsupported locals, exact numeric bits, schema-1/2 migrations,
 explicit recovery and the native envelope remain unchanged.
 

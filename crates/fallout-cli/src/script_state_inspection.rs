@@ -17,8 +17,8 @@ use fallout_runtime::{
     save::{Captured, Recovery, Repository},
     schema::{self, Kind},
     snapshot::Snapshot,
-    state::observation,
     state::{HostLimits, HostRequirements, initialization},
+    state::{assignment_group, observation},
 };
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -420,6 +420,132 @@ fn selected_local_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
     }
     Ok(None)
 }
+fn local_assignment_group_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    let mut selected = Vec::new();
+    for (_, script) in catalogue.iter() {
+        let declarations = schema::locals(script);
+        let indices = declarations
+            .values()
+            .filter(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+            .take(7)
+            .map(|local| local.index)
+            .collect::<Vec<_>>();
+        if indices.len() >= 2 {
+            selected.push((script, declarations, indices));
+        }
+        if selected.len() == 2 {
+            break;
+        }
+    }
+    if selected.len() != 2 {
+        return Ok(None);
+    }
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        CampaignId::from_bytes([0x2a; 16])?,
+    )?;
+    let reference = world.register_reference(None)?;
+    let mut inputs = Vec::new();
+    for (position, (script, declarations, indices)) in selected.into_iter().enumerate() {
+        let context = Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Null,
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Live { id: reference },
+            ],
+        };
+        let handle = world.create_instance(
+            script.handle(),
+            Owner::Fragment {
+                activation: (position as u64 + 1).try_into()?,
+            },
+            context.clone(),
+        )?;
+        if let Some(instruction) = script
+            .program()?
+            .iter()
+            .flat_map(|program| program.instructions.iter())
+            .find(|instruction| instruction.event.is_some())
+        {
+            world.enqueue(
+                handle,
+                Trigger::Block {
+                    event_id: instruction.event.expect("selected group event").id,
+                    begin_byte_offset: instruction.bytes.start as u32,
+                },
+                context,
+            )?;
+        }
+        let mut assignments = Vec::new();
+        let mut numbers = position;
+        let mut references = 0;
+        for &index in &indices[..indices.len() - 1] {
+            let value = match declarations[&index].kind {
+                Kind::Float | Kind::Integer => {
+                    let bits = [
+                        0x8000000000000000_u64,
+                        0x7ff8123456789abc,
+                        0x7ff8123456789abd,
+                    ][numbers % 3];
+                    numbers += 1;
+                    Value::Number { bits }
+                }
+                Kind::Reference => {
+                    let value = match references % 3 {
+                        0 => ReferenceValue::Null,
+                        1 => ReferenceValue::Content {
+                            key: script.handle().key.record.clone(),
+                        },
+                        _ => ReferenceValue::Live { id: reference },
+                    };
+                    references += 1;
+                    Value::Reference { value }
+                }
+                _ => return Err("Group assignment declaration changed".into()),
+            };
+            assignments.push((index, value));
+        }
+        inputs.push((handle, assignments));
+    }
+    // Caller order deliberately differs from persistent instance/slot order.
+    inputs.reverse();
+    let before = world.snapshot();
+    let requests = inputs
+        .iter()
+        .map(|(instance, assignments)| assignment_group::Request {
+            instance: *instance,
+            assignments,
+        })
+        .collect::<Vec<_>>();
+    let stage = world.stage_local_assignments(&requests, assignment_group::Limits::default())?;
+    if world.snapshot() != before {
+        return Err("Group assignment staging changed canonical state".into());
+    }
+    let explicit = stage.rows().iter().map(|row| json!({
+        "instance":row.instance(),"definition":row.definition(),"assignments":row.assignments(),
+    })).collect::<Vec<_>>();
+    let receipt = world.commit_local_assignments(stage)?;
+    let current = world.snapshot();
+    if before.pending_events != current.pending_events || before.clocks != current.clocks {
+        return Err("Group assignment changed the event journal or clocks".into());
+    }
+    let restored = World::restore(catalogue, current.clone(), Limits::default())?;
+    if restored.snapshot() != current {
+        return Err("Group assignment differs after restore".into());
+    }
+    Ok(Some(json!({
+        "scope":"Explicit isolated host writes to two source-loaded instances; pending events retained",
+        "inputs":explicit,"receipt":receipt,"before_snapshot":before,"current_snapshot":current,
+        "restored_snapshot":restored.snapshot(),"stage_preserved_state":true,"journal_unchanged":true,
+        "canonical_round_trip_equal":true,"bytecode_executed":false,"retail_parity_accepted":false,
+    })))
+}
 fn probe(catalogue: &Catalogue) -> Result<Json> {
     let EngineeringWorld {
         world,
@@ -454,6 +580,9 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
         "original_state_captured":false,"bytecode_executed":false,"retail_parity_accepted":false});
     if let Some(observation) = selected_local_probe(catalogue)? {
         report["selected_local_probe"] = observation;
+    }
+    if let Some(group) = local_assignment_group_probe(catalogue)? {
+        report["local_assignment_group"] = group;
     }
     Ok(report)
 }

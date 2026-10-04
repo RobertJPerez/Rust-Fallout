@@ -345,3 +345,13 @@ and original input/UI. See [review](docs/agents/team-v3/review.md) and
 ACT07B/ASSET09/VM05 handoffs are mapped in
 [preserved-work.json](docs/agents/team-v3/preserved-work.json), not accepted by the
 old checkpoint45 proof.
+
+The active v3 development branch now integrates save-slot source-schema guards,
+sticky asynchronous save status, bounded cell residency and source leases, and
+source-bound script traces. Changed data/runtime/CLI checks pass 749 Rust result
+counts, warnings-denied Clippy and formatting. See the exact
+[development receipt](docs/integration/team-v3-development-02.json); this is not
+a new checkpoint or gameplay acceptance. The original-profile capture succeeded
+with equal before/after installation and save content fingerprints, but original
+process isolation and runtime measurement remain unavailable. See the
+[capture scope](docs/integration/team-v3-profile-capture-01.json).

@@ -989,6 +989,15 @@
         "acceptance": "Resolve exact authored font/texture paths through existing source lookup; required missing asset blocks that menu slice, no placeholder accepted as original presentation.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-15",
+        "state": "ready",
+        "title": "Keep held keyboard actions quarantined across empty focus samples",
+        "depends_on": [],
+        "consumer": "Actual Bevy keyboard focus/input camera adapter",
+        "acceptance": "Regress W press, focus loss/KeyboardFocusLost, regain with no keyboard message, extra empty frame, then repeated W Pressed. Movement remains zero until genuine release/new press. Distinguish repeat and physical release from focus clearing; retain controller/mouse boundaries. Separate exact tested fix, preserve responsive-host draft.",
+        "fallback_task_id": "V3-VIEW-03"
       }
     ],
     "physics": [
@@ -1146,6 +1155,6 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T04:12:32.132527+00:00",
+  "updated_at": "2026-10-04T04:17:39.029034+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices."
 }

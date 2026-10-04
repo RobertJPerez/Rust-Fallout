@@ -240,6 +240,7 @@ mod tests {
 
     fn capture(revision: u64) -> Captured {
         Captured {
+            source_validation: Default::default(),
             snapshot: Snapshot {
                 schema_version: crate::snapshot::SCHEMA_VERSION,
                 campaign: CampaignId::from_bytes([1; 16]).unwrap(),
@@ -333,6 +334,41 @@ mod tests {
             slot(&repository, "previous.frsv").snapshot.state_revision,
             2
         );
+    }
+    #[test]
+    fn host_status_poll_does_not_wait_for_an_actual_gated_publication() {
+        use super::super::{SaveState, SaveStatus};
+        let directory = tempfile::tempdir().unwrap();
+        let repository = repository(&directory.path().join("native"));
+        let (mut worker, entered, release) = gated(repository, 1);
+        let mut status = SaveStatus::new(worker.try_submit(capture(1)).unwrap());
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+        // Publication cannot finish until after these polls. No timing threshold
+        // or racing "slow disk" assumption is needed to prove pending behavior.
+        assert!(matches!(status.poll(), SaveState::Pending));
+        assert!(matches!(status.poll(), SaveState::Pending));
+        release.send(()).unwrap();
+        worker.finish().unwrap();
+        assert!(matches!(status.poll(), SaveState::Published(_)));
+        assert_eq!(status.wait().unwrap().metadata.generation, 1);
+    }
+    #[test]
+    fn host_status_retains_worker_stopped_after_actual_writer_panic() {
+        use super::super::{SaveState, SaveStatus};
+        let mut worker =
+            SaveWorker::spawn_with(1, 4096, |_| panic!("injected host-status writer failure"))
+                .unwrap();
+        let mut status = SaveStatus::new(worker.try_submit(bounded_capture(1, 4096)).unwrap());
+        assert!(matches!(worker.finish(), Err(WorkerError::Panicked)));
+        assert!(matches!(
+            status.poll(),
+            SaveState::Failed(CompletionError::WorkerStopped)
+        ));
+        assert!(matches!(
+            status.poll(),
+            SaveState::Failed(CompletionError::WorkerStopped)
+        ));
+        assert!(matches!(status.wait(), Err(CompletionError::WorkerStopped)));
     }
     #[test]
     fn dropped_tickets_do_not_cancel_saves_and_drop_drains_the_queue() {

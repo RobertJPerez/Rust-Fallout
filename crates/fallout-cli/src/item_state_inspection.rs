@@ -4,7 +4,7 @@ use fallout_data::{inventory, loaded_scripts};
 use fallout_runtime::{
     Limits, World,
     identity::{CampaignId, ReferenceId},
-    inventory::{Ammo, Condition, Facts, OpaqueExtra, Ownership},
+    inventory::{Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, ViewLimits},
     save::{Captured, Recovery, Repository},
 };
 use serde_json::{Value, json};
@@ -25,6 +25,23 @@ fn traces(
         }
     }
     Ok(serde_json::to_value(values)?)
+}
+fn views(world: &World<'_>, owners: &[ReferenceId]) -> Result<Vec<InventoryView>> {
+    let mut remaining = ViewLimits {
+        max_items: 65_536,
+        max_links: 1_000_000,
+        max_extra_bytes: 16 * 1024 * 1024,
+    };
+    let mut observations = Vec::new();
+    for &owner in owners {
+        let view = world.inventory_view(owner, remaining)?;
+        let usage = view.usage();
+        remaining.max_items -= usage.items;
+        remaining.max_links -= usage.links;
+        remaining.max_extra_bytes -= usage.extra_bytes;
+        observations.push(view);
+    }
+    Ok(observations)
 }
 pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -> Result<Value> {
     eprintln!("Item state: reading original script and inventory identities...");
@@ -118,8 +135,12 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     engineering.world.replace_item_facts(original, facts)?;
     let expected = engineering.world.snapshot();
     let expected_traces = traces(&engineering.world, &[a, b], &keys)?;
+    let expected_views = views(&engineering.world, &[a, b, absent])?;
     let restored = World::restore(&scripts, expected.clone(), Limits::default())?;
-    if restored.snapshot() != expected || traces(&restored, &[a, b], &keys)? != expected_traces {
+    if restored.snapshot() != expected
+        || traces(&restored, &[a, b], &keys)? != expected_traces
+        || views(&restored, &[a, b, absent])? != expected_views
+    {
         return Err("Canonical item restoration differs".into());
     }
     let repository = Repository::create(
@@ -135,7 +156,10 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         .remove_item_quantity(original, 1.try_into()?)?;
     let write = worker.join().map_err(|_| "Item save worker panicked")??;
     let (loaded, receipt) = repository.load(&scripts, Limits::default(), Recovery::Strict)?;
-    if loaded.snapshot() != expected || traces(&loaded, &[a, b], &keys)? != expected_traces {
+    if loaded.snapshot() != expected
+        || traces(&loaded, &[a, b], &keys)? != expected_traces
+        || views(&loaded, &[a, b, absent])? != expected_views
+    {
         return Err("Owned native item capture differs".into());
     }
     let bytes = expected.encode(Limits::default().max_snapshot_bytes)?;
@@ -145,6 +169,7 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         "counts":[17,3,5,2],"condition_bits":[0x7ff8_1234_5678_9abc_u64,0x7ff8_1234_5678_9abd_u64],"equipment_slots":[7,1],"opaque_extra":{"tag":"TEST","bytes":[0,255,1]}},
         "item_instances":expected.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":expected.inventory_banks.len(),"script_instances":expected.instances.len(),
         "query_traces":expected_traces,"snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"state_schema":expected.schema_version,
+        "inventory_views":expected_views,"all_inventory_views_equal_after_restore":true,
         "canonical_state_round_trip_equal":true,"all_query_traces_equal_after_restore":true,"rejected_mutations_preserved_state":true,"uninitialized_inventory_rejected":true,"worker_capture_isolated":true,
         "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
     )
@@ -169,6 +194,7 @@ pub(super) fn cold(
     let bytes = snapshot.encode(Limits::default().max_snapshot_bytes)?;
     Ok(
         json!({"schema_version":1,"receipt":receipt,"query_traces":traces(&world,owners,keys)?,"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"snapshot_bytes":bytes.len(),
+        "inventory_views":views(&world,owners)?,
         "item_instances":snapshot.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":snapshot.inventory_banks.len(),"state_schema":snapshot.schema_version,"source_bound_restore":true,"retail_parity_accepted":false}),
     )
 }

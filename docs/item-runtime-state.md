@@ -38,7 +38,22 @@ return coercion remain unverified. The shared native and condition adapters quer
 explicit host state using the existing source entry IDs; they return count traces
 without claiming an original numeric return or argument coercion.
 
-Snapshot schema 3 saves canonical banks, item identities, facts and allocator.
+`World::inventory_view(owner, ViewLimits)` gives actor, script and presentation
+consumers an immutable owned observation of exact ordered item lots. It includes
+campaign, source cohort, global revision, clocks, owner/source origin and usage.
+`items()` is `None` for an uninitialized bank and `Some([])` for an explicitly
+empty bank. Optional facts, float bits, IDs, quantities and ordered opaque fields
+stay exact. Views can cross threads and survive later mutation or world unload;
+they represent their captured revision and never authorize a mutation.
+
+Item count, aggregate links and opaque-byte limits are scanned before cloning
+keys, vectors or payloads. Unknown owners and exceeded limits refuse without
+canonical mutation. These are logical observation limits, not a total process
+memory ceiling. Existing source-item admission and quantity/query rules remain
+the authority. The item probe and fresh item-load inspector expose these views
+alongside existing query traces and compare exact captures after restoration.
+
+Snapshot schemas 3 and 4 save canonical banks, item identities, facts and allocator.
 Restore validates every link and budget in a separate world, then rebuilds both
 derived indices. Neither indices nor transient handles enter the save. Explicit
 raw-snapshot migration from schema 2 preserves campaign, revision and prior state;

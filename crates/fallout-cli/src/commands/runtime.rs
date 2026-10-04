@@ -256,6 +256,9 @@ pub(crate) enum RuntimeCommand {
         /// Consume a saved journal head using explicit engineering activation/intent.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_request: Option<PathBuf>,
+        /// Consume an explicit existing saved journal prefix with engineering copies.
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_copy_batch_request: Option<PathBuf>,
         /// Observe explicitly selected native occurrences from saved state.
         #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,
@@ -268,7 +271,7 @@ pub(crate) enum RuntimeCommand {
         #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
-        #[arg(long, requires = "snapshot_copy_request")]
+        #[arg(long, requires = "saved_snapshot_request")]
         snapshot_output: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.

@@ -1068,12 +1068,33 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             native_capabilities,
             engineering_local_copy,
             snapshot_copy_request,
+            snapshot_copy_batch_request,
             snapshot_native_request,
             quest_boot_request,
             quest_boot_output,
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_copy_batch_request {
+                let report = event_operand_inspection::copy_saved_batch(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_batch"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved source batch remains unsupported; see engineering report".into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = quest_boot_request {
                 let report = event_operand_inspection::boot_saved_quest(
                     &install,

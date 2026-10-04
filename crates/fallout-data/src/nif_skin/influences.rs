@@ -142,10 +142,10 @@ impl Table {
     }
 }
 
-struct Budget<'a> {
-    source: &'a str,
-    bytes: usize,
-    work: usize,
+pub(super) struct Budget<'a> {
+    pub(super) source: &'a str,
+    pub(super) bytes: usize,
+    pub(super) work: usize,
 }
 impl Budget<'_> {
     fn fail(&self, detail: &str) -> Error {
@@ -177,7 +177,7 @@ fn prefix_next(previous: usize, count: usize, budget: &Budget<'_>) -> Result<usi
 }
 
 pub fn prepare(bytes: &[u8], source: &str, geometry: u32, limits: Limits) -> Result<Table> {
-    let mut budget = Budget {
+    let budget = Budget {
         source,
         bytes: limits.array_bytes,
         work: limits.work_units,
@@ -205,6 +205,31 @@ pub fn prepare(bytes: &[u8], source: &str, geometry: u32, limits: Limits) -> Res
     .filter(|n| *n <= limits.decoder_check_admission_units)
     .ok_or_else(|| budget.fail("decoder check admission exceeded"))?;
     let (_, decoded, scene) = binding::decode_with_scene(bytes, source, limits.source)?;
+    prepare_decoded(
+        &decoded,
+        &scene,
+        SourceDigest::Input(bytes),
+        geometry,
+        limits,
+        budget,
+        (decoder_arrays, decoder_checks),
+    )
+}
+
+pub(super) enum SourceDigest<'a> {
+    Input(&'a [u8]),
+    Prepared([u8; 32]),
+}
+
+pub(super) fn prepare_decoded(
+    decoded: &binding::Source,
+    scene: &crate::nif_scene::Scene,
+    digest: SourceDigest<'_>,
+    geometry: u32,
+    limits: Limits,
+    mut budget: Budget<'_>,
+    decoder_admission: (usize, usize),
+) -> Result<Table> {
     if !decoded.bindings.unsupported_scene_edges.is_empty() {
         return Err(budget.fail("unresolved scene ancestry"));
     }
@@ -373,7 +398,10 @@ pub fn prepare(bytes: &[u8], source: &str, geometry: u32, limits: Limits) -> Res
     let scratch = vertices
         .checked_mul(std::mem::size_of::<usize>() + std::mem::size_of::<f64>())
         .ok_or_else(|| budget.fail("scratch byte sum overflow"))?;
-    let digest = Sha256::digest(bytes);
+    let digest: sha2::digest::Output<Sha256> = match digest {
+        SourceDigest::Input(bytes) => Sha256::digest(bytes),
+        SourceDigest::Prepared(digest) => digest.into(),
+    };
     Ok(Table {
         contract: "engineering-exact-raw-influence-csr-v1",
         source_sha256: format!("{digest:x}"),
@@ -391,8 +419,8 @@ pub fn prepare(bytes: &[u8], source: &str, geometry: u32, limits: Limits) -> Res
             output_bytes: charged - scratch,
             work_units: limits.work_units - budget.work,
             source_retained_bytes,
-            decoder_array_admission_bytes: decoder_arrays,
-            decoder_check_admission_units: decoder_checks,
+            decoder_array_admission_bytes: decoder_admission.0,
+            decoder_check_admission_units: decoder_admission.1,
         },
         retail_behavior_verified: false,
     })

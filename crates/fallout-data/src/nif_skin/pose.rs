@@ -444,6 +444,47 @@ struct DecodedView<'a> {
     scene: &'a nif_scene::Scene,
 }
 
+/// Private trusted stream authority; external callers cannot supply catalogues.
+pub(super) struct StoredStreamsView<'a> {
+    pub(super) source_sha256: &'a str,
+    pub(super) index: &'a nif::NifIndex,
+    pub(super) decoded: &'a binding::Source,
+    pub(super) scene: &'a nif_scene::Scene,
+    pub(super) table: &'a super::influences::Table,
+}
+pub(super) fn evaluate_streams_stored(
+    view: StoredStreamsView<'_>,
+    request: Request,
+    limits: Limits,
+) -> Result<Evaluation> {
+    validate_weight_policy(
+        request.weights,
+        &Budget {
+            source: view.source_sha256,
+            storage: limits.array_bytes,
+            work: limits.work_units,
+        },
+    )?;
+    evaluate_decoded(
+        DecodedView {
+            source: view.source_sha256,
+            hash: SourceHash::Prepared(view.source_sha256),
+            index: view.index,
+            decoded: view.decoded,
+            scene: view.scene,
+        },
+        request,
+        limits,
+        None,
+        Some(view.table),
+        Budget {
+            source: view.source_sha256,
+            storage: limits.array_bytes,
+            work: limits.work_units,
+        },
+    )
+}
+
 fn evaluate_decoded(
     view: DecodedView<'_>,
     request: Request,

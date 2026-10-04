@@ -61,6 +61,419 @@ pub struct PoseReport {
     pub failures: usize,
 }
 
+const TRANSPORT_JSON_BYTES: usize = 64 * 1024 * 1024;
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum TransportWeights {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl TransportWeights {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GeometryStreamsRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    instance: u32,
+    weights: TransportWeights,
+}
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum TransportTopologyPolicy {
+    AlternatingStripWindingSkipRepeatedIndexV1 {},
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PartitionTrianglesRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    partition_block: u32,
+    partition_ordinal: usize,
+    policy: TransportTopologyPolicy,
+}
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum TransportPrecision {
+    FiniteNearestF32 { maximum_absolute_error: f64 },
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PalettePacketRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    weights: TransportWeights,
+    precision: TransportPrecision,
+}
+#[derive(Serialize)]
+pub struct TransportReport<T> {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<T>,
+    error: Option<String>,
+    pub failures: usize,
+    driver_charged_bytes: usize,
+    json_byte_limit: usize,
+}
+#[derive(Serialize)]
+pub struct GeometryStreamsEvaluation {
+    streams: nif_skin::streams::PreparedGeometryStreams,
+    stored_pose: nif_skin::streams::Evaluation,
+}
+fn transport_driver<T, R>(input: &Path) -> Result<usize> {
+    // Include released request buffer, typed request/report, SHA, conservative
+    // UTF8/OS path copies and diagnostic capacity. JSON gets its own allowance.
+    input
+        .as_os_str()
+        .as_encoded_bytes()
+        .len()
+        .checked_mul(4)
+        .and_then(|n| {
+            n.checked_add(
+                64 * 1024
+                    + 4096
+                    + 64
+                    + std::mem::size_of::<R>()
+                    + std::mem::size_of::<TransportReport<T>>(),
+            )
+        })
+        .ok_or_else(|| "transport driver byte count overflow".into())
+}
+fn transport_sum(values: impl IntoIterator<Item = usize>) -> fallout_data::Result<usize> {
+    values
+        .into_iter()
+        .try_fold(0usize, |a, b| a.checked_add(b))
+        .ok_or_else(|| {
+            fallout_data::Error::Unsupported("transport concurrent byte count overflow".into())
+        })
+}
+fn transport_finish<T>(
+    input: &Path,
+    sha256: String,
+    contract: &'static str,
+    driver: usize,
+    evaluated: fallout_data::Result<T>,
+) -> TransportReport<T> {
+    let (evaluation, error) = match evaluated {
+        Ok(v) => (Some(v), None),
+        Err(e) => (None, Some(e.to_string())),
+    };
+    TransportReport {
+        schema_version: 1,
+        contract,
+        input: input.into(),
+        sha256,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+        driver_charged_bytes: driver,
+        json_byte_limit: TRANSPORT_JSON_BYTES,
+    }
+}
+pub fn inspect_geometry_streams(
+    input: &Path,
+    request_path: &Path,
+) -> Result<TransportReport<GeometryStreamsEvaluation>> {
+    let request: GeometryStreamsRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("geometry streams request requires schema1".into());
+    }
+    let driver = transport_driver::<GeometryStreamsEvaluation, GeometryStreamsRequest>(input)?;
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let limits = nif_skin::streams::Limits::default();
+    let initial = transport_sum([
+        bytes.len(),
+        limits.source.partition.skin.scene.array_bytes,
+        limits.source.partition.skin.skin_array_bytes,
+        limits.source.partition.array_bytes,
+        limits.source.array_bytes,
+        limits.source_metadata_array_bytes,
+        limits.array_bytes,
+        driver,
+    ]);
+    let prepared = initial.and_then(|n| {
+        if n > 896 * 1024 * 1024 {
+            return Err(fallout_data::Error::Unsupported(
+                "geometry streams driver admission exceeded".into(),
+            ));
+        }
+        nif_skin::streams::prepare(
+            &bytes,
+            &source,
+            nif_skin::streams::Request {
+                expected_source_sha256: request.expected_source_sha256,
+                geometry: request.geometry,
+            },
+            limits,
+        )
+    });
+    let sha = match &prepared {
+        Ok(p) => p.identity().source_sha256.clone(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    drop(bytes);
+    let evaluated = prepared.and_then(|streams| {
+        let available = (896usize * 1024 * 1024)
+            .checked_sub(driver)
+            .and_then(|n| n.checked_sub(TRANSPORT_JSON_BYTES))
+            .ok_or_else(|| {
+                fallout_data::Error::Unsupported("geometry transport driver budget exceeded".into())
+            })?;
+        let limits = nif_skin::streams::EvaluationLimits::default();
+        let stored_pose = streams.evaluate_stored(
+            nif_skin::streams::EvaluationRequest {
+                expected_source_sha256: request.expected_source_sha256,
+                geometry: request.geometry,
+                instance: request.instance,
+                weights: request.weights.policy(),
+            },
+            nif_skin::streams::EvaluationLimits {
+                max_combined_retained_bytes: limits.max_combined_retained_bytes.min(available),
+                ..limits
+            },
+        )?;
+        Ok(GeometryStreamsEvaluation {
+            streams,
+            stored_pose,
+        })
+    });
+    Ok(transport_finish(
+        input,
+        sha,
+        "engineering-whole-geometry-stream-transport-v1",
+        driver,
+        evaluated,
+    ))
+}
+pub fn inspect_partition_triangles(
+    input: &Path,
+    request_path: &Path,
+) -> Result<TransportReport<partition::streams::triangles::Packet>> {
+    use partition::streams::triangles;
+    let request: PartitionTrianglesRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("partition triangles request requires schema1".into());
+    }
+    let driver = transport_driver::<triangles::Packet, PartitionTrianglesRequest>(input)?;
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let limits = partition::streams::Limits::default();
+    let initial = transport_sum([
+        bytes.len(),
+        limits.source.skin.scene.array_bytes,
+        limits.source.skin.skin_array_bytes,
+        limits.source.array_bytes,
+        limits.array_bytes,
+        driver,
+    ]);
+    let prepared = initial.and_then(|n| {
+        if n > 768 * 1024 * 1024 {
+            return Err(fallout_data::Error::Unsupported(
+                "partition triangles driver admission exceeded".into(),
+            ));
+        }
+        partition::streams::prepare(
+            &bytes,
+            &source,
+            partition::streams::Request {
+                expected_source_sha256: request.expected_source_sha256,
+                geometry: request.geometry,
+                partition_block: request.partition_block,
+                partition_ordinal: request.partition_ordinal,
+            },
+            limits,
+        )
+    });
+    let sha = match &prepared {
+        Ok(p) => p.identity().source_sha256.clone(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    drop(bytes);
+    let evaluated = prepared.and_then(|streams| {
+        let available = (160usize * 1024 * 1024)
+            .checked_sub(driver)
+            .and_then(|n| n.checked_sub(TRANSPORT_JSON_BYTES))
+            .ok_or_else(|| {
+                fallout_data::Error::Unsupported(
+                    "partition triangles driver budget exceeded".into(),
+                )
+            })?;
+        let limits = triangles::Limits::default();
+        let TransportTopologyPolicy::AlternatingStripWindingSkipRepeatedIndexV1 {} = request.policy;
+        streams.triangle_packet(
+            triangles::Policy::AlternatingStripWindingSkipRepeatedIndexV1,
+            triangles::Limits {
+                max_combined_retained_bytes: limits.max_combined_retained_bytes.min(available),
+                ..limits
+            },
+        )
+    });
+    Ok(transport_finish(
+        input,
+        sha,
+        "engineering-partition-triangle-transport-v1",
+        driver,
+        evaluated,
+    ))
+}
+pub fn inspect_palette_packet(
+    input: &Path,
+    request_path: &Path,
+) -> Result<TransportReport<nif_skin::pose::palette_packet::Packet>> {
+    use nif_skin::pose::palette_packet as palette;
+    let request: PalettePacketRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("palette packet request requires schema1".into());
+    }
+    let driver = transport_driver::<palette::Packet, PalettePacketRequest>(input)?;
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let available = (896usize * 1024 * 1024)
+        .checked_sub(driver)
+        .and_then(|n| n.checked_sub(TRANSPORT_JSON_BYTES))
+        .ok_or("palette driver byte budget exceeded")?;
+    let limits = palette::Limits::default();
+    let TransportPrecision::FiniteNearestF32 {
+        maximum_absolute_error,
+    } = request.precision;
+    let evaluated = palette::prepare(
+        &bytes,
+        &source,
+        palette::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            geometry: request.geometry,
+            weights: request.weights.policy(),
+            precision: palette::Precision::FiniteNearestF32 {
+                maximum_absolute_error,
+            },
+        },
+        palette::Limits {
+            max_combined_retained_bytes: limits.max_combined_retained_bytes.min(available),
+            ..limits
+        },
+    );
+    let sha = match &evaluated {
+        Ok(p) => p.source_sha256().to_owned(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    drop(bytes);
+    Ok(transport_finish(
+        input,
+        sha,
+        "engineering-finite-f32-palette-transport-v1",
+        driver,
+        evaluated,
+    ))
+}
+
+struct TransportWriter<W> {
+    sink: W,
+    count: usize,
+    limit: usize,
+}
+impl<W: std::io::Write> std::io::Write for TransportWriter<W> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self
+            .count
+            .checked_add(bytes.len())
+            .is_none_or(|n| n > self.limit)
+        {
+            return Err(std::io::Error::other("transport JSON byte budget exceeded"));
+        }
+        let written = self.sink.write(bytes)?;
+        self.count += written;
+        Ok(written)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.sink.flush()
+    }
+}
+fn transport_json(value: &impl Serialize, limit: usize) -> Result<Vec<u8>> {
+    use std::io::Write;
+    // Count without a retained JSON buffer, then allocate only admitted bytes.
+    let mut count = TransportWriter {
+        sink: std::io::sink(),
+        count: 0,
+        limit,
+    };
+    serde_json::to_writer_pretty(&mut count, value)?;
+    count.write_all(b"\n")?;
+    let mut output = TransportWriter {
+        sink: Vec::with_capacity(count.count),
+        count: 0,
+        limit: count.count,
+    };
+    serde_json::to_writer_pretty(&mut output, value)?;
+    output.write_all(b"\n")?;
+    Ok(output.sink)
+}
+/// New transport modes alone use bounded preallocation before publication.
+pub fn emit_transport(value: &impl Serialize, output: Option<&Path>) -> Result<()> {
+    use std::io::Write;
+    let bytes = transport_json(value, TRANSPORT_JSON_BYTES)?;
+    if let Some(path) = output {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        eprintln!("Wrote {}", path.display());
+    } else {
+        std::io::stdout().lock().write_all(&bytes)?;
+    }
+    Ok(())
+}
+#[cfg(test)]
+mod transport_tests {
+    #[test]
+    fn complete_json_is_admitted_before_output_allocation_and_exact_ceiling_is_closed() {
+        let value = serde_json::json!({"raw":"quote\"\\\n","vertices":[[1,2,3],[4,5,6]]});
+        let full = super::transport_json(&value, 1000).unwrap();
+        assert_eq!(super::transport_json(&value, full.len()).unwrap(), full);
+        assert!(super::transport_json(&value, full.len() - 1).is_err());
+        assert!(super::transport_json(&value, 0).is_err());
+    }
+    #[test]
+    fn every_new_nested_policy_is_strict_including_empty_variants() {
+        for bad in [
+            r#"{"kind":"preserve_raw_nonnegative","repair":true}"#,
+            r#"{"kind":"require_unit_sum","absolute_tolerance":0,"repair":true}"#,
+        ] {
+            assert!(serde_json::from_str::<super::TransportWeights>(bad).is_err());
+        }
+        assert!(
+            serde_json::from_str::<super::TransportTopologyPolicy>(
+                r#"{"kind":"alternating_strip_winding_skip_repeated_index_v1","flip":true}"#
+            )
+            .is_err()
+        );
+        assert!(
+            serde_json::from_str::<super::TransportPrecision>(
+                r#"{"kind":"finite_nearest_f32","maximum_absolute_error":0,"transpose":true}"#
+            )
+            .is_err()
+        );
+    }
+}
+
 /// Separate opt-in receipt; the three existing source-report schemas are intact.
 pub fn inspect_pose(input: &Path, geometry: u32, absolute_tolerance: f64) -> Result<PoseReport> {
     let bytes = read_bounded(input, 64 * 1024 * 1024)?;

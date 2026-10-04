@@ -1382,3 +1382,107 @@ checks multiple schedules, an exact cancellation boundary, a failure in the last
 geometry and preserved old complete reports. This is engineering source work;
 original playback, rendering, frame latency and gameplay remain separately
 unverified, with checkpoint45 unchanged.
+## Whole geometry, partition triangles and finite palette transport
+
+The three additive engineering inspectors are:
+
+```
+fallout nif-skin SOURCE --geometry-streams-request REQUEST --output REPORT
+fallout nif-skin SOURCE --partition-triangles-request REQUEST --output REPORT
+fallout nif-skin SOURCE --palette-packet-request REQUEST --output REPORT
+```
+
+Each request requires `schema_version:1`, a 32-byte
+`expected_source_sha256`, and an exact `geometry` block. Geometry streams also
+require `instance` and `weights`; partition triangles require `partition_block`,
+`partition_ordinal` and `policy`; palette transport requires `weights` and
+`precision`. Nested policies reject extra fields, including the empty raw variant.
+Weights are `{"kind":"preserve_raw_nonnegative"}` or
+`{"kind":"require_unit_sum","absolute_tolerance":0.0}`. The triangle policy is
+`{"kind":"alternating_strip_winding_skip_repeated_index_v1"}`. Precision is
+`{"kind":"finite_nearest_f32","maximum_absolute_error":0.0}`.
+
+`nif_skin::streams::prepare` owns one existing binding/Scene decode, a cached
+whole-source digest and a sealed CSR built by the existing influence helper.
+Its read-only packet preserves exact position/normal/tangent/bitangent/color/UV
+f32 words, presence and original metadata, source vertex-to-CSR ranges, original
+topology/match groups and the existing decoder's expanded triangle order. Four
+independently hashed source spans identify geometry, data, instance and skin data.
+Sharing a geometry-data block never authorizes substitution of another instance.
+Selected NV stream34 admits zero or one UV set (`BSGeometryDataFlags &1`);
+unused flag bits remain literal. A malformed second UV payload is refused by the
+existing strict decoder. An additional-data link remains a source-qualified,
+undecoded observation; `faithful_renderer_ready` stays false.
+
+`PreparedGeometryStreams::evaluate_stored` checks SHA/geometry/instance and the
+explicit weight policy, then calls the sole existing deformer with the owned
+decoded source and CSR. It accepts no input bytes or arbitrary Scene/table/matrix;
+all decode/hash/CSR reuse counters are zero. Input bytes can be dropped first.
+The old full Table and cold-CSR Evaluation fields and counters remain unchanged.
+
+Preparation independently admits decoder arrays (512MiB) and checks (64M),
+typed index/Scene metadata (128MiB/16M length visits), CSR entries (4M), and selected
+copies/CSR scratch (64MiB/128M work), with a 768MiB declared concurrent ceiling.
+`charged_bytes` includes conservative existing decoded source charges and released
+CSR scratch. `retained_bytes` removes that released CSR scratch only. Stored pose
+admits an additional 64MiB/16M work/depth1024 under an 832MiB packet-plus-output
+ceiling. Its new usage includes wrapper/header and identity checks; the contained
+old skin usage keeps the old deformer scope. Input bytes are separately bounded
+and charged by the CLI driver.
+
+`partition::streams::Streams::triangle_packet` accepts only sealed authored
+partition streams. The named policy maps an even strip window `[a,b,c]` unchanged
+and an odd window to `[b,a,c]`, advancing parity across omitted repeated-local-index
+connector windows and restarting per strip. Source-map duplicates and geometric
+area never omit faces. Authored triangle rows, including degenerates, remain
+literal. Every emitted row carries local/source triples, original topology kind,
+physical primitive ordinal, strip ordinal and step. Declared source count, raw
+window count, omitted connectors and generated count stay separate. Missing arrays
+use the existing source producer's gates. No source topology is overwritten.
+Two complete visits are charged before/during construction; row copies and source
+identity strings are charged separately. Defaults bound 4M raw primitives, 2M
+triangles, 6M draw indices, 64MiB output and 64M work, under 96MiB concurrently
+retained streams plus packet. The old producer's source/decode counters and
+complete receipts retain their existing meaning.
+
+`pose::palette_packet::prepare` takes exact source bytes and an explicit stored
+request, internally using the existing decoder and f64 deformer. Its sealed packet
+contains every ordered bone ordinal/node and all twelve row-major 3x4 f32 words.
+The separately labelled `skin_to_source_world` is converted last and never baked
+into palette rows. Rust f64-to-f32 conversion preserves its resulting signed-zero
+word. Nonfinite input/conversion refuses. The finite, nonnegative requested error
+limit is compared with a certified exact roundtrip difference: equal values have
+zero error; conversion to zero has exact absolute source error; otherwise
+same-sign binary values within a factor of two use Sterbenz-exact subtraction.
+An uncertifiable difference refuses. No transpose, normalization, truncation,
+axis/unit conversion, shader alignment or GPU contract is implied.
+
+Palette defaults admit 512MiB decoder arrays/64M checks, 128MiB typed source
+metadata/16M visits, the existing 64MiB/16M deformer, 65536 palette entries and
+16MiB packet/128M work under 896MiB concurrent admission including source input.
+Usage counts every scalar conversion (12 per bone plus 12 placement values),
+existing deformation charge/work, metadata, packet and conservative concurrent
+charge. Released old deformer/source scratch stays conservatively charged; this
+is logical element accounting, not allocator capacity or a speed/heap measurement.
+Source structures are private and released before conversion. Late placement or
+precision failure discards all already constructed bone rows.
+
+CLI requests are bounded to64KiB and source files to64MiB. Drivers charge released
+request buffers, typed request/report headers, SHA and conservative path/diagnostic
+storage before preparation. Geometry's initial driver ceiling is896MiB; partition
+preparation uses768MiB, then streams/triangle/output JSON admission uses160MiB;
+palette uses896MiB. A separate64MiB JSON allowance includes the newline. A counting
+writer checks complete serialization before allocating its admitted buffer or
+creating a new output file. Both input and request directories are protected,
+and existing outputs are refused. Structural rejection creates no report;
+semantic rejection returns a diagnostic report with `evaluation:null` and nonzero
+exit. No partial geometry packet, topology or palette is published as completed.
+
+`check_geometry_streams.py`, `check_triangles.py` and `check_palette.py` independently
+author complete input bytes and check literal words/matrices/provenance through
+these modes. They also compare complete old receipts with a frozen earlier binary.
+The Rust fixtures cover exact resource caps and one-under refusal, signed zero,
+subnormal underflow, halfway even rounding and a late placement overflow.
+All three contracts remain engineering source observations. Presentation drawing,
+material/shader selection, animation clocks, gameplay events, GPU skinning and
+measured original playback retain their own acceptance.

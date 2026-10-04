@@ -490,3 +490,297 @@ fn ambiguous_or_unbounded_reference_sets_never_reach_publication() {
     let excess = vec![key; 10_001];
     assert!(scene.admit_references(EPOCH, 4, 4, &[], &excess).is_err());
 }
+
+mod continue_tests {
+    use super::*;
+    use engine_bridge::{ContinueDisplay, DisplayStamp};
+    use fallout_data::loaded_scripts::Catalogue;
+    use fallout_runtime::{
+        Limits as RuntimeLimits, World,
+        application::{self, ContinueBoundary, Host, HostLimits},
+        foreign::Content,
+        identity::CampaignId,
+        reference_state::{Pose, State},
+        save::{Captured, Recovery, Repository, RestorePoll, RestoreTask, SaveWorker},
+        source_items::{Policy, Role},
+    };
+    use std::{num::NonZeroU64, sync::Arc};
+
+    // This joins the real native machinery and application with real residency.
+    // The final display callback remains a fixture, not the legacy Bevy host.
+    struct Native {
+        repository: Repository,
+    }
+    impl Native {
+        fn create(world: &World<'_>, protected: &PathBuf) -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "fallout-engine-continue-{}-{}",
+                std::process::id(),
+                SEQUENCE.fetch_add(1, Ordering::Relaxed)
+            ));
+            let repository =
+                Repository::create(&root, std::slice::from_ref(protected), world.campaign())
+                    .unwrap();
+            save(&repository, world);
+            Self { repository }
+        }
+    }
+    impl Drop for Native {
+        fn drop(&mut self) {
+            // Only the four known leaves in this exclusively created directory.
+            for name in [
+                "current.frsv",
+                "previous.frsv",
+                "writer.lock",
+                ".rust-fallout-saves",
+            ] {
+                let path = self.repository.path().join(name);
+                if path.try_exists().unwrap() {
+                    fs::remove_file(path).unwrap();
+                }
+            }
+            fs::remove_dir(self.repository.path()).unwrap();
+        }
+    }
+    fn id(n: u64) -> NonZeroU64 {
+        NonZeroU64::new(n).unwrap()
+    }
+    fn save(repository: &Repository, world: &World<'_>) {
+        let mut writer = SaveWorker::start(repository.clone(), 1).unwrap();
+        let ticket = writer.try_submit(Captured::at_boundary(world)).unwrap();
+        writer.finish().unwrap();
+        assert_eq!(
+            ticket.wait().unwrap().metadata.state_revision,
+            world.revision()
+        );
+    }
+    fn set_pose(world: &mut World<'_>, position: [f32; 3]) {
+        let view = world
+            .reference_view(world.authored_reference(&reference_key(0x300)).unwrap())
+            .unwrap();
+        let pose = Pose::from_source(
+            &fallout_data::world::Transform {
+                position,
+                rotation: [0.; 3],
+            },
+            Some(1.),
+        )
+        .unwrap();
+        let stage = world
+            .stage_reference_state(&view, State::new(reference_key(0x200), pose, true).unwrap())
+            .unwrap();
+        world.commit_reference_state(stage).unwrap();
+    }
+    fn host(fixture: &Fixture) -> (Host<'static>, Arc<Catalogue>, Native) {
+        let mut store = RecordStore::open_nv_headers(
+            &fixture.root,
+            &["FalloutNV.esm".into()],
+            Default::default(),
+        )
+        .unwrap();
+        let catalogue =
+            Arc::new(Catalogue::load(&mut store, Default::default(), |_, _| Ok(())).unwrap());
+        let content = Arc::new(Content::load(&mut store, &catalogue, 100).unwrap());
+        let mut world = World::with_campaign(
+            Arc::clone(&catalogue),
+            RuntimeLimits::default(),
+            CampaignId::from_bytes([0x39; 16]).unwrap(),
+        )
+        .unwrap();
+        world
+            .register_reference(Some(reference_key(0x300)))
+            .unwrap();
+        set_pose(&mut world, [16., 8., 4.]);
+        let native = Native::create(&world, &fixture.root);
+        set_pose(&mut world, [80., 40., 20.]);
+        let host = Host::new(
+            world,
+            content,
+            Policy::new(&[(Role::Base, &[*b"MISC"])]).unwrap(),
+            id(EPOCH),
+            HostLimits::default(),
+        )
+        .unwrap();
+        (host, catalogue, native)
+    }
+    fn prepare(
+        host: &mut Host<'static>,
+        catalogue: &Arc<Catalogue>,
+        native: &Native,
+        request_id: u64,
+    ) -> (RestoreTask, application::PreparedContinue) {
+        let request = host.begin_continue(id(request_id)).unwrap();
+        let mut task = RestoreTask::start(
+            native.repository.clone(),
+            Arc::clone(catalogue),
+            RuntimeLimits::default(),
+            Recovery::Strict,
+            request.identity().clone(),
+        )
+        .unwrap();
+        task.finish().unwrap();
+        let RestorePoll::Ready(candidate) = task.try_poll() else {
+            panic!("missing native candidate")
+        };
+        let prepared = host.prepare_continue(request, *candidate).unwrap();
+        (task, prepared)
+    }
+    fn projected(
+        candidate: &World<'_>,
+        _: &ContinueBoundary,
+    ) -> application::Result<(Vec<FormKey>, Option<[f32; 3]>)> {
+        let key = reference_key(0x300);
+        let view = candidate
+            .authored_reference(&key)
+            .map(|id| candidate.reference_view(id))
+            .transpose()?;
+        let position = view
+            .as_ref()
+            .and_then(|v| v.state())
+            .map(|state| state.pose().source_transform().position);
+        Ok((vec![key], position))
+    }
+
+    #[test]
+    fn late_missing_scene_member_preserves_canonical_display_and_next_native_save() {
+        let (fixture, owner, ticket) = setup();
+        let mut source = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        uploaded(&mut source);
+        let (mut host, catalogue, native) = host(&fixture);
+        let before = host.world().snapshot();
+        let mut stamp = DisplayStamp::from_host(&host);
+        let stamp_before = stamp;
+        let active = [reference_key(0x300)];
+        let calls = Cell::new(0);
+        let (_task, candidate) = prepare(&mut host, &catalogue, &native, 1);
+        assert_ne!(candidate.world().snapshot(), before);
+        let mut display = ContinueDisplay::new(
+            &source,
+            &mut stamp,
+            &active,
+            |world: &World<'_>, boundary: &ContinueBoundary| {
+                let (_, stage) = projected(world, boundary)?;
+                Ok((Vec::new(), stage))
+            },
+            |_, _: &ContinueBoundary| calls.set(1),
+        );
+        assert!(host.publish_continue(candidate, &mut display).is_err());
+        assert_eq!(host.world().snapshot(), before);
+        assert_eq!(stamp, stamp_before);
+        assert_eq!(calls.get(), 0);
+        save(&native.repository, host.world());
+        let (cold, _) = native
+            .repository
+            .load(catalogue, RuntimeLimits::default(), Recovery::Strict)
+            .unwrap();
+        assert_eq!(cold.snapshot(), before);
+    }
+
+    #[test]
+    fn renderer_preflight_failure_never_replaces_world_or_releases_source_leases() {
+        let (fixture, owner, ticket) = setup();
+        let mut source = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        uploaded(&mut source);
+        let (mut host, catalogue, native) = host(&fixture);
+        let before = host.world().snapshot();
+        let resources = serde_json::to_value(source.snapshot()).unwrap();
+        let mut stamp = DisplayStamp::from_host(&host);
+        let stamp_before = stamp;
+        let active = [reference_key(0x300)];
+        let calls = Cell::new(0);
+        let (_task, candidate) = prepare(&mut host, &catalogue, &native, 1);
+        let mut display = ContinueDisplay::new(
+            &source,
+            &mut stamp,
+            &active,
+            |_: &World<'_>, _: &ContinueBoundary| -> application::Result<(Vec<FormKey>, ())> {
+                Err(application::Failure::Refused(
+                    "injected render resource refusal",
+                ))
+            },
+            |(), _: &ContinueBoundary| calls.set(1),
+        );
+        assert!(host.publish_continue(candidate, &mut display).is_err());
+        assert_eq!(host.world().snapshot(), before);
+        assert_eq!(stamp, stamp_before);
+        assert_eq!(serde_json::to_value(source.snapshot()).unwrap(), resources);
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn admitted_native_candidate_and_owned_display_stage_publish_one_boundary() {
+        let (fixture, owner, ticket) = setup();
+        let mut source = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        uploaded(&mut source);
+        let (mut host, catalogue, native) = host(&fixture);
+        let prior_revision = host.world().revision();
+        let mut stamp = DisplayStamp::from_host(&host);
+        let prior_host = stamp.host_identity();
+        let active = [reference_key(0x300)];
+        let calls = Cell::new(0);
+        let mut shown = Some([80., 40., 20.]);
+        let (_task, candidate) = prepare(&mut host, &catalogue, &native, 1);
+        let expected = candidate.world().snapshot();
+        let mut display = ContinueDisplay::new(
+            &source,
+            &mut stamp,
+            &active,
+            projected,
+            |stage, _: &ContinueBoundary| {
+                shown = stage;
+                calls.set(calls.get() + 1);
+            },
+        );
+        let receipt = host.publish_continue(candidate, &mut display).unwrap();
+        assert_eq!(host.world().snapshot(), expected);
+        assert_eq!(shown, Some([16., 8., 4.]));
+        assert_eq!(calls.get(), 1);
+        assert_eq!(stamp.revision(), host.world().revision());
+        assert_eq!(stamp.scene_epoch(), EPOCH);
+        assert_eq!(stamp.host_identity(), host.identity());
+        assert_ne!(stamp.host_identity(), prior_host);
+        assert_eq!(receipt.boundary.prior_revision(), prior_revision);
+        assert!(!source.snapshot().simulation_ready);
+    }
+
+    #[test]
+    fn same_revision_restore_cannot_admit_a_previous_host_display_stamp() {
+        let (fixture, owner, ticket) = setup();
+        let mut source = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        uploaded(&mut source);
+        let (mut host, catalogue, native) = host(&fixture);
+        save(&native.repository, host.world());
+        let mut stamp = DisplayStamp::from_host(&host);
+        let stale = stamp;
+        let active = [reference_key(0x300)];
+        let (_task, candidate) = prepare(&mut host, &catalogue, &native, 1);
+        let mut display = ContinueDisplay::new(
+            &source,
+            &mut stamp,
+            &active,
+            projected,
+            |_, _: &ContinueBoundary| {},
+        );
+        host.publish_continue(candidate, &mut display).unwrap();
+        assert_eq!(stamp.revision(), stale.revision());
+        assert_ne!(stamp.host_identity(), stale.host_identity());
+        let before = host.world().snapshot();
+        stamp = stale;
+        let calls = Cell::new(0);
+        let (_task, candidate) = prepare(&mut host, &catalogue, &native, 2);
+        let mut display = ContinueDisplay::new(
+            &source,
+            &mut stamp,
+            &active,
+            |world: &World<'_>, boundary: &ContinueBoundary| {
+                calls.set(1);
+                projected(world, boundary)
+            },
+            |_, _: &ContinueBoundary| calls.set(2),
+        );
+        assert!(host.publish_continue(candidate, &mut display).is_err());
+        assert_eq!(calls.get(), 0);
+        assert_eq!(host.world().snapshot(), before);
+        assert_eq!(stamp, stale);
+    }
+}

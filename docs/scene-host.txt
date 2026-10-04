@@ -65,3 +65,28 @@ The focused tests use injected upload acknowledgement and an unavailable project
 pose to exercise this gate; they do not reproduce or repair the actual native
 host's late refusal. Presentation/acceptance must run that consumer regression and
 wire the prepared Continue protocol before reporting the feature accepted.
+
+ContinueDisplay implements the canonical application's ScenePublisher over a
+borrowed SceneLifetime, immutable active keys and an exclusively borrowed
+DisplayStamp. Capture the initial stamp from the real application Host after the
+initial display is acknowledged. It includes HostIdentity because restoring the
+same saved numeric revision still creates a new canonical host boundary.
+
+The renderer supplies a prepare callback returning sorted projected keys plus
+an owned bounded stage. That callback prepares finite transforms, exact entity
+updates and actual resource/GPU admission without changing the current display.
+ContinueDisplay validates source membership and the candidate's stamped identity
+before returning PreparedDisplay. The source owner stays borrowed through the
+entire application Host::publish_continue call, preventing unload during that join.
+
+Final publication consumes only that prepared renderer stage and its admitted
+boundary, then advances the display stamp. It has no further fallible check;
+ReferenceAdmission::publish must not run after the application replaced World.
+There is no asynchronous canonical write or second save implementation here.
+
+The focused join fixtures use actual canonical reference state, SaveWorker,
+RestoreTask, Repository and retained residency. A missing member/refused renderer
+stage leaves canonical state and display stamp unchanged, including the next
+native save. Same-revision restore rejects the previous host's display stamp.
+The final display callback and upload acknowledgement are injected fixtures:
+legacy native.rs/main.rs wiring and visible/GPU acceptance remain open.

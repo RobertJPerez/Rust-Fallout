@@ -10,6 +10,7 @@ use crate::{
     identity::{FormKey, ProfileId},
     plugin::{self, RecordHeader},
     store::{RecordStore, SourceReceipt},
+    terrain::preparation::{Limits as TerrainLimits, TextureSourcePlan},
     vfs::MountIndex,
 };
 use serde::Serialize;
@@ -322,6 +323,36 @@ impl CellGridSources {
         mounts: &MountIndex,
         limits: ModelLimits,
     ) -> Result<CellModelPlan> {
+        self.validate_request_sources(store, request)?;
+        let plan = CellModelPlan::load(store, &request.cell, mounts, limits)?;
+        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
+            return Err(failure("CELL plan has another source cohort"));
+        }
+        Ok(plan)
+    }
+
+    /// Prepare existing strict LAND/world/layer/texture sources for the sealed
+    /// explicit CELL. This does not admit inheritance or a terrain surface.
+    pub fn prepare_terrain(
+        &self,
+        store: &mut RecordStore,
+        request: &CellGridRequest,
+        mounts: &MountIndex,
+        limits: TerrainLimits,
+    ) -> Result<TextureSourcePlan> {
+        self.validate_request_sources(store, request)?;
+        let plan = TextureSourcePlan::load(store, &request.cell, mounts, limits)?;
+        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
+            return Err(failure("terrain plan has another source cohort"));
+        }
+        Ok(plan)
+    }
+
+    fn validate_request_sources(
+        &self,
+        store: &mut RecordStore,
+        request: &CellGridRequest,
+    ) -> Result<()> {
         if request.world != self.metadata.world
             || request.source_cohort_sha256 != self.metadata.source_cohort_sha256
             || self.request(request.grid)?.cell != request.cell
@@ -340,10 +371,6 @@ impl CellGridSources {
         }) {
             return Err(failure("ordered source cohort changed"));
         }
-        let plan = CellModelPlan::load(store, &request.cell, mounts, limits)?;
-        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
-            return Err(failure("CELL plan has another source cohort"));
-        }
-        Ok(plan)
+        Ok(())
     }
 }

@@ -28,6 +28,15 @@ can be submitted to existing `CellResidency`; it does not incorporate persistent
 world objects into the spatial cell or change canonical loaded state. Runtime,
 terrain, collision, behavior and original activation admission remain separate.
 
+`prepare_terrain(store, request, mounts, terrain_limits)` applies the same private
+request and ordered source checks before passing the exact CELL to existing
+`terrain::preparation::TextureSourcePlan::load`. Its resulting plan must retain
+the directory's canonical source cohort. Existing strict LAND/world/layer/default
+and external texture readers, quotas and unresolved-source diagnostics apply.
+The plan can feed existing `TexturePreparation` jobs and cache; this connection
+does not admit a rendered terrain surface, evaluated inheritance, collision or
+canonical spatial membership. Duplicate LAND and tainted payloads remain refused.
+
 The caller may lower these fixed source-inspection ceilings:
 
 | Allowance | Ceiling |

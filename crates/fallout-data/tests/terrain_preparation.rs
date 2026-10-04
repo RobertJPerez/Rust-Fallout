@@ -10,6 +10,7 @@ use fallout_data::{
         preparation::{Limits, TexturePreparation, TextureSourcePlan},
     },
     vfs::MountIndex,
+    world::cells::CellGridSources,
 };
 use flate2::{Compression, write::ZlibEncoder};
 use sha2::{Digest, Sha256};
@@ -243,6 +244,245 @@ fn drained(preparation: &TexturePreparation) {
         std::thread::sleep(Duration::from_millis(1));
     }
     assert_eq!(preparation.usage().decoded_bytes, 0);
+}
+
+fn grid_sources(store: &mut RecordStore) -> CellGridSources {
+    CellGridSources::load(
+        store,
+        &FormKey {
+            local_id: 0x100,
+            ..key()
+        },
+        Default::default(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn sealed_grid_terrain_uses_existing_exact_plan_jobs_cache_and_epoch() {
+    let fixture = Fixture::new(&default_source(0));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let mounts = fixture.mounts();
+    let plan = directory
+        .prepare_terrain(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    let direct = fixture.plan(&mut store);
+    assert_eq!(
+        serde_json::to_vec(plan.receipt()).unwrap(),
+        serde_json::to_vec(direct.receipt()).unwrap()
+    );
+    assert_eq!(plan.root(), request.cell());
+    assert_eq!(
+        plan.receipt().source_cohort_sha256,
+        directory.metadata().source_cohort_sha256
+    );
+    let models = directory
+        .prepare_cell(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    assert_eq!(
+        models.receipt().source_cohort_sha256,
+        plan.receipt().source_cohort_sha256
+    );
+    assert_eq!(plan.receipt().requests.len(), 2);
+    assert_eq!(plan.receipt().usage.texture_bytes, 9);
+    let mut preparation = fixture.prepare(plan.clone());
+    let old = preparation.wait().unwrap();
+    preparation.cancel();
+    assert!(matches!(
+        old.publish_for(plan.terrain()),
+        Err(JobError::Cancelled)
+    ));
+    preparation.retry().unwrap();
+    let ready = preparation
+        .wait()
+        .unwrap()
+        .publish_for(plan.terrain())
+        .unwrap();
+    assert_eq!(ready.textures.len(), 2);
+    assert!(
+        ready
+            .textures
+            .iter()
+            .all(|texture| texture.cache.as_ref().unwrap().reused)
+    );
+    assert_eq!(
+        ready.textures[0].sha256,
+        format!("{:x}", Sha256::digest([5, 6, 7, 8, 9]))
+    );
+    assert_eq!(
+        ready.textures[1].sha256,
+        format!("{:x}", Sha256::digest([1, 2, 3, 4]))
+    );
+    assert!(ready.all_requested_texture_sources_ready);
+    assert!(ready.all_authored_texture_sources_resolved);
+    assert!(!ready.runtime_ready);
+    drained(&preparation);
+}
+
+#[test]
+fn terrain_grid_factory_refuses_changed_source_count_order_bytes_and_directory() {
+    let fixture = Fixture::new(&default_source(0));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    drop(store);
+    let data = fixture.source.path().join("Data");
+    let empty = record(
+        b"TES4",
+        0,
+        0,
+        &sub(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        ),
+    );
+    fs::write(data.join("One.esm"), &empty).unwrap();
+    fs::write(data.join("Two.esm"), &empty).unwrap();
+    let open = |names: &[&str]| {
+        RecordStore::open_nv_headers(
+            &data,
+            &names
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect::<Vec<_>>(),
+            plugin::Limits::default(),
+        )
+        .unwrap()
+    };
+    let mut extra = open(&["FalloutNV.esm", "One.esm"]);
+    let error = directory
+        .prepare_terrain(&mut extra, &request, &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("source cohort count changed"));
+    drop(extra);
+    let mut ordered = open(&["FalloutNV.esm", "One.esm", "Two.esm"]);
+    let ordered_directory = grid_sources(&mut ordered);
+    let ordered_request = ordered_directory.request([0, 0]).unwrap();
+    drop(ordered);
+    let mut reordered = open(&["FalloutNV.esm", "Two.esm", "One.esm"]);
+    let error = ordered_directory
+        .prepare_terrain(
+            &mut reordered,
+            &ordered_request,
+            &fixture.mounts(),
+            Default::default(),
+        )
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("ordered source cohort changed"));
+    drop(reordered);
+    fs::write(data.join("FalloutNV.esm"), default_source(1)).unwrap();
+    let mut changed = fixture.store();
+    let error = directory
+        .prepare_terrain(
+            &mut changed,
+            &request,
+            &fixture.mounts(),
+            Default::default(),
+        )
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("ordered source cohort changed"));
+    let fresh = grid_sources(&mut changed);
+    let error = fresh
+        .prepare_terrain(
+            &mut changed,
+            &request,
+            &fixture.mounts(),
+            Default::default(),
+        )
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("another source directory"));
+    drop(changed);
+    let other = group(
+        0x101,
+        1,
+        &record(
+            b"CELL",
+            0x201,
+            0,
+            &[sub(b"DATA", &[0]), sub(b"XCLC", &[0; 8])].concat(),
+        ),
+    );
+    let bytes = [
+        default_source(0),
+        record(b"WRLD", 0x101, 0, &sub(b"DATA", &[0])),
+        other,
+    ]
+    .concat();
+    fs::write(data.join("FalloutNV.esm"), bytes).unwrap();
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let other = CellGridSources::load(
+        &mut store,
+        &FormKey {
+            local_id: 0x101,
+            ..key()
+        },
+        Default::default(),
+    )
+    .unwrap();
+    let error = other
+        .prepare_terrain(&mut store, &request, &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("another source directory"));
+    assert_eq!(fs::read_dir(fixture.cache.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn grid_terrain_keeps_existing_strict_land_and_texture_plan_bounds() {
+    let fixture = Fixture::new(&default_source(0));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    for limits in [
+        Limits {
+            records: 0,
+            ..Default::default()
+        },
+        Limits {
+            texture_bytes: 8,
+            ..Default::default()
+        },
+        Limits {
+            layers: 4097,
+            ..Default::default()
+        },
+    ] {
+        assert!(
+            directory
+                .prepare_terrain(&mut store, &request, &fixture.mounts(), limits)
+                .is_err()
+        );
+    }
+    assert_eq!(fs::read_dir(fixture.cache.path()).unwrap().count(), 0);
+    let fixture = Fixture::new(&source(
+        0x400,
+        Some(0x500),
+        0,
+        &[(b"TX00", b"land/stone.dds")],
+        true,
+        0,
+    ));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let error = directory
+        .prepare_terrain(&mut store, &request, &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(
+        error
+            .to_string()
+            .contains("exactly one winning present LAND")
+    );
+    assert_eq!(fs::read_dir(fixture.cache.path()).unwrap().count(), 0);
 }
 
 #[test]
@@ -644,6 +884,16 @@ fn forensic_texture_body_cannot_construct_a_ready_plan_or_cache() {
     .unwrap();
     assert_eq!(store.integrity_failures(), 1);
     let error = TextureSourcePlan::load(&mut store, &key(), &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(
+        error.to_string().contains("refuses tainted source cohort"),
+        "{error}"
+    );
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let error = directory
+        .prepare_terrain(&mut store, &request, &fixture.mounts(), Default::default())
         .err()
         .unwrap();
     assert!(

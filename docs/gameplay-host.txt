@@ -30,6 +30,17 @@ rules and original activation scripts are unsupported. This is an explicit host
 command; it does not infer retail action semantics from source headers.
 
 Save captures Host::world through the existing Captured::at_boundary and SaveWorker.
+select_save binds an opaque request to host, scene, canonical revision, campaign
+and catalogue. submit_save checks that boundary before taking the capture and
+uses the existing worker's bounded queue. Accepted request IDs advance even when
+storage later fails; refused admission does not consume the ID. SaveSubmission
+delegates polling/waiting to the existing SaveStatus and retains the exact request
+boundary. Admission, worker join and a matching identity cannot establish saved
+status; the consumer must inspect the actual Published receipt. An old host/scene
+completion cannot acknowledge a restored boundary, even at the same revision.
+Capture and blocking shutdown run outside the render/input frame. Accepted writes
+are not cancelled by dropping their observer or changing the active scene.
+
 Continue uses the existing RestoreTask, RequestIdentity and RestoredCandidate.
 begin_continue binds the active host, scene, revision, campaign and source cohort;
 request identities advance within the host. Cancellation and supersession affect

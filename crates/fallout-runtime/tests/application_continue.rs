@@ -8,10 +8,11 @@ use fallout_runtime::{
     Limits, World,
     events::{Context, Trigger},
     foreign::Content,
-    identity::{Owner, ReferenceId, ReferenceValue, Value},
+    identity::{CampaignId, Owner, ReferenceId, ReferenceValue, Value},
     inventory::{Facts, ItemId},
     save::{
-        Captured, Recovery, Repository, RestorePoll, RestoreTask, RestoredCandidate, SaveWorker,
+        Captured, CompletionError, Recovery, Rejection, Repository, RestorePoll, RestoreTask,
+        RestoredCandidate, SaveState, SaveWorker,
     },
     snapshot::Snapshot,
     source_items::{Policy, Role},
@@ -426,6 +427,206 @@ fn equal_revision_restore_expires_prior_acknowledgement_and_allows_new_host_requ
     assert_eq!(current.scene_generation(), f.host.scene_generation());
     assert_eq!(f.host.world().item(f.lot).unwrap().owner(), f.a);
     assert_eq!(f.host.world().revision(), active.state_revision + 1);
+}
+
+#[test]
+fn save_publication_uses_one_existing_ticket_and_preserves_its_boundary() {
+    let mut f = fixture();
+    let active = f.host.world().snapshot();
+    let request = f.host.select_save(id(1)).unwrap();
+    let duplicate = f.host.select_save(id(1)).unwrap();
+    let mut worker = SaveWorker::start(f.repository.clone(), 1).unwrap();
+    let mut submission = f.host.submit_save(request, &mut worker).unwrap();
+    assert_eq!(submission.boundary().request_id(), id(1));
+    assert_eq!(submission.boundary().revision(), active.state_revision);
+    assert_eq!(submission.boundary().campaign(), active.campaign);
+    assert_eq!(
+        submission.boundary().catalogue_fingerprint(),
+        active.catalogue_sha256
+    );
+    assert!(submission.matches_current_boundary(&f.host));
+    assert!(matches!(submission.state(), SaveState::Pending));
+    assert!(matches!(
+        f.host.submit_save(duplicate, &mut worker),
+        Err(Failure::Refused("Save request identity must advance"))
+    ));
+    assert!(f.host.select_save(id(1)).is_err());
+    worker.finish().unwrap();
+    let generation = match submission.poll() {
+        SaveState::Published(receipt) => {
+            assert_eq!(receipt.metadata.state_revision, active.state_revision);
+            receipt.metadata.generation
+        }
+        other => panic!("expected native publication: {other:?}"),
+    };
+    let native = std::fs::read(f.repository.path().join("current.frsv")).unwrap();
+    assert!(matches!(submission.poll(), SaveState::Published(_)));
+    assert_eq!(submission.wait().unwrap().metadata.generation, generation);
+    assert_eq!(f.host.world().snapshot(), active);
+    assert_eq!(
+        std::fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        native
+    );
+}
+
+#[test]
+fn save_capacity_refusal_preserves_exact_capture_and_allows_same_unaccepted_id() {
+    let mut f = fixture();
+    let active = f.host.world().snapshot();
+    let native = std::fs::read(f.repository.path().join("current.frsv")).unwrap();
+    // A one-byte reservation cannot admit this World's declared snapshot bound;
+    // no disk-speed assumption is needed to force the existing worker refusal.
+    let mut worker = SaveWorker::start_with_budget(f.repository.clone(), 1, 1).unwrap();
+    let request = f.host.select_save(id(1)).unwrap();
+    match f.host.submit_save(request, &mut worker) {
+        Err(Failure::SaveSubmission(rejected)) => {
+            assert_eq!(rejected.reason, Rejection::Capacity);
+            assert_eq!(rejected.capture.snapshot(), &active);
+        }
+        other => panic!("expected native capacity refusal: {other:?}"),
+    }
+    worker.finish().unwrap();
+    assert_eq!(f.host.world().snapshot(), active);
+    assert_eq!(
+        std::fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        native
+    );
+    let mut worker = SaveWorker::start(f.repository.clone(), 1).unwrap();
+    let request = f.host.select_save(id(1)).unwrap();
+    let submission = f.host.submit_save(request, &mut worker).unwrap();
+    worker.finish().unwrap();
+    assert_eq!(
+        submission.wait().unwrap().metadata.state_revision,
+        active.state_revision
+    );
+    assert_eq!(f.host.world().snapshot(), active);
+}
+
+#[test]
+fn stale_revision_scene_or_restored_host_refuses_save_before_publication() {
+    for change in 0..3 {
+        let mut f = fixture();
+        let request = f.host.select_save(id(1)).unwrap();
+        let native = std::fs::read(f.repository.path().join("current.frsv")).unwrap();
+        match change {
+            0 => {
+                let command = f
+                    .host
+                    .select_transfer(f.a, f.lot, f.b, 8)
+                    .unwrap()
+                    .command(id(1));
+                f.host.transfer(command).unwrap();
+            }
+            1 => f.host.advance_scene(id(8)).unwrap(),
+            _ => {
+                let mut scene = Scene::current(&f.host);
+                let restore = f.host.begin_continue(id(1)).unwrap();
+                let (_task, candidate) = candidate(&f, &restore);
+                let prepared = f.host.prepare_continue(restore, candidate).unwrap();
+                f.host.publish_continue(prepared, &mut scene).unwrap();
+            }
+        }
+        let active = f.host.world().snapshot();
+        let mut worker = SaveWorker::start(f.repository.clone(), 1).unwrap();
+        assert!(matches!(
+            f.host.submit_save(request, &mut worker),
+            Err(Failure::RevisionChanged | Failure::ExpiredSelection)
+        ));
+        worker.finish().unwrap();
+        assert_eq!(f.host.world().snapshot(), active);
+        assert_eq!(
+            std::fs::read(f.repository.path().join("current.frsv")).unwrap(),
+            native
+        );
+        assert!(f.host.select_save(id(1)).is_ok());
+    }
+}
+
+#[test]
+fn writer_failure_stays_failed_without_acknowledging_publication() {
+    let mut f = fixture();
+    let active = f.host.world().snapshot();
+    let first = CampaignId::from_bytes([1; 16]).unwrap();
+    let other = if first == active.campaign {
+        CampaignId::from_bytes([2; 16]).unwrap()
+    } else {
+        first
+    };
+    let wrong = Repository::create(&f.root.path().join("other-campaign"), &[], other).unwrap();
+    let mut worker = SaveWorker::start(wrong.clone(), 1).unwrap();
+    let request = f.host.select_save(id(1)).unwrap();
+    let mut submission = f.host.submit_save(request, &mut worker).unwrap();
+    worker.finish().unwrap();
+    assert!(matches!(
+        submission.poll(),
+        SaveState::Failed(CompletionError::Save(_))
+    ));
+    assert!(matches!(
+        submission.poll(),
+        SaveState::Failed(CompletionError::Save(_))
+    ));
+    assert!(matches!(submission.wait(), Err(CompletionError::Save(_))));
+    assert!(!wrong.path().join("current.frsv").exists());
+    assert_eq!(f.host.world().snapshot(), active);
+    // Worker acceptance consumes this request even if storage later refuses it.
+    assert!(f.host.select_save(id(1)).is_err());
+    assert!(f.host.select_save(id(2)).is_ok());
+}
+
+#[test]
+fn late_save_acknowledgement_cannot_match_equal_revision_continue() {
+    let mut f = fixture();
+    let active = f.host.world().snapshot();
+    let request = f.host.select_save(id(1)).unwrap();
+    let mut worker = SaveWorker::start(f.repository.clone(), 1).unwrap();
+    let mut submission = f.host.submit_save(request, &mut worker).unwrap();
+    worker.finish().unwrap();
+    assert!(matches!(submission.state(), SaveState::Pending));
+    let mut scene = Scene::current(&f.host);
+    let request = f.host.begin_continue(id(1)).unwrap();
+    let (_task, candidate) = candidate(&f, &request);
+    let prepared = f.host.prepare_continue(request, candidate).unwrap();
+    f.host.publish_continue(prepared, &mut scene).unwrap();
+    assert_eq!(f.host.world().snapshot(), active);
+    assert_eq!(submission.boundary().revision(), f.host.world().revision());
+    assert_eq!(
+        submission.boundary().scene_generation(),
+        f.host.scene_generation()
+    );
+    assert!(!submission.belongs_to_host(&f.host));
+    assert!(!submission.matches_current_boundary(&f.host));
+    assert!(matches!(submission.poll(), SaveState::Published(_)));
+    assert_eq!(f.host.world().snapshot(), active);
+}
+
+#[test]
+fn saved_older_revision_remains_observable_without_acknowledging_a_new_tick_or_scene() {
+    let mut f = fixture();
+    let saved_revision = f.host.world().revision();
+    let request = f.host.select_save(id(1)).unwrap();
+    let mut worker = SaveWorker::start(f.repository.clone(), 1).unwrap();
+    let mut submission = f.host.submit_save(request, &mut worker).unwrap();
+    worker.finish().unwrap();
+    let command = f
+        .host
+        .select_transfer(f.a, f.lot, f.b, 8)
+        .unwrap()
+        .command(id(1));
+    f.host.transfer(command).unwrap();
+    let current = f.host.world().snapshot();
+    assert!(submission.belongs_to_host(&f.host));
+    assert!(!submission.matches_current_boundary(&f.host));
+    match submission.poll() {
+        SaveState::Published(receipt) => {
+            assert_eq!(receipt.metadata.state_revision, saved_revision);
+        }
+        other => panic!("expected original capture publication: {other:?}"),
+    }
+    assert_eq!(f.host.world().snapshot(), current);
+    f.host.advance_scene(id(8)).unwrap();
+    assert!(!submission.belongs_to_host(&f.host));
+    assert!(matches!(submission.poll(), SaveState::Published(_)));
+    assert_eq!(f.host.world().snapshot(), current);
 }
 
 #[test]

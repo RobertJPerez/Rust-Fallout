@@ -9,7 +9,7 @@ bounded receipt and compares that receipt to a separate, independently authored
 expectation. Input, state, script-event, acknowledgement and save records share
 one ordered timeline so missing, duplicate, or reordered observations are visible.
 The comparison uses exact values; it does not infer quest rules or fill absent
-fields with defaults.
+fields with defaults. JSON scalar types compare strictly, so `true` is not `1`.
 
 Capture and replay
 ------------------

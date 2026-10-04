@@ -1758,7 +1758,9 @@ mod tests {
         ]))
         .unwrap();
         match parsed.command {
-            crate::Command::World(crate::WorldCommand::TerrainPatchSources { grid, seam, .. }) => {
+            crate::Command::World(crate::WorldCommand::TerrainPatchSources {
+                grid, seam, ..
+            }) => {
                 assert_eq!(parse_grid_set(&grid).unwrap(), [[-18, 0], [1, 0]]);
                 assert_eq!(parse_seam_set(&seam).unwrap(), [[1, 0], [0, 1]]);
             }
@@ -3461,7 +3463,7 @@ mod tests {
         .unwrap();
         assert!(matches!(
             args.command,
-            crate::Command::PlacedActivationSources { .. }
+            crate::Command::World(crate::WorldCommand::PlacedActivationSources { .. })
         ));
     }
 

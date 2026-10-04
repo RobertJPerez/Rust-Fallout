@@ -138,6 +138,10 @@ impl DrawScene {
                 .ticket()
                 .check()
                 .map_err(|error| error.to_string())?;
+            cell.textures
+                .ticket()
+                .check()
+                .map_err(|error| error.to_string())?;
         }
         if !self.queue.advance(commands, assets, epoch)? {
             return Ok(false);

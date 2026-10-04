@@ -1021,9 +1021,25 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             engineering_local_copy,
             snapshot_copy_request,
             snapshot_native_request,
+            quest_boot_request,
+            quest_boot_output,
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = quest_boot_request {
+                let report = event_operand_inspection::boot_saved_quest(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    quest_boot_output
+                        .as_deref()
+                        .ok_or("Missing quest boot output")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                return Ok(());
+            }
             if let Some(request) = snapshot_native_request {
                 let report = event_operand_inspection::observe_saved_native(
                     &install,

@@ -251,11 +251,16 @@ pub(crate) enum RuntimeCommand {
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
         /// Consume a saved journal head using explicit engineering activation/intent.
-        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_request: Option<PathBuf>,
         /// Observe explicitly selected native occurrences from saved state.
-        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,
+        /// Create one explicitly selected source-attached quest owner in a private result.
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "quest_boot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        quest_boot_request: Option<PathBuf>,
+        #[arg(long, requires = "quest_boot_request")]
+        quest_boot_output: Option<PathBuf>,
         /// Strict current canonical snapshot; no migration or engineering seeding.
         #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,

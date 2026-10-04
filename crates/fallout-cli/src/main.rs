@@ -28,6 +28,8 @@ mod operand_inspection;
 mod pe_image;
 mod query_inspection;
 mod quest_script_inspection;
+#[path = "../../../tools/retail-profile/capture.rs"]
+mod retail_profile;
 mod script_profile;
 mod script_state_inspection;
 mod shared_runtime_inspection;
@@ -635,6 +637,20 @@ enum Command {
         documents: PathBuf,
         #[arg(long)]
         local_appdata: PathBuf,
+    },
+    /// Capture exact original files into a fresh private package; never launches the game.
+    RetailProfileCapture {
+        #[arg(long)]
+        install: PathBuf,
+        /// Defaults to the actual Windows Documents known folder, including redirects.
+        #[arg(long)]
+        documents: Option<PathBuf>,
+        /// Defaults to the actual Windows LocalApplicationData known folder.
+        #[arg(long)]
+        local_appdata: Option<PathBuf>,
+        /// New directory under an existing parent, outside all source roots.
+        #[arg(long)]
+        package: PathBuf,
     },
     /// Count all top-level ESM/ESP records and BSA entries, preserving unknowns.
     Census {
@@ -2041,6 +2057,22 @@ fn run(args: Args) -> Result<()> {
                 Default::default(),
             )?;
             emit(&report, output, &install)?;
+        }
+        Command::RetailProfileCapture {
+            install,
+            documents,
+            local_appdata,
+            package,
+        } => {
+            if output.is_some() {
+                return Err("retail-profile-capture writes its immutable --package; --output is not supported".into());
+            }
+            retail_profile::capture(
+                &install,
+                documents.as_deref(),
+                local_appdata.as_deref(),
+                &package,
+            )?;
         }
         Command::Census {
             install,

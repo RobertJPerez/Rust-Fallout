@@ -1,5 +1,5 @@
 use super::{
-    index::{Bounds, Candidates, Index},
+    index::{Bounds, Candidates, FirstCandidates, Index},
     math::*,
     shape::Shape,
     *,
@@ -826,6 +826,67 @@ impl StaticScene {
                 .then(a.source.cmp(&b.source))
         });
         Ok(hits)
+    }
+    /// Keep at most one result while streaming the original admitted source
+    /// candidates. Every visited narrow predicate uses the full original ray;
+    /// an earlier best never conceals a later uncertainty or budget exhaustion.
+    pub fn ray_first(&self, ray: Ray, mut budget: FirstHitBudget) -> QueryResult<Option<Hit>> {
+        budget.validate()?;
+        if !query_domain(ray.origin)
+            || !query_domain(ray.direction)
+            || !ray.max_distance.is_finite()
+            || !(0. ..=1e50).contains(&ray.max_distance)
+            || (dot(ray.direction, ray.direction) - 1.).abs() > self.units.transform_tolerance
+        {
+            return Err(QueryError::Invalid(
+                "finite unit ray and bounded distance required",
+            ));
+        }
+        let mut candidates = match &self.index {
+            Some(index) => {
+                index.first_candidates(ray, budget.index_visits, budget.traversal_entries)?
+            }
+            None => FirstCandidates::All(0..self.leaves.len()),
+        };
+        let mut best: Option<(usize, f64)> = None;
+        while let Some(ordinal) = candidates.next()? {
+            let leaf = &self.leaves[ordinal];
+            charge(&mut budget.primitive_tests, 1, "first-hit primitive tests")?;
+            charge(
+                &mut budget.geometry_tests,
+                leaf.geometry.shape.cost(),
+                "first-hit geometry tests",
+            )?;
+            let o = leaf.transform.local_point(ray.origin);
+            let d = leaf.transform.local_vector(ray.direction);
+            if let Some(distance) = leaf.geometry.shape.ray(o, d, ray.max_distance)? {
+                if !distance.is_finite() {
+                    return Err(QueryError::Invalid("overflowing intersection"));
+                }
+                if distance <= ray.max_distance {
+                    // Preserve the old position refusal even for a farther
+                    // candidate, without constructing/cloning its source Hit.
+                    let position =
+                        std::array::from_fn(|i| ray.direction[i].mul_add(distance, ray.origin[i]));
+                    if !finite(position) {
+                        return Err(QueryError::Invalid("overflowing hit position"));
+                    }
+                    if best.is_none_or(|(old, old_distance)| {
+                        distance
+                            .total_cmp(&old_distance)
+                            .then(leaf.source.cmp(&self.leaves[old].source))
+                            .is_lt()
+                    }) {
+                        best = Some((ordinal, distance));
+                    }
+                }
+            }
+        }
+        Ok(best.map(|(ordinal, distance)| {
+            let position =
+                std::array::from_fn(|i| ray.direction[i].mul_add(distance, ray.origin[i]));
+            Self::hit(&self.leaves[ordinal], distance, position)
+        }))
     }
     /// Closed sphere overlap, including triangle edges and degenerate triangles.
     /// An error discards all partial hits when any declared budget is exhausted.

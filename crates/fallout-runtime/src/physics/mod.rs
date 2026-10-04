@@ -78,6 +78,41 @@ impl Default for QueryBudget {
         }
     }
 }
+/// Independent work and retained traversal bounds for a single-result ray.
+/// Ceilings can only be reduced; no allowance renews per branch or primitive.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FirstHitBudget {
+    pub index_visits: usize,
+    pub primitive_tests: usize,
+    pub geometry_tests: usize,
+    pub traversal_entries: usize,
+}
+impl Default for FirstHitBudget {
+    fn default() -> Self {
+        Self {
+            index_visits: 200_000,
+            primitive_tests: 100_000,
+            geometry_tests: 1_000_000,
+            traversal_entries: 64,
+        }
+    }
+}
+impl FirstHitBudget {
+    fn validate(self) -> QueryResult<()> {
+        let ceiling = Self::default();
+        if self.index_visits > ceiling.index_visits
+            || self.primitive_tests > ceiling.primitive_tests
+            || self.geometry_tests > ceiling.geometry_tests
+            || self.traversal_entries > ceiling.traversal_entries
+        {
+            return Err(QueryError::Invalid(
+                "first-hit budgets must only reduce ceilings",
+            ));
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ray {

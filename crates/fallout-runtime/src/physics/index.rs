@@ -357,6 +357,80 @@ impl Index {
     ) -> QueryResult<Candidates<'_>> {
         self.candidates(primitive_work, |bounds| bounds.may_overlap(center, radius))
     }
+    pub fn first_candidates(
+        &self,
+        ray: Ray,
+        node_visits: usize,
+        traversal_entries: usize,
+    ) -> QueryResult<FirstCandidates<'_>> {
+        // build_range halves positive ranges and emits exactly2N-1 nodes.
+        // ceil(log2 N)+1 bounds the pending depth-first stack. Charge its
+        // retained capacity before allocation, independently of node visits.
+        let leaves = self.nodes.len() / 2 + 1;
+        let depth = (usize::BITS - (leaves - 1).leading_zeros()) as usize + 1;
+        if depth > traversal_entries {
+            return Err(QueryError::Budget("first-hit traversal entries"));
+        }
+        let mut stack = Vec::with_capacity(depth);
+        stack.push(self.root);
+        Ok(FirstCandidates::Indexed {
+            index: self,
+            ray,
+            node_visits,
+            stack,
+            stack_limit: depth,
+            fallback: self.fallback.iter().copied(),
+        })
+    }
+}
+
+/// Stream candidates without retaining or sorting every admitted ordinal.
+/// The original full ray controls culling; lacking a certified strictly-farther
+/// bound never permits a best-distance early exit or hiding a narrow refusal.
+pub(super) enum FirstCandidates<'a> {
+    All(Range<usize>),
+    Indexed {
+        index: &'a Index,
+        ray: Ray,
+        node_visits: usize,
+        stack: Vec<usize>,
+        stack_limit: usize,
+        fallback: Copied<Iter<'a, usize>>,
+    },
+}
+impl FirstCandidates<'_> {
+    pub fn next(&mut self) -> QueryResult<Option<usize>> {
+        match self {
+            Self::All(range) => Ok(range.next()),
+            Self::Indexed {
+                index,
+                ray,
+                node_visits,
+                stack,
+                stack_limit,
+                fallback,
+            } => {
+                while let Some(node_index) = stack.pop() {
+                    charge(node_visits, 1, "first-hit index visits")?;
+                    let node = &index.nodes[node_index];
+                    if !node.bounds().may_ray(*ray) {
+                        continue;
+                    }
+                    match *node {
+                        Node::Leaf { ordinal, .. } => return Ok(Some(ordinal)),
+                        Node::Branch { left, right, .. } => {
+                            if stack.len().checked_add(2).is_none_or(|n| n > *stack_limit) {
+                                return Err(QueryError::Budget("first-hit traversal entries"));
+                            }
+                            stack.push(right);
+                            stack.push(left);
+                        }
+                    }
+                }
+                Ok(fallback.next())
+            }
+        }
+    }
 }
 
 pub(super) enum Candidates<'a> {

@@ -2,6 +2,36 @@ use super::*;
 use fallout_data::coordinates::Affine;
 use serde_json::json;
 
+#[test]
+fn first_cursor_covers_borrowed_fallback_after_bounded_source_nodes() {
+    // Eight identical admitted bounds require all fifteen nodes. The separate
+    // fallback source ordinal has no fabricated bounds and must still emerge.
+    let entries: Vec<_> = (0..8)
+        .map(|i| (i, Bounds::new([-1.; 3], [1.; 3])))
+        .collect();
+    let index = Index::build(entries, vec![99], &mut 100).unwrap().unwrap();
+    let ray = Ray {
+        origin: [-5., 0., 0.],
+        direction: [1., 0., 0.],
+        max_distance: 10.,
+    };
+    let mut cursor = index.first_candidates(ray, 15, 4).unwrap();
+    let mut ordinals = Vec::new();
+    while let Some(i) = cursor.next().unwrap() {
+        ordinals.push(i);
+    }
+    assert_eq!(ordinals, (0..8).chain([99]).collect::<Vec<_>>());
+    let mut exhausted = index.first_candidates(ray, 14, 4).unwrap();
+    for _ in 0..7 {
+        assert!(exhausted.next().unwrap().is_some());
+    }
+    assert!(matches!(
+        exhausted.next(),
+        Err(QueryError::Budget("first-hit index visits"))
+    ));
+    assert!(index.first_candidates(ray, 15, 3).is_err());
+}
+
 fn words(v: V) -> [String; 3] {
     v.map(|x| format!("{:016x}", x.to_bits()))
 }

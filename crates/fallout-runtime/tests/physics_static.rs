@@ -136,6 +136,326 @@ fn close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-6, "{actual} != {expected}");
 }
 
+fn first_literal_blocks() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = vec![("bhkRigidBody", body(10)); 10];
+    // Independent raw axis-sphere oracle: body2 ties8 at4, body9 overlaps
+    // behind at4.5, body3 misses and body6 is tangent at5.
+    for (id, center, radius) in [
+        (8, [5., 0., 0.], 1.),
+        (2, [5., 0., 0.], 1.),
+        (9, [5.5, 0., 0.], 1.),
+        (7, [10., 0., 0.], 1.),
+        (3, [4., 2., 0.], 1.),
+        (6, [5., 1., 0.], 1.),
+        (4, [20., 0., 0.], 2.),
+        (5, [30., 0., 0.], 1.),
+    ] {
+        let mut data = body(if radius == 2. { 11 } else { 10 });
+        for (axis, value) in center.into_iter().enumerate() {
+            data[52 + axis * 4..56 + axis * 4].copy_from_slice(&f32::to_le_bytes(value));
+        }
+        blocks[id] = ("bhkRigidBodyT", data);
+    }
+    blocks.push(("bhkSphereShape", sphere(1.)));
+    blocks.push(("bhkSphereShape", sphere(2.)));
+    blocks
+}
+
+#[test]
+fn first_literal_spheres_preserve_tie_order_inside_reversed_and_closed_range() {
+    let (_, collision) = nif_collision::decode(
+        &container(&first_literal_blocks()),
+        "independent nearest source spheres",
+    )
+    .unwrap();
+    for reverse in [false, true] {
+        let mut ids = vec![8, 2, 9, 7, 3, 6, 4, 5];
+        if reverse {
+            ids.reverse();
+        }
+        let placements: Vec<_> = ids
+            .into_iter()
+            .map(|body_block| BodyPlacement {
+                body_block,
+                ..placement()
+            })
+            .collect();
+        let scene =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        for (r, expected) in [
+            (ray([0.; 3], [1., 0., 0.], 40.), Some((2, 4.))),
+            (ray([15., 0., 0.], [-1., 0., 0.], 40.), Some((7, 4.))),
+            (ray([0.; 3], [1., 0., 0.], 4.), Some((2, 4.))),
+            (ray([0.; 3], [1., 0., 0.], 4f64.next_down()), None),
+            (ray([5., 0., 0.], [1., 0., 0.], 40.), Some((2, 0.))),
+            (ray([5., 0., 0.], [1., 0., 0.], 0.), Some((2, 0.))),
+            (ray([0.; 3], [1., 0., 0.], 0.), None),
+        ] {
+            let first = scene.ray_first(r, FirstHitBudget::default()).unwrap();
+            assert_eq!(
+                first.as_ref().map(|h| (h.source.body_block, h.distance)),
+                expected
+            );
+            let all = scene.ray_cast(r, QueryBudget::default()).unwrap();
+            assert_eq!(
+                serde_json::to_value(&first).unwrap(),
+                serde_json::to_value(all.first()).unwrap()
+            );
+            if let Some(hit) = first {
+                assert_eq!(hit.source.reference.0.get(), 1);
+                assert_eq!(hit.source.source_sha256, [9; 32]);
+                assert_eq!(hit.body_filter.flags_and_parts, 0xe7);
+                assert_eq!(hit.authored_shell_radius, 0.);
+                assert!(!scene.faithful_ready());
+            }
+        }
+    }
+}
+
+#[test]
+fn first_work_and_retained_stack_have_independent_exact_and_one_under_bounds() {
+    let (_, collision) = nif_collision::decode(
+        &container(&first_literal_blocks()),
+        "bounded nearest source spheres",
+    )
+    .unwrap();
+    let placements: Vec<_> = [8, 2, 9, 7, 3, 6, 4, 5]
+        .into_iter()
+        .map(|body_block| BodyPlacement {
+            body_block,
+            ..placement()
+        })
+        .collect();
+    let scene =
+        StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+    let r = ray([0.; 3], [1., 0., 0.], 40.);
+    // Eight source leaves -> fifteen nodes, conservative depth4. Only the
+    // explicit Y2 sphere is culled, so seven actual shape tests remain. The
+    // existing geometry counter charges packed triangles, not analytic spheres.
+    let exact = FirstHitBudget {
+        index_visits: 15,
+        primitive_tests: 7,
+        geometry_tests: 0,
+        traversal_entries: 4,
+    };
+    assert_eq!(
+        scene
+            .ray_first(r, exact)
+            .unwrap()
+            .unwrap()
+            .source
+            .body_block,
+        2
+    );
+    for budget in [
+        FirstHitBudget {
+            index_visits: 14,
+            ..exact
+        },
+        FirstHitBudget {
+            primitive_tests: 6,
+            ..exact
+        },
+        FirstHitBudget {
+            traversal_entries: 3,
+            ..exact
+        },
+    ] {
+        assert!(matches!(
+            scene.ray_first(r, budget),
+            Err(QueryError::Budget(_))
+        ));
+    }
+    for budget in [
+        FirstHitBudget {
+            index_visits: 200001,
+            ..exact
+        },
+        FirstHitBudget {
+            primitive_tests: 100001,
+            ..exact
+        },
+        FirstHitBudget {
+            geometry_tests: 1000001,
+            ..exact
+        },
+        FirstHitBudget {
+            traversal_entries: 65,
+            ..exact
+        },
+    ] {
+        assert!(matches!(
+            scene.ray_first(r, budget),
+            Err(QueryError::Invalid(_))
+        ));
+    }
+    let unindexed = StaticScene::build(
+        &collision,
+        &[BodyPlacement {
+            body_block: 2,
+            ..placement()
+        }],
+        units(),
+        QueryLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        unindexed
+            .ray_first(
+                r,
+                FirstHitBudget {
+                    index_visits: 0,
+                    traversal_entries: 0,
+                    primitive_tests: 1,
+                    geometry_tests: 1
+                }
+            )
+            .unwrap()
+            .unwrap()
+            .distance,
+        4.
+    );
+    let (_, triangle_source) = nif_collision::decode(
+        &container(&packed_triangle_fixture([
+            [0.; 3],
+            [2., 0., 0.],
+            [0., 2., 0.],
+        ])),
+        "independent eight closed triangle crossings",
+    )
+    .unwrap();
+    let triangle_placements: Vec<_> = (1..=8)
+        .map(|reference| BodyPlacement {
+            reference: ReferenceId(NonZeroU64::new(reference).unwrap()),
+            ..placement()
+        })
+        .collect();
+    let triangles = StaticScene::build(
+        &triangle_source,
+        &triangle_placements,
+        units(),
+        QueryLimits::default(),
+    )
+    .unwrap();
+    let triangle_ray = ray([0.5, 0.5, 3.], [0., 0., -1.], 3.);
+    let triangle_budget = FirstHitBudget {
+        index_visits: 15,
+        primitive_tests: 8,
+        geometry_tests: 8,
+        traversal_entries: 4,
+    };
+    assert_eq!(
+        triangles
+            .ray_first(triangle_ray, triangle_budget)
+            .unwrap()
+            .unwrap()
+            .source
+            .reference
+            .0
+            .get(),
+        1
+    );
+    assert!(matches!(
+        triangles.ray_first(
+            triangle_ray,
+            FirstHitBudget {
+                geometry_tests: 7,
+                ..triangle_budget
+            }
+        ),
+        Err(QueryError::Budget("first-hit geometry tests"))
+    ));
+}
+
+#[test]
+fn first_never_early_exits_past_uncertain_authored_triangle() {
+    let eps = f32::from_bits(0x3400_0000);
+    let mut blocks = packed_triangle_fixture([[0.; 3], [1.; 3], [1., 1. + eps, 1. - eps]]);
+    blocks.push(("bhkRigidBody", body(4)));
+    blocks.push(("bhkSphereShape", sphere(0.1)));
+    let (_, collision) = nif_collision::decode(
+        &container(&blocks),
+        "nearest cannot conceal uncertain source",
+    )
+    .unwrap();
+    let q = f64::from_bits(0x3fe2_79a7_4590_331d);
+    let d = [q, q, q.next_up()];
+    let p = [0.5, 0.5 + f64::from(eps) / 4., 0.5 - f64::from(eps) / 4.];
+    let r = ray(std::array::from_fn(|i| p[i] - d[i]), d, 2.);
+    for triangles in [1, 7] {
+        let mut placements = vec![BodyPlacement {
+            body_block: 3,
+            ..placement()
+        }];
+        placements.extend((0..triangles).map(|i| BodyPlacement {
+            reference: ReferenceId(NonZeroU64::new(2 + i).unwrap()),
+            ..placement()
+        }));
+        let scene =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        assert!(matches!(
+            scene.ray_first(r, FirstHitBudget::default()),
+            Err(QueryError::Invalid(_))
+        ));
+    }
+}
+
+#[test]
+fn first_does_not_inherit_all_hit_output_quota_or_retain_far_results() {
+    let (_, collision) = nif_collision::decode(
+        &container(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))]),
+        "many independent source references",
+    )
+    .unwrap();
+    let placements: Vec<_> = (1..=10001)
+        .rev()
+        .map(|reference| BodyPlacement {
+            reference: ReferenceId(NonZeroU64::new(reference).unwrap()),
+            ..placement()
+        })
+        .collect();
+    let scene =
+        StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+    let r = ray([-5., 0., 0.], [1., 0., 0.], 10.);
+    let exact = FirstHitBudget {
+        index_visits: 20001,
+        primitive_tests: 10001,
+        geometry_tests: 0,
+        traversal_entries: 15,
+    };
+    let first = scene.ray_first(r, exact).unwrap().unwrap();
+    assert_eq!(first.source.reference.0.get(), 1);
+    assert_eq!(first.distance, 4.);
+    assert!(matches!(
+        scene.ray_cast(r, QueryBudget::default()),
+        Err(QueryError::Budget("query hits"))
+    ));
+    assert!(matches!(
+        scene.ray_first(
+            r,
+            FirstHitBudget {
+                primitive_tests: 10000,
+                ..exact
+            }
+        ),
+        Err(QueryError::Budget("first-hit primitive tests"))
+    ));
+}
+
+#[test]
+#[ignore = "explicit private nearest source CLI fixture export"]
+fn first_ray_cli_fixture_export() {
+    use std::io::Write;
+    let root = std::path::PathBuf::from(std::env::var_os("FALLOUT_FIRST_FIXTURE").unwrap());
+    std::fs::create_dir(&root).unwrap();
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(root.join("literal-first.nif"))
+        .unwrap();
+    file.write_all(&container(&first_literal_blocks())).unwrap();
+}
+
 fn shape_list(children: &[u32]) -> Vec<u8> {
     let mut list = Vec::new();
     words(&mut list, &[children.len() as u32]);

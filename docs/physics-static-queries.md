@@ -183,6 +183,40 @@ queries and refusals.
 Unsupported bodies return the exact block/capability error. Retail reports/geometry
 stay under ignored `local/`.
 
+`StaticScene::ray_first(Ray,FirstHitBudget)` streams source candidates and returns
+at most one `Hit`, ordered by the same distance/source identity rule. It keeps one
+best ordinal/distance rather than a candidate list or cloned farther hits. Node
+visits, primitive visits, triangle geometry tests and retained traversal entries
+have independent reduce-only ceilings of 200000, 100000, 1000000 and 64. A balanced
+tree reserves `ceil(log2(indexed_leaves))+1` logical stack entries before allocation;
+fallback ordinals remain borrowed. Analytic shapes charge primitive work and retain
+the existing zero triangle cost. No output-hit allowance renews per contact.
+These limits concern logical retained storage/work, not peak heap or real time.
+
+Nearest queries keep the full original ray at every narrow predicate. Existing
+source bounds cull certified full-range misses; a bound without a justified
+strictly-farther certificate remains visited. This slice does not promise extra
+pruning after a best hit is found. Late uncertainty, unsupported capability or
+exhausted work discards the complete result, including an earlier best. Successful
+distance/position retain the existing engineering predicate scope.
+
+The existing `--query-request` accepts optional `ray_first` in place of `ray`:
+
+```json
+"ray_first": {
+  "ray": {"origin":[-5,0,0],"direction":[1,0,0],"max_distance":20},
+  "budget": {"index_visits":200000,"primitive_tests":100000,
+             "geometry_tests":1000000,"traversal_entries":64}
+}
+```
+
+Both ray modes in one request refuse. The ordinary identity/body/attachment/units
+fields remain required; an optional overlap is still part of the same atomic
+request. `first_ray` reports the consumed numeric words, explicit budget and one
+hit or `null`. Requests without this mode omit that report field and retain their
+existing report bytes. First-ray refusals retain the consumed numeric audit and
+produce no report. Report JSON never prepares or authorizes a scene.
+
 Format facts: nifxml revision
 `970a6238218a106daaeb89a61bcda0eeaf9d08c4`, complete relevant Matrix44,
 bhkRigidBody/CInfo550_660, hkQuaternion, convex/capsule/box, transform/list/MOPP,

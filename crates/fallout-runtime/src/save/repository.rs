@@ -287,7 +287,9 @@ impl Repository {
                 "captured campaign differs from repository identity",
             ));
         }
-        capture.snapshot.validate_intrinsic(capture.limits)?;
+        capture
+            .source_validation
+            .check(&capture.snapshot, capture.limits)?;
         let current = self.root.join(Slot::Current.name());
         let previous = if current.try_exists().map_err(|e| io(&current, e))? {
             let bytes = self.slot_bytes(Slot::Current, capture.limits)?;
@@ -299,7 +301,9 @@ impl Repository {
                     "campaign/content cohort changed; use a separate native repository",
                 ));
             }
-            decoded.snapshot.validate_intrinsic(capture.limits)?;
+            capture
+                .source_validation
+                .check(&decoded.snapshot, capture.limits)?;
             if decoded.snapshot.state_revision > capture.snapshot.state_revision
                 || (decoded.snapshot.state_revision == capture.snapshot.state_revision
                     && decoded.snapshot != capture.snapshot)
@@ -465,6 +469,7 @@ mod publication_preflight_tests {
         });
         facts.ownership = Some(Ownership::Live { reference: owner });
         Captured {
+            source_validation: Default::default(),
             limits: Limits {
                 max_snapshot_bytes: 4096,
                 ..Default::default()

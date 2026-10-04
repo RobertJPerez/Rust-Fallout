@@ -38,8 +38,9 @@ failures propagate. Imports and deterministic tests can provide an explicit
 identity. Every successful canonical mutation increments a checked 64-bit state
 revision. Revision exhaustion rejects the operation before changing state.
 
-`Captured::at_boundary` owns a complete snapshot. Publication never reads later
-world mutations. A repository rejects other campaigns, changed content cohorts,
+`Captured::at_boundary` owns a complete snapshot and a bounded immutable schema
+context. Publication never reads later world mutations. A repository rejects
+other campaigns, changed content cohorts,
 older revisions, backward clocks/allocators and different states at the same
 revision. Identical repeated captures are allowed. A writer lock serializes
 publication across processes; contention returns a busy error.
@@ -94,6 +95,24 @@ Accepted requests are neither combined nor automatically retried. A busy
 repository, stale revision or disk failure is returned on that request's ticket;
 the writer continues to the next request. A stopped writer reports an explicit
 completion error rather than claiming that the state was saved.
+
+`SaveStatus::new(ticket)` provides an owned application adapter for presentation
+and host shutdown. `state()` borrows the last observation; `poll()` nonblockingly
+collects the existing ticket and returns `SaveState::Pending`,
+`SaveState::Published(WriteReceipt)` or `SaveState::Failed(CompletionError)`.
+Terminal receipts and errors remain readable across frames. Failed publication,
+writer disconnection and a previously consumed ticket never display a published
+status. This adapter owns one result, adds no writer or event journal, and does
+not read or mutate canonical state. Dropping it retains the existing rule that
+an accepted write continues.
+
+For orderly shutdown, drain/join `SaveWorker::finish` outside the frame loop and
+inspect each status separately: joining the writer still does not prove that
+every request succeeded. `SaveStatus::wait` reuses the ticket's blocking collection
+for shutdown and offline tools, returning an already observed terminal result
+without collecting twice. The existing native-save probe consumes this adapter
+and retains its report, recovery and durability contracts. Presentation can bind
+the same `poll()` boundary; this producer change does not claim a completed UI.
 
 Call `finish` outside the frame loop to close admission, drain accepted work and
 join the writer. Successful shutdown confirms draining and joining; individual
@@ -183,8 +202,27 @@ owners, local/context references, item/script links and pending-event order/cloc
 A checksummed current snapshot with a dangling link therefore cannot overwrite
 a valid previous save. Rejection preserves both slots; recovery and repair remain
 explicit, followed by a fresh retry. The public APIs and native wire bytes are
-unchanged. Publication has no loaded catalogue: definition versions, complete
-local declaration kinds and compiled event sites still need source-bound loading.
+unchanged. Publication also checks exact source definition versions, complete
+local declaration banks and compiled event sites using the same checks as restore.
+The capture retains shared immutable schemas already prepared by its world,
+including schemas of removed instances, without copying or borrowing a catalogue.
+It can outlive both the world and its source loader.
+
+The context admits at most `max_instances` distinct cached definitions,
+`max_locals` aggregate declarations and `max_event_blocks` compiled event sites.
+Copied source identity strings are limited by `max_snapshot_bytes`. Admission
+checks the complete cache before allocating its owned index. Exceeding any bound
+is reported on publication without preparing a temporary or changing either slot.
+These are separate logical context bounds; the worker's existing declared snapshot
+byte reservation is unchanged and remains distinct from total heap usage.
+
+A current definition absent from the capture's prepared context is refused
+explicitly, even if container checksums match. Load current against its catalogue
+to prepare its schemas before changing/removing instances and recapturing; if it
+cannot restore, select explicit previous recovery and repair. Publication never
+guesses missing declaration kinds or silently falls back to intrinsic checks.
+Uninitialized unsupported locals, exact numeric bits, schema-1/2 migrations,
+explicit recovery and the native envelope remain unchanged.
 
 Strict loading is the default. Explicit fallback returns the restored previous
 state and the current failure without rewriting current. Explicit repair first

@@ -411,15 +411,11 @@ impl<'a> World<'a> {
         Ok(())
     }
     pub(crate) fn validate_value(&self, local: &Local, value: &Value) -> Result<()> {
-        match (local.kind, value) {
-            (_, Value::Uninitialized) => Ok(()),
-            (Kind::Float | Kind::Integer, Value::Number { .. }) => Ok(()),
-            (Kind::Reference, Value::Reference { value }) => self.validate_reference(value),
-            (Kind::Unsupported { .. } | Kind::UnverifiedZeroIndex { .. }, _) => {
-                Err(Error::UnsupportedLocal(local.index))
-            }
-            _ => Err(Error::IncompatibleLocal(local.index)),
+        schema::check_value(local, value)?;
+        if let Value::Reference { value } = value {
+            self.validate_reference(value)?;
         }
+        Ok(())
     }
     fn validate_assignments(
         &self,

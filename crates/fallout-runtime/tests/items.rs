@@ -5,8 +5,8 @@ use fallout_runtime::{
     events::{Clocks, Context, Trigger},
     identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value},
     inventory::{
-        Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, TransferLimits, ViewLimits,
-        ViewUsage,
+        Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, Page, PageLimits, PageRequest,
+        TransferLimits, ViewLimits, ViewUsage,
     },
     save::{Captured, Recovery, Repository},
     snapshot::Snapshot,
@@ -1127,6 +1127,573 @@ fn cold_inventory_transfer_helper() {
     .unwrap();
     fs::write(
         root.join(&phase).join("cold.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+}
+
+fn paging_world(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, [ReferenceId; 3], [ItemId; 3]) {
+    let (mut world, owners, ids) = transfer_world(catalogue);
+    world.transfer_item(ids[2], owners[0]).unwrap();
+    let mut snapshot = world.snapshot();
+    snapshot.references[0].authored = Some(form(0x100));
+    (
+        World::restore(catalogue, snapshot, Limits::default()).unwrap(),
+        owners,
+        ids,
+    )
+}
+fn collect_pages(world: &World<'_>, owner: ReferenceId, rows: usize) -> Vec<Page> {
+    let mut after = None;
+    let mut pages = Vec::new();
+    loop {
+        let page = world
+            .inventory_page(
+                PageRequest {
+                    owner,
+                    after: after.as_ref(),
+                    rows,
+                },
+                PageLimits::default(),
+            )
+            .unwrap();
+        after = page.next_cursor().cloned();
+        pages.push(page);
+        if after.is_none() {
+            break;
+        }
+        assert!(pages.len() < 64);
+    }
+    pages
+}
+fn literal_paging_items() -> serde_json::Value {
+    let mut first = facts();
+    first.script_instance = Some(InstanceId(1.try_into().unwrap()));
+    let mut second = first.clone();
+    second.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abd,
+    });
+    let mut third = first.clone();
+    third.base = form(0x200);
+    third.condition = Some(Condition::Float32 { bits: 0x8000_0000 });
+    serde_json::json!([
+        {"id":1,"owner":1,"count":17,"facts":first},
+        {"id":2,"owner":1,"count":3,"facts":second},
+        {"id":3,"owner":1,"count":5,"facts":third}])
+}
+
+#[test]
+fn consecutive_inventory_pages_preserve_literal_ids_quantities_raw_bits_and_opaque_facts() {
+    let (_dir, catalogue) = fixture();
+    let (world, [owner, _, _], _) = paging_world(&catalogue);
+    let before = world.snapshot();
+    let pages = collect_pages(&world, owner, 1);
+    assert_eq!(pages.len(), 3);
+    let items = pages
+        .iter()
+        .flat_map(|page| page.items().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(serde_json::to_value(items).unwrap(), literal_paging_items());
+    for (index, page) in pages.iter().enumerate() {
+        assert_eq!(page.campaign(), CampaignId::from_bytes([34; 16]).unwrap());
+        assert_eq!(page.catalogue_fingerprint(), world.catalogue_fingerprint());
+        assert_eq!(page.revision(), 12);
+        assert_eq!(page.boundary(), before.clocks);
+        assert_eq!(page.owner(), owner);
+        assert_eq!(page.authored(), Some(&form(0x100)));
+        assert_eq!(
+            page.start_after(),
+            if index == 0 {
+                None
+            } else {
+                Some(ItemId((index as u64).try_into().unwrap()))
+            }
+        );
+        assert_eq!(page.usage().visited, 1);
+        assert_eq!(page.usage().returned, 1);
+        assert_eq!(page.usage().links, 7);
+        assert_eq!(page.usage().extra_bytes, 3);
+        assert_eq!(page.is_complete(), index == 2);
+        assert_eq!(page.next_cursor().is_none(), index == 2);
+    }
+    assert_eq!(world.snapshot(), before);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn pages_distinguish_unknown_uninitialized_explicit_empty_and_after_last() {
+    let (_dir, catalogue) = fixture();
+    let (world, [owner, empty, absent], ids) = paging_world(&catalogue);
+    let before = world.snapshot();
+    let uninitialized = world
+        .inventory_page(
+            PageRequest {
+                owner: absent,
+                after: None,
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap();
+    assert!(uninitialized.items().is_none());
+    assert!(uninitialized.is_complete());
+    let explicit = world
+        .inventory_page(
+            PageRequest {
+                owner: empty,
+                after: None,
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap();
+    assert_eq!(explicit.items(), Some([].as_slice()));
+    assert!(explicit.is_complete());
+    assert_eq!(explicit.usage().visited, 0);
+    assert_eq!(explicit.start_after(), None);
+    let pages = collect_pages(&world, owner, 2);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(pages[0].items().unwrap().len(), 2);
+    assert_eq!(pages[1].items().unwrap().len(), 1);
+    let tail = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: Some(pages[1].cursor()),
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap();
+    assert_eq!(tail.items(), Some([].as_slice()));
+    assert_eq!(tail.start_after(), Some(ids[2]));
+    assert_eq!(tail.usage().visited, 0);
+    assert!(tail.next_cursor().is_none());
+    assert!(
+        world
+            .inventory_page(
+                PageRequest {
+                    owner: ReferenceId(999.try_into().unwrap()),
+                    after: None,
+                    rows: 1
+                },
+                PageLimits::default()
+            )
+            .is_err()
+    );
+    assert!(
+        world
+            .inventory_page(
+                PageRequest {
+                    owner,
+                    after: None,
+                    rows: 0
+                },
+                PageLimits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn page_required_slice_exact_limits_and_one_under_refuse_whole_observation() {
+    let (_dir, catalogue) = fixture();
+    let (world, [owner, _, _], _) = paging_world(&catalogue);
+    let before = world.snapshot();
+    let request = PageRequest {
+        owner,
+        after: None,
+        rows: 2,
+    };
+    let usage = world
+        .inventory_page(request, PageLimits::default())
+        .unwrap()
+        .usage();
+    let exact = PageLimits {
+        max_visited: 2,
+        max_rows: 2,
+        max_links: 14,
+        max_extra_bytes: 6,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    assert_eq!(world.inventory_page(request, exact).unwrap().usage(), usage);
+    for (limits, label) in [
+        (
+            PageLimits {
+                max_visited: 1,
+                ..exact
+            },
+            "inventory page visited",
+        ),
+        (
+            PageLimits {
+                max_rows: 1,
+                ..exact
+            },
+            "inventory page rows",
+        ),
+        (
+            PageLimits {
+                max_links: 13,
+                ..exact
+            },
+            "inventory page links",
+        ),
+        (
+            PageLimits {
+                max_extra_bytes: 5,
+                ..exact
+            },
+            "inventory page extra bytes",
+        ),
+        (
+            PageLimits {
+                max_copied_bytes: usage.copied_bytes - 1,
+                ..exact
+            },
+            "inventory page copied bytes",
+        ),
+        (
+            PageLimits {
+                max_copied_bytes: 0,
+                ..exact
+            },
+            "inventory page copied bytes",
+        ),
+    ] {
+        assert!(
+            matches!(world.inventory_page(request,limits),Err(fallout_runtime::Error::Capacity(actual)) if actual==label)
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    assert_eq!(usage.visited, 2);
+    assert_eq!(usage.returned, 2);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn bounded_page_does_not_precharge_or_clone_large_unselected_suffix_and_resumes_at_id_gap() {
+    let (_dir, catalogue) = fixture();
+    let (mut world, [owner, other, _], ids) = paging_world(&catalogue);
+    let initial = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: None,
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap()
+        .usage();
+    let mut large = world.item(ids[2]).unwrap().facts().clone();
+    large.extra_fields[0].bytes = vec![0xff; 16_384];
+    world.replace_item_facts(ids[2], large).unwrap();
+    world.transfer_item(ids[1], other).unwrap();
+    let before = world.snapshot();
+    let limits = PageLimits {
+        max_visited: 1,
+        max_rows: 1,
+        max_links: 7,
+        max_extra_bytes: 3,
+        max_copied_bytes: initial.copied_bytes,
+    };
+    let first = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: None,
+                rows: 1,
+            },
+            limits,
+        )
+        .unwrap();
+    assert_eq!(first.items().unwrap()[0].id(), ids[0]);
+    assert_eq!(first.usage(), initial);
+    assert!(!first.is_complete());
+    assert!(matches!(
+        world.inventory_page(
+            PageRequest {
+                owner,
+                after: first.next_cursor(),
+                rows: 1
+            },
+            limits
+        ),
+        Err(fallout_runtime::Error::Capacity(
+            "inventory page extra bytes"
+        ))
+    ));
+    let next = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: first.next_cursor(),
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap();
+    assert_eq!(next.items().unwrap()[0].id(), ids[2]);
+    assert_eq!(
+        next.items().unwrap()[0].facts().extra_fields[0].bytes,
+        vec![0xff; 16_384]
+    );
+    assert!(next.is_complete());
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn mutated_restored_cross_world_and_changed_owner_cursors_refuse_before_zero_copy_budget() {
+    let (_dir, catalogue) = fixture();
+    let (mut world, [owner, other, _], ids) = paging_world(&catalogue);
+    let zero = PageLimits {
+        max_copied_bytes: 0,
+        ..PageLimits::default()
+    };
+    let cursor = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: None,
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap()
+        .cursor()
+        .clone();
+    let before = world.snapshot();
+    assert!(matches!(
+        world.inventory_page(
+            PageRequest {
+                owner: other,
+                after: Some(&cursor),
+                rows: 1
+            },
+            zero
+        ),
+        Err(fallout_runtime::Error::Invalid(_))
+    ));
+    let restored = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        restored.inventory_page(
+            PageRequest {
+                owner,
+                after: Some(&cursor),
+                rows: 1
+            },
+            zero
+        ),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    let mut foreign = before.clone();
+    foreign.campaign = CampaignId::from_bytes([35; 16]).unwrap();
+    let foreign = World::restore(&catalogue, foreign, Limits::default()).unwrap();
+    assert!(matches!(
+        foreign.inventory_page(
+            PageRequest {
+                owner,
+                after: Some(&cursor),
+                rows: 1
+            },
+            zero
+        ),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    world.transfer_item(ids[2], other).unwrap();
+    let after = world.snapshot();
+    assert!(matches!(
+        world.inventory_page(
+            PageRequest {
+                owner,
+                after: Some(&cursor),
+                rows: 1
+            },
+            zero
+        ),
+        Err(fallout_runtime::Error::Invalid(_))
+    ));
+    assert_eq!(world.snapshot(), after);
+    let cursor = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: None,
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap()
+        .cursor()
+        .clone();
+    let mut facts = world.item(ids[1]).unwrap().facts().clone();
+    facts.condition = None;
+    world.replace_item_facts(ids[1], facts).unwrap();
+    let after = world.snapshot();
+    assert!(matches!(
+        world.inventory_page(
+            PageRequest {
+                owner,
+                after: Some(&cursor),
+                rows: 1
+            },
+            zero
+        ),
+        Err(fallout_runtime::Error::Invalid(_))
+    ));
+    assert_eq!(world.snapshot(), after);
+    let cursor = world
+        .inventory_page(
+            PageRequest {
+                owner,
+                after: None,
+                rows: 1,
+            },
+            PageLimits::default(),
+        )
+        .unwrap()
+        .cursor()
+        .clone();
+    world.replace_from_snapshot(after.clone()).unwrap();
+    assert!(matches!(
+        world.inventory_page(
+            PageRequest {
+                owner,
+                after: Some(&cursor),
+                rows: 1
+            },
+            zero
+        ),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), after);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn native_inventory_page_consumer_cold_restores_same_literal_complete_bank_without_writes() {
+    use std::{fs, process::Command};
+    let temporary = tempfile::tempdir().unwrap();
+    let retained =
+        std::env::var_os("FALLOUT_INVENTORY_PAGE_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temporary.path());
+    fs::create_dir_all(root).unwrap();
+    write_fixture(root, false);
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (world, owners, _) = paging_world(&catalogue);
+    let expected = world.snapshot();
+    let pages = owners.map(|owner| collect_pages(&world, owner, 1));
+    assert_eq!(
+        serde_json::to_value(
+            pages[0]
+                .iter()
+                .flat_map(|page| page.items().unwrap())
+                .collect::<Vec<_>>()
+        )
+        .unwrap(),
+        literal_paging_items()
+    );
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let receipt = repository.commit(&Captured::at_boundary(&world)).unwrap();
+    fs::write(
+        root.join("expected.json"),
+        expected.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("expected.pages.json"),
+        serde_json::to_vec_pretty(&pages).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("write.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    let native = fs::read(repository.path().join("current.frsv")).unwrap();
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    drop(world);
+    drop(catalogue);
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "cold_inventory_page_helper",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("FALLOUT_INVENTORY_PAGE_COLD_ROOT", root)
+        .output()
+        .unwrap();
+    fs::write(root.join("cold.stdout.txt"), &child.stdout).unwrap();
+    fs::write(root.join("cold.stderr.txt"), &child.stderr).unwrap();
+    assert!(
+        child.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        native
+    );
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+    assert!(!repository.path().join("previous.frsv").exists());
+}
+
+#[test]
+#[ignore = "fresh inventory page consumer invoked by parent"]
+fn cold_inventory_page_helper() {
+    use std::fs;
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_INVENTORY_PAGE_COLD_ROOT").unwrap());
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let repository = Repository::open(&root.join("native"), &[]).unwrap();
+    let (world, receipt) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    let expected = Snapshot::decode(
+        &fs::read(root.join("expected.json")).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(world.snapshot(), expected);
+    let pages =
+        [1_u64, 2, 3].map(|id| collect_pages(&world, ReferenceId(id.try_into().unwrap()), 1));
+    let observed = serde_json::to_value(&pages).unwrap();
+    assert_eq!(
+        observed,
+        serde_json::from_slice::<serde_json::Value>(
+            &fs::read(root.join("expected.pages.json")).unwrap()
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        serde_json::to_value(
+            pages[0]
+                .iter()
+                .flat_map(|page| page.items().unwrap())
+                .collect::<Vec<_>>()
+        )
+        .unwrap(),
+        literal_paging_items()
+    );
+    assert_transfer_counts(&world);
+    fs::write(
+        root.join("cold.restored.json"),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("cold.pages.json"),
+        serde_json::to_vec_pretty(&pages).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("cold.receipt.json"),
         serde_json::to_vec_pretty(&receipt).unwrap(),
     )
     .unwrap();

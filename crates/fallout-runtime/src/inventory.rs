@@ -6,7 +6,11 @@ use crate::{
 };
 use fallout_data::identity::FormKey;
 use serde::{Deserialize, Serialize};
-use std::num::{NonZeroU32, NonZeroU64};
+use std::{
+    mem::size_of,
+    num::{NonZeroU32, NonZeroU64},
+    ops::Bound,
+};
 
 #[path = "state/inventory_transfers.rs"]
 mod transfers;
@@ -192,7 +196,280 @@ impl InventoryView {
     }
 }
 
+/// Request the next `rows` lots, or the remaining tail when shorter. This is
+/// separate from admission limits: a required lot never silently disappears
+/// from a successful page because its facts exceed a bound.
+#[derive(Debug, Clone, Copy)]
+pub struct PageRequest<'a> {
+    pub owner: ReferenceId,
+    pub after: Option<&'a Cursor>,
+    pub rows: usize,
+}
+#[derive(Debug, Clone, Copy)]
+pub struct PageLimits {
+    pub max_visited: usize,
+    pub max_rows: usize,
+    pub max_links: usize,
+    pub max_extra_bytes: usize,
+    /// Logical owned values, tables, UTF-8 and opaque payloads. Includes page
+    /// metadata and its cursor; excludes allocator overhead and process peak.
+    pub max_copied_bytes: usize,
+}
+impl Default for PageLimits {
+    fn default() -> Self {
+        Self {
+            max_visited: 256,
+            max_rows: 256,
+            max_links: 32_768,
+            max_extra_bytes: 1024 * 1024,
+            max_copied_bytes: 2 * 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct PageUsage {
+    /// Lots whose facts were inspected; reading the bank's last ID to establish
+    /// completion does not inspect another lot or copy any facts.
+    pub visited: usize,
+    pub returned: usize,
+    pub links: usize,
+    pub extra_bytes: usize,
+    pub copied_bytes: usize,
+}
+/// Constructed only by this producer, never decoded as authority or saved.
+#[derive(Debug, Clone)]
+pub struct Cursor {
+    epoch: u64,
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    revision: u64,
+    owner: ReferenceId,
+    consumed: Option<ItemId>,
+}
+impl Cursor {
+    fn check(
+        &self,
+        epoch: u64,
+        campaign: CampaignId,
+        cohort: &str,
+        revision: u64,
+        owner: ReferenceId,
+    ) -> Result<()> {
+        if self.epoch != epoch {
+            return Err(Error::StaleHandle);
+        }
+        if self.campaign != campaign || self.catalogue_sha256 != cohort {
+            return Err(Error::DefinitionChanged);
+        }
+        if self.revision != revision {
+            return Err(Error::Invalid("inventory page revision changed".into()));
+        }
+        if self.owner != owner {
+            return Err(Error::Invalid("inventory page owner changed".into()));
+        }
+        Ok(())
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct Page {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    state_revision: u64,
+    boundary: Clocks,
+    owner: ReferenceId,
+    authored: Option<FormKey>,
+    start_after: Option<ItemId>,
+    items: Option<Vec<Item>>,
+    complete: bool,
+    usage: PageUsage,
+    #[serde(skip)]
+    cursor: Cursor,
+}
+impl Page {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn revision(&self) -> u64 {
+        self.state_revision
+    }
+    pub fn boundary(&self) -> Clocks {
+        self.boundary
+    }
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn authored(&self) -> Option<&FormKey> {
+        self.authored.as_ref()
+    }
+    pub fn start_after(&self) -> Option<ItemId> {
+        self.start_after
+    }
+    pub fn items(&self) -> Option<&[Item]> {
+        self.items.as_deref()
+    }
+    pub fn is_complete(&self) -> bool {
+        self.complete
+    }
+    /// Final position is also available on a complete page, so a caller can
+    /// explicitly observe its empty tail without fabricating a position.
+    pub fn cursor(&self) -> &Cursor {
+        &self.cursor
+    }
+    pub fn next_cursor(&self) -> Option<&Cursor> {
+        (!self.complete).then_some(&self.cursor)
+    }
+    pub fn usage(&self) -> PageUsage {
+        self.usage
+    }
+}
+
+fn page_add(left: usize, right: usize) -> Result<usize> {
+    left.checked_add(right)
+        .ok_or(Error::Capacity("inventory page copied bytes"))
+}
+fn page_table(count: usize, width: usize) -> Result<usize> {
+    count
+        .checked_mul(width)
+        .ok_or(Error::Capacity("inventory page copied bytes"))
+}
+fn page_charge(usage: &mut PageUsage, bytes: usize, limits: PageLimits) -> Result<()> {
+    usage.copied_bytes = page_add(usage.copied_bytes, bytes)?;
+    if usage.copied_bytes > limits.max_copied_bytes {
+        return Err(Error::Capacity("inventory page copied bytes"));
+    }
+    Ok(())
+}
+fn page_fact_copies(facts: &Facts, usage: &mut PageUsage, limits: PageLimits) -> Result<()> {
+    usage.links = usage
+        .links
+        .checked_add(facts.links())
+        .ok_or(Error::Capacity("inventory page links"))?;
+    if usage.links > limits.max_links {
+        return Err(Error::Capacity("inventory page links"));
+    }
+    usage.extra_bytes = usage
+        .extra_bytes
+        .checked_add(facts.extra_bytes()?)
+        .ok_or(Error::Capacity("inventory page extra bytes"))?;
+    if usage.extra_bytes > limits.max_extra_bytes {
+        return Err(Error::Capacity("inventory page extra bytes"));
+    }
+    page_charge(usage, size_of::<Item>(), limits)?;
+    page_charge(usage, facts.base.origin_plugin.len(), limits)?;
+    if let Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) = &facts.ownership {
+        page_charge(usage, key.origin_plugin.len(), limits)?;
+    }
+    if let Some(ammo) = &facts.ammo {
+        page_charge(usage, ammo.base.origin_plugin.len(), limits)?;
+    }
+    if let Some(slots) = &facts.equipped_slots {
+        page_charge(usage, page_table(slots.len(), size_of::<u16>())?, limits)?;
+    }
+    if let Some(modifications) = &facts.modifications {
+        page_charge(
+            usage,
+            page_table(modifications.len(), size_of::<FormKey>())?,
+            limits,
+        )?;
+        for key in modifications {
+            page_charge(usage, key.origin_plugin.len(), limits)?;
+        }
+    }
+    page_charge(
+        usage,
+        page_table(facts.extra_fields.len(), size_of::<OpaqueExtra>())?,
+        limits,
+    )?;
+    for field in &facts.extra_fields {
+        page_charge(usage, field.bytes.len(), limits)?;
+    }
+    Ok(())
+}
+
 impl World<'_> {
+    /// Two bounded BTreeSet ranges: precharge borrowed rows, then copy only the
+    /// admitted slice. No Snapshot, whole-bank view, skipped prefix or retained
+    /// temporary row/key list is materialized.
+    pub fn inventory_page(&self, request: PageRequest<'_>, limits: PageLimits) -> Result<Page> {
+        if let Some(cursor) = request.after {
+            cursor.check(
+                self.epoch,
+                self.campaign,
+                &self.cohort,
+                self.revision,
+                request.owner,
+            )?;
+        }
+        let authored = self.reference_origin(request.owner)?;
+        if request.rows == 0 || request.rows > limits.max_rows {
+            return Err(Error::Capacity("inventory page rows"));
+        }
+        let start_after = request.after.and_then(|cursor| cursor.consumed);
+        // Bound::Excluded avoids adding one to a potentially maximal ItemId.
+        let start = start_after.map_or(Bound::Unbounded, Bound::Excluded);
+        let bank = self.inventory_banks.get(&request.owner);
+        let mut usage = PageUsage::default();
+        for bytes in [
+            size_of::<Page>(),
+            self.cohort.len(),
+            self.cohort.len(),
+            authored.map_or(0, |key| key.origin_plugin.len()),
+        ] {
+            page_charge(&mut usage, bytes, limits)?;
+        }
+        let mut consumed = start_after;
+        if let Some(ids) = bank {
+            for id in ids.range((start, Bound::Unbounded)).take(request.rows) {
+                usage.visited = usage
+                    .visited
+                    .checked_add(1)
+                    .ok_or(Error::Capacity("inventory page visited"))?;
+                if usage.visited > limits.max_visited {
+                    return Err(Error::Capacity("inventory page visited"));
+                }
+                let item = self.item(*id)?;
+                if item.owner != request.owner || item.id != *id {
+                    return Err(Error::Invalid(
+                        "inventory page bank membership inconsistent".into(),
+                    ));
+                }
+                page_fact_copies(&item.facts, &mut usage, limits)?;
+                usage.returned += 1;
+                consumed = Some(*id);
+            }
+        }
+        let complete = bank.is_none_or(|ids| ids.last().is_none_or(|last| Some(*last) == consumed));
+        let items = bank.map(|ids| {
+            let mut items = Vec::with_capacity(usage.returned);
+            for id in ids.range((start, Bound::Unbounded)).take(usage.returned) {
+                items.push(self.items[id].clone());
+            }
+            items
+        });
+        Ok(Page {
+            campaign: self.campaign,
+            catalogue_sha256: self.cohort.clone(),
+            state_revision: self.revision,
+            boundary: self.clocks,
+            owner: request.owner,
+            authored: authored.cloned(),
+            start_after,
+            items,
+            complete,
+            usage,
+            cursor: Cursor {
+                epoch: self.epoch,
+                campaign: self.campaign,
+                catalogue_sha256: self.cohort.clone(),
+                revision: self.revision,
+                owner: request.owner,
+                consumed,
+            },
+        })
+    }
     /// Scan limits before cloning any source key, opaque payload or item vector.
     /// The live bank remains the only authority; observations do not initialize it.
     pub fn inventory_view(&self, owner: ReferenceId, limits: ViewLimits) -> Result<InventoryView> {
@@ -601,4 +878,66 @@ pub(crate) fn check_facts(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod page_tests {
+    use super::*;
+    #[test]
+    fn opaque_cursor_checks_every_binding_before_copy_admission() {
+        let campaign = CampaignId::from_bytes([1; 16]).unwrap();
+        let owner = ReferenceId(1.try_into().unwrap());
+        let cursor = Cursor {
+            epoch: 7,
+            campaign,
+            catalogue_sha256: "a".repeat(64),
+            revision: 9,
+            owner,
+            consumed: Some(ItemId(5.try_into().unwrap())),
+        };
+        assert!(cursor.check(7, campaign, &"a".repeat(64), 9, owner).is_ok());
+        assert!(matches!(
+            cursor.check(8, campaign, &"a".repeat(64), 9, owner),
+            Err(Error::StaleHandle)
+        ));
+        assert!(matches!(
+            cursor.check(
+                7,
+                CampaignId::from_bytes([2; 16]).unwrap(),
+                &"a".repeat(64),
+                9,
+                owner
+            ),
+            Err(Error::DefinitionChanged)
+        ));
+        assert!(matches!(
+            cursor.check(7, campaign, &"b".repeat(64), 9, owner),
+            Err(Error::DefinitionChanged)
+        ));
+        assert!(matches!(
+            cursor.check(7, campaign, &"a".repeat(64), 10, owner),
+            Err(Error::Invalid(_))
+        ));
+        assert!(matches!(
+            cursor.check(
+                7,
+                campaign,
+                &"a".repeat(64),
+                9,
+                ReferenceId(2.try_into().unwrap())
+            ),
+            Err(Error::Invalid(_))
+        ));
+    }
+    #[test]
+    fn copied_arithmetic_and_excluded_maximum_cursor_do_not_wrap() {
+        assert!(page_add(1, usize::MAX).is_err());
+        assert!(page_table(usize::MAX, 2).is_err());
+        let last = ItemId(NonZeroU64::new(u64::MAX).unwrap());
+        let ids = std::collections::BTreeSet::from([last]);
+        assert_eq!(
+            ids.range((Bound::Excluded(last), Bound::Unbounded)).count(),
+            0
+        );
+    }
 }

@@ -6,7 +6,7 @@ use super::{
 use fallout_data::{loaded_scripts, obscript};
 use fallout_runtime::{
     event_operands,
-    execution::{local_copy, native},
+    execution::{copy_probe, local_copy, native},
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
     preparation, programs,
@@ -15,10 +15,150 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
+    fs::OpenOptions,
     io::{Read, Write},
     path::Path,
     sync::Arc,
 };
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SavedIntent {
+    Engineering,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedCopyRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    activation: std::num::NonZeroU64,
+    intent: SavedIntent,
+}
+
+fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>> {
+    let file = fallout_data::baseline::open_source(path)?;
+    if file.metadata()?.len() > maximum as u64 {
+        return Err("saved copy input byte budget exceeded".into());
+    }
+    let mut bytes = Vec::new();
+    file.take(maximum as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > maximum {
+        return Err("saved copy input byte budget exceeded".into());
+    }
+    Ok(bytes)
+}
+
+pub(super) fn copy_saved(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+) -> Result<Value> {
+    let request: SavedCopyRequest =
+        serde_json::from_slice(&read_bounded(request_path, 16 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("unsupported saved copy request schema".into());
+    }
+    let intent = match request.intent {
+        SavedIntent::Engineering => local_copy::Intent::Engineering,
+    };
+    let parent = result_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .canonicalize()?;
+    if parent.starts_with(super::protected_tree(install)?) {
+        return Err("saved copy result must be outside the installation".into());
+    }
+    if result_path.try_exists()? {
+        return Err("saved copy result must be a fresh artifact".into());
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let limits = fallout_runtime::Limits::default();
+    let input_bytes = read_bounded(snapshot_path, limits.max_snapshot_bytes)?;
+    let snapshot = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, limits)?;
+    let mut world = fallout_runtime::World::restore(Arc::clone(&catalogue), snapshot, limits)?;
+    let before = world.snapshot();
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|event| event.sequence == request.sequence.get())
+        .ok_or("Saved copy must name the existing pending journal head")?;
+    let definition = world
+        .instance(world.handle(pending.instance)?)?
+        .definition()
+        .clone();
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &[definition],
+        Default::default(),
+    )?;
+    let outcome = copy_probe::commit_pending(
+        &mut world,
+        &sources,
+        &content,
+        request.sequence.get(),
+        request.activation,
+        intent,
+        Default::default(),
+    )?;
+    let committed = matches!(
+        outcome,
+        copy_probe::PendingOutcome::EngineeringCommitted { .. }
+    );
+    let mut artifact = Value::Null;
+    if committed {
+        let after = world.snapshot();
+        let bytes = after.encode(limits.max_snapshot_bytes)?;
+        let restored = fallout_runtime::World::restore(
+            Arc::clone(&catalogue),
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, limits)?,
+            limits,
+        )?;
+        if restored.snapshot() != after {
+            return Err("saved copy result failed canonical restore verification".into());
+        }
+        // The only output open is after successful canonical commit. A racing
+        // existing file/symlink still refuses; no input/result is replaced.
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(result_path)?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        artifact = json!({"path":result_path,"bytes":bytes.len(),
+            "sha256":format!("{:x}",Sha256::digest(&bytes)),
+            "schema_version":after.schema_version,"decode_restore_equal":true});
+    } else if world.snapshot() != before {
+        return Err("unsupported saved copy changed canonical state".into());
+    }
+    Ok(
+        json!({"schema_version":1,"snapshot_copy":outcome,"result_snapshot":artifact,
+        "input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),
+        "campaign":world.campaign(),"before_revision":before.state_revision,"after_revision":world.revision(),
+        "explicit_activation":request.activation,"intent":intent,
+        "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),
+            "decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},
+        "executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),
+        "canonical_state_unchanged":!committed,"event_acknowledged":committed,
+        "faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+    )
+}
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]

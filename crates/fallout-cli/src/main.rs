@@ -468,6 +468,15 @@ enum Command {
         /// Exercise one source-bound local copy over explicit engineering inputs.
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
+        /// Consume a saved journal head using explicit engineering activation/intent.
+        #[arg(long, requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_copy_request: Option<PathBuf>,
+        /// Strict current canonical snapshot; no migration or engineering seeding.
+        #[arg(long, requires = "snapshot_copy_request")]
+        snapshot_input: Option<PathBuf>,
+        /// Fresh snapshot artifact, written only after canonical copy commit.
+        #[arg(long, requires = "snapshot_copy_request")]
+        snapshot_output: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -1423,7 +1432,29 @@ fn run(args: Args) -> Result<()> {
             prepared_sources,
             native_capabilities,
             engineering_local_copy,
+            snapshot_copy_request,
+            snapshot_input,
+            snapshot_output,
         } => {
+            if let Some(request) = snapshot_copy_request {
+                let report = event_operand_inspection::copy_saved(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_copy"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved source copy remains unsupported; see engineering report".into(),
+                    );
+                }
+                return Ok(());
+            }
             let report = event_operand_inspection::inspect(
                 &install,
                 &load_order,

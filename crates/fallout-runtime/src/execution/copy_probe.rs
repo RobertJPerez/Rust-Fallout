@@ -75,6 +75,55 @@ struct Completed {
     committed: Vec<local_copy::CommittedCopy>,
 }
 
+/// Result of consuming an existing pending event. Unsupported is a refusal,
+/// with no assignment, journal acknowledgement or replacement state.
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum PendingOutcome {
+    Unsupported {
+        reason: local_copy::Unsupported,
+        detail: String,
+    },
+    EngineeringCommitted {
+        committed: Box<local_copy::CommittedCopy>,
+    },
+}
+
+/// Consume only an already restored fragment's journal head. The host must
+/// name its activation and intent explicitly. This never seeds storage/events;
+/// the existing adapter supplies all source admission and commit authority.
+pub fn commit_pending(
+    world: &mut World<'_>,
+    sources: &PreparedSources<'_>,
+    content: &Content,
+    sequence: u64,
+    activation: std::num::NonZeroU64,
+    intent: local_copy::Intent,
+    limits: local_copy::Limits,
+) -> Result<PendingOutcome, Error> {
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|event| event.sequence == sequence)
+        .ok_or(Error::Input(
+            "copy must name the existing pending journal head",
+        ))?;
+    let instance = world.instance(world.handle(pending.instance)?)?;
+    if instance.owner() != &(Owner::Fragment { activation }) {
+        return Err(Error::Input(
+            "explicit fragment activation differs from the saved owner",
+        ));
+    }
+    match world.stage_source_local_copy_with_sources(sequence, sources, content, intent, limits)? {
+        local_copy::Preparation::Unsupported { reason, detail } => {
+            Ok(PendingOutcome::Unsupported { reason, detail })
+        }
+        local_copy::Preparation::Staged(stage) => Ok(PendingOutcome::EngineeringCommitted {
+            committed: Box::new(stage.commit(world)?),
+        }),
+    }
+}
+
 fn world_limits(limits: Limits) -> crate::Limits {
     crate::Limits {
         max_instances: 1,

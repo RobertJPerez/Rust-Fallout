@@ -8627,11 +8627,317 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill09",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-32",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Solve an explicit multi-goal route request with one shared frontier",
+        "existing_gap": "RouteGraph::route accepts one start/goal and allocates a frontier, distances and predecessors per pair. The cell-set CLI has one optional route. Candidate destinations cannot currently share one globally bounded traversal and reconstruction allowance.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "Add RouteGraph::routes_to_goals(start, ordered unique exact goal IDs, immutable explicit policy, MultiGoalLimits). Maintain one Dijkstra frontier/predecessor table and reconstruct settled requested goals under one cumulative path/output allowance. Return ordered per-goal existing route semantics plus shared missing/unsupported observations. Bind results to this graph; no mutable caller policy or imported frontier.",
+        "algorithm": "Dijkstra h=0, deterministic cost/ID ties, immutable nonnegative policy and strict relaxation. One O((N+E) log N) traversal plus explicitly charged output reconstruction; admit heap work/storage from actual N/E.",
+        "consumer": "Owned navigation CLI loads a protected explicit source CELL set once and computes known admitted routes from one start to several exact candidate TriangleIds in one call, without repeated graph/frontier allocations.",
+        "acceptance": [
+          "Independent literal directed graph expectations cover zero-cost cycles, equal-cost ties, asymmetric costs, unreachable goals and cross-cell portals; compare every ordered source node/edge/cost. Goal-order permutation changes only requested output order; source-order permutation preserves identity-bound results.",
+          "An operation-count witness proves a shared frontier and single settled-node expansion, not repeated route calls. Goals=N does not multiply source/edge/frontier caps. Charge heap/stale pops and cumulative path reconstruction, repeated prefixes, identities and output. Exact/one-under and late output failure publish no partial goal results.",
+          "Duplicate/unknown/ineligible endpoints, invalid/overflowing costs and missing/unsupported links have explicit atomic outcomes. Found means a path over known admitted edges, never minimum over unknown edges or retail reachability. Preserve existing one-goal command results and distinguish unknown branches from known alternatives."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:123",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:321",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/navigation_inspection.rs:453",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:docs/navigation-source-routes.md:48"
+        ],
+        "non_overlap": "PHYS19 selects source cells; PHYS24 yields one goal search; PHYS25 changes admission. This is one-frontier many-goal computation and cumulative path output, independent of those pending/new APIs.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
+      },
+      {
+        "id": "V3-PHYS-33",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Compute a bounded cost-limited reachable source region",
+        "existing_gap": "The existing solver returns a selected goal path or terminal diagnostic, not the complete admitted source triangles within a declared travel-cost ceiling and their exact missing/unsupported frontier.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "Add RouteGraph::reachable_from(start, finite nonnegative maximum_cost, immutable explicit policy, ReachLimits). Settle nodes up to the exact caller ceiling, retaining deterministic cost/predecessor observations and boundary links. Keep excluded, over-ceiling, missing and unsupported transitions distinct; the field borrows this exact graph. No actor state or invented destination.",
+        "algorithm": "Dijkstra h=0, stopping when the minimum queued admitted distance exceeds the ceiling. Never use a Euclidean heuristic across unrelated source-cell frames.",
+        "consumer": "Owned navigation CLI computes a source-qualified reachable region for an explicit host travel budget, usable later by an authored package candidate selector. This performs traversal rather than another source-selection inspection.",
+        "acceptance": [
+          "Independent literal weighted/cyclic expectations enumerate every admitted node, exact known-admitted cost, predecessor and boundary link. Cover zero-cost cycles, exact cutoff, its next binary64 value and all original external/door annotations.",
+          "A reachable unknown special/missing portal yields an incomplete-boundary observation, never a complete unreachable/global-travel assertion. Explicit exclusions remain exclusions. No door activation or geometry-based edge cost is inferred.",
+          "One global node/edge/heap/stale-pop/boundary/retained-output ledger; reserve before push/copy. Exact/one-under and late diagnostic/serialization failure produce no successful partial field. Unknown start and NaN/infinite/negative/overflow ceiling or costs refuse precisely without changing legacy route behavior."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:101",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:321",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/navigation_inspection.rs:56",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/navigation_inspection.rs:453"
+        ],
+        "non_overlap": "PHYS24 is cooperative goal completion, PHYS25 is an obstacle overlay, PHYS32 returns finite candidate paths. This produces a complete cost-bounded traversal field and explicit unknown boundary; no new-task dependency.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
+      },
+      {
+        "id": "V3-PHYS-34",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Prepare a source-bound reverse routing field for many explicit starts",
+        "existing_gap": "RouteGraph stores outgoing edges and searches one start. Repeated starts targeting the same goal repeat forward search; treating authored adjacency as undirected would corrupt one-way costs and source-edge identity.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "Add a private goal-routing field from &RouteGraph, exact goal, immutable policy and ReverseLimits. Build bounded reverse incidence from ORIGINAL directed edges, calling policy in its original from/link/to direction. Reverse Dijkstra retains known costs and exact original next edges; lookup exact starts as goal/known next-step/unreachable-or-unknown observations. Field authority remains borrowed from its graph.",
+        "algorithm": "Two bounded linear passes over original edges plus reverse Dijkstra. Original source-edge ordinal is the next-step witness; no undirected shortcut or per-lookup frontier restart.",
+        "consumer": "Owned navigation CLI prepares a goal field on one protected source-cell set and looks up several explicit starts. Later hosts can propose source next edges for multiple agents without reconstructing graphs or a mutable world.",
+        "acceptance": [
+          "Independent one-way/asymmetric literal graph calculations prove original edge direction and cost. Reverse lookup never creates a return path. Zero-cost strongly connected sets must produce a finite deterministic next-edge tree without cycles; equal costs and source input permutation preserve qualified outcomes.",
+          "Retain original missing/unsupported edges and conservative completeness scope: an unloaded outward link is not proof of no path to the goal. A known admitted next step is not global unknown-edge optimality. Door/special traversal still needs exact caller admission.",
+          "Precharge reverse rows, policy observations, identities, dist/next arrays, heap/stale work and all lookups globally. Foreign/duplicate goal and invalid lookup identities, invalid costs and late reserve/diagnostic limits refuse atomically. The actual CLI reads raw plugin sources; serialized fields cannot create lookup authority."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:119",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:123",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:311",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/mod.rs:321",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/navigation_inspection.rs:56"
+        ],
+        "non_overlap": "PHYS32 shares one start among goals. This transposes original directed incidence to share one goal among starts. No dependency on32/33, pending route jobs or endpoint certificates.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
+      },
+      {
+        "id": "V3-PHYS-35",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Certify explicit disc centers on sealed corridor portals",
+        "existing_gap": "VerifiedCorridor proves a local raw triangle/portal chain and common plane but no global polygon simplicity or body clearance. Valid wide portals can still be too close to other corridor boundaries for a declared disc; width alone is insufficient.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "Add clearance borrowing VerifiedCorridor, explicit portal indices, dyadic parameters[0,1], finite nonnegative planar radius and ClearanceLimits. First certify a bounded simple triangle union: no area overlap/T-junction/undeclared intersections; cancel exact paired edges and retain oriented outer boundary. Refuse unsupported global topology. Derive centers exactly from raw portal plus request words, then compare exact squared point-to-every-boundary-segment distance with radius squared. Return source-bound admitted/blocked samples and controlling witnesses. No caller vertex table can create corridor authority.",
+        "algorithm": "Checked exact dyadic/rational orientation, bounded triangle intersection/edge pairing and clamped squared segment distance. No square-root contact test, portal-width shortcut or per-triangle erosion.",
+        "consumer": "Owned navigation CLI generates the sealed corridor internally and tests caller-selected crossing centers under an explicit engineering disc radius. A future path host can check intended crossing clearance without endpoint/funnel selection or actor movement.",
+        "acceptance": [
+          "Independent Fraction expectations on a two-triangle rectangle and bent nonconvex corridor prove exact contact/one-ULP-too-wide cases, zero-radius endpoints, reversed winding, each plane axis and boundary/source IDs. A portal close to another wall fails even if wide; a disc straddling a paired internal portal can pass.",
+          "Do not erode each triangle separately or treat paired portals as walls; first certify the simple union/boundary. Nonadjacent overlaps, self intersections, T-junctions, unsupported touching components and unrepresentable rational domains refuse. Raw words remain unchanged; no snapping or arbitrary epsilon.",
+          "Precharge triangle-pair topology checks, edge pairing/identity maps, rational bit growth, all sample-by-boundary predicates and complete output. Bound initial quadratic work explicitly. Late geometry/output/bit failure returns no sample certificate. No endpoint certificate, 3D height/capsule, slope, retail radius, chosen path or canonical movement claim."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/corridor.rs:299",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/corridor.rs:664",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/corridor.rs:681",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/navigation/corridor.rs:692",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:docs/navigation-corridors.md:36"
+        ],
+        "non_overlap": "PHYS20 seals the local chain; pending21 certifies endpoints and22 performs point funneling. This independently certifies planar radius clearance of explicit portal samples from reviewed20, without either endpoint/funnel API.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
+      },
+      {
+        "id": "V3-PHYS-36",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Return certified closed-solid occupancy intervals along a bounded ray",
+        "existing_gap": "Shape::ray/StaticScene::ray_cast expose entry only and return0 inside, losing exits and occupied spans. The private cuboid slab kernel already computes bounded entry/exit enclosures.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-cli/src/collision.rs",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Add StaticScene::ray_intervals(existing Ray, IntervalQueryLimits) for source Sphere/Box/certified ConvexCuboid cores in identity or exactly certified signed-axis power-of-two similarity frames. Return clipped occupied parameter intervals, initial containment and directed entry/exit bounds in caller[0,max_distance]. Admit ALL selected kinds/frames before culling; unsupported members/uncertain transforms refuse complete query. Preserve existing query signatures.",
+        "algorithm": "Reuse certified cuboid slab intervals; derive both sphere roots with original-direction compensated math and directed errors. Start with a precisely certifiable transform subset instead of a new backend.",
+        "consumer": "Owned collision CLI reports source solid entry/exit spans on one protected NIF and existing immutable scene. Later projectile/clearance hosts can inspect bounded geometry occupancy without inventing penetration damage or shell thickness.",
+        "acceptance": [
+          "Independent Fraction slab intervals and enclosed sphere roots verify entry/exit, initial-inside clipping, surface inward/outward, zero caller range, exact axial tangent, disjoint/overlapping solids and deterministic SourceId ties. Raw source radii/bounds and all consumed numeric words bind results.",
+          "Directed bounds must enclose the mathematical occupied interval or refuse numerically. Clipping participates in the same predicate; no rounded impossible witness. Test subnormal offsets, distant skew grazing, overflow and uncertifiable transforms independently. Uncertain selected members cannot vanish behind culling.",
+          "Globally precharge kind/frame admission, broad/narrow work, interval rows and identity/output bytes. Exact/one-under and late shape/numeric/output failure produce no successful prefix. Retain shell/filter words with core-only/all-filter semantics. First slice claims no Capsule/Triangle occupancy interval, material response, damage, physical penetration or retail units."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/shape.rs:70",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/shape.rs:410",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/scene.rs:625",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/math.rs:56",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/collision.rs:314"
+        ],
+        "non_overlap": "PHYS26 finds nearest entry,27 preserves endpoint lines,28 finds closest solid points. This exposes interior spans of an existing ray, needing none of those future APIs or pending23 swept geometry.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
+      },
+      {
+        "id": "V3-PHYS-37",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Query closed AABB overlap against supported authored solid cores",
+        "existing_gap": "The scene offers ray/sphere overlap only. Its index AABB cannot become contact geometry, and an enclosing sphere cannot answer exact rectangular-volume occupancy.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-cli/src/collision.rs",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Add StaticScene::overlap_aabb(explicit finite ordered query min/max, AabbLimits) for Sphere/Box/certified ConvexCuboid cores in identity or exactly certified signed-axis power-of-two similarity frames. Admit all selected query kinds/frames before pruning, then actual sphere-box and interval-box predicates. Return source/material/filter/shell identities. Conservative separately metered index pruning is optional; exhaustive bounded narrow queries are a correct first slice.",
+        "algorithm": "Closed interval intersection for source boxes/cuboids; directed scale-safe point-to-AABB squared distance for spheres. Narrow geometry is independent of conservative index enclosures.",
+        "consumer": "Owned collision CLI tests explicit engineering rectangular occupancy/spawn-clearance against source cores, distinguishing a true shape overlap from a bounding-volume candidate. It commits no spawn or trigger behavior.",
+        "acceptance": [
+          "Independent Fraction sphere-clamp/squared-distance and box intervals cover face/edge/corner contact, zero-width query axes, containment, separation, bounding-sphere false positives, reflections and certified scales/translations. A sphere whose AABB touches but core misses produces no overlap; preserve full source/numeric words.",
+          "Nonfinite/reversed bounds, unsupported selected Capsule/Triangle/general frames and uncertain subtraction/norm/underflow contacts refuse. No inflation or tolerance to force contact; broad index bounds are never hits.",
+          "Meter all admission, optional spatial visits, narrow geometry, retained capacities/identities and complete serialization globally before allocations. Exact/one-under and late unsupported/output failure return no report. Old all-hit ray/sphere outputs stay compatible. No swept box, dynamics, retail trigger/cell membership or canonical spawn."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/scene.rs:675",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/shape.rs:517",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/index.rs:199",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/math.rs:56",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/collision.rs:314"
+        ],
+        "non_overlap": "PHYS31 batches existing ray/sphere operations;28 is closest-solid geometry. This adds a real rectangular-volume kernel, not candidate selection or another cell/trigger semantics inspector.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
+      },
+      {
+        "id": "V3-PHYS-38",
+        "state": "ready",
+        "depends_on": [],
+        "readiness": "Coordinator reviewed and published this independent owned engineering task. No new task or producer dependency and no further task grant required.",
+        "title": "Produce a source-qualified closest witness on packed triangle surfaces",
+        "existing_gap": "Packed triangle leaves retain source/subpart identity, but triangle_distance2 exposes only a rounded scalar for overlap and no closest feature/barycentric witness. Future PHYS28 intentionally supports closed Sphere/Box/cuboid solids and refuses packed surfaces.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-cli/src/collision.rs",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Add separate StaticScene::closest_triangle_surface(explicit finite point/max_distance, TriangleClosestLimits) for all-selected actual Triangle leaves in identity or exactly certified signed-axis power-of-two similarity frames. Use bounded exact dyadic/rational face/edge/degenerate point classification; return exact rational feature/barycentric witness or certified bounds plus explicitly rounded observation and source/subpart/material/filter/welding. Deterministic nearest ties; refuse uncertifiable domain/transform/witness instead of treating old rounded scalar as proof.",
+        "algorithm": "Checked rational Voronoi-feature classification or equivalent face+segment minimization; keep rational squared distances for nearest ordering, avoiding unnecessary square roots.",
+        "consumer": "Owned collision CLI returns a closest authored collision-surface observation for a later engineering support/ground probe. It reuses existing PackedData decoding and scene geometry, without placing actors or choosing a retail floor.",
+        "acceptance": [
+          "Independent Fraction projection/segment minimization covers every face/edge/vertex region, degenerate lines/points, shared-DAG occurrences, subpart/material/source identity and equal nearest ties. Barycentric sums/feature restrictions, bounds and rounded observations agree with raw source/request words; preserve signed-zero words.",
+          "The closest point may not be binary64-representable: retain exact feature/rational or validated bounds and label rounded coordinates. Near-degenerate/exponent-wide/subnormal/overflow or uncertain frames refuse. A nearer unsupported member cannot be ignored; any subset uses explicit existing scene admission, not inferred geometry.",
+          "Precharge selected/frame work, rational bit ceilings, candidate comparisons, tie identities and full output; any index lower-bound pruning must not hide nearer/uncertain members. Exact/one-under and late numeric/serialization failure are atomic, old queries compatible. No degenerate outward normal, slope/step, nav membership, shell response or retail grounding."
+        ],
+        "source_evidence": [
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/scene.rs:200",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/shape.rs:461",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/shape.rs:19",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-runtime/src/physics/scene.rs:609",
+          "d6aae1559c56bacdb1ad5732f17fc842f714acd0:crates/fallout-cli/src/collision.rs:314"
+        ],
+        "non_overlap": "PHYS28 excludes packed surfaces. This is an independent surface-feature/barycentric algorithm on existing Triangle leaves; no28 dependency, character controller or duplicate NIF/triangle parser.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use reviewed PHYS19 load_cells/graph and PHYS20 CorridorQuery/VerifiedCorridor as applicable, plus reviewed static scene geometry. Pending PHYS21/23/24 and future26-31 are not prerequisites. At selection skip a gap already closed rather than repeating it; reuse compatible reviewed private helpers instead of duplicating them.",
+          "Explicit engineering policies only: no inferred retail costs/radius/units/filter behavior, shell inflation, door/jump behavior, actor package or canonical movement, save schema change or original game launch. faithful_ready remains false.",
+          "Preserve existing protected source preparation, complete cohort/request SHA identities, raw source binary32 and consumed binary64 request words. A report, JSON DTO, cloned vertex table or imported search state is never authority. New opaque preparations borrow or own their exact producer, without Deserialize or public certificate constructors.",
+          "Precharge complete-operation logical work and retained capacities before allocation/copy: graph/frontier/stale pops, edges/reverse rows, identity strings, rational bit width, candidates/diagnostics, result reconstruction and serialization. Reduce-only ceilings; no renewed limits per goal/pair/triangle. Numerical uncertainty refuses. No unmeasured peak heap or hard real-time claim.",
+          "Require an actual owned CLI consumer on protected authored plugin/NIF bytes and literal requests. Derive complete paths/observations/exact predicates independently from raw source words and literal policy, never producer output. Preserve failed attempts and first-seen source/binary/evidence hashes, rechecking rather than refreshing them.",
+          "Owned modules/tests/tools/docs plus declared minimal module export and current CLI dispatch only. No importer, new dependency/source pin, foreign worker file, mutable canonical World or global original census. Exact signatures, limits, wiring and unsupported scope belong in each small tested handoff.",
+          "Check control, assignment/current-run lease and all typed STOP mailboxes. Take ready work autonomously, one coding task plus one parked validation slice, central build admission and at most four unmerged handoffs. At quota improve the tested stack or request integration, never grow unchecked ancestry."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill14"
       }
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T15:44:37.584059+00:00",
+  "updated_at": "2026-10-04T16:19:19.462570+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

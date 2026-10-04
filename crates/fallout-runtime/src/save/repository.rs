@@ -2,6 +2,7 @@ use super::{Captured, Error, Result, format, io};
 use crate::{Limits, SourceCatalogue, World, identity::CampaignId};
 use serde::Serialize;
 use std::{
+    fmt,
     fs::{self, File, OpenOptions, TryLockError},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -56,6 +57,174 @@ pub struct LoadReceipt {
     pub metadata: format::Metadata,
     pub current_failure: Option<String>,
     pub current_repaired: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SlotRejectionCode {
+    NativeFormat,
+    Io,
+    Busy,
+    MissingCurrent,
+    RuntimeCapacity,
+    RuntimeInvalid,
+    DefinitionChanged,
+    StaleHandle,
+    MissingInstance,
+    MissingLocal,
+    UninitializedLocal,
+    IncompatibleLocal,
+    UnsupportedLocal,
+    MissingReference,
+    UnresolvedDependency,
+    Json,
+}
+
+/// Preserve the actual error discriminator and relevant scalar payload. Display
+/// text is streamed into a bounded buffer; the report retains no raw error.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct SlotRejection {
+    code: SlotRejectionCode,
+    local_index: Option<u32>,
+    budget: Option<&'static str>,
+    io_kind: Option<String>,
+    raw_os_error: Option<i32>,
+    message: String,
+    truncated: bool,
+}
+impl SlotRejection {
+    pub fn code(&self) -> SlotRejectionCode {
+        self.code
+    }
+    pub fn local_index(&self) -> Option<u32> {
+        self.local_index
+    }
+    pub fn budget(&self) -> Option<&'static str> {
+        self.budget
+    }
+    pub fn io_kind(&self) -> Option<&str> {
+        self.io_kind.as_deref()
+    }
+    pub fn raw_os_error(&self) -> Option<i32> {
+        self.raw_os_error
+    }
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+    pub fn truncated(&self) -> bool {
+        self.truncated
+    }
+    fn from_error(error: Error) -> Self {
+        use crate::Error as State;
+        use SlotRejectionCode as Code;
+        let code = match &error {
+            Error::Format(_) => Code::NativeFormat,
+            Error::Busy => Code::Busy,
+            Error::MissingCurrent => Code::MissingCurrent,
+            Error::Io { .. } => Code::Io,
+            Error::State(state) => match state {
+                State::Capacity(_) => Code::RuntimeCapacity,
+                State::Invalid(_) => Code::RuntimeInvalid,
+                State::DefinitionChanged => Code::DefinitionChanged,
+                State::StaleHandle => Code::StaleHandle,
+                State::MissingInstance => Code::MissingInstance,
+                State::MissingLocal(_) => Code::MissingLocal,
+                State::UninitializedLocal(_) => Code::UninitializedLocal,
+                State::IncompatibleLocal(_) => Code::IncompatibleLocal,
+                State::UnsupportedLocal(_) => Code::UnsupportedLocal,
+                State::MissingReference => Code::MissingReference,
+                State::UnresolvedDependency(_) => Code::UnresolvedDependency,
+                State::Json(_) => Code::Json,
+            },
+        };
+        let local_index = match &error {
+            Error::State(
+                State::MissingLocal(index)
+                | State::UninitializedLocal(index)
+                | State::IncompatibleLocal(index)
+                | State::UnsupportedLocal(index),
+            ) => Some(*index),
+            _ => None,
+        };
+        let budget = match &error {
+            Error::State(State::Capacity(budget)) => Some(*budget),
+            _ => None,
+        };
+        let (io_kind, raw_os_error) = match &error {
+            Error::Io { source, .. } => {
+                (Some(format!("{:?}", source.kind())), source.raw_os_error())
+            }
+            _ => (None, None),
+        };
+        let mut message = RejectionMessage {
+            bytes: String::new(),
+            truncated: false,
+        };
+        let _ = fmt::write(&mut message, format_args!("{error}"));
+        Self {
+            code,
+            local_index,
+            budget,
+            io_kind,
+            raw_os_error,
+            message: message.bytes,
+            truncated: message.truncated,
+        }
+    }
+}
+const MAX_REJECTION_MESSAGE_BYTES: usize = 1024;
+struct RejectionMessage {
+    bytes: String,
+    truncated: bool,
+}
+impl fmt::Write for RejectionMessage {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let remaining = MAX_REJECTION_MESSAGE_BYTES - self.bytes.len();
+        if text.len() <= remaining {
+            self.bytes.push_str(text);
+            return Ok(());
+        }
+        let mut end = remaining;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        self.bytes.push_str(&text[..end]);
+        self.truncated = true;
+        Err(fmt::Error)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SlotAvailability {
+    Missing,
+    Rejected { reason: SlotRejection },
+    Loadable { metadata: format::Metadata },
+}
+
+/// Separate source-bound observations, not a selected save or an atomic pair.
+/// A later load still checks repository locking and the bytes then present.
+/// Only small metadata/bounded errors survive the temporary restores.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct SlotAvailabilityReport {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    current: SlotAvailability,
+    previous: SlotAvailability,
+}
+impl SlotAvailabilityReport {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn current(&self) -> &SlotAvailability {
+        &self.current
+    }
+    pub fn previous(&self) -> &SlotAvailability {
+        &self.previous
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -375,6 +544,48 @@ impl Repository {
         let world = World::restore(catalogue, decoded.snapshot, limits)?;
         Ok((world, decoded.metadata))
     }
+    /// Read each named slot through the same source-bound admission as load.
+    /// This takes no writer lock, writes no files and does not select Recovery.
+    /// Publications between reads may yield observations of different moments.
+    pub fn inspect_availability<'a>(
+        &self,
+        catalogue: impl Into<SourceCatalogue<'a>>,
+        limits: Limits,
+    ) -> Result<SlotAvailabilityReport> {
+        self.validate_marker()?;
+        let catalogue = catalogue.into();
+        let catalogue_sha256 = crate::snapshot::cohort(&catalogue)?;
+        let current = self.observe_slot(Slot::Current, catalogue.clone(), limits);
+        let previous = self.observe_slot(Slot::Previous, catalogue, limits);
+        Ok(SlotAvailabilityReport {
+            campaign: self.campaign,
+            catalogue_sha256,
+            current,
+            previous,
+        })
+    }
+    fn observe_slot<'a>(
+        &self,
+        slot: Slot,
+        catalogue: SourceCatalogue<'a>,
+        limits: Limits,
+    ) -> SlotAvailability {
+        match self.load_slot(slot, catalogue, limits) {
+            Ok((world, metadata)) => {
+                drop(world);
+                SlotAvailability::Loadable { metadata }
+            }
+            Err(Error::Io { path, source })
+                if source.kind() == std::io::ErrorKind::NotFound
+                    && path == self.root.join(slot.name()) =>
+            {
+                SlotAvailability::Missing
+            }
+            Err(error) => SlotAvailability::Rejected {
+                reason: SlotRejection::from_error(error),
+            },
+        }
+    }
     pub fn load<'a>(
         &self,
         catalogue: impl Into<SourceCatalogue<'a>>,
@@ -596,5 +807,53 @@ mod publication_preflight_tests {
             3
         );
         assert_eq!(slots(&repository)[1], original[0]);
+    }
+}
+
+#[cfg(test)]
+mod availability_reason_tests {
+    use super::*;
+
+    #[test]
+    fn actual_error_scalars_survive_bounded_utf8_and_escaped_report_text() {
+        let reason = SlotRejection::from_error(Error::Format("é🙂".repeat(256 * 1024)));
+        assert_eq!(reason.code(), SlotRejectionCode::NativeFormat);
+        assert!(reason.truncated());
+        assert!(reason.message().len() <= MAX_REJECTION_MESSAGE_BYTES);
+        assert!(reason.message().starts_with("native save format: "));
+        assert!(reason.message().ends_with('é') || reason.message().ends_with('🙂'));
+        let local = SlotRejection::from_error(Error::State(crate::Error::IncompatibleLocal(42)));
+        assert_eq!(local.code(), SlotRejectionCode::IncompatibleLocal);
+        assert_eq!(local.local_index(), Some(42));
+        assert_eq!(
+            local.message(),
+            "local variable 42 has a different storage kind"
+        );
+        assert!(!local.truncated());
+        let budget =
+            SlotRejection::from_error(Error::State(crate::Error::Capacity("local variables")));
+        assert_eq!(budget.budget(), Some("local variables"));
+        assert_eq!(budget.code(), SlotRejectionCode::RuntimeCapacity);
+        let io = SlotRejection::from_error(Error::Io {
+            path: PathBuf::from("a".repeat(2048)),
+            source: std::io::Error::from_raw_os_error(5),
+        });
+        assert_eq!(io.code(), SlotRejectionCode::Io);
+        assert_eq!(io.raw_os_error(), Some(5));
+        assert!(io.io_kind().is_some());
+        assert!(io.truncated());
+        let report = SlotAvailabilityReport {
+            campaign: CampaignId::from_bytes([0x20; 16]).unwrap(),
+            catalogue_sha256: "a".repeat(64),
+            current: SlotAvailability::Rejected {
+                reason: SlotRejection::from_error(Error::Format("\0".repeat(1024 * 1024))),
+            },
+            previous: SlotAvailability::Rejected {
+                reason: SlotRejection::from_error(Error::State(crate::Error::Invalid(
+                    "\0".repeat(1024 * 1024),
+                ))),
+            },
+        };
+        assert!(serde_json::to_vec(&report).unwrap().len() < 16 * 1024);
     }
 }

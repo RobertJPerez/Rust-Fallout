@@ -33,6 +33,7 @@ mod script_state_inspection;
 mod shared_runtime_inspection;
 mod source_item_inspection;
 mod terrain_compare;
+mod world_preparation_inspection;
 
 use clap::{Parser, Subcommand};
 use fallout_data::{
@@ -414,6 +415,24 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+    },
+    /// Prepare an explicitly requested winning topic/INFO for source consumers.
+    ConversationSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Canonical origin-plugin:local-hex-id; never a runtime load-order slot.
+        #[arg(long)]
+        topic: String,
+        #[arg(long)]
+        info: String,
+        #[arg(long)]
+        speaker: Option<String>,
+        #[arg(long)]
+        bind_result_fragments: bool,
     },
     /// Preserve authored quest/dialogue sections and condition/script ownership.
     Narrative {
@@ -1226,6 +1245,29 @@ fn run(args: Args) -> Result<()> {
             if failed {
                 return Err("dialogue membership has unresolved topic links; see report".into());
             }
+        }
+        Command::ConversationSources {
+            install,
+            load_order,
+            index_cache,
+            topic,
+            info,
+            speaker,
+            bind_result_fragments,
+        } => {
+            let request = world_preparation_inspection::Input {
+                topic: parse_cell_key(&topic)?,
+                info: parse_cell_key(&info)?,
+                speaker: speaker.as_deref().map(parse_cell_key).transpose()?,
+                bind_result_fragments,
+            };
+            let report = world_preparation_inspection::conversation(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                request,
+            )?;
+            emit(&report, output, &install)?;
         }
         Command::Narrative {
             install,

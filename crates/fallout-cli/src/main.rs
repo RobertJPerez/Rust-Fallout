@@ -287,6 +287,9 @@ enum Command {
         /// Preserve authored SNAM/FACT relationship requests without live faction rules.
         #[arg(long)]
         include_faction_requests: bool,
+        /// Join raw actor scalars to source template categories; evaluated values remain unavailable.
+        #[arg(long)]
+        include_stat_requests: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1161,6 +1164,7 @@ fn run(args: Args) -> Result<()> {
             engineering_observation,
             condition_executable,
             include_faction_requests,
+            include_stat_requests,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1173,6 +1177,7 @@ fn run(args: Args) -> Result<()> {
                     engineering_observation,
                     condition_executable: condition_executable.as_deref(),
                     include_faction_requests,
+                    include_stat_requests,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

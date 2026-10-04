@@ -125,3 +125,63 @@ Missing references/actors and missing required snapshot arguments reject; a
 modified relationship fails independent comparison. Default package output is
 unchanged, and all plugin, snapshot, descriptor and frozen proof input hashes
 match before and after. No gameplay acceptance follows from these checks.
+
+## Authored scalar initialization requests (V3-ACT-09)
+
+`actor_rules::stats::Requests::prepare` joins the existing actor scalar catalogue
+and actor dependency catalogue to one selected actor and the canonical `World`.
+It requires exact ordered source receipts and winning-content identity. The
+existing bounded `template_manifest` supplies physical ACBS/TPLT origins, category
+declarations, structural closure, candidate sources, cycles and source issues.
+Every candidate's retained scalar definition must match that exact source/header
+and decoded body hash. Candidate scalars remain declarations, including when
+template inheritance is unavailable; the adapter never selects a parent's value.
+
+The root requests preserve each physical ACBS, DATA and NPC DNAM field, its index,
+offset, hash, raw scalar values and ambiguity. Missing fields remain explicit.
+Components identify their pinned category: fatigue/level/calculation bounds/speed
+and stat fields use Stats `0x02`, barter gold uses AI Data `0x10`, and
+karma/disposition/creature type use Traits `0x01`. A selectable root declaration
+requires a unique field and the corresponding clear template flag. This source
+availability does not authorize initializing an actor or using a current value.
+
+The pinned xEdit revision `9fb016884bec138ea6c7b872cec831537d464c3e` distinguishes
+NPC ACBS flag `0x10` (auto-calc stats) from CREA flag `0x10` (Swims). NPC attributes
+and DNAM retain that automatic-calculation declaration, or an unavailable
+configuration if ACBS is missing/repeated. NPC base health keeps its separate
+authored declaration. No creature flag becomes an NPC auto-calc request. Complete
+NPC/CREA definitions and the Stats/auto-calc callbacks establish these source
+categories; editor visibility and fixups do not establish engine formulas.
+
+`Requests::observe` requires the same campaign/content identity and reports the
+current canonical revision. It admits narrowed limits for template sources,
+links, closure, visits and issues, scalar fields/decoded bytes, component requests
+and serialized projection bytes. Every evaluated component and the current actor
+values remain null; actor reference binding, initialization, automatic calculation
+and original behavior verification remain false. The adapter has no state mutation
+or snapshot-schema extension and works over a cold-restored same-campaign world.
+
+The existing `actor-package-context` command adds these requests with
+`--include-stat-requests`, using its required strict source-bound native snapshot
+and actor root. The existing package output is preserved when the flag is absent.
+This is a reachable initialization-input consumer; faithful initialization still
+requires original measurements and the canonical actor-reference/state boundary.
+
+Validation on 2026-10-04 passed six stat request tests, ten existing faction/package
+request tests, an explicitly enabled installed source/cold-state test, format,
+runtime/CLI warnings-denied Clippy and the CLI build. Seven complete authored CLI
+and cold-host observations match the independent native scalar and physical
+template readers. They cover signed/raw extremes, auto-calc versus Swims, inherited
+categories, missing/repeated fields and absent current values. Exact/one-less
+limits, winning overrides, template cycles, changed cohorts and campaigns refuse
+as expected. An altered scalar fails independent comparison; required snapshot,
+missing actor/reference and default-output checks pass.
+
+The installed actor `FalloutNV.esm:104C0C` also matches complete independent
+requests through the frozen CLI and a cold canonical restore: two candidate
+sources and thirteen component requests. Its selected source bodies and template
+origins were freshly read and checked against the preserved independent raw
+reader baseline under matching source receipts. All eleven original plugin and
+descriptor inputs, and all nine private snapshot/tool/baseline inputs, keep their
+before/after hashes. Proofs and earlier harness failures are preserved in
+`local/v3-act09-stats-20261004-01`; these checks accept no gameplay behavior.

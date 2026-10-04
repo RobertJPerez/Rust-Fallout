@@ -138,7 +138,18 @@ pub fn load(
     textures: &mut Textures,
 ) -> Result<(Model, Report)> {
     let (_, bytes) = assets.read_unique(path)?;
-    let (index, scene) = nif_scene::decode(&bytes, &String::from_utf8_lossy(path.bytes()))?;
+    from_bytes(assets, path, &bytes, textures)
+}
+
+/// Reuse the same source adapter for a retained world residency payload. The
+/// caller owns its source lease and ticket; no second archive read or decoder.
+pub fn from_bytes(
+    assets: &ArchiveAssets,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+) -> Result<(Model, Report)> {
+    let (index, scene) = nif_scene::decode(bytes, &String::from_utf8_lossy(path.bytes()))?;
     let objects: BTreeMap<_, _> = scene.objects.iter().map(|v| (v.block, v)).collect();
     let worlds: BTreeMap<_, _> = scene
         .world_transforms
@@ -150,7 +161,7 @@ pub fn load(
     let mut report = Report {
         schema_version: 2,
         model: path.clone(),
-        model_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        model_sha256: format!("{:x}", Sha256::digest(bytes)),
         meshes: 0,
         vertices: 0,
         triangles: 0,

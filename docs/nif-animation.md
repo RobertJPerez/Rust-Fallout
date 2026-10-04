@@ -629,3 +629,48 @@ all-target Clippy with warnings denied, formatting and diff checks pass.
 Original Rust default schemas1/2/3/4/5 remain byte-exact, and their native source
 reports match frozen oracles except the actual executable digest. Source keys
 remain distinct from sampled poses, timeline events and verified retail playback.
+
+## Actor-root asset source matrix (ASSET-07E)
+
+`tools/nif-animation-oracle/actor_asset_matrix.py` joins tested explicit actor
+roots to exact archive candidate tuples and independently compared member bytes.
+It consumes an actor projection, member source manifest, preserved inputs,
+member backend receipts and existing schema6 animation/schema3 skin reports with
+their native oracles. It verifies the tested actor handoff/commit and source
+report hashes, then reads bounded original root/comparison ranges directly.
+Every ordered path and unresolved status remains intact. These are structural
+candidates; the matrix does not select gender, body/head parts, equipment or clips.
+
+Admission bounds are 512 MiB for the streamed actor report, 32 MiB per selected
+subtree/projection, 64 roots, 512 path rows/candidates and 128 NIF members. Each
+decoded/stored member is at most 64 MiB, with 256 MiB total decoded input. Archive
+identity hashing streams at most 8 GiB. Animation and skin report byte limits are
+128 MiB and 64 MiB respectively. These are source/input admission bounds, rather
+than a Python heap bound. Exact comparison keeps primitive types distinct and
+preserves source order; Boolean/integer coercion cannot validate a source receipt.
+The matrix checks current archive identity, stored spans/hashes, backend decoded
+hash/length/offset, container tuple/counts and independent inspector receipts.
+
+Private evidence is in `local/asset-07e-teamv2-20261003-01`. Tested ACT-07 commit
+`886e96674f1dbb98d8730aaf15ce1ea7dac0579f` supplies roots `FalloutNV.esm:7` and
+`FalloutNV.esm:17A03`. Their 184 paths retain 130 single archive candidates,
+50 unresolved relative bases and four empty paths. Streaming projection retains
+533,663 root-array bytes from the 318,741,255-byte frozen source report. The
+57 distinct NIF members total 5,446,996 decoded bytes. Independent physical
+BSA104/zlib extraction matches the frozen Rust backend at decoded hash/length
+and stored offset; the archive hash stays unchanged. All 57 native/Rust skin
+and animation source comparisons match. The player root reaches 56 distinct
+NIFs; the creature root reaches one skeleton, so creature body skin coverage
+remains open. Eighteen skin owners/instances/partitions, 36 skin blocks and 292
+binding nodes compare exactly, with zero binding diagnostics or unsupported
+scene edges. Structural root membership, evaluated poses and retail behavior
+remain separate; no relative base or part choice is inferred.
+
+Eighteen altered projection/member/inspector probes refuse for the intended
+identity, order, primitive-type, span/hash, budget, readiness and comparison
+binding reasons. The final matrix matches the preceding valid matrix exactly.
+Two initial helper failures remain private: a mistaken lookup-field shape in
+the projection helper and a receipt byte-count field mismatch in the matrix.
+Corrected runs preserve all original source bytes and frozen binaries. This
+handoff changes only the owned matrix tool and documentation; existing Rust,
+native and default source-report interfaces stay unchanged.

@@ -1,0 +1,383 @@
+{
+  "schema_version": 1,
+  "status": "reviewed_development_batch",
+  "revision": "4ca9850ed77ee6b88576d0cf372cbc022dc07138",
+  "prior_published_revision": "88f323897f4f39f416e8fa5ac8bac08fd458243f",
+  "proved_source_files": 1081,
+  "frozen_executables": 134,
+  "frozen_infrastructure_files": 12,
+  "rust_passing_results": 1415,
+  "ignored_helpers": 49,
+  "rust_result_lines": 131,
+  "executed_test_binaries": 130,
+  "nested_passing_helper_results": 1,
+  "source_manifest_sha256": "dc5250f1c2dc82a34e8ec4199db1afc7752ba4b9a0d1656381b2555a66e092a1",
+  "freeze_receipt_sha256": "3c31806a655e6c460cd04dbc7622c6b2ac9fca52156809f46d700a5d02d32961",
+  "combined_receipt_sha256": "05d53aa829c6ae38672c67431e27f60d139a5907988db6b43d787dd56b759d98",
+  "consumer_receipt_sha256": "b1ced00bd31ab1a3dc690369269fa7f9a37e0b65ea7ac98e84ee41d58617ba3e",
+  "first_identities_sha256": "03f987dc486cebee065e8f54e1210a1a6a3621648629c8663f5fc63f5872c40a",
+  "consumer_runner_sha256": "c541e8eb69d22766dc9311a364c03d46002524eea7f386c36542c40e18570f8c",
+  "consumer_spec_sha256": "8990014c1a2fc7a5ba290b1781e8734f4fc112e2e4c77c3d354ef315350c3359",
+  "independent_expectations_sha256": "9b1e1896c3126589427bc5cb19131d0901f69b7062e68c2d97d4463b7415bd96",
+  "commands": [
+    {
+      "name": "rust",
+      "exit_code": 0,
+      "log_sha256": "e04cf9a164bc57c0cfba21c2b5754649b50626e6fdb506967bb3f75ffd97bbf4"
+    },
+    {
+      "name": "clippy",
+      "exit_code": 0,
+      "log_sha256": "374fb7ba6e6c8293e5337b0c72da2df388e08856659291db69453514bc3111bc"
+    },
+    {
+      "name": "format",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer-build",
+      "exit_code": 0,
+      "log_sha256": "939aa0142592ae5c7f80f8c02f1b54420051dd050d2bd1e2c61395ee916eecd3"
+    }
+  ],
+  "producer_binary": {
+    "bytes": 23488512,
+    "sha256": "bf0f77ec0a014ce2b16bc35cdabbb5353f304b7f5f0de63e6aaf1d315777b130"
+  },
+  "worker_producer_commits": 14,
+  "root_shared_fixes": 1,
+  "commit_map": [
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-19",
+      "original": "cd027a64eb640df7d0825e34ee759a5195e02b73",
+      "integrated": "02b4fb97bbe7f3ac1b0072faea44a49e34e089b9"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-20",
+      "original": "29355147f9daee74d1a68cfd0f43f57246bc3887",
+      "integrated": "687c35f4952546125969492b9d4ce30abc03bd95"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-17",
+      "original": "52ab7fdb5a22404f19489b8a53b7df67229247c0",
+      "integrated": "fd1df60b9f9d9faa8ff4bb40d3b9a51a6774b4bd"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-18",
+      "original": "67d01961b486c7f689dd77c220a5f3e2406bb86d",
+      "integrated": "fbc0481b2a16b26139c3370df70785e4ed01b3d9"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-24A",
+      "original": "3db3e4781c8114e0aefd072dd71284f06e04adec",
+      "integrated": "ae8315aed767f0fe932fde5bf6c97bd85cf95de6"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-24B",
+      "original": "1f352ee3d18a36096a31ae1cdcd86b3b88187e49",
+      "integrated": "809d669a33db5e0f4335e1bdb34b721aa6874d4d"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-25A",
+      "original": "00c22d7625889f416f2614304635f6dae3894463",
+      "integrated": "eb78fc0f83c219d33fe5e33edb31932fe041f866"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-25B",
+      "original": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+      "integrated": "bbd740bd430496ef1dc6c343df8b173bc8499b58"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-24",
+      "original": "1f826be18aff0a192ba55f03429b1432727b0234",
+      "integrated": "d0f04a48bbe45af4befcfb91c0b9035fb1a1a2fc"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-25",
+      "original": "e640fee763470755c2921816dcd3764de8564fdd",
+      "integrated": "b68c22f15960109618b2d6f5e26ac7d53981eb4c"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-24-REFERENCE-BOUND",
+      "original": "0f0575d124ec56f9ccddaffe5f335f5e6a2b94a3",
+      "integrated": "14bed868d4351846163ebb007104e9b85e8036b1"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-25",
+      "original": "cd4f5bf635b7930e7a2107c859c242fb45dbd360",
+      "integrated": "1039cc90eb4ed40e25024b6532343d171bdc17fe"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-26",
+      "original": "ad2bd01a454559ff4552c58e731e548c34438d67",
+      "integrated": "254c644f98fd5a907f33cce75418f4cbf7bda38b"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-27",
+      "original": "b9ab4cb8f938449efb2391e2759c9f696411f6c0",
+      "integrated": "d6741bb73994ff2976cc8a413cd91d3ef1854610"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-CLI-SKIN-BOX",
+      "original": "4ca9850ed77ee6b88576d0cf372cbc022dc07138",
+      "integrated": "4ca9850ed77ee6b88576d0cf372cbc022dc07138"
+    }
+  ],
+  "mapping_receipt_sha256": "7f0e29551e07c73923df9612b5444f50c42374eda7c890d26f27a38b86803fe2",
+  "actual_cli_cases": 25,
+  "cases": [
+    {
+      "id": "clip-ordered",
+      "kind": "clip",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "63784eb5abdbc7822f8ef4f44f3c02e82f7e80c975a1470ef2603a6b7b2c450e",
+      "case_receipt_sha256": "7bb83b584bd59d16d0e3e12098bf325057bf5b7167822c78b903c8b796d86206"
+    },
+    {
+      "id": "clip-permuted",
+      "kind": "clip",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "e461a3143a56adc37f02ba26154ff16061de1d1bcca0fdfa706b92271833dc0c",
+      "case_receipt_sha256": "6aab7113acc41c3c027f2c6bc2499aeb2b6bb32be02b671b276963d56987489f"
+    },
+    {
+      "id": "clip-late-refusal",
+      "kind": "clip",
+      "policy": "asset-refusal",
+      "exit_code": 1,
+      "report_sha256": "00768a08715d5bf3ac599148e7d580a4244b05800a765d20f9236bb305ec2e9c",
+      "case_receipt_sha256": "3b1ad89bbc96cbc957f3e0b3d7d4ea58269fda00ced8d5f0bc017fbe4bed7d90"
+    },
+    {
+      "id": "clip-time-cap",
+      "kind": "clip",
+      "policy": "absent",
+      "exit_code": 1,
+      "report_sha256": null,
+      "case_receipt_sha256": "2117efb5b287458d2c7f9ea87d9b5972e13db3bebce94f050e8aaddfc5d88e9c"
+    },
+    {
+      "id": "visibility-path",
+      "kind": "visibility",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "f6eb317931c2a72ac6c352cc5236a8cd38f1ee5de55dbf3f185dd7f32cbb215f",
+      "case_receipt_sha256": "9ef0246f00e00ab64fe983f181d4db8559d4a1d1faa83532aacd45bd3cbb91fb"
+    },
+    {
+      "id": "visibility-permuted",
+      "kind": "visibility",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "d42fc37cc231093d4ad77eeed938adf02f6ccc5fba5ae47ae683b2a4c4c54828",
+      "case_receipt_sha256": "24ab9a490dc8bae7614d0b9cb9f581f6538f83663f62b54402ea61f9f3eb2418"
+    },
+    {
+      "id": "visibility-late-refusal",
+      "kind": "visibility",
+      "policy": "asset-refusal",
+      "exit_code": 1,
+      "report_sha256": "4743e9fa5274d69ff8b5b7e87d79e4fc081091a62c6e3d25ac0b6840bd21acec",
+      "case_receipt_sha256": "fe6ce3ea46da609fd9c5d87668aae770ba564c681f0cd0e1fb335e00bf71dc4c"
+    },
+    {
+      "id": "visibility-channel-cap",
+      "kind": "visibility",
+      "policy": "absent",
+      "exit_code": 1,
+      "report_sha256": null,
+      "case_receipt_sha256": "cb946a13f0e7a33f73a6b22c599a1b0aa1143993b9748366db67bbbc26e7e4d5"
+    },
+    {
+      "id": "skin-mixed-times",
+      "kind": "skin",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "bb84ca4af5a477afaed64abd87bc129424055bdef70152ee111a8b2569065fed",
+      "case_receipt_sha256": "e1d3ecff15995c38512cbb039305ed92cdbcd076e1989c51432bf6f48f70f469"
+    },
+    {
+      "id": "skin-permuted",
+      "kind": "skin",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "a68b0fc03b5ccb98389b8cc1b4837ac2b37f5703035bbf6c92da0de72826b0a6",
+      "case_receipt_sha256": "b9e441a9d80a68be72dd634ae278554358bb7be7753e662720e055cde70f95d2"
+    },
+    {
+      "id": "skin-zero-root",
+      "kind": "skin",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "38ca73152198c59b6717c96c0206f6276dd7d27f47e4560ae16abfe5f264ad75",
+      "case_receipt_sha256": "e01bb2fd6bf9f47e0f9c6849d86424fbc681476ef7e0f22a20bdd8bd5f0dcddd"
+    },
+    {
+      "id": "skin-reflected-root",
+      "kind": "skin",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "0e15c21580e8aaafc9bb57a70cae3b70478c6dc1870178363f04eb9f8fe2255f",
+      "case_receipt_sha256": "ab992fe2d774b9570cc2ad23612b4cdc3efe8d21fe8d66f838536f32583269a6"
+    },
+    {
+      "id": "skin-late-refusal",
+      "kind": "skin",
+      "policy": "asset-refusal",
+      "exit_code": 1,
+      "report_sha256": "edfc7fa9ae438f8c44d48394f7b0480b72aacaad38c13942ed18705514eb7b00",
+      "case_receipt_sha256": "0011f372668835ff4a5b6b618616c03075037aac0bc878f53525d5c80461275a"
+    },
+    {
+      "id": "skin-channel-cap",
+      "kind": "skin",
+      "policy": "absent",
+      "exit_code": 1,
+      "report_sha256": null,
+      "case_receipt_sha256": "3e4cdd4b19bbb01a45fafdd66d0210e12c7d6c8dc0e4c1fd6c2c84d958cdd9f5"
+    },
+    {
+      "id": "skin-stored-compatible",
+      "kind": "skin-stored",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "7db8d295ab818a4f5652814b6394ac555980ff49c52be3658fc5ed37db137197",
+      "case_receipt_sha256": "620eac8133f36e37ea5c03eb748e08c66755d2bbb66cdfb39d5478c4f0ffbfe5"
+    },
+    {
+      "id": "skin-conflicting-stored",
+      "kind": "skin",
+      "policy": "clap",
+      "exit_code": 2,
+      "report_sha256": null,
+      "case_receipt_sha256": "4ad2b4c86d94de3f7024e28ab16484ea699c0bee8a47c0ee3491eee24bb0795f"
+    },
+    {
+      "id": "skin-conflicting-sampled",
+      "kind": "skin",
+      "policy": "clap",
+      "exit_code": 2,
+      "report_sha256": null,
+      "case_receipt_sha256": "4e815d9271590c6981a3a48daa4d8aaded5300ba073fab142e9b1f695aa8e9c9"
+    },
+    {
+      "id": "native-cold-initial",
+      "kind": "native",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "3a6bffd8e75fd3159e8d3353732dd5164ad0ef97981debba187025ec21471b6b",
+      "case_receipt_sha256": "3944086c1df4d2137c405b3735ffe5d344e4b3dbcfca2c826cccc88704d7ee01"
+    },
+    {
+      "id": "native-cold-changed",
+      "kind": "native",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "295919931e66a993b40396eb13648078774c5b9fad701954efd765be52d35e42",
+      "case_receipt_sha256": "6538240a63779156b76f01d86f7b23fddfc2ae4e8a2fd9e6952ab6409ac62cf6"
+    },
+    {
+      "id": "native-late-inventory",
+      "kind": "native",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "ecd52520e7d1a9347bf3739d367b4bd80f71061bc55d8d5bddf07528b4b20cee",
+      "case_receipt_sha256": "444989e9a43ad7d73772dc2d32da94e6848189192e450a2d67b3326f877e05fa"
+    },
+    {
+      "id": "native-large-current-item",
+      "kind": "native",
+      "policy": "absent",
+      "exit_code": 1,
+      "report_sha256": null,
+      "case_receipt_sha256": "b2dd45f6d46712a8b5a6c0a7ef5a79ac62419e8ce874a996e6c0303c95247345"
+    },
+    {
+      "id": "conditions-selected-records",
+      "kind": "conditions",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "ff14f9c493782be8d28557b7143036b498c5e4143a72282b0398b992d310ae0e",
+      "case_receipt_sha256": "755a33046a91c85520473c5c345ca098f7eb10d40f36d9f5bf1a352cfba403b7"
+    },
+    {
+      "id": "conditions-changed-current-inventory",
+      "kind": "conditions",
+      "policy": "positive",
+      "exit_code": 0,
+      "report_sha256": "003f4b820dfe7d538b9c9be365098b624616dda0ac61dd9f89f98502cc7ae647",
+      "case_receipt_sha256": "d8f72b13a28ed9b88d2cb91a21fc9627b6d75f3c11e2e593eb1f61a892f05da2"
+    },
+    {
+      "id": "conditions-late-contribution",
+      "kind": "conditions",
+      "policy": "absent",
+      "exit_code": 1,
+      "report_sha256": null,
+      "case_receipt_sha256": "3f241725cc0ee9197b535fb32f60ce1bb022ab87947b8b656eee10e5bda6485e"
+    },
+    {
+      "id": "conditions-semantic-refusal",
+      "kind": "conditions",
+      "policy": "semantic",
+      "exit_code": 1,
+      "report_sha256": "af968f1e4614953d5f639839bc038f3af3ded32c8df79f61b96c1e5437ddd422",
+      "case_receipt_sha256": "954d40a35b5d7c94e4a9087ae156b031ee0c6de04035676b539054c5893981df"
+    }
+  ],
+  "scope": "Prepared authored KF samples, source visibility paths and skin matrices; current canonical native and CTDA engineering inventory queries.",
+  "limitations": [
+    "Full outputs are hash-bound; independent acceptance covers the declared raw-source matrices, spans, query plans/outcomes and condition observation fields.",
+    "Decoder digest is an observed identity only, not an independently derived authority.",
+    "Source visibility inputs do not establish effective rendered visibility; sampled skin matrices do not establish GPU playback.",
+    "No original process, original numeric behavior, condition truth, actor gameplay or retail parity is accepted.",
+    "Later batch14 source and the separate source36 boot-to-render/save supplement are excluded.",
+    "The source/binary freeze is a retained completed build, not a reproducible cold-build claim."
+  ],
+  "last_verified_checkpoint": 45,
+  "new_checkpoint_claimed": false,
+  "original_process_started": false,
+  "condition_truth_accepted": false,
+  "actor_gameplay_accepted": false,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false,
+  "promoted_merge_revision": "c9b84a43f8a6f0b783d4c6b2a09bb66807deb550",
+  "promotion_equivalence": {
+    "result": "passed",
+    "proved_source": "4ca9850ed77ee6b88576d0cf372cbc022dc07138",
+    "merge_revision": "c9b84a43f8a6f0b783d4c6b2a09bb66807deb550",
+    "merge_parents": [
+      "88f323897f4f39f416e8fa5ac8bac08fd458243f",
+      "4ca9850ed77ee6b88576d0cf372cbc022dc07138"
+    ],
+    "exact_tree_files": 1084,
+    "preserved_metadata": [
+      "NEXT_STEPS.md",
+      "docs/agents/team-v3/backlog.json",
+      "docs/integration/team-v3-development-08.json",
+      "docs/integration/team-v3-development-09.json",
+      "docs/route-boot.md"
+    ],
+    "additional_paths_allowed": [],
+    "later_source_admitted": false,
+    "checkpoint_claimed": false
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "status": "reviewed_scoped_engine_proof",
+  "source_revision": "36c60f309027d1a653e7fd901bc5d5a749d24d78",
+  "development_batch": 9,
+  "latest_verified_checkpoint": 45,
+  "scope": "Authored source scene continuity through explicit boot, rendering, native save and cold restore",
+  "fixture": {
+    "receipt_sha256": "85b2cc1b6229b1f5a607abf74d35399b3f0f2b5ba02625e952fb8c15f5374fea",
+    "source_kind": "authored",
+    "records": 9,
+    "selected_static_references": 1,
+    "actor_rendering_admitted": false
+  },
+  "proof": {
+    "receipt_sha256": "a8a6e01d5fceda11a4b7a071b8cf51d870aca6d79a3f353c010beec12597d176",
+    "freeze_sha256": "fb599673d745cac62e8db7cad573018819427f2bf71b1e5633964e50983ced49",
+    "actual_engine_calls": 4,
+    "all_exit_codes": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "phases": [
+      "baseline render from input native state",
+      "boot into fresh repository",
+      "render then await an actual Saved receipt",
+      "cold render from generation2"
+    ],
+    "complete_native_containers_checked": true,
+    "whole_canonical_state_checked": true,
+    "untouched_input_state_and_frozen_sources": true,
+    "pixel_scope": "Complete RGB equality across three captures; continuity, not an original-game or independent raster oracle",
+    "pixels": {
+      "pixels": 1152000,
+      "strongly_nonbackground_pixels": 23871,
+      "rgb_sha256": "02f4f5221983be75af797786dcc00a6e9934ce2120bf89371c5e52f9a0bd8bfa"
+    },
+    "saved_receipt": {
+      "metadata": {
+        "campaign": [
+          67,
+          210,
+          19,
+          137,
+          203,
+          57,
+          69,
+          169,
+          157,
+          31,
+          39,
+          118,
+          21,
+          227,
+          136,
+          145
+        ],
+        "state_revision": 46,
+        "generation": 2,
+        "boundary_tick": 11,
+        "catalogue_sha256": "7af4f249505789f61e88a42932470b645470a60d748b7b0ea5da6b2ba50b4eaa",
+        "snapshot_bytes": 4901,
+        "snapshot_sha256": "ca4f5f0dd095a18732ad3899681487d9cf8c578a0c74efc4064cecf877cf3f1f",
+        "container_bytes": 5133,
+        "container_sha256": "dc44651330bb0b98298a421c62a08ec4e60481434b5779685bdbde31c12bf68c"
+      },
+      "previous_generation": 1,
+      "persistence_scope": "Synced temporary files and same-directory replacement; process interruption tested separately; Windows directory/power-loss durability is unverified"
+    }
+  },
+  "producer_binaries": {
+    "cli_sha256": "9594a05552200a45d7baf9204bc28b266e0ea84d480c986501b900dd05efd3cc",
+    "preview_sha256": "bab0d11776862b08dd0847642de060aeab8d78a5cc78f59a266da1f1fc7cd174"
+  },
+  "limitations": [
+    "Actor models remain an explicit unsupported omission.",
+    "Player movement, collision readiness, controller playback, original menus and gameplay are unaccepted.",
+    "Original behavior and source units are unmeasured; no retail parity claim.",
+    "Windows power-loss durability is unproved; directory synchronization scope remains as reported by Saved.",
+    "Boot source-definition, decoder and cell-plan digests are transport observations, not new independent oracle assertions."
+  ],
+  "original_process_launched": false,
+  "normal_saves_written": false,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false,
+  "checkpoint_claimed": false,
+  "prepared_at": "2026-10-04T14:24:02.902805+00:00"
+}

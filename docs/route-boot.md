@@ -86,3 +86,15 @@ and power-loss durability were not established by that matrix.
 `model_assets_prepared`, `faithful_simulation_admitted`, and
 `retail_parity_accepted` remain false. Rendering, collision, original activation,
 playable routes, and original gameplay need their own acceptance work.
+
+A [separate scene continuity proof](integration/team-v3-boot-render-save-01.json)
+combined this boot command with the existing preview and native-save host. Four
+fresh processes rendered an authored static source model before boot, published
+a fresh native repository, rendered and awaited a real Saved receipt, then
+loaded generation2 in a cold preview. Complete native bytes and canonical state
+matched independent expectations. All three 1280 by 900 RGB captures matched,
+with 23,871 strongly nonbackground pixels. The comparison establishes continuity
+of the same authored scene; it is not an original-game pixel comparison. Actor
+models remained an explicit unsupported omission, and playable movement, physics
+readiness, controller playback and original gameplay were not accepted. The boot
+command's own model preparation and faithful-simulation flags remain false.

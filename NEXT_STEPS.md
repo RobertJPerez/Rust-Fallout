@@ -9,6 +9,25 @@ worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
+[Development batch 10](docs/integration/team-v3-development-10.json) passed 1,415
+data/runtime/CLI/preview Rust results, Clippy, formatting and executable builds;
+49 helpers remained ignored. The result total includes one explicitly launched
+cold helper. Fourteen reviewed worker commits and the shared CLI argument-boxing
+fix are included. Twenty-five authored CLI cases checked prepared KF samples,
+source visibility paths, skin matrices, current native inventory queries and CTDA
+engineering queries, including bounded and semantic refusals. Full outputs and
+inputs are hash-bound; accepted fields are checked against raw-source expectations.
+Decoder identity remains observed only. These checks do not establish original
+behavior, condition truth, actor gameplay or GPU playback. Later batch14 work and
+the separate boot-render/save supplement are excluded. Checkpoint45 is unchanged.
+
+A separate [boot/render/save proof](docs/integration/team-v3-boot-render-save-01.json)
+used development09's retained producer in four fresh processes. One authored
+static model rendered through native boot, an actual Saved receipt, and cold
+restore; all three complete RGB captures matched. This demonstrates scene/state
+continuity. Actor rendering, collision readiness and original gameplay remain
+unaccepted; M1 is still unmet.
+
 [Development batch 09](docs/integration/team-v3-development-09.json) passed 1,339
 data/runtime/CLI/preview test results, Clippy, formatting and executable builds;
 45 helpers remained ignored. Forty reviewed maps from batches09–12 are included.

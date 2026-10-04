@@ -91,6 +91,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Compose an explicit supported set of parent/child channels; no blending.
+    NifSourcePoseSet {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Prepare one exact source once and sample an explicit bounded time list.
     NifSourcePoseBatch {
         input: PathBuf,
@@ -1638,6 +1644,25 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifSourcePoseSet { input, request } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_pose_set(&input, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("explicit source pose set refused; see report".into());
             }
         }
         Command::NifSourcePoseBatch { input, request } => {

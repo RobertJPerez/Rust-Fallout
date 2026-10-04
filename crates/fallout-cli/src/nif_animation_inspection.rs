@@ -102,6 +102,62 @@ struct PoseBatchRequest {
     source_times: Vec<f64>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PoseSetChannel {
+    object: u32,
+    controller: u32,
+    source_time: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PoseSetRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    requests: Vec<PoseSetChannel>,
+}
+
+pub fn inspect_pose_set(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::pose::PoseSet>> {
+    let request: PoseSetRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.requests.len() > 256 {
+        return Err("pose set requires schema1 and at most 256 explicit channels".into());
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let evaluated = if <[u8; 32]>::from(Sha256::digest(&bytes)) != request.expected_sha256 {
+        Err(fallout_data::Error::Unsupported(format!(
+            "{source}: pose set source SHA256 differs"
+        )))
+    } else {
+        let requests = request
+            .requests
+            .iter()
+            .map(|entry| nif_animation::pose::Request {
+                object: entry.object,
+                controller: entry.controller,
+                source_time: entry.source_time,
+            })
+            .collect::<Vec<_>>();
+        nif_animation::pose::evaluate_set(&bytes, &source, &requests, Default::default())
+    };
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: "engineering-explicit-linked-pose-set-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 pub fn inspect_pose_batch(
     input: &Path,
     request_path: &Path,

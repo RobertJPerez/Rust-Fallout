@@ -392,10 +392,13 @@ enum Command {
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
         /// Consume a saved journal head using explicit engineering activation/intent.
-        #[arg(long, requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_request: Option<PathBuf>,
+        /// Observe explicitly selected native occurrences from saved state.
+        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_native_request: Option<PathBuf>,
         /// Strict current canonical snapshot; no migration or engineering seeding.
-        #[arg(long, requires = "snapshot_copy_request")]
+        #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
         #[arg(long, requires = "snapshot_copy_request")]
@@ -1191,9 +1194,31 @@ fn run(args: Args) -> Result<()> {
             native_capabilities,
             engineering_local_copy,
             snapshot_copy_request,
+            snapshot_native_request,
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_native_request {
+                let report = event_operand_inspection::observe_saved_native(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["observations"]
+                    .as_array()
+                    .ok_or("Missing native observations")?
+                    .iter()
+                    .any(|row| row["observation"]["outcome"]["status"] != "engineering_observation")
+                {
+                    return Err(
+                        "Saved native observations retain unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_copy_request {
                 let report = event_operand_inspection::copy_saved(
                     &install,

@@ -710,3 +710,464 @@ fn changed_cohorts_and_unadmitted_source_never_yield_partial_dispatch() {
             .is_err()
     );
 }
+
+#[test]
+#[ignore = "built CLI and authored executable metadata; saved read-only native queries, no original launch"]
+fn cli_saved_native_helper() {
+    use fallout_runtime::snapshot::Snapshot;
+    use serde_json::{Value as Json, json};
+    use std::{
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("metadata input"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_SAVED_NATIVE_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let body = event(
+        &[
+            get(None, 1),
+            get(Some(2), 1),
+            call(None, 0x1001, &item(2)),
+            get(None, 1),
+        ]
+        .concat(),
+    );
+    let (temporary, catalogue, content) = fixture(&body);
+    // The actual pinned descriptor is GetDistance(ObjectReferenceID), unlike
+    // the intentionally minimal signatures used by older pure dispatch tests.
+    let operators = operators();
+    let mut native_signatures = signatures();
+    native_signatures.insert(
+        0x1001,
+        CommandSignature {
+            convention: Convention::Default,
+            parameters: vec![Parameter {
+                type_id: 4,
+                optional_word: 0,
+            }],
+        },
+    );
+    let sources = PreparedSources::load(
+        &catalogue,
+        &Model::vanilla(&operators).unwrap(),
+        &native_signatures,
+        Default::default(),
+    )
+    .unwrap();
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let (mut world, handle, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    let other = world.register_reference(None).unwrap();
+    world.initialize_inventory(other).unwrap();
+    world
+        .add_item(other, Facts::unknown(form(0x100)), 23.try_into().unwrap())
+        .unwrap();
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: other },
+                },
+            )],
+        )
+        .unwrap();
+    let second = world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let before = world.snapshot();
+    let input_bytes = before.encode(64 * 1024 * 1024).unwrap();
+    let snapshot_path = evidence.join("input.snapshot.json");
+    fs::write(&snapshot_path, &input_bytes).unwrap();
+    let calls = world
+        .prepare_native_calls_with_sources(sequence, &sources, Default::default())
+        .unwrap();
+    assert_eq!(calls.calls().len(), 4);
+    let selections = [
+        (3, Some(subject)),
+        (1, None),
+        (0, Some(subject)),
+        (3, Some(subject)),
+    ];
+    let mut expected = Vec::new();
+    for (occurrence, supplied_subject) in selections {
+        let observed = calls
+            .observe(
+                occurrence,
+                &content,
+                Inputs {
+                    supplied_subject,
+                    player: Some(subject),
+                },
+                Intent::EngineeringObservation,
+                2,
+            )
+            .unwrap();
+        let Outcome::EngineeringObservation { trace } = &observed.outcome else {
+            panic!("{observed:?}")
+        };
+        assert!(trace.original_numeric_return.is_none());
+        assert!(!trace.original_behavior_verified);
+        if occurrence == 1 {
+            assert_eq!(trace.query.subject, other);
+            assert_eq!(trace.query.result, 23);
+            assert_eq!(trace.query.contributions.len(), 1);
+        } else {
+            assert_eq!(trace.query.subject, subject);
+            assert_eq!(trace.query.result, 8_589_934_590);
+            assert_eq!(trace.query.contributions.len(), 2);
+        }
+        expected.push(json!({"occurrence":occurrence,"observation":observed}));
+    }
+    let selected: Vec<_> = selections
+        .into_iter()
+        .map(|(occurrence, supplied_subject)| {
+            json!({
+                "occurrence":occurrence,"intent":"engineering_observation",
+                "supplied_subject":supplied_subject,"explicit_player":subject
+            })
+        })
+        .collect();
+    let request = json!({"schema_version":1,"sequence":sequence,"calls":selected,
+        "maximum_contributions":7,"maximum_report_bytes":1024*1024});
+    let run_on = |name: &str,
+                  install: &Path,
+                  order: &Path,
+                  snapshot: &Path,
+                  request: &Json,
+                  extra: &[&str]| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let request_path = directory.join("request.json");
+        let report = directory.join("report.json");
+        fs::write(&request_path, serde_json::to_vec_pretty(request).unwrap()).unwrap();
+        let output = Command::new(&cli)
+            .args(["event-operands", "--install"])
+            .arg(install)
+            .arg("--load-order")
+            .arg(order)
+            .arg("--snapshot-native-request")
+            .arg(&request_path)
+            .arg("--snapshot-input")
+            .arg(snapshot)
+            .arg("--output")
+            .arg(&report)
+            .args(extra)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        assert_eq!(
+            fs::read(&snapshot_path).unwrap(),
+            input_bytes,
+            "{name}: input changed"
+        );
+        (output, report)
+    };
+    let run = |name: &str, snapshot: &Path, request: &Json| {
+        run_on(name, &install, &order, snapshot, request, &[])
+    };
+    let (output, report_path) = run("selected", &snapshot_path, &request);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report_bytes = fs::read(&report_path).unwrap();
+    let report: Json = serde_json::from_slice(&report_bytes).unwrap();
+    assert_eq!(report["observations"], json!(expected));
+    assert_eq!(report["canonical_state_unchanged"], true);
+    assert_eq!(report["event_acknowledged"], false);
+    assert_eq!(report["faithful_execution_admitted"], false);
+    assert_eq!(
+        report["prepared_sources"]["counts"]["preparation_attempts"],
+        1
+    );
+    assert_eq!(report["physical_call_count"], 4);
+    assert_eq!(report["state_revision"], before.state_revision);
+    assert_eq!(world.snapshot(), before);
+    for (name, maximum, success) in [
+        ("exact-report", report_bytes.len(), true),
+        ("short-report", report_bytes.len() - 1, false),
+    ] {
+        let mut bounded = request.clone();
+        bounded["maximum_report_bytes"] = json!(maximum);
+        let (output, path) = run(name, &snapshot_path, &bounded);
+        assert_eq!(
+            output.status.success(),
+            success,
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if success {
+            assert_eq!(fs::read(path).unwrap(), report_bytes);
+        } else {
+            assert!(!path.exists());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("report-byte budget"));
+        }
+    }
+    let mut insufficient = request.clone();
+    insufficient["maximum_contributions"] = json!(6);
+    let (output, path) = run("short-contributions", &snapshot_path, &insufficient);
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("query contributions"));
+    let first = json!({"occurrence":0,"intent":"engineering_observation","supplied_subject":subject,"explicit_player":null});
+    for (name, selection, expected_reason) in [
+        (
+            "missing-subject",
+            json!({"occurrence":0,"intent":"engineering_observation","supplied_subject":null,"explicit_player":subject}),
+            "missing_subject",
+        ),
+        (
+            "faithful",
+            json!({"occurrence":0,"intent":"faithful","supplied_subject":null,"explicit_player":subject}),
+            "unverified_retail_semantics",
+        ),
+        (
+            "unsupported",
+            json!({"occurrence":2,"intent":"engineering_observation","supplied_subject":subject,"explicit_player":null}),
+            "missing_implementation",
+        ),
+        (
+            "unknown-subject",
+            json!({"occurrence":0,"intent":"engineering_observation","supplied_subject":999,"explicit_player":subject}),
+            "host_query_unavailable",
+        ),
+    ] {
+        let mut refused = request.clone();
+        refused["calls"] = json!([selection]);
+        let (output, path) = run(name, &snapshot_path, &refused);
+        assert!(!output.status.success(), "{name}");
+        let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(
+            report["observations"][0]["observation"]["outcome"]["reason"], expected_reason,
+            "{name}"
+        );
+        assert_eq!(report["canonical_state_unchanged"], true);
+        assert_eq!(report["event_acknowledged"], false);
+    }
+    let mut nonhead = request.clone();
+    nonhead["sequence"] = json!(second);
+    nonhead["calls"] = json!([first]);
+    nonhead["maximum_contributions"] = json!(2);
+    let (output, path) = run("read-nonhead", &snapshot_path, &nonhead);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        report["observations"][0]["observation"]["pending"]["sequence"],
+        second
+    );
+    assert_eq!(report["event_acknowledged"], false);
+    for (name, field, value, reason) in [
+        (
+            "request-schema",
+            "schema_version",
+            json!(2),
+            "invalid saved native request",
+        ),
+        (
+            "empty-selection",
+            "calls",
+            json!([]),
+            "invalid saved native request",
+        ),
+        (
+            "selection-limit",
+            "calls",
+            json!(vec![first.clone(); 129]),
+            "invalid saved native request",
+        ),
+        (
+            "contribution-ceiling",
+            "maximum_contributions",
+            json!(65537),
+            "invalid saved native request",
+        ),
+        (
+            "report-ceiling",
+            "maximum_report_bytes",
+            json!(8 * 1024 * 1024 + 1),
+            "invalid saved native request",
+        ),
+        (
+            "zero-report",
+            "maximum_report_bytes",
+            json!(0),
+            "invalid saved native request",
+        ),
+        ("zero-sequence", "sequence", json!(0), "nonzero"),
+        (
+            "missing-sequence",
+            "sequence",
+            json!(999),
+            "not present in the pending journal",
+        ),
+        ("unknown-field", "initialize", json!(true), "unknown field"),
+        (
+            "request-byte-limit",
+            "extra",
+            json!("x".repeat(64 * 1024)),
+            "request byte budget",
+        ),
+    ] {
+        let mut invalid = request.clone();
+        invalid[field] = value;
+        let (output, path) = run(name, &snapshot_path, &invalid);
+        assert!(!output.status.success(), "{name}");
+        assert!(!path.exists(), "{name}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(reason),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    for (name, field, value, reason) in [
+        (
+            "bad-occurrence",
+            "occurrence",
+            json!(4),
+            "outside this prepared event",
+        ),
+        (
+            "copy-intent",
+            "intent",
+            json!("engineering"),
+            "unknown variant",
+        ),
+        ("zero-subject", "supplied_subject", json!(0), "nonzero"),
+        (
+            "omitted-player",
+            "explicit_player",
+            Json::Null,
+            "missing field",
+        ),
+        (
+            "omitted-subject",
+            "supplied_subject",
+            Json::Null,
+            "missing field",
+        ),
+    ] {
+        let mut invalid = request.clone();
+        invalid["calls"] = json!([first]);
+        if name.starts_with("omitted") {
+            invalid["calls"][0].as_object_mut().unwrap().remove(field);
+        } else {
+            invalid["calls"][0][field] = value;
+        }
+        let (output, path) = run(name, &snapshot_path, &invalid);
+        assert!(!output.status.success(), "{name}");
+        assert!(!path.exists(), "{name}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(reason),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    for (name, field, value) in [
+        ("legacy-schema", "schema_version", json!(3)),
+        ("stale-cohort", "catalogue_sha256", json!("0".repeat(64))),
+        ("stale-definition", "version_sha256", json!("0".repeat(64))),
+    ] {
+        let mut snapshot = serde_json::to_value(&before).unwrap();
+        if name == "stale-definition" {
+            snapshot["instances"][0]["definition"][field] = value;
+        } else {
+            snapshot[field] = value;
+        }
+        let path = evidence.join(format!("{name}.snapshot.json"));
+        fs::write(&path, serde_json::to_vec(&snapshot).unwrap()).unwrap();
+        let (output, report) = run(name, &path, &request);
+        assert!(!output.status.success(), "{name}");
+        assert!(!report.exists(), "{name}");
+    }
+    let foreign = evidence.join("foreign-source-copy");
+    fs::create_dir(&foreign).unwrap();
+    fs::create_dir(foreign.join("Data")).unwrap();
+    fs::copy(
+        install.join("Data/FalloutNV.esm"),
+        foreign.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::write(
+        foreign.join("Data/Other.esm"),
+        [header(&[]), record(b"MISC", 0x499, 0, &[])].concat(),
+    )
+    .unwrap();
+    fs::copy(install.join("FalloutNV.exe"), foreign.join("FalloutNV.exe")).unwrap();
+    let foreign_order = evidence.join("foreign-order.json");
+    fs::write(&foreign_order, b"[\"FalloutNV.esm\",\"Other.esm\"]").unwrap();
+    let mut foreign_store = RecordStore::open_nv_headers(
+        &foreign.join("Data"),
+        &["FalloutNV.esm".into(), "Other.esm".into()],
+        Default::default(),
+    )
+    .unwrap();
+    let foreign_catalogue =
+        Catalogue::load(&mut foreign_store, Default::default(), |_, _| Ok(())).unwrap();
+    assert_eq!(definition(&foreign_catalogue), definition(&catalogue));
+    let (output, path) = run_on(
+        "foreign-cohort",
+        &foreign,
+        &foreign_order,
+        &snapshot_path,
+        &request,
+        &[],
+    );
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("has changed"));
+    for (name, extra) in [
+        (
+            "copy-output-conflict",
+            vec!["--snapshot-output", "unused.snapshot.json"],
+        ),
+        (
+            "copy-request-conflict",
+            vec!["--snapshot-copy-request", "unused.json"],
+        ),
+    ] {
+        let (output, path) = run_on(name, &install, &order, &snapshot_path, &request, &extra);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    assert_eq!(
+        Snapshot::decode(&fs::read(&snapshot_path).unwrap(), Default::default()).unwrap(),
+        before
+    );
+    assert_eq!(world.snapshot(), before);
+    fs::write(evidence.join("scope.json"),serde_json::to_vec_pretty(&json!({
+        "scope":"strict_current_snapshot_read_only_native_observations","original_executed":false,
+        "actual_cli_calls":30,"input_schema":before.schema_version,"input_snapshot":before,
+        "requested_occurrences":[3,1,0,3],"aggregate_contributions":7,"exact_report_bytes":report_bytes.len(),
+        "original_numeric_return":null,"retail_parity_accepted":false
+    })).unwrap()).unwrap();
+}

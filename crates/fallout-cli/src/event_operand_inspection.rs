@@ -8,7 +8,8 @@ use fallout_runtime::{
     event_operands,
     execution::{
         attachment_boot, copy_probe, event_request, foreign_copy, literal_assignment, local_copy,
-        native, native_plan, pending_batch, reference_attachment_boot, reference_copy,
+        native, native_assignment, native_plan, pending_batch, reference_attachment_boot,
+        reference_copy,
     },
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
@@ -1344,6 +1345,247 @@ pub(super) fn assign_saved_literal(
         &report,
         request.maximum_report_bytes,
         "saved literal assignment",
+    )?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
+}
+
+enum SavedNativeAssignmentIntent {
+    Faithful,
+    EngineeringExactCountToNumber,
+}
+impl<'de> serde::Deserialize<'de> for SavedNativeAssignmentIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let name = <String as serde::Deserialize>::deserialize(deserializer)?;
+        match name.as_str() {
+            "faithful" => Ok(Self::Faithful),
+            "engineering_exact_count_to_number" => Ok(Self::EngineeringExactCountToNumber),
+            _ => Err(serde::de::Error::custom(
+                "unsupported saved native assignment intent",
+            )),
+        }
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedNativeAssignmentRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    owner: fallout_runtime::identity::Owner,
+    intent: SavedNativeAssignmentIntent,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    supplied_subject: Option<ReferenceId>,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    explicit_player: Option<ReferenceId>,
+    maximum_source_instructions: usize,
+    maximum_calls: usize,
+    maximum_argument_bytes: usize,
+    maximum_operand_uses: usize,
+    maximum_statement_bytes: usize,
+    maximum_trace_source_bytes: usize,
+    maximum_trace_rows: usize,
+    maximum_trace_variable_bytes: usize,
+    maximum_trace_binding_uses: usize,
+    maximum_query_variable_bytes: usize,
+    maximum_stage_variable_bytes: usize,
+    maximum_inventory_visits: usize,
+    maximum_contributions: usize,
+    maximum_trace_bytes: usize,
+    maximum_prepared_instructions: usize,
+    maximum_prepared_operand_uses: usize,
+    maximum_prepared_tokens: usize,
+    maximum_prepared_record_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum SavedNativeAssignmentOutcome<'a> {
+    EngineeringCommitted {
+        committed: &'a native_assignment::Committed,
+    },
+    Unsupported {
+        reason: &'a native_assignment::Unsupported,
+        detail: &'a str,
+    },
+}
+#[derive(serde::Serialize)]
+struct SavedNativeAssignmentReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    snapshot_native_assignment: SavedNativeAssignmentOutcome<'a>,
+}
+pub(super) fn assign_saved_native(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedNativeAssignmentRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved native assignment request byte budget exceeded",
+    )?)?;
+    let defaults = native_assignment::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    let p = programs::Limits::default();
+    if request.schema_version != 1
+        || request.maximum_source_instructions > defaults.native.maximum_event_instructions
+        || request.maximum_calls > defaults.native.maximum_calls
+        || request.maximum_argument_bytes > defaults.native.maximum_argument_bytes
+        || request.maximum_operand_uses > defaults.maximum_operand_uses
+        || request.maximum_statement_bytes > defaults.maximum_statement_bytes
+        || request.maximum_trace_source_bytes > defaults.observation.maximum_source_bytes
+        || request.maximum_trace_rows > defaults.observation.maximum_rows
+        || request.maximum_trace_variable_bytes > defaults.observation.maximum_variable_bytes
+        || request.maximum_trace_binding_uses > defaults.observation.maximum_binding_uses
+        || request.maximum_query_variable_bytes > defaults.maximum_query_variable_bytes
+        || request.maximum_stage_variable_bytes > defaults.maximum_stage_variable_bytes
+        || request.maximum_inventory_visits > defaults.maximum_inventory_visits
+        || request.maximum_contributions > defaults.maximum_contributions
+        || request.maximum_trace_bytes > defaults.maximum_trace_bytes
+        || request.maximum_prepared_instructions > p.maximum_instructions
+        || request.maximum_prepared_operand_uses > p.maximum_uses
+        || request.maximum_prepared_tokens > p.maximum_tokens
+        || request.maximum_prepared_record_bytes > p.maximum_attempted_record_bytes
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved native assignment schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(install, result_path, report_path, "saved native assignment")?;
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "saved native assignment snapshot byte budget exceeded",
+    )?;
+    let mut world = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|p| p.sequence == request.sequence.get())
+        .ok_or("saved native assignment must name the existing journal head")?;
+    let instance = world.instance(world.handle(pending.instance)?)?;
+    if instance.owner() != &request.owner {
+        return Err("saved native assignment explicit owner differs from journal head".into());
+    }
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        std::slice::from_ref(instance.definition()),
+        programs::Limits {
+            maximum_instructions: request.maximum_prepared_instructions,
+            maximum_uses: request.maximum_prepared_operand_uses,
+            maximum_tokens: request.maximum_prepared_tokens,
+            maximum_nodes: request.maximum_prepared_tokens,
+            maximum_expressions: request.maximum_prepared_tokens.min(p.maximum_expressions),
+            maximum_attempted_record_bytes: request.maximum_prepared_record_bytes,
+            ..p
+        },
+    )?;
+    let before_revision = world.revision();
+    let outcome = native_assignment::stage(
+        &world,
+        &sources,
+        &content,
+        native_assignment::Selection {
+            sequence: request.sequence.get(),
+            inputs: native::Inputs {
+                supplied_subject: request.supplied_subject,
+                player: request.explicit_player,
+            },
+            intent: match request.intent {
+                SavedNativeAssignmentIntent::Faithful => native_assignment::Intent::Faithful,
+                SavedNativeAssignmentIntent::EngineeringExactCountToNumber => {
+                    native_assignment::Intent::EngineeringExactCountToNumber
+                }
+            },
+        },
+        native_assignment::Limits {
+            native: native::Limits {
+                maximum_event_instructions: request.maximum_source_instructions,
+                maximum_calls: request.maximum_calls,
+                maximum_argument_bytes: request.maximum_argument_bytes,
+            },
+            maximum_operand_uses: request.maximum_operand_uses,
+            maximum_statement_bytes: request.maximum_statement_bytes,
+            observation: preparation::ObservationLimits {
+                maximum_source_bytes: request.maximum_trace_source_bytes,
+                maximum_rows: request.maximum_trace_rows,
+                maximum_variable_bytes: request.maximum_trace_variable_bytes,
+                maximum_binding_uses: request.maximum_trace_binding_uses,
+            },
+            maximum_query_variable_bytes: request.maximum_query_variable_bytes,
+            maximum_stage_variable_bytes: request.maximum_stage_variable_bytes,
+            maximum_inventory_visits: request.maximum_inventory_visits,
+            maximum_contributions: request.maximum_contributions,
+            maximum_trace_bytes: request.maximum_trace_bytes,
+        },
+    )?;
+    let (committed, unsupported) = match outcome {
+        native_assignment::Preparation::Unsupported { reason, detail } => {
+            (None, Some((reason, detail)))
+        }
+        native_assignment::Preparation::Staged(proposal) => {
+            (Some(proposal.commit(&mut world)?), None)
+        }
+    };
+    let mut artifact = Value::Null;
+    let result_bytes = if committed.is_some() {
+        let snapshot = world.snapshot();
+        let bytes = snapshot.encode(request.maximum_result_snapshot_bytes)?;
+        let cold = fallout_runtime::World::restore(
+            Arc::clone(&catalogue),
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+            world_limits,
+        )?;
+        if cold.snapshot() != snapshot {
+            return Err("saved native assignment complete cold result differs".into());
+        }
+        artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":snapshot.schema_version,"decode_restore_equal":true,"remaining_head":snapshot.pending_events.first()});
+        Some(bytes)
+    } else {
+        None
+    };
+    let outcome = match (&committed, &unsupported) {
+        (Some(committed), _) => SavedNativeAssignmentOutcome::EngineeringCommitted { committed },
+        (_, Some((reason, detail))) => SavedNativeAssignmentOutcome::Unsupported { reason, detail },
+        _ => unreachable!("complete preparation outcome"),
+    };
+    let report = SavedNativeAssignmentReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering exact inventory count source assignment","campaign":world.campaign(),"owner":request.owner,"before_revision":before_revision,"after_revision":world.revision(),"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,
+            "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"private_result_discarded":committed.is_none(),"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        snapshot_native_assignment: outcome,
+    };
+    let report = admit_saved_copy_report(
+        &report,
+        request.maximum_report_bytes,
+        "saved native assignment",
     )?;
     write_saved_copy_result(result_path, result_bytes)?;
     Ok(report)

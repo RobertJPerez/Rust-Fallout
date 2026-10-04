@@ -9,6 +9,7 @@ pub mod foreign_copy;
 pub mod literal_assignment;
 pub mod local_copy;
 pub mod native;
+pub mod native_assignment;
 pub mod native_plan;
 pub mod pending_batch;
 pub mod reference_attachment_boot;

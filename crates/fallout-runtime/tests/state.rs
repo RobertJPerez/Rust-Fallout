@@ -2963,6 +2963,644 @@ fn cold_journal_page_helper() {
     assert_eq!(world.snapshot(), expected);
 }
 
+fn enqueue_group_host(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, [fallout_runtime::state::InstanceHandle; 2]) {
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        fallout_runtime::identity::CampaignId::from_bytes([46; 16]).unwrap(),
+    )
+    .unwrap();
+    world.register_reference(None).unwrap();
+    let handles = catalogue
+        .iter()
+        .enumerate()
+        .map(|(position, (_, script))| {
+            world
+                .create_instance(
+                    script.handle(),
+                    owner(position as u64 + 1),
+                    Context::default(),
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    world
+        .advance_clocks(Clocks {
+            tick: 11,
+            game_nanoseconds: 111,
+            menu_nanoseconds: 222,
+            real_nanoseconds: 333,
+        })
+        .unwrap();
+    world
+        .enqueue(
+            handles[0],
+            Trigger::ObjectEvent { mask: 0x40000000 },
+            Context::default(),
+        )
+        .unwrap();
+    (world, handles.try_into().unwrap())
+}
+fn enqueue_group_contexts(reference: fallout_runtime::identity::ReferenceId) -> [Context; 3] {
+    [
+        Context {
+            calling_reference: Some(reference),
+            containing_reference: None,
+            target: Some(ReferenceValue::Content { key: form(0x301) }),
+            arguments: vec![ReferenceValue::Null, ReferenceValue::Live { id: reference }],
+        },
+        Context {
+            calling_reference: None,
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Content { key: form(0x300) },
+                ReferenceValue::Null,
+            ],
+        },
+        Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Null),
+            arguments: vec![
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content { key: form(0x301) },
+                ReferenceValue::Null,
+            ],
+        },
+    ]
+}
+fn enqueue_group_requests<'a>(
+    handles: [fallout_runtime::state::InstanceHandle; 2],
+    contexts: &'a [Context; 3],
+    triggers: &'a [Trigger; 3],
+) -> [fallout_runtime::state::enqueue_group::Request<'a>; 3] {
+    [
+        fallout_runtime::state::enqueue_group::Request {
+            instance: handles[1],
+            trigger: &triggers[0],
+            context: &contexts[0],
+        },
+        fallout_runtime::state::enqueue_group::Request {
+            instance: handles[0],
+            trigger: &triggers[1],
+            context: &contexts[1],
+        },
+        fallout_runtime::state::enqueue_group::Request {
+            instance: handles[1],
+            trigger: &triggers[2],
+            context: &contexts[2],
+        },
+    ]
+}
+
+#[test]
+fn enqueue_group_closes_partial_append_and_preserves_repeated_instances_order_and_clocks() {
+    use fallout_runtime::{events::Pending, state::enqueue_group as group};
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (mut legacy, handles) = enqueue_group_host(&catalogue);
+    let before = legacy.snapshot();
+    legacy
+        .enqueue(handles[0], block(), Context::default())
+        .unwrap();
+    assert!(
+        legacy
+            .enqueue(
+                handles[1],
+                Trigger::ObjectEvent { mask: 0 },
+                Context::default()
+            )
+            .is_err()
+    );
+    assert_eq!(legacy.pending_events().len(), 2);
+    assert_ne!(legacy.snapshot(), before);
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let contexts = enqueue_group_contexts(before.references[0].id);
+    let mut triggers = [block(), block(), Trigger::ObjectEvent { mask: 0 }];
+    assert!(
+        world
+            .stage_pending_events(
+                &enqueue_group_requests(handles, &contexts, &triggers),
+                group::Limits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    triggers[2] = Trigger::ObjectEvent { mask: 0x80000001 };
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(stage.base_revision(), 5);
+    assert_eq!(stage.boundary(), before.clocks);
+    assert_eq!(
+        stage
+            .rows()
+            .iter()
+            .map(|row| row.instance())
+            .collect::<Vec<_>>(),
+        vec![
+            before.instances[1].id,
+            before.instances[0].id,
+            before.instances[1].id
+        ]
+    );
+    assert_eq!(world.snapshot(), before);
+    let receipt = world.commit_pending_events(stage).unwrap();
+    assert_eq!(receipt.before_revision(), 5);
+    assert_eq!(receipt.after_revision(), 6);
+    assert_eq!(receipt.next_sequence_before(), 2);
+    assert_eq!(receipt.next_sequence_after(), 5);
+    assert_eq!(
+        receipt
+            .rows()
+            .iter()
+            .map(|row| row.sequence())
+            .collect::<Vec<_>>(),
+        vec![2, 3, 4]
+    );
+    let mut expected = before.clone();
+    expected.state_revision = 6;
+    expected.next_event_sequence = 5;
+    for (position, instance) in [
+        before.instances[1].id,
+        before.instances[0].id,
+        before.instances[1].id,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        expected.pending_events.push(Pending {
+            sequence: position as u64 + 2,
+            instance,
+            trigger: triggers[position].clone(),
+            context: contexts[position].clone(),
+            arrived: before.clocks,
+        });
+    }
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(receipt.boundary(), before.clocks);
+    assert_eq!(receipt.usage().events, 3);
+    assert_eq!(receipt.usage().arguments, 7);
+    assert_eq!(receipt.usage().source_keys, 6);
+    assert_eq!(receipt.usage().source_key_bytes, 270);
+}
+
+#[test]
+fn enqueue_group_bad_final_trigger_context_and_whole_budget_refuse_without_prefix() {
+    use fallout_runtime::state::enqueue_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let mut contexts = enqueue_group_contexts(before.references[0].id);
+    let mut triggers = [block(), block(), Trigger::ObjectEvent { mask: 0x80000001 }];
+    for bad in [
+        Trigger::Block {
+            event_id: 999,
+            begin_byte_offset: 0,
+        },
+        Trigger::Block {
+            event_id: 0,
+            begin_byte_offset: 1,
+        },
+        Trigger::ObjectEvent { mask: 0 },
+    ] {
+        triggers[2] = bad;
+        assert!(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    group::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    triggers[2] = Trigger::ObjectEvent { mask: 0x80000001 };
+    let valid = contexts[2].clone();
+    for bad in [
+        ReferenceValue::Live {
+            id: fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+        },
+        ReferenceValue::Content {
+            key: fallout_data::identity::FormKey {
+                origin_plugin: "BAD.ESM".into(),
+                ..form(0x301)
+            },
+        },
+    ] {
+        contexts[2].target = Some(bad);
+        assert!(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    group::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    contexts[2] = valid;
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let usage = stage.usage();
+    drop(stage);
+    assert_eq!(world.snapshot(), before);
+    for limits in [
+        group::Limits {
+            max_events: 2,
+            ..Default::default()
+        },
+        group::Limits {
+            max_arguments: 6,
+            ..Default::default()
+        },
+        group::Limits {
+            max_source_keys: 5,
+            ..Default::default()
+        },
+        group::Limits {
+            max_source_key_bytes: 269,
+            ..Default::default()
+        },
+        group::Limits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    limits
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits {
+                max_events: 3,
+                max_arguments: 7,
+                max_source_keys: 6,
+                max_source_key_bytes: 270,
+                max_copied_bytes: usage.copied_bytes,
+            },
+        )
+        .unwrap();
+    contexts[0].arguments.clear();
+    world.commit_pending_events(stage).unwrap();
+    assert_eq!(
+        world.snapshot().pending_events[1].context.arguments.len(),
+        2
+    );
+    let restricted = World::restore(
+        &catalogue,
+        before.clone(),
+        Limits {
+            max_pending_events: 3,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let restricted_handles = [
+        restricted.handle(before.instances[0].id).unwrap(),
+        restricted.handle(before.instances[1].id).unwrap(),
+    ];
+    assert!(matches!(
+        restricted.stage_pending_events(
+            &enqueue_group_requests(restricted_handles, &contexts, &triggers),
+            group::Limits::default()
+        ),
+        Err(Error::Capacity("pending events"))
+    ));
+    assert_eq!(restricted.snapshot(), before);
+}
+
+#[test]
+fn enqueue_group_intervening_mutation_restore_and_stale_handles_expire_stage() {
+    use fallout_runtime::state::enqueue_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    for mutation in 0..5 {
+        let (mut world, handles) = enqueue_group_host(&catalogue);
+        let contexts = enqueue_group_contexts(world.snapshot().references[0].id);
+        let triggers = [block(), block(), Trigger::ObjectEvent { mask: 1 }];
+        let stage = world
+            .stage_pending_events(
+                &enqueue_group_requests(handles, &contexts, &triggers),
+                group::Limits::default(),
+            )
+            .unwrap();
+        match mutation {
+            0 => {
+                world.acknowledge(1).unwrap();
+            }
+            1 => {
+                world
+                    .enqueue(handles[0], block(), Context::default())
+                    .unwrap();
+            }
+            2 => world
+                .advance_clocks(Clocks {
+                    tick: 12,
+                    game_nanoseconds: 111,
+                    menu_nanoseconds: 222,
+                    real_nanoseconds: 333,
+                })
+                .unwrap(),
+            3 => world
+                .assign(handles[0], &[(2, Value::Number { bits: 1 })])
+                .unwrap(),
+            _ => {
+                world.register_reference(None).unwrap();
+            }
+        }
+        let after = world.snapshot();
+        assert!(world.commit_pending_events(stage).is_err());
+        assert_eq!(world.snapshot(), after);
+    }
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let contexts = enqueue_group_contexts(before.references[0].id);
+    let triggers = [block(), block(), Trigger::ObjectEvent { mask: 1 }];
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(matches!(
+        world.commit_pending_events(stage),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), before);
+    assert!(matches!(
+        world.stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    let fresh = [
+        world.handle(before.instances[0].id).unwrap(),
+        world.handle(before.instances[1].id).unwrap(),
+    ];
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(fresh, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let mut other = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.commit_pending_events(stage),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(other.snapshot(), before);
+    let definition = world.instance(fresh[1]).unwrap().definition().clone();
+    world.remove_instance(fresh[1]).unwrap();
+    world
+        .create_instance(
+            &definition,
+            Owner::Fragment {
+                activation: 2.try_into().unwrap(),
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let after = world.snapshot();
+    assert!(matches!(
+        world.stage_pending_events(
+            &enqueue_group_requests(fresh, &contexts, &triggers),
+            group::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), after);
+}
+
+#[test]
+fn enqueue_group_sequence_revision_capacity_edges_and_empty_noop_are_exact() {
+    use fallout_runtime::state::enqueue_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (world, _) = enqueue_group_host(&catalogue);
+    let base = world.snapshot();
+    for (next, revision, success) in [
+        (u64::MAX - 2, 5, false),
+        (2, u64::MAX, false),
+        (u64::MAX - 3, u64::MAX - 1, true),
+    ] {
+        let mut before = base.clone();
+        before.next_event_sequence = next;
+        before.state_revision = revision;
+        let mut world = World::restore(
+            &catalogue,
+            before.clone(),
+            Limits {
+                max_pending_events: 4,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let handles = [
+            world.handle(before.instances[0].id).unwrap(),
+            world.handle(before.instances[1].id).unwrap(),
+        ];
+        let contexts = enqueue_group_contexts(before.references[0].id);
+        let triggers = [block(), block(), Trigger::ObjectEvent { mask: 1 }];
+        let stage = world.stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        );
+        if success {
+            let receipt = world.commit_pending_events(stage.unwrap()).unwrap();
+            assert_eq!(receipt.next_sequence_after(), u64::MAX);
+            assert_eq!(receipt.after_revision(), u64::MAX);
+            assert_eq!(
+                world
+                    .pending_events()
+                    .map(|row| row.sequence)
+                    .collect::<Vec<_>>(),
+                vec![1, u64::MAX - 3, u64::MAX - 2, u64::MAX - 1]
+            );
+        } else {
+            assert!(stage.is_err());
+            assert_eq!(world.snapshot(), before);
+        }
+        let exact = world.snapshot();
+        let receipt = world
+            .commit_pending_events(
+                world
+                    .stage_pending_events(&[], group::Limits::default())
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(receipt.before_revision(), receipt.after_revision());
+        assert_eq!(
+            receipt.next_sequence_before(),
+            receipt.next_sequence_after()
+        );
+        assert!(receipt.rows().is_empty());
+        assert_eq!(world.snapshot(), exact);
+    }
+}
+
+#[test]
+fn enqueue_group_native_before_current_and_two_fresh_readers_preserve_exact_append() {
+    use fallout_runtime::{
+        save::{Captured, Repository},
+        state::enqueue_group as group,
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let retained = std::env::var_os("FALLOUT_ENQUEUE_GROUP_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    assignment_group_fixture(root);
+    let source = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("saved"), &[], world.campaign()).unwrap();
+    repository.commit(&Captured::at_boundary(&world)).unwrap();
+    let contexts = enqueue_group_contexts(before.references[0].id);
+    let triggers = [block(), block(), Trigger::ObjectEvent { mask: 0x80000001 }];
+    let receipt = world
+        .commit_pending_events(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    group::Limits::default(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+    let current = world.snapshot();
+    let captured = Captured::at_boundary(&world);
+    world
+        .enqueue(
+            handles[0],
+            Trigger::ObjectEvent { mask: 1 },
+            Context::default(),
+        )
+        .unwrap();
+    repository.commit(&captured).unwrap();
+    for (name, snapshot) in [
+        ("before.snapshot.json", &before),
+        ("current.snapshot.json", &current),
+    ] {
+        std::fs::write(root.join(name), snapshot.encode(1 << 20).unwrap()).unwrap();
+    }
+    std::fs::write(
+        root.join("receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("contexts.json"),
+        serde_json::to_vec_pretty(&contexts).unwrap(),
+    )
+    .unwrap();
+    drop(world);
+    drop(catalogue);
+    for mode in ["previous", "current"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_enqueue_group_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_ENQUEUE_GROUP_COLD_ROOT", root)
+            .env("FALLOUT_ENQUEUE_GROUP_COLD_MODE", mode)
+            .output()
+            .unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stdout.txt")), &result.stdout).unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stderr.txt")), &result.stderr).unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(std::fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh exact source/native event batch boundary selected by parent or CLI proof"]
+fn cold_enqueue_group_helper() {
+    use fallout_runtime::save::{Captured, Recovery, Repository, format};
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_ENQUEUE_GROUP_COLD_ROOT").unwrap());
+    let mode = std::env::var("FALLOUT_ENQUEUE_GROUP_COLD_MODE").unwrap();
+    let before = mode == "previous" || mode.ends_with("before");
+    let phase = if before { "before" } else { "current" };
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let expected = Snapshot::decode(
+        &std::fs::read(root.join(format!("{phase}.snapshot.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let native = root.join(if mode.starts_with("cli-") {
+        "cold-native"
+    } else {
+        "saved"
+    });
+    let world = if mode.starts_with("cli-save-") {
+        let world = World::restore(&catalogue, expected.clone(), Limits::default()).unwrap();
+        let repository = if before {
+            Repository::create(&native, &[], world.campaign()).unwrap()
+        } else {
+            Repository::open(&native, &[]).unwrap()
+        };
+        repository.commit(&Captured::at_boundary(&world)).unwrap();
+        world
+    } else if before {
+        World::restore(
+            &catalogue,
+            format::decode(
+                &std::fs::read(native.join("previous.frsv")).unwrap(),
+                Limits::default(),
+            )
+            .unwrap()
+            .snapshot,
+            Limits::default(),
+        )
+        .unwrap()
+    } else {
+        Repository::open(&native, &[])
+            .unwrap()
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+    };
+    assert_eq!(world.snapshot(), expected);
+    std::fs::write(
+        root.join(format!("cold-{mode}.snapshot.json")),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+}
+
 fn observation_fixture(root: &std::path::Path) {
     std::fs::create_dir_all(root).unwrap();
     std::fs::write(

@@ -18,7 +18,7 @@ pub enum Context {
     #[default]
     Orbit,
     Fly,
-    /// Window loading/failure: close is available, camera intent is suppressed.
+    /// Inspection loading/failure controls; camera and canonical intents stop.
     Loading,
     Suspended,
 }
@@ -38,6 +38,8 @@ pub struct Actions {
     pub close: bool,
     pub save: bool,
     pub continue_saved: bool,
+    pub retry_loading: bool,
+    pub cancel_loading: bool,
 }
 
 pub struct InspectionInputPlugin;
@@ -247,6 +249,8 @@ impl Boundary {
         if frame.context == Context::Loading {
             return Actions {
                 close: result.close,
+                retry_loading: edge(KeyCode::Enter),
+                cancel_loading: edge(KeyCode::Backspace),
                 ..default()
             };
         }
@@ -818,6 +822,49 @@ mod tests {
             key(&mut app, window, button, ButtonState::Pressed, false);
             app.update();
             assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        }
+    }
+
+    #[test]
+    fn loading_retry_and_cancel_require_fresh_primary_focus_owned_edges() {
+        for (button, retry) in [(KeyCode::Enter, true), (KeyCode::Backspace, false)] {
+            let (mut app, window) = keyboard_app();
+            key(&mut app, window, button, ButtonState::Pressed, false);
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            *app.world_mut().resource_mut::<Context>() = Context::Loading;
+            app.update();
+            key(&mut app, window, button, ButtonState::Pressed, true);
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            key(&mut app, window, button, ButtonState::Released, false);
+            app.update();
+            key(&mut app, window, button, ButtonState::Pressed, false);
+            app.update();
+            assert_eq!(
+                *app.world().resource::<Actions>(),
+                Actions {
+                    retry_loading: retry,
+                    cancel_loading: !retry,
+                    ..default()
+                }
+            );
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            focus(&mut app, window, false);
+            app.world_mut().write_message(KeyboardFocusLost);
+            key(&mut app, window, button, ButtonState::Released, false);
+            app.update();
+            focus(&mut app, window, true);
+            app.update();
+            app.update();
+            key(&mut app, window, button, ButtonState::Pressed, true);
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            key(&mut app, window, button, ButtonState::Pressed, false);
+            app.update();
+            assert_eq!(app.world().resource::<Actions>().retry_loading, retry);
+            assert_eq!(app.world().resource::<Actions>().cancel_loading, !retry);
         }
     }
 

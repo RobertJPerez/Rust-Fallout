@@ -49,6 +49,11 @@ pub enum Poll<T> {
     Finished,
 }
 
+pub enum Retirement<T> {
+    Pending,
+    Done(Option<T>),
+}
+
 enum Terminal {
     Taken,
     Failed(String),
@@ -115,6 +120,35 @@ impl<T: Send + 'static> Job<T> {
         self.terminal = Some(Terminal::Cancelled);
     }
 
+    fn reap_finished(&mut self) -> bool {
+        if self
+            .worker
+            .as_ref()
+            .is_some_and(|worker| !worker.is_finished())
+        {
+            return false;
+        }
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+        true
+    }
+
+    /// Retain the cancelled owner until its bounded decoder returns. A result
+    /// queued just before cancellation belongs to disposal, never publication.
+    pub fn retire(&mut self) -> Retirement<T> {
+        self.cancel();
+        if !self.reap_finished() {
+            return Retirement::Pending;
+        }
+        let value = self
+            .receiver
+            .get_mut()
+            .ok()
+            .and_then(|receiver| receiver.try_recv().ok().and_then(Result::ok));
+        Retirement::Done(value)
+    }
+
     /// Main-thread polling never waits for extraction or joins an active worker.
     /// Epoch mismatch discards work even if its result arrived before cancellation.
     pub fn poll(&mut self, expected_epoch: u64) -> Poll<T> {
@@ -127,6 +161,11 @@ impl<T: Send + 'static> Job<T> {
                 Terminal::Failed(error) => Poll::Failed(error.clone()),
                 Terminal::Cancelled => Poll::Cancelled,
             };
+        }
+        // Receipt delivery precedes thread return by a few instructions. Keep
+        // ownership until return so a failed request cannot overlap its retry.
+        if !self.reap_finished() {
+            return Poll::Pending;
         }
         let result = self.receiver.lock().map(|receiver| receiver.try_recv());
         match result {
@@ -208,6 +247,17 @@ mod tests {
         release.send(()).unwrap();
         active.worker.take().unwrap().join().unwrap();
         assert!(matches!(active.poll(9), Poll::Cancelled));
+    }
+
+    #[test]
+    fn cancelled_queued_result_is_returned_only_for_retirement() {
+        let mut job = Job::start(7, |_| Ok(42)).unwrap();
+        job.worker.take().unwrap().join().unwrap();
+        job.cancel();
+        assert!(matches!(job.poll(8), Poll::Cancelled));
+        assert!(matches!(job.retire(), Retirement::Done(Some(42))));
+        assert!(matches!(job.retire(), Retirement::Done(None)));
+        assert!(matches!(job.poll(7), Poll::Cancelled));
     }
 
     #[test]

@@ -395,7 +395,11 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
             }
             return Ok(());
         }
-        AssetsCommand::NifSourcePoseSet { input, request } => {
+        AssetsCommand::NifSourcePoseSet {
+            input,
+            request,
+            prepared,
+        } => {
             if let Some(path) = output {
                 let parent = path
                     .parent()
@@ -407,6 +411,14 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if prepared {
+                let report = nif_animation_inspection::inspect_prepared_pose_set(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("prepared source pose set refused; see report".into());
+                }
+                return Ok(());
             }
             let report = nif_animation_inspection::inspect_pose_set(&input, &request)?;
             emit(&report, output, &input)?;

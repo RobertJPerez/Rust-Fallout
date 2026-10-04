@@ -19,6 +19,8 @@ pub(crate) enum AssetsCommand {
         input: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        #[arg(long)]
+        prepared: bool,
     },
     /// Prepare one exact source once and sample an explicit bounded time list.
     NifSourcePoseBatch {

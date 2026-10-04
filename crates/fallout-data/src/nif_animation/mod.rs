@@ -1,6 +1,8 @@
 //! Bounded authored animation framing. Source bits/links remain exact; clocks,
 //! event delivery, interpolation, external name binding and poses are unverified.
+pub mod attachment;
 pub mod boolean;
+pub mod clip;
 mod families;
 pub mod keyframe;
 pub mod pose;
@@ -45,7 +47,7 @@ pub struct Controller {
     pub target: Option<u32>,
     pub interpolator: Option<u32>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ControlledBlock {
     pub interpolator: Option<u32>,
     pub controller: Option<u32>,
@@ -56,7 +58,7 @@ pub struct ControlledBlock {
     pub controller_id: Option<u32>,
     pub interpolator_id: Option<u32>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "layout", rename_all = "snake_case")]
 pub enum NoteLinks {
     Absent,

@@ -4,6 +4,9 @@ use crate::{Error, Limits, Result, World, snapshot::Snapshot, state::DefinitionS
 use fallout_data::loaded_scripts::ScriptKey;
 use std::{collections::BTreeMap, sync::Arc};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Default)]
 pub(super) struct SourceValidation {
     definitions: BTreeMap<ScriptKey, (String, Arc<DefinitionSchema>)>,

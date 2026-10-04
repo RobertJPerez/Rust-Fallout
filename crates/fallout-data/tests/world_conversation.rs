@@ -446,6 +446,9 @@ fn repeated_script_roles_and_orphan_subtitles_stay_explicit() {
         response(0, 0, b"kept\0"),
         script(),
         script(),
+        field(b"NEXT", &[]),
+        script(),
+        script(),
     ]
     .concat();
     fs::write(
@@ -479,6 +482,198 @@ fn repeated_script_roles_and_orphan_subtitles_stay_explicit() {
             .fragments
             .iter()
             .all(|fragment| fragment.resolve(&catalogue).is_err())
+    );
+    assert_eq!(prepared.metadata().fragments.len(), 4);
+    assert_eq!(
+        prepared.metadata().fragments[2].role(),
+        Some(OwnerKind::DialogueEnd)
+    );
+}
+
+#[test]
+fn maximum_conversation_response_consumer_preserves_every_authored_field() {
+    use sha2::{Digest, Sha256};
+    let directory = tempfile::tempdir().unwrap();
+    fixture(directory.path());
+    let limits = Limits::default();
+    let responses = limits.sections - 1;
+    let mut payload = [
+        field(b"DATA", &[0, 7, 0, 0]),
+        field(b"TPIC", &0x100_u32.to_le_bytes()),
+    ]
+    .concat();
+    for _ in 0..6 {
+        payload.extend(field(b"NAM1", b"unassigned\0"));
+    }
+    for i in 0..responses {
+        let text = [i.to_le_bytes().as_slice(), &[0, 0xe9, 0]].concat();
+        payload.extend(response((i.wrapping_mul(73) % 256) as u8, 0, &text));
+        for slot in 1..7 {
+            payload.extend(field(
+                b"NAM1",
+                &[i.to_le_bytes().as_slice(), &[slot, 0xe9, 0]].concat(),
+            ));
+        }
+    }
+    fs::write(
+        directory.path().join("Patch.esp"),
+        [
+            header(&["Base.esm"]),
+            group(0x100, &record(b"INFO", 0x300, 0, &payload)),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut store = open(directory.path(), &["Base.esm", "Patch.esp"]);
+    let sources = DialogueSources::build(&mut store, limits).unwrap();
+    let request = sources.request(key(0x100), key(0x300), None).unwrap();
+    let start = std::time::Instant::now();
+    let prepared = sources
+        .prepare(&mut store, &request, &Signatures::new(), limits)
+        .unwrap();
+    let elapsed = start.elapsed();
+    let metadata = prepared.metadata();
+    assert_eq!(metadata.info_fields.len(), limits.fields);
+    assert_eq!(metadata.info_sections.len(), limits.sections);
+    assert_eq!(metadata.responses.len(), responses);
+    for (i, response) in metadata.responses.iter().enumerate() {
+        assert_eq!(response.section, i + 1);
+        assert_eq!(response.number, (i.wrapping_mul(73) % 256) as u8);
+        assert_eq!(response.fields.len(), 8);
+        assert_eq!(metadata.info_fields[response.fields[0]].kind, *b"TRDT");
+        assert_eq!(
+            metadata.info_fields[response.fields[0]].header_decoded_offset,
+            response.marker_decoded_offset
+        );
+        for slot in 0..7 {
+            let expected = [i.to_le_bytes().as_slice(), &[slot, 0xe9, 0]].concat();
+            assert_eq!(
+                prepared.subtitle_bytes(i, slot as usize),
+                Some(expected.as_slice())
+            );
+            assert_eq!(
+                metadata.info_fields[response.fields[slot as usize + 1]].owner_section,
+                Some(i + 1)
+            );
+        }
+        assert!(prepared.subtitle_bytes(i, 7).is_none());
+    }
+    assert_eq!(prepared.info_bytes(2), Some(b"unassigned\0".as_slice()));
+    assert_eq!(metadata.info_fields[2].owner_section, None);
+    assert_eq!(metadata.info_findings.len(), 6);
+    let serialized = serde_json::to_vec(metadata).unwrap();
+    println!(
+        "maximum-response-consumer: {} fields, {} responses; prepare_us={}; metadata_sha256={:x}",
+        limits.fields,
+        responses,
+        elapsed.as_micros(),
+        Sha256::digest(serialized)
+    );
+    assert!(
+        sources
+            .prepare(
+                &mut store,
+                &request,
+                &Signatures::new(),
+                Limits {
+                    fields: limits.fields - 1,
+                    ..limits
+                }
+            )
+            .is_err()
+    );
+    assert!(
+        sources
+            .prepare(
+                &mut store,
+                &request,
+                &Signatures::new(),
+                Limits {
+                    sections: limits.sections - 1,
+                    ..limits
+                }
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn maximum_conversation_fragment_consumer_keeps_repeated_roles_unavailable() {
+    use sha2::{Digest, Sha256};
+    let directory = tempfile::tempdir().unwrap();
+    fixture(directory.path());
+    // The root INFO section occupies one slot; each SCHR is a distinct section.
+    let scripts = Limits::default().sections - 1;
+    let mut payload = field(b"DATA", &[0, 7, 0, 0]);
+    for i in 0..scripts {
+        if i == scripts / 2 {
+            payload.extend(field(b"NEXT", &[]));
+        }
+        payload.extend(script());
+    }
+    fs::write(
+        directory.path().join("Patch.esp"),
+        [
+            header(&["Base.esm"]),
+            group(0x100, &record(b"INFO", 0x300, 0, &payload)),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut store = open(directory.path(), &["Base.esm", "Patch.esp"]);
+    let sources = DialogueSources::build(&mut store, Limits::default()).unwrap();
+    let request = sources.request(key(0x100), key(0x300), None).unwrap();
+    let start = std::time::Instant::now();
+    let prepared = sources
+        .prepare(&mut store, &request, &Signatures::new(), Limits::default())
+        .unwrap();
+    let elapsed = start.elapsed();
+    let fragments = &prepared.metadata().fragments;
+    assert_eq!(fragments.len(), scripts);
+    assert_eq!(
+        prepared.metadata().info_sections.len(),
+        Limits::default().sections
+    );
+    for (i, fragment) in fragments.iter().enumerate() {
+        let role = if i < scripts / 2 {
+            OwnerKind::DialogueBegin
+        } else {
+            OwnerKind::DialogueEnd
+        };
+        assert_eq!(fragment.role(), Some(role));
+        if i > 0 {
+            assert!(
+                fragment.key().header_decoded_offset > fragments[i - 1].key().header_decoded_offset
+            );
+        }
+    }
+    let serialized = serde_json::to_vec(prepared.metadata()).unwrap();
+    let projection: serde_json::Value = serde_json::from_slice(&serialized).unwrap();
+    assert!(
+        projection["fragments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|fragment| fragment["role_unique"].as_bool() == Some(false))
+    );
+    println!(
+        "maximum-fragment-consumer: {} scripts; prepare_us={}; metadata_sha256={:x}",
+        scripts,
+        elapsed.as_micros(),
+        Sha256::digest(serialized)
+    );
+    assert!(
+        sources
+            .prepare(
+                &mut store,
+                &request,
+                &Signatures::new(),
+                Limits {
+                    sections: Limits::default().sections - 1,
+                    ..Default::default()
+                }
+            )
+            .is_err()
     );
 }
 

@@ -56,9 +56,10 @@ Clippy with warnings denied, formatting and whitespace results belong to the
 corresponding handoff; the original 14-test handoff remains immutable.
 Exact commands, logs and hashes are recorded in the lane's local handoff receipt.
 
-Physical controller discovery requires Bevy's `bevy_gilrs` feature. Its manifest,
-lock and dependency provenance belong to the coordinator; the initial dependency
-request is presentation outbox sequence 2. Injected Bevy controller events alone
+Physical controller discovery uses Bevy's `bevy_gilrs` feature. The reviewed
+coordinator dependency enables the pinned Windows Gaming Input backend; its
+manifest, lock and notices are recorded in the controller-input decision.
+Injected Bevy controller events alone
 do not establish working hardware input. The manual window check could not run:
 the Computer Use native pipe was unavailable after its prescribed recovery.
 Physical keyboard/mouse/controller feel,

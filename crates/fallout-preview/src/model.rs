@@ -6,7 +6,7 @@ use bevy::{
     image::{
         CompressedImageFormats, ImageAddressMode, ImageSampler, ImageSamplerDescriptor, ImageType,
     },
-    mesh::Indices,
+    mesh::{Indices, VertexAttributeValues},
     prelude::*,
     render::render_resource::PrimitiveTopology,
 };
@@ -17,6 +17,7 @@ use fallout_data::{
         material::{MaterialData, texture_path},
     },
     vfs::AssetPath,
+    world::residency::ResidentTextures,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -49,6 +50,8 @@ pub struct Report {
     pub coordinates: &'static str,
     pub rendering: &'static str,
     pub retail_parity_accepted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_skin_pose: Option<Box<crate::pose::SkinSummary>>,
 }
 
 #[derive(Serialize)]
@@ -100,11 +103,48 @@ impl Textures {
             path,
             (256 * 1024 * 1024usize).saturating_sub(self.bytes) as u64,
         )?;
-        let image = decode_diffuse(&data, clamp)?;
+        self.load_bytes(path, clamp, &data)
+    }
+
+    /// A cached sampler is usable only if this exact source lease still admits
+    /// the path. Check the receipt and payload before consulting the cache.
+    fn load_resident(
+        &mut self,
+        sources: &ResidentTextures,
+        path: &AssetPath,
+        clamp: u32,
+    ) -> Result<usize> {
+        let receipt = sources.receipt()?;
+        let index = receipt
+            .requests
+            .binary_search_by(|request| request.path.cmp(path))
+            .map_err(|_| {
+                format!(
+                    "Texture {} is absent from resident plan {}",
+                    String::from_utf8_lossy(path.bytes()),
+                    receipt.identity
+                )
+            })?;
+        let data = sources.texture(index)?;
+        self.load_bytes(path, clamp, data)
+    }
+
+    fn load_bytes(&mut self, path: &AssetPath, clamp: u32, data: &[u8]) -> Result<usize> {
+        let key = (path.clone(), clamp);
+        if let Some(id) = self.ids.get(&key) {
+            return Ok(*id);
+        }
+        if self.images.len() >= 4096 {
+            return Err("scene texture budget exceeded".into());
+        }
+        if data.len() > (256 * 1024 * 1024usize).saturating_sub(self.bytes) {
+            return Err("scene texture byte budget exceeded".into());
+        }
+        let image = decode_diffuse(data, clamp)?;
         let size = image.texture_descriptor.size;
         self.evidence.push(TextureEvidence {
             path: path.clone(),
-            sha256: format!("{:x}", Sha256::digest(&data)),
+            sha256: format!("{:x}", Sha256::digest(data)),
             width: size.width,
             height: size.height,
             mip_levels: image.texture_descriptor.mip_level_count,
@@ -136,9 +176,70 @@ pub fn load(
     assets: &ArchiveAssets,
     path: &AssetPath,
     textures: &mut Textures,
+    skin: Option<crate::pose::SkinRequest>,
 ) -> Result<(Model, Report)> {
     let (_, bytes) = assets.read_unique(path)?;
-    let (index, scene) = nif_scene::decode(&bytes, &String::from_utf8_lossy(path.bytes()))?;
+    if let Some(request) = skin {
+        from_texture_source(
+            TextureInput::Archive(assets),
+            path,
+            &bytes,
+            textures,
+            Some(request),
+        )
+    } else {
+        from_bytes(assets, path, &bytes, textures)
+    }
+}
+
+/// Adapt already-read static model bytes with archived diffuse textures.
+/// CELL adaptation uses its retained texture lease through from_resident_bytes.
+pub fn from_bytes(
+    assets: &ArchiveAssets,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+) -> Result<(Model, Report)> {
+    from_texture_source(TextureInput::Archive(assets), path, bytes, textures, None)
+}
+
+/// CELL adaptation borrows both payloads from this generation's sealed leases.
+/// A missing resident texture is an error; it cannot trigger another archive read.
+pub fn from_resident_bytes(
+    sources: &ResidentTextures,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+) -> Result<(Model, Report)> {
+    sources.ticket().check()?;
+    from_texture_source(TextureInput::Resident(sources), path, bytes, textures, None)
+}
+
+#[derive(Clone, Copy)]
+enum TextureInput<'a> {
+    Archive(&'a ArchiveAssets),
+    Resident(&'a ResidentTextures),
+}
+impl TextureInput<'_> {
+    fn load(self, textures: &mut Textures, path: &AssetPath, clamp: u32) -> Result<usize> {
+        match self {
+            Self::Archive(assets) => textures.load(assets, path, clamp),
+            Self::Resident(sources) => textures.load_resident(sources, path, clamp),
+        }
+    }
+}
+
+fn from_texture_source(
+    input: TextureInput<'_>,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+    skin: Option<crate::pose::SkinRequest>,
+) -> Result<(Model, Report)> {
+    let selected_skin = skin
+        .map(|request| crate::pose::skin(bytes, &String::from_utf8_lossy(path.bytes()), request))
+        .transpose()?;
+    let (index, scene) = nif_scene::decode(bytes, &String::from_utf8_lossy(path.bytes()))?;
     let objects: BTreeMap<_, _> = scene.objects.iter().map(|v| (v.block, v)).collect();
     let worlds: BTreeMap<_, _> = scene
         .world_transforms
@@ -150,7 +251,7 @@ pub fn load(
     let mut report = Report {
         schema_version: 2,
         model: path.clone(),
-        model_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        model_sha256: format!("{:x}", Sha256::digest(bytes)),
         meshes: 0,
         vertices: 0,
         triangles: 0,
@@ -161,6 +262,7 @@ pub fn load(
         coordinates: "source units; [x, y, z] -> [x, z, -y]; source UVs unchanged",
         rendering: "unlit diffuse/vertex-color inspection with source alpha, culling and depth states; no retail lighting, effects, animation or collision parity",
         retail_parity_accepted: false,
+        source_skin_pose: None,
     };
     for (kind, blocks) in &scene.unsupported_blocks {
         report
@@ -172,6 +274,12 @@ pub fn load(
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = Vec3::splat(f32::NEG_INFINITY);
     for object in &scene.objects {
+        if selected_skin
+            .as_ref()
+            .is_some_and(|skin| skin.summary.geometry != object.block)
+        {
+            continue;
+        }
         let ObjectKind::Mesh {
             data: Some(data),
             skin,
@@ -184,7 +292,7 @@ pub fn load(
         if !world.reachable_from_footer {
             continue;
         }
-        if skin.is_some() {
+        if skin.is_some() && selected_skin.is_none() {
             report.warnings.push(format!(
                 "Skipped skinned mesh {}: skinning is not implemented",
                 object.block
@@ -242,31 +350,50 @@ pub fn load(
         if source.vertices.is_empty() || source.triangles.is_empty() {
             continue;
         }
-        let matrix = affine(world.matrix);
-        if !matrix.is_finite() || matrix.determinant().abs() < 1e-12 {
+        if let Some(skin) = &selected_skin
+            && (skin.summary.geometry_data != data
+                || skin.positions.len() != source.vertices.len()
+                || skin.normals.len() != source.normals.len())
+        {
+            return Err("Selected skin arrays differ from the exact source geometry".into());
+        }
+        // The pose adapter already applied palette deformation, source-world
+        // mapping and the view basis. Copy its arrays without applying the
+        // geometry owner's stored matrix again.
+        let matrix = selected_skin
+            .as_ref()
+            .map_or_else(|| affine(world.matrix), |skin| skin.world);
+        let determinant = matrix.determinant();
+        if !matrix.is_finite() || !determinant.is_finite() || determinant.abs() < 1e-12 {
             return Err(format!(
                 "mesh {} has a singular or unrepresentable transform",
                 object.block
             )
             .into());
         }
-        let positions: Vec<[f32; 3]> = source
-            .vertices
-            .iter()
-            .map(|v| {
-                let p = basis(matrix.transform_point3(Vec3::from_array(*v)));
-                min = min.min(p);
-                max = max.max(p);
-                p.to_array()
-            })
-            .collect();
+        let positions: Vec<[f32; 3]> = if let Some(skin) = &selected_skin {
+            skin.positions.clone()
+        } else {
+            source
+                .vertices
+                .iter()
+                .map(|v| {
+                    let p = basis(matrix.transform_point3(Vec3::from_array(*v)));
+                    p.to_array()
+                })
+                .collect()
+        };
         if positions.iter().flatten().any(|v| !v.is_finite()) {
             return Err("preview positions overflowed f32".into());
+        }
+        for &point in &positions {
+            min = min.min(Vec3::from_array(point));
+            max = max.max(Vec3::from_array(point));
         }
         let mut indices = Vec::with_capacity(source.triangles.len() * 3);
         for triangle in &source.triangles {
             let [a, b, c] = triangle.map(u32::from);
-            indices.extend(if matrix.determinant() < 0. {
+            indices.extend(if determinant < 0. {
                 [a, c, b]
             } else {
                 [a, b, c]
@@ -278,7 +405,11 @@ pub fn load(
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
         .with_inserted_indices(Indices::U32(indices));
-        if !source.normals.is_empty() {
+        if let Some(skin) = &selected_skin {
+            if !skin.normals.is_empty() {
+                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, skin.normals.clone());
+            }
+        } else if !source.normals.is_empty() {
             let normal_matrix = matrix.inverse().transpose();
             let normals: Vec<[f32; 3]> = source
                 .normals
@@ -292,6 +423,23 @@ pub fn load(
             mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         } else {
             mesh.compute_smooth_normals();
+        }
+        if let Some(skin) = &selected_skin {
+            let Some(VertexAttributeValues::Float32x3(positions)) =
+                mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            else {
+                return Err("Selected skin draw position attribute is unavailable".into());
+            };
+            let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL) {
+                Some(VertexAttributeValues::Float32x3(normals)) => normals.as_slice(),
+                None if skin.normals.is_empty() => &[],
+                _ => return Err("Selected skin draw normal attribute is unavailable".into()),
+            };
+            if crate::pose::draw_hash(positions) != skin.summary.draw_positions_sha256
+                || crate::pose::draw_hash(normals) != skin.summary.draw_normals_sha256
+            {
+                return Err("Selected skin draw attributes differ from the source pose".into());
+            }
         }
         if let Some(uvs) = source.uv_sets.first() {
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs.clone());
@@ -387,7 +535,7 @@ pub fn load(
             if source.uv_sets.is_empty() {
                 return Err(format!("textured mesh {} has no UVs", object.block).into());
             }
-            let id = textures.load(assets, &path, clamp)?;
+            let id = input.load(textures, &path, clamp)?;
             used_textures.insert(id);
             Some(id)
         } else if untextured {
@@ -426,7 +574,15 @@ pub fn load(
         report.triangles += source.triangles.len();
     }
     if parts.is_empty() {
+        if selected_skin.is_some() {
+            return Err("selected source skin has no supported visible triangle mesh".into());
+        }
         return Err("model has no supported visible, unskinned triangle meshes".into());
+    }
+    if let Some(skin) = selected_skin {
+        report.schema_version = 3;
+        report.source_skin_pose = Some(Box::new(skin.summary));
+        report.rendering = "unlit exact selected source-local skin; source-world map once; raw weights/linear normals, controllers and original playback unapplied; no retail parity";
     }
     report.bounds = [min.to_array(), max.to_array()];
     report.textures = used_textures
@@ -565,3 +721,6 @@ mod tests {
         assert_eq!(front, Vec3::Y);
     }
 }
+
+#[cfg(test)]
+mod resident_tests;

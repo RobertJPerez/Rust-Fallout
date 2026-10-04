@@ -12,11 +12,32 @@ use fallout_data::{
     world,
 };
 use serde::Serialize;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+
+pub struct CellSources {
+    pub owner: Mutex<world::residency::CellResidency>,
+    pub ticket: world::residency::Ticket,
+    // Keep the complete resource-bearing plan/payload lease through decode,
+    // GPU staging and admission. Never detach a clone of sources.plan().
+    pub sources: Arc<world::residency::ResidentSources>,
+    pub textures: Arc<world::residency::ResidentTextures>,
+}
 
 #[derive(Component, Clone)]
 pub struct ReferenceView {
     pub key: FormKey,
+}
+
+impl ReferenceView {
+    pub fn label(&self) -> String {
+        format!("{}:{:06X}", self.key.origin_plugin, self.key.local_id)
+    }
 }
 
 pub struct Instance {
@@ -81,12 +102,17 @@ pub struct CellReport {
     pub rendering: &'static str,
     pub runtime_ready: bool,
     pub retail_parity_accepted: bool,
+    pub source_residency: world::residency::Snapshot,
 }
 
-pub fn load_model(install: &Path, path: &AssetPath) -> Result<(Prepared, Report)> {
+pub fn load_model(
+    install: &Path,
+    path: &AssetPath,
+    skin: Option<crate::pose::SkinRequest>,
+) -> Result<(Prepared, Report)> {
     let assets = ArchiveAssets::open_nv(install)?;
     let mut textures = Textures::default();
-    let (model, report) = model::load(&assets, path, &mut textures)?;
+    let (model, report) = model::load(&assets, path, &mut textures, skin)?;
     let prepared = Prepared {
         center: model.center,
         radius: model.radius,
@@ -102,7 +128,13 @@ pub fn load_model(install: &Path, path: &AssetPath) -> Result<(Prepared, Report)
     Ok((prepared, Report::Model(report)))
 }
 
-pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(Prepared, Report)> {
+pub fn load_cell(
+    install: &Path,
+    order_path: &Path,
+    editor_id: &str,
+    context: &crate::loading::Context,
+) -> Result<(Prepared, Report, CellSources)> {
+    context.stage("Opening original plugin headers and archive indices")?;
     let names: Vec<String> = serde_json::from_reader(baseline::open_source(order_path)?)?;
     let mut store =
         RecordStore::open_nv_headers(&install.join("Data"), &names, plugin::Limits::default())?;
@@ -117,6 +149,87 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
     if cell.references.len() > 10_000 {
         return Err("cell reference budget exceeded".into());
     }
+    context.stage("Sealing source CELL model requests")?;
+    let plan = world::preparation::CellModelPlan::load(
+        &mut store,
+        &cell.key,
+        assets.mounts(),
+        Default::default(),
+    )?;
+    context.check()?;
+    let mut owner = world::residency::CellResidency::new(
+        install,
+        None,
+        world::residency::Limits {
+            workers: 1,
+            ..Default::default()
+        },
+    )?;
+    let ticket = owner.request(plan)?;
+    loop {
+        context.check()?;
+        let snapshot = owner.poll()?;
+        context.stage(format!(
+            "Loading CELL models: {}/{}",
+            snapshot.completed_models, snapshot.requested_models
+        ))?;
+        if snapshot.stage == world::residency::Stage::Decoded {
+            break;
+        }
+        // This wait is confined to the single host worker. Window polls remain
+        // nonblocking; ResourceJobs owns extraction and cancellation boundaries.
+        thread::sleep(Duration::from_millis(5));
+    }
+    let sources = owner.sources(&ticket)?;
+    context.stage("Sealing captured CELL texture requests")?;
+    let texture_plan =
+        world::residency::TexturePlan::load(sources.clone(), assets.mounts(), Default::default())?;
+    context.check()?;
+    owner.request_textures(&ticket, texture_plan)?;
+    let resident_textures = loop {
+        context.check()?;
+        ticket.check()?;
+        let snapshot = owner.poll()?;
+        context.stage(format!(
+            "Loading CELL textures: {}/{}",
+            snapshot.completed_textures, snapshot.requested_textures
+        ))?;
+        match snapshot.texture_state {
+            world::residency::TextureState::Decoded => {
+                break owner.texture_sources(&ticket)?;
+            }
+            world::residency::TextureState::Unsupported => {
+                let captured = owner.texture_sources(&ticket)?;
+                let receipt = captured.receipt()?;
+                let failures: Vec<_> = receipt
+                    .usages
+                    .iter()
+                    .filter(|usage| usage.error.is_some() || usage.candidates.len() != 1)
+                    .take(3)
+                    .map(|usage| {
+                        let path: String = String::from_utf8_lossy(&usage.raw_path)
+                            .chars()
+                            .take(160)
+                            .collect();
+                        format!(
+                            "{path}: {}",
+                            usage.error.clone().unwrap_or_else(|| {
+                                format!("{} source candidates", usage.candidates.len())
+                            })
+                        )
+                    })
+                    .collect();
+                return Err(format!(
+                    "Captured CELL texture dependencies are unresolved ({} usages; plan {}): {}",
+                    receipt.missing_or_ambiguous,
+                    receipt.identity,
+                    failures.join("; ")
+                )
+                .into());
+            }
+            _ => thread::sleep(Duration::from_millis(5)),
+        }
+    };
     let mut plugin_sha256 = BTreeMap::new();
     for name in &names {
         plugin_sha256.insert(
@@ -186,6 +299,11 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
     let mut triangles = 0usize;
     let mut mesh_instances = 0usize;
     for (path, uses) in selected {
+        context.stage(format!(
+            "Decoding {}",
+            String::from_utf8_lossy(path.bytes())
+        ))?;
+        ticket.check()?;
         eprintln!("Preparing {}", String::from_utf8_lossy(path.bytes()));
         let mut inspection = ModelInspection {
             path: path.clone(),
@@ -193,7 +311,19 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
             report: None,
             error: None,
         };
-        match model::load(&assets, &path, &mut textures) {
+        let request = sources
+            .plan()?
+            .receipt()
+            .requests
+            .iter()
+            .position(|request| request.path == path)
+            .ok_or("Selected render model is absent from sealed residency requests")?;
+        match model::from_resident_bytes(
+            &resident_textures,
+            &path,
+            sources.model(request)?,
+            &mut textures,
+        ) {
             Ok((model, report)) => {
                 let geometry_bytes =
                     (vertices + report.vertices) * 64 + (triangles + report.triangles) * 12;
@@ -254,8 +384,16 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
     }
     let center = (min + max) * 0.5;
     let radius = (max - min).length().max(1.) * 0.5;
+    context.check()?;
+    ticket.check()?;
+    // Captured texture closure is complete; draw readiness still describes the
+    // displayed static subset. The report retains every omission; actor models,
+    // original shaders, collision and behavior do not become simulation-ready.
+    owner.report_dependencies(&ticket, world::residency::Readiness::Ready)?;
+    owner.report_collision(&ticket, world::residency::Readiness::Unsupported)?;
+    owner.report_behavior(&ticket, world::residency::Readiness::Unsupported)?;
     let report = CellReport {
-        schema_version: 2,
+        schema_version: 3,
         cell,
         load_order: names,
         load_order_sha256: baseline::digest_file(order_path)?.1,
@@ -274,6 +412,7 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
         rendering: "unlit static views with source alpha, culling and depth states; model failures and omitted references retained; no retail lighting/effects or collision parity",
         runtime_ready: false,
         retail_parity_accepted: false,
+        source_residency: owner.snapshot(),
     };
     Ok((
         Prepared {
@@ -285,6 +424,12 @@ pub fn load_cell(install: &Path, order_path: &Path, editor_id: &str) -> Result<(
             origin,
         },
         Report::Cell(Box::new(report)),
+        CellSources {
+            owner: Mutex::new(owner),
+            ticket,
+            sources,
+            textures: resident_textures,
+        },
     ))
 }
 

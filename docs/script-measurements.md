@@ -52,7 +52,10 @@ this importer: a supplied digest is an identity receipt, not authentication.
 
 JSON inputs are bounded to 4 MiB per manifest/capture, the profile receipt to
 1 MiB, and the executable metadata input to 64 MiB. Production comparison bounds
-steps, operand words and local writes separately. Strict serde fields reject
+steps, all numeric words and local writes separately. The 65,536-word ceiling
+applies per manifest/capture and includes operands, return values and local-write
+values; the separate 4,096-write ceiling still applies. Supplied captures receive
+these structural checks even when the other capture is missing. Strict serde fields reject
 unknown or duplicate struct fields. These are admission bounds, not a total heap
 or decompression CPU measurement.
 

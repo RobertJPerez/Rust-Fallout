@@ -41,6 +41,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) explicit_subject: Option<std::num::NonZeroU64>,
     pub(super) engineering_observation: bool,
     pub(super) condition_executable: Option<&'a Path>,
+    pub(super) include_faction_requests: bool,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -103,11 +104,34 @@ pub(super) fn package_context(
         packages::Limits::default(),
     )?;
     let (snapshot_bytes, snapshot_sha256) = baseline::digest_file(options.snapshot)?;
-    Ok(json!({"schema_version":1,"profile":"nv-original",
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
         "snapshot_input":{"bytes":snapshot_bytes,"sha256":snapshot_sha256},
         "descriptor_receipt":{"source_bytes":descriptors.source_bytes,"source_sha256":descriptors.source_sha256,
             "source_version_profile":descriptors.source_version_profile},
-        "observation":observation,"state_changed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}))
+        "observation":observation,"state_changed":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    if options.include_faction_requests {
+        use fallout_runtime::actor_rules::factions;
+        let faction_sources = actors::factions::Catalogue::load(&mut store, Default::default())?;
+        let faction_requests = factions::Requests::prepare(
+            &world,
+            &actors,
+            &associations,
+            &faction_sources,
+            options.actor_root,
+            factions::Limits::default(),
+        )?;
+        report["faction_requests"] = serde_json::to_value(
+            faction_requests.observe(
+                &world,
+                &content,
+                options
+                    .explicit_subject
+                    .map(fallout_runtime::identity::ReferenceId),
+                factions::Limits::default(),
+            )?,
+        )?;
+    }
+    Ok(report)
 }
 
 #[derive(Default)]

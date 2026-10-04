@@ -46,6 +46,21 @@ fn native() -> Vec<u8> {
 fn foreign() -> Vec<u8> {
     instruction(0x15, &[b'f', 1, 0, 6, 0, b'r', 1, 0, b'f', 1, 0])
 }
+// Authored postfix shape only: no arithmetic or evaluation-order claim.
+fn nested_local_expression(reads: usize) -> Vec<u8> {
+    assert!((1..=10_000).contains(&reads));
+    let mut expression = vec![b'f', 1, 0];
+    for _ in 1..reads {
+        expression.extend([b' ', b'f', 1, 0, b' ', b'+']);
+    }
+    let payload = [
+        &[b'f', 1, 0][..],
+        &(expression.len() as u16).to_le_bytes(),
+        &expression,
+    ]
+    .concat();
+    instruction(0x15, &payload)
+}
 type Unit = (u32, Vec<u8>, Vec<u32>);
 fn fixture(units: &[Unit], other: Vec<Vec<u8>>) -> (tempfile::TempDir, Catalogue, Attachments) {
     let directory = tempfile::tempdir().unwrap();
@@ -55,7 +70,12 @@ fn fixture(units: &[Unit], other: Vec<Vec<u8>>) -> (tempfile::TempDir, Catalogue
         let original = unit(&[(1, 0)], &refs);
         let mut source = original[..26].to_vec();
         source[14..18].copy_from_slice(&(body.len() as u32).to_le_bytes());
-        source.extend(field(b"SCDA", body));
+        if body.len() > u16::MAX as usize {
+            source.extend(field(b"XXXX", &(body.len() as u32).to_le_bytes()));
+            source.extend([b"SCDA".as_slice(), &0_u16.to_le_bytes(), body].concat());
+        } else {
+            source.extend(field(b"SCDA", body));
+        }
         source.extend(&original[46..]);
         records.push(record(b"SCPT", *id, 0, &source));
     }
@@ -226,6 +246,7 @@ fn exact_resource_limits_succeed_and_one_less_never_returns_a_partial_graph() {
         maximum_definitions: 2,
         maximum_dependencies: 2,
         maximum_instructions: 6,
+        maximum_operand_uses: 2,
     };
     assert_eq!(
         check(&sources, &attachments, &roots[..1], limits)
@@ -268,6 +289,77 @@ fn exact_resource_limits_succeed_and_one_less_never_returns_a_partial_graph() {
             matches!(check(&sources,&attachments,&roots[..1],limits),Err(Error::Capacity(name)) if name==label)
         );
     }
+}
+
+#[test]
+fn own_local_nested_expressions_debit_a_global_admission_work_budget_with_exact_sites() {
+    let (_directory, catalogue, attachments) = fixture(
+        &[
+            (0x300, event(&nested_local_expression(8)), vec![]),
+            (0x301, event(&nested_local_expression(8)), vec![]),
+        ],
+        vec![],
+    );
+    let sources = prepared(&catalogue);
+    let roots = root_handles(&catalogue);
+    for root in &roots {
+        let plan = sources.get(root).unwrap().plan();
+        assert_eq!(plan.bindings().uses.len(), 9);
+        assert_eq!(plan.nodes(), 15);
+        assert_eq!(&plan.control().bytes()[59..62], &[b'f', 1, 0]);
+    }
+    let limits = Limits {
+        maximum_roots: 3,
+        maximum_definitions: 2,
+        maximum_dependencies: 0,
+        maximum_instructions: 6,
+        maximum_operand_uses: 17,
+    };
+    let result = check(&sources, &attachments, &roots, limits);
+    let Err(Error::OperandUseBudget {
+        definition,
+        source_scda_offset,
+    }) = result
+    else {
+        panic!("own-local uses bypassed total admission work ceiling");
+    };
+    assert_eq!(*definition, roots[1]);
+    assert_eq!(source_scda_offset, 60); // eighth RHS local index in authored bytes
+    let result = check(
+        &sources,
+        &attachments,
+        &[roots[1].clone(), roots[0].clone(), roots[0].clone()],
+        limits,
+    );
+    assert!(
+        matches!(result,Err(Error::OperandUseBudget{definition,source_scda_offset:60}) if *definition==roots[1])
+    );
+    let report = check(
+        &sources,
+        &attachments,
+        &roots,
+        Limits {
+            maximum_operand_uses: 18,
+            ..limits
+        },
+    )
+    .unwrap();
+    assert_eq!(report.definitions, roots);
+    assert!(report.dependencies.is_empty() && report.dependency_findings.is_empty());
+    assert_eq!(report.first_unsupported.source_scda_offset, Some(10));
+    assert!(!report.faithful_execution_admitted);
+    let result = check(
+        &sources,
+        &attachments,
+        &roots[..1],
+        Limits {
+            maximum_operand_uses: 0,
+            ..limits
+        },
+    );
+    assert!(
+        matches!(result,Err(Error::OperandUseBudget{definition,source_scda_offset:15}) if *definition==roots[0])
+    );
 }
 
 #[test]
@@ -338,6 +430,102 @@ fn cached_source_rejections_retain_the_first_exact_failure_without_reparsing() {
         assert_eq!(report.first_unsupported.source_scda_offset, Some(10));
         assert!(!report.faithful_execution_admitted);
         assert_eq!(sources.counts().preparation_attempts, attempts);
+    }
+}
+
+#[test]
+#[ignore = "built CLI and authored metadata inputs; source work bounds, no original launch"]
+fn cli_operand_use_budget_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("input"));
+    let evidence = std::path::PathBuf::from(
+        std::env::var_os("RF_SCRIPT_OPERAND_BUDGET_EVIDENCE").expect("evidence"),
+    );
+    fs::create_dir(&evidence).unwrap();
+    for (name, last_reads, total) in [("exact", 5529, 65536), ("one-over", 5530, 65537)] {
+        let mut middle = Vec::new();
+        for _ in 0..6 {
+            middle.extend(nested_local_expression(10_000));
+        }
+        middle.extend(nested_local_expression(last_reads));
+        let (_temporary, catalogue, _attachments) =
+            fixture(&[(0x300, event(&middle), vec![])], vec![]);
+        let sources = prepared(&catalogue);
+        let roots = root_handles(&catalogue);
+        let plan = sources.get(&roots[0]).unwrap().plan();
+        assert_eq!(plan.bindings().uses.len(), total);
+        let expected_cutoff = plan.bindings().uses.get(65536).map(|use_| use_.scda_offset);
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let install = directory.join("authored-source-copy");
+        fs::create_dir(&install).unwrap();
+        fs::create_dir(install.join("Data")).unwrap();
+        fs::copy(
+            _temporary.path().join("FalloutNV.esm"),
+            install.join("Data/FalloutNV.esm"),
+        )
+        .unwrap();
+        fs::copy(
+            input.join("authored-source-copy/FalloutNV.exe"),
+            install.join("FalloutNV.exe"),
+        )
+        .unwrap();
+        let order = directory.join("order.json");
+        fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+        let request = serde_json::json!({"schema_version":1,"source_cohort_sha256":sources.source_cohort_sha256(),"roots":roots});
+        let request_path = directory.join("request.json");
+        fs::write(&request_path, serde_json::to_vec_pretty(&request).unwrap()).unwrap();
+        let report_path = directory.join("report.json");
+        let output = std::process::Command::new(&cli)
+            .args(["source-plans", "--install"])
+            .arg(&install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg("--execution-admission")
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        fs::write(
+            directory.join("source-shape.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+            "scope":"authored_structural_work_budget_only","operand_uses":total,
+            "instructions":plan.control().instructions().len(),"nodes":plan.nodes(),
+            "first_excluded_scda_offset":expected_cutoff,"original_executed":false}))
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(!output.status.success()); // Faithful arithmetic is unmeasured.
+        if name == "exact" {
+            let report: serde_json::Value =
+                serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+            assert_eq!(
+                report["execution_admission"]["first_unsupported"]["code"],
+                "unverified_assignment"
+            );
+            assert_eq!(
+                report["execution_admission"]["first_unsupported"]["source_scda_offset"],
+                10
+            );
+            assert_eq!(
+                report["execution_admission"]["faithful_execution_admitted"],
+                false
+            );
+            assert!(
+                report["execution_admission"]["dependencies"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+        } else {
+            assert!(!report_path.exists());
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains("operand-use budget exceeded"), "{stderr}");
+            assert!(stderr.contains(&format!("SCDA operand 0x{:X}", expected_cutoff.unwrap())));
+        }
     }
 }
 

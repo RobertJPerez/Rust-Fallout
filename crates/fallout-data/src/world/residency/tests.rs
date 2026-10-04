@@ -14,6 +14,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod textures;
+
 struct Release(Arc<Pause>);
 impl Drop for Release {
     fn drop(&mut self) {
@@ -56,6 +58,9 @@ fn setup(count: usize, missing: bool) -> (Fixture, CellModelPlan, Vec<u8>) {
         nif.extend(value.to_le_bytes());
     }
     nif.extend([0; 21]);
+    setup_payload(count, missing, nif)
+}
+fn setup_payload(count: usize, missing: bool, nif: Vec<u8>) -> (Fixture, CellModelPlan, Vec<u8>) {
     let fixture = Fixture::new(&nif, true);
     let mut esm = record(
         b"TES4",
@@ -187,6 +192,19 @@ fn drained(owner: &mut CellResidency) {
     assert_eq!(owner.snapshot().pinned_source_bytes, 0);
 }
 
+fn ready(owner: &mut CellResidency, ticket: &Ticket) {
+    if owner.textures.is_none() {
+        let plan = TexturePlan::load(
+            owner.sources(ticket).unwrap(),
+            &MountIndex::default(),
+            Default::default(),
+        )
+        .unwrap();
+        owner.request_textures(ticket, plan).unwrap();
+    }
+    owner.report_dependencies(ticket, Readiness::Ready).unwrap();
+}
+
 #[test]
 fn source_batch_over_eight_feeds_existing_decoder_then_separate_readiness() {
     let (fixture, plan, nif) = setup(12, false);
@@ -215,9 +233,7 @@ fn source_batch_over_eight_feeds_existing_decoder_then_separate_readiness() {
             .is_err()
     );
     assert_eq!(calls, 0);
-    owner
-        .report_dependencies(&ticket, Readiness::Ready)
-        .unwrap();
+    ready(&mut owner, &ticket);
     assert_eq!(owner.snapshot().stage, Stage::DependenciesReady);
     owner
         .publish_render(&ticket, || {
@@ -332,7 +348,7 @@ fn admission_foreign_owner_and_missing_coverage_do_not_activate() {
         b.report_collision(&at, Readiness::Ready),
         Err(JobError::Invalid(_))
     ));
-    a.report_dependencies(&at, Readiness::Ready).unwrap();
+    ready(&mut a, &at);
     assert!(
         a.publish_render::<()>(&at, || Err(JobError::Invalid(
             "GPU admission failed".into()
@@ -344,7 +360,7 @@ fn admission_foreign_owner_and_missing_coverage_do_not_activate() {
     let mut missing = owner(&missing_fixture, 1, nif.len());
     let mt = missing.request(missing_plan).unwrap();
     decoded(&mut missing);
-    missing.report_dependencies(&mt, Readiness::Ready).unwrap();
+    ready(&mut missing, &mt);
     missing.report_behavior(&mt, Readiness::Ready).unwrap();
     missing.report_collision(&mt, Readiness::Ready).unwrap();
     assert!(!missing.snapshot().complete_model_coverage);
@@ -448,9 +464,7 @@ fn publication_is_once_per_epoch_even_after_dependency_downgrade() {
     let mut owner = owner(&fixture, 1, nif.len());
     let ticket = owner.request(plan).unwrap();
     decoded(&mut owner);
-    owner
-        .report_dependencies(&ticket, Readiness::Ready)
-        .unwrap();
+    ready(&mut owner, &ticket);
     let mut calls = 0;
     assert!(
         owner
@@ -497,7 +511,7 @@ fn publication_is_once_per_epoch_even_after_dependency_downgrade() {
     let fresh = owner.retry().unwrap();
     assert!(!owner.snapshot().render_published);
     decoded(&mut owner);
-    owner.report_dependencies(&fresh, Readiness::Ready).unwrap();
+    ready(&mut owner, &fresh);
     assert!(
         owner
             .publish_render(&ticket, || {

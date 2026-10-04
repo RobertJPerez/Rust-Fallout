@@ -4,7 +4,7 @@ use fallout_data::{
     baseline,
     nif_animation::{self, Animation, Limits, boolean, keyframe, sampling, spline},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
@@ -80,6 +80,155 @@ pub struct PoseReport<E> {
     pub failures: usize,
     evaluation: Option<E>,
     error: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttachmentRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_attachment_sha256: [u8; 32],
+    node: u32,
+    node_name_bytes: Vec<u8>,
+    attachment_root: u32,
+    attachment_parent_to_node: fallout_data::nif_skin::pose::Affine,
+    source_policy: nif_animation::attachment::SourcePolicy,
+}
+#[derive(Serialize)]
+pub struct AttachmentReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    attachment: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    attachment_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::attachment::Evaluation>,
+    error: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_clip_sha256: [u8; 32],
+    object: u32,
+    node_name_bytes: Vec<u8>,
+    sequence: u32,
+    controlled_ordinal: usize,
+    source_time: f64,
+}
+#[derive(Serialize)]
+pub struct ClipReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    clip: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    clip_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::clip::Evaluation>,
+    error: Option<String>,
+}
+pub fn inspect_clip(skeleton: &Path, clip: &Path, request_path: &Path) -> Result<ClipReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: ClipRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 {
+        return Err("unsupported external clip request schema".into());
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let clip_bytes = attachment_input(clip, 64 * 1024 * 1024)?;
+    let evaluated = nif_animation::clip::evaluate(
+        &skeleton_bytes,
+        &clip_bytes,
+        &skeleton.display().to_string(),
+        nif_animation::clip::Request {
+            expected_skeleton_sha256: request.expected_skeleton_sha256,
+            expected_clip_sha256: request.expected_clip_sha256,
+            object: request.object,
+            node_name_bytes: &request.node_name_bytes,
+            sequence: request.sequence,
+            controlled_ordinal: request.controlled_ordinal,
+            source_time: request.source_time,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(result) => (Some(result), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ClipReport {
+        schema_version: 1,
+        contract: nif_animation::clip::CONTRACT,
+        skeleton: skeleton.into(),
+        clip: clip.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        clip_sha256: format!("{:x}", Sha256::digest(&clip_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+fn attachment_input(path: &Path, limit: u64) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    baseline::open_source(path)?
+        .take(limit + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err("rigid attachment input exceeds byte budget".into());
+    }
+    Ok(bytes)
+}
+pub fn inspect_attachment(
+    skeleton: &Path,
+    attachment: &Path,
+    request_path: &Path,
+) -> Result<AttachmentReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: AttachmentRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 {
+        return Err("unsupported rigid attachment request schema".into());
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let attachment_bytes = attachment_input(attachment, 64 * 1024 * 1024)?;
+    let evaluated = nif_animation::attachment::evaluate(
+        &skeleton_bytes,
+        &attachment_bytes,
+        &skeleton.display().to_string(),
+        nif_animation::attachment::Request {
+            expected_skeleton_sha256: request.expected_skeleton_sha256,
+            expected_attachment_sha256: request.expected_attachment_sha256,
+            node: request.node,
+            node_name_bytes: &request.node_name_bytes,
+            attachment_root: request.attachment_root,
+            attachment_parent_to_node: request.attachment_parent_to_node,
+            source_policy: request.source_policy,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(result) => (Some(result), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(AttachmentReport {
+        schema_version: 1,
+        contract: nif_animation::attachment::CONTRACT,
+        skeleton: skeleton.into(),
+        attachment: attachment.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        attachment_sha256: format!("{:x}", Sha256::digest(&attachment_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
 }
 
 pub fn inspect_pose(

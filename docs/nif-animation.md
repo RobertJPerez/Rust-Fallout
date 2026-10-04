@@ -1,5 +1,152 @@
 # NV animation source framing
 
+## V3-ASSET-02 exact external clip/skeleton pose
+
+`nif_animation::clip::evaluate` connects an explicitly selected controlled entry
+from one clip container to an explicitly selected node in a second skeleton
+container. Its contract is `engineering-exact-external-clip-pose-v1`. The caller
+supplies both expected SHA256 values, skeleton object ID/raw name bytes, clip
+sequence ID/controlled ordinal and finite binary64 source time. Coordinator
+outbox102 approved this source boundary: actors supplies record-specific choices;
+assets validates the binding/math; presentation applies selected transforms once.
+Equipment selection, scheduling and retail-time policy remain outside this API.
+
+Hashes are checked before source decoding/result allocation. Existing keyframe
+and scene decoders fresh-index their respective immutable sources. The selected
+skeleton object must be a decoded node with the exact caller name and that name
+must be unique among decoded skeleton nodes. The exact controlled packet must
+name the same bytes and declare `NiTransformController`. Initial external support
+requires no controller/property/controller-ID/interpolator-ID binding. Exact
+`NiTransformInterpolator` and authored `NiTransformData` links are mandatory;
+there is no guessed alternate object, name search or static-interpolator fallback.
+
+Rotation keys and spline orientation remain precise refusals. Translation/scale
+use the existing linear1/constant5 source sampler at caller time. Empty groups
+retain the corresponding authored NiAV component under the preceding ASSET03
+engineering rule. Raw interpolator constants/WXYZ words remain unapplied.
+Source NiAV rotation, sampled scale and translation produce the local affine;
+static ancestor locals produce source-world coordinates. Controlled ancestors,
+unknown scene edges and unreachable destinations refuse. Private component and
+ancestry helpers are shared with the preceding pose command; no duplicate parser
+or separate hierarchy implementation is added.
+
+Receipts bind both source hashes and correctly scoped object/sequence/interpolator/
+data spans, exact controlled packet/ordinal/name, original locals/flags, raw
+sequence clocks/weight/notes and interpolator fields, key diagnostics, static
+ancestry, matrices and logical budget usage. Object controller IDs are retained
+unapplied. Caller time is never remapped through frequency, phase, cycle, sequence
+weight or event annotations. `retail_behavior_verified` remains false.
+
+Admission inherits ASSET03's 64MiB source caps, 16,384 blocks, 32MiB scene/source
+logical arrays, 64MiB combined clip-key retention, one million respective key/
+sample/pose work allowances, 4MiB extra result/maps/name storage and 1,024 ancestry
+depth. Combined source input is additionally128MiB. Name uniqueness compares
+each stored skeleton string once into a bounded match table, then visits nodes;
+repeated name IDs cannot multiply long comparisons. Source string bytes are
+bounded by input, table entries by storage/work. Logical charges include temporary
+maps/tables and exclude allocator overhead/vector spare capacity; they are not a
+process-memory measurement.
+
+`fallout nif-clip-pose SKELETON CLIP --request REQUEST_JSON --output REPORT`
+reaches the production evaluator. Strict schema1 JSON requires SHA256 byte arrays,
+`object`, `node_name_bytes`, `sequence`, `controlled_ordinal` and `source_time`.
+It admits64KiB request JSON and64MiB per input, and protects every source/request
+tree before report publication. The coordinator's exact binary64 JSON feature
+commit `2a865269a09e6b6b2c599e9a6b85a54e96173aeb` is a consumed dependency;
+the owned draft was preserved across the clean boundary and restored byte-for-byte.
+
+All 21 focused data tests pass (nine new clip cases, twelve prior pose cases),
+with 38 CLI tests, affected-package all-target warnings-denied Clippy, formatting
+and build. `tools/nif-animation-oracle/check_clip.py` provides a second authored
+source pair. Frozen verification passes five independent literal poses, thirteen
+intended binding/time/source refusals and one prescribed binary64 transport word.
+All five preceding positive/refused pose receipts remain byte-identical, including
+their budgets, and selected original animation source schemas1/6 stay byte-identical.
+
+The actual preserved first-person pair is `meshes/characters/_1stperson/1gtaim.kf`
+(archive entry10446, SHA256
+`9fed7a15222c449f568e74daa0cafe98fc8acfda190d83262caa90883f5a4cc7`)
+and `_1stperson/skeleton.nif` (entry10514, SHA256
+`3fe5a3ef9718c8bff773b328c93bf6e522e85b16afd0de1b9af33cfba550b121`).
+Independent preserved native fields confirm sequence0/controlled1 -> interpolator2
+-> data3, raw `Bip01 Rotate` name equality and the unique skeleton node12. The
+source has XYZ rotation axes with quadratic2 keys; the bound request returns the
+exact sequence/ordinal/interpolator/data rotation refusal with no partial pose.
+This resolves source binding while retaining a real orientation coverage gap;
+it does not establish first-person retail playback. No corpus reinventory, retail
+input mutation or gameplay acceptance is implied. Evidence remains local in
+`local/v3-asset-02`, with original sources and frozen binaries unchanged.
+The first private consumer run passed its source/math checks but reused a loop
+variable when writing the summary's node-name field. That incorrect summary
+remains preserved. A fresh corrected run records the exact byte array and passes
+all comparisons without Rust, input or frozen executable changes.
+
+## V3-ASSET-10 exact rigid attachment from stored locals
+
+`nif_animation::attachment::evaluate` takes immutable skeleton and attachment
+containers, both expected SHA256 values, an exact skeleton node ID and raw name
+bytes, an exact attachment footer-root ID, caller affine placement and the
+explicit `StoredNiAvLocals` source policy. Its contract is
+`engineering-source-local-rigid-attachment-v1`. Expected hashes are checked
+before source decoding or additional result allocation. Existing `nif_scene`
+decodes both containers; assets supplies no second importer, socket lookup,
+actor/equipment selection or persistent pose authority.
+
+The selected skeleton object must be a decoded reachable node with the exact
+raw name. Explicit block identity resolves duplicate names; no search, case
+folding or string conversion changes the selection. The attachment object must
+be a decoded node and an exact parentless footer root. Unknown scene edges and
+unreachable objects refuse. The result retains the selected-node-to-footer
+path, root block spans/hashes, raw local transform words, flags and unapplied
+controller IDs. Stored source locals can already be animated; this request
+does not establish a bind pose, evaluate controllers or invent missing sockets.
+
+Let `N` be the selected skeleton node's stored source-world affine, `P` the
+explicit caller matrix from attachment source-parent axes to node axes, and
+`R` the attachment root's authored local. The result separately exposes:
+
+- `attachment_source_to_skeleton_source = N * P`, for attachment meshes whose
+  existing source-world transforms already include `R`.
+- `root_to_skeleton_source = N * P * R`, for coordinates local to the root.
+
+Both use original source axes/units and column-vector affine rows. The consumer
+applies the first mapping to existing source-world meshes once. Applying the
+second to those meshes repeats the root transform. Finite shear, reflection,
+nonuniform and zero forward placements are admitted without inverse,
+orthogonalization or normalization; nonfinite inputs and accumulated overflow
+refuse. Runtime/world placement and presentation coordinate conversion remain
+their respective consumers' explicit operations.
+
+Default source admission is 64MiB per container, 128MiB combined input, 16,384
+blocks and 32MiB logical scene arrays per container. Attachment additionally
+bounds result/maps/hash/name storage to 4MiB, source-list/map visits, ancestry
+and affine coefficients to one million work units, and skeleton path depth to
+1,024. Hash work is bounded by admitted input size. Logical charges exclude
+allocator overhead and vector spare capacity; they are not a process-memory
+measurement. Failed evaluations return no partial mapping and never mutate
+input. Whole-source hashes remain part of every successful receipt.
+
+`fallout nif-rigid-attachment SKELETON ATTACHMENT --request REQUEST_JSON
+--output REPORT` reaches the production API. Schema1 JSON requires both
+`expected_*_sha256` arrays of32 byte integers, `node`, `node_name_bytes`,
+`attachment_root`, the 3x4 `attachment_parent_to_node` matrix and
+`source_policy: "stored_ni_av_locals"`. Unknown/missing fields and unsupported
+schemas refuse. JSON is bounded to64KiB and inputs to64MiB each. Reports bind
+all three input hashes and cannot be created inside any source/request tree.
+The independent `tools/nif-animation-oracle/check_attachment.py` uses a second
+authored pair with literal noncommuting matrix expectations. All results retain
+`retail_behavior_verified: false`; saved equipment, animated sockets and retail
+first/third-person attachment behavior remain separate work.
+
+All 21 focused attachment/pose tests pass, including nine new attachment cases,
+with 36 CLI tests, affected-package all-target warnings-denied Clippy, formatting
+and build. The frozen independent consumer passes three different authored
+placements and twelve intended identity/name/root/schema/publication refusals.
+Inputs and frozen executable stay unchanged. One initial fixture compile error
+(`.5` instead of `0.5`) is preserved alongside the corrected passing check in
+`local/v3-asset-10`. This is a bounded engineering producer; authored agreement
+does not establish original equipment selection or visible retail animation.
+
 ## V3-ASSET-06 explicit-time local visibility
 
 `nif_animation::visibility::evaluate` connects the existing raw Boolean/key

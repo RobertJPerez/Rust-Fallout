@@ -126,6 +126,25 @@ Set `FALLOUT_FOREIGN_LIFECYCLE_EVIDENCE` to a new private directory to retain th
 authored plugin/load order, phase snapshots, native containers and cold receipts
 under a fresh `authored` subdirectory. Existing evidence is never overwritten.
 
+The schema-3 migration regression starts with a populated item bank, an explicit
+empty bank and an uninitialized bank. Explicit `migrate_v3` preserves item owner,
+script instance, ownership, condition bits and opaque bytes alongside both
+compiled foreign read sites and their pending contexts. Reference pose and enable
+state remain unavailable. Old script and item handles cannot name the restored
+state; the host reacquires handles from persistent IDs.
+
+The existing worker publishes pre- and post-mutation snapshots. Three fresh
+processes compare complete current/previous state, repeat static and dynamic
+foreign reads, and query the distinct inventory banks. Another campaign, an
+added plugin, and a body-only ACTI script-link change refuse without modifying
+the original repository. The body-only case preserves every winning header,
+compiled script record and declaration. Exact version handles still change
+because they include the whole source hash; the resolver and loader refuse them.
+The original schema-3 file and authored input remain unchanged. Set
+`FALLOUT_FOREIGN_MIGRATION_V3_EVIDENCE` to a new private directory when running
+`schema_three_foreign_migration_retains_existing_item_links_and_refuses_other_identity`
+to retain this separate engineering proof.
+
 The selected pinned references are
 [ResolveExternalVar and EventListFromForm/GetParentScript](https://github.com/xNVSE/NVSE/blob/0ccd23ad885ddae533c1790a3fc56cd073e38de3/nvse/nvse/GameAPI.cpp),
 lines 919-936 and 1964-2001,

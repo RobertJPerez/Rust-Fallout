@@ -96,6 +96,20 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Bind exact external source keys to one skeleton node; playback unverified.
+    NifClipPose {
+        skeleton: PathBuf,
+        clip: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
+    /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
+    NifRigidAttachment {
+        skeleton: PathBuf,
+        attachment: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Evaluate linked translation/scale at explicit source time; playback unverified.
     NifSourcePose {
         input: PathBuf,
@@ -259,6 +273,9 @@ enum Command {
         /// Exact pinned descriptor image, also usable with authored plugin fixtures.
         #[arg(long)]
         condition_executable: Option<PathBuf>,
+        /// Preserve authored SNAM/FACT relationship requests without live faction rules.
+        #[arg(long)]
+        include_faction_requests: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -385,6 +402,17 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+    },
+    /// Author bounded source fixtures and trace shape without original expectations.
+    ScriptFixture {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        profile_receipt: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
     },
     /// Compare imported semantic captures against exact prepared script sources.
     ScriptTrace {
@@ -1114,6 +1142,7 @@ fn run(args: Args) -> Result<()> {
             explicit_subject,
             engineering_observation,
             condition_executable,
+            include_faction_requests,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1125,6 +1154,7 @@ fn run(args: Args) -> Result<()> {
                     explicit_subject,
                     engineering_observation,
                     condition_executable: condition_executable.as_deref(),
+                    include_faction_requests,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
@@ -1282,6 +1312,20 @@ fn run(args: Args) -> Result<()> {
             if report["prepared_frames"] != report["pending_events_checked"] {
                 return Err("Pending events retain unresolved source findings; see report".into());
             }
+        }
+        Command::ScriptFixture {
+            install,
+            request,
+            profile_receipt,
+            destination,
+        } => {
+            let report = script_trace::fixtures::generate(
+                &install,
+                &request,
+                &profile_receipt,
+                &destination,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::ScriptTrace {
             install,
@@ -1807,6 +1851,53 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifClipPose {
+            skeleton,
+            clip,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for input in [&skeleton, &clip, &request] {
+                    if parent.starts_with(protected_tree(input)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_clip(&skeleton, &clip, &request)?;
+            emit(&report, output, &skeleton)?;
+            if report.failures != 0 {
+                return Err("external source clip pose refused; see report".into());
+            }
+        }
+        Command::NifRigidAttachment {
+            skeleton,
+            attachment,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for input in [&skeleton, &attachment, &request] {
+                    if parent.starts_with(protected_tree(input)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report =
+                nif_animation_inspection::inspect_attachment(&skeleton, &attachment, &request)?;
+            emit(&report, output, &skeleton)?;
+            if report.failures != 0 {
+                return Err("rigid source attachment refused; see report".into());
             }
         }
         Command::NifSourcePose {

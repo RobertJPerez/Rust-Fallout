@@ -12,7 +12,7 @@ use fallout_data::{
 use fallout_runtime::{
     World,
     events::{Context, Trigger},
-    execution::{copy_probe, local_copy, native, trace::*},
+    execution::{copy_probe, fixture as authored, local_copy, native, trace::*},
     foreign::Content,
     identity::{CampaignId, Owner, Value},
     programs::PreparedSources,
@@ -179,6 +179,87 @@ fn output() -> StepOutput {
         }],
         error: None,
     }
+}
+
+#[test]
+fn imported_word_budget_includes_outputs_and_returns_even_without_the_other_capture() {
+    let (_directory, catalogue, _) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let case = manifest(
+        plan,
+        sources.source_cohort_sha256(),
+        Operation::Assignment,
+        10,
+    );
+    let original = capture(&case, Producer::Original, output());
+    let replacement = capture(&case, Producer::Replacement, output());
+    let limits = Limits {
+        maximum_words: 1,
+        ..Default::default()
+    };
+    for (original, replacement) in [
+        (Some(&original), Some(&replacement)),
+        (Some(&original), None),
+        (None, Some(&replacement)),
+    ] {
+        assert!(matches!(
+            compare(&sources, &case, original, replacement, limits),
+            Err(Error::Capacity("observation words"))
+        ));
+    }
+    assert_eq!(
+        compare(
+            &sources,
+            &case,
+            Some(&original),
+            Some(&replacement),
+            Limits {
+                maximum_words: 2,
+                ..limits
+            }
+        )
+        .unwrap()
+        .status,
+        Status::Matched
+    );
+    let mut original = original;
+    let mut replacement = replacement;
+    // Comparison/import mechanics only: no assignment return semantics claim.
+    for capture in [&mut original, &mut replacement] {
+        capture.steps[0].output.return_value = Some(Word {
+            format: Format::Signed32,
+            bits: "80000000".into(),
+        });
+    }
+    assert!(matches!(
+        compare(
+            &sources,
+            &case,
+            Some(&original),
+            Some(&replacement),
+            Limits {
+                maximum_words: 2,
+                ..limits
+            }
+        ),
+        Err(Error::Capacity("observation words"))
+    ));
+    assert_eq!(
+        compare(
+            &sources,
+            &case,
+            Some(&original),
+            Some(&replacement),
+            Limits {
+                maximum_words: 3,
+                ..limits
+            }
+        )
+        .unwrap()
+        .status,
+        Status::Matched
+    );
 }
 
 #[test]
@@ -384,7 +465,7 @@ fn malformed_source_words_schemas_and_exact_limits_have_precise_refusals() {
     let replacement = capture(&manifest, Producer::Replacement, output());
     let limits = Limits {
         maximum_steps: 1,
-        maximum_words: 1,
+        maximum_words: 2,
         maximum_writes: 1,
     };
     assert_eq!(
@@ -853,6 +934,152 @@ fn copy_request() -> copy_probe::Request {
         ],
     }
 }
+fn authored_request(purpose: Operation) -> authored::Request {
+    authored::Request {
+        schema_version: 1,
+        purpose,
+        campaign: CampaignId::from_bytes([0x31; 16]).unwrap(),
+        activation: 1.try_into().unwrap(),
+        input: Value::Number {
+            bits: 0x8000000000000000,
+        },
+        destination_before: Value::Number {
+            bits: 0xc010000000000000,
+        },
+    }
+}
+#[test]
+fn authored_fixtures_round_trip_through_existing_store_plans_and_canonical_copy() {
+    for purpose in [Operation::Assignment, Operation::Conversion] {
+        let request = authored_request(purpose);
+        let artifact = authored::generate(&request, 4096).unwrap();
+        assert_eq!(artifact.compiled.len(), 30);
+        assert_eq!(&artifact.compiled[..4], &[0x1d, 0, 0, 0]);
+        assert_eq!(
+            artifact.compiled[18],
+            if purpose == Operation::Conversion {
+                b's'
+            } else {
+                b'f'
+            }
+        );
+        assert_eq!(
+            artifact.plugin_sha256,
+            format!("{:x}", Sha256::digest(&artifact.plugin))
+        );
+        assert!(!artifact.shape.original_expected_output_generated);
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join(authored::PLUGIN_NAME),
+            &artifact.plugin,
+        )
+        .unwrap();
+        let mut store = fallout_data::store::RecordStore::open_nv_headers(
+            directory.path(),
+            &[authored::PLUGIN_NAME.into()],
+            Default::default(),
+        )
+        .unwrap();
+        let catalogue = Catalogue::load(&mut store, Default::default(), |_, _| Ok(())).unwrap();
+        assert_eq!(catalogue.iter().count(), 1);
+        let source = catalogue.iter().next().unwrap().1;
+        assert_eq!(source.handle().key.record.local_id, authored::SCRIPT_ID);
+        assert!(source.issues().is_empty() && source.references().is_empty());
+        assert_eq!(source.declarations().len(), 2);
+        let content = Content::load(&mut store, &catalogue, 10).unwrap();
+        let sources = sources(&catalogue);
+        let plan = sources.get(source.handle()).unwrap().plan();
+        let mut case = manifest(plan, sources.source_cohort_sha256(), purpose, 14);
+        case.steps[0].begin_scda_offset = 4;
+        case.steps[0].caller = artifact.shape.caller;
+        case.steps[0].operands = artifact.shape.operand_bits;
+        validate_manifest(&sources, &case, Default::default()).unwrap();
+        let observed = copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &artifact.copy_request,
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default(),
+        )
+        .unwrap();
+        if purpose == Operation::Assignment {
+            assert_eq!(observed.capture.finish, Finish::Completed);
+            assert_eq!(observed.committed.len(), 1);
+            assert_eq!(
+                observed.capture.steps[0].output.successor_scda_offset,
+                Some(26)
+            );
+            assert_eq!(
+                observed.capture.steps[0].output.writes[0].value,
+                Word::binary64(0x8000000000000000)
+            );
+        } else {
+            assert_eq!(observed.capture.finish, Finish::Unsupported);
+            assert!(observed.committed.is_empty());
+            assert_eq!(observed.initial_snapshot, observed.final_snapshot);
+        }
+    }
+}
+#[test]
+fn authored_fixture_limits_inputs_and_truncation_never_generate_original_expectations() {
+    let mut request = authored_request(Operation::Assignment);
+    let artifact = authored::generate(&request, 4096).unwrap();
+    assert!(authored::generate(&request, artifact.plugin.len()).is_ok());
+    assert!(matches!(
+        authored::generate(&request, artifact.plugin.len() - 1),
+        Err(authored::Error::Capacity)
+    ));
+    for cut in 0..artifact.plugin.len() {
+        let mut scripts = 0;
+        let result = fallout_data::plugin::visit(
+            &mut std::io::Cursor::new(&artifact.plugin[..cut]),
+            cut as u64,
+            authored::PLUGIN_NAME,
+            Default::default(),
+            |event| {
+                if let fallout_data::plugin::Event::Record(record) = event
+                    && record.header.kind == *b"SCPT"
+                {
+                    scripts += fallout_data::script_units::decode(
+                        record,
+                        authored::PLUGIN_NAME,
+                        Default::default(),
+                    )?
+                    .len();
+                }
+                Ok(())
+            },
+        );
+        assert!(
+            result.is_err() || scripts == 0,
+            "truncated at {cut} appears complete"
+        );
+    }
+    for purpose in [Operation::Branch, Operation::GetItemCount] {
+        request.purpose = purpose;
+        assert!(matches!(
+            authored::generate(&request, 4096),
+            Err(authored::Error::Invalid(_))
+        ));
+    }
+    request.purpose = Operation::Assignment;
+    for bits in [f64::INFINITY.to_bits(), f64::NAN.to_bits()] {
+        request.input = Value::Number { bits };
+        assert!(matches!(
+            authored::generate(&request, 4096),
+            Err(authored::Error::Invalid(_))
+        ));
+    }
+    assert!(
+        serde_json::from_value::<authored::Request>(serde_json::json!({
+        "schema_version":1,"purpose":"assignment","campaign":([49_u8;16]),"activation":1,
+        "input":{"kind":"number","bits":0},"destination_before":{"kind":"number","bits":0},
+        "expected_original_output":0}))
+        .is_err()
+    );
+}
 fn own_case(plan: &fallout_data::obscript::definition_plan::Plan<'_>, cohort: &str) -> Manifest {
     let mut case = manifest(plan, cohort, Operation::Assignment, 10);
     case.steps[0].caller = Caller {
@@ -1214,6 +1441,419 @@ fn standalone_copy_discards_an_earlier_preview_effect_when_a_later_source_operat
             bits: 0xc010000000000000
         }
     );
+}
+
+#[test]
+#[ignore = "built CLI and authored metadata evidence; real replacement with synthetic original only"]
+fn cli_mismatch_details_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_INPUT").expect("input"));
+    let evidence = std::path::PathBuf::from(
+        std::env::var_os("RF_SCRIPT_DIFFERENCE_EVIDENCE").expect("evidence"),
+    );
+    fs::create_dir(&evidence).unwrap();
+    let mut case: Manifest =
+        serde_json::from_slice(&fs::read(input.join("manifest.json")).unwrap()).unwrap();
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    case.steps[0].operands = vec![Word::binary64(0x8000000000000000)];
+    let mut original = capture(&case, Producer::Original, output());
+    original.producer_executable_sha256 = case.identity.executable_sha256.clone();
+    original.instrumentation = "Synthetic diagnostic regression, never original game output".into();
+    original.steps[0].output.successor_scda_offset = Some(22);
+    original.steps[0].output.writes[0].value = Word::binary64(0x3ff0000000000000);
+    let request = serde_json::json!({"schema_version":1,"campaign":([49_u8;16]),"activation":1,
+        "initializers":[{"index":1,"value":{"kind":"number","bits":0x8000000000000000_u64}},
+        {"index":2,"value":{"kind":"number","bits":0xc010000000000000_u64}}]});
+    let case_path = evidence.join("manifest.json");
+    let original_path = evidence.join("original-synthetic.json");
+    let request_path = evidence.join("copy-request.json");
+    fs::write(&case_path, serde_json::to_vec_pretty(&case).unwrap()).unwrap();
+    fs::write(
+        &original_path,
+        serde_json::to_vec_pretty(&original).unwrap(),
+    )
+    .unwrap();
+    fs::write(&request_path, serde_json::to_vec_pretty(&request).unwrap()).unwrap();
+    let report_path = evidence.join("real-copy-report.json");
+    let output = std::process::Command::new(&cli)
+        .args(["script-trace", "--install"])
+        .arg(input.join("authored-source-copy"))
+        .arg("--load-order")
+        .arg(input.join("order.json"))
+        .arg("--manifest")
+        .arg(&case_path)
+        .arg("--profile-receipt")
+        .arg(input.join("profile-receipt.txt"))
+        .arg("--original-trace")
+        .arg(&original_path)
+        .arg("--replacement-copy")
+        .arg(&request_path)
+        .arg("--output")
+        .arg(&report_path)
+        .output()
+        .unwrap();
+    fs::write(evidence.join("stdout.txt"), &output.stdout).unwrap();
+    fs::write(evidence.join("stderr.txt"), &output.stderr).unwrap();
+    assert!(!output.status.success());
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+    assert_eq!(
+        report["comparison"]["first_difference"]["field"],
+        "local_writes"
+    );
+    assert_eq!(
+        report["difference_context"]["manifest_site"]["scda_offset"],
+        10
+    );
+    assert_eq!(
+        report["difference_context"]["difference"]["path"],
+        "/output/writes/0"
+    );
+    assert_eq!(
+        report["difference_context"]["difference"]["expected"]["value"]["bits"],
+        "3ff0000000000000"
+    );
+    assert_eq!(
+        report["difference_context"]["difference"]["observed"]["value"]["bits"],
+        "8000000000000000"
+    );
+    assert_eq!(
+        report["difference_context"]["replacement_site"]["matches_manifest_input"],
+        true
+    );
+    assert_eq!(
+        report["replacement_observation"]["committed"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(report["faithful_execution_admitted"], false);
+    let baseline: Capture =
+        serde_json::from_value(report["replacement_observation"]["capture"].clone()).unwrap();
+    original.steps[0].output.writes[0].value = Word::binary64(0x8000000000000000);
+    for (name, path) in [
+        ("caller", "/input/caller/target"),
+        ("offset", "/input/scda_offset"),
+        ("operand", "/input/operands/0"),
+        ("event-order", "/input/event_ordinal"),
+        ("missing-step", "/steps/0"),
+        ("extra-step", "/steps/1"),
+        ("incomplete", "/finish"),
+        ("missing-capture", "/capture"),
+        ("error", "/output/error"),
+        ("effect-order", "/output/writes/1"),
+        ("return", "/output/return_value"),
+        ("successor", "/output/successor_scda_offset"),
+    ] {
+        let mut observed = baseline.clone();
+        observed.instrumentation="Synthetic alteration of a real replacement capture for diagnostic regression; altered fields are not executed observations".into();
+        let mut expected = original.clone();
+        match name {
+            "caller" => observed.steps[0].input.caller.target = Some(form(0x200)),
+            "offset" => observed.steps[0].input.scda_offset = 22,
+            "operand" => observed.steps[0].input.operands[0] = Word::binary64(0),
+            "event-order" => observed.steps[0].input.event_ordinal = 1,
+            "missing-step" => observed.steps.clear(),
+            "extra-step" => observed.steps.push(observed.steps[0].clone()),
+            "incomplete" => observed.finish = Finish::Interrupted,
+            "error" => observed.steps[0].output.error = Some("é".repeat(2000)),
+            "effect-order" => {
+                expected.steps[0].output.writes.extend([
+                    LocalWrite {
+                        index: 2,
+                        value: Word::binary64(0x3ff0000000000000),
+                    },
+                    LocalWrite {
+                        index: 2,
+                        value: Word::binary64(0x4000000000000000),
+                    },
+                ]);
+                observed.steps[0].output = expected.steps[0].output.clone();
+                observed.steps[0].output.writes.swap(1, 2);
+            }
+            "return" => {
+                observed.steps[0].output.return_value = Some(Word {
+                    format: Format::Unsigned64,
+                    bits: "ffffffffffffffff".into(),
+                })
+            }
+            "successor" => observed.steps[0].output.successor_scda_offset = Some(0),
+            "missing-capture" => (),
+            _ => unreachable!(),
+        }
+        let expected_path = evidence.join(format!("{name}-original-synthetic.json"));
+        let observed_path = evidence.join(format!("{name}-replacement-test.json"));
+        fs::write(
+            &expected_path,
+            serde_json::to_vec_pretty(&expected).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            &observed_path,
+            serde_json::to_vec_pretty(&observed).unwrap(),
+        )
+        .unwrap();
+        let report_path = evidence.join(format!("{name}-report.json"));
+        let mut command = std::process::Command::new(&cli);
+        command
+            .args(["script-trace", "--install"])
+            .arg(input.join("authored-source-copy"))
+            .arg("--load-order")
+            .arg(input.join("order.json"))
+            .arg("--manifest")
+            .arg(&case_path)
+            .arg("--profile-receipt")
+            .arg(input.join("profile-receipt.txt"))
+            .arg("--replacement-trace")
+            .arg(&observed_path)
+            .arg("--output")
+            .arg(&report_path);
+        if name != "missing-capture" {
+            command.arg("--original-trace").arg(&expected_path);
+        }
+        let output = command.output().unwrap();
+        fs::write(evidence.join(format!("{name}-stderr.txt")), &output.stderr).unwrap();
+        assert!(!output.status.success());
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+        let context = &report["difference_context"];
+        assert_eq!(context["difference"]["path"], path, "{name}");
+        assert_eq!(context["diagnostic_only"], true);
+        assert!(serde_json::to_vec(context).unwrap().len() <= 8192);
+        assert_eq!(report["capture_transport_authenticated"], false);
+        if name == "missing-step" {
+            assert_eq!(context["counts"]["replacement"], 0);
+            assert_eq!(context["replacement_site"], serde_json::Value::Null);
+            assert_eq!(context["manifest_site"]["scda_offset"], 10);
+        }
+        if name == "offset" {
+            assert_eq!(context["difference"]["expected"], 10);
+            assert_eq!(context["difference"]["observed"], 22);
+            assert_eq!(context["replacement_site"]["matches_manifest_input"], false);
+        }
+        if name == "effect-order" {
+            assert_eq!(
+                context["difference"]["expected"]["value"]["bits"],
+                "3ff0000000000000"
+            );
+            assert_eq!(
+                context["difference"]["observed"]["value"]["bits"],
+                "4000000000000000"
+            );
+        }
+        if name == "error" {
+            assert_eq!(context["difference"]["observed"]["utf8_bytes"], 4000);
+            assert_eq!(
+                context["difference"]["observed"]["sha256"],
+                format!("{:x}", Sha256::digest("é".repeat(2000).as_bytes()))
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires built CLI and authored metadata evidence; synthetic import limits only"]
+fn cli_capture_word_limit_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_INPUT").expect("input"));
+    let evidence =
+        std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_WORD_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let source: Manifest =
+        serde_json::from_slice(&fs::read(input.join("manifest.json")).unwrap()).unwrap();
+    for (name, count) in [("exact", 65_535), ("one-over", 65_536)] {
+        let mut case = source.clone();
+        case.steps[0].operands = vec![Word::binary64(0x8000000000000000); count];
+        let mut original = capture(&case, Producer::Original, output());
+        original.producer_executable_sha256 = case.identity.executable_sha256.clone();
+        original.instrumentation =
+            "Synthetic aggregate-word budget regression; never original game output".into();
+        let replacement = capture(&case, Producer::Replacement, output());
+        let manifest_path = evidence.join(format!("{name}-manifest.json"));
+        let original_path = evidence.join(format!("{name}-original-synthetic.json"));
+        let replacement_path = evidence.join(format!("{name}-replacement-synthetic.json"));
+        for (path, bytes) in [
+            (&manifest_path, serde_json::to_vec(&case).unwrap()),
+            (&original_path, serde_json::to_vec(&original).unwrap()),
+            (&replacement_path, serde_json::to_vec(&replacement).unwrap()),
+        ] {
+            assert!(bytes.len() < 4 * 1024 * 1024); // numeric bound, not JSON bound
+            fs::write(path, bytes).unwrap();
+        }
+        let report_path = evidence.join(format!("{name}-report.json"));
+        let output = std::process::Command::new(&cli)
+            .args(["script-trace", "--install"])
+            .arg(input.join("authored-source-copy"))
+            .arg("--load-order")
+            .arg(input.join("order.json"))
+            .arg("--manifest")
+            .arg(&manifest_path)
+            .arg("--profile-receipt")
+            .arg(input.join("profile-receipt.txt"))
+            .arg("--original-trace")
+            .arg(&original_path)
+            .arg("--replacement-trace")
+            .arg(&replacement_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(evidence.join(format!("{name}-stdout.txt")), &output.stdout).unwrap();
+        fs::write(evidence.join(format!("{name}-stderr.txt")), &output.stderr).unwrap();
+        if name == "one-over" {
+            assert!(!output.status.success());
+            assert!(!report_path.exists());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("observation words"));
+        } else {
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let report: serde_json::Value =
+                serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+            assert_eq!(report["comparison"]["status"], "matched");
+            assert_eq!(report["faithful_execution_admitted"], false);
+            assert_eq!(report["capture_transport_authenticated"], false);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires built CLI and read-only retail metadata; authored source only"]
+fn cli_fixture_generation_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let executable = std::path::PathBuf::from(
+        std::env::var_os("RF_SCRIPT_TRACE_RETAIL_EXE").expect("retail metadata"),
+    );
+    let input =
+        std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_INPUT").expect("profile input"));
+    let evidence =
+        std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_FIXTURE_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    for purpose in ["assignment", "conversion"] {
+        let request = serde_json::json!({"schema_version":1,"purpose":purpose,
+            "campaign":([49_u8;16]),"activation":1,
+            "input":{"kind":"number","bits":0x8000000000000000_u64},
+            "destination_before":{"kind":"number","bits":0xc010000000000000_u64}});
+        let request_path = evidence.join(format!("{purpose}-request.json"));
+        fs::write(&request_path, serde_json::to_vec_pretty(&request).unwrap()).unwrap();
+        let destination = evidence.join(purpose);
+        let invoke = || {
+            std::process::Command::new(&cli)
+                .args(["script-fixture", "--install"])
+                .arg(executable.parent().unwrap())
+                .arg("--request")
+                .arg(&request_path)
+                .arg("--profile-receipt")
+                .arg(input.join("profile-receipt.txt"))
+                .arg("--destination")
+                .arg(&destination)
+                .output()
+                .unwrap()
+        };
+        let generated = invoke();
+        fs::write(
+            evidence.join(format!("{purpose}-generate-stdout.txt")),
+            &generated.stdout,
+        )
+        .unwrap();
+        fs::write(
+            evidence.join(format!("{purpose}-generate-stderr.txt")),
+            &generated.stderr,
+        )
+        .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let receipt_path = destination.join("receipt.json");
+        let receipt_bytes = fs::read(&receipt_path).unwrap();
+        let receipt: serde_json::Value = serde_json::from_slice(&receipt_bytes).unwrap();
+        assert_eq!(receipt["original_expected_output_generated"], false);
+        assert_eq!(receipt["retail_loading_verified"], false);
+        assert_eq!(receipt["faithful_execution_admitted"], false);
+        assert_eq!(receipt["identity"]["compiled_bytes"], 30);
+        assert_eq!(
+            receipt["plugin_sha256"],
+            format!(
+                "{:x}",
+                Sha256::digest(
+                    fs::read(
+                        destination
+                            .join("authored-source-copy/Data")
+                            .join(authored::PLUGIN_NAME)
+                    )
+                    .unwrap()
+                )
+            )
+        );
+        let repeated = invoke();
+        assert!(!repeated.status.success());
+        assert_eq!(fs::read(&receipt_path).unwrap(), receipt_bytes);
+        fs::write(
+            evidence.join(format!("{purpose}-existing-destination-stderr.txt")),
+            &repeated.stderr,
+        )
+        .unwrap();
+        let output_path = evidence.join(format!("{purpose}-copy-report.json"));
+        let output = std::process::Command::new(&cli)
+            .args(["script-trace", "--install"])
+            .arg(destination.join("authored-source-copy"))
+            .arg("--load-order")
+            .arg(destination.join("order.json"))
+            .arg("--manifest")
+            .arg(destination.join("manifest.json"))
+            .arg("--profile-receipt")
+            .arg(destination.join("profile-receipt.json"))
+            .arg("--replacement-copy")
+            .arg(destination.join("copy-request.json"))
+            .arg("--output")
+            .arg(&output_path)
+            .output()
+            .unwrap();
+        fs::write(
+            evidence.join(format!("{purpose}-copy-stderr.txt")),
+            &output.stderr,
+        )
+        .unwrap();
+        fs::write(
+            evidence.join(format!("{purpose}-copy-stdout.txt")),
+            &output.stdout,
+        )
+        .unwrap();
+        assert!(!output.status.success()); // No independent original capture.
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(output_path).unwrap()).unwrap();
+        assert_eq!(report["comparison"]["status"], "blocked");
+        let observation = &report["replacement_observation"];
+        if purpose == "assignment" {
+            assert_eq!(observation["capture"]["finish"], "completed");
+            assert_eq!(observation["committed"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                observation["capture"]["steps"][0]["input"]["scda_offset"],
+                14
+            );
+            assert_eq!(
+                observation["capture"]["steps"][0]["output"]["writes"][0]["value"]["bits"],
+                "8000000000000000"
+            );
+        } else {
+            assert_eq!(observation["capture"]["finish"], "unsupported");
+            assert!(observation["committed"].as_array().unwrap().is_empty());
+            assert_eq!(
+                observation["initial_snapshot"],
+                observation["final_snapshot"]
+            );
+        }
+    }
 }
 
 #[test]

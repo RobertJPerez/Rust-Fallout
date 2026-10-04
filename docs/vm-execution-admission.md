@@ -32,7 +32,14 @@ with an iterative traversal; they do not recursively execute or imply a loop
 in the game.
 
 Production limits are 32 requested roots, 256 visited definitions, 4,096 edges
-and independently 4,096 dependency findings, and 65,536 visited instructions.
+and independently 4,096 dependency findings, 65,536 visited instructions and
+65,536 cached operand uses across all selected definitions. This last ceiling
+counts destination and own-local expression reads even when they produce no
+dependency edge. The complete cached use count for each definition is admitted
+before its dependency walk; exhaustion identifies the exact definition/version
+and first excluded operand's SCDA offset. It returns no partial graph and permits
+no execution. Preparation's existing token/node/height limits remain independent;
+this pass does not decode or evaluate another expression tree.
 Exhaustion returns an error rather than a partial admission. CLI request bytes
 are bounded to 1 MiB; prepared-source limits still apply before graph traversal.
 The comparison-bundle and admission options are separate requests.

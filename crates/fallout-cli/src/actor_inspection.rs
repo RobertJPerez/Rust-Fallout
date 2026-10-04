@@ -42,6 +42,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) engineering_observation: bool,
     pub(super) condition_executable: Option<&'a Path>,
     pub(super) include_faction_requests: bool,
+    pub(super) include_stat_requests: bool,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -130,6 +131,26 @@ pub(super) fn package_context(
                 factions::Limits::default(),
             )?,
         )?;
+    }
+    if options.include_stat_requests {
+        use fallout_runtime::actor_rules::stats;
+        let lists = leveled::Catalogue::load(&mut store, Default::default())?;
+        let sources = actors::dependencies::Catalogue::load(
+            &mut store,
+            &actors,
+            &associations,
+            &lists,
+            Default::default(),
+        )?;
+        let requests = stats::Requests::prepare(
+            &world,
+            &actors,
+            &sources,
+            options.actor_root,
+            stats::Limits::default(),
+        )?;
+        report["stat_requests"] =
+            serde_json::to_value(requests.observe(&world, stats::Limits::default())?)?;
     }
     Ok(report)
 }

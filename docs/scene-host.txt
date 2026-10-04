@@ -1,0 +1,45 @@
+Scene lifetime adapter
+
+engine_bridge::SceneLifetime composes the existing CellResidency owner, its
+unforgeable Ticket and retained model/texture leases. It does not create another
+canonical World, resource loader or save repository. Construct it on the existing
+source worker after model and texture preparation and report_dependencies(Ready).
+Empty model sets and already-published/foreign owner tickets are refused.
+
+Prepared means CPU source dependencies are available. submission_complete(epoch)
+records completion of bounded CPU/ECS submission only. publish_uploaded(epoch,
+uploaded, publish) calls the renderer's actual GPU readiness observation and then
+uses CellResidency::publish_render for final visibility admission. False or an
+error leaves the phase Submitted; publication runs once. The visibility callback
+must preflight its external effects before returning success. Source cancellation
+and scene-epoch mismatch refuse before it runs.
+
+The adapter's simulation_ready additionally requires uploaded and published draws,
+the owner's complete model/texture coverage, and explicit collision and behavior
+readiness. An inspection scene can be uploaded while simulation remains unavailable.
+Call report_collision/report_behavior with the actual producer results. No bounds,
+source decode or elapsed-frame fallback establishes those capabilities.
+
+On unload, call begin_retirement with the scene's original epoch, close its native
+command owner and retire its draw queue. Admission closes immediately. Model and
+texture pins remain owned through the queue's bounded disposal. Only after that
+disposal completes call draw_disposal_complete, then poll_retirement until Released.
+External leases remain charged and can postpone Released; all source, metadata,
+mapped-byte and job counters must drain. These polls do not join a foreign worker.
+
+The focused source fixture exercises production ESM/BSA plans and ResourceJobs;
+it independently asserts stale/foreign refusal, failed-publication preservation,
+once-only visibility, and retained-pin draining. Its authored empty NIF has no
+visible geometry and is not a rendered scene or retail-parity proof.
+
+Required host wiring: coordinator adds pub mod engine_bridge to a preview library;
+presentation transfers its existing scene.rs CellSources owner into SceneLifetime
+and joins main.rs DrawScene with actual renderer upload observation and disposal.
+The current CLI/native host has not yet been wired by this adapter slice. Visible
+scene boot and shutdown acceptance remain open until that consumer is connected
+and engine acceptance captures actual content and complete resource drain.
+
+Continue must remain prepared in the canonical application until full active-scene
+membership admission passes. A late rejection must preserve both canonical and
+displayed revision; this adapter's resource readiness does not repair native.rs's
+existing eager World replacement by itself.

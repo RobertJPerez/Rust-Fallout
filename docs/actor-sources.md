@@ -1201,3 +1201,11 @@ catalogue. Source count, selected physical field visits, operand count, aggregat
 raw bytes and compact projection bytes have independent bounds. The separate
 `tools/actor-oracle/package_destinations.py` reads union payloads directly from
 source bytes and compares the full request, including every physical occurrence.
+
+## Actor object-script attachment request
+
+`actors::script_attachment::request(&mut RecordStore, &actors::Catalogue, &loaded_scripts::Catalogue, &FormKey, Limits)` returns an immutable, non-deserializable source request. The mutable store borrow serves its existing source digest cache; the request verifies all three exact ordered source cohorts and winning identity before using the retained actor bytes or canonical FormID binder. It preserves every physical SCRI index, offset and raw byte, every ACBS configuration declaration, and the raw Script template bit (512).
+
+A unique live SCPT link can select one existing standalone compiled definition with verified source ownership. Its handle, version, owner, raw script type/flags, complete declaration and reference tables and source issues borrow the loaded catalogue. Repeated links, malformed widths, null/missing/deleted/wrong-kind targets, absent or multiple units, absent compiled bytes, missing/repeated configuration and script inheritance leave selection unavailable. Repeated variable declarations remain ordered; no new first-wins declaration lookup is introduced. Raw script flags and type do not determine original enablement or execution.
+
+`actor-sources --script-root FalloutNV.esm:104C0C` adds only `actor_script_attachment.request`; the default report remains unchanged. The selected work is bounded by sources, physical field visits, attachment count/raw bytes, matching compiled units, declaration/reference counts and full serialized request size. The independent `script_attachment.py` oracle reuses both existing native source producers and the existing independent script-unit helper, reading fresh source bytes and never deriving expected fields from the observed report. This producer creates no runtime instance, event list, queued event or actor state; template inheritance and gameplay execution remain unsupported.

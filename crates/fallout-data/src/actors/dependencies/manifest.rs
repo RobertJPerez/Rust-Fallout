@@ -48,7 +48,7 @@ pub enum LookupStatus {
     ArchiveCollision,
 }
 impl LookupStatus {
-    fn label(self) -> &'static str {
+    pub(super) fn label(self) -> &'static str {
         match self {
             Self::EmptySourcePath => "empty_source_path",
             Self::RelativeBaseUnresolved => "relative_base_unresolved",
@@ -127,6 +127,7 @@ fn link_label(role: LinkRole) -> &'static str {
         LinkRole::ExtraHeadPart => "extra_head_part",
         LinkRole::Hair => "hair",
         LinkRole::Eyes => "eyes",
+        LinkRole::FirstPersonModel => "first_person_model",
     }
 }
 
@@ -184,7 +185,7 @@ impl Walk<'_, '_> {
     }
 }
 
-fn path(
+pub(super) fn path(
     assets: &ArchiveAssets,
     role: PathRole,
     raw: &[u8],

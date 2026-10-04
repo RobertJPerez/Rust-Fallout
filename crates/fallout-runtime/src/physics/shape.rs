@@ -46,10 +46,6 @@ fn cross_with_error(a: V, b: V) -> (V, V) {
     ];
     (components.map(|v| v.0), components.map(|v| v.1))
 }
-fn precise_cross(a: V, b: V) -> V {
-    cross_with_error(a, b).0
-}
-
 fn difference_error(a: f64, b: f64, difference: f64) -> f64 {
     let virtual_b = a - difference;
     let virtual_a = difference + virtual_b;
@@ -188,6 +184,126 @@ fn capsule_contains(p: V, a: V, b: V, radius: f64) -> QueryResult<bool> {
     Ok(distance < radius)
 }
 
+fn exact_products_equal(a: f64, b: f64, c: f64, d: f64) -> bool {
+    if a == 0. || b == 0. {
+        return c == 0. || d == 0.;
+    }
+    if c == 0. || d == 0. {
+        return false;
+    }
+    let left = a * b;
+    let right = c * d;
+    // Above this conservative exponent floor, both parts of a binary64
+    // product are representable and FMA recovers the exact low part.
+    left.abs() >= 1e-270 && left == right && a.mul_add(b, -left) == c.mul_add(d, -right)
+}
+fn exactly_parallel(a: V, b: V) -> bool {
+    [(1, 2), (2, 0), (0, 1)]
+        .iter()
+        .all(|&(i, j)| exact_products_equal(a[i], b[j], a[j], b[i]))
+}
+
+fn capsule_side_ray(o: V, d: V, a: V, b: V, radius: f64) -> QueryResult<Option<f64>> {
+    let edge = sub(b, a);
+    if (0..3).all(|i| difference_error(b[i], a[i], edge[i]) == 0.) && exactly_parallel(d, edge) {
+        return Ok(None);
+    }
+    let relative = sub(o, a);
+    let axis = if edge.iter().filter(|v| **v != 0.).count() == 1 {
+        edge.iter().position(|v| *v != 0.)
+    } else {
+        None
+    };
+    let (op, dp, projected_radius, uncertainty) = if let Some(axis) = axis {
+        // Deleting the source-axis component is exact and preserves ordinary
+        // axial/side/cap cases without normalizing any direction or shape axis.
+        let mut op = relative;
+        op[axis] = 0.;
+        let mut dp = d;
+        dp[axis] = 0.;
+        let errors: V = std::array::from_fn(|i| {
+            if i == axis {
+                0.
+            } else {
+                difference_error(o[i], a[i], relative[i])
+            }
+        });
+        (op, dp, radius, length(errors))
+    } else {
+        // |(relative+t*d) x ORIGINAL edge| <= radius*|edge| is the cylinder.
+        // A normalized double-cross changes a distant skew axis before the
+        // sphere solver can observe its error. Keep the source axis unchanged.
+        let op = cross_with_error(relative, edge).0;
+        let dp = cross_with_error(d, edge).0;
+        let edge_length = length(edge);
+        let speed = length(dp);
+        if speed <= 128. * f64::EPSILON * edge_length * length(d) {
+            return Err(QueryError::Invalid(
+                "capsule side direction is numerically uncertain",
+            ));
+        }
+        // Position/projection errors have source scale EPS*(|relative|+|edge|).
+        // Cross scaling contributes |edge|; direction sensitivity contributes
+        // 1/sin(angle). Refuse inconclusive predicates, never inflate geometry.
+        let condition = edge_length * length(d) / speed;
+        let projected_radius = radius * edge_length;
+        let uncertainty =
+            128. * f64::EPSILON * (length(relative) + edge_length) * edge_length * (1. + condition)
+                + 16. * f64::EPSILON * projected_radius
+                + f64::from_bits(1);
+        if !uncertainty.is_finite() || uncertainty >= projected_radius {
+            return Err(QueryError::Invalid(
+                "capsule side projection exceeds numerical precision",
+            ));
+        }
+        (op, dp, projected_radius, uncertainty)
+    };
+    let speed = length(dp);
+    if speed == 0. {
+        return Ok(None);
+    }
+    if uncertainty > 0. {
+        let perpendicular = length(cross_with_error(op, dp).0) / speed;
+        if perpendicular - projected_radius > uncertainty {
+            return Ok(None);
+        }
+        if (perpendicular - projected_radius).abs() <= uncertainty
+            || (length(op) - projected_radius).abs() <= uncertainty
+        {
+            return Err(QueryError::Invalid(
+                "capsule side predicate is numerically uncertain",
+            ));
+        }
+    }
+    sphere_ray(op, dp, [0.; 3], projected_radius)
+}
+
+fn capsule_segment_accepts(o: V, d: V, a: V, b: V, t: f64) -> QueryResult<bool> {
+    let edge = sub(b, a);
+    if edge.iter().filter(|v| **v != 0.).count() == 1 {
+        let i = edge.iter().position(|v| *v != 0.).expect("one source axis");
+        if d[i] == 0. {
+            return Ok((a[i].min(b[i])..=a[i].max(b[i])).contains(&o[i]));
+        }
+    }
+    let relative = sub(o, a);
+    let axial = t.mul_add(dot(d, edge), dot(relative, edge));
+    let end = dot(edge, edge);
+    let uncertainty = 128.
+        * f64::EPSILON
+        * (length(relative) + t.abs() * length(d) + length(edge))
+        * length(edge);
+    if axial < -uncertainty || axial > end + uncertainty {
+        return Ok(false);
+    }
+    if axial.abs() <= uncertainty || (axial - end).abs() <= uncertainty {
+        return Err(QueryError::Invalid(
+            "capsule segment endpoint predicate is numerically uncertain",
+        ));
+    }
+    Ok((0. ..=end).contains(&axial))
+}
+
 fn cuboid_distance2(p: V, minimum: V, maximum: V) -> f64 {
     (0..3)
         .map(|i| (p[i] - p[i].clamp(minimum[i], maximum[i])).powi(2))
@@ -284,20 +400,12 @@ impl Shape {
                     .into_iter()
                     .flatten()
                     .min_by(f64::total_cmp);
-                if edge_length > 0. {
-                    let axis = edge.map(|v| v / edge_length);
-                    let relative = sub(o, a);
-                    let dp = precise_cross(axis, precise_cross(d, axis));
-                    let op = precise_cross(axis, precise_cross(relative, axis));
-                    if length(dp) > 0.
-                        && let Some(t) = sphere_ray(op, dp, [0.; 3], radius)?
-                    {
-                        let axial = t.mul_add(dot(d, axis), dot(relative, axis));
-                        if (0. ..=edge_length).contains(&axial) && nearest.is_none_or(|old| t < old)
-                        {
-                            nearest = Some(t);
-                        }
-                    }
+                if edge_length > 0.
+                    && let Some(t) = capsule_side_ray(o, d, a, b, radius)?
+                    && capsule_segment_accepts(o, d, a, b, t)?
+                    && nearest.is_none_or(|old| t < old)
+                {
+                    nearest = Some(t);
                 }
                 nearest
             }

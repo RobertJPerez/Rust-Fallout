@@ -77,6 +77,12 @@ Capsule initial containment uses a guarded closest-segment distance, with exact
 axis clamping for axis-aligned source segments and recovered subtraction residuals.
 An uncertain surface comparison
 refuses instead of converting a rounded squared distance into an inside hit.
+Capsule sides use the original source edge through
+`|(origin-first + t*direction) x edge| <= radius*|edge|`, rather than a
+normalized-axis double projection. Nonaxis comparisons include a conservative
+source-scale error interval and inverse-sine direction conditioning. Near-parallel
+or inconclusive side/segment-endpoint predicates refuse. Exact source-axis
+projection deletes a component and preserves ordinary axis/cap cases.
 
 ## Headless source consumer
 

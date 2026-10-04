@@ -2,6 +2,8 @@ use crate::nif_animation_inspection;
 use clap::Subcommand;
 use std::path::PathBuf;
 
+// Keep the established NIF command names together when Clap flattens this family.
+#[allow(clippy::enum_variant_names)]
 #[derive(Subcommand)]
 pub(crate) enum AssetsCommand {
     /// Compose an explicit supported set of parent/child channels; no blending.

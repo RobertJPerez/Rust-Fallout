@@ -473,6 +473,21 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve explicit CELL water inputs and consume one declared noise member.
+    CellWaterSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Preserve an explicit winning CELL's exact lighting and template declarations.
     CellLightingSources {
         #[arg(long)]
@@ -1443,6 +1458,30 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::CellWaterSources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::water(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::ResidencyInput {
+                    cell: parse_cell_key(&cell)?,
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["source_inputs_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("CELL water source inputs unavailable; see report".into());
             }
         }
         Command::CellLightingSources {

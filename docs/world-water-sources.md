@@ -78,3 +78,18 @@ return no request and release temporary mappings. Metadata estimates exclude the
 caller's existing index/mount table and allocator overhead. Plugin/archive
 fingerprinting reads are separate from requested-body and member-byte accounting.
 Runtime/gameplay readiness stays false.
+
+`cell-water-sources --install ... --load-order ... --cell Origin.esm:hex`
+is the owned headless consumer. Optional private `--index-cache` and `--cache`
+reuse the existing metadata/member caches. `--source-timeout-ms` follows the
+existing bounded polling deadline; indexing/planning are separate. One existing
+worker and one outstanding slot consume a declared unique noise member. The
+report retains exact source declarations, plugin/order fingerprints, payload
+hash and optional cache receipt, with pool usage before and after artifact drop.
+
+Source-request preparation, source-input presence, noise requested and noise
+available are separate fields. A raw height word or resolved WATR source may be
+present without noise work. Empty/absent noise stays explicit. Missing WATR/noise
+inputs produce unavailable source status; unsafe/ambiguous paths and malformed
+requests produce a source error with null authority. Reports precede exit1 for
+unavailable/refused inputs. No finite plane or computed water result is emitted.

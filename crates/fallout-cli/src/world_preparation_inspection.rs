@@ -4,6 +4,7 @@ use fallout_data::{
     condition_operands::Signatures,
     identity::FormKey,
     loaded_scripts::{Catalogue, Limits as ScriptLimits},
+    resource_jobs::{self, Generation, ResourceJobs},
     store::RecordStore,
     terrain::preparation::{Receipt as TerrainReceipt, TexturePreparation, TextureSourcePlan},
     vfs::MountIndex,
@@ -14,6 +15,7 @@ use fallout_data::{
         lighting::CellLightingSources,
         preparation::CellModelPlan,
         residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
+        water::CellWaterSources,
     },
 };
 use serde_json::{Value, json};
@@ -75,6 +77,104 @@ pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
             Ok([x.parse::<i32>()?, y.parse::<i32>()?])
         })
         .collect()
+}
+
+pub(super) fn water(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: ResidencyInput,
+) -> Result<Value> {
+    let timeout = source_deadline(input.source_timeout_ms)?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact CELL water declarations and existing noise member source job",
+        "requested_cell":input.cell,"water_sources":null,"source_error":null,
+        "source_request_prepared":false,"source_inputs_available":false,
+        "noise_requested":false,"noise_available":false,"noise_payload":null,
+        "noise_job_usage_while_retained":null,"noise_job_usage_after_release":null,
+        "finite_plane_computed":false,"inheritance_evaluated":false,
+        "rendering_admitted":false,"runtime_ready":false,
+        "lookup_precedence_verified":false,"retail_parity_accepted":false});
+    let consumed = (|| -> Result<()> {
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        let sources =
+            CellWaterSources::load(&mut store, &input.cell, assets.mounts(), Default::default())?;
+        report["water_sources"] = serde_json::to_value(&sources)?;
+        report["source_request_prepared"] = json!(true);
+        let receipt = sources.receipt();
+        let noise_requested = receipt.noise.as_ref().is_some_and(|n| n.request.is_some());
+        report["noise_requested"] = json!(noise_requested);
+        let owner = Generation::new(sources.identity().to_owned())?;
+        let jobs = ResourceJobs::new(
+            resource_jobs::Limits {
+                workers: 1,
+                outstanding: 1,
+                decoded_bytes: 64 * 1024 * 1024,
+            },
+            owner.clone(),
+        )?;
+        let cache = resource_cache.map(|root| (root.to_path_buf(), install.to_path_buf()));
+        let handle = sources.submit_noise(&mut store, &jobs, owner.token()?, cache)?;
+        if let Some(handle) = handle {
+            let start = Instant::now();
+            let mut artifact = loop {
+                if let Some(artifact) = handle.try_take()? {
+                    break artifact;
+                }
+                if start.elapsed() >= timeout {
+                    handle.cancel();
+                    return Err("water noise source job exceeded polling deadline".into());
+                }
+                thread::sleep(Duration::from_millis(1));
+            };
+            let request = receipt
+                .noise
+                .as_ref()
+                .and_then(|n| n.request.as_ref())
+                .ok_or("admitted water noise job has no source request")?;
+            if artifact.bytes().len() != request.decoded_bytes {
+                return Err("water noise source extent differs from admitted request".into());
+            }
+            report["noise_payload"] = json!({"bytes":artifact.bytes().len(),
+                "sha256":format!("{:x}",Sha256::digest(artifact.bytes())),
+                "path":request.path,"archive_sha256":request.archive_sha256,
+                "source_identity":sources.identity(),"generation":owner.token()?.generation(),
+                "cache":artifact.take_cache_receipt()});
+            report["noise_available"] = json!(true);
+            let usage = jobs.usage();
+            report["noise_job_usage_while_retained"] =
+                json!({"outstanding":usage.outstanding,"decoded_bytes":usage.decoded_bytes});
+            drop(artifact);
+        }
+        let usage = jobs.usage();
+        report["noise_job_usage_after_release"] =
+            json!({"outstanding":usage.outstanding,"decoded_bytes":usage.decoded_bytes});
+        let declared = receipt.xclw.is_some()
+            || receipt
+                .water_type
+                .as_ref()
+                .is_some_and(|w| w.target.status == "resolved")
+            || noise_requested;
+        let water_type_available = receipt
+            .water_type
+            .as_ref()
+            .is_none_or(|w| matches!(w.target.status, "resolved" | "null"));
+        let noise_available = receipt.noise.as_ref().is_none_or(|n| {
+            n.status == "empty-declaration"
+                || (n.request.is_some() && report["noise_available"] == true)
+        });
+        report["source_inputs_available"] =
+            json!(declared && water_type_available && noise_available);
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
 }
 
 pub(super) fn lighting(
@@ -2324,6 +2424,234 @@ mod tests {
             assert!(
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
+        }
+    }
+
+    fn water_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let word = if mode == "negative-zero" {
+            0x80000000_u32
+        } else {
+            0x7fc12345
+        };
+        let mut cell = field(b"DATA", &[2]);
+        if mode != "absent" {
+            cell.extend(field(b"XCLW", &word.to_le_bytes()));
+            cell.extend(field(
+                b"XCWT",
+                &(if mode == "missing-type" {
+                    0x999_u32
+                } else {
+                    0x200
+                })
+                .to_le_bytes(),
+            ));
+            let path = match mode {
+                "empty-noise" => b"\0".as_slice(),
+                "missing-noise" => b"missing.dds\0",
+                "unsafe" => b"..\\noise.dds\0",
+                _ => b"Noise.dds\0",
+            };
+            cell.extend(field(b"XNAM", path));
+        }
+        if mode == "duplicate" {
+            cell.extend(field(b"XCLW", &[0; 4]));
+        }
+        fs::write(
+            root.join("Data/Base.esm"),
+            [
+                record(
+                    b"TES4",
+                    0,
+                    &field(
+                        b"HEDR",
+                        &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                    ),
+                ),
+                record(b"CELL", 0x100, &cell),
+                record(b"WATR", 0x200, &field(b"DATA", &[3, 0])),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        archive(
+            root,
+            "noise",
+            b"textures",
+            b"noise.dds",
+            &[17, 34, 51, 68, 85],
+        );
+        if mode == "ambiguous" {
+            archive(root, "other-noise", b"textures", b"noise.dds", &[99]);
+        }
+        fs::write(root.join("order.json"), b"[\"Base.esm\"]").unwrap();
+        fs::write(
+            root.join("water-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_WATER_FIXTURE={}", root.display());
+    }
+    fn water_input() -> ResidencyInput {
+        ResidencyInput {
+            cell: crate::parse_cell_key("Base.esm:100").unwrap(),
+            source_timeout_ms: 10_000,
+        }
+    }
+    #[test]
+    fn cli_water_consumes_exact_source_job_cache_and_releases_retained_bytes() {
+        for mode in ["valid", "negative-zero", "empty-noise"] {
+            let root = directory();
+            water_fixture(&root, mode);
+            let cache = directory();
+            for reused in [false, true] {
+                let report = water(
+                    &root,
+                    &root.join("order.json"),
+                    None,
+                    Some(&cache),
+                    water_input(),
+                )
+                .unwrap();
+                assert_eq!(report["source_request_prepared"], true);
+                assert_eq!(report["source_inputs_available"], true);
+                assert!(report["source_error"].is_null());
+                let source = &report["water_sources"];
+                assert_eq!(source["cell"]["header"]["offset"], 42);
+                assert_eq!(source["cell_flags"]["value"], 2);
+                assert_eq!(
+                    source["xclw"]["value"],
+                    if mode == "negative-zero" {
+                        0x80000000_u32
+                    } else {
+                        0x7fc12345
+                    }
+                );
+                assert_eq!(source["xclw"]["physical_framing_offset"], 73);
+                assert_eq!(source["xcwt"]["site"]["decoded_header_offset"], 17);
+                assert_eq!(source["water_type"]["target"]["key"]["local_id"], 0x200);
+                assert_eq!(source["water_type"]["target"]["status"], "resolved");
+                let requested = mode != "empty-noise";
+                assert_eq!(report["noise_requested"], requested);
+                assert_eq!(report["noise_available"], requested);
+                if requested {
+                    let payload = &report["noise_payload"];
+                    assert_eq!(payload["bytes"], 5);
+                    assert_eq!(
+                        payload["sha256"],
+                        format!("{:x}", Sha256::digest([17, 34, 51, 68, 85]))
+                    );
+                    assert_eq!(payload["cache"]["reused"], reused);
+                    assert_eq!(payload["source_identity"], source["identity"]);
+                    assert_eq!(
+                        payload["cache"]["manifest"]["identity"]["path_bytes"],
+                        json!(b"textures/noise.dds".as_slice())
+                    );
+                    assert_eq!(
+                        report["noise_job_usage_while_retained"],
+                        json!({"outstanding":1,"decoded_bytes":5})
+                    );
+                    assert_eq!(source["xnam"]["value"], json!(b"Noise.dds".as_slice()));
+                } else {
+                    assert!(report["noise_payload"].is_null());
+                    assert_eq!(source["noise"]["status"], "empty-declaration");
+                }
+                assert_eq!(
+                    report["noise_job_usage_after_release"],
+                    json!({"outstanding":0,"decoded_bytes":0})
+                );
+                for flag in [
+                    "finite_plane_computed",
+                    "inheritance_evaluated",
+                    "rendering_admitted",
+                    "runtime_ready",
+                    "lookup_precedence_verified",
+                    "retail_parity_accepted",
+                ] {
+                    assert_eq!(report[flag], false);
+                }
+            }
+        }
+    }
+    #[test]
+    fn cli_water_unavailable_declarations_and_factory_refusals_stay_distinct() {
+        for mode in [
+            "absent",
+            "missing-type",
+            "missing-noise",
+            "unsafe",
+            "ambiguous",
+            "duplicate",
+        ] {
+            let root = directory();
+            water_fixture(&root, mode);
+            let report = water(&root, &root.join("order.json"), None, None, water_input()).unwrap();
+            let refused = ["unsafe", "ambiguous", "duplicate"].contains(&mode);
+            assert_eq!(report["source_request_prepared"], !refused);
+            assert_eq!(report["source_inputs_available"], false);
+            assert_eq!(report["water_sources"].is_null(), refused);
+            assert_eq!(report["source_error"].is_null(), !refused);
+            if mode == "absent" {
+                for field in ["xclw", "xcwt", "xnam", "water_type", "noise"] {
+                    assert!(report["water_sources"][field].is_null());
+                }
+            }
+            if mode == "missing-type" {
+                assert_eq!(
+                    report["water_sources"]["water_type"]["target"]["status"],
+                    "missing"
+                );
+                assert_eq!(report["noise_available"], true);
+            }
+            if mode == "missing-noise" {
+                assert_eq!(report["water_sources"]["noise"]["status"], "missing");
+                assert_eq!(report["noise_requested"], false);
+            }
+            assert_eq!(report["runtime_ready"], false);
+        }
+        let root = directory();
+        water_fixture(&root, "valid");
+        for cell in ["Base.esm:999", "Base.esm:200"] {
+            let mut input = water_input();
+            input.cell = crate::parse_cell_key(cell).unwrap();
+            let report = water(&root, &root.join("order.json"), None, None, input).unwrap();
+            assert_eq!(report["source_request_prepared"], false);
+            assert!(report["water_sources"].is_null());
+        }
+    }
+    #[test]
+    fn cli_water_requires_explicit_cell_and_bounds_polling_before_opening_sources() {
+        use clap::Parser;
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "cell-water-sources",
+                "--install",
+                "authored",
+                "--load-order",
+                "order.json"
+            ])
+            .is_err()
+        );
+        let parsed = crate::Args::try_parse_from([
+            "fallout",
+            "cell-water-sources",
+            "--install",
+            "authored",
+            "--load-order",
+            "order.json",
+            "--cell",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::CellWaterSources { .. }
+        ));
+        for timeout in [0, 120_001] {
+            let mut input = water_input();
+            input.source_timeout_ms = timeout;
+            assert!(water(Path::new("absent"), Path::new("absent"), None, None, input).is_err());
         }
     }
 

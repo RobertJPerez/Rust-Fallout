@@ -291,7 +291,7 @@ fn source_index_preserves_independent_exhaustive_hits_with_bounded_work() {
 }
 
 #[test]
-fn source_index_fallback_preserves_reflections_and_approximate_frames() {
+fn source_index_preserves_reflections_and_approximate_frames() {
     let (_, collision) = nif_collision::decode(
         &container(&separated_cuboids(64)),
         "indexed and fallback sources",
@@ -351,6 +351,131 @@ fn source_index_fallback_preserves_reflections_and_approximate_frames() {
             );
         }
     }
+}
+
+#[test]
+fn transformed_source_index_reaches_queries_with_small_budgets() {
+    let (_, collision) = nif_collision::decode(
+        &container(&separated_cuboids(64)),
+        "transformed source index",
+    )
+    .unwrap();
+    for (rows, scale) in [
+        (
+            [[1., 0., 0., 10.], [0., 1., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+        (
+            [[-1., 0., 0., 300.], [0., 1., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+        (
+            [[0., -1., 0., 10.], [1., 0., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+        (
+            [[2., 0., 0., 10.], [0., 2., 0., -20.], [0., 0., 2., 30.]],
+            2.,
+        ),
+        (
+            [[0.5, 0., 0., 10.], [0., 0.5, 0., -20.], [0., 0., 0.5, 30.]],
+            0.5,
+        ),
+        (
+            [
+                [0.6, -0.8, 0., 10.],
+                [0.8, 0.6, 0., -20.],
+                [0., 0., 1., 30.],
+            ],
+            1.,
+        ),
+        (
+            [[1., 1e-7, 0., 10.], [0., 1., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+    ] {
+        let frame = Affine { rows };
+        let mut place = placement();
+        place.attachment_to_source = frame;
+        let scene = StaticScene::build(
+            &collision,
+            std::slice::from_ref(&place),
+            units(),
+            QueryLimits {
+                geometry_elements: 1087,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let direction = std::array::from_fn(|i| rows[i][0] / scale);
+        let small = QueryBudget {
+            primitive_tests: 10,
+            geometry_tests: 0,
+            hits: 1,
+        };
+        let first = scene
+            .ray_cast(
+                ray(frame.point([-5., 0.5, 0.5]), direction, 6. * scale),
+                small,
+            )
+            .unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].source.occurrence, 0);
+        assert_eq!(first[0].source.shape_block, 2);
+        assert!((first[0].distance - 5. * scale).abs() <= 16. * f64::EPSILON * (5. * scale));
+        let overlaps = scene
+            .overlap_sphere(frame.point([0.5; 3]), 0., small)
+            .unwrap();
+        assert_eq!(overlaps.len(), 1);
+        assert_eq!(overlaps[0].source, first[0].source);
+        assert!(
+            scene
+                .ray_cast(
+                    ray(frame.point([-5., 2., 0.5]), direction, 0.),
+                    QueryBudget {
+                        primitive_tests: 1,
+                        ..small
+                    }
+                )
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(
+            StaticScene::build(
+                &collision,
+                &[place],
+                units(),
+                QueryLimits {
+                    geometry_elements: 1086,
+                    ..Default::default()
+                }
+            ),
+            Err(QueryError::Budget("geometry/index elements"))
+        ));
+    }
+}
+
+#[test]
+fn transformed_culling_preserves_local_conversion_refusals() {
+    let (_, collision) =
+        nif_collision::decode(&container(&separated_cuboids(8)), "local-domain culling").unwrap();
+    let mut place = placement();
+    place.attachment_to_source.rows = [[0.5, 0., 0., 0.], [0., 0.5, 0., 0.], [0., 0., 0.5, 0.]];
+    let scene = StaticScene::build(&collision, &[place], units(), QueryLimits::default()).unwrap();
+    // World-domain inputs are valid, but their local projection is outside the
+    // original predicate's domain. A bounding miss cannot turn refusal into clear.
+    assert!(matches!(
+        scene.ray_cast(ray([1e50; 3], [1., 0., 0.], 0.), QueryBudget::default()),
+        Err(QueryError::Invalid("overflowing local ray"))
+    ));
+    assert!(matches!(
+        scene.overlap_sphere([1e50; 3], 0., QueryBudget::default()),
+        Err(QueryError::Invalid("overflowing local sphere"))
+    ));
+    assert!(matches!(
+        scene.overlap_sphere([0.; 3], 1e50, QueryBudget::default()),
+        Err(QueryError::Invalid("overflowing local sphere"))
+    ));
 }
 
 #[test]

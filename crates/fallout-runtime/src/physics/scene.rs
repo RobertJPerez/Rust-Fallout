@@ -522,9 +522,9 @@ impl StaticScene {
         let mut indexed = Vec::new();
         let mut fallback = Vec::new();
         for (ordinal, leaf) in scene.leaves.iter().enumerate() {
-            if leaf.transform.is_identity() {
-                let (minimum, maximum) = leaf.geometry.shape.bounds();
-                indexed.push((ordinal, Bounds::new(minimum, maximum)));
+            let (minimum, maximum) = leaf.geometry.shape.bounds();
+            if let Some(bounds) = Bounds::transformed(minimum, maximum, &leaf.transform) {
+                indexed.push((ordinal, bounds));
             } else {
                 fallback.push(ordinal);
             }

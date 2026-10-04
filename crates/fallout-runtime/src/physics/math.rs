@@ -53,6 +53,9 @@ impl Similarity {
     pub fn is_identity(&self) -> bool {
         self.inverse.rows == identity().rows
     }
+    pub fn inverse_rows(&self) -> [[f64; 4]; 3] {
+        self.inverse.rows
+    }
     pub fn new(forward: Affine, tolerance: f64) -> QueryResult<Self> {
         if forward.rows.iter().flatten().any(|x| !x.is_finite()) {
             return Err(QueryError::Invalid("nonfinite transform"));

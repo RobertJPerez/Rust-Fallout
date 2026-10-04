@@ -35,16 +35,19 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies", "menu_rectangles"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
     #[arg(skip)]
     native_shutdown: native::Shutdown,
+    #[arg(skip)]
+    rectangle_request: Option<Arc<ui::rectangles::Request>>,
     #[arg(long)]
     install: Option<PathBuf>,
     /// Archive path, for example meshes/furniture/chair01.nif.
@@ -71,6 +74,9 @@ struct Options {
     /// Explicit source-qualified UI dependency session and opaque input changes.
     #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["capture", "headless"])]
     menu_dependencies: Option<PathBuf>,
+    /// Exact literal rectangle subtree under a mandatory caller inspection policy.
+    #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["camera_position", "camera_look_at"])]
+    menu_rectangles: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -164,6 +170,7 @@ struct ReadyScene {
     orbit: Orbit,
     navigation: Navigation,
     fixture: Option<fixture::Report>,
+    projection: Option<Projection>,
 }
 
 struct DrawScene {
@@ -325,6 +332,12 @@ fn run() -> model::Result<AppExit> {
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
     }
+    if let Some(path) = &options.menu_rectangles {
+        options.rectangle_request = Some(Arc::new(ui::rectangles::read_request(
+            path,
+            ui::rectangles::Limits::default(),
+        )?));
+    }
     if let Some(path) = &options.menu_dependencies {
         let limits = ui::dependencies::Limits::default();
         let request = ui::dependencies::read_request(path, limits)?;
@@ -457,6 +470,8 @@ fn run() -> model::Result<AppExit> {
         fly: options.camera_position.is_some(),
         home: if options.material_fixture {
             Transform::from_xyz(0., 0., 1000.).looking_at(Vec3::ZERO, Vec3::Y)
+        } else if let Some(request) = &options.rectangle_request {
+            ui::rectangles::camera(request).0
         } else {
             orbit.transform()
         },
@@ -465,7 +480,12 @@ fn run() -> model::Result<AppExit> {
         .set(WindowPlugin {
             primary_window: (!headless).then(|| Window {
                 title: "Fallout Rust - Loading source data".into(),
-                resolution: (1280, 900).into(),
+                resolution: options
+                    .rectangle_request
+                    .as_ref()
+                    .map_or((1280, 900), |r| (r.viewport.width, r.viewport.height))
+                    .into(),
+                resizable: options.rectangle_request.is_none(),
                 ..default()
             }),
             exit_condition: if headless {
@@ -483,6 +503,14 @@ fn run() -> model::Result<AppExit> {
         plugins = plugins.disable::<WinitPlugin>();
     }
     let mut app = App::new();
+    let background =
+        options
+            .rectangle_request
+            .as_ref()
+            .map_or(Color::srgb(0.035, 0.045, 0.055), |r| {
+                let [red, green, blue, alpha] = r.viewport.background;
+                Color::srgba(red, green, blue, alpha)
+            });
     app.add_plugins(plugins)
         .add_plugins(material::InspectionPlugin)
         .add_plugins(input::InspectionInputPlugin)
@@ -498,7 +526,7 @@ fn run() -> model::Result<AppExit> {
             epoch: 1,
             phase: Phase::WaitingForWindow,
         })
-        .insert_resource(ClearColor(Color::srgb(0.035, 0.045, 0.055)))
+        .insert_resource(ClearColor(background))
         .add_systems(Startup, setup)
         .add_systems(Update, (controls, drive_loading, capture).chain());
     if headless {
@@ -515,6 +543,48 @@ fn prepare_scene(
     epoch: u64,
 ) -> model::Result<ReadyScene> {
     context.stage("Reading source data")?;
+    if let Some(request) = &options.rectangle_request {
+        let limits = ui::rectangles::Limits::default();
+        let (prepared, report, views) = ui::rectangles::load(
+            options
+                .install
+                .as_deref()
+                .expect("rectangles require installation"),
+            request,
+            limits,
+            context,
+            epoch,
+        )?;
+        context.stage("Preparing bounded source rectangle uploads")?;
+        let orbit = Orbit {
+            center: prepared.center,
+            radius: prepared.radius,
+            yaw: 0.,
+            pitch: 0.,
+            distance: prepared.radius * 3.,
+        };
+        let (home, projection) = ui::rectangles::camera(request);
+        let queue = upload::Queue::new_tiles(epoch, prepared, views)?;
+        context.check()?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(options.report.as_ref().expect("rectangles require report"))?;
+        ui::rectangles::write_report(&mut file, &report, limits.output_bytes)?;
+        file.sync_all()?;
+        context.check()?;
+        eprintln!(
+            "{} exact literal source rectangles; fixed caller inspection viewport",
+            report.plan.rectangles.len()
+        );
+        return Ok(ReadyScene {
+            upload: DrawScene { queue, cell: None },
+            orbit,
+            navigation: Navigation { fly: false, home },
+            fixture: None,
+            projection: Some(projection),
+        });
+    }
     let pose = options
         .skin_geometry
         .map(|geometry| {
@@ -649,6 +719,7 @@ fn prepare_scene(
         },
         orbit,
         navigation,
+        projection: None,
         fixture: if let scene::Report::Fixture(report) = report {
             Some(report)
         } else {
@@ -787,7 +858,9 @@ fn drive_loading(
                         *navigation = ready.navigation;
                         for (mut transform, mut projection) in &mut cameras {
                             *transform = navigation.home;
-                            if let Projection::Perspective(perspective) = &mut *projection {
+                            if let Some(prepared) = &ready.projection {
+                                *projection = prepared.clone();
+                            } else if let Projection::Perspective(perspective) = &mut *projection {
                                 perspective.near = (orbit.radius * 0.001).max(0.01);
                                 perspective.far = orbit.radius * 100.;
                             }
@@ -959,7 +1032,9 @@ fn setup(
             Camera3d::default(),
             Tonemapping::None,
             navigation.home,
-            if options.material_fixture {
+            if let Some(request) = &options.rectangle_request {
+                ui::rectangles::camera(request).1
+            } else if options.material_fixture {
                 Projection::Orthographic(OrthographicProjection {
                     scaling_mode: ScalingMode::Fixed {
                         width: 1280.,
@@ -976,7 +1051,7 @@ fn setup(
                     ..default()
                 })
             },
-            if options.material_fixture {
+            if options.material_fixture || options.rectangle_request.is_some() {
                 Msaa::Off
             } else {
                 Msaa::default()
@@ -986,8 +1061,14 @@ fn setup(
     let target = if options.headless {
         let mut image = Image::new_uninit(
             Extent3d {
-                width: 1280,
-                height: 900,
+                width: options
+                    .rectangle_request
+                    .as_ref()
+                    .map_or(1280, |r| r.viewport.width),
+                height: options
+                    .rectangle_request
+                    .as_ref()
+                    .map_or(900, |r| r.viewport.height),
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
@@ -1029,6 +1110,9 @@ fn controls(
     }
     if actions.close {
         exit.write(AppExit::Success);
+        return;
+    }
+    if options.rectangle_request.is_some() {
         return;
     }
     let delta = time.delta_secs().min(0.1);
@@ -1295,6 +1379,7 @@ mod tests {
                 home: Transform::from_xyz(100., 20., 30.),
             },
             fixture: None,
+            projection: None,
         }
     }
 

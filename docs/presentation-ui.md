@@ -182,3 +182,62 @@ request strings have their own limits. A later report write failure can leave a
 partial immutable output; semantic batch failures create no report. This identifies
 work in the explicit graph, without arithmetic, engine defaults, original menu
 display or gameplay acceptance.
+
+## Literal rectangle inspection (VIEW20)
+
+`fallout-preview --install INSTALL --menu-rectangles REQUEST.json --report REPORT.json`
+opens a fixed inspection viewport. Add `--headless --capture CAPTURE.png` for an
+engineering GPU capture. The mode requires a strict schema-1 request with the
+exact source path/archive SHA/payload SHA and selected unique root
+`tile: { name, node, span }` from the retained source report. It accepts no model
+mode or source-camera override. Request admission occurs before graphics startup;
+archive reading and XML projection start after the window event on the existing
+preparation worker.
+
+The caller must supply `policy: "parent-relative-pixels-rgba255"`,
+`viewport: { width, height, background: [r,g,b,a], depth_range: [min,max] }`, and
+`parent: { origin: [x,y,depth], opacity, visible }`. Background uses unit sRGB;
+parent opacity is in 0..1. Every selected rectangle and descendant must explicitly
+declare finite-f32 `x`, `y`, `width`, `height`, `depth`, `red`, `green`, `blue`,
+`alpha`, and Boolean01 `visible`. Positive dimensions, RGB/alpha in 0..255,
+exact source spans and numeric float bits are retained. Only optional source
+`name` attributes, rectangle children, comments and XML ASCII whitespace are
+accepted alongside these fields. Absent/empty/duplicate/attributed fields,
+operators, custom references, other tile kinds and other direct traits refuse.
+The existing literal projection and entity resolver remain the only conversion
+path; child rectangles bind exact topology even when a child name also appears
+outside the selected subtree.
+
+This is an explicit caller inspection policy: local x/y add to the parent in
+right/down pixels; depth adds with larger values in front; visibility is ancestor
+AND; straight opacity is the ancestor product times source alpha/255. It does not
+establish original engine units, defaults or arithmetic. Geometry maps y to world
+-y and draws unlit quads through the existing material and bounded upload queue.
+The orthographic camera and initial physical pixel extent stay fixed; the window
+cannot be resized and camera movement is disabled in this mode. Escape/close and
+loading cancellation retain their existing host boundaries. Transparent colors
+blend in linear space through the existing source-alpha factors; RGB PNG captures
+do not establish output-alpha channel behavior. Overlapping visible nonzero-alpha
+rectangles at equal f32 depth refuse because this consumer has no certified tie
+ordering policy. Collapsed geometry, draw area, reconstruction and subnormal GPU
+coordinates/color/opacity also refuse.
+
+Limits are 128 KiB request, 256 rectangles/draws, subtree depth 64 and 32,768
+direct traversal visits. Aggregate literal projection reserves at most 8 MiB
+copies and 4 MiB logical metadata, with 1 MiB plan/stack metadata and 256 KiB mesh
+submission bytes. Coordinates are limited to magnitude 1,048,576 pixels. The
+viewport admits 1..4096 pixels per dimension and at most 4,194,304 pixels total;
+finite ordered depth endpoints and their span are similarly bounded. Existing
+source Document caps apply. Full source/request/plan reports have a 16 MiB ceiling.
+These are logical admission limits, not a peak allocator or VRAM measurement.
+
+Each instance and mesh carries the same immutable archive/payload receipt,
+source node/span/root and current scene epoch. Source topology remains in the
+report; draw instances use resolved positions and inherited visibility. Labels
+retire alongside the existing bounded entity/resource queue. Cancellation retains
+a late prepared result until the host drains it; stale epochs cannot publish it.
+The source report is a snapshot read during preparation, without a continuously
+held source-file lease. Retry verifies the same explicit source identity again.
+Semantic refusal precedes report creation; a later I/O or cancellation boundary
+can leave a fresh diagnostic report without a capture. Original menu readiness,
+text/fonts, template evaluation, UI focus/actions and gameplay remain unaccepted.

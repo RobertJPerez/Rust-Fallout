@@ -473,6 +473,17 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve exact FNV CELL owner and signed rank source inputs.
+    CellOwnershipSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+    },
     /// Preserve exact CELL region arrays and winning REGN header inputs.
     CellRegionSources {
         #[arg(long)]
@@ -1480,6 +1491,24 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::CellOwnershipSources {
+            install,
+            load_order,
+            index_cache,
+            cell,
+        } => {
+            let report = world_preparation_inspection::ownership(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&cell)?,
+            )?;
+            let prepared = report["source_request_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("CELL ownership source request refused; see report".into());
             }
         }
         Command::CellRegionSources {

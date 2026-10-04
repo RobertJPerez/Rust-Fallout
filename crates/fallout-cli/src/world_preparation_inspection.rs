@@ -14,6 +14,7 @@ use fallout_data::{
         doors::DoorDestination,
         environment::CellEnvironmentSources,
         lighting::CellLightingSources,
+        ownership::CellOwnershipSources,
         preparation::CellModelPlan,
         regions::CellRegionSources,
         residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
@@ -174,6 +175,43 @@ pub(super) fn water(
     })();
     if let Err(error) = consumed {
         report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) fn ownership(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    cell: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let prepared = CellOwnershipSources::load(&mut store, &cell, Default::default());
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact FNV CELL owner and signed rank source declarations",
+        "requested_cell":cell,"ownership_sources":null,"source_request_prepared":false,"source_error":null,
+        "owner_declared":false,"rank_declared":false,"owner_header_source_available":false,"owner_resolution_status":"absent",
+        "ownership_evaluated":false,"actor_faction_rank_evaluated":false,"access_evaluated":false,"theft_evaluated":false,
+        "target_behavior_decoded":false,"runtime_ready":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(sources) => {
+            let receipt = sources.receipt();
+            report["owner_declared"] = json!(receipt.owner.is_some());
+            report["rank_declared"] = json!(receipt.rank.is_some());
+            report["owner_header_source_available"] = json!(
+                receipt
+                    .owner
+                    .as_ref()
+                    .is_some_and(|o| o.header_source_available)
+            );
+            report["owner_resolution_status"] =
+                json!(receipt.owner.as_ref().map_or("absent", |o| o.target.status));
+            report["ownership_sources"] = serde_json::to_value(&sources)?;
+            report["source_request_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
     }
     provenance(&mut report, &order, &mut store)?;
     Ok(report)
@@ -2500,6 +2538,298 @@ mod tests {
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
         }
+    }
+
+    fn ownership_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let mut cell = field(b"DATA", &[1]);
+        match mode {
+            "absent" => {}
+            "owner-only" | "null" | "missing" => cell.extend(field(
+                b"XOWN",
+                &(match mode {
+                    "null" => 0_u32,
+                    "missing" => 0x999,
+                    _ => 0x200,
+                })
+                .to_le_bytes(),
+            )),
+            "rank-only" => cell.extend(field(b"XRNK", &[0, 0, 0, 128])),
+            "wide-owner" => cell.extend(field(b"XOWN", &[0; 12])),
+            "short-rank" => cell.extend(field(b"XRNK", &[0; 3])),
+            "truncated" => cell.extend(b"XOWN\x04\0\0"),
+            _ => {
+                let word = match mode {
+                    "signed-min" => [0, 0, 0, 128],
+                    "signed-max" => [255, 255, 255, 127],
+                    _ => [249, 255, 255, 255],
+                };
+                cell.extend(field(b"XRNK", &word));
+                cell.extend(field(b"ZZZZ", &[91, 92]));
+                cell.extend(field(
+                    b"XOWN",
+                    &(if mode == "npc" { 0x201_u32 } else { 0x200 }).to_le_bytes(),
+                ));
+            }
+        }
+        match mode {
+            "duplicate-owner" => cell.extend(field(b"XOWN", &[0; 4])),
+            "duplicate-rank" => cell.extend(field(b"XRNK", &[0; 4])),
+            "xglb" => cell.extend(field(b"XGLB", &[0, 2, 0, 0])),
+            _ => {}
+        }
+        let hedr = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let base = [
+            record(b"TES4", 0, &hedr),
+            record(b"CELL", 0x100, &cell),
+            record(b"FACT", 0x200, &field(b"ZZZZ", &[1])),
+            record(b"NPC_", 0x201, &field(b"ZZZZ", &[2])),
+        ]
+        .concat();
+        fs::write(root.join("Data/Base.esm"), base).unwrap();
+        let patch_header = [
+            hedr,
+            field(
+                b"MAST",
+                if mode == "missing-master" {
+                    b"Missing.esm\0"
+                } else {
+                    b"Base.esm\0"
+                },
+            ),
+            field(b"DATA", &[0; 8]),
+        ]
+        .concat();
+        let mut target = record(
+            if mode == "wrong-record-kind" {
+                b"MUSC"
+            } else {
+                b"FACT"
+            },
+            0x200,
+            &[1, 2, 3],
+        );
+        if mode == "deleted" {
+            target[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        }
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [record(b"TES4", 0, &patch_header), target].concat(),
+        )
+        .unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("ownership-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_OWNERSHIP_FIXTURE={}", root.display());
+    }
+    fn ownership_report(root: &Path) -> Value {
+        ownership(
+            root,
+            &root.join("order.json"),
+            None,
+            crate::parse_cell_key("Base.esm:100").unwrap(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn cli_ownership_preserves_fact_npc_signed_extremes_raw_spans_and_actual_header_sources() {
+        for mode in ["valid", "npc", "signed-min", "signed-max"] {
+            let root = directory();
+            ownership_fixture(&root, mode);
+            let report = ownership_report(&root);
+            assert_eq!(report["source_request_prepared"], true);
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["owner_declared"], true);
+            assert_eq!(report["rank_declared"], true);
+            assert_eq!(report["owner_header_source_available"], true);
+            assert_eq!(report["owner_resolution_status"], "resolved");
+            let s = &report["ownership_sources"];
+            assert_eq!(s["cell"]["header"]["offset"], 42);
+            assert_eq!(s["usage"]["read_bytes"], 35);
+            let owner = &s["owner"];
+            let id = if mode == "npc" { 0x201_u32 } else { 0x200 };
+            assert_eq!(owner["raw"], id);
+            assert_eq!(owner["target"]["key"]["local_id"], id);
+            assert_eq!(owner["target"]["status"], "resolved");
+            assert_eq!(owner["field"]["physical_field_ordinal"], 3);
+            assert_eq!(owner["field"]["logical_field_ordinal"], 3);
+            assert_eq!(owner["field"]["site"]["decoded_header_offset"], 25);
+            assert_eq!(owner["field"]["site"]["span"]["decoded_offset"], 31);
+            assert_eq!(owner["field"]["physical_framing_offset"], 91);
+            assert_eq!(
+                owner["source"]["source_ordinal"],
+                usize::from(mode != "npc")
+            );
+            assert_eq!(
+                owner["source"]["header"]["offset"],
+                if mode == "npc" { 132 } else { 71 }
+            );
+            let rank = &s["rank"];
+            let (raw, value) = match mode {
+                "signed-min" => (0x80000000_u32, i32::MIN),
+                "signed-max" => (0x7fffffff, i32::MAX),
+                _ => (0xfffffff9, -7),
+            };
+            assert_eq!(rank["raw"], raw);
+            assert_eq!(rank["value"], value);
+            assert_eq!(rank["field"]["physical_field_ordinal"], 1);
+            assert_eq!(rank["field"]["logical_field_ordinal"], 1);
+            assert_eq!(rank["field"]["site"]["decoded_header_offset"], 7);
+            assert_eq!(rank["field"]["site"]["span"]["decoded_offset"], 13);
+            assert_eq!(rank["field"]["physical_framing_offset"], 73);
+            assert_eq!(
+                owner["ownership_status"],
+                "unknown; target body and ownership not evaluated"
+            );
+            assert_eq!(
+                rank["applicability_status"],
+                "unknown; actor/faction rank and ownership not evaluated"
+            );
+            for flag in [
+                "ownership_evaluated",
+                "actor_faction_rank_evaluated",
+                "access_evaluated",
+                "theft_evaluated",
+                "target_behavior_decoded",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[flag], false);
+            }
+        }
+    }
+    #[test]
+    fn cli_ownership_absence_rank_only_unavailable_and_strict_non_nv_fields_remain_explicit() {
+        for mode in [
+            "absent",
+            "owner-only",
+            "rank-only",
+            "null",
+            "missing",
+            "deleted",
+            "wrong-record-kind",
+            "duplicate-owner",
+            "duplicate-rank",
+            "wide-owner",
+            "short-rank",
+            "xglb",
+            "truncated",
+            "missing-master",
+        ] {
+            let root = directory();
+            ownership_fixture(&root, mode);
+            if ["truncated", "missing-master"].contains(&mode) {
+                assert!(
+                    ownership(
+                        &root,
+                        &root.join("order.json"),
+                        None,
+                        crate::parse_cell_key("Base.esm:100").unwrap()
+                    )
+                    .is_err()
+                );
+                continue;
+            }
+            let report = ownership_report(&root);
+            let refused = [
+                "duplicate-owner",
+                "duplicate-rank",
+                "wide-owner",
+                "short-rank",
+                "xglb",
+            ]
+            .contains(&mode);
+            assert_eq!(report["source_request_prepared"], !refused);
+            assert_eq!(report["ownership_sources"].is_null(), refused);
+            assert_eq!(report["source_error"].is_null(), !refused);
+            if !refused {
+                let owner_declared = !["absent", "rank-only"].contains(&mode);
+                let rank_declared = ["rank-only", "deleted", "wrong-record-kind"].contains(&mode);
+                assert_eq!(report["owner_declared"], owner_declared);
+                assert_eq!(report["rank_declared"], rank_declared);
+                assert_eq!(
+                    report["ownership_sources"]["owner"].is_null(),
+                    !owner_declared
+                );
+                assert_eq!(
+                    report["ownership_sources"]["rank"].is_null(),
+                    !rank_declared
+                );
+                assert_eq!(
+                    report["owner_resolution_status"],
+                    match mode {
+                        "absent" | "rank-only" => "absent",
+                        "owner-only" => "resolved",
+                        _ => mode,
+                    }
+                );
+                assert_eq!(
+                    report["owner_header_source_available"],
+                    mode == "owner-only"
+                );
+                if mode == "rank-only" {
+                    assert_eq!(report["ownership_sources"]["rank"]["value"], i32::MIN);
+                }
+            } else if mode == "xglb" {
+                assert!(
+                    report["source_error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("raw unknown/unsupported for FNV ownership")
+                );
+            }
+            assert_eq!(report["ownership_evaluated"], false);
+            assert_eq!(report["access_evaluated"], false);
+        }
+        let root = directory();
+        ownership_fixture(&root, "valid");
+        for key in ["Base.esm:999", "Base.esm:200"] {
+            let r = ownership(
+                &root,
+                &root.join("order.json"),
+                None,
+                crate::parse_cell_key(key).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(r["source_request_prepared"], false);
+            assert!(r["ownership_sources"].is_null());
+        }
+    }
+    #[test]
+    fn cli_ownership_requires_an_explicit_canonical_cell() {
+        use clap::Parser;
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "cell-ownership-sources",
+                "--install",
+                "authored",
+                "--load-order",
+                "order.json"
+            ])
+            .is_err()
+        );
+        let parsed = crate::Args::try_parse_from([
+            "fallout",
+            "cell-ownership-sources",
+            "--install",
+            "authored",
+            "--load-order",
+            "order.json",
+            "--cell",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::CellOwnershipSources { .. }
+        ));
     }
 
     fn region_fixture(root: &Path, mode: &str) {

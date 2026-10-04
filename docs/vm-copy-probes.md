@@ -26,6 +26,13 @@ and one own-local destination inside Begin/Assignment/End. The actual source
 instruction and observed operand bits must agree with the manifest. Conversion,
 branch, native and external-caller execution remain unsupported.
 
+Each producer step executes one complete event and therefore requires distinct
+consecutive `event_ordinal` values starting at zero. A duplicate ordinal is
+unsupported before preview or result commits; skipped/reversed ordinals fail
+manifest validation. Imported traces can still contain multiple observations
+within one event. That broader trace format does not authorize this producer to
+replay a grouped observation as another event.
+
 A private preview uses the same staging/commit API to check the complete input
 sequence. That preview world is discarded. Only a fully supported preview
 permits the requested private result world to commit source copies. Unsupported

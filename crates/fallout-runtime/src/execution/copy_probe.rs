@@ -240,6 +240,16 @@ pub fn observe(
                 || input.caller.target.is_some()
         }) {
         Some(Unsupported{step:None,detail:"Only explicit own-scope engineering assignment copies are supported; conversion, branch, native and external caller behavior are unmeasured".into()})
+    } else if let Some(step) = manifest
+        .steps
+        .iter()
+        .enumerate()
+        .position(|(index, input)| input.event_ordinal as usize != index)
+    {
+        Some(Unsupported {
+            step: Some(step),
+            detail: "Standalone copy steps execute complete events and require consecutive distinct event ordinals starting at zero".into(),
+        })
     } else {
         let (mut preview, preview_handle) = seeded(sources, manifest, request, limits)?;
         steps(&mut preview, preview_handle, sources, content, manifest)?.err()

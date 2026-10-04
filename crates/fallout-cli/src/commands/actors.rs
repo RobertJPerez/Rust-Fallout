@@ -52,8 +52,8 @@ pub(crate) enum ActorsCommand {
         ai_root: Option<identity::FormKey>,
         #[arg(long, value_parser = actor_inspection::parse_root)]
         initialization_root: Option<identity::FormKey>,
-        #[arg(long, requires = "effect_field", value_parser = actor_inspection::parse_root)]
-        effect_root: Option<identity::FormKey>,
+        #[arg(long, requires = "effect_field", value_parser = actor_inspection::parse_boxed_root)]
+        effect_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires = "effect_root")]
         effect_field: Option<usize>,
         #[arg(long, value_parser = actor_inspection::parse_boxed_root)]

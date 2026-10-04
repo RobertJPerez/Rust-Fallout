@@ -1509,7 +1509,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     script_root,
                     ai_root,
                     initialization_root,
-                    effect_root,
+                    effect_root: effect_root.map(|key| *key),
                     effect_field,
                     weapon_root: weapon_root.map(|key| *key),
                     ammo_root: ammo_root.map(|key| *key),

@@ -308,8 +308,8 @@ pub(crate) enum RuntimeCommand {
         #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
-        #[arg(long, requires = "saved_snapshot_request")]
-        snapshot_output: Option<PathBuf>,
+        #[arg(long, requires = "saved_snapshot_request", value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))))]
+        snapshot_output: Option<Box<PathBuf>>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {

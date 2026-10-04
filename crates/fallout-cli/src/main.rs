@@ -585,6 +585,17 @@ enum Command {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Apply explicit triangle/edge exclusions and penalties to a source route.
+    NavigationOverlay {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Advance or cancel a bounded source navigation search without restarting.
     NavigationSearch {
         #[arg(long)]
@@ -1802,6 +1813,20 @@ fn run(args: Args) -> Result<()> {
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());
             }
+        }
+        Command::NavigationOverlay {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            navigation_inspection::inspect_overlay(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+                |report| emit(report, output, &install),
+            )?;
         }
         Command::NavigationSearch {
             install,

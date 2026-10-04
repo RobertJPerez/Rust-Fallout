@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, io::Read, path::Path};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Request {
     start: TriangleId,
@@ -932,5 +932,138 @@ pub fn inspect_endpoints(
     };
     serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
     // Consumer serialization finishes before the source owner/borrow drops.
+    consume(&report)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OverlayRequest {
+    cells: Vec<FormKey>,
+    route: CellRouteRequest,
+    overlay: route::overlay::OverlayRequest,
+    #[serde(default)]
+    source_limits: SourceWork,
+    #[serde(default)]
+    graph_limits: GraphWork,
+    #[serde(default)]
+    route_limits: RouteWork,
+    #[serde(default)]
+    overlay_limits: route::overlay::OverlayLimits,
+    #[serde(default)]
+    query_limits: route::overlay::OverlayQueryLimits,
+}
+#[derive(Serialize)]
+pub struct OverlayReport<'a> {
+    schema_version: u32,
+    load_order_sha256: String,
+    request_sha256: String,
+    sources: Vec<fallout_data::store::SourceReceipt>,
+    cell_set: &'a navigation::CellSet,
+    #[serde(rename = "nodes", serialize_with = "serialize_nodes")]
+    graph: &'a RouteGraph,
+    base_policy: &'a Request,
+    source_limits: SourceWork,
+    graph_limits: GraphWork,
+    route_limits: RouteWork,
+    overlay_limits: route::overlay::OverlayLimits,
+    query_limits: route::overlay::OverlayQueryLimits,
+    graph_admission: GraphAdmission,
+    overlay_retained_ceiling: usize,
+    retained_metadata_reservation_bytes: usize,
+    overlay: route::overlay::OverlayView<'a>,
+    result: route::overlay::OverlayOutcome,
+    faithful_ready: bool,
+    semantics: &'static str,
+}
+pub fn inspect_overlay(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    consume: impl FnOnce(&OverlayReport<'_>) -> Result<()>,
+) -> Result<()> {
+    let mut bytes = Vec::new();
+    baseline::open_source(request_path)?
+        .take(1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 1024 * 1024 {
+        return Err("navigation overlay request exceeds1 MiB".into());
+    }
+    let request: OverlayRequest = serde_json::from_slice(&bytes)?;
+    let source_limits = request.source_limits.limits()?;
+    let graph_limits = request.graph_limits.limits()?;
+    let route_limits = request.route_limits.limits()?;
+    let mut overlay_limits = request.overlay_limits;
+    overlay_limits.validate()?;
+    if request.cells.is_empty()
+        || request.cells.len() > source_limits.cells
+        || request.query_limits.lookup_tests
+            > route::overlay::OverlayQueryLimits::default().lookup_tests
+    {
+        return Err("navigation overlay cell/query budget exceeded".into());
+    }
+    let policy_request = Request::from(request.route);
+    validate_request(&policy_request)?;
+    let order = Order::read(order_path)?;
+    let mut store = bounded_store(install, &order, cache, source_limits)?;
+    let sources = store.source_receipts()?;
+    let set = navigation::load_cells(&mut store, &request.cells, source_limits)?;
+    let admission = graph_admission(&set, request.source_limits, request.graph_limits)?;
+    // This existing graph reservation includes the legacy route's bounded
+    // frontier/path/diagnostics. Overlay indices and hashes share the remaining
+    // source metadata allowance; no per-row or per-cell renewal.
+    let base = set
+        .usage
+        .identity_metadata_bytes
+        .checked_add(admission.identity_reservation_bytes)
+        .and_then(|n| n.checked_add(4096))
+        .ok_or("overlay metadata overflow")?;
+    let remaining = request
+        .source_limits
+        .identity_metadata_bytes
+        .checked_sub(base)
+        .ok_or("overlay global identity metadata exhausted")?;
+    overlay_limits.retained_bytes = overlay_limits.retained_bytes.min(remaining);
+    let graph = RouteGraph::build(&set.meshes, graph_limits)?;
+    let overlay = route::overlay::RouteOverlay::prepare(&graph, &request.overlay, overlay_limits)?;
+    let retained_metadata_reservation_bytes = base
+        .checked_add(overlay.admission().retained_bytes)
+        .ok_or("overlay metadata total overflow")?;
+    for endpoint in [&policy_request.start, &policy_request.goal] {
+        validate_endpoint(&policy_request, endpoint, graph.node(endpoint))?;
+    }
+    let policy = |a: &route::Node, b: &route::Link, c: Option<&route::Node>| {
+        route_cost(&policy_request, a, b, c)
+    };
+    let result = graph.route_with_overlay(
+        &policy_request.start,
+        &policy_request.goal,
+        route_limits,
+        &overlay,
+        request.query_limits,
+        &policy,
+    )?;
+    let report = OverlayReport {
+        schema_version: 1,
+        load_order_sha256: order.sha256,
+        request_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        sources,
+        cell_set: &set,
+        graph: &graph,
+        base_policy: &policy_request,
+        source_limits: request.source_limits,
+        graph_limits: request.graph_limits,
+        route_limits: request.route_limits,
+        overlay_limits: request.overlay_limits,
+        query_limits: request.query_limits,
+        graph_admission: admission,
+        overlay_retained_ceiling: overlay_limits.retained_bytes,
+        retained_metadata_reservation_bytes,
+        overlay: overlay.view(),
+        result,
+        faithful_ready: false,
+        semantics: "explicit source CELL set with one live graph-bound overlay; exact triangle/directed source slot+target exclusions and finite nonnegative per-edge penalties; unchanged explicit base eligibility/special/door policy; normalized source/overlay identity and one global source/graph/route/overlay metadata ledger; no geometry rebuild, nearest obstacle, actor avoidance, canonical movement/state/save or original gameplay semantics",
+    };
+    serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
     consume(&report)
 }

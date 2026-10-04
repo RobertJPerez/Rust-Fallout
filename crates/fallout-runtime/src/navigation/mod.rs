@@ -2,6 +2,7 @@
 //! explicit caller inputs; paths are proposals, never canonical actor movement.
 pub mod corridor;
 pub mod endpoint;
+pub mod overlay;
 pub mod search;
 mod source;
 use fallout_data::{identity::FormKey, navigation::SourceMesh};

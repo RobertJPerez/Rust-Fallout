@@ -27,6 +27,8 @@ pub struct FileReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     splines: Option<spline::Catalogue>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    spline_components: Option<spline::components::Catalogue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     engineering_sample: Option<sampling::Diagnostic>,
     error: Option<String>,
     comparison: Option<&'static str>,
@@ -39,6 +41,8 @@ pub struct Report {
     keyframe_branch: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     spline_branch: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    spline_component_branch: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     engineering_sampling_contract: Option<&'static str>,
     float_encoding: &'static str,
@@ -115,6 +119,13 @@ fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
         && !compare_splines(&splines.blocks, &expected["splines"])?
     {
         return Err("oracle spline-source block identity/span/hash or source fields differ".into());
+    }
+    if let Some(components) = &actual.spline_components
+        && !compare_components(&components.blocks, &expected["spline_components"])?
+    {
+        return Err(
+            "oracle spline-component block identity/span/hash or source fields differ".into(),
+        );
     }
     Ok(())
 }
@@ -252,11 +263,45 @@ fn compare_splines(blocks: &[spline::Block], expected: &Value) -> Result<bool> {
     Ok(true)
 }
 
+fn compare_components(blocks: &[spline::components::Block], expected: &Value) -> Result<bool> {
+    let Some(expected) = expected.as_array() else {
+        return Ok(false);
+    };
+    if blocks.len() != expected.len() {
+        return Ok(false);
+    }
+    for (block, row) in blocks.iter().zip(expected) {
+        // Each component is a bounded fixed-size source product.
+        if serde_json::to_value(block)? != *row {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+struct Work {
+    keys: usize,
+    splines: usize,
+    components: usize,
+    diagnostic_bytes: usize,
+}
+impl Default for Work {
+    fn default() -> Self {
+        Self {
+            keys: 16_000_000,
+            splines: 16_000_000,
+            components: 16_000_000,
+            diagnostic_bytes: 0,
+        }
+    }
+}
+
 pub fn inspect(
     input: &Path,
     oracle_path: Option<&Path>,
     include_keyframes: bool,
     include_splines: bool,
+    include_components: bool,
     sample: Option<SampleRequest>,
 ) -> Result<Report> {
     if sample
@@ -273,9 +318,11 @@ pub fn inspect(
         oracle_path,
         include_keyframes || sample.is_some(),
         include_splines,
-        16_000_000,
-        16_000_000,
-        if sample.is_some() { 64 } else { 0 },
+        include_components,
+        Work {
+            diagnostic_bytes: if sample.is_some() { 64 } else { 0 },
+            ..Default::default()
+        },
     )?;
     if let Some(request) = sample {
         report.engineering_sampling_contract = Some(sampling::CONTRACT);
@@ -331,20 +378,40 @@ fn inspect_with_key_work(
     include_keyframes: bool,
     key_work: usize,
 ) -> Result<Report> {
-    inspect_with_work(input, oracle_path, include_keyframes, false, key_work, 0, 0)
+    inspect_with_work(
+        input,
+        oracle_path,
+        include_keyframes,
+        false,
+        false,
+        Work {
+            keys: key_work,
+            splines: 0,
+            components: 0,
+            diagnostic_bytes: 0,
+        },
+    )
 }
 fn inspect_with_work(
     input: &Path,
     oracle_path: Option<&Path>,
     include_keyframes: bool,
     include_splines: bool,
-    mut key_work: usize,
-    mut spline_work: usize,
-    reserved_diagnostic_bytes: usize,
+    include_components: bool,
+    work: Work,
 ) -> Result<Report> {
+    let include_splines = include_splines || include_components;
     let include_keyframes = include_keyframes || include_splines;
+    let Work {
+        keys: mut key_work,
+        splines: mut spline_work,
+        components: mut component_work,
+        diagnostic_bytes: reserved_diagnostic_bytes,
+    } = work;
     let mut report = Report {
-        schema_version: if include_splines {
+        schema_version: if include_components {
+            4
+        } else if include_splines {
             3
         } else if include_keyframes {
             2
@@ -354,6 +421,7 @@ fn inspect_with_work(
         animation_branch: "nv-four-source-classes",
         keyframe_branch: include_keyframes.then_some("nv-transform-data-source"),
         spline_branch: include_splines.then_some("nv-compact-transform-source"),
+        spline_component_branch: include_components.then_some("nv-compact-components-source"),
         engineering_sampling_contract: None,
         float_encoding: "ieee754-binary32-bits",
         string_encoding: "raw-byte-arrays",
@@ -395,6 +463,12 @@ fn inspect_with_work(
                 || document["raw_spline_counts_checked"] != true)
         {
             return Err("oracle spline-source/provenance contract is missing".into());
+        }
+        if include_components
+            && (document["spline_component_branch"] != "nv-compact-components-source"
+                || document["raw_component_fields_checked"] != true)
+        {
+            return Err("oracle spline-component source/provenance contract is missing".into());
         }
         let hash = document["oracle_binary_sha256"]
             .as_str()
@@ -479,6 +553,7 @@ fn inspect_with_work(
             animation: None,
             keys: None,
             splines: None,
+            spline_components: None,
             engineering_sample: None,
             error: None,
             comparison: None,
@@ -493,33 +568,51 @@ fn inspect_with_work(
             max_combined_retained_bytes: remaining,
             key_work,
         };
-        let decoded = if include_splines {
-            spline::decode_with_limits(
+        let spline_limits = spline::Limits {
+            keyframes: key_limits,
+            array_bytes: remaining.min(128 * 1024 * 1024),
+            spline_work,
+        };
+        let decoded = if include_components {
+            spline::components::decode_with_limits(
                 &bytes,
                 &row.input.display().to_string(),
-                spline::Limits {
-                    keyframes: key_limits,
+                spline::components::Limits {
+                    splines: spline_limits,
                     array_bytes: remaining.min(128 * 1024 * 1024),
-                    spline_work,
+                    component_work,
                 },
             )
-            .map(|(index, source)| {
+            .map(|(index, decoded)| {
                 (
                     index,
-                    source.animation,
-                    Some(source.keys),
-                    Some(source.splines),
+                    decoded.source.animation,
+                    Some(decoded.source.keys),
+                    Some(decoded.source.splines),
+                    Some(decoded.components),
                 )
             })
+        } else if include_splines {
+            spline::decode_with_limits(&bytes, &row.input.display().to_string(), spline_limits).map(
+                |(index, source)| {
+                    (
+                        index,
+                        source.animation,
+                        Some(source.keys),
+                        Some(source.splines),
+                        None,
+                    )
+                },
+            )
         } else if include_keyframes {
             keyframe::decode_with_limits(&bytes, &row.input.display().to_string(), key_limits)
-                .map(|(index, source)| (index, source.animation, Some(source.keys), None))
+                .map(|(index, source)| (index, source.animation, Some(source.keys), None, None))
         } else {
             nif_animation::decode_with_limits(&bytes, &row.input.display().to_string(), limits)
-                .map(|(index, animation)| (index, animation, None, None))
+                .map(|(index, animation)| (index, animation, None, None, None))
         };
         match decoded {
-            Ok((index, animation, keys, splines)) => {
+            Ok((index, animation, keys, splines, components)) => {
                 remaining = remaining
                     .checked_sub(animation.retained_bytes)
                     .ok_or("aggregate animation catalogue budget exceeded")?;
@@ -552,6 +645,21 @@ fn inspect_with_work(
                     }
                     report.unresolved_dependencies += splines.dependencies.len();
                 }
+                if let Some(components) = &components {
+                    component_work = component_work
+                        .checked_sub(components.work_units)
+                        .ok_or("aggregate spline-component work budget exceeded")?;
+                    remaining = remaining
+                        .checked_sub(components.retained_bytes)
+                        .ok_or("aggregate spline-component catalogue budget exceeded")?;
+                    for block in &components.blocks {
+                        *report
+                            .block_counts
+                            .entry(block.block_type.into())
+                            .or_default() += 1;
+                    }
+                    report.unresolved_dependencies += components.dependencies.len();
+                }
                 row.tuple = Some([index.version, index.user_version, index.bethesda_version]);
                 row.strings = Some(index.strings);
                 row.container_block_counts = Some(index.block_counts);
@@ -566,6 +674,7 @@ fn inspect_with_work(
                 row.animation = Some(animation);
                 row.keys = keys;
                 row.splines = splines;
+                row.spline_components = components;
                 if let Some(document) = &oracle {
                     let result = row
                         .input
@@ -594,6 +703,9 @@ fn inspect_with_work(
                 }
                 if include_splines {
                     spline_work = 0;
+                }
+                if include_components {
+                    component_work = 0;
                 }
                 row.error = Some(e.to_string());
                 report.failures += 1;
@@ -731,7 +843,19 @@ mod tests {
             )
             .unwrap();
         }
-        let exact = inspect_with_work(&inputs.0, None, false, true, 0, 6, 0).unwrap();
+        let exact = inspect_with_work(
+            &inputs.0,
+            None,
+            false,
+            true,
+            false,
+            Work {
+                keys: 0,
+                splines: 6,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(exact.failures, 0);
         assert_eq!(exact.schema_version, 3);
         assert_eq!(
@@ -743,7 +867,19 @@ mod tests {
             6
         );
         assert!(exact.files.iter().all(|f| f.keys.is_some()));
-        let under = inspect_with_work(&inputs.0, None, false, true, 0, 5, 0).unwrap();
+        let under = inspect_with_work(
+            &inputs.0,
+            None,
+            false,
+            true,
+            false,
+            Work {
+                keys: 0,
+                splines: 5,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(under.failures, 1);
         assert!(
             under.files[1]
@@ -757,7 +893,19 @@ mod tests {
             source_of(&words(&[1, 0x7fc0_0001, 0]), "NiBSplineData"),
         )
         .unwrap();
-        let failed = inspect_with_work(&inputs.0, None, false, true, 0, 100, 0).unwrap();
+        let failed = inspect_with_work(
+            &inputs.0,
+            None,
+            false,
+            true,
+            false,
+            Work {
+                keys: 0,
+                splines: 100,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(failed.failures, 2);
         assert!(
             failed.files[0]
@@ -773,7 +921,19 @@ mod tests {
                 .unwrap()
                 .contains("spline-source work budget exceeded")
         );
-        let old = inspect_with_work(&inputs.0, None, true, false, 0, 0, 0).unwrap();
+        let old = inspect_with_work(
+            &inputs.0,
+            None,
+            true,
+            false,
+            false,
+            Work {
+                keys: 0,
+                splines: 0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(old.failures, 0);
         let old = serde_json::to_value(old).unwrap();
         assert_eq!(old["schema_version"], 2);
@@ -806,6 +966,115 @@ mod tests {
         assert!(!compare_splines(&decoded.splines.blocks, &extra).unwrap());
     }
     #[test]
+    fn component_batch_admission_and_earlier_schema_opacity() {
+        let scalar = words(&[
+            0,
+            0x3f80_0000,
+            u32::MAX,
+            u32::MAX,
+            0x8000_0000,
+            u32::MAX,
+            0,
+            1,
+        ]);
+        let inputs = inputs(&[]);
+        for id in 0..2 {
+            std::fs::write(
+                inputs.0.join(format!("{id}.kf")),
+                source_of(&scalar, "NiBSplineCompFloatInterpolator"),
+            )
+            .unwrap();
+        }
+        let limits = |components| Work {
+            keys: 0,
+            splines: 0,
+            components,
+            diagnostic_bytes: 0,
+        };
+        let exact = inspect_with_work(&inputs.0, None, false, false, true, limits(18)).unwrap();
+        assert_eq!(exact.failures, 0);
+        assert_eq!(exact.schema_version, 4);
+        assert_eq!(
+            exact
+                .files
+                .iter()
+                .map(|f| f.spline_components.as_ref().unwrap().work_units)
+                .sum::<usize>(),
+            18
+        );
+        assert!(
+            exact
+                .files
+                .iter()
+                .all(|f| f.keys.is_some() && f.splines.is_some())
+        );
+        let under = inspect_with_work(&inputs.0, None, false, false, true, limits(17)).unwrap();
+        assert_eq!(under.failures, 1);
+        assert!(
+            under.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("spline-component work budget exceeded")
+        );
+        let mut bad = scalar;
+        bad[16..20].copy_from_slice(&0x7fc0_0001u32.to_le_bytes());
+        std::fs::write(
+            inputs.0.join("0.kf"),
+            source_of(&bad, "NiBSplineCompFloatInterpolator"),
+        )
+        .unwrap();
+        let failed = inspect_with_work(&inputs.0, None, false, false, true, limits(100)).unwrap();
+        assert_eq!(failed.failures, 2);
+        assert!(
+            failed.files[0]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("nonfinite")
+        );
+        assert!(
+            failed.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("spline-component work budget exceeded")
+        );
+        let old = inspect_with_work(&inputs.0, None, false, true, false, limits(0)).unwrap();
+        assert_eq!(old.failures, 0);
+        let old = serde_json::to_value(old).unwrap();
+        assert_eq!(old["schema_version"], 3);
+        assert!(old.get("spline_component_branch").is_none());
+        assert!(old["files"][0].get("spline_components").is_none());
+    }
+    #[test]
+    fn exact_component_comparison_includes_all_fixed_fields() {
+        let source = source_of(
+            &words(&[0, 1, u32::MAX, u32::MAX, 0x8000_0000, 65535, 1, 0x7f7f_ffff]),
+            "NiBSplineCompFloatInterpolator",
+        );
+        let (_, decoded) = spline::components::decode(&source, "component.kf").unwrap();
+        let blocks = &decoded.components.blocks;
+        let expected = serde_json::to_value(blocks).unwrap();
+        assert!(compare_components(blocks, &expected).unwrap());
+        for (name, value) in [
+            ("value_bits", 0),
+            ("handle", u32::MAX),
+            ("float_offset_bits", 0),
+            ("float_half_range_bits", 0),
+        ] {
+            let mut changed = expected.clone();
+            changed[0]["data"][name] = json!(value);
+            assert!(!compare_components(blocks, &changed).unwrap(), "{name}");
+        }
+        let mut changed = expected.clone();
+        changed[0]["sha256"] = json!("0".repeat(64));
+        assert!(!compare_components(blocks, &changed).unwrap());
+        let mut changed = expected;
+        changed[0]["data"]["evaluated_pose"] = json!(true);
+        assert!(!compare_components(blocks, &changed).unwrap());
+    }
+    #[test]
     fn explicit_engineering_sample_is_consumed_without_changing_source_catalogue() {
         let inputs = inputs(&[words(&[
             0,
@@ -822,10 +1091,11 @@ mod tests {
             0,
         ])]);
         let path = inputs.0.join("0.kf");
-        let source = inspect(&path, None, true, false, None).unwrap();
+        let source = inspect(&path, None, true, false, false, None).unwrap();
         let sampled = inspect(
             &path,
             None,
+            false,
             false,
             false,
             Some(SampleRequest {
@@ -862,6 +1132,7 @@ mod tests {
             None,
             false,
             false,
+            false,
             Some(SampleRequest {
                 block: 0,
                 channel: SampleChannel::Scale,
@@ -886,6 +1157,7 @@ mod tests {
                 None,
                 false,
                 false,
+                false,
                 Some(SampleRequest {
                     block,
                     channel: SampleChannel::Translation,
@@ -906,7 +1178,7 @@ mod tests {
             })
         };
         assert!(
-            inspect(&path, None, false, false, request())
+            inspect(&path, None, false, false, false, request())
                 .err()
                 .unwrap()
                 .to_string()
@@ -916,6 +1188,7 @@ mod tests {
             inspect(
                 &inputs.0,
                 None,
+                false,
                 false,
                 false,
                 Some(SampleRequest {

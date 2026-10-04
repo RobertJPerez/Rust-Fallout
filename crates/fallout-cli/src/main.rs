@@ -100,6 +100,8 @@ enum Command {
         include_keyframes: bool,
         #[arg(long)]
         include_splines: bool,
+        #[arg(long)]
+        include_spline_components: bool,
         #[arg(long, requires_all = ["sample_block", "sample_channel"], allow_hyphen_values = true)]
         sample_time: Option<f64>,
         #[arg(long, requires = "sample_time")]
@@ -1489,6 +1491,7 @@ fn run(args: Args) -> Result<()> {
             oracle_report,
             include_keyframes,
             include_splines,
+            include_spline_components,
             sample_time,
             sample_block,
             sample_channel,
@@ -1513,6 +1516,7 @@ fn run(args: Args) -> Result<()> {
                 oracle_report.as_deref(),
                 include_keyframes,
                 include_splines,
+                include_spline_components,
                 sample,
             )?;
             emit(&report, output, &input)?;

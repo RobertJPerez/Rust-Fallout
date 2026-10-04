@@ -435,3 +435,55 @@ source or altered numerical/identity reports and five direct CLI boundary probes
 fail for their intended reasons. All 70 original default reports remain byte-exact
 in schemas1/2/3. These are source and engineering math checks; evaluated poses
 and verified retail animation remain separate gates.
+
+## Compact float/point3 source catalogue (ASSET-07B)
+
+The additive `nif_animation::spline::components` decoder reuses the existing
+spline/key/animation decoder and its single immutable index. It admits exactly
+`NiBSplineCompFloatInterpolator` (32 source bytes) and
+`NiBSplineCompPoint3Interpolator` (40 source bytes) under the same pinned NV
+tuples. Both retain start/stop bits, data/basis links, base value bits, raw u32
+handle and offset/half-range bits. The scalar value is one word; point3 preserves
+three words in source order. The pinned XML places the scalar base/handle in the
+abstract parent, while nifly reads them in the compact subclass; serialized field
+order agrees. This does not admit either abstract/uncompressed source class.
+
+Separate fixed-size component types leave the earlier spline block size and its
+logical storage receipts unchanged. Component defaults are 128 MiB additional
+logical storage and 16 million work units. The existing combined cap covers the
+index, animation, keys, splines and components together. Selected block storage
+and digest bytes are admitted before vector allocation; stored primitive work
+is admitted before construction (nine units per scalar block, eleven per point3).
+Unknown target dependencies remain ordered, with their owned strings/storage
+admitted before cloning. Null links remain absent; known wrong types and
+out-of-range links fail. Exact interpolator dependencies retire only after every
+selected source payload/link succeeds, releasing strings but retaining charged
+vector capacity. Handles, sentinel values, inverted times and zero/negative
+ranges do not establish valid channels and are never repaired.
+
+`fallout nif-animation INPUT --include-spline-components` selects source schema4,
+includes the earlier key/spline catalogues and adds `spline_components` plus branch
+`nv-compact-components-source`. The independent native oracle uses the same flag,
+checks spans/finite primitive words/links/storage/work before pinned factories,
+and emits required provenance `raw_component_fields_checked: true`. The inspector
+compares each bounded fixed-size source product exactly. Component work shares
+one allowance across the batch; failed combined decoding exhausts the remaining
+key/spline/component allowances conservatively. All readiness flags remain false.
+
+Private evidence is frozen in `local/asset-07b-teamv2-20261003-01`, with native
+build `local/nif-animation-oracle-build-07b-teamv2`. The raw layout audit checks
+20 scalar and ten point3 blocks in eleven unchanged original files, all stream34.
+Both readers and independent authored expectations agree for 96 files across
+twelve admitted streams. Nineteen altered reports and fourteen malformed sources
+fail for the intended reasons; earlier schemas admit those opaque component
+payloads. The 70-file original comparison checks all 30 blocks exactly, charging
+290 component work units and 5,280 logical bytes. Remaining dependencies total
+4,057, diagnostics zero and runtime readiness false. Eight new component tests,
+44 prior animation/key/spline/sampling tests and all 21 CLI tests pass. Fresh Rust
+and native builds, all-target Clippy with warnings denied, formatting and diff
+checks pass. Default schemas1/2/3 original Rust reports are byte-exact; their native
+source reports match the frozen oracles except actual executable digest. The
+initial private audit's hard-coded header-length mistake and first boundary
+test's incorrect storage-error expectation are retained with the passing corrected
+runs; neither correction changed original bytes or decoding behavior. Numerical
+component/B-spline evaluation, poses and retail playback remain separate gates.

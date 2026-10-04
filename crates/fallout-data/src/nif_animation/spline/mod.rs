@@ -1,5 +1,6 @@
 //! Exact compact-transform/B-spline source fields. Decompression, usable channel
 //! ranges, basis evaluation, poses and retail playback remain unverified.
+pub mod components;
 mod read;
 
 use super::{Animation, Dependency, LinkStatus, keyframe};

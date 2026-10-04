@@ -18,7 +18,7 @@ use fallout_runtime::{
     schema::{self, Kind},
     snapshot::Snapshot,
     state::{HostLimits, HostRequirements, initialization},
-    state::{assignment_group, observation},
+    state::{assignment_group, journal, observation},
 };
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -546,6 +546,131 @@ fn local_assignment_group_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
         "canonical_round_trip_equal":true,"bytecode_executed":false,"retail_parity_accepted":false,
     })))
 }
+fn journal_pages(world: &World<'_>) -> fallout_runtime::Result<Vec<journal::Page>> {
+    let mut cursor = None;
+    let mut pages = Vec::new();
+    loop {
+        let page = world.pending_page(
+            journal::Request {
+                after: cursor.as_ref(),
+                start_after: None,
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )?;
+        let complete = page.is_complete();
+        cursor = Some(page.cursor().clone());
+        pages.push(page);
+        if complete {
+            return Ok(pages);
+        }
+    }
+}
+fn journal_page_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    for (_, script) in catalogue.iter() {
+        let Some(trigger) = script
+            .program()?
+            .iter()
+            .flat_map(|program| program.instructions.iter())
+            .find_map(|instruction| {
+                instruction.event.map(|event| Trigger::Block {
+                    event_id: event.id,
+                    begin_byte_offset: instruction.bytes.start as u32,
+                })
+            })
+        else {
+            continue;
+        };
+        let mut world = World::with_campaign(
+            catalogue,
+            Limits::default(),
+            CampaignId::from_bytes([0x2b; 16])?,
+        )?;
+        let reference = world.register_reference(None)?;
+        let a = Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Content {
+                key: script.handle().key.record.clone(),
+            }),
+            arguments: vec![
+                ReferenceValue::Null,
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Live { id: reference },
+            ],
+        };
+        let b = Context {
+            calling_reference: None,
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Null,
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+            ],
+        };
+        let c = Context {
+            calling_reference: Some(reference),
+            containing_reference: None,
+            target: Some(ReferenceValue::Null),
+            arguments: vec![
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Null,
+            ],
+        };
+        let handle = world.create_instance(
+            script.handle(),
+            Owner::Fragment {
+                activation: 1.try_into()?,
+            },
+            a.clone(),
+        )?;
+        world.advance_clocks(Clocks {
+            tick: 7,
+            game_nanoseconds: 100,
+            menu_nanoseconds: 200,
+            real_nanoseconds: 300,
+        })?;
+        world.enqueue(handle, Trigger::ObjectEvent { mask: 0x80000001 }, a.clone())?;
+        world.enqueue(handle, trigger.clone(), b)?;
+        world.advance_clocks(Clocks {
+            tick: 9,
+            game_nanoseconds: 101,
+            menu_nanoseconds: 202,
+            real_nanoseconds: 303,
+        })?;
+        world.enqueue(handle, Trigger::ObjectEvent { mask: 0xdeadbeef }, c)?;
+        world.enqueue(handle, trigger, a)?;
+        let before = world.snapshot();
+        let pages = journal_pages(&world)?;
+        if world.snapshot() != before {
+            return Err("Journal paging changed canonical state".into());
+        }
+        let restored = World::restore(catalogue, before.clone(), Limits::default())?;
+        let restored_pages = journal_pages(&restored)?;
+        if restored.snapshot() != before
+            || serde_json::to_value(&pages)? != serde_json::to_value(&restored_pages)?
+        {
+            return Err("Journal pages differ after restore".into());
+        }
+        return Ok(Some(json!({
+            "scope":"Exact isolated host-supplied pending journal observations; no dispatch or retail scheduling",
+            "rows_per_page":2,"pages":pages,"restored_pages":restored_pages,"snapshot":before,
+            "read_preserved_state":true,"persistent_pages_equal":true,"bytecode_executed":false,"retail_parity_accepted":false,
+        })));
+    }
+    Ok(None)
+}
 fn probe(catalogue: &Catalogue) -> Result<Json> {
     let EngineeringWorld {
         world,
@@ -583,6 +708,9 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
     }
     if let Some(group) = local_assignment_group_probe(catalogue)? {
         report["local_assignment_group"] = group;
+    }
+    if let Some(journal) = journal_page_probe(catalogue)? {
+        report["journal_page_probe"] = journal;
     }
     Ok(report)
 }

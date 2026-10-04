@@ -2310,6 +2310,659 @@ fn cold_local_assignment_group_helper() {
     .unwrap();
 }
 
+fn journal_host(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, fallout_runtime::state::InstanceHandle) {
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        fallout_runtime::identity::CampaignId::from_bytes([44; 16]).unwrap(),
+    )
+    .unwrap();
+    let reference = world.register_reference(None).unwrap();
+    let a = Context {
+        calling_reference: Some(reference),
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Content { key: form(0x300) }),
+        arguments: vec![
+            ReferenceValue::Null,
+            ReferenceValue::Content { key: form(0x300) },
+            ReferenceValue::Live { id: reference },
+        ],
+    };
+    let b = Context {
+        calling_reference: None,
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Live { id: reference }),
+        arguments: vec![
+            ReferenceValue::Content { key: form(0x300) },
+            ReferenceValue::Null,
+            ReferenceValue::Live { id: reference },
+            ReferenceValue::Content { key: form(0x300) },
+        ],
+    };
+    let c = Context {
+        calling_reference: Some(reference),
+        containing_reference: None,
+        target: Some(ReferenceValue::Null),
+        arguments: vec![
+            ReferenceValue::Live { id: reference },
+            ReferenceValue::Content { key: form(0x300) },
+            ReferenceValue::Null,
+        ],
+    };
+    let handle = world
+        .create_instance(&definition(catalogue), owner(1), a.clone())
+        .unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 7,
+            game_nanoseconds: 100,
+            menu_nanoseconds: 200,
+            real_nanoseconds: 300,
+        })
+        .unwrap();
+    world
+        .enqueue(handle, Trigger::ObjectEvent { mask: 0x80000001 }, a.clone())
+        .unwrap();
+    world.enqueue(handle, block(), b).unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 9,
+            game_nanoseconds: 101,
+            menu_nanoseconds: 202,
+            real_nanoseconds: 303,
+        })
+        .unwrap();
+    world
+        .enqueue(handle, Trigger::ObjectEvent { mask: 0xdeadbeef }, c)
+        .unwrap();
+    world.enqueue(handle, block(), a).unwrap();
+    (world, handle)
+}
+fn collect_journal_pages(
+    world: &World<'_>,
+    rows: usize,
+) -> Vec<fallout_runtime::state::journal::Page> {
+    use fallout_runtime::state::journal;
+    let mut cursor = None;
+    let mut pages = Vec::new();
+    loop {
+        let page = world
+            .pending_page(
+                journal::Request {
+                    after: cursor.as_ref(),
+                    start_after: None,
+                    rows,
+                },
+                journal::Limits::default(),
+            )
+            .unwrap();
+        let complete = page.is_complete();
+        cursor = Some(page.cursor().clone());
+        pages.push(page);
+        if complete {
+            return pages;
+        }
+    }
+}
+
+#[test]
+fn journal_pages_retain_literal_mixed_fifo_contexts_clocks_and_owned_history() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = journal_host(&catalogue);
+    let before = world.snapshot();
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(|page| page.events().iter())
+            .cloned()
+            .collect::<Vec<_>>(),
+        before.pending_events
+    );
+    assert_eq!(pages[0].head(), Some(1));
+    assert_eq!(pages[0].start_after(), None);
+    assert_eq!(pages[1].start_after(), Some(2));
+    assert_eq!(pages[0].campaign().bytes(), [44; 16]);
+    assert_eq!(pages[0].revision(), 8);
+    assert_eq!(pages[0].boundary().tick, 9);
+    assert_eq!(
+        pages[0].events()[0].trigger,
+        Trigger::ObjectEvent { mask: 0x80000001 }
+    );
+    assert_eq!(
+        pages[1].events()[0].trigger,
+        Trigger::ObjectEvent { mask: 0xdeadbeef }
+    );
+    assert_eq!(pages[0].events()[1].trigger, block());
+    assert_eq!(pages[1].events()[1].trigger, block());
+    assert_eq!(pages[0].events()[0].arrived.tick, 7);
+    assert_eq!(pages[1].events()[0].arrived.tick, 9);
+    assert_eq!(pages[0].usage().arguments, 7);
+    assert_eq!(pages[0].usage().source_keys, 4);
+    assert_eq!(pages[0].usage().source_key_bytes, 180);
+    assert_eq!(pages[1].usage().arguments, 6);
+    assert_eq!(pages[1].usage().source_keys, 3);
+    assert_eq!(pages[1].usage().source_key_bytes, 135);
+    assert!(pages[0].next_cursor().is_some());
+    assert!(pages[1].next_cursor().is_none());
+    assert_eq!(world.snapshot(), before);
+    let serialized = serde_json::to_value(&pages).unwrap();
+    assert!(serialized[0].get("cursor").is_none());
+    world
+        .assign(handle, &[(2, Value::Number { bits: 1 })])
+        .unwrap();
+    assert_eq!(serde_json::to_value(&pages).unwrap(), serialized);
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: Some(pages[0].cursor()),
+                    start_after: None,
+                    rows: 2
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn journal_pages_admit_whole_requested_slice_and_bound_sequence_search_and_copies() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (world, _) = journal_host(&catalogue);
+    let before = world.snapshot();
+    let request = journal::Request {
+        after: None,
+        start_after: None,
+        rows: 2,
+    };
+    let first = world
+        .pending_page(request, journal::Limits::default())
+        .unwrap();
+    let usage = first.usage();
+    for limits in [
+        journal::Limits {
+            max_visited: 1,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_rows: 1,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_arguments: 6,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_source_keys: 3,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_source_key_bytes: 179,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(world.pending_page(request, limits).is_err());
+        assert_eq!(world.snapshot(), before);
+    }
+    let exact = world
+        .pending_page(
+            request,
+            journal::Limits {
+                max_visited: 2,
+                max_rows: 2,
+                max_arguments: 7,
+                max_source_keys: 4,
+                max_source_key_bytes: 180,
+                max_copied_bytes: usage.copied_bytes,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&exact).unwrap(),
+        serde_json::to_value(&first).unwrap()
+    );
+    let anchored = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: Some(2),
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(anchored.events(), &before.pending_events[2..]);
+    assert_eq!(anchored.usage().visited, 4);
+    assert!(anchored.is_complete());
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: Some(2),
+                    rows: 2
+                },
+                journal::Limits {
+                    max_visited: 3,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    for sequence in [0, 5, u64::MAX] {
+        assert!(
+            world
+                .pending_page(
+                    journal::Request {
+                        after: None,
+                        start_after: Some(sequence),
+                        rows: 1
+                    },
+                    journal::Limits::default()
+                )
+                .is_err()
+        );
+    }
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: Some(first.cursor()),
+                    start_after: Some(2),
+                    rows: 1
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: None,
+                    rows: 0
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: None,
+                    rows: usize::MAX
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+    let all = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: None,
+                rows: 8,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(all.events(), before.pending_events);
+    assert_eq!(all.usage().returned, 4);
+    let tail = world
+        .pending_page(
+            journal::Request {
+                after: Some(all.cursor()),
+                start_after: None,
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert!(tail.events().is_empty());
+    assert!(tail.is_complete());
+    assert_eq!(tail.usage().visited, 0);
+    assert_eq!(tail.start_after(), Some(4));
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn journal_cursors_expire_on_every_mutation_restore_and_cross_world() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    for mutation in 0..5 {
+        let (mut world, handle) = journal_host(&catalogue);
+        let first = world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: None,
+                    rows: 2,
+                },
+                journal::Limits::default(),
+            )
+            .unwrap();
+        match mutation {
+            0 => {
+                world.acknowledge(1).unwrap();
+            }
+            1 => {
+                world
+                    .enqueue(handle, Trigger::ObjectEvent { mask: 1 }, Context::default())
+                    .unwrap();
+            }
+            2 => world
+                .advance_clocks(Clocks {
+                    tick: 10,
+                    game_nanoseconds: 101,
+                    menu_nanoseconds: 202,
+                    real_nanoseconds: 303,
+                })
+                .unwrap(),
+            3 => world
+                .assign(handle, &[(2, Value::Number { bits: 1 })])
+                .unwrap(),
+            _ => {
+                world.register_reference(None).unwrap();
+            }
+        }
+        let current = world.snapshot();
+        assert!(
+            world
+                .pending_page(
+                    journal::Request {
+                        after: Some(first.cursor()),
+                        start_after: None,
+                        rows: 2
+                    },
+                    journal::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), current);
+    }
+    let (mut world, _) = journal_host(&catalogue);
+    let before = world.snapshot();
+    let first = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: None,
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    let other = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.pending_page(
+            journal::Request {
+                after: Some(first.cursor()),
+                start_after: None,
+                rows: 2
+            },
+            journal::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(matches!(
+        world.pending_page(
+            journal::Request {
+                after: Some(first.cursor()),
+                start_after: None,
+                rows: 2
+            },
+            journal::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), before);
+    for sequence in 1..=4 {
+        world.acknowledge(sequence).unwrap();
+    }
+    let empty = world.snapshot();
+    let page = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: None,
+                rows: 1,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert!(page.events().is_empty() && page.is_complete());
+    assert_eq!(page.head(), None);
+    assert_eq!(page.start_after(), None);
+    assert_eq!(page.usage().returned, 0);
+    let tail = world
+        .pending_page(
+            journal::Request {
+                after: Some(page.cursor()),
+                start_after: None,
+                rows: 1,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert!(tail.events().is_empty());
+    assert_eq!(world.snapshot(), empty);
+}
+
+#[test]
+fn journal_pages_keep_wrapped_fifo_and_maximal_sequence_words_without_arithmetic() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = journal_host(&catalogue);
+    for sequence in 1..=3 {
+        world.acknowledge(sequence).unwrap();
+    }
+    for mask in [0x2000, 0x4000, 0x8000] {
+        world
+            .enqueue(handle, Trigger::ObjectEvent { mask }, Context::default())
+            .unwrap();
+    }
+    let before = world.snapshot();
+    assert_eq!(
+        before
+            .pending_events
+            .iter()
+            .map(|event| event.sequence)
+            .collect::<Vec<_>>(),
+        vec![4, 5, 6, 7]
+    );
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(|page| page.events())
+            .cloned()
+            .collect::<Vec<_>>(),
+        before.pending_events
+    );
+    assert_eq!(world.snapshot(), before);
+    let mut maximal = before;
+    maximal.next_event_sequence = u64::MAX;
+    for (position, event) in maximal.pending_events.iter_mut().enumerate() {
+        event.sequence = u64::MAX - 4 + position as u64;
+    }
+    let world = World::restore(&catalogue, maximal.clone(), Limits::default()).unwrap();
+    let page = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: Some(u64::MAX - 2),
+                rows: 1,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(page.events()[0].sequence, u64::MAX - 1);
+    assert!(page.is_complete());
+    assert_eq!(world.snapshot(), maximal);
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: Some(u64::MAX),
+                    rows: 1
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn journal_pages_native_and_two_fresh_readers_preserve_complete_saved_journal() {
+    use fallout_runtime::save::{Captured, Repository};
+    let temp = tempfile::tempdir().unwrap();
+    let retained = std::env::var_os("FALLOUT_JOURNAL_PAGE_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    assignment_group_fixture(root);
+    let source = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (world, _) = journal_host(&catalogue);
+    let snapshot = world.snapshot();
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(world.snapshot(), snapshot);
+    Repository::create(&root.join("saved"), &[], world.campaign())
+        .unwrap()
+        .commit(&Captured::at_boundary(&world))
+        .unwrap();
+    std::fs::write(
+        root.join("current.snapshot.json"),
+        snapshot.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("pages.json"),
+        serde_json::to_vec_pretty(&pages).unwrap(),
+    )
+    .unwrap();
+    drop(world);
+    drop(catalogue);
+    for mode in ["unit-current", "unit-anchor"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_journal_page_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_JOURNAL_PAGE_COLD_ROOT", root)
+            .env("FALLOUT_JOURNAL_PAGE_COLD_MODE", mode)
+            .output()
+            .unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stdout.txt")), &result.stdout).unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stderr.txt")), &result.stderr).unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(std::fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh source/native exact journal observation selected by parent or CLI proof"]
+fn cold_journal_page_helper() {
+    use fallout_runtime::{
+        save::{Captured, Recovery, Repository},
+        state::journal,
+    };
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_JOURNAL_PAGE_COLD_ROOT").unwrap());
+    let mode = std::env::var("FALLOUT_JOURNAL_PAGE_COLD_MODE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let expected = Snapshot::decode(
+        &std::fs::read(root.join("current.snapshot.json")).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let native = root.join(if mode.starts_with("cli-") {
+        "cold-native"
+    } else {
+        "saved"
+    });
+    let world = if mode == "cli-save" {
+        let world = World::restore(&catalogue, expected.clone(), Limits::default()).unwrap();
+        Repository::create(&native, &[], world.campaign())
+            .unwrap()
+            .commit(&Captured::at_boundary(&world))
+            .unwrap();
+        world
+    } else {
+        Repository::open(&native, &[])
+            .unwrap()
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+    };
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(
+        serde_json::to_value(&pages).unwrap(),
+        serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(root.join("pages.json")).unwrap()
+        )
+        .unwrap()
+    );
+    if mode == "unit-anchor" {
+        let anchored = world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: Some(2),
+                    rows: 2,
+                },
+                journal::Limits::default(),
+            )
+            .unwrap();
+        assert_eq!(anchored.events(), &expected.pending_events[2..]);
+        std::fs::write(
+            root.join("cold-anchor.page.json"),
+            serde_json::to_vec_pretty(&anchored).unwrap(),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        root.join(format!("cold-{mode}.snapshot.json")),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join(format!("cold-{mode}.pages.json")),
+        serde_json::to_vec_pretty(&pages).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(world.snapshot(), expected);
+}
+
 fn observation_fixture(root: &std::path::Path) {
     std::fs::create_dir_all(root).unwrap();
     std::fs::write(

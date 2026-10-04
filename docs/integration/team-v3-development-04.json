@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "revision": "e8799b0061328068eb0bc08795ca62ecfa7d5322",
+  "scope": "Full affected data/runtime/CLI engineering checks and actual migrated actor/cohort consumers",
+  "rust_passing_results": 843,
+  "ignored_helpers": 15,
+  "rust_result_lines": 96,
+  "python_transport_tests": 5,
+  "commands": [
+    {
+      "name": "rust",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "fad4c160d0d40c7d8fbd41be2a4604835353a60918f2037f99ac0624667b70e4"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "f71181cee81295619ce39b746041714d4814ea5416178511161f7af3b0ecef61"
+    },
+    {
+      "name": "format",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "actor-proof-tool",
+      "command": [
+        "py",
+        "-3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "G:\\Rust-Fallout-worktrees\\integration\\tools",
+        "-p",
+        "test_integration_actor_context_check.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "log_sha256": "187b65ee1ad934f18131404f8347e8b3fecd1036fe8a70afe5185770449fdccc"
+    },
+    {
+      "name": "cli-build",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "build",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "--bin",
+        "fallout",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "445fb0c8dec1cae566a26bddfed8be3ac2babd38dc765e6e611bdd4ee3936f8b"
+    },
+    {
+      "name": "actor-context-migration",
+      "command": [
+        "py",
+        "-3",
+        "G:\\Rust-Fallout-worktrees\\integration\\tools\\integration_actor_context_check.py",
+        "--binary",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-04\\producer\\fallout.exe",
+        "--binary-sha256",
+        "11b9723b48c246b7ae75dff4802d8b23624abbb7210457f7bf797725f7feb3bd",
+        "--candidate",
+        "e8799b0061328068eb0bc08795ca62ecfa7d5322",
+        "--package",
+        "G:\\Rust-Fallout-worktrees\\v3-actors\\local\\v3-act02-packages-20261004-01",
+        "--condition-executable",
+        "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas\\FalloutNV.exe",
+        "--output",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-04\\actor-context"
+      ],
+      "exit_code": 0,
+      "log_sha256": "81d3b2ca48588f47297816ae5c99cb786a46042dfb859b7a5642362df9f2b83e"
+    },
+    {
+      "name": "exported-cohort-cli",
+      "command": [
+        "py",
+        "-3",
+        "G:\\Rust-Fallout-worktrees\\integration\\tools\\integration_request_check.py",
+        "--binary",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-04\\producer\\fallout.exe",
+        "--authored-input",
+        "G:\\Rust-Fallout-worktrees\\v3-scripts\\local\\v3-vm-01-073a3414\\cli-smoke-01",
+        "--output",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-04\\cohort-consumer"
+      ],
+      "exit_code": 0,
+      "log_sha256": "266353fbc730e72702f1231691fd6957d71c6fb1a8037ddc41bf5f93ca405da7"
+    }
+  ],
+  "receipt_sha256": "0ad029a81ddf255db0980bb56c774edfe492c3360403fcb654d3de674f5b0247",
+  "producer_binary_sha256": "11b9723b48c246b7ae75dff4802d8b23624abbb7210457f7bf797725f7feb3bd",
+  "actual_actor_consumer_receipt_sha256": "500aa07ddaf216aa889fde86cdbaaa73a3cdb8ffbd5fc5be0c91627b6d0b21da",
+  "actor_observations": {
+    "packages": 7,
+    "conditions": 5,
+    "contributions": 4,
+    "complete_expected_equal": true,
+    "legacy_fields_preserved": true,
+    "reference_state_unavailable": true
+  },
+  "actual_cohort_consumer_receipt_sha256": "d0712de762ce300b6b852e9d74f9385e1cc4fa936308acf93d56e37aa20e7d34",
+  "original_to_integrated": {
+    "ad34ee621f51edceb3735b093d22d3de36b4fbfe": "b9dd7cdf9de1cfec3f62c09bf82ef7f65036bd5d",
+    "d616cccdaa3002c0f57df068e0d14a18ac39e8c1": "aa2b4c43aea9b72cc610a936944fba7e0401090b",
+    "b433fb6e627fa33bdc20e4689bc9ede233d5954f": "b2347a3b663c0056e9a37d3b4e1f6290bef69dd6",
+    "fb79331ca829645c89bec3a180fbd039e5d1aee5": "6100b765a472a46e1b2e81c5fff762b8eb43aaed",
+    "a95eb8e81037eda9d15f0ab7dee963387ee45f0f": "959cde9431943df84a747754e2b30c6a10fb39ed",
+    "db53890202043f27690338fe80d85186027fb340": "63f12e7eaa49f99240314055482f86178416880b",
+    "8000caa5d25941151645eeebb23a97a006c1085c": "fb69ef8f26449597f369760c5e2c279d10517c55",
+    "802c58228e89ea4b34b57df1c3ee43f74e3c21db": "ff91d0e618c867232f72827cd5b3a890dd65d512",
+    "294bbdf0d9aac399a9a01208954e78e0912d7153": "cb700d98e76baa6b05a5c2fecaac5b2940d059a6",
+    "78c8b53c1c29bdff7ecbf7626e18a6e765ff09b1": "e07dfcda57d6bc899757282fcc75d4bb9e01ca00",
+    "bfae5d46727f2d69afe1ffd43637eb057a82c325": "8b2002d01e0daa2001a3633a2477fa797bbf4d9d",
+    "f795716f5468fdafe58e4a55bdefdf510e0a3514": "fd617752fa42d3b264601c8b8ccd11cda70f4fbe",
+    "1604bb82f5de144a05dc5652c9c1fd0585a7113e": "6bfcf6e17fc702f1b9535d05fa242f19963eea30"
+  },
+  "shared_corrections": [
+    "Exact finite binary64 JSON transport; both previously failing numeric-word regressions now pass.",
+    "Real supported schema3-to-schema4 native migration followed by cold actor condition observations; legacy inputs preserved.",
+    "Standalone local-copy probes reject duplicate event ordinals before any canonical effect.",
+    "Keyboard focus recovery preserves held-key quarantine across empty frames."
+  ],
+  "limitations": [
+    "No original-game process ran or gameplay scenario was accepted; checkpoint45 remains latest verification.",
+    "Preview/backend compilation, responsive host and visible pose are separate producers outside this check.",
+    "Physics capsule precision correction remains held and is absent from this batch.",
+    "Source-linked pose/visibility and actor/template/condition observations do not establish gameplay scheduling or original animation playback."
+  ]
+}

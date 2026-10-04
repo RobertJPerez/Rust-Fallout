@@ -20,6 +20,7 @@ pub(super) struct Options {
     pub(super) include_packages: bool,
     pub(super) include_package_dependencies: bool,
     pub(super) include_dependencies: bool,
+    pub(super) include_render_dependencies: bool,
     pub(super) dependency_roots: Vec<FormKey>,
 }
 
@@ -55,6 +56,14 @@ pub(super) fn inspect(
     }
     if !options.include_dependencies && !options.dependency_roots.is_empty() {
         return Err("actor dependency roots require --include-dependencies".into());
+    }
+    if options.include_render_dependencies
+        && (!options.include_dependencies || options.dependency_roots.is_empty())
+    {
+        return Err(
+            "render dependencies require --include-dependencies and an explicit --dependency-root"
+                .into(),
+        );
     }
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -200,8 +209,27 @@ pub(super) fn inspect(
         // One aggregate admission budget covers every requested root report.
         let mut remaining = actors::dependencies::ManifestLimits::default();
         let mut manifests = Vec::new();
+        let mut render_manifests = Vec::new();
+        let mut render_remaining = actors::dependencies::RenderLimits::default();
         for root in &options.dependency_roots {
-            let manifest = dependencies.manifest(root, &assets, remaining)?;
+            let render = if options.include_render_dependencies {
+                Some(dependencies.render_manifest(
+                    root,
+                    &assets,
+                    actors::dependencies::RenderLimits {
+                        manifest: remaining,
+                        ..render_remaining
+                    },
+                )?)
+            } else {
+                None
+            };
+            let manifest = if let Some(render) = &render {
+                &render.manifest
+            } else {
+                manifests.push(dependencies.manifest(root, &assets, remaining)?);
+                manifests.last().expect("manifest just appended")
+            };
             let counts = &manifest.counts;
             remaining.max_nodes -= counts.nodes;
             remaining.max_edges -= counts.inventory_edges + counts.model_edges;
@@ -210,7 +238,20 @@ pub(super) fn inspect(
             remaining.max_path_bytes -= counts.path_bytes;
             remaining.max_candidates -= counts.candidates;
             remaining.max_candidate_bytes -= counts.candidate_bytes;
-            manifests.push(manifest);
+            if let Some(render) = render {
+                render_remaining.max_sources -= render.sources.len();
+                render_remaining.max_requests -= render.requests.len();
+                render_remaining.max_issues -= render.issues.len();
+                render_remaining.max_visits -= render.visits;
+                render_manifests.push(render);
+            }
+        }
+        if options.include_render_dependencies {
+            report["actor_render_dependencies"] = json!({"manifests":render_manifests});
+            report["scope"] = json!(format!(
+                "{}; selected authored actor render roles with explicit unsupported template/equipment selection",
+                report["scope"].as_str().unwrap_or_default()
+            ));
         }
         report["actor_dependencies"] = json!({"counts":dependencies.counts(),
             "definitions":dependencies.iter().map(|(_, definition)|definition).collect::<Vec<_>>(),
@@ -281,6 +322,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         && report.get("actor_dependencies") != oracle.get("actor_dependencies")
     {
         return Err("independent actor source comparison differs in actor_dependencies".into());
+    }
+    if report.get("actor_render_dependencies").is_some()
+        && report.get("actor_render_dependencies") != oracle.get("actor_render_dependencies")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_render_dependencies".into(),
+        );
     }
     if report.get("actor_package_dependencies").is_some()
         && report.get("actor_package_dependencies") != oracle.get("actor_package_dependencies")

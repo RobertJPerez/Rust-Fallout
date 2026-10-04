@@ -1,6 +1,7 @@
 //! Source-bound actor model dependencies. No inheritance or part/clip selection.
 mod fields;
 mod manifest;
+mod render;
 use super::{Catalogue as Actors, associations, fields::Finding};
 use crate::{
     Error, Result,
@@ -11,6 +12,10 @@ use crate::{
 pub use fields::{ByteString, Context, Field, Link, LinkRole, Marker, PathRole, Value};
 pub use manifest::{
     LookupStatus, Manifest, ManifestCounts, ManifestEdge, ManifestLimits, PathRequest,
+};
+pub use render::{
+    ConfigurationOrigin, RenderIssue, RenderLimits, RenderManifest, RenderRequest, RenderRole,
+    RenderSource, Sex,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -102,6 +107,7 @@ pub struct Counts {
     pub record_versions: BTreeMap<String, usize>,
 }
 pub struct Catalogue<'a> {
+    inventory: &'a inventory::Catalogue,
     sources: Vec<SourceReceipt>,
     winning_content_sha256: String,
     definitions: BTreeMap<FormKey, Definition<'a>>,
@@ -201,6 +207,7 @@ impl<'a> Catalogue<'a> {
             },
         )?;
         let mut result = Self {
+            inventory: actors.inventory,
             sources,
             winning_content_sha256,
             definitions: BTreeMap::new(),

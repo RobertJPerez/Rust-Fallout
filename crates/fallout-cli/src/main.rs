@@ -211,6 +211,8 @@ enum Command {
         include_dependencies: bool,
         #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]
         dependency_roots: Vec<identity::FormKey>,
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
+        include_render_dependencies: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -867,6 +869,7 @@ fn run(args: Args) -> Result<()> {
             include_package_dependencies,
             include_dependencies,
             dependency_roots,
+            include_render_dependencies,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -882,6 +885,7 @@ fn run(args: Args) -> Result<()> {
                     include_package_dependencies,
                     include_dependencies,
                     dependency_roots,
+                    include_render_dependencies,
                 },
             )?;
             if let Some(oracle) = compare_oracle {

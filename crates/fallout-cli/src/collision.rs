@@ -1289,6 +1289,154 @@ pub fn multi_query(
     Ok(report)
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttachmentLimits {
+    source_bytes: usize,
+    blocks: usize,
+    decoded_metadata_bytes: usize,
+    array_bytes: usize,
+    source_link_visits: usize,
+    ancestry_visits: usize,
+    scope_metadata_bytes: usize,
+}
+impl From<AttachmentLimits> for fallout_runtime::physics::attachment::Limits {
+    fn from(v: AttachmentLimits) -> Self {
+        Self {
+            source_bytes: v.source_bytes,
+            blocks: v.blocks,
+            decoded_metadata_bytes: v.decoded_metadata_bytes,
+            array_bytes: v.array_bytes,
+            source_link_visits: v.source_link_visits,
+            ancestry_visits: v.ancestry_visits,
+            scope_metadata_bytes: v.scope_metadata_bytes,
+        }
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttachmentRequest {
+    reference: std::num::NonZeroU64,
+    source_sha256: String,
+    collision_object: u32,
+    body_block: u32,
+    target_block: u32,
+    placement_rows: [[f64; 4]; 3],
+    units: fallout_runtime::physics::EngineeringUnits,
+    ray: Option<fallout_runtime::physics::Ray>,
+    overlap: Option<SphereRequest>,
+    limits: Option<AttachmentLimits>,
+    #[serde(default)]
+    query_budget: QueryWork,
+}
+#[derive(Serialize)]
+pub struct AttachmentReport {
+    schema_version: u32,
+    input: PathBuf,
+    request_sha256: String,
+    scope: fallout_runtime::physics::attachment::Scope,
+    query_budget: QueryWork,
+    primitive_count: usize,
+    ray_hits: Vec<fallout_runtime::physics::Hit>,
+    overlap_hits: Vec<fallout_runtime::physics::Hit>,
+    ray_numeric_input: Option<RayNumericInput>,
+    overlap_numeric_input: Option<OverlapNumericInput>,
+    query_semantics: &'static str,
+    faithful_ready: bool,
+}
+/// Select one exact source collision object. Its diagnostic scope distinguishes
+/// separate shared-body occurrences without changing the existing SourceId API.
+pub fn attachment_query(input: &Path, request_path: &Path) -> Result<AttachmentReport> {
+    use fallout_runtime::physics::{
+        QueryBudget,
+        attachment::{Selection, SourceAttachment},
+    };
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: AttachmentRequest = serde_json::from_slice(&request_bytes)?;
+    if request.source_sha256.len() != 64
+        || !request.source_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err("attachment query requires exact source SHA".into());
+    }
+    let queries = usize::from(request.ray.is_some()) + usize::from(request.overlap.is_some());
+    if queries == 0 {
+        return Err("attachment query requires a ray and/or overlap".into());
+    }
+    let ceiling = QueryWork::default();
+    if request.query_budget.primitive_tests > ceiling.primitive_tests
+        || request.query_budget.geometry_tests > ceiling.geometry_tests
+        || request.query_budget.hits > ceiling.hits
+    {
+        return Err("attachment query budget exceeds engineering ceiling".into());
+    }
+    let limits = request.limits.map(Into::into).unwrap_or_default();
+    let bytes = read_bounded(input, 4 * 1024 * 1024)?;
+    let source_sha256 = std::array::from_fn(|i| {
+        u8::from_str_radix(&request.source_sha256[2 * i..2 * i + 2], 16).expect("checked ASCII hex")
+    });
+    let attachment = SourceAttachment::derive(
+        &bytes,
+        Selection {
+            reference: fallout_runtime::identity::ReferenceId(request.reference),
+            source_sha256,
+            collision_object: request.collision_object,
+            body_block: request.body_block,
+            target_block: request.target_block,
+            placement_to_source: fallout_data::coordinates::Affine {
+                rows: request.placement_rows,
+            },
+        },
+        request.units,
+        limits,
+    )?;
+    let scene = attachment.build_scene(Default::default())?;
+    let budget = QueryBudget {
+        primitive_tests: request.query_budget.primitive_tests / queries,
+        geometry_tests: request.query_budget.geometry_tests / queries,
+        hits: request.query_budget.hits / queries,
+    };
+    let ray_numeric_input = request.ray.map(ray_numeric_input);
+    let overlap_numeric_input = request.overlap.as_ref().map(overlap_numeric_input);
+    let ray_hits = request
+        .ray
+        .map(|r| scene.ray_cast(r, budget))
+        .transpose()
+        .map_err(|e| {
+            format!(
+                "attachment ray refused: {e}; ray_numeric_input={}",
+                serde_json::to_string(&ray_numeric_input).expect("numeric audit")
+            )
+        })?
+        .unwrap_or_default();
+    let overlap_hits = request
+        .overlap
+        .map(|s| scene.overlap_sphere(s.center, s.radius, budget))
+        .transpose()
+        .map_err(|e| {
+            format!(
+                "attachment overlap refused: {e}; overlap_numeric_input={}",
+                serde_json::to_string(&overlap_numeric_input).expect("numeric audit")
+            )
+        })?
+        .unwrap_or_default();
+    let report = AttachmentReport {
+        schema_version: 1,
+        input: input.to_owned(),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        scope: attachment.scope().clone(),
+        query_budget: request.query_budget,
+        primitive_count: scene.primitive_count(),
+        ray_hits,
+        overlap_hits,
+        ray_numeric_input,
+        overlap_numeric_input,
+        faithful_ready: false,
+        query_semantics: "one exact collision-object occurrence; supported static source ancestry and explicit caller placement composed once; active body/shape units and predicates unchanged; raw source filters retained; no runtime pose, Havok attachment policy or whole-cell readiness",
+    };
+    serde_json::to_writer_pretty(&mut ReportCounter(1), &report)?;
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

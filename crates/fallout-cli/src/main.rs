@@ -634,6 +634,12 @@ enum Command {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Derive one exact NIF collision attachment and query its source geometry.
+    CollisionAttachment {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,
@@ -1819,6 +1825,10 @@ fn run(args: Args) -> Result<()> {
                 output,
             )?;
             emit(&report, output, &install)?;
+        }
+        Command::CollisionAttachment { input, request } => {
+            let report = collision::attachment_query(&input, &request)?;
+            emit(&report, output, &input)?;
         }
         Command::NifCollision {
             input,

@@ -32,7 +32,7 @@ def fixture():
         ('NiTransformData',keys([-2,0,4],[2,4,0],-1,1)),
     ]
 
-def container(blocks):return fixtures.container(34,blocks,[])[:-8]+fixtures.w(1,0)
+def container(blocks,root=0):return fixtures.container(34,blocks,[])[:-8]+fixtures.w(1,root)
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def check(binary,output):
@@ -78,6 +78,20 @@ def check(binary,output):
     assert positive['objects']==permuted['objects'][::-1]
     mixed=copy.deepcopy(base);mixed['requests'][0]['source_time']=0
     value=run('mixed',mixed);assert value['objects'][1]['source_world']==[[2,0,0,5],[0,2,0,0],[0,0,2,10]]
+    # Valid source hierarchy2->1->0, while public scene worlds are sorted0,1,2.
+    # No source block order may become transform propagation order.
+    changed=fixture();changed[0],changed[2]=changed[2],changed[0]
+    changed[1]=('NiNode',check_pose.node(3,[0],[100,101,102],R90,99))
+    changed[6]=('NiTransformController',controller(0,7))
+    higher=inputs/'higher-parent.nif';higher.write_bytes(container(changed,root=2));frozen[str(higher)]=sha(higher)
+    high_request=dict(base,expected_sha256=list(bytes.fromhex(sha(higher))),requests=[dict(object=1,controller=3,source_time=1),dict(object=0,controller=6,source_time=1)])
+    high=run('higher-parent',high_request,input_path=higher)
+    assert high['objects'][0]['source_world']==[[0,5,0,-9],[-5,0,0,0],[0,0,5,10]]
+    assert high['objects'][1]['source_world']==[[2.5,0,0,6],[0,2.5,0,-5],[0,0,2.5,15]]
+    assert high['propagated_objects']==3
+    high_permuted=run('higher-parent-permuted',dict(high_request,requests=high_request['requests'][::-1]),input_path=higher)
+    assert high['objects']==high_permuted['objects'][::-1]
+    assert (high['retained_bytes'],high['work_units'])==(high_permuted['retained_bytes'],high_permuted['work_units'])
     stale=base['expected_sha256'].copy();stale[0]^=1
     run('stale',dict(base,expected_sha256=stale),'SHA256 differs')
     run('duplicate',dict(base,requests=[base['requests'][0],base['requests'][0]]),'duplicate pose set object 1')
@@ -92,7 +106,7 @@ def check(binary,output):
     run('protected-request',base.copy(),'protected',destination=requests/'blocked-output.json')
     run('protected-source',base.copy(),'protected',destination=inputs/'blocked-output.json')
     for path,digest in frozen.items():assert sha(Path(path))==digest
-    result=dict(contract='engineering-explicit-linked-pose-set-v1',analytic_cases=5,permutation_cases=1,intended_refusals=11,
+    result=dict(contract='engineering-explicit-linked-pose-set-v1',analytic_cases=5,higher_parent_cases=2,permutation_cases=2,intended_refusals=11,
                 invocations=invocations,frozen_hashes=frozen,retail_behavior_verified=False)
     (output/'summary.json').write_text(json.dumps(result,indent=2)+'\n');return result
 

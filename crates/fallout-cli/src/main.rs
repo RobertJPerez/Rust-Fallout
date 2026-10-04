@@ -2414,6 +2414,24 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
             )?;
             emit(&report, output, &install)?;
         }
+        PhysicsCommand::CellCollisionSelection {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::multi_query(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
         PhysicsCommand::ReferenceCollision {
             install,
             load_order,

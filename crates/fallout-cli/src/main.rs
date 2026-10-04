@@ -473,6 +473,17 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve exact CELL region arrays and winning REGN header inputs.
+    CellRegionSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+    },
     /// Preserve explicit CELL environment links and winning target header inputs.
     CellEnvironmentSources {
         #[arg(long)]
@@ -1469,6 +1480,24 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::CellRegionSources {
+            install,
+            load_order,
+            index_cache,
+            cell,
+        } => {
+            let report = world_preparation_inspection::regions(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&cell)?,
+            )?;
+            let prepared = report["source_request_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("CELL region source request refused; see report".into());
             }
         }
         Command::CellEnvironmentSources {

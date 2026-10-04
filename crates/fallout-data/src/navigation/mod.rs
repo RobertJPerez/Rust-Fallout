@@ -2,9 +2,11 @@
 //! with the existing plugin/store modules. Decoded flags do not decide movement.
 mod load;
 mod read;
+mod selection;
 use crate::{plugin, world::SourceField};
 pub use load::{SourceMesh, load_cell};
 pub use read::{decode_info_map, decode_mesh};
+pub use selection::{CellSet, CellSetLimits, CellSetUsage, CellSource, load_cells};
 use serde::Serialize;
 
 #[derive(Clone, Copy, Debug)]

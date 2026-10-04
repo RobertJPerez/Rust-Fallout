@@ -2522,6 +2522,20 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
 
 fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        PhysicsCommand::NavigationCellSet {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect_cells(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
         PhysicsCommand::NavigationRoute {
             install,
             load_order,

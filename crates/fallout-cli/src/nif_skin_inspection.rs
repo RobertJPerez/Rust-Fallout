@@ -1,4 +1,4 @@
-//! Source inspection and exact offline comparison; no animation evaluation.
+//! Source inspection, exact offline comparison and explicit engineering poses.
 use crate::Result;
 use fallout_data::{
     baseline,
@@ -48,6 +48,44 @@ pub struct Report {
     unresolved_dependencies: usize,
     comparison: &'static str,
     runtime_ready: bool,
+}
+
+#[derive(Serialize)]
+pub struct PoseReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<nif_skin::pose::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+
+/// Separate opt-in receipt; the three existing source-report schemas are intact.
+pub fn inspect_pose(input: &Path, geometry: u32, absolute_tolerance: f64) -> Result<PoseReport> {
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = nif_skin::pose::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::pose::Request {
+            geometry,
+            weights: nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance },
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(pose) => (Some(pose), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: "engineering-source-local-skin-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
 }
 
 fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {

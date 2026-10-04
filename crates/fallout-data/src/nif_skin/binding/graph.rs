@@ -132,19 +132,13 @@ pub(super) fn bind(
     bytes: &[u8],
     index: &nif::NifIndex,
     skin: &Skin,
-    scene: Scene,
+    scene: &Scene,
     source: &str,
     limits: Limits,
 ) -> Result<Catalogue> {
     let mut storage = limits.array_bytes;
     let mut checks = limits.graph_checks;
-    let graph = forest(
-        &scene,
-        index.blocks.len(),
-        &mut storage,
-        &mut checks,
-        source,
-    )?;
+    let graph = forest(scene, index.blocks.len(), &mut storage, &mut checks, source)?;
     let mut catalogue = Catalogue {
         ancestry_scope: "decoded-source-forest",
         nodes: Vec::new(),
@@ -360,7 +354,15 @@ pub(super) fn bind(
     for edge in &scene.unsupported_scene_edges {
         reserve::<u8>(&mut storage, edge.block_type.len(), source)?;
     }
-    catalogue.unsupported_scene_edges = scene.unsupported_scene_edges;
+    catalogue.unsupported_scene_edges = scene
+        .unsupported_scene_edges
+        .iter()
+        .map(|edge| nif_scene::UnsupportedEdge {
+            parent: edge.parent,
+            target: edge.target,
+            block_type: edge.block_type.clone(),
+        })
+        .collect();
     catalogue.retained_bytes = limits.array_bytes - storage;
     Ok(catalogue)
 }

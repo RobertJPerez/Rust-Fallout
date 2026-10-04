@@ -126,6 +126,12 @@ enum Command {
         include_partitions: bool,
         #[arg(long)]
         include_bindings: bool,
+        /// Evaluate one exact geometry block using stored source locals.
+        #[arg(long, requires = "pose_weight_tolerance", conflicts_with_all = ["oracle_report", "include_partitions", "include_bindings"])]
+        pose_geometry: Option<u32>,
+        /// Admit the raw weight sum within this absolute tolerance; never normalize.
+        #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
+        pose_weight_tolerance: Option<f64>,
     },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
@@ -215,6 +221,8 @@ enum Command {
         include_dependencies: bool,
         #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]
         dependency_roots: Vec<identity::FormKey>,
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
+        include_render_dependencies: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -294,6 +302,17 @@ enum Command {
     },
     /// Explicitly import our schema-2 native save into a new repository.
     NativeMigrateV2 {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
+    },
+    /// Explicitly import our schema-3 native save, keeping pose/enable unavailable.
+    NativeMigrateV3 {
         #[arg(long)]
         install: PathBuf,
         #[arg(long)]
@@ -482,6 +501,9 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+        /// Exact source roots/cohort for bounded execution capability diagnostics.
+        #[arg(long)]
+        execution_admission: Option<PathBuf>,
     },
     /// Match source delimiters and raw distances in an offline SCDA bundle.
     ControlFlow {
@@ -902,6 +924,7 @@ fn run(args: Args) -> Result<()> {
             include_package_dependencies,
             include_dependencies,
             dependency_roots,
+            include_render_dependencies,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -917,6 +940,7 @@ fn run(args: Args) -> Result<()> {
                     include_package_dependencies,
                     include_dependencies,
                     dependency_roots,
+                    include_render_dependencies,
                 },
             )?;
             if let Some(oracle) = compare_oracle {
@@ -1063,6 +1087,20 @@ fn run(args: Args) -> Result<()> {
         } => {
             let report =
                 native_migration_inspection::import(&install, &load_order, &file, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeMigrateV3 {
+            install,
+            load_order,
+            file,
+            new_repository,
+        } => {
+            let report = native_migration_inspection::import_v3(
+                &install,
+                &load_order,
+                &file,
+                &new_repository,
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeSaveFile { file } => {
@@ -1365,22 +1403,30 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             comparison_bundle,
+            execution_admission,
         } => {
             let report = definition_plan_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 comparison_bundle.as_deref(),
+                execution_admission.as_deref(),
             )?;
-            let failed = report["counts"]
-                .as_object()
-                .ok_or("Missing source-plan counts")?
-                .iter()
-                .any(|(kind, count)| {
-                    kind != "prepared_source_structure"
-                        && kind != "absent_compiled_field"
-                        && count.as_u64().unwrap_or(1) != 0
-                });
+            let failed = if execution_admission.is_some() {
+                !report["execution_admission"]["faithful_execution_admitted"]
+                    .as_bool()
+                    .unwrap_or(false)
+            } else {
+                report["counts"]
+                    .as_object()
+                    .ok_or("Missing source-plan counts")?
+                    .iter()
+                    .any(|(kind, count)| {
+                        kind != "prepared_source_structure"
+                            && kind != "absent_compiled_field"
+                            && count.as_u64().unwrap_or(1) != 0
+                    })
+            };
             emit(&report, output, &install)?;
             if failed {
                 return Err(
@@ -1644,7 +1690,18 @@ fn run(args: Args) -> Result<()> {
             oracle_report,
             include_partitions,
             include_bindings,
+            pose_geometry,
+            pose_weight_tolerance,
         } => {
+            if let Some(geometry) = pose_geometry {
+                let tolerance = pose_weight_tolerance.ok_or("pose weight tolerance missing")?;
+                let report = nif_skin_inspection::inspect_pose(&input, geometry, tolerance)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source-local skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
             let report = nif_skin_inspection::inspect(
                 &input,
                 oracle_report.as_deref(),

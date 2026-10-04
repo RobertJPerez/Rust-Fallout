@@ -83,7 +83,8 @@ fn decode_bytes(bytes: &[u8], limits: Limits, schema: u32) -> fallout_runtime::R
     match schema {
         1 => Snapshot::migrate_v1(bytes, limits, CampaignId::from_bytes([0x51; 16]).unwrap()),
         2 => Snapshot::migrate_v2(bytes, limits),
-        3 => Snapshot::decode(bytes, limits),
+        3 => Snapshot::migrate_v3(bytes, limits),
+        4 => Snapshot::decode(bytes, limits),
         _ => unreachable!(),
     }
 }
@@ -96,8 +97,11 @@ fn capacity(result: fallout_runtime::Result<Snapshot>, expected: &'static str) {
 fn legacy(mut value: Json, schema: u32) -> Json {
     let map = value.as_object_mut().unwrap();
     map.insert("schema_version".into(), schema.into());
-    map.remove("next_item");
-    map.remove("inventory_banks");
+    if schema < 3 {
+        map.remove("next_item");
+        map.remove("inventory_banks");
+    }
+    map.remove("reference_states");
     if schema == 1 {
         map.remove("campaign");
         map.remove("state_revision");
@@ -137,7 +141,7 @@ fn positional_root(value: &mut Json, schema: u32) {
             "instances",
             "pending_events",
         ],
-        3 => &[
+        3 | 4 => &[
             "schema_version",
             "campaign",
             "state_revision",
@@ -152,10 +156,18 @@ fn positional_root(value: &mut Json, schema: u32) {
             "references",
             "instances",
             "pending_events",
+            "reference_states",
         ],
         _ => unreachable!(),
     };
-    positional(value, fields);
+    positional(
+        value,
+        if schema == 3 {
+            &fields[..fields.len() - 1]
+        } else {
+            fields
+        },
+    );
 }
 fn positional_nested(value: &mut Json, schema: u32) {
     for instance in value["instances"].as_array_mut().unwrap() {
@@ -203,7 +215,7 @@ fn positional_nested(value: &mut Json, schema: u32) {
     for reference in value["references"].as_array_mut().unwrap() {
         positional(reference, &["id", "authored"]);
     }
-    if schema == 3 {
+    if schema >= 3 {
         for bank in value["inventory_banks"].as_array_mut().unwrap() {
             for item in bank["items"].as_array_mut().unwrap() {
                 for extra in item["facts"]["extra_fields"].as_array_mut().unwrap() {
@@ -235,7 +247,7 @@ fn positional_nested(value: &mut Json, schema: u32) {
 fn current_and_legacy_top_level_limits_precede_owned_element_validation() {
     // Deliberately invalid elements distinguish admission from the old decoder,
     // which would reject the first null before reaching any collection budget.
-    for schema in 1..=3 {
+    for schema in 1..=4 {
         for (field, limits, label) in [
             (
                 "references",
@@ -278,7 +290,7 @@ fn current_and_legacy_top_level_limits_precede_owned_element_validation() {
                 max_inventory_banks: 1,
                 ..Limits::default()
             },
-            3,
+            4,
         ),
         "saved inventory banks",
     );
@@ -286,7 +298,7 @@ fn current_and_legacy_top_level_limits_precede_owned_element_validation() {
 
 #[test]
 fn locals_and_items_are_aggregated_across_instances_and_banks() {
-    for schema in 1..=3 {
+    for schema in 1..=4 {
         capacity(
             decode(
                 &json!({"instances": [{"locals": [null]}, {"locals": [null]}]}),
@@ -306,7 +318,7 @@ fn locals_and_items_are_aggregated_across_instances_and_banks() {
                 max_item_instances: 1,
                 ..Limits::default()
             },
-            3,
+            4,
         ),
         "saved items",
     );
@@ -314,7 +326,7 @@ fn locals_and_items_are_aggregated_across_instances_and_banks() {
 
 #[test]
 fn instance_and_event_context_arguments_are_bounded_independently() {
-    for schema in 1..=3 {
+    for schema in 1..=4 {
         for (field, label) in [
             ("instances", "saved instance context arguments"),
             ("pending_events", "saved event context arguments"),
@@ -350,7 +362,7 @@ fn item_link_budget_includes_all_vectors_and_optional_links() {
                     max_item_links: 1,
                     ..Limits::default()
                 },
-                3,
+                4,
             ),
             "saved item extra state",
         );
@@ -362,7 +374,7 @@ fn item_link_budget_includes_all_vectors_and_optional_links() {
                 max_total_item_links: 1,
                 ..Limits::default()
             },
-            3,
+            4,
         ),
         "saved item extra state",
     );
@@ -378,7 +390,7 @@ fn opaque_bytes_are_aggregated_per_item_and_across_banks() {
                 max_item_bytes: 1,
                 ..Limits::default()
             },
-            3,
+            4,
         ),
         "saved item extra state",
     );
@@ -389,7 +401,7 @@ fn opaque_bytes_are_aggregated_per_item_and_across_banks() {
                 max_total_item_bytes: 3,
                 ..Limits::default()
             },
-            3,
+            4,
         ),
         "saved item extra state",
     );
@@ -436,8 +448,8 @@ fn zero_and_byte_budgets_reject_before_owned_admission() {
 fn positional_current_and_legacy_structs_preserve_values_and_restoration() {
     let (_dir, catalogue) = fixture();
     let current = world(&catalogue).snapshot();
-    for schema in 1..=3 {
-        let expected = if schema == 3 {
+    for schema in 1..=4 {
+        let expected = if schema >= 3 {
             current.clone()
         } else {
             let mut expected = current.clone();
@@ -449,7 +461,7 @@ fn positional_current_and_legacy_structs_preserve_values_and_restoration() {
             expected
         };
         let value = serde_json::to_value(&current).unwrap();
-        let value = if schema == 3 {
+        let value = if schema == 4 {
             value
         } else {
             legacy(value, schema)
@@ -480,8 +492,8 @@ fn positional_current_and_legacy_structs_preserve_values_and_restoration() {
 fn positional_collections_obey_each_existing_limit() {
     let (_dir, catalogue) = fixture();
     let current = serde_json::to_value(world(&catalogue).snapshot()).unwrap();
-    for schema in 1..=3 {
-        let mut value = if schema == 3 {
+    for schema in 1..=4 {
+        let mut value = if schema == 4 {
             current.clone()
         } else {
             legacy(current.clone(), schema)
@@ -527,7 +539,7 @@ fn positional_collections_obey_each_existing_limit() {
         ] {
             capacity(decode(&value, limits, schema), label);
         }
-        if schema == 3 {
+        if schema >= 3 {
             for limits in [
                 Limits {
                     max_inventory_banks: 0,
@@ -657,7 +669,7 @@ fn exact_boundaries_escaped_names_and_optional_nulls_remain_accepted() {
         ..limits
     };
     assert_eq!(
-        decode(&repeated, doubled, 3).unwrap().inventory_banks[0]
+        decode(&repeated, doubled, 4).unwrap().inventory_banks[0]
             .items
             .len(),
         2
@@ -669,7 +681,7 @@ fn exact_boundaries_escaped_names_and_optional_nulls_remain_accepted() {
                 max_total_item_links: 15,
                 ..doubled
             },
-            3,
+            4,
         ),
         "saved item extra state",
     );
@@ -679,8 +691,8 @@ fn exact_boundaries_escaped_names_and_optional_nulls_remain_accepted() {
 fn strict_owned_validation_still_rejects_unknown_duplicate_and_malformed_input() {
     let (_dir, catalogue) = fixture();
     let current = serde_json::to_value(world(&catalogue).snapshot()).unwrap();
-    for schema in 1..=3 {
-        let value = if schema == 3 {
+    for schema in 1..=4 {
+        let value = if schema == 4 {
             current.clone()
         } else {
             legacy(current.clone(), schema)
@@ -718,7 +730,7 @@ fn strict_owned_validation_still_rejects_unknown_duplicate_and_malformed_input()
 
 #[test]
 fn deeply_nested_skipped_and_counted_values_fail_with_a_bounded_error() {
-    for schema in 1..=3 {
+    for schema in 1..=4 {
         for prefix in [
             "{\"clocks\":",
             "{\"instances\":[{\"locals\":[",

@@ -1,5 +1,75 @@
 # Immutable actor source fields
 
+## Selected actor render declarations (V3-ACT-01)
+
+`actors::dependencies::Catalogue::render_manifest(root, &ArchiveAssets,
+RenderLimits)` adds a consumer adapter over the existing `Manifest`. Requests
+point to that manifest's physical path indices; selected edges point to its
+original link indices. Source headers, plugin/body hashes and winning-content
+identity accompany the selected actor, race and explicit head-part/hair/eye
+records. Existing `manifest()` and default inspector output retain their schema.
+
+One unambiguous existing inventory ACBS occurrence supplies raw flags and
+template flags, with its exact field origin. The adapter classifies direct NPC
+sex and matching NAM0/NAM1 race declarations using the pinned FNV schema. It
+retains head/body part indices and model versus texture roles. It follows the
+actor's explicit head-part/hair/eye links and HDPT extra links; catalogue-wide
+race hair/eye options, inventory actors and template candidates remain outside
+the selected requests. Repeated links stay in the structural manifest. Its
+existing cycle diagnostics remain available and the bounded selected walk
+visits each source once.
+
+The source evidence is xEdit `9fb016884bec138ea6c7b872cec831537d464c3e`,
+FNV lines 2165–2182 (traits mask `0x01`), 2299–2316 (model/animation mask `0x40`),
+6798–6955 (NPC ACBS/links), 7340–7469 (race contexts/head indices), and Common
+7502–7513 (body indices). These editor category masks justify conservative
+refusal; their visibility callbacks do not prove retail inheritance. Model
+template requests remain unsupported, while a traits-template flag prevents
+selecting a race/sex from the child. Missing or repeated ACBS never acquires a
+default configuration. Unknown part indices and unavailable/ambiguous links
+retain precise manifest references. Repeated model/part declarations remain
+ambiguous, including duplicate empty list fields.
+
+Archive lookups reuse the manifest's exact missing/single/collision/unsafe
+outcomes. NIFZ/KFFZ relative bases remain unresolved. A source MODL is labelled
+an actor model; the adapter does not infer skeleton structure from a filename.
+Equipped state, FaceGen composition, template inheritance, animation playback and
+retail lookup precedence remain separate capabilities. Presentation and assets
+can consume these source requests without introducing another decoder.
+
+The reachable headless consumer is:
+
+```powershell
+.\target\debug\fallout.exe actor-sources --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas' --load-order profiles/nv-inspection-order.json --include-dependencies --include-render-dependencies --dependency-root ORIGIN_PLUGIN:LOCAL_HEX --output local/render-actor.json
+```
+
+The new flag requires explicit roots before opening inputs. All roots share
+manifest budgets and a separate aggregate render budget for selected sources,
+requests, issues and visits. The existing independent raw-source oracle accepts
+`--include-render-dependencies` with `--root` and independently obtains ACBS
+configuration from its retained original plugin handles. Runtime state and save
+formats are unchanged. This is an engineering source consumer, with no new
+gameplay acceptance.
+
+Validation on 2026-10-04: all nine actor regression suites passed (72 tests;
+one separately invoked installed test). The installed test confirmed
+DocMitchell's exact EDID at `falloutnv.esm:104C0C` through the retained winning
+body. His six selected sources produce 26 requests with no selection issues;
+all 26 have one physical archive candidate. The CLI's complete source and
+render projection matched the independent original-byte reader, including all
+6,455 actor scalar definitions and 6,626 dependency definitions. This verifies
+source declarations and candidate metadata, not visible composition or gameplay.
+
+The authored fixture independently matched six sources and seven requests;
+tests also cover missing/colliding archives, repeated/empty fields, template
+refusal, changed winning head parts and exact admission budgets. An altered
+render source hash was rejected by the CLI comparison. Missing required flags
+failed before opening inputs, and the existing dependency-only projection still
+matched its independent reader. Formatting and warnings-denied Clippy passed
+for affected data/CLI targets. Deliberately incomplete authored actor records
+retain the inspector's existing nonzero source-finding exit after a successful
+comparison; those reports do not represent accepted retail behavior.
+
 ACT-01 adds `actors::Catalogue::load(&inventory::Catalogue, actors::Limits)`.
 It decodes the remaining authored NPC_/CREA scalar fields over the existing
 inventory production loader. The actor catalogue borrows the exact inventory

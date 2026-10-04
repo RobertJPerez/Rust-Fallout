@@ -7,11 +7,12 @@ use fallout_data::{
         operand_binding,
     },
 };
+use fallout_runtime::{execution::admission, programs::PreparedSources};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
-    fs::OpenOptions,
-    io::{BufWriter, Write},
+    fs::{File, OpenOptions},
+    io::{BufWriter, Read, Write},
     path::Path,
 };
 
@@ -38,7 +39,13 @@ pub(super) fn inspect(
     order_path: &Path,
     cache: Option<&Path>,
     bundle_path: Option<&Path>,
+    admission_path: Option<&Path>,
 ) -> Result<Value> {
+    if admission_path.is_some() && bundle_path.is_some() {
+        return Err(
+            "execution admission and comparison bundle are separate source-plan requests".into(),
+        );
+    }
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
     let operators = script_profile::operators(&descriptors)?;
     let model = expression_plan::Model::vanilla(&operators)?;
@@ -49,6 +56,35 @@ pub(super) fn inspect(
         loaded_scripts::Catalogue::load(&mut store, loaded_scripts::Limits::default(), |_, _| {
             Ok(())
         })?;
+    if let Some(path) = admission_path {
+        let mut bytes = Vec::new();
+        File::open(path)?
+            .take(1024 * 1024 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > 1024 * 1024 {
+            return Err("execution admission request byte budget exceeded".into());
+        }
+        let request: admission::Request = serde_json::from_slice(&bytes)?;
+        let sources = PreparedSources::load(&catalogue, &model, &signatures, Default::default())?;
+        let attachments = fallout_data::quest_scripts::Attachments::load(
+            &mut store,
+            &catalogue,
+            131_072,
+            |_, _| Ok(()),
+        )?;
+        let report = request.check(&sources, &attachments, Default::default())?;
+        return Ok(json!({
+            "schema_version": 1,
+            "scope": "bounded_declared_source_dependencies_and_unverified_execution_capabilities",
+            "request_sha256": format!("{:x}", sha2::Sha256::digest(&bytes)),
+            "explicit_load_order": order.names,
+            "load_order_sha256": order.sha256,
+            "executable_source_sha256": descriptors.source_sha256,
+            "execution_admission": report,
+            "index_cache": store.index_cache_report(),
+            "retail_parity_accepted": false,
+        }));
+    }
     let mut bundle = bundle_path
         .map(|path| -> Result<_> {
             let parent = path
@@ -160,9 +196,16 @@ pub(super) fn inspect(
     } else {
         None
     };
+    // Keep the old comparison field stable. Execution admission additionally
+    // binds every source receipt and resolved reference, so its digest must be
+    // exported under a distinct name instead of treating the two as aliases.
     Ok(
         json!({"schema_version":1,"profile":"nv-original","scope":"Winning source versions with complete delimiter/expression plans and encoded owning-table associations; no VM execution permission",
         "explicit_load_order":order.names,"load_order_sha256":order.sha256,"source_cohort_sha256":catalogue.winning_content_sha256(),
+        "source_cohort_sha256_domain":"legacy_winning_definitions",
+        "winning_definitions_sha256":catalogue.winning_content_sha256(),
+        "prepared_source_cohort_sha256":fallout_runtime::snapshot::cohort(&catalogue)?,
+        "prepared_source_cohort_sha256_domain":"fallout_runtime::snapshot::cohort",
         "sources":catalogue.sources,"source_counts":catalogue.counts,"counts":counts,"compiled_bodies":compiled,
         "prepared_expressions":total_expressions,"prepared_tokens":total_tokens,"prepared_nodes":total_nodes,"prepared_operand_uses":total_uses,
         "executable_source_sha256":descriptors.source_sha256,"operator_descriptors":descriptors.operators,

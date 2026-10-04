@@ -12,6 +12,7 @@ pub mod inventory;
 pub mod preparation;
 pub mod programs;
 pub mod query;
+pub mod reference_state;
 pub mod save;
 pub mod schema;
 pub mod snapshot;

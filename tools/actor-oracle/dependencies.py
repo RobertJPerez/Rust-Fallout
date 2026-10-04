@@ -538,15 +538,150 @@ def cycles(children):
     return sorted(result)
 
 
+def render_manifest(reader, root, definitions, manifest, remaining, content_digest):
+    """Independent declaration selector; raw ACBS comes from locked plugin bytes.
+
+    Reuse this oracle's original-byte manifest. Never read Rust requests or infer
+    an equipped item from the inventory graph. Source declarations are not retail
+    actor composition or template inheritance measurements.
+    """
+    configuration = []
+    root_fields = list(fields(reader.payload(root, 64 * MIB)))
+    for index, (tag, offset, data) in enumerate(root_fields):
+        if tag == "ACBS":
+            require(len(data) == 24, "render ACBS source shape")
+            configuration.append(dict(inventory_field_index=index,
+                field_decoded_offset=offset, flags=struct.unpack_from("<I", data)[0],
+                template_flags=struct.unpack_from("<H", data, 22)[0]))
+    paths_by_source, edges_by_source = collections.defaultdict(list), collections.defaultdict(list)
+    for index, path in enumerate(manifest["paths"]):
+        paths_by_source[key_tuple(path["source"])].append(index)
+    for index, edge in enumerate(manifest["model_edges"]):
+        edges_by_source[key_tuple(edge["source"])].append(index)
+    requests, issues, edges = [], [], []
+    visits = len(root_fields)
+    selected, queue, sex = {root}, collections.deque(), None
+
+    def issue(code, source, edge=None, path=None):
+        require(len(issues) < remaining["issues"], "render issue budget")
+        issues.append(dict(code=code, source=key_json(source),
+            manifest_edge_index=edge, manifest_path_index=path))
+
+    config = configuration[0] if len(configuration) == 1 else None
+    if config is None:
+        issue("missing_actor_configuration" if not configuration else "ambiguous_actor_configuration", root)
+    else:
+        if config["template_flags"] & 0x40:
+            issue("model_template_selection_unsupported", root)
+        else:
+            queue.append(root)
+        if reader.winners[root]["kind_name"] == "NPC_":
+            if config["template_flags"] & 1:
+                issue("traits_template_selection_unsupported", root)
+            else:
+                sex = "female" if config["flags"] & 1 else "male"
+
+    def path_group(value):
+        context = value["context"]
+        return (value["role"], tuple(context["region"]["kind"]) if context["region"] else None,
+            tuple(context["sex"]["kind"]) if context["sex"] else None,
+            context["part"]["raw_index"] if context["part"] else None)
+
+    while queue:
+        reader.guard()
+        key = queue.popleft()
+        kind = reader.winners[key]["kind_name"]
+        source_paths = paths_by_source[key]
+        source_edges = edges_by_source[key]
+        source_fields = definitions[key]["fields"]
+        visits += len(source_paths) + len(source_fields) + 2 * len(source_edges)
+        groups = collections.Counter(path_group(field["value"]) for field in source_fields
+            if field["value"]["kind"] == "paths")
+        first = len(requests)
+        for index in source_paths:
+            path = manifest["paths"][index]
+            role = None
+            if kind in {"NPC_", "CREA"}:
+                role = {"model": "actor_model", "animation_list": "animation_list"}.get(path["role"])
+                if kind == "CREA" and path["role"] == "model_list":
+                    role = "creature_model_list"
+            elif kind == "HDPT" and path["role"] == "model":
+                role = "head_part"
+            elif kind == "HAIR" and path["role"] in {"model", "texture"}:
+                role = "hair"
+            elif kind == "EYES" and path["role"] == "texture":
+                role = "eyes"
+            elif kind == "RACE" and path["role"] in {"model", "texture"}:
+                region, marker, part = (path["context"][name] for name in ["region", "sex", "part"])
+                if None in (region, marker, part):
+                    issue("race_path_without_part_context", key, path=index)
+                    continue
+                if sex is None or bytes(marker["kind"]) != (b"FNAM" if sex == "female" else b"MNAM"):
+                    continue
+                tag, raw_index = bytes(region["kind"]), part["raw_index"]
+                if tag == b"NAM0" and raw_index is not None and raw_index < 8:
+                    role = dict(kind="race_head", part_index=raw_index)
+                elif tag == b"NAM1" and raw_index is not None and raw_index < 4:
+                    role = dict(kind="race_body", part_index=raw_index)
+                else:
+                    issue("unsupported_race_part_index", key, path=index)
+                    continue
+            if role is None:
+                continue
+            require(len(requests) < remaining["requests"], "render request budget")
+            requests.append(dict(manifest_path_index=index,
+                role=dict(kind=role) if isinstance(role, str) else role,
+                ambiguous_source=groups[path_group(path)] > 1))
+        visits += len(requests) - first
+        expected = "texture" if kind == "EYES" else "model"
+        if not any(manifest["paths"][request["manifest_path_index"]]["role"] == expected for request in requests[first:]):
+            issue("missing_selected_model_or_texture", key)
+        counts = collections.Counter(manifest["model_edges"][index]["role"] for index in source_edges)
+        for index in source_edges:
+            edge = manifest["model_edges"][index]
+            role = edge["role"]
+            if not ((kind == "NPC_" and (role in {"head_part", "hair", "eyes"}
+                or (role == "race" and sex is not None))) or (kind == "HDPT" and role == "extra_head_part")):
+                continue
+            edges.append(index)
+            if role in {"race", "hair", "eyes"} and counts[role] > 1:
+                issue("ambiguous_actor_render_link", key, edge=index)
+            elif edge["binding"]["status"] != "defined" or edge["schema_kind_allowed"] is not True:
+                issue("unavailable_actor_render_link", key, edge=index)
+            else:
+                target = key_tuple(edge["binding"]["key"])
+                if target not in selected:
+                    require(len(selected) < remaining["sources"], "render source budget")
+                    selected.add(target)
+                    queue.append(target)
+        if kind == "NPC_" and sex is not None and counts["race"] == 0:
+            issue("missing_actor_race_link", key)
+        require(visits <= remaining["visits"], "render visit budget")
+    require(len(selected) <= remaining["sources"] and visits <= remaining["visits"], "render source/visit budget")
+    result = dict(winning_content_sha256=content_digest, manifest=manifest,
+        configuration=config, sex=sex,
+        sources=[{name: definitions[key][name] for name in ["key", "source", "header"]} for key in sorted(selected)],
+        selected_edge_indices=sorted(edges), requests=requests, issues=issues, visits=visits,
+        equipment_selection_supported=False,
+        scope="Authored actor model/animation and explicit head-part/hair/eye links, sex-bound RACE declarations; no template inheritance, effective equipment, FaceGen composition, relative list base, animation playback or retail precedence")
+    for name, count in dict(sources=len(selected), requests=len(requests), issues=len(issues), visits=visits).items():
+        remaining[name] -= count
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ["data", "load-order", "base-report", "output"]:
         parser.add_argument("--" + name, required=True, type=pathlib.Path)
     parser.add_argument("--root", action="append", default=[])
+    parser.add_argument("--root-editor-id", action="append", default=[],
+        help="independently resolve an NPC_/CREA winner from its original EDID")
+    parser.add_argument("--include-render-dependencies", action="store_true")
     parser.add_argument("--team-directory", type=pathlib.Path)
     parser.add_argument("--session-id")
     args = parser.parse_args()
-    require(len(args.root) <= 64, "actor dependency root budget")
+    require(len(args.root) + len(args.root_editor_id) <= 64, "actor dependency root budget")
+    require(not args.include_render_dependencies or args.root or args.root_editor_id, "render dependencies require explicit roots")
 
     def guard():
         if args.team_directory is None:
@@ -580,8 +715,27 @@ def main():
             local = int(local, 16)
             require(0 < local <= 0xFFFFFF, "actor dependency root local ID")
             roots.append((plugin_name(origin), local))
+        for editor_id in args.root_editor_id:
+            require(editor_id.isascii() and 0 < len(editor_id) <= 4096, "actor root EDID")
+            matches = []
+            for key, definition in definitions.items():
+                if definition["deleted"] or reader.winners[key]["kind_name"] not in {"NPC_", "CREA"}:
+                    continue
+                reader.guard()
+                names = [terminated(data) for tag, _, data in fields(reader.payload(key, 64 * MIB)) if tag == "EDID"]
+                if any(name.lower() == editor_id.encode("ascii").lower() for name in names):
+                    require(len(names) == 1, "actor root has duplicate EDID")
+                    matches.append(key)
+            require(len(matches) == 1, "actor root EDID is missing or ambiguous")
+            roots.extend(matches)
         manifests = [reader.manifest(root, definitions, graph, remaining) for root in roots]
-        native["actor_dependencies"] = {"counts": counts, "definitions": list(definitions.values()), "inventory_graph": graph, "manifests": manifests}
+        render_manifests = []
+        if args.include_render_dependencies:
+            render_remaining = dict(sources=4096, requests=16_384, issues=16_384, visits=2_000_000)
+            render_manifests = [render_manifest(reader, root, definitions, manifest, render_remaining,
+                native["winning_content_sha256"]) for root, manifest in zip(roots, manifests)]
+            native["actor_render_dependencies"] = dict(manifests=render_manifests)
+        native["actor_dependencies"] = {"counts": counts, "definitions": list(definitions.values()), "inventory_graph": graph, "manifests": [] if args.include_render_dependencies else manifests}
         guard()
         with args.output.open("x", encoding="utf-8") as output:
             json.dump(native, output, separators=(",", ":"), ensure_ascii=True)

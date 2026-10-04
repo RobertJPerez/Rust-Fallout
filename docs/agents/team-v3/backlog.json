@@ -467,6 +467,238 @@
         ],
         "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
         "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-23",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Drain an explicit bounded saved journal prefix through the existing copy host",
+        "existing_gap": "VM17 commit_pending consumes only one explicitly selected saved HEAD. The real strict saved-state runner has no production path to consume several explicitly supplied sequential existing events without repeatedly encoding/loading the whole snapshot. VM22 concerns several statements inside one event and does not close this journal-level gap.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/pending_batch.rs",
+          "crates/fallout-runtime/src/execution/copy_probe.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "consumer": "An opt-in saved-event batch CLI strictly restores current snapshot, validates an explicit ordered sequence/Fragment activation list, runs existing single-copy Engineering commit_pending per event in a private result World, and emits one fresh snapshot only if the complete prefix succeeds.",
+        "acceptance": [
+          "Independent authored saved journal with two or three source events has exact literal locals/revisions/acknowledged sequences and untouched trailing event, reference pose/enable/inventory/counters.",
+          "Second/later unsupported event, wrong activation/HEAD, missing instance, stale source or aggregate cap produces no output snapshot and preserves input bytes; no successful no-op or partial file.",
+          "Bound event count, aggregate source instruction/statement bytes/trace retention and snapshot output; old one-event VM17 unchanged. Cold restore verifies the final head and replay of old sequence refuses."
+        ],
+        "source_evidence": [
+          "95d8823:crates/fallout-runtime/src/execution/copy_probe.rs:92-102",
+          "95d8823:crates/fallout-runtime/src/execution/local_copy.rs:119-267"
+        ],
+        "bounded_no_original_fallback": "Only authored source-supported Begin/one-copy/End events are consumed, with explicit Engineering activation. No retail dispatch order or quest activation is inferred.",
+        "common_conditions": [
+          "Use exact reviewed current PreparedSources/PreparedRecord/full runtime source cohort and existing canonical APIs. No second parser/AST/VM, synthetic authority import, new mutable world type or save schema.",
+          "Implementation stays in scripts-owned source/tests/CLI/tools/docs; minimal export/CLI dispatch is declared. No changes to runtime-owned storage, actor/world consumers, dependencies, pins or original settings/saves.",
+          "All new execution is opt-in Engineering with explicit identity/input policy; Faithful is a typed refusal until independently recorded original semantics exist. Source provenance is not behavior acceptance.",
+          "One small producer+actual strict cold-snapshot CLI consumer and meaningful independent expected result, then exact handoff. Charge source/step/copy/output work and bytes before retention; later error exposes no successful partial output.",
+          "Reuse existing adapters/private helpers. Preserve current one-shot source/budget/refusal/report behavior with old options. Publish exact additive signatures before another lane consumes them, and obey current feature quota."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-24",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Prepare a reusable source-bound native query plan without retaining World borrows",
+        "existing_gap": "NativeCalls owns a PreparedEvent borrowing the current World, whereas query::Request already owns canonical subject/item identities and can evaluate fresh same-campaign state. No source-native plan seals the call occurrence/caller proof while reusing that existing immutable query request after a strict cold restore. VM20 captures historical source/local data and cannot be live query authority.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/native_plan.rs",
+          "crates/fallout-runtime/src/execution/native.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "consumer": "Strict saved native CLI prepares a selected currently supported Engineering GetItemCount call occurrence from the exact event, drops/restores the World in an actual consumer phase, then evaluates the private source-bound plan against current canonical inventory.",
+        "acceptance": [
+          "Independent authored initial/restored/changed-inventory snapshots yield exact current CountTrace contributions, not a cached earlier value. Source call/prefix/argument byte ranges and explicit subject/player choices remain exact.",
+          "Plan construction reuses current NativeCalls source/argument/subject admission and query::Request; no public catalogue constructor, Deserialize, caller-supplied trace admission or acknowledgment/commit method.",
+          "At re-evaluation revalidate same full source/cohort/campaign, exact definition version/binding/event identity and current reference; removed caller, stale HEAD/source/version or unavailable arguments refuse. Owned rows/strings/source proof/plan creation and query/output contributions are bounded."
+        ],
+        "source_evidence": [
+          "95d8823:crates/fallout-runtime/src/execution/native.rs:145-156",
+          "95d8823:crates/fallout-runtime/src/query.rs:36-44",
+          "95d8823:crates/fallout-runtime/src/query.rs:87-95"
+        ],
+        "bounded_no_original_fallback": "Use the existing engineering GetItemCount implementation and two authored current snapshots. Original return coercion remains unavailable; no new native handler is added.",
+        "common_conditions": [
+          "Use exact reviewed current PreparedSources/PreparedRecord/full runtime source cohort and existing canonical APIs. No second parser/AST/VM, synthetic authority import, new mutable world type or save schema.",
+          "Implementation stays in scripts-owned source/tests/CLI/tools/docs; minimal export/CLI dispatch is declared. No changes to runtime-owned storage, actor/world consumers, dependencies, pins or original settings/saves.",
+          "All new execution is opt-in Engineering with explicit identity/input policy; Faithful is a typed refusal until independently recorded original semantics exist. Source provenance is not behavior acceptance.",
+          "One small producer+actual strict cold-snapshot CLI consumer and meaningful independent expected result, then exact handoff. Charge source/step/copy/output work and bytes before retention; later error exposes no successful partial output.",
+          "Reuse existing adapters/private helpers. Preserve current one-shot source/budget/refusal/report behavior with old options. Publish exact additive signatures before another lane consumes them, and obey current feature quota."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-25",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Prepare one bounded condition request batch across several exact source records",
+        "existing_gap": "VM19 Requests::prepare accepts one PreparedRecord only. Real package/dialogue candidate hosts need CTDA sites from multiple exact records in a single explicit selection, otherwise repeatedly validate/hash the same complete source cohort and manually aggregate budgets.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/condition.rs",
+          "crates/fallout-cli/src/condition_dependency_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "consumer": "Owned condition CLI takes bounded explicit (record identity, physical CTDA offset, explicit subject) selections over existing privately admitted records and one strict saved state; returns ordered engineering observations under one global contribution/output cap.",
+        "acceptance": [
+          "Independent authored two-record batch with repeated/nonmonotonic selections matches complete existing single-request observations and exact literal source-site identities; no boolean grouping, truth, package eligibility or first-wins selection.",
+          "One complete current-cohort hash validation shared across the explicit records, while every record identity/own receipt and exact site still checked; changed/mixed-cohort or wrong record offset refuses atomically.",
+          "Account records/source bytes, each site lookup/work and aggregate query contributions/retained final bytes; exact/one-less caps and a late unavailable site are real refusal paths. Legacy VM19 single-record reports remain unchanged."
+        ],
+        "source_evidence": [
+          "95d8823:crates/fallout-runtime/src/execution/condition.rs:133-165",
+          "95d8823:crates/fallout-cli/src/condition_dependency_inspection.rs:205-255"
+        ],
+        "bounded_no_original_fallback": "Use two authored current PreparedRecord CTDA sources and existing saved inventory queries. No original condition grouping or relation comparison behavior is needed to finish the cross-record consumer.",
+        "common_conditions": [
+          "Use exact reviewed current PreparedSources/PreparedRecord/full runtime source cohort and existing canonical APIs. No second parser/AST/VM, synthetic authority import, new mutable world type or save schema.",
+          "Implementation stays in scripts-owned source/tests/CLI/tools/docs; minimal export/CLI dispatch is declared. No changes to runtime-owned storage, actor/world consumers, dependencies, pins or original settings/saves.",
+          "All new execution is opt-in Engineering with explicit identity/input policy; Faithful is a typed refusal until independently recorded original semantics exist. Source provenance is not behavior acceptance.",
+          "One small producer+actual strict cold-snapshot CLI consumer and meaningful independent expected result, then exact handoff. Charge source/step/copy/output work and bytes before retention; later error exposes no successful partial output.",
+          "Reuse existing adapters/private helpers. Preserve current one-shot source/budget/refusal/report behavior with old options. Publish exact additive signatures before another lane consumes them, and obey current feature quota."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-26",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Copy one explicitly source-qualified foreign numeric local into an own destination",
+        "existing_gap": "The existing event operand producer already resolves source-qualified foreign numeric reads through foreign::Request, but local_copy refuses every context_reference. A bounded opt-in engineering event host cannot currently consume that admitted read into an own canonical slot.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/foreign_copy.rs",
+          "crates/fallout-runtime/src/execution/local_copy.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "consumer": "Separate strict saved-copy consumer admits only Begin/one Assignment/End, own numeric destination and one existing source-qualified foreign numeric local read; stages exact Value::Number bits into the own destination using existing stage_event_changes and one acknowledgment.",
+        "acceptance": [
+          "Independent authored two instances sharing local indices prove exact source context reference -> canonical foreign instance/declaration/value, with literal copied bits and unchanged foreign locals/state.",
+          "Missing/ambiguous/wrong-owner/uninitialized foreign value, unsupported context/global/operator/call, different source versions or stale staging revision refuse before mutation; explicit player role is not fallback.",
+          "Reuse probe_event_operands_with_sources and foreign_target/read_foreign admission; no foreign writes, new resolver or cross-instance transaction. Bound instructions/uses/copied source traces and save output; old own numeric copy remains identical."
+        ],
+        "source_evidence": [
+          "95d8823:crates/fallout-runtime/src/execution/local_copy.rs:148-175",
+          "95d8823:crates/fallout-runtime/src/event_operands.rs:245-272"
+        ],
+        "bounded_no_original_fallback": "Use authored compiled foreign-local operands plus explicit two-instance strict snapshots. The operation is exact host bit copy only; original numeric conversion or foreign assignment behavior stays unsupported.",
+        "common_conditions": [
+          "Use exact reviewed current PreparedSources/PreparedRecord/full runtime source cohort and existing canonical APIs. No second parser/AST/VM, synthetic authority import, new mutable world type or save schema.",
+          "Implementation stays in scripts-owned source/tests/CLI/tools/docs; minimal export/CLI dispatch is declared. No changes to runtime-owned storage, actor/world consumers, dependencies, pins or original settings/saves.",
+          "All new execution is opt-in Engineering with explicit identity/input policy; Faithful is a typed refusal until independently recorded original semantics exist. Source provenance is not behavior acceptance.",
+          "One small producer+actual strict cold-snapshot CLI consumer and meaningful independent expected result, then exact handoff. Charge source/step/copy/output work and bytes before retention; later error exposes no successful partial output.",
+          "Reuse existing adapters/private helpers. Preserve current one-shot source/budget/refusal/report behavior with old options. Publish exact additive signatures before another lane consumes them, and obey current feature quota."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-27",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Copy one admitted own reference local without numeric identity conversion",
+        "existing_gap": "schema::Kind::Reference and event_operands already retain typed canonical references, yet local_copy rejects every nonnumeric local. Script reference variables therefore cannot even perform an explicitly labeled exact identity-copy host operation.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/reference_copy.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "consumer": "Separate strict saved source-copy consumer admits a one-statement own-reference-local copy using existing prepared source operand bindings, typed Value::Reference and existing opaque event commit.",
+        "acceptance": [
+          "Independent authored declared reference locals verify live IDs above floating-point exact integer ranges and content FormKey identities remain typed/exact through commit and strict cold restore.",
+          "Canonical declaration kinds on both sides must be Reference and the existing binder must admit actual source encoding; no invented type byte, integer cast, numeric conversion, nullable default or source lookup shortcut.",
+          "Missing source/local/live reference, incompatible destination, context-qualified/global/call/operator shape, stale revision/cohort and trace/output cap refuse atomically. Preserve current numeric copy receipts and full unrelated snapshot state."
+        ],
+        "source_evidence": [
+          "95d8823:crates/fallout-runtime/src/schema.rs:11-20",
+          "95d8823:crates/fallout-runtime/src/schema.rs:48-73",
+          "95d8823:crates/fallout-runtime/src/event_operands.rs:274-306",
+          "95d8823:crates/fallout-runtime/src/execution/local_copy.rs:212-239"
+        ],
+        "bounded_no_original_fallback": "Use an authored source whose compiled declarations and SCRV dynamic-variable entries are already supported by existing schema/binder. Exact reference storage is Engineering, with retail reference assignment/lifecycle semantics refused.",
+        "common_conditions": [
+          "Use exact reviewed current PreparedSources/PreparedRecord/full runtime source cohort and existing canonical APIs. No second parser/AST/VM, synthetic authority import, new mutable world type or save schema.",
+          "Implementation stays in scripts-owned source/tests/CLI/tools/docs; minimal export/CLI dispatch is declared. No changes to runtime-owned storage, actor/world consumers, dependencies, pins or original settings/saves.",
+          "All new execution is opt-in Engineering with explicit identity/input policy; Faithful is a typed refusal until independently recorded original semantics exist. Source provenance is not behavior acceptance.",
+          "One small producer+actual strict cold-snapshot CLI consumer and meaningful independent expected result, then exact handoff. Charge source/step/copy/output work and bytes before retention; later error exposes no successful partial output.",
+          "Reuse existing adapters/private helpers. Preserve current one-shot source/budget/refusal/report behavior with old options. Publish exact additive signatures before another lane consumes them, and obey current feature quota."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-28",
+        "state": "ready",
+        "title": "Boot the exact authored script of one existing placed reference",
+        "depends_on": [],
+        "existing_gap": "Current quest_scripts::Attachments scans QUST and VM21 boots only Owner::Quest. Existing canonical placed reference origin and Owner::Placed APIs are available, but no source-aware runner proves the exact placed NAME -> supported winning base SCRI -> unique standalone loaded SCPT chain before creating its script instance.",
+        "owned_paths": [
+          "crates/fallout-data/src/script_reference_attachment.rs",
+          "crates/fallout-runtime/src/execution/reference_attachment_boot.rs",
+          "crates/fallout-runtime/src/execution/attachment_boot.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "crates/fallout-data/tests/script*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "consumer": "Opt-in strict current saved-state boot CLI takes existing ReferenceId, exact authored FormKey, explicit initializer/context request and bounded source selection. It resolves only the reviewed source chain and emits a new private result snapshot with Owner::Placed {reference} if all initialization succeeds.",
+        "source_evidence": [
+          "95d88232e21b1a3496bfbaffda6ac3e169adbab1:crates/fallout-runtime/src/state.rs:256-264 reference origin/inverse map",
+          "95d88232e21b1a3496bfbaffda6ac3e169adbab1:crates/fallout-runtime/src/state.rs:276-289 existing create_instance and duplicate-owner refusal",
+          "95d88232e21b1a3496bfbaffda6ac3e169adbab1:crates/fallout-runtime/src/identity.rs:59-65 Owner::Placed",
+          "95d88232e21b1a3496bfbaffda6ac3e169adbab1:crates/fallout-data/src/world.rs:50-56 and173-175 Placement.base / existing exact NAME decoder",
+          "95d88232e21b1a3496bfbaffda6ac3e169adbab1:crates/fallout-data/src/quest_scripts.rs:198-229 existing unique standalone SCPT admission model",
+          "95d88232e21b1a3496bfbaffda6ac3e169adbab1:crates/fallout-data/src/loaded_scripts.rs:71-76 source owner kinds"
+        ],
+        "bounded_boundary": [
+          "Require World::reference_origin(id)==Some(expected_authored_key) and World::authored_reference(expected_authored_key)==Some(id); dynamic/unbound/missing references refuse. Never create a reference or guess a default pose/enable/base.",
+          "Read exact winning supported placed record with existing world::decode_placement and source binder. Bind its unique NAME in its original plugin context to the winning base. Admit only a base record kind/version whose SCRI layout was read completely in the current pinned schema; unknown base kinds/layouts are unsupported.",
+          "Inspect the exact supported base SCRI physical occurrence through existing bounded record/subrecord visitor and key_for; require exactly one non-null/nondeleted SCPT target, exactly one existing schema-verified standalone catalogue unit and matching full source/header/version/hash/cohort. No inherited actor script or fallback source selection.",
+          "Create Owner::Placed {reference:id} only in a strictly restored private result World; caller explicitly supplies initializer values and Context roles. Reuse existing create_instance/assign and, once its exact implementation is reviewed, share VM21 private initializer/attachment checks rather than duplicating them. This task can independently use already-published APIs if VM21 remains unreviewed.",
+          "Do not enqueue an event, activate a reference/quest, alter inventory/pose/enable, invent reference defaults, change save schema or accept source-only data as a current retail event-list description. Root may approve minimal module export/main wiring; do not edit runtime-owned files."
+        ],
+        "acceptance": [
+          "Independent authored fixture with two existing references sharing a base proves exact selected ReferenceId, placed NAME offset/raw FormID, base SCRI offset/raw FormID, winning SCPT handle/version and literal Owner::Placed/initialized locals; the unselected reference remains unchanged.",
+          "Cold restore preserves owner, source handle and explicitly supplied locals/context. Input snapshot/original sources are unchanged and default existing boot/copy/native paths remain identical.",
+          "Wrong ReferenceId/origin, duplicate owner, changed placement/base/script winner or cohort, null/duplicate/missing/deleted/wrong-kind SCRIPT link or multiple units refuse before a result snapshot exists. Unknown source layouts remain unavailable.",
+          "A late invalid initializer/context/capacity failure discards the entire private result; bound decoded sources/fields/links/initializer rows/bytes/step work and final snapshot output before allocation/emission."
+        ],
+        "bounded_no_original_fallback": "Use a tiny authored supported placed record, schema-confirmed script-bearing base (start with one already audited kind such as CONT only after pin verification), standalone SCPT and explicit canonical reference snapshot. Prove actual strict cold boot through the CLI. Original attachment activation/replacement/event-list lifetime remains unsupported.",
+        "non_overlap": "ACT19 provides an actor-base SCRI source request and VM21 provides QUST boot. This task joins an existing canonical placed reference through its exact winning source chain and boots its own private script result; it neither creates actor references nor implements actor inheritance.",
+        "common_conditions": [
+          "Use exact reviewed current PreparedSources/PreparedRecord/full runtime source cohort and existing canonical APIs. No second parser/AST/VM, synthetic authority import, new mutable world type or save schema.",
+          "Implementation stays in scripts-owned source/tests/CLI/tools/docs; minimal export/CLI dispatch is declared. No changes to runtime-owned storage, actor/world consumers, dependencies, pins or original settings/saves.",
+          "All new execution is opt-in Engineering with explicit identity/input policy; Faithful is a typed refusal until independently recorded original semantics exist. Source provenance is not behavior acceptance.",
+          "One small producer+actual strict cold-snapshot CLI consumer and meaningful independent expected result, then exact handoff. Charge source/step/copy/output work and bytes before retention; later error exposes no successful partial output.",
+          "Reuse existing adapters/private helpers. Preserve current one-shot source/budget/refusal/report behavior with old options. Publish exact additive signatures before another lane consumes them, and obey current feature quota."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
       }
     ],
     "runtime": [
@@ -1175,6 +1407,315 @@
           "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
           "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
         ]
+      },
+      {
+        "id": "V3-ACT-21",
+        "state": "ready",
+        "title": "Join selected actor initialization inputs to exact race and class definitions",
+        "depends_on": [],
+        "gap": "ACT09 prepares only actors and template candidates; decoded RACE skill/height/weight and CLAS tag/training/service declarations are not joined to the selected actor context. Actor initialization would currently have to invent this join.",
+        "source_evidence": [
+          "1ed3e266:crates/fallout-runtime/src/actor_rules/stats.rs:157-214",
+          "1ed3e266:crates/fallout-data/src/actors/races.rs:37-51",
+          "1ed3e266:crates/fallout-data/src/actors/classes.rs:37-52",
+          "1ed3e266:crates/fallout-data/src/actors/associations.rs:30-49"
+        ],
+        "consumer": "Existing actor inspector exposes one source-bound actor/race/class initialization-input request, optionally observed against its existing canonical World/Content. It supplies exact authored inputs to a future boot host without initializing values.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/initialization_inputs.rs",
+          "crates/fallout-runtime/src/actor_rules/initialization_inputs.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Independently authored actor with explicit RNAM/CNAM and different winning RACE/CLAS overrides yields exact source headers, physical scalar fields and bound source keys; raw float/signed words remain exact.",
+          "Unique direct links are distinguished from repeated/missing/deleted/wrong-kind links and inherited template categories; no effective selection or default race/class/stat calculation.",
+          "Cold canonical source context checks cohort/campaign if supplied; strict budgets cover selected sources/fields/bytes/output; old ACT09/default report remains unchanged."
+        ],
+        "bounded_no_original_fallback": "Use a tiny authored actor/RACE/CLAS cohort and independently literal signed/raw-bit input arrays. Complete the join without a retail initialization formula.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-22",
+        "state": "ready",
+        "title": "Supply exact actor effect declarations to the effect host",
+        "depends_on": [],
+        "gap": "ActorEffect and UnarmedEffect associations bind SPEL/ENCH identity only. There is no bounded selected declaration-to-effect-definition request; effect initialization or use would need to rescan arbitrary source bytes.",
+        "source_evidence": [
+          "1ed3e266:crates/fallout-data/src/actors/associations.rs:30-50",
+          "1ed3e266:crates/fallout-data/src/actors/dependencies/fields.rs:89-111",
+          "Master brief section8 Actor and item model effects/radiation/addiction"
+        ],
+        "consumer": "Selected actor inspector prepares actor association occurrence -> SPEL or ENCH physical effect declaration -> explicitly linked MGEF source request, with exact source indices; future effect host consumes the request without reparsing.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/effect_inputs.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "After reading relevant pinned source layouts, one selected supported effect group retains every occurrence, raw magnitude/duration/area/flags and exact schema-confirmed bindings; no positional guesses for unknown effect grouping.",
+          "Independent authored repeated effects, winning override, missing/deleted/null/wrong-kind MGEF and changed source receipts produce exact output or unavailable/refusal; no fabricated active effects or stacking/timing math.",
+          "Limit source depth/count/read bytes/fields/bindings/output before retention; preserve unselected data and original inputs."
+        ],
+        "bounded_no_original_fallback": "Produce one authored actor and supported SPEL/ENCH effect group using the pinned layout. If a field is unestablished, retain it as opaque and finish the validated existing link consumer without inventing effect execution.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-23",
+        "state": "ready",
+        "title": "Resolve an explicitly chosen weapon attack source chain",
+        "depends_on": [],
+        "gap": "ACT08 supplies weapon model/mod-mask roles; its Value decoder has no ammo/projectile/combat source chain. A live enemy attack host needs exact declared weapon/ammo/projectile inputs before damage or trajectory is implemented.",
+        "source_evidence": [
+          "1ed3e266:crates/fallout-data/src/actors/dependencies/equipment.rs:18-26",
+          "1ed3e266:crates/fallout-data/src/actors/dependencies/fields.rs:89-111",
+          "Master brief section8 Combat attack/ammo/projectile requirements"
+        ],
+        "consumer": "Actor inspector accepts an explicit WEAP FormKey and, where needed, explicit AMMO choice; returns only schema-confirmed attack/ammo/projectile source declarations for physics/combat consumers.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/attack_inputs.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Read complete pinned WEAP/AMMO/PROJ linkage definitions; bind exact winning source keys and preserve all physical occurrences/flags/raw words. Caller ammo choice is engineering selection; inventory does not choose it.",
+          "Independent authored same-model weapons with different ammo/projectile bindings, source override changes, duplicate singleton links, non-projectile/null/deleted/missing sources and bounds give complete expected projections.",
+          "No fire/reload/ammo consumption/damage/spread/ballistic defaults or automatic mod effects; old model role outputs remain identical."
+        ],
+        "bounded_no_original_fallback": "Use tiny authored weapon/ammo/projectile records and a literal expected binding graph, with unsupported semantics explicit. No original launch or new physics API required.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-24",
+        "state": "ready",
+        "title": "Resolve the selected actor death-item list into explicit source candidates",
+        "depends_on": [],
+        "gap": "Association DeathItem targets LVLI only; inventory::Value covers direct CNTO and opaque fields, so no actor consumer exposes an exact bounded death-item list closure. Future looting must not interpret the link as an already rolled item.",
+        "source_evidence": [
+          "1ed3e266:crates/fallout-data/src/actors/associations.rs:35-49",
+          "1ed3e266:crates/fallout-data/src/inventory/mod.rs:63-87",
+          "Master brief section8 actor death/looting/leveled declarations"
+        ],
+        "consumer": "Actor inspector selects one exact DeathItem association occurrence and supplies bounded LVLI declaration candidates/source origins to the death/loot host.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/death_item_inputs.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Inspect pinned LVLI layouts first; independent authored physical order/duplicate entries/signed level/count/flags/chance words and nested winning bindings are exact. Preserve null/missing/deleted/unsupported targets and repeated singleton source ambiguity.",
+          "Cycle/depth/source-count/decoded-byte/field/binding limits are charged and fail atomically without a fabricated item; no RNG, probability roll, level threshold or respawn evaluation.",
+          "Do not duplicate direct actor inventory initialization ACT18; this new source producer does not add items or claim a death event."
+        ],
+        "bounded_no_original_fallback": "A small authored nested LVLI graph with an independent literal closure and cyclic refusal suffices for the engineering producer. Retail rolls remain a separate measured requirement.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-25",
+        "state": "ready",
+        "title": "Expose the selected equipment model alternate-texture declarations",
+        "depends_on": [],
+        "gap": "ACT08 admits a physical model role/path, while dependency Value has no alternate-texture selection. Presentation cannot apply source material overrides without knowing which exact model-role declaration and texture-set source they belong to.",
+        "source_evidence": [
+          "1ed3e266:crates/fallout-data/src/actors/dependencies/equipment.rs:18-52",
+          "1ed3e266:crates/fallout-data/src/actors/dependencies/fields.rs:89-111",
+          "Master brief section6 original materials and section8 equipment attachments"
+        ],
+        "consumer": "Existing explicit equipment source consumer emits the bounded alternate-texture declarations associated with the caller-chosen model role; presentation receives raw source mesh names/indices and TXST keys without a guessed shader rule.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/dependencies/material_overrides.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Read full pinned alternate-texture/model-role field definitions before assigning association; independent authored two model roles with different declarations and repeated/raw nonUTF8 names produce exact indices/bindings/source spans.",
+          "Missing/duplicate/wrong-kind/deleted TXST and ambiguous model grouping remain unavailable; never select first matching name or silently use another model role.",
+          "No TXST importer, archive precedence, renderer shader/material mutation or gameplay equip selection; old equipment request bytes stay unchanged when flag absent. Bound fields/raw bytes/bindings/output."
+        ],
+        "bounded_no_original_fallback": "Use authored ARMO/WEAP model-role fields and TXST source headers; complete raw exact bindings without GPU or original material acceptance.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-26",
+        "state": "ready",
+        "title": "Supply selected creature body-part declarations to the hit host",
+        "depends_on": [],
+        "gap": "Creature rendering is current ACT14, but actors associations/fields lack a selected body-part definition request. Physics hits cannot yet be interpreted as authored part candidates without recreating actor-source binding.",
+        "source_evidence": [
+          "1ed3e266:crates/fallout-data/src/actors/associations.rs:30-39",
+          "1ed3e266:crates/fallout-data/src/actors/fields.rs",
+          "Master brief section8 body-part hit tests/dismemberment"
+        ],
+        "consumer": "One explicit creature/base request resolves only the schema-confirmed BPTD source linkage and bounded physical part declarations for future body-part hit tests.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/body_part_inputs.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Inspect the full pinned CREA/body-part-link/BPTD declarations; independently authored repeated part names/indices/raw hit and model words are preserved exactly, with exact physical order/source/header/hash.",
+          "Unknown layouts/enums/missing/deleted/duplicate/wrong-kind definitions never map a contact to a limb, infer damage or dismemberment; unrelated render models stay unselected.",
+          "Bound selected record bytes/parts/names/links/output and preserve default creature report; selected installed source can extend coverage if it exercises this admitted layout."
+        ],
+        "bounded_no_original_fallback": "Use an independently authored creature/body-part pair and literal physical declaration projection. Complete source binding without contact engine, animations or original limb behavior.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-27",
+        "state": "blocked",
+        "title": "Connect an explicit canonical item lot to the existing model-role producer",
+        "depends_on": [
+          "V3-ACT-16 reviewed exact producer"
+        ],
+        "gap": "ACT16 will admit a canonical owner/ItemId and ACT08 already admits explicit source model roles, but an actual inventory selection would otherwise manually copy the base between these APIs.",
+        "source_evidence": [
+          "Existing V3-ACT-16 unpublished producer; exact receipt/API must be reviewed first",
+          "1ed3e266:crates/fallout-data/src/actors/dependencies/equipment.rs"
+        ],
+        "consumer": "Owned actor headless consumer accepts strict snapshot, owner, exact ItemId plus explicit ACT08 role/modmask; joins admitted immutable lot selection to the existing equipment source request without equip mutation.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/equipment_render.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Two same-base lots remain different and carry exact ItemId/facts; a literal expected joined result verifies chosen lot and source-model request.",
+          "Cold reload, removed/wrong-owner/stale campaign or source override refuse before a request escapes; unknown equipped_slots never means equipped.",
+          "No new model parser, slot/modmask derivation, live state/save change or automatic texture/attachment choice; old ACT08 and ACT16 standalone outputs remain stable."
+        ],
+        "bounded_no_original_fallback": "While ACT16 is unreviewed this task is not counted ready. Work on ACT21-26; an authored existing inventory snapshot later proves the join without original equip behavior.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+      },
+      {
+        "id": "V3-ACT-28",
+        "state": "blocked",
+        "title": "Join an authored package destination request to an explicit engineering route query",
+        "depends_on": [
+          "V3-ACT-17 reviewed exact producer"
+        ],
+        "gap": "ACT17 will supply source location/target operands; navigation already offers bounded explicit-node routes. The actor host has no exact package-source-to-query join, and must not guess start/end triangles or claim package execution.",
+        "source_evidence": [
+          "Existing V3-ACT-17 unpublished producer; exact receipt/API must be reviewed first",
+          "c8a2fe21:crates/fallout-runtime/src/navigation/mod.rs",
+          "Master brief section8 AI source navigation and section10 route traversal"
+        ],
+        "consumer": "Owned actor package CLI combines a reviewed selected PACK destination observation with explicit caller-chosen existing navigation node endpoints/cost/link policy and returns a source-bound engineering route proposal.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/route_requests.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Use exact reviewed PACK request and current navigation Graph API only; complete authored output ties PACK field/source key to explicit node/cost/policy input and canonical caller cohort if supplied.",
+          "Independent small graph expectations preserve doors/special links/unreachable/cycles and explicit endpoint mismatch; changed package/source/caller refuses atomically.",
+          "No nearest-navmesh heuristic, package eligibility/scheduling, movement or canonical pose mutation. Faithful AI remains refused even when an engineering path exists."
+        ],
+        "bounded_no_original_fallback": "Until ACT17 is reviewed this task is not counted ready. Use ACT21-26. A literal tiny graph and authored PACK then exercise the real route join without original travel or movement.",
+        "common_conditions": [
+          "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
+          "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
+          "Read the complete relevant already-pinned format definitions before admitting a new source layout. Unknown versions, fields, unions, inheritance or behavioral semantics remain unavailable.",
+          "A source request is not executed gameplay. Independent authored inputs and exact expected projections must exercise production paths without original launch; selected installed sources are an additional scoped check if available.",
+          "At handoff reconcile active/completed/closed IDs and current code; skip any gap already closed. Preserve existing input/evidence and current feature quota. Publish exact new producer signatures before another owner binds."
+        ],
+        "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
       }
     ],
     "assets": [
@@ -1542,6 +2083,374 @@
           "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
           "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
         ]
+      },
+      {
+        "id": "V3-ASSET-21",
+        "state": "active_consumer_alias",
+        "depends_on": [],
+        "title": "Prepare an owned reusable skin source and atomic multi-geometry evaluation",
+        "gap": "pose::evaluate_inner still decodes binding and Scene at line376 on every request, including a prepared CSR Table. Its Request selects only one geometry. ASSET15 prepares animation only; ASSET18 prepares influence CSR only. There is no sealed skin/scene preparation consumed by a multi-geometry evaluator.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "consumer": "Owned skin inspector prepares one exact immutable source and evaluates an explicit ordered list of geometry requests against that preparation. Future renderer consumes the same sealed producer; its adoption is separate.",
+        "acceptance": [
+          "Independently authored two geometries sharing one skeleton have different mappings/transforms and retain exact source geometry/data/instance identities; compare full arrays and palettes to literal expected values, not one producer invocation against itself.",
+          "Drop or mutate caller-owned input after prepare; source identity, retained arrays and palettes remain stable. No constructor from arbitrary public decoded catalogues and no borrowing freed source storage.",
+          "Preparation usage proves binding/scene decoding happens once. Each evaluation charges its own work/output; aggregate batch caps and one-over later request reject atomically.",
+          "Preserve all existing one-shot and sampled-source receipt observations. Do not change raw-weight policy, normal handling, source-local matrix convention or signed zero to make outputs match.",
+          "Use approved ASSET01/16 implementations immediately; ASSET18 CSR reuse is optional only after its exact handoff is reviewed. This closes the unrefined shared-skeleton seed13 with an actual producer/consumer, not another tests-only audit."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:23",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:339",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:376"
+        ],
+        "boundary_proposal": "Add private-field PreparedSkinSource built only from admitted source bytes. Own existing decoded binding/Scene and validated geometry maps; explicit evaluate and bounded batch return existing evaluation types. Keep evaluate as backward-compatible wrapper; no global cache, serialization or public predecoded authority.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "continuation_note": "If current ASSET13 already implements this exact reusable multi-geometry consumer, its tested handoff satisfies ASSET21 too. Do not reimplement or repeat it; proceed to22.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "rolling_task_alias": "V3-ASSET-13",
+        "scope_note": "Active ASSET13 is implementing this exact reusable multi-geometry consumer. Its tested handoff satisfies21; never implement twice."
+      },
+      {
+        "id": "V3-ASSET-22",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Produce source-bound partition draw and influence streams",
+        "gap": "NiSkinPartition is already decoded into palette, vertex map, flat weight words, raw local bone indices, triangle/strip arrays and presence fields. There is no source-qualified draw/influence stream producer for presentation; ASSET18 CSR derives SkinData weights, which is a distinct source stream.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "consumer": "Owned partition inspector selects exact geometry/partition ordinal and emits source-indexed draw/influence streams suitable for a later renderer upload without reducing influences to a guessed fixed shader limit.",
+        "acceptance": [
+          "Independent authored non-identity vertex map and partition palette verify every source-local bone index, global bone ordinal, source vertex, raw weight word and output row. Preserve duplicates, zero weights, non-unit sums and authored ordering.",
+          "Preserve triangle and strip source topology as typed streams; any triangulation must be an explicitly declared separately tested engineering conversion, never assumed source winding.",
+          "Validate exact ownership, palette membership, widths, vertex domains and presence flags. Missing arrays, unknown association and out-of-range values refuse; absent arrays are not synthesized.",
+          "Charge row products, retained streams and work before allocation at exact ceilings/one-over; atomic rejection leaves no successful report.",
+          "Compare a selected installed partition with existing independent native observations when its branch is available. No GPU skinning, shader, normals or retail draw acceptance is claimed."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/partition/mod.rs:101",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/partition/mod.rs:114"
+        ],
+        "boundary_proposal": "Owned source-derived partition stream type with private fields constructed only from the existing bounded partition decoder. Explicit geometry and partition selection; report exact provenance and source presence flags. No animation or GPU API changes.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-23",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Evaluate an explicitly selected partition mesh from the existing palette",
+        "gap": "Current skin pose evaluates the geometry arrays as a whole, while partition decoder exposes source vertex maps and faces separately. There is no actual selected partition deformation output for a body-part draw consumer.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "consumer": "Owned skin inspector selects one exact partition and returns source-bound deformed subset plus original local topology and source-to-subset index map for future actor rendering.",
+        "acceptance": [
+          "Use existing skin palette/deformation once and existing partition decoder; independently derive non-identity vertex-map subset coordinates for a noncommuting source transform fixture.",
+          "Each selected output vertex carries exact geometry/source vertex identity. Repeated source indices retain declared topology; palette/instance/partition mismatches refuse before publication.",
+          "Keep triangle and strip stream identity and authored order. Source body-part flags/identifiers remain observations; no dismemberment, visibility choice or shader choice is inferred.",
+          "Bound full intermediate deformation and selected output separately, including a tiny selected subset of a large source; do not charge only final subset while retaining full arrays.",
+          "Task starts from existing decoders and evaluator without needing new21/22 signatures. Reconcile their exact producers later at a clean reviewed boundary."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:339",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/partition/mod.rs:105"
+        ],
+        "boundary_proposal": "Explicit owned partition evaluation adapter over existing source-bound pose and partition decode. No new deformer, draw policy, skin weight normalization or original body-part behavior.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-24",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Resolve an explicitly sampled rigid attachment transform",
+        "gap": "ASSET10 attachment::evaluate accepts StoredNiAvLocals only. ASSET03 and ASSET02 can independently produce exact sampled node transforms, but there is no source-bound pose-aware rigid attachment evaluation.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "consumer": "Owned attachment inspector selects exact skeleton/socket node, exact attachment root, explicit frame mapping and one exact supported source controller/time request, then emits the combined attachment transform.",
+        "acceptance": [
+          "Use existing exact-source animation evaluator internally, never a caller-supplied ObjectPose matrix or copied sampling implementation.",
+          "Independent noncommuting root/node/attachment transforms establish frame mapping, local root inclusion and source-world application exactly once. Test mirrored/non-unit source values with the existing refusal/normal convention.",
+          "Exact two SHA identities, raw node names, selected object/controller/time words and attachment source spans are preserved. Changed source or mismatched target refuses.",
+          "With the initially bounded one-controller path, reject other controlled required ancestors, child controllers and unsupported chains explicitly. Do not assume the held multichannel producer is available.",
+          "Old stored-only output remains byte-equivalent. Atomic bounded input/work/output checks and authored no-original success exercise the new consumer; original rig/socket selection and equip lifecycle remain unsupported."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/attachment.rs:18",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/attachment.rs:132",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/pose.rs"
+        ],
+        "boundary_proposal": "Add an explicit sampled-attachment request in the owned module, containing exact source request rather than public matrix authority. Reuse existing affine and pose internals; stored API remains unchanged. This is the precise source-transform slice of historical seed05, not completion of equipment gameplay.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-25",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Prepare reusable immutable two-file clip sources",
+        "gap": "clip::evaluate reparses skeleton and clip for each explicit sample. Same-container PreparedSource ASSET15 does not own a two-file source/name mapping or controlled packet binding.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "consumer": "Owned clip inspector prepares exact skeleton plus KF source once and samples an explicit ordered time list from the same source-qualified controlled packet.",
+        "acceptance": [
+          "Private preparation owns admitted decoded sources, raw name selection and exact controlled packet/span identities. Mutating or dropping input buffers after prepare does not alter later samples.",
+          "Preparation counters show both parsing and target binding are done once; each sample and total batch outputs have separate precharged budgets.",
+          "Independent literal first/interior/last mixed-time matrices and signed-zero words are verified in request order; old one-shot full observations stay equivalent.",
+          "Duplicate/absent raw names, unsupported controller/clock graph, changed source expectations and a late failing request reject the complete batch. No playback accumulation, event dispatch, repeat/cycle mapping or quaternion repair.",
+          "Use existing accepted clip source producer; no dependency on new21 or the pending external rig palette producer."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/clip.rs:14",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/clip.rs:81"
+        ],
+        "boundary_proposal": "Private-field PreparedClipSource derived from both admitted source byte sequences, exact raw mapping and selected sequence packet. Existing one-shot remains a wrapper; no public decoded-catalogue constructor or filesystem cache.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-26",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Collect source-local visibility for an exact required ancestry path",
+        "gap": "visibility::evaluate returns one object/controller local Boolean sample. Scene ancestry and Boolean channels are already decoded, but there is no bounded source-qualified path observation for a selected descendant whose required ancestors carry visibility channels.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "consumer": "Owned visibility inspector selects one exact descendant and explicit (object,controller,source_time) requests for source-linked visibility controllers on its required ancestry, then emits parent-before-child per-node source observations.",
+        "acceptance": [
+          "Build required path from the existing validated private Scene ancestry, not block ID sort. Authored higher-ID-parent/lower-ID-child hierarchy independently establishes full path and request order independence.",
+          "Reuse existing Boolean held-key/direct-link evaluator for every explicit sample. Preserve raw0/1, held-key ordinal/time words, source spans, unapplied flags and stored local visibility words without inventing their interaction.",
+          "Exact request set must cover each supported required visibility controller once; missing, unrelated, duplicate, chained or unknown channels refuse atomically. Controllers outside the required path do not become ancestry authority.",
+          "Per-node observations are the acceptance output. If an engineering all-path conjunction is exposed, caller must select that named policy explicitly and it remains an engineering result, never original visibility or a default render decision.",
+          "Aggregate storage/work and path depth are precharged. Existing single-local evaluation and schemas stay unchanged; no source clock, event or object activation semantics are added."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/visibility.rs",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/pose.rs",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_scene/graph.rs:148"
+        ],
+        "boundary_proposal": "Owned source-local path visibility observations constructed from immutable source and explicit local requests; no public arbitrary Scene/Pose authority. Exact producer signature is published before a later presentation adapter.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-27",
+        "state": "blocked",
+        "depends_on": [
+          "V3-ASSET-17 topology correction0b8e3db reviewed and published"
+        ],
+        "title": "Consume a reviewed complete pose set in the existing skin palette",
+        "gap": "ASSET16 supports one sampled bone override. Corrected ASSET17 can validate a complete required controlled forest, but no skin consumer accepts that internally evaluated complete set.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md",
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "consumer": "Owned skin inspector accepts exact same-container controlled request set and deforms geometry using the source-qualified full required pose set.",
+        "acceptance": [
+          "Use exact reviewed corrected ASSET17 internally, never a caller-forged PoseSet or second topological propagation implementation.",
+          "Independent parent-plus-child noncommuting matrices, higher-ID parent, request permutation and complete controlled ancestry establish every affected palette and vertex.",
+          "Exact source geometry/instance/controller/time provenance and aggregate bounds, atomic late failure, no old one-shot receipt drift.",
+          "No mixing unconstrained source clocks or playback scheduling; explicit engineering source times only."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/pose/set.rs",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:110"
+        ],
+        "boundary_proposal": "Add source-request-set skin adapter only after coordinator reviews topology correction and publishes dependency mapping; existing one-controller APIs remain unchanged.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-28",
+        "state": "blocked",
+        "depends_on": [
+          "V3-ASSET-20 tested reviewed handoff and published exact producer"
+        ],
+        "title": "Feed an exact sampled external rig pose into the reviewed two-file palette",
+        "gap": "Pending ASSET20 establishes stored external rig-to-skin mapping and palette. The next actual skin route needs one exact supported rig clip/node sample without replacing source identity by caller matrices.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md",
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "consumer": "Owned external-rig inspector accepts exact skin/rig/clip sources, explicit rig mapping and one exact supported clip sample; forwards source-qualified sampled rig transform to the palette implementation.",
+        "acceptance": [
+          "Consume reviewed ASSET20 exact producer; do not assume unpublished draft signatures. Use existing clip evaluator for a bounded one-controlled-node rig path.",
+          "Independent three-source noncommuting transforms establish S*X*RigBoneToRoot*SkinToBone and final source-world placement once, including a higher-ID rig ancestry fixture.",
+          "All three whole-source identities, raw names, ordinal mapping and selected source-time words stay bound. Unsupported required controllers, missing or ambiguous mapping refuse.",
+          "Atomic combined input/retention/work/output budgets and old stored external-rig equivalence; no retargeting guesses, rig alignment defaults or playback truth."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_animation/clip.rs:81",
+          "assets.outbox.jsonl:31 ASSET20 draft boundary"
+        ],
+        "boundary_proposal": "Bounded three-source sampled external-rig adapter after exact ASSET20 review. Start no dependent producer until mapped handoff is published; keep independent21?26 available.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed this owned source consumer. Publish exact additive signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-29",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Produce exact source-bound deformed skin bounds for rendering",
+        "gap": "Existing skin evaluator returns deformed positions and palettes, but no source-bound posed geometry bounds producer is exposed. Stored source geometry bounds cannot by themselves enclose an explicitly deformed pose for render culling.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "consumer": "Owned skin inspector selects exact existing stored or one-sampled pose request and emits conservative source-root bounds for the evaluated deformed geometry. A later renderer may consume the same producer for pose-aware culling; renderer adoption is separate.",
+        "acceptance": [
+          "Internally call the existing exact-source skin evaluator; do not accept public caller-forged arrays or an arbitrary Evaluation receipt as authoritative source. No new deformation implementation.",
+          "Independently authored noncommuting transforms, non-unit raw weights, zero-weight vertices and negative coordinates establish every min/max component from literal deformed positions. Name the output frame exactly; source-world placement is not silently applied twice.",
+          "Retain exact geometry/data/instance/source SHA and pose controller/time provenance. Unsupported animation or nonfinite/unbounded coordinates refuse before returning a usable bound.",
+          "Finite values must be conservatively enclosed under declared arithmetic, with explicit treatment of extreme underflow/overflow and signed-zero endpoints. A computed approximate bound that can cull a valid evaluated vertex is not accepted.",
+          "Charge deformation intermediate arrays and bounds work at exact ceiling/one-over; output tiny bound does not hide full intermediate retention. Old evaluator outputs and raw normal/weight behavior stay unchanged.",
+          "This is separate from active ASSET13 shared multi-geometry preparation. No original culling, collision capsule, gameplay hitbox or shader behavior claim."
+        ],
+        "source_evidence": [
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:339",
+          "0b8e3db5a860be585003560f196ec5b07a7fe4b2:crates/fallout-data/src/nif_skin/pose.rs:110"
+        ],
+        "boundary_proposal": "Add owned source-request bounds evaluator returning exact source identity plus conservative bounds over internally evaluated positions. Existing stored and one-sampled pose requests only; no caller array authority, no multichannel prerequisite, no scene or runtime API change.",
+        "bounded_no_original_fallback": "Independent authored exact-source fixtures with literal matrices, raw float words and independently parsed spans. Installed-source unsupported findings stay explicit; no inferred animation/playback/equipment/gameplay acceptance.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this additive source-request consumer. Publish exact signatures before cross-lane adoption.",
+          "Only existing assigned asset paths, owned tests and headless inspectors. Exact producer signatures must be published before another lane consumes them. Minimal module export/dispatch is a coordinator decision declared in handoff.",
+          "No new dependency, source pin, save schema, runtime activation, controller clock, event scheduling, shader semantics, normalization or gameplay default.",
+          "Use existing decoders and math helpers; no second importer, re-decoder or caller-constructed catalogue/receipt as source authority.",
+          "Selected installed inputs are read-only. If their source branch is unsupported, preserve exact refusal and complete the independently authored supported case; no original-game process or original-positive claim is required.",
+          "Precharge retained storage, source validation, ancestry visits, work and aggregate outputs. Late failure publishes neither a successful complete batch nor a partially reusable authority object.",
+          "If current committed code has closed a stated gap, take another ready task instead of repeating a census or prior proof."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
       }
     ],
     "world": [
@@ -2015,11 +2924,343 @@
         "consumer": "StaticScene source query and nif-collision CLI",
         "acceptance": "Reproduce origin[1e20,2,0], direction[-1,0,0], unit sphere false hit. Fix with independently checked near/far/grazing numerical expectations or explicit unsupported numerical-domain refusal; preserve authored source units and reject before bogus receipts. Ensure scene tolerance cannot mutate after validated construction. Small tested handoff separate from navigation draft.",
         "fallback_task_id": "V3-PHYS-03"
+      },
+      {
+        "id": "V3-PHYS-16",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Bind selected collision placements to current canonical reference identity",
+        "gap": "BodyPlacement accepts a ReferenceId and caller frame directly. Cell admission verifies model SHA/ticket, but neither checks the ReferenceId against World::reference_origin/authored_reference nor joins it to the exact winning placed/base source record. Whole-cell and canonical movement remain unavailable.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "docs/physics-*.md"
+        ],
+        "consumer": "Owned collision inspector strict-cold-restores an existing saved World, selects existing ReferenceId plus exact authored FormKey and exact source model/body/frame inputs, and obtains an identity-bound engineering query selection without changing World.",
+        "acceptance": [
+          "Validate both canonical origin maps and the exact winning placed record, source-owned NAME/base identity and selected source/model association through existing store decoders. Unknown/deleted/duplicate/wrong-kind/missing links refuse; no automatic reference registration.",
+          "Carry exact campaign, catalogue cohort fingerprint and World revision from existing getters; query/access rechecks the current World and cell owner/ticket. A mutated reference mapping, cold restore to another campaign/cohort or stale owner cannot return usable hits.",
+          "This task validates canonical reference identity and keeps the query frame as explicit engineering input. Published runtime also exposes canonical reference pose state; do not claim it lacks that API. Source placement, saved pose and query frame are distinct until a separately declared current-pose conversion consumer validates their relationship.",
+          "Exact full source receipts/definition identities are revalidated through existing source mechanisms. Caller JSON, matching source-name strings or arbitrary Catalogue/Scope reports cannot self-certify the join.",
+          "Authored two references sharing the same base preserve distinct high-u64 IDs and hit attribution. Reject a forged/wrong/absent reference and stale revision atomically; strict restored World/snapshot remains unchanged."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/mod.rs:36",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/cell.rs:76",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/state.rs:188",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/state.rs:254"
+        ],
+        "boundary_proposal": "Private sealed reference-placement binding derived from current World getters plus exact admitted source and explicit BodyPlacement frame. Existing raw engineering APIs remain compatible; no runtime/source shared API is assumed. Minimal CLI/import wiring requires coordinator declaration.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "published_reference_dependency": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9; existing current reference-state producer, consume once at a clean task boundary if needed.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-17",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Admit a bounded multi-model resident collision selection",
+        "gap": "CellCollision owns one selected-model StaticScene (model_index in Scope); a cell plan can retain many actual model sources. Independent per-model queries cannot give one bounded source-qualified cell selection with deterministic total query budgets.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "docs/physics-*.md"
+        ],
+        "consumer": "Owned collision inspector admits an explicit ordered subset of resident model indices and their exact body placements, then queries all selected sources under one cell owner/epoch and global budget.",
+        "acceptance": [
+          "Build only from the retained ResidentSources Arc and exact model bytes; never reopen archives or decode caller-provided model substitutions. Every placement SHA must match its selected model.",
+          "Independent authored two-model fixtures have interleaved hit distances, shared/repeated source paths and distinct reference/body identities. Verify complete deterministic SourceId ordering and expected nearest/all hit behavior under the existing contract.",
+          "Aggregate decoded/geometry retention, shape visits, primitives, index work, hit counts and query tests across all models; per-model default caps multiplied by model count are not a global limit.",
+          "All selected builds publish atomically. A late unsupported source or one-over budget leaves no queryable replacement; previous lease release, cancellation and unload revoke every geometry/source lease exactly once.",
+          "Keep report_collision Unsupported: selected multi-model coverage, explicit engineering units and retained raw filters are not whole-cell simulation/Havok readiness. Task does not require the active index optimization to finish first; existing exhaustive query path remains usable."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/cell.rs:29",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/cell.rs:58",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/cell.rs:76"
+        ],
+        "boundary_proposal": "Add explicit bounded multi-model admission/query producer with private selected scene collection and one retained upstream Arc. Preserve single-model API/scope observations; no world ownership change or automatic coverage policy.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-18",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Derive collision attachment frames from exact NIF source ancestry",
+        "gap": "BodyPlacement comment requires caller to compose NIF ancestry and central reference frame. NIF CollisionObject target/body links and scene locals are decoded, but there is no exact-source owned helper binding a chosen body occurrence to its collision target/ancestry frame.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "docs/physics-*.md",
+          "crates/fallout-data/src/nif_collision/**",
+          "crates/fallout-data/tests/nif_collision*.rs"
+        ],
+        "consumer": "Owned collision inspector selects exact collision-object occurrence/body and explicit placement Affine; derives its source-bound attachment frame from existing decoded Scene ancestry instead of requesting a handwritten NIF ancestor matrix.",
+        "acceptance": [
+          "Use existing NIF collision and Scene decoders and central Affine helpers; no second importer or matrix convention. Validate exact whole source SHA, object/body/target spans and unique supported source links.",
+          "Independently authored higher-ID parent/noncommuting root-child-body transforms prove the target frame is included exactly once and source-world is not multiplied twice. Distinct shared body occurrences retain deterministic occurrence identity.",
+          "Missing/null/ambiguous object or target, unsupported extra parents, controllers on required ancestry, invalid transforms or cycles refuse before BodyPlacement publication. Do not silently pick another collision object.",
+          "Caller explicit placement Affine and explicit unit factors remain engineering choices; source local ancestry does not initialize a runtime pose, original body transform/filter or Havok attachment behavior.",
+          "Charge decoded source and every required ancestry/source-link visit at exact caps. Compare a supported selected original source frame to existing native source observations only when available, retaining unsupported diagnostic otherwise."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/mod.rs:41",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-data/src/nif_collision/mod.rs:93"
+        ],
+        "boundary_proposal": "Owned source-derived attachment selection constructed internally from exact NIF bytes and existing decoders. Compose with explicit caller placement once using central coordinates; no mutable World or generic public Scene authority.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-19",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Load and route an explicit bounded set of source cells",
+        "gap": "navigation::load_cell and CLI select only one CELL. RouteGraph already preserves external links, but target NAVM in another CELL is normally absent, so selected-cell consumer returns MissingNeighbors even when caller has explicitly selected the neighboring source cell.",
+        "owned_paths": [
+          "crates/fallout-data/src/navigation/**",
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-data/tests/navigation*.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "docs/navigation-*.md"
+        ],
+        "consumer": "Owned navigation inspector accepts an explicit bounded unique list of exact CELL FormKeys/editor selections and builds one source-qualified graph from their existing NAVM loaders; route uses the existing caller-explicit edge costs/admission policy.",
+        "acceptance": [
+          "Existing RecordStore winner/master binding remains authority. Each CELL must be live and exact; each NAVM DATA cell agrees with retained GRUP ancestry. No discovery by nearest coordinates or inferred neighbor load.",
+          "Independent authored two-cell local/external graph verifies exact missing-neighbor before selection and exact route after selection, including external raw target, link type, source edge and raw portal endpoints. Source ordering permutation yields stable IDs/result.",
+          "Total selected-cell/mesh/record bytes, fields, vertices, edges, doors and graph/search/output budgets are global, not renewed by each load_cell call. Duplicate CELL/mesh identities and late malformed input reject atomically.",
+          "Door/special link costs and eligibility remain explicitly declared by caller; absent policy stays Unsupported. Cross-cell coordinates remain source observations and do not become one geometric frame.",
+          "No A* implementation replacement or completed search proof replay; existing h0 path search is reused. No movement, dynamic obstacles, funnel across unrelated frames or actor package lifecycle."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-data/src/navigation/load.rs:55",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-cli/src/navigation_inspection.rs:54",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/navigation/mod.rs:163"
+        ],
+        "boundary_proposal": "Bounded load_cells/source selection producer implemented through existing load_one/read path and central store. CLI additive multi-cell mode; preserve schema1 single-cell route observations and existing unknown-field limits.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-20",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Build a source-qualified same-cell triangle corridor",
+        "gap": "Found Route returns triangle IDs and source portal endpoints, while Node retains only centroid. There is no producer proving the selected route is a contiguous geometric corridor from exact source triangle vertices; a graph link alone cannot justify later funnel/movement.",
+        "owned_paths": [
+          "crates/fallout-data/src/navigation/**",
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-data/tests/navigation*.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "docs/navigation-*.md"
+        ],
+        "consumer": "Owned navigation inspector requests an existing engineering route and emits the exact required triangle/portal corridor internally from the same loaded source/graph, with explicitly named same-cell local-edge geometric validation.",
+        "acceptance": [
+          "Construct from internally generated existing Route and exact loaded SourceMesh cohort; no arbitrary public Route JSON or caller supplied portal arrays as authority.",
+          "Independent authored zigzag corridor verifies exact per-triangle f32 source words, portal edge membership, ordering and reciprocal shared edge requirements under the explicit geometric contract. Higher triangle IDs/order permutations do not change source identity.",
+          "Degenerate/repeated/invalid vertex domains, noncontiguous local triangles, mismatched shared portal, external links, missing neighbors and unsupported door/special transitions return explicit refusal; no coordinate snapping or guessed cross-cell alignment.",
+          "Preserve triangle/cover/record flags and link source annotations. Optional coplanarity/orientation contract is explicit engineering eligibility and must be certified conservatively; uncertain predicates refuse.",
+          "Bound required triangles, edge validation visits, retained raw geometry, copied source identities and outputs. No path smoothing, nearest-navmesh choice or movement commit is claimed."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/navigation/mod.rs:23",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/navigation/mod.rs:40",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/navigation/mod.rs:100",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-data/src/navigation/mod.rs:57"
+        ],
+        "boundary_proposal": "Private source-bound Corridor producer that calls existing route search and derives selected geometric source paths. Complete source identity/triangle/edge joins; exact API published before funnel consumer. Starts from existing single-cell loader without requiring new19.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-21",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Certify explicit endpoints against exact source navigation triangles",
+        "gap": "Current navigation request supplies start/goal TriangleId only. It verifies node policy eligibility but never checks an explicit source-space endpoint belongs to that source triangle, which is required before a later geometric movement/funnel consumer can use endpoints.",
+        "owned_paths": [
+          "crates/fallout-data/src/navigation/**",
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-data/tests/navigation*.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "docs/navigation-*.md"
+        ],
+        "consumer": "Owned navigation inspector accepts exact selected TriangleId plus explicit finite source-frame point and returns a source-qualified inside/on-edge/outside or unsupported endpoint observation, without locating nearest triangles.",
+        "acceptance": [
+          "Use exact raw source vertex words from the existing decoded SourceMesh. Caller explicitly selects triangle and point; no projection, snap, nearest mesh, height tolerance, movement units or stored actor pose defaults.",
+          "Independent rational predicates establish interior, edge, vertex, exterior and just-off-plane results, including signed zero, winding reversal, large/small finite values and degenerate geometry. Uncertain/unrepresentable predicates refuse rather than claim containment.",
+          "Bound initially supported exact source-plane cases explicitly; do not claim general 3D geometry if certificate only covers an axis-aligned/coplanar subset. Source plane/projection policy must be named in request and results.",
+          "Bind source SHA/FormKey/triangle/cell and exact endpoint binary64 words. Changed source, invalid ID or source generation/cohort mismatch cannot return a usable endpoint certificate.",
+          "Whole batch of start/goal observations is atomic under source/retained/work/output bounds; independently authored success requires no original launch. Graph-only route output remains compatible; no original navigation selection claim."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-cli/src/navigation_inspection.rs:13",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-cli/src/navigation_inspection.rs:70",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-data/src/navigation/mod.rs:57"
+        ],
+        "boundary_proposal": "Owned exact-source endpoint certificate constructed from source and explicit point/triangle under named engineering contract. No public caller-forged vertex table, nearest-nav or canonical movement semantics.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-22",
+        "state": "blocked",
+        "depends_on": [
+          "V3-PHYS-20 reviewed exact Corridor producer",
+          "V3-PHYS-21 reviewed exact endpoint certificate"
+        ],
+        "title": "Return bounded engineering funnel waypoints from an admitted local corridor",
+        "gap": "Current source graph route has no geometric funnel. Future actor travel needs a geometric proposal only after exact corridor and endpoint admission are reviewed; raw graph portals or caller JSON are insufficient.",
+        "owned_paths": [
+          "crates/fallout-data/src/navigation/**",
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-data/tests/navigation*.rs",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "docs/navigation-*.md"
+        ],
+        "consumer": "Owned navigation inspector consumes exact reviewed source Corridor plus certified start/goal endpoints and produces finite ordered engineering waypoints in the explicitly admitted common source plane.",
+        "acceptance": [
+          "Consume the exact reviewed private corridor/endpoint producers; never reconstruct their source joins or accept arbitrary caller arrays as authority.",
+          "Independent literal/rational left/right zigzag, repeated vertex, zero-width portal, winding/reflection and start/goal boundary fixtures establish ordered path; uncertain orientation or invalid corridor refuses.",
+          "Each segment has a conservatively verified witness within the admitted corridor; no waypoint crosses outside a source triangle or substitutes a cross-cell/special portal coordinate.",
+          "Iterations, orientation predicates, emitted points and scratch storage have exact aggregate caps; no unbounded restart loop. No original preferred route, actor movement, collision sweep or door behavior."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-cli/src/navigation_inspection.rs:152"
+        ],
+        "boundary_proposal": "Add explicit engineering funnel only after exact producer20 and endpoint21 are reviewed and published. No tentative API or geometry default before that boundary.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-23",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Deliver the first explicit engineering swept-sphere proposal",
+        "gap": "Historical PHYS13 remains an unimplemented broad sweep proposal. Existing scene provides static rays/overlap only; finite-radius path clearance cannot be substituted by a center ray. Start a bounded source-sphere core slice instead of inventing retail stepping.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "docs/physics-*.md"
+        ],
+        "consumer": "Owned collision inspector submits explicit center start/end, moving radius, engineering units and query/iteration budget; source-sphere core branch returns no-hit/contact/refusal and a proposed finite center position without changing World.",
+        "acceptance": [
+          "Explicit supported target scope is source Sphere core only for the first small slice. Other shapes, margins, nonuniform transformed radii and unknown filter/dynamics refuse; do not silently skip obstacles to certify a clear full scene.",
+          "Use existing source sphere/ray math with an independently justified Minkowski radius sum and conservative numeric admission. Radius-sum overflow/underflow, starting overlap/tangency, distant skew and max-distance uncertainty must never produce false success.",
+          "Independent binary64/rational or high-precision predicates establish near miss/contact/start-overlap/zero displacement and exact max-range cases. Retain full SourceId/filter/material provenance; returned center witness must satisfy declared contact bounds.",
+          "Explicit sphere center trajectory and any normalized direction are measured against the original endpoint segment under certified error bounds; do not alter its direction by per-component normalization and claim the same path.",
+          "Proposed center/contact is engineering-only and immutable. No character capsule, step/slope, contact response, runtime transform commit or Havok/original gameplay acceptance. All source/build/query work globally bounded."
+        ],
+        "source_evidence": [
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/scene.rs:555",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/scene.rs:605",
+          "c4d74f1c80943f83cd351417fb421fc53eaabc5a:crates/fallout-runtime/src/physics/shape.rs:70"
+        ],
+        "boundary_proposal": "Refine historical seed13 into an owned explicit swept-sphere request/result on existing immutable scene; no new canonical state/API. Treat23 as the precise implementation of13, not an additional count of13.",
+        "bounded_no_original_fallback": "Independent authored plugin/NIF fixtures and literal binary source words/rational predicates. Selected original data can establish source observations or refusal only. No original process, guessed actor behavior, Havok simulation or faithful readiness.",
+        "common_conditions": [
+          "Coordinator reviewed and approved this existing owned boundary. Publish additive signatures before cross-lane consumption.",
+          "No new dependency, source pin, canonical state/save schema, actor movement commit, original units/filter/margins/stepping/door defaults or source coordinate conversion guesses.",
+          "Existing RecordStore/NIF/NAVM/NAVI decoders, central FormKey/ReferenceId identity and immutable runtime World getters remain owners. No second parser or mutable world, public caller receipt is not source authority.",
+          "Charge source input/decode, retained geometry/identity maps, build visits, query work and output globally before retaining resources; later failure emits no successful complete report.",
+          "Use independent literal/rational source geometry and numeric predicates for acceptance; uncertainty refuses, never certifies a false contact. Existing scoped numeric fixes are dependencies to consume once, not proofs to replay.",
+          "Selected installed sources are read-only. Authored supported cases complete bounded engineering implementation if a real branch is unsupported; keep original positive movement/navigation acceptance false.",
+          "No new ready task depends on a new sibling feature or original-game capture. If a gap has closed since this exact snapshot, skip it and select another real task."
+        ],
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill07",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
       }
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T06:12:26.094578+00:00",
+  "updated_at": "2026-10-04T09:02:23.329420+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

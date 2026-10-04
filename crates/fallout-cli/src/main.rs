@@ -266,6 +266,9 @@ enum Command {
         /// Exact pinned descriptor image, also usable with authored plugin fixtures.
         #[arg(long)]
         condition_executable: Option<PathBuf>,
+        /// Preserve authored SNAM/FACT relationship requests without live faction rules.
+        #[arg(long)]
+        include_faction_requests: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1132,6 +1135,7 @@ fn run(args: Args) -> Result<()> {
             explicit_subject,
             engineering_observation,
             condition_executable,
+            include_faction_requests,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1143,6 +1147,7 @@ fn run(args: Args) -> Result<()> {
                     explicit_subject,
                     engineering_observation,
                     condition_executable: condition_executable.as_deref(),
+                    include_faction_requests,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

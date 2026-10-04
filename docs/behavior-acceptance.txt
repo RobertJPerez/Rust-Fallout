@@ -40,8 +40,9 @@ Each state observation carries source-qualified inventory lots, exact quest fiel
 pending and acknowledged event identities, canonical and visible revisions, and a
 snapshot digest. Quest facts are generic observed fields: v1 assigns no meaning to
 them. Expectations compare the complete ordered timeline, including field values,
-so a missing quest field, wrong lot owner/count, changed effect, unsupported
-success, missing acknowledgement, or reordered action fails.
+so a missing quest field, wrong lot owner/count, missing, duplicated or reordered
+event effect, wrong event owner, unsupported event reported as dispatched, missing
+acknowledgement, or reordered action fails.
 
 Frozen consumer limits
 ----------------------

@@ -72,6 +72,14 @@ def check(binary,output):
     bad=copy.deepcopy(base);bad['rig_root']=3;run('root',bad,'does not reach chosen rig root')
     bad=copy.deepcopy(base);bad['explicit_bone_mapping'][1]['rig_node']=0;run('orphan',bad,'no reachable ancestry')
     bad=copy.deepcopy(base);bad['explicit_root_space_mapping'][0]=[0,0,0,0];run('singular',bad,'root-space mapping is singular')
+    witness=[[478384076,548195520,675781114,0],[95565559,470460823,587107439,0],[573949635,1018656343,1262888553,0]]
+    run('singular-large-integer',dict(base,explicit_root_space_mapping=witness),'determinant cannot be certified nonzero')
+    for delta in [-1,1]:
+        nearby=copy.deepcopy(witness);nearby[2][2]+=delta
+        run('nearby-invertible-'+str(delta),dict(base,explicit_root_space_mapping=nearby))
+    for scale in [1e-200,1e200]:
+        extreme=[[scale,0,0,0],[0,scale,0,0],[0,0,scale,0]]
+        run('uncertain-scale-'+str(scale),dict(base,explicit_root_space_mapping=extreme),'determinant cannot be certified nonzero')
     run('geometry',dict(base,geometry=1),'selected geometry has no decoded skin owner')
     bad=copy.deepcopy(base);bad['explicit_bone_mapping'][1]['bone_ordinal']=2;run('ordinal-range',bad,'bone ordinal out of range')
     bad=copy.deepcopy(base);bad['explicit_bone_mapping'][1]['rig_node']=999;run('node-range',bad,'rig node out of range')

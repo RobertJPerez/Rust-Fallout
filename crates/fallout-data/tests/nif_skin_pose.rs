@@ -992,6 +992,118 @@ fn external_fixture() -> (Vec<u8>, Vec<u8>, fallout_data::nif_skin::external::Re
 }
 
 #[test]
+fn external_exact_singular_large_integer_mapping_refuses_and_nearby_invertible_mappings_pass() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    let mapping = [
+        [478384076., 548195520., 675781114., 0.],
+        [95565559., 470460823., 587107439., 0.],
+        [573949635., 1018656343., 1262888553., 0.],
+    ];
+    let sum: [f64; 4] = std::array::from_fn(|c| mapping[0][c] + mapping[1][c]);
+    assert_eq!(mapping[2], sum);
+    request.explicit_root_space_mapping = mapping;
+    let error = external::evaluate(&skin, &rig, "exact singular", &request, Default::default())
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("determinant cannot be certified nonzero"),
+        "{error}"
+    );
+    let minor = 478384076i128 * 470460823 - 548195520i128 * 95565559;
+    assert_ne!(minor, 0);
+    for delta in [-1., 1.] {
+        request.explicit_root_space_mapping = mapping;
+        request.explicit_root_space_mapping[2][2] += delta;
+        let value = external::evaluate(
+            &skin,
+            &rig,
+            "nearby invertible",
+            &request,
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            value.explicit_root_space_mapping,
+            request.explicit_root_space_mapping
+        );
+        assert!(
+            value
+                .skin
+                .palette
+                .iter()
+                .flat_map(|p| p.matrix.iter().flatten())
+                .all(|v| v.is_finite())
+        );
+    }
+}
+
+#[test]
+fn external_mapping_certification_bounds_extreme_scales_and_uncertain_cancellation() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    for scale in [1e-100, 1e100] {
+        for sign in [-1., 1.] {
+            request.explicit_root_space_mapping = [
+                [sign * scale, 0., 0., 0.],
+                [0., scale, 0., 0.],
+                [0., 0., scale, 0.],
+            ];
+            external::evaluate(
+                &skin,
+                &rig,
+                "certified extreme",
+                &request,
+                Default::default(),
+            )
+            .unwrap();
+        }
+    }
+    for scale in [1e-200, 1e200, f64::from_bits(1), f64::MAX] {
+        request.explicit_root_space_mapping = [
+            [scale, 0., 0., 0.],
+            [0., scale, 0., 0.],
+            [0., 0., scale, 0.],
+        ];
+        let error = external::evaluate(
+            &skin,
+            &rig,
+            "uncertain extreme",
+            &request,
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("determinant cannot be certified nonzero"),
+            "{error}"
+        );
+    }
+    let ulp = 2f64.powi(-52);
+    request.explicit_root_space_mapping = [
+        [1., 1., 1., 0.],
+        [1., 1. + ulp, 1., 0.],
+        [1., 1., 1. + ulp, 0.],
+    ];
+    let error = external::evaluate(
+        &skin,
+        &rig,
+        "uncertain nonzero",
+        &request,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("determinant cannot be certified nonzero"),
+        "{error}"
+    );
+}
+
+#[test]
 fn external_root_mapping_and_explicit_bones_have_noncommuting_literal_expectations() {
     use fallout_data::nif_skin::external;
     let (skin, rig, request) = external_fixture();

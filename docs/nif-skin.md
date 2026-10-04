@@ -626,6 +626,16 @@ palette. The existing source-world display mapping remains
 as part of this explicit relationship, although its inverse is unused in forward
 palette construction. Finite shear and reflection are admitted.
 
+The explicit external `X` gate now requires a conservative binary64 interval
+for its exact determinant to exclude zero. Every product and addition/subtraction
+extends its rounded bounds to outward adjacent representable values, including
+subnormal results. Nine bounded interval products and five additions/subtractions
+charge fourteen mapping admission units. A zero-containing or nonfinite enclosure
+refuses as singular or uncertifiable, including some truly invertible but
+numerically uncertain requests. This uses no scale epsilon. The existing finite
+inverse check follows certification; the existing stored-source SkinTransform
+inverse and all prior palette/report contracts remain unchanged.
+
 Raw influence accumulation reuses the existing private pose helpers in original
 bone/weight order. Duplicates, signed zero and nonunit sums remain intact;
 `RequireUnitSum` validates without changing weights. Normals use the existing
@@ -695,6 +705,22 @@ frozen pinned native executable without rebuilding it. Initial test expectation
 failure, original draft proofs and byte-exact preservation/restoration before
 the pose-set correction remain immutable beside fresh validation03, binary02
 and consumer02 evidence in ignored `local/v3-asset-20`.
+
+The coordinator's independent exact integer witness found that the original
+rounded cofactor predicate admitted singular `X` when row3 equals row1+row2.
+Frozen20 reproduces that admission; the corrected gate above refuses it. Fresh
+validation passes 72 focused data tests (two additional certification cases),
+38 serial CLI tests, Clippy, formatting and a rebuilt frozen consumer. An exact
+rational reference proves the witness determinant zero, two nearby +/-1 matrices
+invertible, four admitted extreme/reflection cases invertible, and five refused
+uncertain requests also invertible. The latter are deliberate conservative
+refusals. The public authored consumer now passes its prior literal deformations
+and permutation plus twenty-three refusals. Original native palettes retain the
+same independent error bound and all earlier source/stored-pose/CSR receipts
+remain byte-identical. Original20 proofs, first fixture-path reproduction failure
+and test-loop Clippy failure remain preserved; fresh evidence is in
+`local/v3-asset-20/root-mapping-correction-02`. This correction affects only new
+external root mapping admission, without changing the existing pose inverse.
 
 ## Reusable source and shared-skeleton geometry batches
 

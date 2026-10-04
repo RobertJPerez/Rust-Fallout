@@ -1,16 +1,147 @@
-//! Source operand associations over explicit engineering state, without effects.
+//! Source operand associations, plus an explicit opt-in engineering local copy.
 use super::{
     Result, command_catalogue, definition_plan_inspection, inspection_input::Order, script_profile,
     script_state_inspection,
 };
 use fallout_data::{loaded_scripts, obscript};
 use fallout_runtime::{
-    event_operands, execution::native, foreign::Content, identity::ReferenceId, preparation,
-    programs,
+    event_operands,
+    execution::{local_copy, native},
+    foreign::Content,
+    identity::{ReferenceId, Value as RuntimeValue},
+    preparation, programs,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, io::Write, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    io::{Read, Write},
+    path::Path,
+    sync::Arc,
+};
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NumberInput {
+    index: u32,
+    bits: u64,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CopyRequest {
+    sequence: u64,
+    initial_numbers: Vec<NumberInput>,
+}
+impl CopyRequest {
+    fn read(path: &Path) -> Result<Self> {
+        const MAXIMUM_BYTES: u64 = 64 * 1024;
+        let file = fallout_data::baseline::open_source(path)?;
+        if file.metadata()?.len() > MAXIMUM_BYTES {
+            return Err("Engineering local-copy input byte budget exceeded".into());
+        }
+        let mut bytes = Vec::new();
+        file.take(MAXIMUM_BYTES + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > MAXIMUM_BYTES {
+            return Err("Engineering local-copy input byte budget exceeded".into());
+        }
+        Self::decode(&bytes)
+    }
+    fn decode(bytes: &[u8]) -> Result<Self> {
+        let request: Self = serde_json::from_slice(bytes)?;
+        if request.initial_numbers.len() > 64 {
+            return Err("Engineering local-copy initializer count budget exceeded".into());
+        }
+        Ok(request)
+    }
+}
+
+fn engineering_copy(
+    world: &mut fallout_runtime::World<'_>,
+    sources: &programs::PreparedSources<'_>,
+    content: &Content,
+    request: CopyRequest,
+) -> Result<Value> {
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|event| event.sequence == request.sequence)
+        .ok_or("Engineering local copy must name the first pending event")?;
+    let handle = world.handle(pending.instance)?;
+    let inputs: Vec<_> = request
+        .initial_numbers
+        .into_iter()
+        .map(|input| (input.index, RuntimeValue::Number { bits: input.bits }))
+        .collect();
+    // Explicit fixture initialization uses runtime's normal typed validation;
+    // these inputs are never inferred from source or retail defaults.
+    if !inputs.is_empty() {
+        world.assign(handle, &inputs)?;
+    }
+    let initialized = world.snapshot();
+    let stage = world.stage_source_local_copy_with_sources(
+        request.sequence,
+        sources,
+        content,
+        local_copy::Intent::Engineering,
+        Default::default(),
+    )?;
+    if world.snapshot() != initialized {
+        return Err("Local-copy staging changed canonical state".into());
+    }
+    match stage {
+        local_copy::Preparation::Unsupported { reason, detail } => Ok(json!({
+            "status":"unsupported", "reason":reason, "detail":detail,
+            "explicit_initial_numbers":inputs,"staging_changed_state":false,
+            "event_acknowledged":false,"original_behavior_verified":false
+        })),
+        local_copy::Preparation::Staged(stage) => {
+            let mut expected = initialized.clone();
+            let instance = expected
+                .instances
+                .iter_mut()
+                .find(|instance| instance.id == stage.changes().instance())
+                .ok_or("Staged local-copy instance missing")?;
+            instance
+                .locals
+                .iter_mut()
+                .find(|local| local.index == stage.trace().destination_index)
+                .ok_or("Staged local-copy destination missing")?
+                .value = stage.trace().copied_value.clone();
+            expected.state_revision = expected
+                .state_revision
+                .checked_add(1)
+                .ok_or("Revision exhausted")?;
+            expected.pending_events.remove(0);
+            let committed = (*stage).commit(world)?;
+            let after = world.snapshot();
+            if after != expected {
+                return Err(
+                    "Local-copy commit differs from the single staged assignment/head change"
+                        .into(),
+                );
+            }
+            let limits = fallout_runtime::Limits::default();
+            let before_bytes = initialized.encode(limits.max_snapshot_bytes)?;
+            let after_bytes = after.encode(limits.max_snapshot_bytes)?;
+            let restored = fallout_runtime::World::restore(
+                world.catalogue(),
+                fallout_runtime::snapshot::Snapshot::decode(&after_bytes, limits)?,
+                limits,
+            )?;
+            if restored.snapshot() != after || restored.instance(handle).is_ok() {
+                return Err("Local-copy restore differs or accepted old transient handle".into());
+            }
+            Ok(
+                json!({"status":"engineering_committed", "committed":committed,
+                "explicit_initial_numbers":inputs,"staging_changed_state":false,"only_staged_changes":true,
+                "initialized_snapshot_sha256":format!("{:x}",Sha256::digest(before_bytes)),
+                "committed_snapshot_sha256":format!("{:x}",Sha256::digest(after_bytes)),
+                "same_process_decode_restore_equal":true,"old_handle_rejected":true,
+                "event_acknowledged":true,"original_behavior_verified":false}),
+            )
+        }
+    }
+}
 
 struct BoundedJson {
     bytes: Vec<u8>,
@@ -50,7 +181,9 @@ pub(super) fn inspect(
     player_id: Option<u64>,
     prepare_sources: bool,
     native_capabilities: bool,
+    engineering_local_copy: Option<&Path>,
 ) -> Result<Value> {
+    let copy_request = engineering_local_copy.map(CopyRequest::read).transpose()?;
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
     let operators = script_profile::operators(&descriptors)?;
     let model = obscript::expression_plan::Model::vanilla(&operators)?;
@@ -63,14 +196,14 @@ pub(super) fn inspect(
         |_, _| Ok(()),
     )?);
     let content = Content::load(&mut store, &catalogue, 1_000_000)?;
-    let sources = (prepare_sources || native_capabilities)
+    let sources = (prepare_sources || native_capabilities || copy_request.is_some())
         .then(|| {
             programs::PreparedSources::load(&catalogue, &model, &signatures, Default::default())
         })
         .transpose()?;
     let seed = script_state_inspection::engineering_world(&catalogue)?;
     let before = seed.world.snapshot();
-    let world: fallout_runtime::World<'static> = fallout_runtime::World::restore(
+    let mut world: fallout_runtime::World<'static> = fallout_runtime::World::restore(
         Arc::clone(&catalogue),
         before.clone(),
         fallout_runtime::Limits::default(),
@@ -243,6 +376,18 @@ pub(super) fn inspect(
         return Err("Operand probing changed state or consumed its pending journal".into());
     }
     let snapshot = before.encode(fallout_runtime::Limits::default().max_snapshot_bytes)?;
+    let copy_report = copy_request
+        .map(|request| {
+            engineering_copy(
+                &mut world,
+                sources
+                    .as_ref()
+                    .ok_or("Engineering copy needs prepared sources")?,
+                &content,
+                request,
+            )
+        })
+        .transpose()?;
     let mut report = json!({"schema_version":1,"profile":"nv-original",
         "scope":"Exact source/live storage associations over explicit engineering pending events; no native argument or caller readiness",
         "sources":catalogue.sources,"catalogue_sha256":world.catalogue_fingerprint(),
@@ -273,12 +418,64 @@ pub(super) fn inspect(
             "Physical source-call capability inventory, including branch-contained calls; no native execution path or retail semantic support"
         );
     }
+    if let Some(copy_report) = copy_report {
+        let copy_bytes = serde_json::to_vec(&copy_report)?.len();
+        if copy_bytes > (128_usize * 1024 * 1024).saturating_sub(retained_report_bytes) {
+            return Err("Engineering local-copy report-byte budget exceeded".into());
+        }
+        report["schema_version"] = json!(4);
+        report["engineering_report_bytes"] = json!(copy_bytes);
+        report["canonical_state_unchanged"] = json!(world.snapshot() == before);
+        report["engineering_local_copy"] = copy_report;
+        report["engineering_scope"] = json!(
+            "Explicit host initialization and one source-bound own-local Number bit copy with canonical staged head acknowledgment; original bytecode conversion/scheduling unverified"
+        );
+    }
     Ok(report)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copy_request_requires_explicit_numeric_bits_and_known_fields() {
+        let request = CopyRequest::decode(
+            br#"{"sequence":1,"initial_numbers":[{"index":1,"bits":18446744073709551615}]}"#,
+        )
+        .unwrap();
+        assert_eq!(request.initial_numbers[0].bits, u64::MAX);
+        for bytes in [
+            br#"{"sequence":1}"#.as_slice(),
+            br#"{"sequence":1,"initial_numbers":[],"acknowledge":false}"#,
+            br#"{"sequence":1,"initial_numbers":[{"index":1,"bits":-1}]}"#,
+            br#"{"sequence":1,"initial_numbers":[{"index":1,"value":0}]}"#,
+        ] {
+            assert!(CopyRequest::decode(bytes).is_err());
+        }
+    }
+
+    #[test]
+    fn copy_request_initializer_count_is_bounded() {
+        for count in [64, 65] {
+            let bytes = serde_json::to_vec(
+                &json!({"sequence":1,"initial_numbers":vec![json!({"index":1,"bits":0});count]}),
+            )
+            .unwrap();
+            let result = CopyRequest::decode(&bytes);
+            if count == 64 {
+                assert!(result.is_ok());
+            } else {
+                assert!(
+                    result
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("initializer count budget exceeded")
+                );
+            }
+        }
+    }
 
     #[test]
     fn native_observation_json_admission_counts_utf8_and_escaped_bytes() {

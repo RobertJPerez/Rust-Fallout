@@ -326,6 +326,9 @@ enum Command {
         /// Inventory source-bound native capabilities with faithful rejection.
         #[arg(long)]
         native_capabilities: bool,
+        /// Exercise one source-bound local copy over explicit engineering inputs.
+        #[arg(long, conflicts_with = "native_capabilities")]
+        engineering_local_copy: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -1014,6 +1017,7 @@ fn run(args: Args) -> Result<()> {
             player_id,
             prepared_sources,
             native_capabilities,
+            engineering_local_copy,
         } => {
             let report = event_operand_inspection::inspect(
                 &install,
@@ -1022,8 +1026,12 @@ fn run(args: Args) -> Result<()> {
                 player_id,
                 prepared_sources,
                 native_capabilities,
+                engineering_local_copy.as_deref(),
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
+            if report["engineering_local_copy"]["status"] == "unsupported" {
+                return Err("Source local copy remains unsupported; see engineering report".into());
+            }
             if native_capabilities && report["native_unsupported"] != 0 {
                 return Err(
                     "Pending native calls retain unsupported faithful semantics; see report".into(),

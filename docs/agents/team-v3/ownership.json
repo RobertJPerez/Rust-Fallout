@@ -139,7 +139,8 @@
         "docs/foreign-live-context.md",
         "crates/fallout-runtime/src/reference_state/**",
         "crates/fallout-runtime/tests/reference_state*.rs",
-        "docs/reference-state.md"
+        "docs/reference-state.md",
+        "crates/fallout-runtime/src/inventory/**"
       ]
     },
     "actors": {

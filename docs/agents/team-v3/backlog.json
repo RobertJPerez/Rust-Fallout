@@ -2771,6 +2771,165 @@
         "depends_on": [],
         "fallback_task_id": null,
         "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "state": "ready",
+        "producer": "runtime",
+        "depends_on": [],
+        "readiness": "Independent existing committed producer; no new sibling grant, reviewed worker handoff or original execution prerequisite.",
+        "boundary_status": "Coordinator preauthorizes additive owned API and minimal declared existing CLI wiring. Declare exact signatures and unsupported scope before implementation, preserve old API/default behavior/save format. No acknowledgment required.",
+        "delivery": "One identifiable tested feature commit; group two or three related tasks with one final affected-package validation and complete whole-output/late-refusal proof. Preserve failed attempts. Continue next ready package; STOP overrides immediately.",
+        "scope_exclusions": [
+          "No new dependency/importer/source pin, inferred retail rule, persisted schema or whole-project framework.",
+          "Source qualification and engineering policy remain explicit. Progress or DTOs do not authorize canonical mutation or establish original/gameplay parity."
+        ],
+        "id": "V3-STATE-41",
+        "title": "Capture one immutable host boundary through bounded cooperative copying",
+        "owned_paths": [
+          "crates/fallout-runtime/src/snapshot.rs",
+          "crates/fallout-runtime/src/snapshot/**",
+          "crates/fallout-runtime/src/save/mod.rs",
+          "crates/fallout-runtime/src/save/source_validation.rs",
+          "crates/fallout-runtime/src/save/source_validation/**",
+          "crates/fallout-runtime/tests/save*.rs",
+          "crates/fallout-cli/src/native_save_inspection.rs"
+        ],
+        "source_evidence": [
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/snapshot.rs",
+            "sha256": "9d0ae61a89a6c3efd4f6682adf32a20826c2940171a3abb6e6715a627df50d34",
+            "line": 405
+          },
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/save/mod.rs",
+            "sha256": "c2602947b708194a4aab6e714443d6c5d213a581e441bf0e46e3459327040c37",
+            "line": 62
+          },
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/save/source_validation.rs",
+            "sha256": "a885e09495a2cca480badb5cb11bbc02ad9b4db24e02292bbf3b88f01c9f5b8f",
+            "line": 17
+          }
+        ],
+        "existing_gap": "Captured::at_boundary synchronously clones all banks/lots, references, local/context data and journal plus the source-validation index before a host can yield. Async publication does not remove this host capture work.",
+        "implementation_boundary": "Add an opaque CaptureJob borrowing the exact immutable World for the entire capture. Advance bounded record/copy work through the existing canonical snapshot order and retained source-schema capture; never restart previous records. Precharge borrowed nested string/link/opaque extents and cumulative limits before copying. Fine-grained nested cursors or explicitly bounded indivisible records must make step accounting honest. Drop/cancel releases private partial storage only; incomplete/failed jobs cannot yield Captured or a serializable partial Snapshot. Finish preserves complete schema4 bytes and the same source authority; retain synchronous at_boundary compatibility. Coordinate with the already-owned STATE40 Arc representation when present without waiting for another lane. The immutable borrow freezes this explicit engineering capture boundary; do not claim the active mutable simulation keeps advancing concurrently.",
+        "consumer": "Actual native-save CLI advances an authored populated world over several explicit budgets, finishes one Capture, publishes with the existing SaveWorker and cold-loads all canonical state. A cancelled capture produces no repository/save request.",
+        "acceptance": [
+          "Complete canonical Snapshot/native payload and retained source-validation behavior equal existing capture at the same boundary, including unknown versus empty banks, all lot/owner IDs, raw float words, opaque bytes, locals/context/journal and counters.",
+          "Exact and one-under total copy/count/source limits and late oversized nested record refuse before cloning that record; zero step, repeated terminal advance, cancellation at each phase and incomplete finish preserve the live world unchanged.",
+          "Progress records actual admitted visits/copies and does not promise hard realtime or peak allocator bounds. Disclose bounded synchronous setup/finish validation; do not hide another full clone or source copy in finish."
+        ],
+        "explicit_bounds": [
+          "total records/nested entries/copy bytes/source context",
+          "per-advance visits/copies and bounded indivisible record",
+          "existing native queue/capture limits"
+        ],
+        "non_overlap": "STATE40 shares a finished Capture; this yields during creation of the one Capture. STATE21 restores off-thread; this is outbound boundary preparation.",
+        "boundary_authorized_by": "Agent1; source-backed runtime refill15 and Robert larger-package direction"
+      },
+      {
+        "state": "ready",
+        "producer": "runtime",
+        "depends_on": [],
+        "readiness": "Independent existing committed producer; no new sibling grant, reviewed worker handoff or original execution prerequisite.",
+        "boundary_status": "Coordinator preauthorizes additive owned API and minimal declared existing CLI wiring. Declare exact signatures and unsupported scope before implementation, preserve old API/default behavior/save format. No acknowledgment required.",
+        "delivery": "One identifiable tested feature commit; group two or three related tasks with one final affected-package validation and complete whole-output/late-refusal proof. Preserve failed attempts. Continue next ready package; STOP overrides immediately.",
+        "scope_exclusions": [
+          "No new dependency/importer/source pin, inferred retail rule, persisted schema or whole-project framework.",
+          "Source qualification and engineering policy remain explicit. Progress or DTOs do not authorize canonical mutation or establish original/gameplay parity."
+        ],
+        "id": "V3-STATE-42",
+        "title": "Observe restore and availability worker completion without a blocking join",
+        "owned_paths": [
+          "crates/fallout-runtime/src/save/restore.rs",
+          "crates/fallout-runtime/src/save/restore/**",
+          "crates/fallout-runtime/src/save/availability_task.rs",
+          "crates/fallout-runtime/src/save/availability_task/**",
+          "crates/fallout-runtime/tests/save*.rs",
+          "crates/fallout-cli/src/native_save_inspection.rs"
+        ],
+        "source_evidence": [
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/save/restore.rs",
+            "sha256": "5478cc0814ebd4054f4b50b3ba1f85e847b56e881867976301272a9f3e06e6cd",
+            "line": 352
+          },
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/save/availability_task.rs",
+            "sha256": "2072f5101ae5afb3c197646c683ea27dbc360eedaa5aa34372971529d456c74d",
+            "line": 371
+          }
+        ],
+        "existing_gap": "RestoreTask and AvailabilityTask expose blocking off-frame finish but no nonblocking joined observation. A responsive host can poll a result/cancel but cannot distinguish detached still-running IO from a joined worker without blocking.",
+        "implementation_boundary": "Add typed try_finish/try_join observations using JoinHandle::is_finished before consuming a handle, with latched join outcome and idempotent terminal calls. Worker completion remains distinct from result delivery, candidate take_for identity admission and canonical replacement. Preserve current result storage, cancellation/revocation, explicit finish and nonblocking Drop behavior. Share only a justified private lifecycle helper within owned modules; no executor/thread pool/global lifecycle framework.",
+        "consumer": "Actual native-save consumer starts gated restore and availability tasks, observes pending join, releases one and cancels the other while retaining its external gate, then proves joined observations and separately checks ready/failed/cancelled candidate semantics. Use existing authored native/cold fixtures.",
+        "acceptance": [
+          "Deterministic held-worker tests prove try_finish leaves the handle/result/candidate intact while Pending; repeat joined success and joined panic/failure outcomes are stable.",
+          "Cancellation closes held gates and invalidates delivered but unaccepted candidates; accepting the correct request before join remains valid, mismatched/superseded identity remains refused.",
+          "Actual source files and repository slot bytes stay unchanged; no successful Continue or menu readiness inferred from join alone. Standard-library thread/TLS cleanup limits are disclosed; no hard realtime promise."
+        ],
+        "explicit_bounds": [
+          "one existing thread/job/result per task",
+          "existing restore/availability source/read budgets",
+          "bounded typed join observation"
+        ],
+        "non_overlap": "STATE33 adds nonblocking shutdown for outbound SaveWorker; this covers the two existing inbound/read-only workers without modifying its admission semantics.",
+        "boundary_authorized_by": "Agent1; source-backed runtime refill15 and Robert larger-package direction"
+      },
+      {
+        "state": "ready",
+        "producer": "runtime",
+        "depends_on": [],
+        "readiness": "Independent existing committed producer; no new sibling grant, reviewed worker handoff or original execution prerequisite.",
+        "boundary_status": "Coordinator preauthorizes additive owned API and minimal declared existing CLI wiring. Declare exact signatures and unsupported scope before implementation, preserve old API/default behavior/save format. No acknowledgment required.",
+        "delivery": "One identifiable tested feature commit; group two or three related tasks with one final affected-package validation and complete whole-output/late-refusal proof. Preserve failed attempts. Continue next ready package; STOP overrides immediately.",
+        "scope_exclusions": [
+          "No new dependency/importer/source pin, inferred retail rule, persisted schema or whole-project framework.",
+          "Source qualification and engineering policy remain explicit. Progress or DTOs do not authorize canonical mutation or establish original/gameplay parity."
+        ],
+        "id": "V3-STATE-43",
+        "title": "Prepare one explicit source inventory bank in cooperative private steps",
+        "owned_paths": [
+          "crates/fallout-runtime/src/inventory.rs",
+          "crates/fallout-runtime/src/inventory/**",
+          "crates/fallout-runtime/src/source_items.rs",
+          "crates/fallout-runtime/tests/source_items.rs",
+          "crates/fallout-cli/src/item_state_inspection.rs"
+        ],
+        "source_evidence": [
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "line": 1018
+          },
+          {
+            "commit": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "line": 1106
+          }
+        ],
+        "existing_gap": "Existing source inventory initialization synchronously checks and copies all requested lots before returning StagedSourceInventory. A boot consumer with many explicit lots cannot cooperatively yield or cancel private preparation.",
+        "implementation_boundary": "Add an opaque source inventory preparation job borrowing exact immutable World, Content, Policy and explicit request lots for one uninitialized owner. Reuse existing STATE24 validation/charge/ID arithmetic and staged authority. Advance borrowed aggregate admission and then source/facts preparation in bounded steps; do not restart scans or grant fresh total limits on each advance. Finish returns the existing privately constructed StagedSourceInventory only after complete preparation, then the ordinary consuming commit rechecks epoch/campaign/cohort/revision/policy/owner/allocator. Cancel/drop never publishes a bank or reserves IDs. Later STATE37/38 reuse of private validation may be shared if already present; they are not prerequisites and this task must not implement a second bulk inventory model.",
+        "consumer": "Actual item-state CLI prepares an authored explicit multi-lot bank over several schedules, finishes/commits once, then publishes and cold-loads exact state. Separate cancel/late-source-invalid fixtures leave the bank unknown and allocator unchanged.",
+        "acceptance": [
+          "Independent raw source/literal Facts expectations and complete receipt/native/cold snapshot equal existing one-shot initialization in caller lot order, preserving same-base distinct lots, all signed-zero/NaN payload words, links/extra bytes and exact new ItemIDs.",
+          "Total visit/source/copy/canonical capacities are admitted before caller data copying; exact/one-under and bad final role/reference/Facts refuse atomically. Zero step, incomplete finish and terminal advance/cancel are explicit.",
+          "After finish, intervening canonical mutation/restore or changed exact Content/Policy cannot commit. Empty explicit bank stays known empty after successful commit; a cancelled preparation remains unknown."
+        ],
+        "explicit_bounds": [
+          "one owner and aggregate lots/source checks",
+          "total nested Facts/key/copy extents",
+          "per-step admitted checks/copies and existing canonical caps"
+        ],
+        "non_overlap": "STATE38 publishes several owners atomically, STATE37 adds to a known bank. This prepares the existing single unknown bank responsively and returns its existing stage, with no new inventory representation.",
+        "boundary_authorized_by": "Agent1; source-backed runtime refill15 and Robert larger-package direction"
       }
     ],
     "actors": [

@@ -4,17 +4,11 @@ use super::{Document, Kind, Span, parse};
 use crate::model::Result;
 use fallout_data::{
     assets::ArchiveAssets,
-    baseline,
     vfs::{AssetPath, AssetSource},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{
-    collections::BTreeMap,
-    io::{Read, Write},
-    mem::size_of,
-    path::Path,
-};
+use std::{collections::BTreeMap, io::Write, mem::size_of, path::Path};
 
 #[derive(Clone, Copy)]
 pub struct Limits {
@@ -71,19 +65,7 @@ pub struct Request {
 }
 
 pub fn read_request(path: &Path, limits: Limits) -> Result<Request> {
-    let file = baseline::open_source(path)?;
-    if file.metadata()?.len() > limits.request_bytes as u64 {
-        return Err("Menu include request byte budget exceeded".into());
-    }
-    let mut bytes = Vec::new();
-    let maximum = u64::try_from(limits.request_bytes)?
-        .checked_add(1)
-        .ok_or("Menu include request byte limit overflow")?;
-    file.take(maximum).read_to_end(&mut bytes)?;
-    if bytes.len() > limits.request_bytes {
-        return Err("Menu include request byte budget exceeded".into());
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+    super::read_json(path, limits.request_bytes, "include")
 }
 
 #[derive(Serialize)]
@@ -121,13 +103,13 @@ pub struct Report {
     pub original_display_ready: bool,
 }
 
-fn path(raw: &str) -> Result<AssetPath> {
+pub(super) fn path(raw: &str) -> Result<AssetPath> {
     if raw.len() > 4096 {
         return Err("Menu include path exceeds 4096 bytes".into());
     }
     Ok(AssetPath::new(raw.as_bytes())?)
 }
-fn hash(raw: &str) -> Result<()> {
+pub(super) fn hash(raw: &str) -> Result<()> {
     if raw.len() != 64
         || !raw
             .bytes()

@@ -4,8 +4,11 @@ use fallout_data::{
     condition_operands::Signatures,
     identity::FormKey,
     loaded_scripts::{Catalogue, Limits as ScriptLimits},
+    store::RecordStore,
+    vfs::MountIndex,
     world::{
         conversation::{DialogueSources, Limits},
+        doors::DoorDestination,
         preparation::CellModelPlan,
         residency::{CellResidency, Snapshot, Stage, TexturePlan, TextureState},
     },
@@ -32,24 +35,87 @@ pub(super) fn residency(
     resource_cache: Option<&Path>,
     input: ResidencyInput,
 ) -> Result<Value> {
-    if !(1..=120_000).contains(&input.source_timeout_ms) {
-        return Err("source polling timeout must be 1..=120000 milliseconds".into());
-    }
+    let deadline = source_deadline(input.source_timeout_ms)?;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, index_cache)?;
     let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
     let plan = CellModelPlan::load(&mut store, &input.cell, assets.mounts(), Default::default())?;
+    let mut report = consume_plan(install, resource_cache, deadline, plan, assets.mounts())?;
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) struct DoorInput {
+    pub source: ResidencyInput,
+    pub door: FormKey,
+}
+
+pub(super) fn door_residency(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: DoorInput,
+) -> Result<Value> {
+    let deadline = source_deadline(input.source.source_timeout_ms)?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let sources = DoorDestination::load(
+        &mut store,
+        &input.source.cell,
+        &input.door,
+        Default::default(),
+    )?;
+    let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+    let mut report = match sources.prepare_cell(&mut store, assets.mounts(), Default::default()) {
+        Ok(plan) => consume_plan(install, resource_cache, deadline, plan, assets.mounts())?,
+        Err(error) => json!({"schema_version":1,"profile":"nv-original",
+            "source_error":error.to_string(),"cell_models":null,"cell_textures":null,
+            "texture_payloads":[],"residency":null,"captured_sources_available":false,
+            "lookup_precedence_verified":false,"runtime_ready":false,"retail_parity_accepted":false}),
+    };
+    provenance(&mut report, &order, &mut store)?;
+    report["door_destination"] = serde_json::to_value(sources.metadata())?;
+    report["door_source_graph"] = serde_json::to_value(sources.graph())?;
+    report["destination_applied"] = json!(false);
+    report["current_cell_changed"] = json!(false);
+    report["scope"] = json!(
+        "Source-selected XTEL destination CELL model/texture jobs; no movement, activation, GPU, physics or behavior admission"
+    );
+    Ok(report)
+}
+
+fn source_deadline(milliseconds: u64) -> Result<Duration> {
+    if !(1..=120_000).contains(&milliseconds) {
+        return Err("source polling timeout must be 1..=120000 milliseconds".into());
+    }
+    Ok(Duration::from_millis(milliseconds))
+}
+
+fn provenance(report: &mut Value, order: &Order, store: &mut RecordStore) -> Result<()> {
+    report["explicit_load_order"] = json!(order.names);
+    report["load_order_sha256"] = json!(order.sha256);
+    report["plugins"] = serde_json::to_value(store.source_receipts()?)?;
+    Ok(())
+}
+
+fn consume_plan(
+    install: &Path,
+    resource_cache: Option<&Path>,
+    deadline: Duration,
+    plan: CellModelPlan,
+    mounts: &MountIndex,
+) -> Result<Value> {
     let model_receipt = serde_json::to_value(plan.receipt())?;
     let mut owner = CellResidency::new(install, resource_cache, Default::default())?;
     let ticket = owner.request(plan)?;
-    let deadline = Duration::from_millis(input.source_timeout_ms);
     let mut error = None;
     let mut textures = None;
     let mut texture_payloads = Vec::new();
     if let Err(failed) = poll_sources(&mut owner, false, deadline) {
         error = Some(failed.to_string());
     } else {
-        match TexturePlan::load(owner.sources(&ticket)?, assets.mounts(), Default::default()) {
+        match TexturePlan::load(owner.sources(&ticket)?, mounts, Default::default()) {
             Ok(plan) => {
                 textures = Some(serde_json::to_value(plan.receipt())?);
                 owner.request_textures(&ticket, plan)?;
@@ -76,15 +142,12 @@ pub(super) fn residency(
     let snapshot = owner.snapshot();
     let available =
         error.is_none() && snapshot.complete_model_coverage && snapshot.complete_texture_coverage;
-    Ok(
-        json!({"schema_version":1,"profile":"nv-original","explicit_load_order":order.names,
-        "load_order_sha256":order.sha256,"plugins":store.source_receipts()?,
+    Ok(json!({"schema_version":1,"profile":"nv-original",
         "cell_models":model_receipt,"cell_textures":textures,"texture_payloads":texture_payloads,
         "residency":snapshot,"source_error":error,
         "captured_sources_available":available,"lookup_precedence_verified":false,
         "runtime_ready":false,"retail_parity_accepted":false,
-        "scope":"Protected exact CELL/model/external-texture source jobs; no GPU/DDS/physics/behavior admission"}),
-    )
+        "scope":"Protected exact CELL/model/external-texture source jobs; no GPU/DDS/physics/behavior admission"}))
 }
 
 fn poll_sources(owner: &mut CellResidency, textures: bool, timeout: Duration) -> Result<Snapshot> {
@@ -388,6 +451,136 @@ mod tests {
             cell: crate::parse_cell_key("Base.esm:200").unwrap(),
             source_timeout_ms: 10_000,
         }
+    }
+    fn door_fixture(root: &Path, target: u32) {
+        cell_fixture(root, b"m.nif", b"t.dds");
+        let group = |cell: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &cell.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let reference = |id: u32, teleport: u32, x: f32| {
+            let pose = [x, 2.0, 3.0, 0.0, 0.0, -0.5]
+                .into_iter()
+                .flat_map(f32::to_le_bytes)
+                .collect::<Vec<_>>();
+            record(
+                b"REFR",
+                id,
+                &[
+                    field(b"NAME", &0x401_u32.to_le_bytes()),
+                    field(b"DATA", &[0; 24]),
+                    field(
+                        b"XTEL",
+                        &[
+                            teleport.to_le_bytes().as_slice(),
+                            &pose,
+                            &7_u32.to_le_bytes(),
+                        ]
+                        .concat(),
+                    ),
+                ]
+                .concat(),
+            )
+        };
+        let path = root.join("Data/Base.esm");
+        let mut bytes = fs::read(&path).unwrap();
+        bytes.extend(record(b"DOOR", 0x401, &field(b"MODL", b"m.nif\0")));
+        bytes.extend(group(
+            0x200,
+            6,
+            &group(0x200, 9, &reference(0x310, target, 42.0)),
+        ));
+        bytes.extend(record(b"CELL", 0x201, &field(b"DATA", &[1])));
+        bytes.extend(group(
+            0x201,
+            6,
+            &group(0x201, 9, &reference(0x311, 0x310, 99.0)),
+        ));
+        fs::write(path, bytes).unwrap();
+    }
+    fn door_input() -> DoorInput {
+        DoorInput {
+            source: residency_input(),
+            door: crate::parse_cell_key("Base.esm:310").unwrap(),
+        }
+    }
+    #[test]
+    fn cli_door_destination_prepares_exact_target_sources_without_moving_current_cell() {
+        let directory = directory();
+        door_fixture(&directory, 0x311);
+        let source_before = Sha256::digest(fs::read(directory.join("Data/Base.esm")).unwrap());
+        let report = door_residency(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            door_input(),
+        )
+        .unwrap();
+        assert_eq!(report["door_destination"]["source_cell"]["local_id"], 0x200);
+        assert_eq!(
+            report["door_destination"]["destination"]["cell"]["local_id"],
+            0x201
+        );
+        assert_eq!(report["residency"]["root"]["local_id"], 0x201);
+        assert_eq!(report["cell_models"]["root"]["local_id"], 0x201);
+        assert_eq!(
+            report["door_destination"]["destination"]["authored_transform"]["position"][0],
+            42.0
+        );
+        assert_eq!(report["door_destination"]["destination"]["raw_flags"], 7);
+        assert_eq!(report["captured_sources_available"], true);
+        assert_eq!(report["residency"]["completed_models"], 1);
+        assert_eq!(report["residency"]["completed_textures"], 1);
+        assert_eq!(
+            report["texture_payloads"][0]["sha256"],
+            format!("{:x}", Sha256::digest(b"authored-source-texture"))
+        );
+        assert_eq!(report["residency"]["dependencies"], "Pending");
+        assert_eq!(report["residency"]["simulation_ready"], false);
+        assert_eq!(report["destination_applied"], false);
+        assert_eq!(report["current_cell_changed"], false);
+        assert_eq!(report["runtime_ready"], false);
+        assert_eq!(
+            Sha256::digest(fs::read(directory.join("Data/Base.esm")).unwrap()),
+            source_before
+        );
+    }
+    #[test]
+    fn cli_unresolved_door_emits_link_evidence_without_creating_residency() {
+        let directory = directory();
+        door_fixture(&directory, 0x999);
+        let report = door_residency(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            door_input(),
+        )
+        .unwrap();
+        assert_eq!(
+            report["door_destination"]["source_destination_resolved"],
+            false
+        );
+        assert!(
+            !report["door_destination"]["issues"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(report["captured_sources_available"], false);
+        assert!(report["source_error"].is_string());
+        assert!(report["residency"].is_null());
+        assert!(report["cell_models"].is_null());
+        assert_eq!(report["current_cell_changed"], false);
+        assert_eq!(report["runtime_ready"], false);
     }
     #[test]
     fn cli_residency_consumes_leased_texture_bytes_and_leaves_sources_unchanged() {

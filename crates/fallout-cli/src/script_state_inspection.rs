@@ -11,6 +11,7 @@ use fallout_runtime::{
     identity::{CampaignId, Owner, ReferenceValue, Value},
     schema::{self, Kind},
     snapshot::Snapshot,
+    state::initialization,
 };
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -61,6 +62,7 @@ pub(super) struct EngineeringWorld<'a> {
     pub numbers: u64,
     pub references: u64,
     pub unknown: u64,
+    pub initializations: Vec<initialization::Receipt>,
 }
 
 /// Shared deterministic harness inputs. This does not initialize a game session.
@@ -81,6 +83,7 @@ pub(super) fn engineering_world(catalogue: &Catalogue) -> Result<EngineeringWorl
         arguments: vec![ReferenceValue::Null],
     };
     let mut handles = Vec::new();
+    let mut initializations = Vec::new();
     let mut numbers = 0_u64;
     let mut references = 0_u64;
     let mut unknown = 0_u64;
@@ -100,11 +103,6 @@ pub(super) fn engineering_world(catalogue: &Catalogue) -> Result<EngineeringWorl
             continue;
         }
         let activation = (handles.len() as u64 + 1).try_into()?;
-        let handle = world.create_instance(
-            script.handle(),
-            Owner::Fragment { activation },
-            context.clone(),
-        )?;
         let mut assignments = Vec::with_capacity(locals.len());
         for local in locals.values() {
             let value = match local.kind {
@@ -126,7 +124,15 @@ pub(super) fn engineering_world(catalogue: &Catalogue) -> Result<EngineeringWorl
             };
             assignments.push((local.index, value));
         }
-        world.assign(handle, &assignments)?;
+        let stage = world.stage_instance_initialization(
+            script.handle(),
+            &Owner::Fragment { activation },
+            &context,
+            &assignments,
+            initialization::Limits::default(),
+        )?;
+        let (receipt, handle) = world.commit_instance_initialization(stage)?;
+        initializations.push(receipt);
         if let Some(instruction) = script
             .program()?
             .iter()
@@ -151,6 +157,7 @@ pub(super) fn engineering_world(catalogue: &Catalogue) -> Result<EngineeringWorl
         numbers,
         references,
         unknown,
+        initializations,
     })
 }
 fn probe(catalogue: &Catalogue) -> Result<Json> {
@@ -160,6 +167,7 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
         numbers,
         references,
         unknown,
+        initializations,
     } = engineering_world(catalogue)?;
     let limits = Limits::default();
     let snapshot = world.snapshot();
@@ -180,6 +188,7 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
         json!({"scope":"Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
         "instances":world.instance_count(),"numeric_values":numbers,"typed_reference_values":references,
         "unsupported_slots_retained_uninitialized":unknown,"pending_events":world.pending_events().len(),
+        "initializations":initializations,"initialization_is_one_revision":true,
         "snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),
         "catalogue_sha256":world.catalogue_fingerprint(),"canonical_bytes_equal":true,
         "old_handles_rejected":true,"persistent_ids_preserved":true,

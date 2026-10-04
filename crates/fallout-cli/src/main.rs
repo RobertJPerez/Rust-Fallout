@@ -109,6 +109,9 @@ enum Command {
         clip: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        /// Prepare both exact sources once and sample an ordered source_times list.
+        #[arg(long)]
+        batch: bool,
     },
     /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
     NifRigidAttachment {
@@ -1708,6 +1711,7 @@ fn run(args: Args) -> Result<()> {
             skeleton,
             clip,
             request,
+            batch,
         } => {
             if let Some(path) = output {
                 let parent = path
@@ -1720,6 +1724,15 @@ fn run(args: Args) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if batch {
+                let report =
+                    nif_animation_inspection::inspect_clip_batch(&skeleton, &clip, &request)?;
+                emit(&report, output, &skeleton)?;
+                if report.failures != 0 {
+                    return Err("prepared external source clip batch refused; see report".into());
+                }
+                return Ok(());
             }
             let report = nif_animation_inspection::inspect_clip(&skeleton, &clip, &request)?;
             emit(&report, output, &skeleton)?;

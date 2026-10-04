@@ -116,6 +116,60 @@ pub fn evaluate(
     let (clip_index, decoded) = keyframe::decode_with_limits(clip_bytes, source, limits.pose.keys)?;
     let (skeleton_index, scene) =
         nif_scene::decode_with_limits(skeleton_bytes, source, limits.pose.scene)?;
+    let view = Sources {
+        skeleton_index: &skeleton_index,
+        clip_index: &clip_index,
+        decoded: &decoded,
+        scene: &scene,
+    };
+    let bound = bind(view, request.into(), &mut budget)?;
+    let mapping = SceneMapping::prepare(&scene, &skeleton_index, request.object, &mut budget)?;
+    evaluate_bound(
+        bound,
+        request,
+        limits.pose.into(),
+        budget,
+        Observation::Input {
+            skeleton_bytes,
+            clip_bytes,
+            view,
+            mapping: &mapping,
+        },
+    )
+}
+
+mod prepared;
+pub use prepared::{
+    BatchLimits, BindingRequest, ClipBatch, PreparationLimits, PreparationUsage, PreparedClipSource,
+};
+
+#[derive(Clone, Copy)]
+struct Sources<'a> {
+    skeleton_index: &'a crate::nif::NifIndex,
+    clip_index: &'a crate::nif::NifIndex,
+    decoded: &'a keyframe::Source,
+    scene: &'a nif_scene::Scene,
+}
+struct Bound<'a> {
+    object: &'a nif_scene::Object,
+    sequence: &'a super::Sequence,
+    packet: &'a ControlledBlock,
+    interpolator: &'a TransformInterpolator,
+    data: &'a keyframe::Block,
+    interpolator_id: u32,
+    data_id: u32,
+}
+fn bind<'a>(
+    view: Sources<'a>,
+    request: BindingRequest<'_>,
+    budget: &mut Budget<'_>,
+) -> Result<Bound<'a>> {
+    let Sources {
+        skeleton_index,
+        clip_index,
+        decoded,
+        scene,
+    } = view;
     if !scene.unsupported_scene_edges.is_empty() {
         return Err(budget.fail("unresolved scene ancestry"));
     }
@@ -230,7 +284,90 @@ pub fn evaluate(
     if !matches!(data.data.rotation, keyframe::Rotation::Absent) {
         return Err(budget.fail(&format!("clip sequence {} controlled {} interpolator {interpolator_id} data {data_id}: rotation key mapping is unapplied",request.sequence,request.controlled_ordinal)));
     }
-    let mapping = SceneMapping::prepare(&scene, &skeleton_index, request.object, &mut budget)?;
+    Ok(Bound {
+        object,
+        sequence,
+        packet,
+        interpolator,
+        data,
+        interpolator_id,
+        data_id,
+    })
+}
+
+enum Observation<'a> {
+    Input {
+        skeleton_bytes: &'a [u8],
+        clip_bytes: &'a [u8],
+        view: Sources<'a>,
+        mapping: &'a SceneMapping<'a>,
+    },
+    Prepared(&'a PreparedClipSource),
+}
+impl Observation<'_> {
+    fn skeleton_sha256(&self) -> String {
+        match self {
+            Self::Input { skeleton_bytes, .. } => format!("{:x}", Sha256::digest(skeleton_bytes)),
+            Self::Prepared(p) => p.skeleton_sha256.clone(),
+        }
+    }
+    fn clip_sha256(&self) -> String {
+        match self {
+            Self::Input { clip_bytes, .. } => format!("{:x}", Sha256::digest(clip_bytes)),
+            Self::Prepared(p) => p.clip_sha256.clone(),
+        }
+    }
+    fn object_span(&self, id: u32) -> SourceSpan {
+        match self {
+            Self::Input {
+                skeleton_bytes,
+                view,
+                ..
+            } => span(skeleton_bytes, view.skeleton_index, id),
+            Self::Prepared(p) => p.object_span.clone(),
+        }
+    }
+    fn clip_span(&self, id: u32) -> SourceSpan {
+        match self {
+            Self::Input {
+                clip_bytes, view, ..
+            } => span(clip_bytes, view.clip_index, id),
+            Self::Prepared(p) => p.clip_span(id),
+        }
+    }
+    fn compose(
+        &self,
+        local: Affine,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> Result<(Affine, Vec<Ancestor>)> {
+        match self {
+            Self::Input {
+                skeleton_bytes,
+                view,
+                mapping,
+                ..
+            } => mapping.compose(skeleton_bytes, view.skeleton_index, local, budget, depth),
+            Self::Prepared(p) => p.compose(local, budget, depth),
+        }
+    }
+}
+fn evaluate_bound(
+    bound: Bound<'_>,
+    request: Request<'_>,
+    limits: pose::SampleLimits,
+    mut budget: Budget<'_>,
+    observation: Observation<'_>,
+) -> Result<Evaluation> {
+    let Bound {
+        object,
+        sequence,
+        packet,
+        interpolator,
+        data,
+        interpolator_id,
+        data_id,
+    } = bound;
     budget.reserve::<Evaluation>(1)?;
     budget.reserve::<u8>(8 * 64)?;
     budget.reserve::<u8>(request.node_name_bytes.len())?;
@@ -238,7 +375,7 @@ pub fn evaluate(
         budget.reserve::<Option<u32>>(targets.len())?;
         budget.charge(targets.len())?;
     }
-    let mut sampling_budget = sampling::Budget::new(limits.pose.sampling);
+    let mut sampling_budget = sampling::Budget::new(limits.sampling);
     let translation = sampling::evaluate(
         data,
         sampling::Channel::Translation,
@@ -252,24 +389,18 @@ pub fn evaluate(
         &mut sampling_budget,
     )?;
     let local = component_local(object.transform, &translation, &scale);
-    let (world, ancestors) = mapping.compose(
-        skeleton_bytes,
-        &skeleton_index,
-        local,
-        &mut budget,
-        limits.pose.ancestry_depth,
-    )?;
+    let (world, ancestors) = observation.compose(local, &mut budget, limits.ancestry_depth)?;
     Ok(Evaluation {
         contract: CONTRACT,
-        skeleton_sha256: format!("{:x}", Sha256::digest(skeleton_bytes)),
-        clip_sha256: format!("{:x}", Sha256::digest(clip_bytes)),
-        object: span(skeleton_bytes, &skeleton_index, request.object),
-        sequence: span(clip_bytes, &clip_index, request.sequence),
+        skeleton_sha256: observation.skeleton_sha256(),
+        clip_sha256: observation.clip_sha256(),
+        object: observation.object_span(request.object),
+        sequence: observation.clip_span(request.sequence),
         controlled_ordinal: request.controlled_ordinal,
         controlled_packet: packet.clone(),
         node_name_bytes: request.node_name_bytes.to_vec(),
-        interpolator: span(clip_bytes, &clip_index, interpolator_id),
-        data: span(clip_bytes, &clip_index, data_id),
+        interpolator: observation.clip_span(interpolator_id),
+        data: observation.clip_span(data_id),
         requested_time_f64_bits: request.source_time.to_bits(),
         source_local: object.transform.into(),
         object_flags: object.flags,
@@ -294,8 +425,8 @@ pub fn evaluate(
         static_ancestors: ancestors,
         local,
         source_world: world,
-        retained_bytes: limits.pose.array_bytes - budget.bytes,
-        work_units: limits.pose.work_units - budget.work,
+        retained_bytes: limits.array_bytes - budget.bytes,
+        work_units: limits.work_units - budget.work,
         sample_work: sampling_budget.usage(),
         retail_behavior_verified: false,
     })

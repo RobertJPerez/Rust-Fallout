@@ -63,13 +63,21 @@ impl QueryInput {
 
 struct QueryContext {
     input: QueryInput,
+    state: SnapshotContext,
+}
+
+struct SnapshotContext {
     subject: ReferenceId,
     world: fallout_runtime::World<'static>,
     content: Content,
     snapshot_sha256: String,
 }
-impl QueryContext {
-    fn load(input: QueryInput, store: &mut fallout_data::store::RecordStore) -> Result<Self> {
+impl SnapshotContext {
+    fn load(
+        snapshot: &Path,
+        explicit_subject: u64,
+        store: &mut fallout_data::store::RecordStore,
+    ) -> Result<Self> {
         let source_catalogue = Arc::new(loaded_scripts::Catalogue::load(
             store,
             Default::default(),
@@ -80,24 +88,38 @@ impl QueryContext {
             max_snapshot_bytes: MAXIMUM_QUERY_SNAPSHOT_BYTES,
             ..Default::default()
         };
-        let bytes = bounded_input(&input.snapshot, limits.max_snapshot_bytes)?;
+        let bytes = bounded_input(snapshot, limits.max_snapshot_bytes)?;
         let world = fallout_runtime::World::restore(
             source_catalogue,
             fallout_runtime::snapshot::Snapshot::decode(&bytes, limits)?,
             limits,
         )?;
-        let subject = ReferenceId(input.explicit_subject.try_into()?);
+        let subject = ReferenceId(explicit_subject.try_into()?);
         let snapshot_sha256 = format!(
             "{:x}",
             Sha256::digest(world.snapshot().encode(limits.max_snapshot_bytes)?)
         );
         Ok(Self {
-            input,
             subject,
             world,
             content,
             snapshot_sha256,
         })
+    }
+
+    fn verify_unchanged(&self) -> Result<()> {
+        let after = self.world.snapshot().encode(MAXIMUM_QUERY_SNAPSHOT_BYTES)?;
+        if format!("{:x}", Sha256::digest(after)) != self.snapshot_sha256 {
+            return Err("Condition observation changed canonical state".into());
+        }
+        Ok(())
+    }
+}
+
+impl QueryContext {
+    fn load(input: QueryInput, store: &mut fallout_data::store::RecordStore) -> Result<Self> {
+        let state = SnapshotContext::load(&input.snapshot, input.explicit_subject, store)?;
+        Ok(Self { input, state })
     }
 
     fn observe(
@@ -106,7 +128,7 @@ impl QueryContext {
         maximum: usize,
     ) -> Result<Value> {
         let request = condition_query::Request::prepare(
-            &self.world,
+            &self.state.world,
             record,
             self.input.field_decoded_offset,
         )?;
@@ -119,26 +141,115 @@ impl QueryContext {
         }
         let reports = Reports {
             faithful: request.observe(
-                &self.world,
-                &self.content,
-                Some(self.subject),
+                &self.state.world,
+                &self.state.content,
+                Some(self.state.subject),
                 condition_query::Intent::Faithful,
                 MAXIMUM_QUERY_CONTRIBUTIONS,
             )?,
             engineering: request.observe(
-                &self.world,
-                &self.content,
-                Some(self.subject),
+                &self.state.world,
+                &self.state.content,
+                Some(self.state.subject),
                 condition_query::Intent::EngineeringObservation,
                 MAXIMUM_QUERY_CONTRIBUTIONS,
             )?,
-            canonical_snapshot_sha256: &self.snapshot_sha256,
+            canonical_snapshot_sha256: &self.state.snapshot_sha256,
             canonical_state_unchanged: true,
         };
-        let after = self.world.snapshot().encode(MAXIMUM_QUERY_SNAPSHOT_BYTES)?;
-        if format!("{:x}", Sha256::digest(after)) != self.snapshot_sha256 {
-            return Err("Condition observation changed canonical state".into());
+        self.state.verify_unchanged()?;
+        let mut admission = Admission { bytes: 0, maximum };
+        serde_json::to_writer(&mut admission, &reports)?;
+        Ok(serde_json::to_value(reports)?)
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BatchInput {
+    schema_version: u32,
+    record: FormKey,
+    field_decoded_offsets: Vec<usize>,
+    explicit_subject: u64,
+    snapshot: PathBuf,
+    maximum_source_receipt_bytes: usize,
+    maximum_site_comparisons: usize,
+    maximum_contributions: usize,
+}
+impl BatchInput {
+    fn read(path: &Path) -> Result<Self> {
+        let mut input: Self =
+            serde_json::from_slice(&bounded_input(path, MAXIMUM_QUERY_INPUT_BYTES)?)?;
+        if input.schema_version != 1
+            || input.field_decoded_offsets.is_empty()
+            || input.field_decoded_offsets.len() > 4096
+            || input.maximum_source_receipt_bytes > 1024 * 1024
+            || input.maximum_site_comparisons > 1_048_576
+            || input.maximum_contributions > MAXIMUM_QUERY_CONTRIBUTIONS
+        {
+            return Err("invalid condition batch request schema, selection or budget".into());
         }
+        if !input.snapshot.is_absolute() {
+            input.snapshot = path
+                .parent()
+                .ok_or("Condition batch input has no parent")?
+                .join(input.snapshot);
+        }
+        Ok(input)
+    }
+}
+struct BatchContext {
+    input: BatchInput,
+    state: SnapshotContext,
+}
+impl BatchContext {
+    fn load(input: BatchInput, store: &mut fallout_data::store::RecordStore) -> Result<Self> {
+        let state = SnapshotContext::load(&input.snapshot, input.explicit_subject, store)?;
+        Ok(Self { input, state })
+    }
+    fn observe(
+        &self,
+        record: &condition_operands::PreparedRecord,
+        maximum: usize,
+    ) -> Result<Value> {
+        let requests = condition_query::Requests::prepare(
+            &self.state.world,
+            record,
+            &self.input.field_decoded_offsets,
+            condition_query::BatchLimits {
+                maximum_requests: 4096,
+                maximum_source_receipt_bytes: self.input.maximum_source_receipt_bytes,
+                maximum_site_comparisons: self.input.maximum_site_comparisons,
+            },
+        )?;
+        #[derive(serde::Serialize)]
+        struct Reports<'a> {
+            preparation: condition_query::BatchCounts,
+            faithful: Vec<condition_query::Observation<'a>>,
+            engineering: Vec<condition_query::Observation<'a>>,
+            canonical_snapshot_sha256: &'a str,
+            canonical_state_unchanged: bool,
+        }
+        let reports = Reports {
+            preparation: requests.counts(),
+            faithful: requests.observe(
+                &self.state.world,
+                &self.state.content,
+                Some(self.state.subject),
+                condition_query::Intent::Faithful,
+                0,
+            )?,
+            engineering: requests.observe(
+                &self.state.world,
+                &self.state.content,
+                Some(self.state.subject),
+                condition_query::Intent::EngineeringObservation,
+                self.input.maximum_contributions,
+            )?,
+            canonical_snapshot_sha256: &self.state.snapshot_sha256,
+            canonical_state_unchanged: true,
+        };
+        self.state.verify_unchanged()?;
         let mut admission = Admission { bytes: 0, maximum };
         serde_json::to_writer(&mut admission, &reports)?;
         Ok(serde_json::to_value(reports)?)
@@ -271,6 +382,7 @@ pub(super) fn inspect(
     include_source_owners: bool,
     include_source_runs: bool,
     engineering_query_input: Option<&Path>,
+    engineering_query_batch: Option<&Path>,
 ) -> Result<Value> {
     let include_source_owners = include_source_owners || include_source_runs;
     let order = Order::read(order_path)?;
@@ -303,7 +415,13 @@ pub(super) fn inspect(
         .transpose()?
         .map(|input| QueryContext::load(input, &mut store))
         .transpose()?;
+    let batch = engineering_query_batch
+        .map(BatchInput::read)
+        .transpose()?
+        .map(|input| BatchContext::load(input, &mut store))
+        .transpose()?;
     let mut query_report = None;
+    let mut batch_report = None;
     let candidates = bounded_candidates(
         store
             .winning_definitions()
@@ -363,6 +481,11 @@ pub(super) fn inspect(
             && identity.key == query.input.record
         {
             query_report = Some(query.observe(prepared, MAXIMUM_RETAINED_BYTES - retained)?);
+        }
+        if let Some(batch) = &batch
+            && identity.key == batch.input.record
+        {
+            batch_report = Some(batch.observe(prepared, MAXIMUM_RETAINED_BYTES - retained)?);
         }
         number(
             &mut counts,
@@ -543,6 +666,19 @@ pub(super) fn inspect(
         serde_json::to_writer(&mut admission, &query_report)?;
         report["schema_version"] = 4.into();
         report["engineering_query"] = query_report;
+    }
+    if batch.is_some() {
+        let batch_report = batch_report
+            .ok_or("Engineering condition batch record has no nondeleted admitted candidate")?;
+        let mut admission = Admission {
+            bytes: 0,
+            maximum: MAXIMUM_RETAINED_BYTES,
+        };
+        serde_json::to_writer(&mut admission, &report)?;
+        admission.write_all(b",\"engineering_batch\":")?;
+        serde_json::to_writer(&mut admission, &batch_report)?;
+        report["schema_version"] = 5.into();
+        report["engineering_batch"] = batch_report;
     }
     Ok(report)
 }

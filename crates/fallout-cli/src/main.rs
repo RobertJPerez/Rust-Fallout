@@ -428,6 +428,9 @@ enum Command {
         /// Read one explicit engineering query from a canonical snapshot; no condition truth.
         #[arg(long)]
         engineering_query_input: Option<PathBuf>,
+        /// Observe an ordered batch of physical condition sites with shared budgets.
+        #[arg(long, conflicts_with = "engineering_query_input")]
+        engineering_query_batch: Option<PathBuf>,
     },
     /// Hash original compressed record inputs and exact decoded outputs.
     CompressedRecords {
@@ -1281,6 +1284,7 @@ fn run(args: Args) -> Result<()> {
             include_source_owners,
             include_source_runs,
             engineering_query_input,
+            engineering_query_batch,
         } => {
             let report = condition_dependency_inspection::inspect(
                 &install,
@@ -1289,8 +1293,20 @@ fn run(args: Args) -> Result<()> {
                 include_source_owners,
                 include_source_runs,
                 engineering_query_input.as_deref(),
+                engineering_query_batch.as_deref(),
             )?;
             emit(&report, args.output.as_deref(), &protected_tree(&install)?)?;
+            if engineering_query_batch.is_some()
+                && report["engineering_batch"]["engineering"]
+                    .as_array()
+                    .ok_or("Missing condition batch observations")?
+                    .iter()
+                    .any(|row| row["outcome"]["status"] != "engineering_observation")
+            {
+                return Err(
+                    "Condition batch retains unsupported query outcomes; see report".into(),
+                );
+            }
             if report["counts"]["source_findings"] != 0
                 || report["counts"]["unknown_parameters"] != 0
                 || ((include_source_owners || include_source_runs)

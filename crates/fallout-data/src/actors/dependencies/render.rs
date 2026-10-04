@@ -88,7 +88,11 @@ pub struct RenderManifest<'a> {
     pub sources: Vec<RenderSource<'a>>,
     /// Physical link indices retain missing/deleted/null/wrong-kind provenance.
     pub selected_edge_indices: Vec<usize>,
+    /// Indices in sources, over admitted actor/head-part links only.
+    pub selected_source_cycles: Vec<Vec<usize>>,
     pub requests: Vec<RenderRequest>,
+    /// Physical source/path admission only; no NIF or renderer readiness.
+    pub selected_requests_admitted: bool,
     pub issues: Vec<RenderIssue>,
     pub visits: usize,
     pub equipment_selection_supported: bool,
@@ -389,6 +393,46 @@ impl Catalogue<'_> {
             }
         }
         selection.edges.sort_unstable();
+        let selected_keys: Vec<_> = selected.iter().copied().collect();
+        let indices: std::collections::BTreeMap<_, _> = selected_keys
+            .iter()
+            .enumerate()
+            .map(|(index, key)| (*key, index))
+            .collect();
+        let mut children = vec![Vec::new(); selected_keys.len()];
+        for _ in &selected_keys {
+            selection.visit()?;
+        }
+        for selected_index in 0..selection.edges.len() {
+            selection.visit()?;
+            let index = selection.edges[selected_index];
+            let edge = &manifest.model_edges[index];
+            if edge.binding.status == inventory::Status::Defined
+                && edge.schema_kind_allowed == Some(true)
+                && let Some(target) = edge.binding.key.as_ref().and_then(|key| indices.get(key))
+            {
+                children[indices[&edge.source]].push(*target);
+            }
+        }
+        let selected_source_cycles = crate::graph::cyclic_components(&children);
+        for component in &selected_source_cycles {
+            for &index in component {
+                selection.issue(
+                    "cyclic_selected_render_source",
+                    selected_keys[index],
+                    None,
+                    None,
+                )?;
+            }
+        }
+        let selected_requests_admitted = !selection.requests.is_empty()
+            && selection.issues.is_empty()
+            && selected_source_cycles.is_empty()
+            && selection.requests.iter().all(|request| {
+                !request.ambiguous_source
+                    && manifest.paths[request.manifest_path_index].lookup_status
+                        == super::LookupStatus::OneArchiveCandidate
+            });
         let sources = selected
             .into_iter()
             .map(|key| {
@@ -407,7 +451,9 @@ impl Catalogue<'_> {
             configuration,
             sex,
             selected_edge_indices: selection.edges,
+            selected_source_cycles,
             requests: selection.requests,
+            selected_requests_admitted,
             issues: selection.issues,
             visits: selection.visits,
             equipment_selection_supported: false,

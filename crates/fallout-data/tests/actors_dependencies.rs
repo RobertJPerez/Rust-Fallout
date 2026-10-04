@@ -200,6 +200,16 @@ fn render_roles_follow_explicit_actor_links_and_sex_without_equipping_inventory_
         );
         assert!(!render.equipment_selection_supported);
         assert_eq!(render.manifest.cyclic_components.len(), 1);
+        assert_eq!(render.selected_source_cycles, vec![vec![1, 2]]);
+        assert!(!render.selected_requests_admitted);
+        assert_eq!(
+            render
+                .issues
+                .iter()
+                .filter(|issue| issue.code == "cyclic_selected_render_source")
+                .count(),
+            2
+        );
         assert!(
             render
                 .requests
@@ -610,6 +620,248 @@ fn render_requests_bind_overridden_heads_to_the_current_winning_body() {
                 .all(|source| source.key != &key(0x111))
         );
     });
+}
+
+#[test]
+fn render_admission_follows_winning_sex_race_and_model_overrides_only() {
+    use dependencies::{RenderRole, Sex};
+    let directory = tempfile::tempdir().unwrap();
+    let actor = |flags: u32, mask: u16, model: &[u8], race: u32, duplicate: bool| {
+        let mut configuration = [0; 24];
+        configuration[..4].copy_from_slice(&flags.to_le_bytes());
+        configuration[22..].copy_from_slice(&mask.to_le_bytes());
+        let mut fields = [
+            field(b"ACBS", &configuration),
+            field(b"DATA", &[0; 11]),
+            field(b"MODL", model),
+            word(b"RNAM", race),
+        ]
+        .concat();
+        if duplicate {
+            fields.extend(field(b"MODL", model));
+        }
+        fields
+    };
+    let race = |male: &[u8], female: &[u8]| {
+        [
+            field(b"NAM1", &[]),
+            field(b"MNAM", &[]),
+            word(b"INDX", 0),
+            field(b"MODL", male),
+            field(b"FNAM", &[]),
+            word(b"INDX", 0),
+            field(b"MODL", female),
+        ]
+        .concat()
+    };
+    fs::write(
+        directory.path().join("FalloutNV.esm"),
+        [
+            header(&[]),
+            disk(
+                b"NPC_",
+                0x100,
+                0,
+                15,
+                &actor(0, 0, b"BaseSkeleton.NIF\0", 0x140, false),
+            ),
+            disk(
+                b"RACE",
+                0x140,
+                0,
+                15,
+                &race(b"MaleA.NIF\0", b"FemaleA.NIF\0"),
+            ),
+            disk(
+                b"RACE",
+                0x141,
+                0,
+                15,
+                &race(b"MaleB.NIF\0", b"FemaleB.NIF\0"),
+            ),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let override_header = header(&["FalloutNV.esm"]);
+    let override_actor = disk(
+        b"NPC_",
+        0x100,
+        plugin::COMPRESSED,
+        15,
+        &actor(1, 0, b"WinningSkeleton.NIF\0", 0x141, false),
+    );
+    let race_offset = override_header.len() + override_actor.len();
+    fs::write(
+        directory.path().join("Override.esm"),
+        [
+            override_header.clone(),
+            override_actor,
+            disk(
+                b"RACE",
+                0x141,
+                0,
+                15,
+                &race(b"UnusedMale.NIF\0", b"WinningFemale.NIF\0"),
+            ),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    fs::create_dir(directory.path().join("Data")).unwrap();
+    let mut archive = dream_archive::Tes4BsaBuilder::fallout_new_vegas();
+    for path in [
+        "baseskeleton",
+        "winningskeleton",
+        "malea",
+        "femalea",
+        "maleb",
+        "femaleb",
+        "unusedmale",
+        "winningfemale",
+    ] {
+        archive
+            .add_bytes(
+                format!("meshes/{path}.nif"),
+                b"metadata only, no NIF decode",
+            )
+            .unwrap();
+    }
+    archive
+        .write_path(directory.path().join("Data/A.bsa"))
+        .unwrap();
+    let assets = ArchiveAssets::open_nv(directory.path()).unwrap();
+    for (phase, order, sex, expected) in [
+        (
+            "base",
+            vec!["FalloutNV.esm"],
+            Sex::Male,
+            vec![b"BaseSkeleton.NIF".as_slice(), b"MaleA.NIF".as_slice()],
+        ),
+        (
+            "override",
+            vec!["FalloutNV.esm", "Override.esm"],
+            Sex::Female,
+            vec![
+                b"WinningSkeleton.NIF".as_slice(),
+                b"WinningFemale.NIF".as_slice(),
+            ],
+        ),
+    ] {
+        let mut source = store(directory.path(), &order);
+        with_catalogue(&mut source, Default::default(), |_, catalogue| {
+            let render = catalogue
+                .render_manifest(&key(0x100), &assets, Default::default())
+                .unwrap();
+            assert_eq!(render.sex, Some(sex));
+            assert!(render.selected_requests_admitted && render.issues.is_empty());
+            assert!(render.selected_source_cycles.is_empty());
+            assert_eq!(
+                render
+                    .requests
+                    .iter()
+                    .map(|request| render.manifest.paths[request.manifest_path_index]
+                        .raw
+                        .as_slice())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                render
+                    .requests
+                    .iter()
+                    .map(|request| request.role)
+                    .collect::<Vec<_>>(),
+                [
+                    RenderRole::ActorModel,
+                    RenderRole::RaceBody { part_index: 0 }
+                ]
+            );
+            assert_eq!(
+                render
+                    .sources
+                    .iter()
+                    .map(|source| source.key.local_id)
+                    .collect::<Vec<_>>(),
+                if phase == "base" {
+                    vec![0x100, 0x140]
+                } else {
+                    vec![0x100, 0x141]
+                }
+            );
+            if phase == "override" {
+                assert_eq!(render.sources[0].source.plugin, "Override.esm");
+                assert_eq!(
+                    render.sources[0].header.offset,
+                    override_header.len() as u64
+                );
+                assert_eq!(render.sources[1].header.offset, race_offset as u64);
+            }
+            if let Some(root) = std::env::var_os("FALLOUT_ACTOR_RENDER_ADMISSION_EVIDENCE_DIR") {
+                let case = Path::new(&root).join(format!("authored-{phase}"));
+                assert!(case.is_absolute());
+                fs::create_dir(&case).unwrap();
+                fs::create_dir(case.join("Data")).unwrap();
+                for plugin in &order {
+                    fs::copy(
+                        directory.path().join(plugin),
+                        case.join("Data").join(plugin),
+                    )
+                    .unwrap();
+                }
+                fs::copy(directory.path().join("Data/A.bsa"), case.join("Data/A.bsa")).unwrap();
+                fs::write(case.join("order.json"), serde_json::to_vec(&order).unwrap()).unwrap();
+                fs::write(
+                    case.join("expected.json"),
+                    serde_json::to_vec_pretty(&render).unwrap(),
+                )
+                .unwrap();
+            }
+        });
+    }
+    let no_archives = tempfile::tempdir().unwrap();
+    let missing_assets = empty_assets(no_archives.path());
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &missing_assets, Default::default())
+            .unwrap();
+        assert!(render.issues.is_empty() && render.selected_source_cycles.is_empty());
+        assert!(!render.selected_requests_admitted);
+    });
+    // The same unique archive candidate cannot admit a repeated physical model.
+    for (mask, duplicate) in [(0, true), (0x40, false), (1, false)] {
+        fs::write(
+            directory.path().join("Other.esm"),
+            [
+                header(&["FalloutNV.esm"]),
+                disk(
+                    b"NPC_",
+                    0x100,
+                    0,
+                    15,
+                    &actor(1, mask, b"WinningSkeleton.NIF\0", 0x141, duplicate),
+                ),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let mut source = store(directory.path(), &["FalloutNV.esm", "Other.esm"]);
+        with_catalogue(&mut source, Default::default(), |_, catalogue| {
+            let render = catalogue
+                .render_manifest(&key(0x100), &assets, Default::default())
+                .unwrap();
+            assert!(!render.selected_requests_admitted);
+            if duplicate {
+                assert!(
+                    render
+                        .requests
+                        .iter()
+                        .any(|request| request.ambiguous_source)
+                );
+            }
+        });
+    }
 }
 
 fn field(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {

@@ -1291,6 +1291,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             package_capability,
             include_actor_context,
             equipment_item,
+            inventory_boot_request,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1307,6 +1308,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     package_capability,
                     include_actor_context,
                     equipment_item,
+                    inventory_boot_request: inventory_boot_request.as_deref(),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

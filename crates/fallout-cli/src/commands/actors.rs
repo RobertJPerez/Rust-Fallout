@@ -81,6 +81,8 @@ pub(crate) enum ActorsCommand {
         include_actor_context: bool,
         #[arg(long, requires = "explicit_subject")]
         equipment_item: Option<std::num::NonZeroU64>,
+        #[arg(long, requires = "explicit_subject")]
+        inventory_boot_request: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {

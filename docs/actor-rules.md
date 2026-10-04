@@ -293,3 +293,31 @@ the full independent reader and refuse execution. They retain 230 fields,
 original plugin/descriptor inputs and eight private tool/snapshot/order inputs
 keep their hashes. Evidence and earlier harness/oracle failures remain under
 `local/v3-act13-capability-20261004-01`; no gameplay behavior is accepted.
+# Private engineering actor inventory boot
+
+`actor_rules::inventory_boot::prepare` admits a current source-bound World,
+Content, actor catalogue, explicit actor base/owner and `Choice` records. Each
+choice names one physical CNTO field index, a positive host count and explicit
+canonical Facts. An optional signed source-count claim must match the source
+word; source counts remain separate from host counts. Distinct duplicate source
+entries stay distinct lots. COED source declarations remain in the full borrowed
+inventory definition and never supply automatic condition or ownership facts.
+Missing, deleted, null, wrong-kind and leveled item bindings refuse. Direct
+selection does not evaluate template inheritance, negative-count semantics,
+leveled rolls, respawn, default ammo, equipment or faithful actor initialization.
+
+The private plan pins the complete input canonical snapshot. Its consuming
+`apply_private` strictly restores a new World, refuses an initialized bank and
+uses the existing initialize/add-item APIs. It returns a native candidate
+snapshot and exact source-index-to-ItemId mapping only after every operation and
+output budget succeeds. A late failure drops the private world; input/live
+state is untouched. The plan has no deserialization or live partial-apply API.
+Bounds cover sources, physical fields/index admission, lots, fact links, opaque
+bytes, compact input/candidate snapshots and plan/result projections.
+
+`actor-package-context --inventory-boot-request choices.json --explicit-subject ID`
+reads bounded explicit choices and emits `actor_inventory_boot.candidate_snapshot`
+in the existing canonical snapshot schema. The result is engineering input and
+keeps `faithful_initialization_supported` false; the original loaded World is
+checked for equality before and after. The candidate can be cold restored by
+the existing strict native snapshot consumer.

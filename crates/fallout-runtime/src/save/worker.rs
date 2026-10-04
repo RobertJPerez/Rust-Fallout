@@ -242,6 +242,7 @@ mod tests {
         Captured {
             source_validation: Default::default(),
             snapshot: Snapshot {
+                reference_states: Vec::new(),
                 schema_version: crate::snapshot::SCHEMA_VERSION,
                 campaign: CampaignId::from_bytes([1; 16]).unwrap(),
                 state_revision: revision,

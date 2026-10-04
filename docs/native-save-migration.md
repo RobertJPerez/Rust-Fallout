@@ -1,7 +1,8 @@
 # Explicit native save migration
 
 `native-migrate-v2` imports the project's schema 2 native containers into a new
-schema 3 repository. It never modifies the input or adopts an existing folder.
+schema 4 repository. `native-migrate-v3` explicitly imports schema 3 containers.
+Neither modifies the input or adopts an existing folder.
 Normal native loading remains strict; unsupported schemas are not silently
 converted during play or previous-slot recovery.
 
@@ -26,6 +27,9 @@ cohort, script schemas, identities, persistent links and chronology. All prior
 canonical fields retain their values. The migration adds an item allocator at
 one and leaves inventory banks absent: old saves had no observed live inventory
 state. Empty initialized banks would invent a query result and are not inserted.
+Schema 3 import retains populated inventory and its item allocator. Both imports
+leave the new [reference pose/enable component](reference-state.md) unavailable;
+an explicit verified host input may initialize it after restore.
 
 The new repository retains campaign identity and revision. Its own publication
 generation starts at one because it is a separate repository; the original
@@ -36,7 +40,8 @@ validated host operations.
 The Rust API `save::format::migrate_v2` performs byte-level migration and returns
 the original metadata plus a current snapshot. Callers must still use
 `World::restore` before publishing it. The CLI completes that validation and
-publication workflow. No public API downgrades populated schema 3 state.
+publication workflow. `save::format::migrate_v3` follows the same workflow for
+schema 3. No public API downgrades populated canonical state.
 
 The source-bound foreign lifecycle test also imports a schema 2 fixture containing
 static, live and null references, placed ownership, event contexts and exact
@@ -58,6 +63,8 @@ field, performs a fresh-process restore and rejects malformed imports before
 repository creation. Independent C++ compares both containers' metadata and
 checksums. Its `--schema-2` option is explicit and checks container integrity only;
 it does not interpret the state JSON.
+The independent reader also accepts an explicit `--schema-3`; its default is the
+current schema 4. Earlier frozen binaries and receipts retain their scoped schema.
 
 This imports our native format. Bethesda `.fos`, NVSE cosaves and third-party DLL
 state remain separate work. Complete player/actor/quest/world persistence and

@@ -203,8 +203,6 @@ impl DialogueSources {
                 || cursor.speaker.as_ref() != speaker
                 || cursor.next_index == 0
                 || cursor.next_index >= members.len()
-                || members.get(cursor.next_index - 1) != Some(&cursor.last_key)
-                || members[cursor.next_index] <= cursor.last_key
             {
                 return Err(page_error(
                     "cursor does not match index/topic/speaker/progress",
@@ -225,6 +223,12 @@ impl DialogueSources {
             .ok_or_else(|| page_error("visit overflow"))?;
         if visits > limits.visited_members {
             return Err(page_error("visited member budget exceeded"));
+        }
+        // Admit the two progress witnesses before inspecting either member key.
+        if cursor.is_some_and(|cursor| {
+            members.get(start - 1) != Some(&cursor.last_key) || members[start] <= cursor.last_key
+        }) {
+            return Err(page_error("cursor canonical progress differs"));
         }
         let topic_bytes = key_copy_bytes(topic)?;
         let speaker_bytes = speaker.map(key_copy_bytes).transpose()?.unwrap_or(0);

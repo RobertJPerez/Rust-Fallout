@@ -321,6 +321,20 @@ fn all_page_ceilings_and_literal_exact_under_copy_visit_bounds() {
     let first = index
         .page(&key(0x100), Some(&key(0x400)), None, exact)
         .unwrap();
+    let minimal_visit_error = index
+        .page(
+            &key(0x100),
+            Some(&key(0x400)),
+            first.cursor(),
+            PageLimits {
+                visited_members: 1,
+                ..one()
+            },
+        )
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(minimal_visit_error.contains("visited member budget exceeded"));
     let final_limits = PageLimits {
         members: 2,
         visited_members: 12,

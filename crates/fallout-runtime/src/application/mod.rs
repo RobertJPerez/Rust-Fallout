@@ -21,9 +21,11 @@ use std::{
 static NEXT_HOST: AtomicU64 = AtomicU64::new(1);
 
 mod continuation;
+mod persistence;
 pub use continuation::{
     ContinueBoundary, ContinueReceipt, ContinueRequest, PreparedContinue, ScenePublisher,
 };
+pub use persistence::{SaveRequest, SaveSubmission};
 
 pub type Result<T> = std::result::Result<T, Failure>;
 
@@ -37,6 +39,8 @@ pub enum Failure {
     ItemSource(#[from] source_items::Failure),
     #[error(transparent)]
     Restore(#[from] crate::save::RestoreError),
+    #[error(transparent)]
+    SaveSubmission(#[from] Box<crate::save::SubmitFailure>),
     #[error("application selection belongs to an expired host or scene")]
     ExpiredSelection,
     #[error("application selection revision differs from the canonical world")]
@@ -160,6 +164,7 @@ pub struct Host<'a> {
     retained_bytes: usize,
     pending_continue: Option<ContinueRequest>,
     last_continue_request: u64,
+    last_save_request: u64,
 }
 impl<'a> Host<'a> {
     pub fn new(
@@ -184,6 +189,7 @@ impl<'a> Host<'a> {
             retained_bytes: 0,
             pending_continue: None,
             last_continue_request: 0,
+            last_save_request: 0,
         })
     }
     pub fn world(&self) -> &World<'a> {

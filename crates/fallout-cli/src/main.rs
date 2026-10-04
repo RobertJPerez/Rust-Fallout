@@ -538,6 +538,9 @@ enum Command {
         /// Resolve LTEX/TXST records and verify authored texture archive bytes.
         #[arg(long)]
         inspect_textures: bool,
+        /// Prepare exact one-LAND texture sources through bounded cancellable jobs.
+        #[arg(long, requires = "inspect_textures", conflicts_with = "body_cache")]
+        prepare_textures: bool,
         /// Expand authored quadrant alpha samples under the inspection blend model.
         #[arg(long)]
         inspect_blends: bool,
@@ -1667,6 +1670,7 @@ fn run(args: Args) -> Result<()> {
             reconstruct_heights,
             inspect_mesh,
             inspect_textures,
+            prepare_textures,
             inspect_blends,
             texture_cache,
             neighbor_editor_id,
@@ -1694,27 +1698,59 @@ fn run(args: Args) -> Result<()> {
                     plugin::Limits::default(),
                 )?
             };
-            let mut report = fallout_data::terrain::inspect_cell(
-                &mut store,
-                editor_id.as_bytes(),
-                body_root.as_deref().map(|root| (root, install.as_path())),
-            )?;
-            if inspect_textures {
+            let texture_plan = if prepare_textures {
+                let root = store.cell_by_editor_id(editor_id.as_bytes())?.0;
+                let assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
+                Some(fallout_data::terrain::preparation::TextureSourcePlan::load(
+                    &mut store,
+                    &root,
+                    assets.mounts(),
+                    Default::default(),
+                )?)
+            } else {
+                None
+            };
+            let mut legacy_report = if texture_plan.is_none() {
+                Some(fallout_data::terrain::inspect_cell(
+                    &mut store,
+                    editor_id.as_bytes(),
+                    body_root.as_deref().map(|root| (root, install.as_path())),
+                )?)
+            } else {
+                None
+            };
+            if inspect_textures && let Some(report) = &mut legacy_report {
                 let mut assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
                 report.texture_dependencies = Some(fallout_data::terrain::textures::inspect(
                     &mut store,
-                    &report,
+                    report,
                     &mut assets,
                     body_root.as_deref().map(|root| (root, install.as_path())),
                     texture_cache.as_deref(),
                     fallout_data::terrain::textures::Limits::default(),
                 )?);
             }
+            let report = texture_plan
+                .as_ref()
+                .map(|plan| plan.terrain())
+                .or(legacy_report.as_ref())
+                .expect("one terrain source report");
+            let texture_preparation = if let Some(plan) = &texture_plan {
+                let mut preparation = fallout_data::terrain::preparation::TexturePreparation::new(
+                    plan.clone(),
+                    &install,
+                    texture_cache.as_deref(),
+                    Default::default(),
+                )?;
+                Some(preparation.wait()?.publish_for(report)?)
+            } else {
+                None
+            };
             let comparison = oracle_report
                 .as_deref()
                 .map(|oracle| {
                     terrain_compare::compare(
-                        &report,
+                        report,
                         oracle,
                         body_root.as_deref().expect("required body cache"),
                         &install,
@@ -1731,7 +1767,14 @@ fn run(args: Args) -> Result<()> {
                     .as_ref()
                     .is_none_or(|textures| textures.failures == 0)
                 && comparison.as_ref().is_none_or(|result| result.all_equal);
-            let mut value = serde_json::to_value(&report)?;
+            let clean = clean
+                && texture_preparation
+                    .as_ref()
+                    .is_none_or(|receipt| receipt.plan().texture_sources.failures == 0);
+            let mut value = serde_json::to_value(report)?;
+            if let Some(receipt) = texture_preparation {
+                value["texture_preparation"] = serde_json::to_value(receipt)?;
+            }
             if inspect_blends {
                 let mut maps = Vec::new();
                 for entry in &report.landscapes {
@@ -1767,7 +1810,7 @@ fn run(args: Args) -> Result<()> {
                 value["source_meshes"] = meshes.into();
             }
             if reconstruct_heights {
-                let surface = fallout_data::terrain::reconstruct_cell(&report)?;
+                let surface = fallout_data::terrain::reconstruct_cell(report)?;
                 let neighbor = if let Some(neighbor_id) = neighbor_editor_id {
                     Some(fallout_data::terrain::inspect_cell(
                         &mut store,

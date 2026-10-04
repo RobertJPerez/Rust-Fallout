@@ -1,4 +1,4 @@
-use super::{Fields, decode};
+use super::{Fields, decode, preparation::budget::Budget};
 use crate::{
     Error, Result, cache,
     identity::{FormKey, ProfileId},
@@ -42,22 +42,17 @@ pub struct TerrainReport {
     pub texture_dependencies: Option<super::textures::Report>,
 }
 
-fn entry(
-    store: &mut RecordStore,
-    key: FormKey,
-    location: Location,
-    cache: Option<(&Path, &Path)>,
-) -> Result<RecordEntry> {
-    entry_bounded(store, key, location, cache, 64 * 1024 * 1024)
-}
-
-pub(super) fn entry_bounded(
+pub(super) fn entry_admitted(
     store: &mut RecordStore,
     key: FormKey,
     location: Location,
     cache: Option<(&Path, &Path)>,
     maximum: usize,
+    mut budget: Option<&mut Budget>,
 ) -> Result<RecordEntry> {
+    if let Some(budget) = &mut budget {
+        budget.entry(&key, store.source_name(location))?;
+    }
     let header = store.definition(location).header.clone();
     let source_plugin = store.source_name(location).to_owned();
     let source_sha256 = store.source_digest(location)?;
@@ -74,7 +69,13 @@ pub(super) fn entry_bounded(
     if out.header.flags & plugin::DELETED != 0 {
         return Ok(out);
     }
+    let maximum = budget
+        .as_ref()
+        .map_or(maximum, |budget| budget.maximum(maximum));
     let record = store.read_bounded(location, maximum)?;
+    if let Some(budget) = &mut budget {
+        budget.body(&record, &out.source_plugin)?;
+    }
     let fields = decode(&record, &out.source_plugin)?;
     out.decoded_sha256 = Some(format!("{:x}", Sha256::digest(&record.payload)));
     match &fields {
@@ -160,6 +161,15 @@ pub fn inspect_cell_key(
     cell_key: &FormKey,
     body_cache: Option<(&Path, &Path)>,
 ) -> Result<TerrainReport> {
+    inspect_cell_key_admitted(store, cell_key, body_cache, None)
+}
+
+pub(super) fn inspect_cell_key_admitted(
+    store: &mut RecordStore,
+    cell_key: &FormKey,
+    body_cache: Option<(&Path, &Path)>,
+    mut budget: Option<&mut Budget>,
+) -> Result<TerrainReport> {
     if let Some((root, source_tree)) = body_cache {
         cache::validate_root(root, source_tree)?;
     }
@@ -186,7 +196,14 @@ pub fn inspect_cell_key(
             next_world.status
         )));
     }
-    let mut cell = entry(store, cell_key.clone(), cell_location, body_cache)?;
+    let mut cell = entry_admitted(
+        store,
+        cell_key.clone(),
+        cell_location,
+        body_cache,
+        64 * 1024 * 1024,
+        budget.as_deref_mut(),
+    )?;
     let Some(Fields::Cell(fields)) = cell.fields.as_ref() else {
         unreachable!("selected CELL decoder")
     };
@@ -221,13 +238,20 @@ pub fn inspect_cell_key(
         if !visited.insert(key.clone()) {
             return Err(Error::Resolution("cycle in parent worldspace chain".into()));
         }
-        if visited.len() > 256 {
+        if visited.len() > budget.as_ref().map_or(256, |budget| budget.limits.worlds) {
             return Err(Error::Resolution(
                 "parent worldspace chain exceeds inspection budget".into(),
             ));
         }
         let location = store.winners[&key];
-        let world = entry(store, key, location, body_cache)?;
+        let world = entry_admitted(
+            store,
+            key,
+            location,
+            body_cache,
+            64 * 1024 * 1024,
+            budget.as_deref_mut(),
+        )?;
         let parent = world.links.get("WNAM").cloned();
         world_chain.push(world);
         match parent {
@@ -260,12 +284,34 @@ pub fn inspect_cell_key(
                     "winning LAND world group differs from selected CELL".into(),
                 ));
             }
+            if budget.is_some() && !selected.is_empty() {
+                return Err(Error::Unsupported(
+                    "terrain preparation requires exactly one winning present LAND".into(),
+                ));
+            }
             selected.push((key.clone(), *location));
         }
     }
+    if budget.is_some()
+        && (selected.len() != 1
+            || store.definition(selected[0].1).header.flags & plugin::DELETED != 0)
+    {
+        return Err(Error::Unsupported(
+            "terrain preparation requires exactly one winning present LAND".into(),
+        ));
+    }
     let landscapes = selected
         .into_iter()
-        .map(|(key, location)| entry(store, key, location, body_cache))
+        .map(|(key, location)| {
+            entry_admitted(
+                store,
+                key,
+                location,
+                body_cache,
+                64 * 1024 * 1024,
+                budget.as_deref_mut(),
+            )
+        })
         .collect::<Result<Vec<_>>>()?;
     let link_failures = std::iter::once(&cell)
         .chain(&world_chain)

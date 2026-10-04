@@ -583,7 +583,13 @@ fn drive_loading(
         display.0 = None;
         state.epoch = state.epoch.saturating_add(1);
         match phase {
-            Phase::Preparing(mut job) | Phase::Draining(mut job) => job.cancel(),
+            Phase::Preparing(mut job) | Phase::Draining(mut job) => {
+                job.cancel();
+                // Retain a result queued before close. Its potentially large
+                // draw payload belongs to bounded retirement or app teardown,
+                // never an implicit receiver drop inside this window update.
+                state.phase = Phase::Draining(job);
+            }
             Phase::Uploading(mut queue)
             | Phase::Ready(mut queue)
             | Phase::Disposing(mut queue, _) => {
@@ -1204,7 +1210,7 @@ mod tests {
         app.update();
         assert!(matches!(
             app.world().resource::<Loading>().phase,
-            Phase::Cancelled
+            Phase::Draining(_)
         ));
         assert_eq!(app.world().resource::<Loading>().epoch, 8);
         assert_eq!(

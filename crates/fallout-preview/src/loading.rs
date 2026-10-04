@@ -261,6 +261,57 @@ mod tests {
     }
 
     #[test]
+    fn primary_close_retains_queued_scene_for_bounded_retirement_or_app_teardown() {
+        use bevy::{
+            prelude::*,
+            window::{PrimaryWindow, WindowCloseRequested},
+        };
+        let mut job = Job::start(7, |_| Ok(crate::tests::ready_fixture(7))).unwrap();
+        // The worker has returned, with its full unadmitted draw scene queued.
+        job.worker.take().unwrap().join().unwrap();
+        let mut app = crate::tests::loading_app(crate::Phase::Preparing(job));
+        let window = app
+            .world_mut()
+            .query_filtered::<Entity, With<PrimaryWindow>>()
+            .single(app.world())
+            .unwrap();
+        app.world_mut()
+            .write_message(WindowCloseRequested { window });
+        app.update();
+        assert!(
+            matches!(
+                app.world().resource::<crate::Loading>().phase,
+                crate::Phase::Draining(_)
+            ),
+            "close released the queued scene directly inside its update"
+        );
+        assert_eq!(app.world().resource::<crate::Loading>().epoch, 8);
+        let mut updates = 0;
+        while !matches!(
+            app.world().resource::<crate::Loading>().phase,
+            crate::Phase::Cancelled
+        ) {
+            assert!(updates < 32, "controlled retirement did not complete");
+            app.update();
+            updates += 1;
+            assert!(!matches!(
+                app.world().resource::<crate::Loading>().phase,
+                crate::Phase::Ready(_)
+            ));
+            assert!(app.world().resource::<Assets<Mesh>>().is_empty());
+            assert_eq!(app.world().resource::<crate::Capture>().frame, 63);
+        }
+        assert!(
+            updates > 1,
+            "queued source scene bypassed retirement batches"
+        );
+        assert_eq!(
+            *app.world().resource::<crate::input::Context>(),
+            crate::input::Context::Suspended
+        );
+    }
+
+    #[test]
     fn dropping_active_request_returns_before_gated_decoder_finishes() {
         let (entered, started) = mpsc::channel();
         let (release, gate) = mpsc::channel();

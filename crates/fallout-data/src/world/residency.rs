@@ -1,6 +1,7 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
+mod textures;
 use super::{
     dependencies,
     preparation::{CellModelPlan, PlanReceipt},
@@ -17,6 +18,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+pub use textures::{ResidentTextures, TextureLimits, TexturePlan, TextureReceipt, TextureState};
 
 const POLL_WORK: usize = 8;
 const EMPTY_IDENTITY: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -25,6 +27,8 @@ const EMPTY_IDENTITY: &str = "00000000000000000000000000000000000000000000000000
 pub struct Limits {
     pub workers: usize,
     pub models: usize,
+    /// Combined queued/running/retained model and texture payload reservations.
+    pub resources: usize,
     pub source_bytes: usize,
     pub retained_plans: usize,
     pub plan_metadata_bytes: usize,
@@ -35,6 +39,7 @@ impl Default for Limits {
         Self {
             workers: 2,
             models: 1024,
+            resources: 1024,
             source_bytes: 256 * 1024 * 1024,
             retained_plans: 2,
             plan_metadata_bytes: 32 * 1024 * 1024,
@@ -113,6 +118,7 @@ pub struct ResidentSources {
     ticket: Ticket,
     models: Vec<Artifact>,
     _plan_pin: Arc<PlanPin>,
+    limits: Limits,
 }
 /// A source lease may expose borrowed provenance and placement data, but never
 /// a cloneable resource-bearing plan. This view cannot outlive ResidentSources
@@ -165,6 +171,12 @@ pub struct Snapshot {
     pub generation: u64,
     pub stage: Stage,
     pub completed_models: usize,
+    pub completed_textures: usize,
+    pub requested_textures: usize,
+    pub texture_state: TextureState,
+    pub texture_identity: Option<String>,
+    pub complete_texture_coverage: bool,
+    pub texture_reference_coverage_verified: bool,
     pub requested_models: usize,
     pub outstanding: usize,
     pub pinned_source_bytes: usize,
@@ -201,6 +213,7 @@ pub struct CellResidency {
     failure: Option<String>,
     backpressured: bool,
     render_published: bool,
+    textures: Option<textures::Batch>,
     #[cfg(test)]
     pause: Option<Arc<resource_jobs::tests::Pause>>,
 }
@@ -211,6 +224,9 @@ impl CellResidency {
             || limits.workers > ceiling.workers
             || limits.models == 0
             || limits.models > ceiling.models
+            || limits.resources == 0
+            || limits.resources > ceiling.resources
+            || limits.models > limits.resources
             || limits.source_bytes == 0
             || limits.source_bytes > ceiling.source_bytes
             || limits.retained_plans == 0
@@ -235,7 +251,7 @@ impl CellResidency {
         let jobs = ResourceJobs::new(
             resource_jobs::Limits {
                 workers: limits.workers,
-                outstanding: limits.models,
+                outstanding: limits.resources,
                 decoded_bytes: limits.source_bytes,
             },
             generation.clone(),
@@ -260,6 +276,7 @@ impl CellResidency {
             failure: None,
             backpressured: false,
             render_published: false,
+            textures: None,
             #[cfg(test)]
             pause: None,
         })
@@ -341,13 +358,22 @@ impl CellResidency {
     /// This stage means archive decoding completed, not NIF/physics/GPU readiness.
     pub fn poll(&mut self) -> JobResult<Snapshot> {
         if self.stage == Stage::Unloading {
+            let usage = self.plan_usage.lock().map_err(|_| JobError::Closed)?;
             if self.jobs.usage().outstanding == 0
-                && self.plan_usage.lock().map_err(|_| JobError::Closed)?.plans == 0
+                && usage.plans == 0
+                && usage.metadata == 0
+                && usage.mapped == 0
             {
                 self.stage = Stage::Unrequested;
             }
-        } else if self.stage == Stage::IoPending {
-            let result = self.poll_io();
+        } else if self.stage == Stage::IoPending
+            || self.textures.as_ref().is_some_and(textures::Batch::pending)
+        {
+            let result = if self.stage == Stage::IoPending {
+                self.poll_io()
+            } else {
+                self.poll_textures()
+            };
             if let Err(error) = result {
                 self.ticket
                     .as_ref()
@@ -413,6 +439,7 @@ impl CellResidency {
                     .map(|value| value.expect("all source completions admitted"))
                     .collect(),
                 _plan_pin: self.plan_pin.as_ref().expect("active plan pin").clone(),
+                limits: self.limits,
             }));
             self.stage = Stage::Decoded;
         }
@@ -448,6 +475,13 @@ impl CellResidency {
     }
     pub fn report_dependencies(&mut self, ticket: &Ticket, readiness: Readiness) -> JobResult<()> {
         self.validate(ticket)?;
+        if readiness == Readiness::Ready
+            && !self.textures.as_ref().is_some_and(textures::Batch::ready)
+        {
+            return Err(JobError::Invalid(
+                "cell texture plan/payloads are not ready".into(),
+            ));
+        }
         self.dependencies = readiness;
         self.stage = if readiness == Readiness::Ready {
             if self.render_published {
@@ -515,6 +549,7 @@ impl CellResidency {
     }
     fn clear_work(&mut self) {
         self.render_published = false;
+        self.textures = None;
         for (_, handle) in self.pending.drain(..) {
             handle.cancel();
         }
@@ -556,6 +591,21 @@ impl CellResidency {
                 .plan
                 .as_ref()
                 .map_or(0, |plan| plan.receipt().requests.len()),
+            completed_textures: self.textures.as_ref().map_or(0, textures::Batch::completed),
+            requested_textures: self.textures.as_ref().map_or(0, textures::Batch::requested),
+            texture_state: self
+                .textures
+                .as_ref()
+                .map_or(TextureState::Unrequested, textures::Batch::state),
+            texture_identity: self
+                .textures
+                .as_ref()
+                .map(|batch| batch.plan.receipt().identity.clone()),
+            complete_texture_coverage: self.textures.as_ref().is_some_and(textures::Batch::ready),
+            texture_reference_coverage_verified: self
+                .textures
+                .as_ref()
+                .is_some_and(|batch| batch.plan.receipt().reference_coverage_verified),
             outstanding: usage.outstanding,
             pinned_source_bytes: usage.decoded_bytes,
             retained_plans: plan_usage.plans,
@@ -568,6 +618,9 @@ impl CellResidency {
             behavior: self.behavior,
             simulation_ready: decoded
                 && complete_model_coverage
+                && self.textures.as_ref().is_some_and(|batch| {
+                    batch.ready() && batch.plan.receipt().reference_coverage_verified
+                })
                 && self.dependencies == Readiness::Ready
                 && self.collision == Readiness::Ready
                 && self.behavior == Readiness::Ready,

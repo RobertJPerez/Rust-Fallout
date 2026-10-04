@@ -344,6 +344,7 @@ fn schema_two_migration_preserves_all_old_state_and_leaves_inventory_unknown() {
     let object = old.as_object_mut().unwrap();
     object.remove("next_item");
     object.remove("inventory_banks");
+    object.remove("reference_states");
     object.insert("schema_version".into(), 2.into());
     let bytes = serde_json::to_vec(&old).unwrap();
     assert!(Snapshot::decode(&bytes, Limits::default()).is_err());

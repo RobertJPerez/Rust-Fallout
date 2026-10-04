@@ -12,6 +12,7 @@ pub(super) enum Schema {
     Current,
     V1,
     V2,
+    V3,
 }
 
 #[derive(Clone, Copy)]
@@ -28,6 +29,7 @@ enum Shape {
     Bytes,
     OptionalLink,
     References,
+    ReferenceStates,
     Instances,
     Instance,
     Locals,
@@ -45,6 +47,7 @@ enum Budget {
     Links,
     Bytes,
     References,
+    ReferenceStates,
     Instances,
     Locals,
     Events,
@@ -60,6 +63,7 @@ impl Shape {
             Self::Extras => (Self::Extra, Budget::Links),
             Self::Bytes => (Self::Other, Budget::Bytes),
             Self::References => (Self::Other, Budget::References),
+            Self::ReferenceStates => (Self::Other, Budget::ReferenceStates),
             Self::Instances => (Self::Instance, Budget::Instances),
             Self::Locals => (Self::Other, Budget::Locals),
             Self::Events => (Self::Event, Budget::Events),
@@ -70,7 +74,8 @@ impl Shape {
 
     fn field(self, name: &str) -> Self {
         match (self, name) {
-            (Self::Snapshot(Schema::Current), "inventory_banks") => Self::Banks,
+            (Self::Snapshot(Schema::Current | Schema::V3), "inventory_banks") => Self::Banks,
+            (Self::Snapshot(Schema::Current), "reference_states") => Self::ReferenceStates,
             (Self::Snapshot(_), "references") => Self::References,
             (Self::Snapshot(_), "instances") => Self::Instances,
             (Self::Snapshot(_), "pending_events") => Self::Events,
@@ -92,14 +97,15 @@ impl Shape {
     // existing DTO field order, including each legacy schema's distinct order.
     fn position(self, index: usize) -> Self {
         match (self, index) {
-            (Self::Snapshot(Schema::Current), 6) => Self::Banks,
-            (Self::Snapshot(Schema::Current), 11)
+            (Self::Snapshot(Schema::Current | Schema::V3), 6) => Self::Banks,
+            (Self::Snapshot(Schema::Current), 14) => Self::ReferenceStates,
+            (Self::Snapshot(Schema::Current | Schema::V3), 11)
             | (Self::Snapshot(Schema::V1), 7)
             | (Self::Snapshot(Schema::V2), 9) => Self::References,
-            (Self::Snapshot(Schema::Current), 12)
+            (Self::Snapshot(Schema::Current | Schema::V3), 12)
             | (Self::Snapshot(Schema::V1), 8)
             | (Self::Snapshot(Schema::V2), 10) => Self::Instances,
-            (Self::Snapshot(Schema::Current), 13)
+            (Self::Snapshot(Schema::Current | Schema::V3), 13)
             | (Self::Snapshot(Schema::V1), 9)
             | (Self::Snapshot(Schema::V2), 11) => Self::Events,
             (Self::Bank, 1) => Self::Items,
@@ -126,6 +132,7 @@ struct Counts {
     item_links: usize,
     item_bytes: usize,
     references: usize,
+    reference_states: usize,
     instances: usize,
     locals: usize,
     events: usize,
@@ -189,6 +196,11 @@ impl Scan {
             Budget::References => {
                 increment(&mut c.references, l.max_references, "saved references")
             }
+            Budget::ReferenceStates => increment(
+                &mut c.reference_states,
+                l.max_references,
+                "saved reference states",
+            ),
             Budget::Instances => increment(&mut c.instances, l.max_instances, "saved instances"),
             Budget::Locals => increment(&mut c.locals, l.max_locals, "saved locals"),
             Budget::Events => increment(&mut c.events, l.max_pending_events, "saved events"),

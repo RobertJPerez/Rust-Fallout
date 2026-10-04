@@ -1,4 +1,4 @@
-//! Explicit schema-2 native import. Original files remain read-only inputs.
+//! Explicit schema-2/3 native import. Original files remain read-only inputs.
 use super::{Result, inspection_input::Order};
 use fallout_data::{baseline, loaded_scripts};
 use fallout_runtime::{
@@ -15,7 +15,26 @@ pub(super) fn import(
     input: &Path,
     destination: &Path,
 ) -> Result<Value> {
-    eprintln!("Native migration: validating schema-2 container and exact source cohort...");
+    import_schema(install, order_path, input, destination, 2)
+}
+pub(super) fn import_v3(
+    install: &Path,
+    order_path: &Path,
+    input: &Path,
+    destination: &Path,
+) -> Result<Value> {
+    import_schema(install, order_path, input, destination, 3)
+}
+fn import_schema(
+    install: &Path,
+    order_path: &Path,
+    input: &Path,
+    destination: &Path,
+    source_schema: u32,
+) -> Result<Value> {
+    eprintln!(
+        "Native migration: validating schema-{source_schema} container and exact source cohort..."
+    );
     let limits = Limits::default();
     // Retain the write-denying input handle through restoration and publication.
     let mut source = baseline::open_source(input)?;
@@ -33,7 +52,11 @@ pub(super) fn import(
     if bytes.len() > maximum {
         return Err("Legacy native file exceeds byte budget".into());
     }
-    let migration = format::migrate_v2(&bytes, limits)?;
+    let migration = match source_schema {
+        2 => format::migrate_v2(&bytes, limits)?,
+        3 => format::migrate_v3(&bytes, limits)?,
+        _ => return Err("Unsupported explicit migration".into()),
+    };
     let source_metadata = migration.source_metadata;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, None)?;
@@ -59,11 +82,12 @@ pub(super) fn import(
     }
     let encoded = expected.encode(limits.max_snapshot_bytes)?;
     Ok(
-        json!({"schema_version":1,"profile":"nv-original","source_state_schema":2,"target_state_schema":expected.schema_version,
+        json!({"schema_version":1,"profile":"nv-original","source_state_schema":source_schema,"target_state_schema":expected.schema_version,
         "source_metadata":source_metadata,"new_write":receipt,"snapshot_bytes":encoded.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&encoded)),
         "instances":world.instance_count(),"references":world.reference_count(),"pending_events":world.pending_events().len(),
         "inventory_banks":expected.inventory_banks.len(),"next_item":expected.next_item,"source_bound_restore":true,"canonical_state_round_trip_equal":true,
-        "source_opened_read_only":true,"scope":"Explicit import of our schema-2 native container into a new repository; prior state preserved, inventories uninitialized",
+        "reference_states":expected.reference_states.len(),
+        "source_opened_read_only":true,"scope":"Explicit legacy native import into a new repository; existing state preserved, unavailable components uninitialized",
         "original_live_values_captured":false,"retail_save_compatibility":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
     )
 }

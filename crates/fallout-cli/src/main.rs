@@ -160,6 +160,9 @@ enum Command {
         /// Admit the raw weight sum within this absolute tolerance; never normalize.
         #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
         pose_weight_tolerance: Option<f64>,
+        /// Deform one skin with an exact same-container, explicit-time channel.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings"])]
+        sampled_pose_request: Option<PathBuf>,
     },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
@@ -1996,7 +1999,30 @@ fn run(args: Args) -> Result<()> {
             include_bindings,
             pose_geometry,
             pose_weight_tolerance,
+            sampled_pose_request,
         } => {
+            if let Some(request) = sampled_pose_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_sampled_pose(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source-linked sampled skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
             if let Some(geometry) = pose_geometry {
                 let tolerance = pose_weight_tolerance.ok_or("pose weight tolerance missing")?;
                 let report = nif_skin_inspection::inspect_pose(&input, geometry, tolerance)?;

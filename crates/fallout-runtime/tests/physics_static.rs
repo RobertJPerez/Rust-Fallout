@@ -456,6 +456,241 @@ fn first_ray_cli_fixture_export() {
     file.write_all(&container(&first_literal_blocks())).unwrap();
 }
 
+#[test]
+fn source_sphere_overlap_refuses_rounded_squared_outside_point() {
+    // Independent rational squared distance1+2^-54 exceeds source radius1.
+    // This must never become an overlap witness at the unchanged source point.
+    let scene = scene(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))]);
+    let result = scene.overlap_sphere([1., 2f64.powi(-27), 0.], 0., QueryBudget::default());
+    assert!(
+        matches!(result, Err(QueryError::Invalid(_))),
+        "rounded outside point falsely admitted: {result:?}"
+    );
+}
+
+#[test]
+fn sphere_overlap_raw_scale_axis_and_two_original_radius_family() {
+    //147 exact Fraction cases retained privately:84 outside rounded norms,
+    //42 axis radius gaps and21 real overlaps erased by rounded radius sums.
+    for exponent in [-149, -80, -40, 0, 40, 80, 120] {
+        let source = if exponent == -149 {
+            f32::from_bits(1)
+        } else {
+            2f32.powi(exponent)
+        };
+        let radius = f64::from(source);
+        let scene = scene(&[
+            ("bhkRigidBody", body(1)),
+            ("bhkSphereShape", sphere(source)),
+        ]);
+        for axis in 0..3 {
+            let rotate = |p: [f64; 3]| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]];
+            for sx in [-1., 1.] {
+                for sy in [-1., 1.] {
+                    let p = rotate([sx * radius, sy * radius * 2f64.powi(-27), 0.]);
+                    assert!(
+                        matches!(
+                            scene.overlap_sphere(p, 0., QueryBudget::default()),
+                            Err(QueryError::Invalid(_))
+                        ),
+                        "outside exponent={exponent} axis={axis} sx={sx} sy={sy}"
+                    );
+                }
+                let p = rotate([sx * 2. * radius, 0., 0.]);
+                let query = radius * 1f64.next_down();
+                assert!(
+                    scene
+                        .overlap_sphere(p, query, QueryBudget::default())
+                        .unwrap()
+                        .is_empty(),
+                    "exact axis radius gap exponent={exponent} axis={axis}"
+                );
+            }
+            let p = rotate([2. * radius, radius * 2f64.powi(-25), 0.]);
+            let query = radius * 1f64.next_up();
+            assert!(
+                matches!(
+                    scene.overlap_sphere(p, query, QueryBudget::default()),
+                    Err(QueryError::Invalid(_))
+                ),
+                "lost overlap exponent={exponent} axis={axis}"
+            );
+        }
+    }
+}
+
+#[test]
+fn sphere_overlap_closed_contacts_subnormal_points_and_metadata_remain_available() {
+    let five = scene(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(5.))]);
+    for (p, r, count) in [
+        ([3., 4., 0.], 0., 1),
+        ([0., -5., 0.], 0., 1),
+        ([0.; 3], 0., 1),
+        ([0., 0., 6.], 1., 1),
+        ([0., 0., 6f64.next_up()], 1., 0),
+        ([5f64.next_up(), 0., 0.], 0., 0),
+    ] {
+        let hits = five.overlap_sphere(p, r, QueryBudget::default()).unwrap();
+        assert_eq!(hits.len(), count);
+        if let Some(hit) = hits.first() {
+            assert_eq!(hit.position, p);
+            assert_eq!(hit.material, 17);
+            assert_eq!(hit.body_filter.flags_and_parts, 0xe7);
+            assert_eq!(hit.body_filter.group, 0x1234);
+            assert_eq!(hit.authored_shell_radius, 0.);
+        }
+    }
+    let point = scene(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(0.))]);
+    let tiny = f64::from_bits(1);
+    for (p, r, count) in [
+        ([0.; 3], 0., 1),
+        ([tiny, 0., 0.], 0., 0),
+        ([-tiny, 0., 0.], 0., 0),
+        ([tiny, 0., 0.], tiny, 1),
+        ([tiny * 2., 0., 0.], tiny, 0),
+        ([tiny, tiny, 0.], 0., 0),
+    ] {
+        assert_eq!(
+            point
+                .overlap_sphere(p, r, QueryBudget::default())
+                .unwrap()
+                .len(),
+            count
+        );
+    }
+    assert!(matches!(
+        point.overlap_sphere([tiny, tiny, 0.], tiny, QueryBudget::default()),
+        Err(QueryError::Invalid(_))
+    ));
+}
+fn overlap_mixed_blocks() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = vec![("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))];
+    for _ in 0..7 {
+        blocks.push(("bhkRigidBody", body(9)));
+    }
+    blocks.push(("bhkBoxShape", bx()));
+    blocks
+}
+#[test]
+fn sphere_overlap_uncertainty_discards_earlier_indexed_and_unindexed_box_hits() {
+    let (_, collision) = nif_collision::decode(
+        &container(&overlap_mixed_blocks()),
+        "earlier boxes before uncertain sphere overlap",
+    )
+    .unwrap();
+    let p = [1., 2f64.powi(-27), 0.];
+    for boxes in [1, 7] {
+        let mut placements: Vec<_> = (2..2 + boxes)
+            .map(|body_block| BodyPlacement {
+                body_block,
+                ..placement()
+            })
+            .collect();
+        let earlier =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        assert_eq!(
+            earlier
+                .overlap_sphere(p, 0., QueryBudget::default())
+                .unwrap()
+                .len(),
+            boxes as usize
+        );
+        placements.push(placement());
+        let scene =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        assert!(matches!(
+            scene.overlap_sphere(p, 0., QueryBudget::default()),
+            Err(QueryError::Invalid(_))
+        ));
+        assert!(matches!(
+            scene.overlap_sphere(
+                p,
+                0.,
+                QueryBudget {
+                    hits: 0,
+                    ..QueryBudget::default()
+                }
+            ),
+            Err(QueryError::Budget("query hits"))
+        ));
+        assert!(matches!(
+            scene.overlap_sphere(
+                p,
+                0.,
+                QueryBudget {
+                    primitive_tests: 0,
+                    ..QueryBudget::default()
+                }
+            ),
+            Err(QueryError::Budget(_))
+        ));
+    }
+    let mut placements: Vec<_> = (2..9)
+        .map(|body_block| BodyPlacement {
+            body_block,
+            attachment_to_source: Affine {
+                rows: [[-2., 0., 0., 0.], [0., 2., 0., 0.], [0., 0., 2., 0.]],
+            },
+            ..placement()
+        })
+        .collect();
+    placements.push(BodyPlacement {
+        attachment_to_source: placements[0].attachment_to_source,
+        ..placement()
+    });
+    let reflected =
+        StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+    assert!(matches!(
+        reflected.overlap_sphere([-2. * p[0], 2. * p[1], 0.], 0., QueryBudget::default()),
+        Err(QueryError::Invalid(_))
+    ));
+}
+
+#[test]
+#[ignore = "explicit private corrected sphere-overlap source fixture export"]
+fn sphere_overlap_cli_fixture_export() {
+    use std::io::Write;
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_SPHERE_OVERLAP_FIXTURE").unwrap());
+    std::fs::create_dir(&root).unwrap();
+    for exponent in [-149, -80, -40, 0, 40, 80, 120] {
+        let radius = if exponent == -149 {
+            f32::from_bits(1)
+        } else {
+            2f32.powi(exponent)
+        };
+        let name = format!("sphere-{exponent}.nif");
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(root.join(name))
+            .unwrap();
+        file.write_all(&container(&[
+            ("bhkRigidBody", body(1)),
+            ("bhkSphereShape", sphere(radius)),
+        ]))
+        .unwrap();
+    }
+    for (name, blocks) in [
+        (
+            "sphere-five.nif",
+            vec![("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(5.))],
+        ),
+        (
+            "point.nif",
+            vec![("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(0.))],
+        ),
+        ("mixed-boxes.nif", overlap_mixed_blocks()),
+    ] {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(root.join(name))
+            .unwrap();
+        file.write_all(&container(&blocks)).unwrap();
+    }
+}
+
 fn shape_list(children: &[u32]) -> Vec<u8> {
     let mut list = Vec::new();
     words(&mut list, &[children.len() as u32]);

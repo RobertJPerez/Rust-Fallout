@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "revision": "6adac2e7e6009ee2aef4437c6e813b9c38e1e418",
+  "promoted_merge_revision": "ced661b738bd6608667f21e47aec94bb94550844",
+  "scope": "Combined engineering checks; staged instance initialization, restored native query inspection, actor source dependencies/voice observations, prepared pose batches, source-qualified static collision and NAVM graph queries.",
+  "source_manifest_sha256": "9c13236149d6592d92b4eef045bfbc31f07cfd9b8e5646e32e852855cbabf8cc",
+  "rust_passing_results": 1043,
+  "ignored_helpers": 28,
+  "rust_result_lines": 112,
+  "commands": [
+    {
+      "name": "rust",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "91aaf3d2b6e76ac33fdbd0344515d5d1e10f6a68a338b74e6c238262ef611f70"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "88b37491d2b230c7ba30ca1a36768ede2d87d16adbc93a92e01965b02e8d2fcc"
+    },
+    {
+      "name": "format",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer-build",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "build",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--bins",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "bb36382f9a6f77e9a091c64821a0f4c8d821f9ba9abf8c98671274d35b96ae6c"
+    }
+  ],
+  "binaries": {
+    "fallout": {
+      "bytes": 18421760,
+      "sha256": "4aaa46ffac8dcff49135d796aa52f0e81e75401d41075d559b7ab66fdb8cf515"
+    },
+    "fallout-evidence": {
+      "bytes": 8749568,
+      "sha256": "084ce408eb55b95536314243a94e982aa3fe44bba1dfa2209d3ea3cd92c2780a"
+    },
+    "fallout-playtest": {
+      "bytes": 2137088,
+      "sha256": "ecba86bb83788312ca221b9055d139368128b3fedf45f042163a8d782412eddf"
+    },
+    "fallout-preview": {
+      "bytes": 101652480,
+      "sha256": "fe1341ccbbafd518dcf3a1855fb8b6c146d050ef199157fc61fb85096a9a2dae"
+    },
+    "fallout-tests": {
+      "bytes": 5963776,
+      "sha256": "22572f37d2d4bd86ce6b3e2b0afc00576829933b50ea1a58c3f5e4fe131b82e8"
+    },
+    "fallout_evidence-tests": {
+      "bytes": 1206784,
+      "sha256": "b0725657136a4c9a0fd67532da421762bdd2c1a74299a0587d0d93fb967bae00"
+    },
+    "fallout_playtest-tests": {
+      "bytes": 733696,
+      "sha256": "7848a94eb97303a5c8e00c9412be8bd96d95bae72ba4da9eefd6d50730dc7ad3"
+    },
+    "fallout_data-tests": {
+      "bytes": 3939328,
+      "sha256": "93e7c534f987949406e3a5ce3799028f94a9f072d1c62cb8604eaeb9ae151b17"
+    },
+    "fallout_preview-tests": {
+      "bytes": 40599040,
+      "sha256": "f0699ea22d0b0b0a19f8059ebe619c17d27abbe83bbcdf2b6a652a0d0c5fd9ca"
+    },
+    "fallout_runtime-tests": {
+      "bytes": 4997120,
+      "sha256": "2bfc119ae4eaeff08833624d868dd1dc75ffecbcca2e122c995bb188a4a58f0f"
+    }
+  },
+  "combined_receipt_sha256": "63822f8d87ce54b8c6a294eb0984ff5ac567f09d3726f7d4e6a417377b165bcf",
+  "authored_consumer_receipt_sha256": "890c23f1ec8651d08a2c38b361c6f50b7041f6b319aa2397f01295b06680d915",
+  "physics_consumer_receipt_sha256": "efc3d9f550c3c5f6a5c96ad617988926d676837588c6ab05795eaa02dd397126",
+  "physics_comparison_sha256": "4411fc54f1cef2a68373ee0a4a7ceb7fb058601b83e93281823c8da05eecaea5",
+  "authored_pose_consumer": {
+    "cli_calls": 12,
+    "analytic_samples": 6,
+    "empty_batch": 1,
+    "binary64_transport_cases": 1,
+    "intentional_refusals": 9,
+    "summary_sha256": "0c080d451c08608d2c6937b1ada809908901519ebc643e61d8eddfad00686b83"
+  },
+  "physics_consumer": {
+    "cli_calls": 83,
+    "cohorts": {
+      "cuboid": 44,
+      "original-source": 3,
+      "capsule-skew": 12,
+      "capsule-axis": 24
+    },
+    "exact_predicate_decisions": 65,
+    "explicit_numerical_refusals": 18,
+    "scope": "Exact identity-frame static cuboid predicates/transport and finite-closest-point capsule ray decisions; no universal capsule contact witness",
+    "retained_evidence_identities": 2107
+  },
+  "preserved_failed_attempt": {
+    "receipt_sha256": "6225f8ac3fd6dfbc59eeaf431779b10ea767599e8da25e02b8fdef16e5726a3f",
+    "cause": "Private proof copied input and report into one source directory. CLI correctly protected that directory. Only orchestration output placement changed for a fresh second attempt; production source unchanged."
+  },
+  "commit_map": [
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-18",
+      "original": "dfc8a636f59047322fdf777bfce9c2c8ef7af87f",
+      "integrated": "57f0521573de47f79ece9c63e6bcf85a7ec97fe9"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-11",
+      "original": "8c860dc36a3505602e56b156675883382e4c36e1",
+      "integrated": "302efbade89c973d1cd9e0ff4d0e6efa20e9c2af"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-12",
+      "original": "6c76e09a3b9d1f97766faf9e274cc97d282b777a",
+      "integrated": "b7d9cfa05bc89c7433a27a3cbcfb0f95ccbfd877"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-15",
+      "original": "b6da4f2edbedccace78db4795ba78c3a8ff7bb52",
+      "integrated": "0f6bb483f4172d8aabadd4c2607d46e54a603587"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-18",
+      "original": "dfbff7d12f26bd803af0e1608d22e488ae8bb138",
+      "integrated": "ecae01a9752516ef9b9d0d1d8d3486911bd66078"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-01",
+      "original": "3292b4eb618ea9684b3c0ee2d055be3e64a117cc",
+      "integrated": "b99f6ac35bdd116c62920ae73399cbf5d3875742"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-15",
+      "original": "07684c7cb639d7b365b4cfa6dcc57ee95d526bd8",
+      "integrated": "95d80084fea73dc7b854113759d736b04e79f0e7"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-15",
+      "original": "206dd133b7d877a5488552c10de06017cc48ccad",
+      "integrated": "f6d3428070db9a8521dc783d6278f355dba9daa7"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-03",
+      "original": "c8a2fe21f93e2d387d73d38efc10c156e0d8c43e",
+      "integrated": "ff322b851c273a4443171957008f1d36faea53df"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-15",
+      "original": "6ed01d5f4785cdf9aab35542c3cdd7889f7dd8bf",
+      "integrated": "a1542c2e69c893b92dc53a1bf890d35c2abfdcff"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-02",
+      "original": "82844e5b88d18436f045e75b01c1a4e0f45928af",
+      "integrated": "a58c8342bee438d4107b12c50f5866dcd4dd2839"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-15",
+      "original": "ab7d40191e42252692e26bc4800966b7a3d14ecc",
+      "integrated": "ae7579a9fc29894c9f434e19d2f7b3980a844f9d"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-02",
+      "original": "e8312facd44ac3b0154d1ab4bfaf67382321c47e",
+      "integrated": "6adac2e7e6009ee2aef4437c6e813b9c38e1e418"
+    }
+  ],
+  "raw_evidence": [
+    "integration/local/team-v3-combined-07",
+    "integration/local/team-v3-combined-07-authored-01",
+    "integration/local/team-v3-combined-07-physics-01",
+    "integration/local/team-v3-combined-07-physics-02",
+    "main/local/coordinator-physics07-draft-01"
+  ],
+  "limits": [
+    "Physics consumer uses identity attachment and explicit unit factors1. Accepted cuboid rays belong to exact source bounds/cutoff and preserve FMA point transport; capsules verify limited finite-closest-point hit decisions, without universally exact contact points or normals.",
+    "Authored shape cores exclude source shell margins. General convex/dynamic shapes, filtering semantics, original units, Havok stepping/response, character movement and actor travel remain unsupported.",
+    "NAVM graph costs/eligibility are explicit engineering policy; source portals and door annotations are preserved, not executed.",
+    "Restored native GetItemCount observations and actor render/voice source requests do not admit original numeric conversion, conditions, voice playback, FaceGen or actor behavior.",
+    "Prepared pose batches are explicit source-time observations, without playback clocks, transition/event rules or a new GPU validation claim.",
+    "CELL collision leases, corrected multichannel pose sets, later save availability and menu-source consumers are outside this frozen batch and await their own integration."
+  ],
+  "last_verified_checkpoint": 45,
+  "new_checkpoint_claimed": false,
+  "original_process_started": false,
+  "original_gameplay_scenarios_accepted": 0,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false
+}

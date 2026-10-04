@@ -1737,3 +1737,30 @@ executables. Selected installed KF queries retain native source spans and raw
 strings in private evidence. Query efficiency is established by counters, not a
 wall-time claim. Text-key observation does not dispatch events or establish
 retail timing, transitions, playback or gameplay acceptance.
+
+### Direct compact-spline source pose (ASSET36)
+
+`nif_animation::pose::spline::evaluate` is a bounded engineering consumer for
+one exact node/controller binding and one explicit source time. It requires the
+node's raw name bytes, matching `NiTransformController.target` and
+`object.controller`, one admitted compact-transform interpolator, absent
+controller chaining and an unapplied compact rotation handle. The existing
+named cubic component sampler supplies translation and scale. Stored NiAV
+rotation is retained; static ancestors compose forward in source order. Source
+controller clocks and stored interpolator/controller fields remain observations,
+not playback instructions.
+
+The owned request-file inspector is `nif_animation_inspection::inspect_spline_pose`.
+The planned CLI route is `fallout nif-source-spline-pose INPUT --request
+REQUEST.json --output REPORT.json`; shared `main.rs` wiring is supplied as a
+coordinator integration patch. Strict schema1 JSON contains
+`expected_source_sha256` as 32 byte integers, exact `object` and `controller`
+block IDs, `node_name_bytes` as raw byte integers, finite explicit `source_time`,
+`contract: "engineering_open_uniform_cubic_components_v1"`, and
+`local_policy: "replace_translation_scale_keep_stored_ni_av_rotation"`.
+Request/source inputs are bounded to64KiB/64MiB. Semantic refusals preserve the
+source digest and contextual error with a null evaluation; a successful report
+still says `runtime_ready: false` and `retail_behavior_verified: false`.
+Zero and reflected channel scales are preserved as authored when finite. This
+does not establish retail spline interpolation, controller clocks, quaternion
+rules, actor rendering or gameplay behavior.

@@ -224,6 +224,59 @@ struct VisibilityPathRequest {
     object: u32,
     channels: Vec<PoseSetChannel>,
 }
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SplinePoseRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    object: u32,
+    controller: u32,
+    node_name_bytes: Vec<u8>,
+    source_time: f64,
+    contract: nif_animation::pose::spline::Contract,
+    local_policy: nif_animation::pose::spline::LocalPolicy,
+}
+
+pub fn inspect_spline_pose(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::pose::spline::Evaluation>> {
+    let request: SplinePoseRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("compact source pose requires schema1".into());
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let evaluated = nif_animation::pose::spline::evaluate(
+        &bytes,
+        &source,
+        nif_animation::pose::spline::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            object: request.object,
+            controller: request.controller,
+            node_name_bytes: &request.node_name_bytes,
+            source_time: request.source_time,
+            contract: request.contract,
+            local_policy: request.local_policy,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: nif_animation::pose::spline::CONTRACT,
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 pub fn inspect_visibility_path(
     input: &Path,
     request_path: &Path,
@@ -1847,6 +1900,140 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn compact_pose_source() -> Vec<u8> {
+        const NULL: u32 = u32::MAX;
+        const NAME: &[u8] = b"Compact Node\0\xff";
+        let mut node = words(&[1, 0, 1, 0x1234_5678]);
+        for value in [0f32, 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 1.] {
+            node.extend(value.to_bits().to_le_bytes());
+        }
+        node.extend(words(&[0, NULL, 0, 0]));
+
+        let mut controller = words(&[NULL]);
+        controller.extend(0x19a5u16.to_le_bytes());
+        for value in [-7f32, 11., 700., 800.] {
+            controller.extend(value.to_bits().to_le_bytes());
+        }
+        controller.extend(words(&[0, 2]));
+
+        let mut interpolator = Vec::new();
+        for value in [-2f32, 2.] {
+            interpolator.extend(value.to_bits().to_le_bytes());
+        }
+        interpolator.extend(words(&[4, 3]));
+        for value in [-0f32, 800., 900., 2., -3., 4., -5., 777.] {
+            interpolator.extend(value.to_bits().to_le_bytes());
+        }
+        interpolator.extend(words(&[2, 65535, 14]));
+        for value in [0f32, 2., -17., 19., 2., 1.] {
+            interpolator.extend(value.to_bits().to_le_bytes());
+        }
+
+        let mut data = words(&[2, 0x8000_0000, 0x3f80_0000, 20]);
+        for value in [
+            -32768i16, 12345, -32767, 32767, -32767, -32767, 32767, -32767, 32767, 32767, -32767,
+            32767, 32767, -32767, -32767, 0, 0, 32767, -12345, 32767,
+        ] {
+            data.extend(value.to_le_bytes());
+        }
+        let blocks = [
+            ("NiNode", node),
+            ("NiTransformController", controller),
+            ("NiBSplineCompTransformInterpolator", interpolator),
+            ("NiBSplineBasisData", 4u32.to_le_bytes().to_vec()),
+            ("NiBSplineData", data),
+        ];
+
+        let mut bytes = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+        bytes.extend(words(&[0x1402_0007]));
+        bytes.push(1);
+        bytes.extend(words(&[11, blocks.len() as u32, 34]));
+        bytes.extend([0; 3]);
+        let types = blocks.iter().map(|(kind, _)| *kind).collect::<Vec<_>>();
+        bytes.extend((types.len() as u16).to_le_bytes());
+        for kind in &types {
+            bytes.extend(words(&[kind.len() as u32]));
+            bytes.extend(kind.as_bytes());
+        }
+        for (kind, _) in &blocks {
+            let type_index = types
+                .iter()
+                .position(|candidate| candidate == kind)
+                .unwrap() as u16;
+            bytes.extend(type_index.to_le_bytes());
+        }
+        for (_, payload) in &blocks {
+            bytes.extend(words(&[payload.len() as u32]));
+        }
+        bytes.extend(words(&[2, NAME.len() as u32]));
+        for name in [b"root".as_slice(), NAME] {
+            bytes.extend(words(&[name.len() as u32]));
+            bytes.extend(name);
+        }
+        bytes.extend(words(&[0]));
+        for (_, payload) in &blocks {
+            bytes.extend(payload);
+        }
+        bytes.extend(words(&[1, 0]));
+        bytes
+    }
+
+    #[test]
+    fn compact_spline_pose_request_samples_and_rejects_bad_identity_or_schema() {
+        let inputs = inputs(&[Vec::new()]);
+        let input = inputs.0.join("0.kf");
+        let request = inputs.0.join("spline-pose.json");
+        let bytes = compact_pose_source();
+        std::fs::write(&input, &bytes).unwrap();
+        std::fs::write(
+            &request,
+            serde_json::to_vec(&json!({
+                "schema_version": 1,
+                "expected_source_sha256": Sha256::digest(&bytes).to_vec(),
+                "object": 0,
+                "controller": 1,
+                "node_name_bytes": [
+                    67, 111, 109, 112, 97, 99, 116, 32, 78, 111, 100, 101, 0, 255,
+                ],
+                "source_time": 0.0,
+                "contract": "engineering_open_uniform_cubic_components_v1",
+                "local_policy": "replace_translation_scale_keep_stored_ni_av_rotation"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let report = inspect_spline_pose(&input, &request).unwrap();
+        assert_eq!(report.contract, nif_animation::pose::spline::CONTRACT);
+        assert_eq!(report.sha256, format!("{:x}", Sha256::digest(&bytes)));
+        assert_eq!(report.failures, 0);
+        let evaluation = report.evaluation.as_ref().unwrap();
+        assert_eq!(
+            evaluation.local,
+            [[2., 0., 0., 0.], [0., 2., 0., 2.], [0., 0., 2., -2.]]
+        );
+        assert!(!evaluation.runtime_ready && !evaluation.retail_behavior_verified);
+
+        let mut wrong_identity: Value =
+            serde_json::from_slice(&std::fs::read(&request).unwrap()).unwrap();
+        wrong_identity["expected_source_sha256"] = json!(vec![0; 32]);
+        std::fs::write(&request, serde_json::to_vec(&wrong_identity).unwrap()).unwrap();
+        let refused = inspect_spline_pose(&input, &request).unwrap();
+        assert_eq!(refused.failures, 1);
+        assert!(refused.evaluation.is_none());
+        assert!(refused.error.as_deref().unwrap().contains("SHA256 differs"));
+
+        let mut wrong_schema: Value =
+            serde_json::from_slice(&std::fs::read(&request).unwrap()).unwrap();
+        wrong_schema["schema_version"] = json!(2);
+        std::fs::write(&request, serde_json::to_vec(&wrong_schema).unwrap()).unwrap();
+        let schema_error = inspect_spline_pose(&input, &request)
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(schema_error.contains("requires schema1"));
+    }
 
     fn spline_input() -> Inputs {
         let inputs = inputs(&[]);

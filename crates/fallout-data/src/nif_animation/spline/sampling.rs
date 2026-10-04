@@ -459,6 +459,11 @@ fn knot(index: usize, count: usize) -> f64 {
     index.saturating_sub(3).min(count - 3) as f64
 }
 impl Window<'_> {
+    /// A source adapter may copy only this already admitted immutable window.
+    pub(crate) fn compact_controls(&self) -> &[i16] {
+        self.controls
+    }
+
     pub fn sample(&self, time: f64, budget: &mut Budget) -> Result<Sample> {
         let width = self.channel.width();
         // All time/parameter, four unpack and six blend operations admitted
@@ -531,23 +536,31 @@ pub fn evaluate(
     budget: &mut Budget,
 ) -> Result<Diagnostic> {
     let window = prepare(source, block, channel, budget)?;
-    let sample = window.sample(time, budget)?;
-    Ok(Diagnostic {
-        contract: CONTRACT,
-        source_blocks: window.identities.each_ref().map(|v| v.owned()),
-        channel,
-        basis_count: window.count,
-        source_handle: window.handle,
-        window_offset: window.window_offset,
-        window_scalars: window.controls.len(),
-        window_sha256: window.window_sha256,
-        start_bits: window.start_bits,
-        stop_bits: window.stop_bits,
-        offset_bits: window.offset_bits,
-        half_range_bits: window.half_range_bits,
-        sample,
-        work: budget.usage(),
-        runtime_ready: false,
-        retail_behavior_verified: false,
-    })
+    window.observe(time, budget)
+}
+
+impl Window<'_> {
+    /// Preserve the existing diagnostic and work scope while a private source
+    /// adapter separately admits copied controls and composed pose output.
+    pub(crate) fn observe(self, time: f64, budget: &mut Budget) -> Result<Diagnostic> {
+        let sample = self.sample(time, budget)?;
+        Ok(Diagnostic {
+            contract: CONTRACT,
+            source_blocks: self.identities.each_ref().map(|v| v.owned()),
+            channel: self.channel,
+            basis_count: self.count,
+            source_handle: self.handle,
+            window_offset: self.window_offset,
+            window_scalars: self.controls.len(),
+            window_sha256: self.window_sha256,
+            start_bits: self.start_bits,
+            stop_bits: self.stop_bits,
+            offset_bits: self.offset_bits,
+            half_range_bits: self.half_range_bits,
+            sample,
+            work: budget.usage(),
+            runtime_ready: false,
+            retail_behavior_verified: false,
+        })
+    }
 }

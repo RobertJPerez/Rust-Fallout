@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 
 mod prepared;
+pub mod spline;
 pub use prepared::{BatchLimits, PoseBatch, PreparationUsage, PreparedSource, SampleLimits};
 
 mod set;

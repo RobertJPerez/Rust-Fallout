@@ -5,6 +5,36 @@ use nif_scene::material::{
     MaterialBlock, MaterialData, ShaderTexture, TextureReference, TextureSlot,
 };
 
+/// Private typed metadata admission shared by internally decoded source adapters.
+/// This receipt cannot construct any scene, influence table or pose authority.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Usage {
+    pub(crate) retained_bytes: usize,
+    pub(crate) work_units: usize,
+}
+
+pub(crate) fn measure(
+    index: &nif::NifIndex,
+    scene: Option<&nif_scene::Scene>,
+    source: &str,
+    array_bytes: usize,
+    work_units: usize,
+) -> Result<Usage> {
+    let mut budget = Budget {
+        source,
+        storage: array_bytes,
+        work: work_units,
+    };
+    admit_index(index, &mut budget)?;
+    if let Some(scene) = scene {
+        admit_scene(scene, &mut budget)?;
+    }
+    Ok(Usage {
+        retained_bytes: array_bytes - budget.storage,
+        work_units: work_units - budget.work,
+    })
+}
+
 // Logical element storage, excluding Vec capacity and allocator bookkeeping.
 // No payload contents are scanned. Each length/variant visit is work charged.
 fn payload<T>(count: usize, budget: &mut Budget<'_>) -> Result<()> {

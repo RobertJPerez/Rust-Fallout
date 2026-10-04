@@ -8,7 +8,7 @@ pub mod influences;
 pub mod partition;
 pub mod pose;
 mod read;
-mod storage;
+pub(crate) mod storage;
 pub mod streams;
 
 use crate::{Error, Result, nif, nif_scene, nif_scene::cursor::Reader};

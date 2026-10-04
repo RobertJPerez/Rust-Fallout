@@ -71,6 +71,20 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Prepare a whole ordered explicit WRLD/XCLC CELL source-plan set.
+    GridSetSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        /// Repeat for each explicit signed i32 pair, in the requested order.
+        #[arg(long, required = true, allow_hyphen_values = true)]
+        grid: Vec<String>,
+    },
     /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
     GridTerrainSources {
         #[arg(long)]

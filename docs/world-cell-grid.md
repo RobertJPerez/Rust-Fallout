@@ -137,3 +137,18 @@ allocator overhead and the caller's existing index. This caller-owned immutable
 construction budget is not a global process quota or a residency owner. Cloned
 individual plans retain their already admitted shared metadata and source inputs.
 The bundle creates no jobs and applies no activation or runtime readiness policy.
+
+`grid-set-sources --install ... --load-order ... --world Base.esm:100
+--grid=-18,0 --grid=0,0` consumes the entire prepared set and emits its ordered
+requests, exact selected CELL source entries, plan receipts and aggregate usage.
+Repeat `--grid=x,y` for every intended cell; one through eight signed i32 pairs
+are required. Optional `--index-cache` reuses the protected source header index.
+No radius, source polling timeout or resource cache is involved in this planning
+consumer. Existing single-grid commands retain their flags and behavior.
+
+`source_plans_prepared` reports whole-set construction. It remains separate from
+`complete_model_selection`, which preserves missing/ambiguous/MODL coverage gaps
+inside successful plans. A refused selection or factory emits its directory and
+error with a null plan set and exits 1. Successful preparation exits 0, including
+explicitly reported incomplete model coverage. No model payload jobs or runtime
+activation occur, and the runtime/lookup/parity fields remain false.

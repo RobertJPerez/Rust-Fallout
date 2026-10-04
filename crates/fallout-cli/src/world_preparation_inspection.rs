@@ -58,6 +58,84 @@ pub(super) struct GridInput {
     pub source_timeout_ms: u64,
 }
 
+pub(super) struct GridSetInput {
+    pub world: FormKey,
+    pub grids: Vec<[i32; 2]>,
+}
+
+pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
+    if values.is_empty() || values.len() > 8 {
+        return Err("explicit source grid set requires 1..=8 pairs".into());
+    }
+    values
+        .iter()
+        .map(|value| {
+            let (x, y) = value.split_once(',').ok_or("grid must be signed i32 x,y")?;
+            Ok([x.parse::<i32>()?, y.parse::<i32>()?])
+        })
+        .collect()
+}
+
+/// Source planning only: each selected plan remains owned by the aggregate set.
+pub(super) fn grid_set(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    input: GridSetInput,
+) -> Result<Value> {
+    // Refuse an oversized direct caller before touching its source tree as well.
+    if input.grids.is_empty() || input.grids.len() > 8 {
+        return Err("explicit source grid set requires 1..=8 pairs".into());
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let sources = CellGridSources::load(&mut store, &input.world, Default::default())?;
+    let mut selected = None;
+    let prepared = (|| -> fallout_data::Result<_> {
+        let request = sources.request_set(&input.grids)?;
+        selected = Some(request.clone());
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        sources.prepare_cells(&mut store, &request, assets.mounts(), Default::default())
+    })();
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Explicit ordered WRLD/XCLC CELL source plans under one construction budget",
+        "cell_grid_sources":sources.metadata(),"explicit_grids":input.grids,
+        "cell_grid_set_request":selected,"cell_model_plan_set":null,
+        "selected_cells":[],"source_error":null,"source_plans_prepared":false,
+        "complete_model_selection":false,"current_cell_changed":false,
+        "activation_applied":false,"runtime_ready":false,"lookup_precedence_verified":false,
+        "retail_parity_accepted":false});
+    match prepared {
+        Ok(set) => {
+            let mut entries = Vec::with_capacity(set.requests().len());
+            for request in set.requests() {
+                entries.push(
+                    sources
+                        .metadata()
+                        .entries
+                        .iter()
+                        .find(|entry| &entry.key == request.cell())
+                        .ok_or("selected CELL absent from sealed directory")?,
+                );
+            }
+            report["selected_cells"] = serde_json::to_value(entries)?;
+            report["complete_model_selection"] = json!((0..set.requests().len()).all(|index| {
+                set.plan(index)
+                    .expect("private source set plan count matches requests")
+                    .receipt()
+                    .coverage
+                    .iter()
+                    .all(|base| base.status == "one-archive-source; retail-precedence-unverified")
+            }));
+            report["cell_model_plan_set"] = serde_json::to_value(&set)?;
+            report["source_plans_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
 pub(super) fn grid_residency(
     install: &Path,
     order_path: &Path,
@@ -1677,6 +1755,283 @@ mod tests {
             );
             assert_eq!(report["residency"]["dependencies"], "Pending");
         }
+    }
+    fn grid_set_fixture(root: &Path, mode: &str) {
+        grid_fixture(root, false);
+        archive(root, "second-model", b"meshes", b"n.nif", &[5, 6, 7, 8, 9]);
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let cell = |id, grid: [i32; 2]| {
+            record(
+                b"CELL",
+                id,
+                &[
+                    field(b"DATA", &[0]),
+                    field(
+                        b"XCLC",
+                        &grid
+                            .into_iter()
+                            .flat_map(i32::to_le_bytes)
+                            .collect::<Vec<_>>(),
+                    ),
+                ]
+                .concat(),
+            )
+        };
+        let mut children = cell(0x201, [-17, 0]);
+        children.extend(group(
+            0x201,
+            6,
+            &group(
+                0x201,
+                9,
+                &[
+                    record(
+                        b"REFR",
+                        0x301,
+                        &[
+                            field(b"NAME", &0x400_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                    record(
+                        b"REFR",
+                        0x302,
+                        &[
+                            field(b"NAME", &0x401_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                ]
+                .concat(),
+            ),
+        ));
+        if mode == "ambiguous" {
+            children.extend(cell(0x203, [-17, 0]));
+        }
+        let mut base = fs::read(root.join("Data/Base.esm")).unwrap();
+        assert_eq!(base.len(), 314); // Literal authored header/group/record extents.
+        base.extend(group(0x100, 1, &children));
+        let model = match mode {
+            "malformed" => field(b"MODL", b"n.nif"),
+            "no-modl" => vec![],
+            _ => field(b"MODL", b"n.nif\0"),
+        };
+        base.extend(record(b"STAT", 0x401, &model));
+        fs::write(root.join("Data/Base.esm"), base).unwrap();
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [
+                record(
+                    b"TES4",
+                    0,
+                    &[
+                        field(
+                            b"HEDR",
+                            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                        ),
+                        field(b"MAST", b"Base.esm\0"),
+                        field(b"DATA", &[0; 8]),
+                    ]
+                    .concat(),
+                ),
+                group(0x100, 1, &cell(0x200, [5, -6])),
+                record(b"STAT", 0x400, &field(b"MODL", b"m.nif\0")),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("grid-set-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_GRID_SET_FIXTURE={}", root.display());
+    }
+    fn grid_set_input(grids: Vec<[i32; 2]>) -> GridSetInput {
+        GridSetInput {
+            world: crate::parse_cell_key("Base.esm:100").unwrap(),
+            grids,
+        }
+    }
+    #[test]
+    fn cli_grid_set_preserves_literal_unequal_override_pair_and_source_quota() {
+        let directory = directory();
+        grid_set_fixture(&directory, "valid");
+        let paths = [
+            "Data/Base.esm",
+            "Data/Patch.esp",
+            "Data/models.bsa",
+            "Data/second-model.bsa",
+            "order.json",
+        ];
+        let before = paths.map(|path| Sha256::digest(fs::read(directory.join(path)).unwrap()));
+        let report = grid_set(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            grid_set_input(vec![[-17, 0], [5, -6]]),
+        )
+        .unwrap();
+        assert_eq!(report["source_plans_prepared"], true);
+        assert_eq!(report["complete_model_selection"], true);
+        assert!(report["source_error"].is_null());
+        for (index, cell, offset) in [(0, 0x201, 338), (1, 0x200, 95)] {
+            assert_eq!(report["selected_cells"][index]["key"]["local_id"], cell);
+            assert_eq!(report["selected_cells"][index]["header"]["offset"], offset);
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["root"]["local_id"],
+                cell
+            );
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["coverage"][0]["header"]["offset"],
+                140
+            );
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["coverage"][0]["source_plugin"],
+                "Patch.esp"
+            );
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["coverage"][0]["model_field"]["decoded_offset"],
+                0
+            );
+        }
+        assert_eq!(
+            report["cell_model_plan_set"]["plans"][0]["requests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            report["cell_model_plan_set"]["plans"][1]["requests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(report["cell_model_plan_set"]["usage"]["models"], 3);
+        assert_eq!(report["cell_model_plan_set"]["usage"]["archives"], 2);
+        assert_eq!(
+            report["cell_model_plan_set"]["usage"]["mapped_bytes"],
+            fs::metadata(directory.join("Data/models.bsa"))
+                .unwrap()
+                .len()
+                + fs::metadata(directory.join("Data/second-model.bsa"))
+                    .unwrap()
+                    .len()
+        );
+        assert_eq!(
+            report["cell_model_plan_set"]["source_cohort_sha256"],
+            report["cell_grid_sources"]["source_cohort_sha256"]
+        );
+        for flag in [
+            "runtime_ready",
+            "activation_applied",
+            "current_cell_changed",
+            "lookup_precedence_verified",
+            "retail_parity_accepted",
+        ] {
+            assert_eq!(report[flag], false);
+        }
+        for (path, hash) in paths.into_iter().zip(before) {
+            assert_eq!(
+                Sha256::digest(fs::read(directory.join(path)).unwrap()),
+                hash
+            );
+        }
+    }
+    #[test]
+    fn cli_grid_set_refusals_never_emit_partial_bundle_and_coverage_remains_separate() {
+        for mode in ["valid", "ambiguous", "malformed", "no-modl"] {
+            let directory = directory();
+            grid_set_fixture(&directory, mode);
+            let report = grid_set(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                grid_set_input(vec![[5, -6], [-17, 0]]),
+            )
+            .unwrap();
+            if mode == "no-modl" {
+                assert_eq!(report["source_plans_prepared"], true);
+                assert_eq!(report["complete_model_selection"], false);
+            } else if mode != "valid" {
+                assert_eq!(report["source_plans_prepared"], false);
+                assert!(report["cell_model_plan_set"].is_null());
+                assert!(report["selected_cells"].as_array().unwrap().is_empty());
+                assert!(!report["source_error"].as_str().unwrap().is_empty());
+                assert_eq!(
+                    report["cell_grid_set_request"].is_null(),
+                    mode == "ambiguous"
+                );
+            }
+            for grids in [vec![[5, -6], [999, 999]], vec![[5, -6], [5, -6]]] {
+                let report = grid_set(
+                    &directory,
+                    &directory.join("order.json"),
+                    None,
+                    grid_set_input(grids),
+                )
+                .unwrap();
+                assert_eq!(report["source_plans_prepared"], false);
+                assert!(report["cell_model_plan_set"].is_null());
+                assert!(report["cell_grid_set_request"].is_null());
+            }
+        }
+    }
+    #[test]
+    fn cli_grid_set_explicit_pairs_require_signed_bounds_and_repeated_flags() {
+        use clap::Parser;
+        let args = [
+            "fallout-cli",
+            "grid-set-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+            "--world",
+            "Base.esm:100",
+        ];
+        assert!(crate::Args::try_parse_from(args).is_err());
+        let parsed = crate::Args::try_parse_from(
+            args.into_iter()
+                .chain(["--grid=-2147483648,2147483647", "--grid=0,0"]),
+        )
+        .unwrap();
+        match parsed.command {
+            crate::Command::GridSetSources { grid, .. } => assert_eq!(
+                parse_grid_set(&grid).unwrap(),
+                [[i32::MIN, i32::MAX], [0, 0]]
+            ),
+            _ => panic!("explicit set command changed"),
+        }
+        for value in ["0", "0,1,2", "2147483648,0", "0,-2147483649", ","] {
+            assert!(parse_grid_set(&[value.into()]).is_err());
+        }
+        assert!(parse_grid_set(&[]).is_err());
+        assert!(parse_grid_set(&vec!["0,0".into(); 9]).is_err());
+        assert!(
+            grid_set(
+                Path::new("absent"),
+                Path::new("absent"),
+                None,
+                grid_set_input(vec![])
+            )
+            .is_err()
+        );
     }
     #[test]
     fn cli_residency_missing_model_and_bad_timeout_never_claim_availability() {

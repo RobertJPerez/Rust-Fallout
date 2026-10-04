@@ -1903,6 +1903,28 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
             }
         }
+        WorldCommand::GridSetSources {
+            install,
+            load_order,
+            index_cache,
+            world,
+            grid,
+        } => {
+            let report = world_preparation_inspection::grid_set(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                world_preparation_inspection::GridSetInput {
+                    world: parse_cell_key(&world)?,
+                    grids: world_preparation_inspection::parse_grid_set(&grid)?,
+                },
+            )?;
+            let prepared = report["source_plans_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("explicit CELL source-plan set refused; see report".into());
+            }
+        }
         WorldCommand::GridTerrainSources {
             install,
             load_order,

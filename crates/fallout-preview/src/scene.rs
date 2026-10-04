@@ -22,6 +22,7 @@ use std::{
 };
 
 pub struct CellSources {
+    pub native: Option<crate::native::Host>,
     pub owner: Mutex<world::residency::CellResidency>,
     pub ticket: world::residency::Ticket,
     // Keep the complete resource-bearing plan/payload lease through decode,
@@ -32,6 +33,7 @@ pub struct CellSources {
 #[derive(Component, Clone)]
 pub struct ReferenceView {
     pub key: FormKey,
+    pub canonical: Option<fallout_runtime::reference_state::View>,
 }
 
 impl ReferenceView {
@@ -44,6 +46,8 @@ pub struct Instance {
     pub model: usize,
     pub transform: Transform,
     pub key: Option<FormKey>,
+    pub visibility: Visibility,
+    pub canonical: Option<fallout_runtime::reference_state::View>,
 }
 
 #[derive(Resource)]
@@ -103,6 +107,8 @@ pub struct CellReport {
     pub runtime_ready: bool,
     pub retail_parity_accepted: bool,
     pub source_residency: world::residency::Snapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_state: Option<crate::native::Report>,
 }
 
 pub fn load_model(
@@ -153,6 +159,8 @@ fn single_model(model: Model, report: model::Report, textures: Textures) -> (Pre
             model: 0,
             transform: Transform::IDENTITY,
             key: None,
+            visibility: Visibility::Inherited,
+            canonical: None,
         }],
     };
     (prepared, Report::Model(report))
@@ -163,6 +171,8 @@ pub fn load_cell(
     order_path: &Path,
     editor_id: &str,
     context: &crate::loading::Context,
+    native_save: Option<&Path>,
+    shutdown: crate::native::Shutdown,
 ) -> Result<(Prepared, Report, CellSources)> {
     context.stage("Opening original plugin headers and archive indices")?;
     let names: Vec<String> = serde_json::from_reader(baseline::open_source(order_path)?)?;
@@ -179,6 +189,43 @@ pub fn load_cell(
     if cell.references.len() > 10_000 {
         return Err("cell reference budget exceeded".into());
     }
+    let native_session = if let Some(path) = native_save {
+        context.stage("Binding canonical save to the same source catalogue")?;
+        let catalogue = Arc::new(fallout_data::loaded_scripts::Catalogue::load(
+            &mut store,
+            Default::default(),
+            |_, _| {
+                context
+                    .check()
+                    .map_err(|error| fallout_data::Error::Resolution(error.to_string()))
+            },
+        )?);
+        let mut keys = cell
+            .references
+            .iter()
+            .map(|reference| reference.key.clone())
+            .collect::<Vec<_>>();
+        keys.sort();
+        Some(crate::native::Session::load(
+            path,
+            &[install.to_path_buf()],
+            catalogue,
+            cell.key.clone(),
+            keys,
+        )?)
+    } else {
+        None
+    };
+    let canonical = native_session
+        .as_ref()
+        .map(crate::native::Session::bindings)
+        .transpose()?
+        .map(|bindings| {
+            bindings
+                .into_iter()
+                .map(|binding| (binding.key.clone(), binding))
+                .collect::<BTreeMap<_, _>>()
+        });
     context.stage("Sealing source CELL model requests")?;
     let plan = world::preparation::CellModelPlan::load(
         &mut store,
@@ -230,12 +277,12 @@ pub fn load_cell(
         };
         if reference.record_flags & plugin::DELETED != 0 {
             outcome.status = "deleted".into();
-        } else if reference.record_flags & plugin::INITIALLY_DISABLED != 0 {
+        } else if canonical.is_none() && reference.record_flags & plugin::INITIALLY_DISABLED != 0 {
             outcome.status = "initially-disabled".into();
         } else if reference.record_kind != "REFR" {
             outcome.status = "actor-model-selection-unimplemented".into();
         } else if let (Some(placement), Some(base)) = (&reference.placement, &reference.base) {
-            if placement.enable_parent.is_some() {
+            if canonical.is_none() && placement.enable_parent.is_some() {
                 outcome.status = "enable-parent-evaluation-unimplemented".into();
             } else if let Some(model) = base.key.as_ref().and_then(|key| by_base.get(key)) {
                 if let Some(path) = &model.asset_path {
@@ -246,6 +293,12 @@ pub fn load_cell(
                             &placement.transform.value,
                             placement.scale.as_ref().map_or(1., |v| v.value),
                         )?);
+                        if let Some(source) = canonical
+                            .as_ref()
+                            .and_then(|bindings| bindings[&reference.key].source_affine)
+                        {
+                            outcome.source_affine = Some(source);
+                        }
                         selected
                             .entry(path.clone())
                             .or_default()
@@ -333,11 +386,23 @@ pub fn load_cell(
                         max = max.max(p);
                     }
                     outcome.model = Some(index);
-                    outcome.status = "rendered-static-view".into();
+                    let canonical_binding =
+                        canonical.as_ref().map(|bindings| &bindings[&outcome.key]);
+                    outcome.status = canonical_binding
+                        .map_or("rendered-static-view", |binding| binding.display)
+                        .into();
                     instances.push(Instance {
                         model: index,
                         transform: Transform::from_matrix(view),
                         key: Some(outcome.key.clone()),
+                        visibility: if canonical_binding
+                            .is_some_and(|binding| binding.source_affine.is_none())
+                        {
+                            Visibility::Hidden
+                        } else {
+                            Visibility::Inherited
+                        },
+                        canonical: canonical_binding.and_then(|binding| binding.canonical.clone()),
                     });
                     mesh_instances += model.parts.len();
                 }
@@ -362,6 +427,13 @@ pub fn load_cell(
     let radius = (max - min).length().max(1.) * 0.5;
     context.check()?;
     ticket.check()?;
+    let (native, canonical_state) = if let Some(session) = native_session {
+        context.stage("Starting read-only canonical presentation host")?;
+        let (host, observation) = session.start(origin, shutdown)?;
+        (Some(host), Some(observation.report))
+    } else {
+        (None, None)
+    };
     // Readiness covers the explicitly displayed static inspection subset and
     // its adapted textures. The report retains every omission; actor models,
     // original shaders, collision and behavior do not become simulation-ready.
@@ -369,7 +441,7 @@ pub fn load_cell(
     owner.report_collision(&ticket, world::residency::Readiness::Unsupported)?;
     owner.report_behavior(&ticket, world::residency::Readiness::Unsupported)?;
     let report = CellReport {
-        schema_version: 3,
+        schema_version: if canonical_state.is_some() { 4 } else { 3 },
         cell,
         load_order: names,
         load_order_sha256: baseline::digest_file(order_path)?.1,
@@ -377,8 +449,19 @@ pub fn load_cell(
         models: inspections,
         placements,
         unique_render_models: models.len(),
-        rendered_references: instances.len(),
-        rendered_mesh_instances: mesh_instances,
+        rendered_references: instances
+            .iter()
+            .filter(|instance| instance.visibility != Visibility::Hidden)
+            .count(),
+        rendered_mesh_instances: if canonical_state.is_some() {
+            instances
+                .iter()
+                .filter(|instance| instance.visibility != Visibility::Hidden)
+                .map(|instance| models[instance.model].parts.len())
+                .sum()
+        } else {
+            mesh_instances
+        },
         shared_geometry_vertices: vertices,
         shared_geometry_triangles: triangles,
         unique_texture_samplers: textures.images.len(),
@@ -389,6 +472,7 @@ pub fn load_cell(
         runtime_ready: false,
         retail_parity_accepted: false,
         source_residency: owner.snapshot(),
+        canonical_state,
     };
     Ok((
         Prepared {
@@ -401,6 +485,7 @@ pub fn load_cell(
         },
         Report::Cell(Box::new(report)),
         CellSources {
+            native,
             owner: Mutex::new(owner),
             ticket,
             sources,

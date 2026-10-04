@@ -4,6 +4,7 @@ mod input;
 mod loading;
 mod material;
 mod model;
+mod native;
 mod pose;
 mod scene;
 mod startup;
@@ -39,6 +40,8 @@ use std::{
 #[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
+    #[arg(skip)]
+    native_shutdown: native::Shutdown,
     #[arg(long)]
     install: Option<PathBuf>,
     /// Archive path, for example meshes/furniture/chair01.nif.
@@ -78,6 +81,12 @@ struct Options {
     material_fixture: bool,
     #[arg(long, requires = "install")]
     load_order: Option<PathBuf>,
+    /// Source-bound current project-native save repository; F5 save/F9 Continue.
+    #[arg(long, requires = "cell")]
+    native_save: Option<PathBuf>,
+    /// Engineering capture: submit one real save after complete draw admission.
+    #[arg(long, requires_all = ["native_save", "headless"])]
+    native_save_after_ready: bool,
     /// Camera position in original source units (x,y,z).
     #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
         requires_all = ["camera_look_at", "load_order"])]
@@ -259,6 +268,7 @@ fn run() -> model::Result<AppExit> {
         return Err("capture and report must have different paths".into());
     }
     let headless = options.headless;
+    let native_shutdown = options.native_shutdown.clone();
     let orbit = Orbit {
         center: Vec3::ZERO,
         radius: 1.,
@@ -317,7 +327,9 @@ fn run() -> model::Result<AppExit> {
     if headless {
         app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)));
     }
-    Ok(app.run())
+    let result = app.run();
+    native_shutdown.finish()?;
+    Ok(result)
 }
 
 fn prepare_scene(
@@ -380,6 +392,8 @@ fn prepare_scene(
                 .as_deref()
                 .expect("clap requires model or cell"),
             context,
+            options.native_save.as_deref(),
+            options.native_shutdown.clone(),
         )?;
         cell_sources = Some(sources);
         (prepared, report)
@@ -478,7 +492,14 @@ fn drive_loading(
     mut context: ResMut<input::Context>,
     mut orbit: ResMut<Orbit>,
     mut navigation: ResMut<Navigation>,
-    mut cameras: Query<(&mut Transform, &mut Projection), With<Camera3d>>,
+    mut cameras: Query<
+        (&mut Transform, &mut Projection),
+        (With<Camera3d>, Without<scene::ReferenceView>),
+    >,
+    mut references: Query<
+        (&mut scene::ReferenceView, &mut Transform, &mut Visibility),
+        Without<Camera3d>,
+    >,
     mut windows: Query<(Entity, &mut Window), With<PrimaryWindow>>,
     mut created: MessageReader<WindowCreated>,
     mut closed: MessageReader<WindowCloseRequested>,
@@ -564,6 +585,11 @@ fn drive_loading(
                 capture.frame = 0;
                 capture.started = Instant::now();
                 startup::stage("Source scene admitted; graphics settling before capture.");
+                if options.native_save_after_ready
+                    && let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut())
+                {
+                    host.request(native::Request::Save);
+                }
                 Phase::Ready(queue)
             }
             Err(error) => {
@@ -571,6 +597,59 @@ fn drive_loading(
                 failure(error, &mut exit)
             }
         },
+        Phase::Ready(mut queue) => {
+            if let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut()) {
+                if let Some(event) = host.poll() {
+                    match event {
+                        native::Event::Continued(observation) => {
+                            // Validate the complete destination set before changing any entity.
+                            let valid = references
+                                .iter()
+                                .all(|(view, _, _)| observation.draws.contains_key(&view.key));
+                            if valid {
+                                for (mut view, mut transform, mut visibility) in &mut references {
+                                    view.canonical = observation
+                                        .binding(&view.key)
+                                        .and_then(|binding| binding.canonical.clone());
+                                    if let Some(next) = observation.draws[&view.key] {
+                                        *transform = next;
+                                        *visibility = Visibility::Inherited;
+                                    } else {
+                                        *visibility = Visibility::Hidden;
+                                    }
+                                }
+                                eprintln!(
+                                    "Continue source-bound revision {}",
+                                    observation.report.revision
+                                );
+                            } else {
+                                host.failure(
+                                    "Continue does not bind every active source view".into(),
+                                );
+                            }
+                        }
+                        native::Event::Saved(receipt) => {
+                            eprintln!(
+                                "Native save publication receipt: {}",
+                                serde_json::to_string(&receipt).expect("serializable save receipt")
+                            );
+                        }
+                        native::Event::Failed(error) => {
+                            error!("Native request failed: {error}");
+                            if options.native_save_after_ready {
+                                exit.write(AppExit::error());
+                            }
+                        }
+                    }
+                }
+                if actions.continue_saved {
+                    host.request(native::Request::Continue);
+                } else if actions.save {
+                    host.request(native::Request::Save);
+                }
+            }
+            Phase::Ready(queue)
+        }
         phase => phase,
     };
     let status = match &state.phase {
@@ -580,7 +659,11 @@ fn drive_loading(
             format!("Loading: {message} ({}s)", elapsed.as_secs())
         }
         Phase::Uploading(queue) => queue.status(),
-        Phase::Ready(_) => "Ready".into(),
+        Phase::Ready(queue) => queue
+            .cell
+            .as_ref()
+            .and_then(|cell| cell.native.as_ref())
+            .map_or_else(|| "Ready".into(), |host| host.title().into()),
         Phase::Failed(error) => format!(
             "Failed: {} — Escape closes",
             error.chars().take(180).collect::<String>()
@@ -743,6 +826,16 @@ fn capture(
     if state.started.elapsed() > Duration::from_secs(120) {
         error!("GPU capture timed out");
         exit.write(AppExit::error());
+        return;
+    }
+    if options.native_save_after_ready
+        && let Phase::Ready(queue) = &loading.phase
+        && queue
+            .cell
+            .as_ref()
+            .and_then(|cell| cell.native.as_ref())
+            .is_some_and(native::Host::pending)
+    {
         return;
     }
     state.frame += 1;

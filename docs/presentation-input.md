@@ -20,6 +20,8 @@ sample for the camera consumer. It does not mutate canonical runtime state.
 | Faster fly movement | Either Shift | Left stick click |
 | Reset camera | R | North (Y/triangle) |
 | Close inspector | Escape | Start |
+| Save selected project-native repository | F5 | Unassigned |
+| Continue from its strict current slot | F9 | Unassigned |
 
 Keyboard and controller look use frame time. Mouse displacement is applied once
 without frame-time multiplication. Line and pixel scroll events are converted

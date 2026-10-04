@@ -445,6 +445,8 @@ pub fn prepare() -> Result<(Prepared, Report)> {
             radius: 1000.,
         }],
         instances: vec![Instance {
+            visibility: Visibility::Inherited,
+            canonical: None,
             model: 0,
             transform: Transform::IDENTITY,
             key: None,

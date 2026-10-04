@@ -416,6 +416,24 @@ enum Command {
         #[arg(long)]
         index_cache: Option<PathBuf>,
     },
+    /// Consume parent-scoped CELL lighting, water, noise and explicit model sources.
+    CellSceneInputsSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+        /// Unique canonical placed references; omitted means the existing full CELL factory.
+        #[arg(long)]
+        reference: Vec<String>,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Hold an explicit persistent/exterior CELL source set and remove one lease.
     WorldResidencySetSources {
         #[arg(long)]
@@ -1496,6 +1514,38 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if failed {
                 return Err("dialogue membership has unresolved topic links; see report".into());
+            }
+        }
+        Command::CellSceneInputsSources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            reference,
+            source_timeout_ms,
+        } => {
+            let references = reference
+                .iter()
+                .map(|key| parse_cell_key(key))
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            let report = world_preparation_inspection::scene_inputs(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::SceneInput {
+                    source: world_preparation_inspection::ResidencyInput {
+                        cell: parse_cell_key(&cell)?,
+                        source_timeout_ms,
+                    },
+                    references,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("CELL scene source inputs are unavailable; see report".into());
             }
         }
         Command::WorldResidencySetSources {

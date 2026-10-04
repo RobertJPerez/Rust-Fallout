@@ -1,6 +1,7 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
+mod environment;
 mod prefetch;
 mod set;
 mod terrain;
@@ -17,6 +18,9 @@ use crate::{
     resource_jobs::{
         self, Artifact, Generation, JobError, JobHandle, JobResult, JobToken, ResourceJobs,
     },
+};
+pub use environment::{
+    EnvironmentLimits, EnvironmentPlan, EnvironmentSnapshot, EnvironmentState, ResidentEnvironment,
 };
 pub use prefetch::{DoorPrefetchLimits, DoorPrefetchSnapshot, DoorPrefetchSources, DoorPrefetcher};
 use serde::Serialize;
@@ -64,6 +68,9 @@ struct PlanUsage {
     plans: usize,
     metadata: usize,
     mapped: u64,
+    environment_epochs: std::collections::BTreeSet<u64>,
+    environment_metadata: usize,
+    environment_mapped: u64,
 }
 struct PlanPin {
     usage: Arc<Mutex<PlanUsage>>,
@@ -235,7 +242,8 @@ pub struct CellResidency {
     dependencies_admitted: bool,
     textures: Option<textures::Batch>,
     terrain: Option<terrain::Batch>,
-    terrain_turn: bool,
+    auxiliary_turn: usize,
+    environment: Option<environment::Batch>,
     #[cfg(test)]
     pause: Option<Arc<resource_jobs::tests::Pause>>,
 }
@@ -301,7 +309,8 @@ impl CellResidency {
             dependencies_admitted: false,
             textures: None,
             terrain: None,
-            terrain_turn: false,
+            auxiliary_turn: 0,
+            environment: None,
             #[cfg(test)]
             pause: None,
         })
@@ -394,21 +403,32 @@ impl CellResidency {
         } else if self.stage == Stage::IoPending
             || self.textures.as_ref().is_some_and(textures::Batch::pending)
             || self.terrain.as_ref().is_some_and(terrain::Batch::pending)
+            || self
+                .environment
+                .as_ref()
+                .is_some_and(environment::Batch::pending)
         {
             let result = if self.stage == Stage::IoPending {
                 self.poll_io()
             } else {
-                // One bounded batch per call preserves the existing eight
-                // admissions/completions limit and prevents either texture
-                // consumer from starving while they share one job pool.
-                let terrain_pending = self.terrain.as_ref().is_some_and(terrain::Batch::pending);
-                let textures_pending = self.textures.as_ref().is_some_and(textures::Batch::pending);
-                if terrain_pending && (self.terrain_turn || !textures_pending) {
-                    self.terrain_turn = false;
-                    self.poll_terrain()
-                } else {
-                    self.terrain_turn = true;
-                    self.poll_textures()
+                // Visit one pending auxiliary batch, with at most three choices.
+                // All use this same CELL epoch, worker pool and combined quotas.
+                let pending = [
+                    self.textures.as_ref().is_some_and(textures::Batch::pending),
+                    self.terrain.as_ref().is_some_and(terrain::Batch::pending),
+                    self.environment
+                        .as_ref()
+                        .is_some_and(environment::Batch::pending),
+                ];
+                let next = (0..3)
+                    .map(|step| (self.auxiliary_turn + step) % 3)
+                    .find(|index| pending[*index])
+                    .expect("pending auxiliary batch");
+                self.auxiliary_turn = (next + 1) % 3;
+                match next {
+                    0 => self.poll_textures(),
+                    1 => self.poll_terrain(),
+                    _ => self.poll_environment(),
                 }
             };
             if let Err(error) = result {
@@ -518,6 +538,13 @@ impl CellResidency {
             .len()
             .checked_add(self.textures.as_ref().map_or(0, textures::Batch::requested))
             .and_then(|n| n.checked_add(self.terrain.as_ref().map_or(0, terrain::Batch::requested)))
+            .and_then(|n| {
+                n.checked_add(
+                    self.environment
+                        .as_ref()
+                        .map_or(0, environment::Batch::requested),
+                )
+            })
             .and_then(|n| n.checked_add(extra_requests))
             .ok_or(JobError::QueueFull)?;
         if requests > self.limits.resources {
@@ -533,6 +560,13 @@ impl CellResidency {
                     .map_or(0, |b| b.plan.receipt().decoded_bytes),
             )
             .and_then(|n| n.checked_add(self.terrain.as_ref().map_or(0, terrain::Batch::bytes)))
+            .and_then(|n| {
+                n.checked_add(
+                    self.environment
+                        .as_ref()
+                        .map_or(0, environment::Batch::bytes),
+                )
+            })
             .and_then(|n| n.checked_add(extra_bytes))
             .ok_or(JobError::ByteBudget)?;
         if bytes > self.limits.source_bytes {
@@ -564,6 +598,16 @@ impl CellResidency {
         {
             return Err(JobError::Invalid(
                 "requested terrain sources are not ready".into(),
+            ));
+        }
+        if readiness == Readiness::Ready
+            && self
+                .environment
+                .as_ref()
+                .is_some_and(|batch| !batch.ready())
+        {
+            return Err(JobError::Invalid(
+                "requested environment sources are pending or unavailable".into(),
             ));
         }
         self.dependencies = readiness;
@@ -637,7 +681,8 @@ impl CellResidency {
         self.dependencies_admitted = false;
         self.textures = None;
         self.terrain = None;
-        self.terrain_turn = false;
+        self.environment = None;
+        self.auxiliary_turn = 0;
         for (_, handle) in self.pending.drain(..) {
             handle.cancel();
         }
@@ -723,6 +768,10 @@ impl CellResidency {
                     batch.ready() && batch.plan.receipt().reference_coverage_verified
                 })
                 && self.terrain.as_ref().is_none_or(terrain::Batch::ready)
+                && self
+                    .environment
+                    .as_ref()
+                    .is_none_or(environment::Batch::ready)
                 && self.dependencies == Readiness::Ready
                 && self.collision == Readiness::Ready
                 && self.behavior == Readiness::Ready,

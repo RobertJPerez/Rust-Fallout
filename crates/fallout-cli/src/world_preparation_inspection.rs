@@ -17,11 +17,11 @@ use fallout_data::{
         lighting::CellLightingSources,
         linked::PlacedLinkedSources,
         ownership::CellOwnershipSources,
-        preparation::CellModelPlan,
+        preparation::{CellModelPlan, CellModelSelection},
         regions::CellRegionSources,
         residency::{
-            Admission, CellResidency, CellResidencySet, DoorPrefetcher, Snapshot, Stage,
-            TerrainState, TexturePlan, TextureState,
+            Admission, CellResidency, CellResidencySet, DoorPrefetcher, EnvironmentPlan,
+            EnvironmentState, Snapshot, Stage, TerrainState, TexturePlan, TextureState,
         },
         water::CellWaterSources,
     },
@@ -223,6 +223,149 @@ pub(super) fn residency(
     let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
     let plan = CellModelPlan::load(&mut store, &input.cell, assets.mounts(), Default::default())?;
     let mut report = consume_plan(install, resource_cache, deadline, plan, assets.mounts())?;
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) struct SceneInput {
+    pub source: ResidencyInput,
+    pub references: Vec<FormKey>,
+}
+/// Consume raw inputs from one existing CELL host, then prove parent revocation.
+pub(super) fn scene_inputs(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: SceneInput,
+) -> Result<Value> {
+    let deadline = source_deadline(input.source.source_timeout_ms)?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original","cell":input.source.cell,
+        "requested_references":input.references,"selection":null,"cell_models":null,
+        "model_payloads":[],"lighting":null,"water":null,"noise_payload":null,
+        "environment":null,"residency":null,"source_error":null,
+        "environment_declarations_captured":false,"captured_sources_available":false,
+        "full_cell_coverage":input.references.is_empty(),"runtime_ready":false,
+        "lookup_precedence_verified":false,"retail_parity_accepted":false,
+        "scope":"Exact CELL source declarations and selected model/noise jobs; parent-scoped raw bytes"});
+    let consumed = (|| -> Result<()> {
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        let plan = if input.references.is_empty() {
+            CellModelPlan::load(
+                &mut store,
+                &input.source.cell,
+                assets.mounts(),
+                Default::default(),
+            )?
+        } else {
+            CellModelSelection::load(
+                &mut store,
+                &input.source.cell,
+                &input.references,
+                Default::default(),
+                Default::default(),
+            )?
+            .prepare(&mut store, assets.mounts())?
+        };
+        report["selection"] = serde_json::to_value(plan.selection())?;
+        report["cell_models"] = serde_json::to_value(plan.receipt())?;
+        let mut owner = CellResidency::new(install, resource_cache, Default::default())?;
+        let ticket = owner.request(plan)?;
+        poll_sources(&mut owner, false, deadline)?;
+        let models = owner.sources(&ticket)?;
+        let requests = &models.plan()?.receipt().requests;
+        let mut payloads = Vec::with_capacity(requests.len());
+        for (index, request) in requests.iter().enumerate() {
+            let bytes = models.model(index)?;
+            if bytes.len() != request.decoded_bytes {
+                return Err("resident model extent differs from sealed selected request".into());
+            }
+            payloads.push(
+                json!({"request":index,"path":request.path,"bytes":bytes.len(),
+                "sha256":format!("{:x}",Sha256::digest(bytes))}),
+            );
+        }
+        report["model_payloads"] = json!(payloads);
+        let plan = EnvironmentPlan::load(
+            models.clone(),
+            &mut store,
+            assets.mounts(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )?;
+        owner.request_environment(&ticket, plan, &mut store)?;
+        let start = Instant::now();
+        loop {
+            owner.poll()?;
+            if owner.environment_snapshot().state == EnvironmentState::SourceAvailable {
+                break;
+            }
+            if start.elapsed() >= deadline {
+                owner.unload()?;
+                return Err("environment source polling deadline exceeded".into());
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        let environment = owner.environment_sources(&ticket)?;
+        let lighting = environment.lighting()?;
+        let water = environment.water()?;
+        report["lighting"] = serde_json::to_value(lighting)?;
+        report["water"] = serde_json::to_value(water)?;
+        if let Some(bytes) = environment.noise()? {
+            let request = water
+                .noise
+                .as_ref()
+                .and_then(|n| n.request.as_ref())
+                .ok_or("noise artifact lacks source request")?;
+            if bytes.len() != request.decoded_bytes {
+                return Err("resident noise extent differs from sealed request".into());
+            }
+            report["noise_payload"] = json!({"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(bytes)),
+                "path":request.path,"water_identity":water.identity,"environment_identity":environment.identity(),
+                "parent_identity":ticket.identity(),"parent_generation":ticket.generation()});
+        }
+        let declared_available = environment.source_declarations_available()?;
+        report["environment_declarations_captured"] = json!(true);
+        report["captured_sources_available"] =
+            json!(declared_available && payloads.len() == requests.len());
+        report["environment"] = serde_json::to_value(owner.environment_snapshot())?;
+        report["residency"] = serde_json::to_value(owner.snapshot())?;
+        owner.unload()?;
+        report["residency_after_unload"] = serde_json::to_value(owner.poll()?)?;
+        report["environment_after_unload"] = serde_json::to_value(owner.environment_snapshot())?;
+        report["retained_source_lifetime"] = json!({
+            "old_ticket_rejected":ticket.check().is_err(),
+            "owner_environment_access_rejected":owner.environment_sources(&ticket).is_err(),
+            "model_access_rejected":models.model(0).is_err(),
+            "lighting_access_rejected":environment.lighting().is_err(),
+            "water_access_rejected":environment.water().is_err(),
+            "noise_access_rejected":environment.noise().is_err(),
+            "environment_lease_held":true});
+        drop(environment);
+        drop(models);
+        let start = Instant::now();
+        loop {
+            let snapshot = owner.poll()?;
+            if snapshot.stage == Stage::Unrequested {
+                report["residency_after_release"] = serde_json::to_value(snapshot)?;
+                report["environment_after_release"] =
+                    serde_json::to_value(owner.environment_snapshot())?;
+                break;
+            }
+            if start.elapsed() >= deadline {
+                return Err("cancelled scene source pins did not drain within deadline".into());
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+        report["captured_sources_available"] = json!(false);
+    }
     provenance(&mut report, &order, &mut store)?;
     Ok(report)
 }
@@ -1867,6 +2010,254 @@ mod tests {
         .unwrap();
         fs::write(root.join("order.json"), b"[\"Base.esm\"]").unwrap();
     }
+    const SCENE_WORDS: [u32; 10] = [
+        0x04030201, 0x1713110d, 0x44332211, 0x80000000, 0x7fc00001, 0xfffffff9, 0x80000000,
+        0x3e800000, 0x3f800000, 0x40000000,
+    ];
+    fn scene_fixture(root: &Path, selected: bool, missing_noise: bool) -> (Vec<Vec<u8>>, Vec<u8>) {
+        cell_fixture(root, b"m.nif", b"t.dds");
+        let bsa = fs::read(root.join("Data/models.bsa")).unwrap();
+        let start = bsa
+            .windows(9)
+            .position(|bytes| bytes == b"Gamebryo ")
+            .unwrap();
+        let mut models = vec![bsa[start..].to_vec()];
+        let noise = b"authored-scene-noise".to_vec();
+        if !missing_noise {
+            archive(root, "scene-noise", b"textures", b"n.dds", &noise);
+        }
+        let plugin = root.join("Data/Base.esm");
+        let mut bytes = fs::read(&plugin).unwrap();
+        let cell = bytes.windows(4).position(|bytes| bytes == b"CELL").unwrap();
+        bytes.truncate(cell);
+        let words = SCENE_WORDS
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect::<Vec<_>>();
+        bytes.extend(record(b"LGTM", 0x500, &field(b"DATA", &words)));
+        bytes.extend(record(b"WATR", 0x501, &field(b"EDID", b"AuthoredWater\0")));
+        if selected {
+            bytes.extend(record(b"STAT", 0x401, &field(b"MODL", b"n.nif\0")));
+            bytes.extend(record(
+                b"STAT",
+                0x499,
+                &field(b"MODL", b"C:\\export\\unsafe.nif\0"),
+            ));
+            let mut second = models[0].clone();
+            let at = second
+                .windows(5)
+                .position(|bytes| bytes == b"t.dds")
+                .unwrap();
+            second[at] = b'u';
+            archive(root, "second-model", b"meshes", b"n.nif", &second);
+            models.push(second);
+        }
+        bytes.extend(record(
+            b"CELL",
+            0x200,
+            &[
+                field(b"DATA", &[1]),
+                field(b"XCLL", &words),
+                field(b"LTMP", &0x500u32.to_le_bytes()),
+                field(b"LNAM", &0x2cu32.to_le_bytes()),
+                field(b"XCLW", &0x7fc00001u32.to_le_bytes()),
+                field(b"XCWT", &0x501u32.to_le_bytes()),
+                field(b"XNAM", b"n.dds\0"),
+            ]
+            .concat(),
+        ));
+        let placed = |id: u32, base: u32| {
+            record(
+                b"REFR",
+                id,
+                &[
+                    field(b"NAME", &base.to_le_bytes()),
+                    field(b"DATA", &[0; 24]),
+                ]
+                .concat(),
+            )
+        };
+        let mut refs = placed(0x300, 0x400);
+        if selected {
+            refs.extend(placed(0x301, 0x400));
+            refs.extend(placed(0x302, 0x401));
+            refs.extend(placed(0x303, 0x499));
+        }
+        let group = |kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &0x200u32.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        bytes.extend(group(6, &group(9, &refs)));
+        fs::write(plugin, bytes).unwrap();
+        (models, noise)
+    }
+    fn scene_input(references: &[u32]) -> SceneInput {
+        SceneInput {
+            source: residency_input(),
+            references: references
+                .iter()
+                .map(|id| crate::parse_cell_key(&format!("Base.esm:{id:x}")).unwrap())
+                .collect(),
+        }
+    }
+    #[test]
+    fn cli_scene_consumes_literal_lighting_water_noise_and_revokes_held_environment_sources() {
+        let root = directory();
+        let (models, noise) = scene_fixture(&root, false, false);
+        let cache = directory();
+        let report = scene_inputs(
+            &root,
+            &root.join("order.json"),
+            None,
+            Some(&cache),
+            scene_input(&[]),
+        )
+        .unwrap();
+        assert_eq!(report["captured_sources_available"], true, "{report}");
+        assert_eq!(report["environment_declarations_captured"], true);
+        assert_eq!(report["selection"], Value::Null);
+        assert_eq!(
+            report["model_payloads"][0]["sha256"],
+            format!("{:x}", Sha256::digest(&models[0]))
+        );
+        assert_eq!(
+            report["noise_payload"]["sha256"],
+            format!("{:x}", Sha256::digest(&noise))
+        );
+        assert_eq!(
+            report["lighting"]["xcll"]["value"]["fog_far_word"],
+            0x7fc00001u32
+        );
+        assert_eq!(report["lighting"]["ltmp"]["value"], 0x500);
+        assert_eq!(report["lighting"]["lnam"]["value"], 0x2c);
+        assert_eq!(report["water"]["xclw"]["value"], 0x7fc00001u32);
+        assert_eq!(report["water"]["xcwt"]["value"], 0x501);
+        assert_eq!(
+            report["water"]["water_type"]["typed_parameters_included"],
+            false
+        );
+        for field in [
+            "old_ticket_rejected",
+            "owner_environment_access_rejected",
+            "model_access_rejected",
+            "lighting_access_rejected",
+            "water_access_rejected",
+            "noise_access_rejected",
+        ] {
+            assert_eq!(report["retained_source_lifetime"][field], true);
+        }
+        assert_eq!(report["residency_after_unload"]["outstanding"], 2);
+        assert!(
+            report["environment_after_unload"]["metadata_bytes"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(
+            report["environment_after_unload"]["mapped_bytes"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert_eq!(report["residency_after_release"]["outstanding"], 0);
+        assert_eq!(report["residency_after_release"]["plan_metadata_bytes"], 0);
+        assert_eq!(report["environment_after_release"]["retained_scopes"], 0);
+        assert_eq!(report["runtime_ready"], false);
+        assert_eq!(report["residency"]["simulation_ready"], false);
+    }
+    #[test]
+    fn cli_three_selected_source_instances_share_two_model_jobs_and_leave_unsafe_reference_not_selected()
+     {
+        let root = directory();
+        let (models, _) = scene_fixture(&root, true, false);
+        let cache = directory();
+        let report = scene_inputs(
+            &root,
+            &root.join("order.json"),
+            None,
+            Some(&cache),
+            scene_input(&[0x300, 0x301, 0x302]),
+        )
+        .unwrap();
+        assert_eq!(report["captured_sources_available"], true, "{report}");
+        assert_eq!(report["full_cell_coverage"], false);
+        assert_eq!(
+            report["selection"]["requested"].as_array().unwrap().len(),
+            3
+        );
+        assert_eq!(report["selection"]["references"][3]["state"], "NotSelected");
+        assert_eq!(
+            report["selection"]["references"][3]["key"]["local_id"],
+            0x303
+        );
+        assert_eq!(report["cell_models"]["usage"]["bases"], 2);
+        assert_eq!(report["model_payloads"].as_array().unwrap().len(), 2);
+        for (index, bytes) in models.iter().enumerate() {
+            assert_eq!(
+                report["model_payloads"][index]["sha256"],
+                format!("{:x}", Sha256::digest(bytes))
+            );
+        }
+        assert_eq!(report["residency"]["complete_model_coverage"], false);
+        assert_eq!(report["residency"]["outstanding"], 3);
+        assert_eq!(report["residency_after_release"]["outstanding"], 0);
+        let full = scene_inputs(
+            &root,
+            &root.join("order.json"),
+            None,
+            None,
+            scene_input(&[]),
+        )
+        .unwrap();
+        assert_eq!(full["captured_sources_available"], false);
+        assert!(full["source_error"].is_string());
+        assert_eq!(full["model_payloads"], json!([]));
+    }
+    #[test]
+    fn cli_scene_missing_noise_and_last_selected_refusal_keep_explicit_evidence_without_ready() {
+        let root = directory();
+        scene_fixture(&root, true, true);
+        let report = scene_inputs(
+            &root,
+            &root.join("order.json"),
+            None,
+            None,
+            scene_input(&[0x300, 0x301, 0x302]),
+        )
+        .unwrap();
+        assert_eq!(
+            report["environment_declarations_captured"], true,
+            "{report}"
+        );
+        assert_eq!(report["water"]["noise"]["status"], "missing");
+        assert_eq!(report["noise_payload"], Value::Null);
+        assert_eq!(report["captured_sources_available"], false);
+        assert_eq!(report["environment"]["noise_requested"], 0);
+        assert_eq!(report["runtime_ready"], false);
+        for references in [vec![0x300, 0xdead], vec![0x300, 0x303], vec![0x300, 0x300]] {
+            let refused = scene_inputs(
+                &root,
+                &root.join("order.json"),
+                None,
+                None,
+                scene_input(&references),
+            )
+            .unwrap();
+            assert_eq!(refused["captured_sources_available"], false);
+            assert!(refused["source_error"].is_string());
+            assert_eq!(refused["cell_models"], Value::Null);
+            assert_eq!(refused["model_payloads"], json!([]));
+            assert_eq!(refused["residency"], Value::Null);
+        }
+    }
+
     fn residency_input() -> ResidencyInput {
         ResidencyInput {
             cell: crate::parse_cell_key("Base.esm:200").unwrap(),

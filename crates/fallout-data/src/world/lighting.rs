@@ -41,7 +41,7 @@ impl Default for Limits {
     }
 }
 impl Limits {
-    fn validate(self) -> Result<Self> {
+    pub(in crate::world) fn validate(self) -> Result<Self> {
         let max = Self::default();
         for (a, b) in [
             (self.sources, max.sources),

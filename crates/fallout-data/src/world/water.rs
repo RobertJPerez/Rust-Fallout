@@ -11,7 +11,7 @@ use crate::{
     Error, Result, baseline,
     identity::{FormKey, ProfileId},
     plugin::{self, Record, RecordHeader, Subrecord},
-    resource_jobs::{ArchiveInput, JobHandle, JobToken, ResourceJobs},
+    resource_jobs::{ArchiveInput, JobHandle, JobToken, Member, ResourceJobs},
     store::{Location, RecordStore, SourceReceipt},
     vfs::{MountIndex, texture_path},
 };
@@ -59,7 +59,7 @@ impl Default for Limits {
     }
 }
 impl Limits {
-    fn validate(self) -> Result<Self> {
+    pub(in crate::world) fn validate(self) -> Result<Self> {
         let max = Self::default();
         for (a, b) in [
             (self.sources, max.sources),
@@ -201,6 +201,37 @@ impl CellWaterSources {
         if token.source_identity() != self.identity() {
             return Err(failure("noise token source mismatch"));
         }
+        let Some(member) = self.noise_member()? else {
+            return Ok(None);
+        };
+        let handle = jobs
+            .submit_scoped(
+                member,
+                token,
+                cache,
+                self.0.clone(),
+                #[cfg(test)]
+                None,
+            )
+            .map_err(job_error)?;
+        Ok(Some(handle))
+    }
+    /// The resident owner supplies its existing pool, epoch and retained scope.
+    /// This does not relax the standalone water-specific token policy.
+    pub(crate) fn resident_member(
+        &self,
+        parent: &super::residency::ResidentSources,
+    ) -> Result<Option<Member>> {
+        parent.ticket().check().map_err(job_error)?;
+        let plan = parent.plan().map_err(job_error)?;
+        if parent.ticket().root() != self.root()
+            || plan.receipt().source_cohort_sha256 != self.receipt().source_cohort_sha256
+        {
+            return Err(failure("noise source differs from resident CELL/cohort"));
+        }
+        self.noise_member()
+    }
+    fn noise_member(&self) -> Result<Option<Member>> {
         let Some(input) = &self.0.input else {
             return Ok(None);
         };
@@ -213,17 +244,7 @@ impl CellWaterSources {
         let member = input
             .member(&request.path, &request.source)
             .map_err(job_error)?;
-        let handle = jobs
-            .submit_scoped(
-                member,
-                token,
-                cache,
-                self.0.clone(),
-                #[cfg(test)]
-                None,
-            )
-            .map_err(job_error)?;
-        Ok(Some(handle))
+        Ok(Some(member))
     }
     pub fn load(
         store: &mut RecordStore,

@@ -714,6 +714,162 @@ fn pose_set_request_permutation_changes_only_observation_order() {
     );
 }
 
+fn higher_parent_set_fixture() -> (Vec<u8>, [Request; 2]) {
+    let mut source = set_fixture();
+    source.swap(0, 5);
+    set(&mut source[1].1, 80, 0); // parent1 now points to child0
+    set(&mut source[6].1, 22, 0); // exact child controller target
+    let mut bytes = container(&source);
+    let footer = bytes.len() - 4;
+    set(&mut bytes, footer, 5);
+    (
+        bytes,
+        [
+            request(1.),
+            Request {
+                object: 0,
+                controller: 6,
+                source_time: 1.,
+            },
+        ],
+    )
+}
+
+#[test]
+fn pose_set_higher_id_parents_propagate_once_and_permute_only_report_order() {
+    let (bytes, selected) = higher_parent_set_fixture();
+    let (_, scene) = fallout_data::nif_scene::decode(&bytes, "higher-parent source").unwrap();
+    assert_eq!(
+        scene
+            .world_transforms
+            .iter()
+            .map(|w| (w.block, w.parent))
+            .collect::<Vec<_>>(),
+        [(0, Some(1)), (1, Some(5)), (5, None)]
+    );
+    let first =
+        pose::evaluate_set(&bytes, "higher-parent set", &selected, Default::default()).unwrap();
+    let second = pose::evaluate_set(
+        &bytes,
+        "higher-parent set",
+        &[selected[1], selected[0]],
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        first.objects[0].source_world,
+        [[-6., 0., 0., 1.], [0., -6., 0., 35.], [0., 0., 6., 48.]]
+    );
+    assert_eq!(
+        first.objects[1].source_world,
+        [[0., -18., 0., -11.], [18., 0., 0., 29.], [0., 0., 18., 66.]]
+    );
+    assert_eq!(
+        first.objects[1]
+            .ancestors
+            .iter()
+            .map(|a| (a.source.block, a.applied_object))
+            .collect::<Vec<_>>(),
+        [(1, Some(1)), (5, None)]
+    );
+    assert_eq!(first.propagated_objects, 3);
+    assert_eq!(
+        serde_json::to_value(&first.objects[0]).unwrap(),
+        serde_json::to_value(&second.objects[1]).unwrap()
+    );
+    assert_eq!(
+        serde_json::to_value(&first.objects[1]).unwrap(),
+        serde_json::to_value(&second.objects[0]).unwrap()
+    );
+    assert_eq!(
+        (
+            first.retained_bytes,
+            first.work_units,
+            first.propagated_objects
+        ),
+        (
+            second.retained_bytes,
+            second.work_units,
+            second.propagated_objects
+        )
+    );
+}
+
+#[test]
+fn pose_set_higher_parent_traversal_storage_work_and_sampler_ceilings_are_aggregate() {
+    let (bytes, selected) = higher_parent_set_fixture();
+    let baseline = pose::evaluate_set(
+        &bytes,
+        "higher-parent bounds",
+        &selected,
+        Default::default(),
+    )
+    .unwrap();
+    let exact = pose::SetLimits {
+        requests: 2,
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        ancestry_depth: 3,
+        sampling: sampling::Limits {
+            validation_work: baseline.sample_work.validation_units,
+            sampling_work: baseline.sample_work.sampling_units,
+        },
+        ..Default::default()
+    };
+    let passed = pose::evaluate_set(&bytes, "higher-parent bounds", &selected, exact).unwrap();
+    assert_eq!(
+        passed.objects[1].source_world,
+        baseline.objects[1].source_world
+    );
+    for (limits, detail) in [
+        (
+            pose::SetLimits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            pose::SetLimits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            pose::SetLimits {
+                ancestry_depth: 2,
+                ..exact
+            },
+            "ancestry depth budget",
+        ),
+        (
+            pose::SetLimits {
+                sampling: sampling::Limits {
+                    validation_work: exact.sampling.validation_work - 1,
+                    ..exact.sampling
+                },
+                ..exact
+            },
+            "validation-work budget",
+        ),
+        (
+            pose::SetLimits {
+                sampling: sampling::Limits {
+                    sampling_work: exact.sampling.sampling_work - 1,
+                    ..exact.sampling
+                },
+                ..exact
+            },
+            "request-work budget",
+        ),
+    ] {
+        let error =
+            pose::evaluate_set(&bytes, "higher-parent bounds", &selected, limits).unwrap_err();
+        assert!(error.to_string().contains(detail), "{error}");
+    }
+}
+
 #[test]
 fn pose_set_duplicates_missing_controlled_ancestor_and_bad_later_channel_refuse() {
     let bytes = container(&set_fixture());

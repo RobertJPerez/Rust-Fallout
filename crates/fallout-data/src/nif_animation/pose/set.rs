@@ -197,15 +197,75 @@ pub fn evaluate_set(
             ancestors: Vec::new(),
         });
     }
-    // Existing source forest order is validated by its Kahn traversal. Propagate
-    // each required node once after all explicit local channels were admitted.
+    // Scene validates the forest, then sorts its public worlds by block ID.
+    // Build a private required-child CSR and root queue from validated parents;
+    // source block order never determines whether a parent has propagated.
+    budget.reserve::<usize>(blocks)?;
+    let offset_count = blocks
+        .checked_add(1)
+        .ok_or_else(|| budget.fail("required forest offset count overflow"))?;
+    budget.reserve::<usize>(offset_count)?;
+    budget.charge(blocks)?;
+    let required_count = required.iter().filter(|&&value| value).count();
+    budget.reserve::<u32>(required_count)?;
+    let mut counts = vec![0usize; blocks];
+    let mut queue = Vec::with_capacity(required_count);
+    let mut edges = 0usize;
     budget.charge(prepared.scene.world_transforms.len())?;
-    let mut propagated_objects = 0;
     for world in &prepared.scene.world_transforms {
-        let id = world.block as usize;
-        if !required[id] {
+        if !required[world.block as usize] {
             continue;
         }
+        match world.parent {
+            Some(parent) => {
+                if !required[parent as usize] {
+                    return Err(budget.fail("required forest parent is missing"));
+                }
+                counts[parent as usize] = counts[parent as usize]
+                    .checked_add(1)
+                    .ok_or_else(|| budget.fail("required forest child count overflow"))?;
+                edges = edges
+                    .checked_add(1)
+                    .ok_or_else(|| budget.fail("required forest edge count overflow"))?;
+            }
+            None => queue.push(world.block),
+        }
+    }
+    budget.reserve::<u32>(edges)?;
+    budget.charge(blocks)?;
+    let mut offsets = Vec::with_capacity(offset_count);
+    offsets.push(0usize);
+    for (id, count) in counts.iter_mut().enumerate() {
+        let next = offsets[id]
+            .checked_add(*count)
+            .ok_or_else(|| budget.fail("required forest prefix sum overflow"))?;
+        *count = offsets[id];
+        offsets.push(next);
+    }
+    if offsets[blocks] != edges {
+        return Err(budget.fail("required forest edge count differs"));
+    }
+    let mut children = vec![0u32; edges];
+    budget.charge(prepared.scene.world_transforms.len())?;
+    for world in &prepared.scene.world_transforms {
+        if required[world.block as usize]
+            && let Some(parent) = world.parent
+        {
+            let parent = parent as usize;
+            let slot = counts[parent];
+            if slot >= offsets[parent + 1] {
+                return Err(budget.fail("required forest child fill exceeds range"));
+            }
+            children[slot] = world.block;
+            counts[parent] += 1;
+        }
+    }
+    let mut propagated_objects = 0;
+    while propagated_objects < queue.len() {
+        budget.charge(1)?;
+        let id = queue[propagated_objects] as usize;
+        let world = &prepared.scene.world_transforms
+            [prepared.worlds[id].expect("required reachable world validated")];
         let object = view
             .object(world.block)
             .ok_or_else(|| budget.fail("unresolved required object"))?;
@@ -225,6 +285,19 @@ pub fn evaluate_set(
         }
         worlds[id] = Some(matrix);
         propagated_objects += 1;
+        let descendants = &children[offsets[id]..offsets[id + 1]];
+        budget.charge(descendants.len())?;
+        if queue
+            .len()
+            .checked_add(descendants.len())
+            .is_none_or(|n| n > required_count)
+        {
+            return Err(budget.fail("required forest queue exceeds admitted objects"));
+        }
+        queue.extend_from_slice(descendants);
+    }
+    if propagated_objects != required_count {
+        return Err(budget.fail("required forest could not propagate all objects"));
     }
     for ordinal in 0..objects.len() {
         let id = objects[ordinal].channel.object.block;

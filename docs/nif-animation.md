@@ -1195,7 +1195,11 @@ rotation or controller chains, out-of-range times and malformed links refuse.
 
 The producer prepares the existing source catalogues privately, validates the
 required ancestry and admits all requested local channels, then propagates each
-required source object once in the existing validated parent-before-child order.
+required source object once through a private bounded topological queue derived
+from the existing validated parents. The public scene vector is sorted by source
+block ID and supplies no propagation-order guarantee. A required-child CSR and
+root queue admit their full count/offset/child/queue storage before allocation;
+source block order cannot cause a lower-ID child to propagate before its parent.
 Parent and child requests may have different explicit times. Request permutation
 changes only output order, including the local diagnostic observations; it never
 selects a priority or changes evaluated transforms. Ancestor receipts record the
@@ -1240,3 +1244,18 @@ caught cumulative per-channel diagnostic counters; each request now uses its
 own counter under the shared remaining allowance. That failed test receipt and
 the initial Clippy style failure remain preserved beside the passing rerun in
 ignored `local/v3-asset-17`. Engineering transforms do not prove retail playback.
+
+The coordinator's independent review found that the original set propagation
+incorrectly treated the public block-ID-sorted scene vector as topological order.
+The correction uses the bounded private queue described above. Two additional
+Rust tests cover a higher-ID root and parent, complete observation permutation,
+and exact/one-under storage, traversal, sampler and depth limits. All 57 focused
+data tests, 38 CLI tests, Clippy, formatting and the rebuilt consumer pass. CLI
+tests ran serially after a preserved parallel-test temporary-directory collision.
+The frozen correction also passes the reviewer's independent hierarchy 2->1->0
+with every expected object field matching in both request orders; public source
+scene ordering is unchanged. The authored checker adds both orders of that
+higher-parent hierarchy. Five prior one-shot reports and the prepared batch
+report remain byte-identical. Original reports and the review failure are
+preserved; fresh correction evidence is in
+`local/v3-asset-17/topology-correction-01`.

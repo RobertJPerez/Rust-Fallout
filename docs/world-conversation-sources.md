@@ -50,3 +50,26 @@ exact/one-under bound. No selection, condition truth, default speaker, UI/voice
 playback, fragment execution/timing or retail parity is admitted. The actual
 owned headless consumer and frozen installed pair observation follow the
 producer handoff.
+
+The owned `conversation-batch-sources` command accepts `--install`, `--load-order`,
+optional `--index-cache`, `--requests PATH`, and optional `--bind-result-fragments`.
+The protected input is at most 64 KiB and uses this closed schema:
+
+```json
+{"schema_version":1,"requests":[
+  {"topic":"Base.esm:100","info":"Base.esm:300","speaker":"Base.esm:400"},
+  {"topic":"Base.esm:100","info":"Base.esm:301"}
+]}
+```
+
+Only canonical request strings and an optional explicit speaker are accepted;
+unknown/duplicate fields, invalid versions/types, empty/oversized lists and
+forged source metadata refuse before source access. Source preparation failures
+emit a null batch with empty subtitle/fragment lists and return nonzero. The
+consumer walks each retained response field once, preserving request/response/
+occurrence/field ordinals, byte lengths and SHA-256 without emitting story text.
+Requested fragment binding reuses the existing loaded catalogue and exact
+fragment resolver. All output is published together after every binding and
+final source validation succeed. Optional binding remains a source definition
+observation; execution, timing, selection, condition truth and runtime readiness
+remain false. The original single-request command retains its existing behavior.

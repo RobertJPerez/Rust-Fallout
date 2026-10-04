@@ -614,6 +614,19 @@ enum Command {
         #[arg(long, default_value_t = 30_000)]
         source_timeout_ms: u64,
     },
+    /// Consume an explicit bounded batch of original conversation source requests.
+    ConversationBatchSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        requests: PathBuf,
+        #[arg(long)]
+        bind_result_fragments: bool,
+    },
     /// Prepare an explicitly requested winning topic/INFO for source consumers.
     ConversationSources {
         #[arg(long)]
@@ -1752,6 +1765,26 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL terrain sources are unavailable; see report".into());
+            }
+        }
+        Command::ConversationBatchSources {
+            install,
+            load_order,
+            index_cache,
+            requests,
+            bind_result_fragments,
+        } => {
+            let report = world_preparation_inspection::conversation_batch(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &requests,
+                bind_result_fragments,
+            )?;
+            let prepared = report["batch_request_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("explicit source conversation batch refused; see report".into());
             }
         }
         Command::ConversationSources {

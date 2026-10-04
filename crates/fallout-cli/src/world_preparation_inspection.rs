@@ -1020,6 +1020,128 @@ fn poll_cell_sources(
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct BatchRequestSpec {
+    topic: String,
+    info: String,
+    speaker: Option<String>,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BatchInputSpec {
+    schema_version: u32,
+    requests: Vec<BatchRequestSpec>,
+}
+/// One protected input and one source-bound all-or-none batch; no selection or execution.
+pub(super) fn conversation_batch(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    requests_path: &Path,
+    bind_fragments: bool,
+) -> Result<Value> {
+    use std::io::Read;
+    let mut input_source = fallout_data::baseline::open_source(requests_path)?;
+    let mut input_bytes = Vec::new();
+    (&mut input_source)
+        .take(65537)
+        .read_to_end(&mut input_bytes)?;
+    if input_bytes.len() > 65536 {
+        return Err("conversation batch input exceeds 64 KiB".into());
+    }
+    let input: BatchInputSpec = serde_json::from_slice(&input_bytes)?;
+    if input.schema_version != 1 || input.requests.is_empty() || input.requests.len() > 8 {
+        return Err("conversation batch schema1 requires 1..=8 explicit requests".into());
+    }
+    let input_sha256 = format!("{:x}", Sha256::digest(&input_bytes));
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Explicit source conversation batch consumes retained subtitle spans and loaded fragment definitions",
+        "input_sha256":input_sha256,"explicit_requests":input.requests,
+        "fragment_binding_requested":bind_fragments,"membership_metadata_bytes":null,
+        "conversation_batch":null,"subtitle_payloads":[],"loaded_fragments":[],
+        "source_error":null,"batch_request_prepared":false,"fragment_bindings_available":false,
+        "condition_signatures_supplied":false,"selection_order_verified":false,
+        "condition_truth_verified":false,"speaker_assignment_verified":false,
+        "voice_filename_verified":false,"fragment_timing_verified":false,
+        "fragment_execution_admitted":false,"runtime_ready":false,"retail_parity_accepted":false});
+    let consumed = (|| -> Result<()> {
+        let sources = DialogueSources::build(&mut store, Limits::default())?;
+        report["membership_metadata_bytes"] = json!(sources.retained_bytes());
+        let requests = input
+            .requests
+            .iter()
+            .map(|entry| {
+                Ok(sources.request(
+                    crate::parse_cell_key(&entry.topic)?,
+                    crate::parse_cell_key(&entry.info)?,
+                    entry
+                        .speaker
+                        .as_ref()
+                        .map(|key| crate::parse_cell_key(key))
+                        .transpose()?,
+                )?)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let batch = sources.prepare_batch(
+            &mut store,
+            &requests,
+            &Signatures::new(),
+            Default::default(),
+        )?;
+        let mut payloads = Vec::new();
+        for (request_index, prepared) in batch.conversations().iter().enumerate() {
+            for (response_index, response) in prepared.metadata().responses.iter().enumerate() {
+                let mut occurrence = 0;
+                for &field_index in &response.fields {
+                    let field = &prepared.metadata().info_fields[field_index];
+                    if field.kind != *b"NAM1" {
+                        continue;
+                    }
+                    let bytes = prepared
+                        .info_bytes(field_index)
+                        .ok_or("batch subtitle field has no retained source span")?;
+                    let sha256 = format!("{:x}", Sha256::digest(bytes));
+                    if sha256 != field.sha256 {
+                        return Err("batch retained subtitle bytes differ from source field".into());
+                    }
+                    payloads.push(json!({"request":request_index,"response":response_index,
+                        "source_response_number":response.number,"occurrence":occurrence,
+                        "info_field":field_index,"bytes":bytes.len(),"sha256":sha256}));
+                    occurrence += 1;
+                }
+            }
+        }
+        let mut loaded = Vec::new();
+        if bind_fragments {
+            let catalogue = Catalogue::load(&mut store, ScriptLimits::default(), |_, _| Ok(()))?;
+            for (request_index, prepared) in batch.conversations().iter().enumerate() {
+                for (fragment_index, fragment) in prepared.metadata().fragments.iter().enumerate() {
+                    let script = fragment.resolve(&catalogue)?;
+                    loaded.push(json!({"request":request_index,"fragment":fragment_index,
+                        "handle":script.handle(),"version":script.version(),"owner":script.owner(),
+                        "issues":script.issues(),"execution_admitted":false}));
+                }
+            }
+        }
+        batch.validate_sources(&mut store)?;
+        let projection = serde_json::to_value(&batch)?;
+        report["conversation_batch"] = projection;
+        report["subtitle_payloads"] = json!(payloads);
+        report["loaded_fragments"] = json!(loaded);
+        report["fragment_bindings_available"] = json!(bind_fragments);
+        report["batch_request_prepared"] = json!(true);
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
 pub(super) struct Input {
     pub topic: FormKey,
     pub info: FormKey,
@@ -1784,6 +1906,408 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    fn conversation_batch_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let group = |topic: u32, data: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(data.len() as u32 + 24).to_le_bytes(),
+                &topic.to_le_bytes(),
+                &7_i32.to_le_bytes(),
+                &[0; 8],
+                data,
+            ]
+            .concat()
+        };
+        let script = || {
+            let mut schr = [0; 20];
+            schr[..4].copy_from_slice(&[61, 67, 71, 73]);
+            schr[8..12].copy_from_slice(&4_u32.to_le_bytes());
+            [field(b"SCHR", &schr), field(b"SCDA", &[0x1d, 0, 0, 0])].concat()
+        };
+        let body = |second: bool| {
+            let mut ct = [0; 28];
+            ct[..4].copy_from_slice(&[0x21, 13, 17, 19]);
+            ct[4..8].copy_from_slice(&0x80000000_u32.to_le_bytes());
+            ct[8..10].copy_from_slice(&(if second { 65534_u16 } else { 65535 }).to_le_bytes());
+            ct[10..12].copy_from_slice(&[23, 29]);
+            ct[12..16].copy_from_slice(&0x11112222_u32.to_le_bytes());
+            ct[16..20].copy_from_slice(&0x33334444_u32.to_le_bytes());
+            ct[20..24].copy_from_slice(&0xfffffff0_u32.to_le_bytes());
+            ct[24..].copy_from_slice(&0x400_u32.to_le_bytes());
+            let mut trdt = [0; 24];
+            trdt[..4].copy_from_slice(&7_u32.to_le_bytes());
+            trdt[4..8].copy_from_slice(&(-3_i32).to_le_bytes());
+            trdt[8..12].copy_from_slice(&[31, 37, 41, 43]);
+            trdt[12] = if second { 2 } else { 9 };
+            trdt[13..16].copy_from_slice(&[47, 53, 59]);
+            let text = if second {
+                [254, 129, 66, 0]
+            } else {
+                [255, 128, 65, 0]
+            };
+            let mut data = [
+                field(b"DATA", &[0, 7, 0, 0]),
+                field(b"TPIC", &0x100_u32.to_le_bytes()),
+                field(b"CTDA", &ct),
+                field(b"TRDT", &trdt),
+                field(b"NAM1", &text),
+                field(b"NAM1", b"repeat\0"),
+                script(),
+            ]
+            .concat();
+            if second && mode == "ambiguous-last" {
+                data.extend(script());
+            }
+            data.extend(field(b"NEXT", &[]));
+            data.extend(script());
+            if second && mode == "truncated-last" {
+                data.extend(b"NAM1\x08\0x");
+            }
+            data
+        };
+        let header = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let mut second = record(
+            if mode == "wrong-kind-last" {
+                b"DIAL"
+            } else {
+                b"INFO"
+            },
+            0x301,
+            &body(true),
+        );
+        if mode == "deleted-last" {
+            second[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        }
+        let first = record(b"INFO", 0x300, &body(false));
+        let groups = if mode == "moved-last" {
+            [group(0x100, &first), group(0x200, &second)].concat()
+        } else {
+            group(0x100, &[first, second].concat())
+        };
+        fs::write(
+            root.join("Data/Base.esm"),
+            [
+                record(b"TES4", 0, &header),
+                record(
+                    b"DIAL",
+                    0x100,
+                    &[
+                        field(b"EDID", b"batch\0"),
+                        field(b"FULL", &[255, 128, 84, 0]),
+                        field(b"DATA", &[0]),
+                        field(b"QSTI", &0x500_u32.to_le_bytes()),
+                    ]
+                    .concat(),
+                ),
+                record(b"NPC_", 0x400, &[]),
+                record(b"QUST", 0x500, &[]),
+                record(b"DIAL", 0x200, &field(b"DATA", &[0])),
+                groups,
+            ]
+            .concat(),
+        )
+        .unwrap();
+        fs::write(root.join("order.json"), r#"["Base.esm"]"#).unwrap();
+        if mode == "missing-master" {
+            fs::write(
+                root.join("Data/Patch.esp"),
+                record(
+                    b"TES4",
+                    0,
+                    &[
+                        header,
+                        field(b"MAST", b"Missing.esm\0"),
+                        field(b"DATA", &[0; 8]),
+                    ]
+                    .concat(),
+                ),
+            )
+            .unwrap();
+            fs::write(root.join("order.json"), r#"["Base.esm","Patch.esp"]"#).unwrap();
+        }
+        let second = json!({"topic":if mode=="bad-last-parent" {"Base.esm:200"} else {"Base.esm:100"},
+            "info":if mode=="invalid-key-last" {"not-canonical"} else {"Base.esm:301"},
+            "speaker":if mode=="bad-last-speaker" {Some("Base.esm:500")} else {None}});
+        fs::write(
+            root.join("requests.json"),
+            serde_json::to_vec(&json!({"schema_version":1,"requests":[
+            {"topic":"Base.esm:100","info":"Base.esm:300","speaker":"Base.esm:400"},second]}))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("conversation-batch-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_CONVERSATION_BATCH_FIXTURE={}", root.display());
+    }
+    #[test]
+    fn cli_conversation_batch_consumes_exact_retained_subtitles_and_real_fragment_sources() {
+        let root = directory();
+        conversation_batch_fixture(&root, "valid");
+        let files = ["Data/Base.esm", "order.json", "requests.json"];
+        let hashes = files.map(|path| Sha256::digest(fs::read(root.join(path)).unwrap()));
+        for bind in [false, true] {
+            let report = conversation_batch(
+                &root,
+                &root.join("order.json"),
+                None,
+                &root.join("requests.json"),
+                bind,
+            )
+            .unwrap();
+            assert_eq!(report["batch_request_prepared"], true);
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["fragment_bindings_available"], bind);
+            let batch = &report["conversation_batch"];
+            assert_eq!(batch["receipt"]["usage"]["read_bytes"], 1266);
+            assert_eq!(batch["receipt"]["usage"]["raw_bytes"], 448);
+            assert_eq!(batch["receipt"]["usage"]["conditions"], 2);
+            assert_eq!(batch["conversations"][0]["topic"]["record_file_offset"], 42);
+            assert_eq!(batch["conversations"][0]["info"]["record_file_offset"], 208);
+            assert_eq!(batch["conversations"][1]["info"]["record_file_offset"], 417);
+            assert_eq!(
+                batch["conversations"][0]["info_fields"][4]["header_decoded_offset"],
+                84
+            );
+            assert_eq!(
+                batch["conversations"][1]["fragments"][1]["key"]["header_decoded_offset"],
+                149
+            );
+            assert_eq!(report["subtitle_payloads"].as_array().unwrap().len(), 4);
+            let payloads = &report["subtitle_payloads"];
+            for (index, bytes) in [(0, [255, 128, 65, 0]), (2, [254, 129, 66, 0])] {
+                assert_eq!(payloads[index]["request"], index / 2);
+                assert_eq!(payloads[index]["occurrence"], 0);
+                assert_eq!(payloads[index]["info_field"], 4);
+                assert_eq!(payloads[index]["bytes"], 4);
+                assert_eq!(
+                    payloads[index]["sha256"],
+                    format!("{:x}", Sha256::digest(bytes))
+                );
+            }
+            for index in [1, 3] {
+                assert_eq!(payloads[index]["occurrence"], 1);
+                assert_eq!(payloads[index]["info_field"], 5);
+                assert_eq!(
+                    payloads[index]["sha256"],
+                    format!("{:x}", Sha256::digest(b"repeat\0"))
+                );
+            }
+            assert_eq!(
+                report["loaded_fragments"].as_array().unwrap().len(),
+                if bind { 4 } else { 0 }
+            );
+            if bind {
+                for (index, fragment) in report["loaded_fragments"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                {
+                    assert_eq!(fragment["request"], index / 2);
+                    assert_eq!(fragment["fragment"], index % 2);
+                    assert_eq!(
+                        fragment["owner"]["kind"],
+                        if index % 2 == 0 {
+                            "dialogue_begin"
+                        } else {
+                            "dialogue_end"
+                        }
+                    );
+                    assert_eq!(
+                        fragment["version"]["record_file_offset"],
+                        if index / 2 == 0 { 208 } else { 417 }
+                    );
+                    assert_eq!(fragment["version"]["compiled_bytes"], 4);
+                    assert_eq!(fragment["execution_admitted"], false);
+                }
+            }
+            for flag in [
+                "condition_signatures_supplied",
+                "selection_order_verified",
+                "condition_truth_verified",
+                "speaker_assignment_verified",
+                "voice_filename_verified",
+                "fragment_timing_verified",
+                "fragment_execution_admitted",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[flag], false);
+            }
+        }
+        for (path, expected) in files.into_iter().zip(hashes) {
+            assert_eq!(Sha256::digest(fs::read(root.join(path)).unwrap()), expected);
+        }
+    }
+    #[test]
+    fn cli_conversation_batch_last_failure_leaks_no_prepared_prefix_or_fragment_payloads() {
+        for mode in [
+            "bad-last-parent",
+            "bad-last-speaker",
+            "ambiguous-last",
+            "truncated-last",
+            "moved-last",
+            "deleted-last",
+            "wrong-kind-last",
+            "invalid-key-last",
+        ] {
+            let root = directory();
+            conversation_batch_fixture(&root, mode);
+            let report = conversation_batch(
+                &root,
+                &root.join("order.json"),
+                None,
+                &root.join("requests.json"),
+                true,
+            )
+            .unwrap();
+            assert_eq!(report["batch_request_prepared"], false, "{mode}");
+            assert!(report["conversation_batch"].is_null());
+            assert_eq!(report["subtitle_payloads"], json!([]));
+            assert_eq!(report["loaded_fragments"], json!([]));
+            assert_eq!(report["fragment_bindings_available"], false);
+            assert!(report["source_error"].is_string());
+        }
+        let root = directory();
+        conversation_batch_fixture(&root, "missing-master");
+        assert!(
+            conversation_batch(
+                &root,
+                &root.join("order.json"),
+                None,
+                &root.join("requests.json"),
+                true
+            )
+            .is_err()
+        );
+        let root = directory();
+        conversation_batch_fixture(&root, "valid");
+        let request = json!({"topic":"Base.esm:100","info":"Base.esm:300"});
+        fs::write(
+            root.join("requests.json"),
+            serde_json::to_vec(&json!({"schema_version":1,"requests":[request,request]})).unwrap(),
+        )
+        .unwrap();
+        let report = conversation_batch(
+            &root,
+            &root.join("order.json"),
+            None,
+            &root.join("requests.json"),
+            true,
+        )
+        .unwrap();
+        assert_eq!(report["batch_request_prepared"], false);
+        assert!(report["conversation_batch"].is_null());
+        assert_eq!(report["subtitle_payloads"], json!([]));
+    }
+    #[test]
+    fn cli_conversation_batch_closed_input_refuses_bad_nested_and_top_level_fields_before_source_access()
+     {
+        let root = directory();
+        let input = root.join("bad-requests.json");
+        let valid =
+            json!({"schema_version":1,"requests":[{"topic":"Base.esm:100","info":"Base.esm:300"}]});
+        let mut bad_top = valid.clone();
+        bad_top["runtime_ready"] = json!(true);
+        let mut bad_nested = valid.clone();
+        bad_nested["requests"][0]["source_cohort_sha256"] = json!("forged");
+        let mut bad_version = valid.clone();
+        bad_version["schema_version"] = json!(2);
+        let mut bad_type = valid.clone();
+        bad_type["requests"][0]["info"] = json!(300);
+        for value in [
+            bad_top,
+            bad_nested,
+            bad_version,
+            bad_type,
+            json!({"schema_version":1,"requests":[]}),
+            json!({"schema_version":1,"requests":vec![valid["requests"][0].clone();9]}),
+        ] {
+            fs::write(&input, serde_json::to_vec(&value).unwrap()).unwrap();
+            assert!(
+                conversation_batch(
+                    Path::new("absent"),
+                    Path::new("absent"),
+                    None,
+                    &input,
+                    false
+                )
+                .is_err()
+            );
+        }
+        for bytes in [b"{".as_slice(),br#"{"schema_version":1,"schema_version":1,"requests":[]}"#,
+            br#"{"schema_version":1,"requests":[{"topic":"Base.esm:100","info":"Base.esm:300","info":"Base.esm:301"}]}"#] {
+            fs::write(&input,bytes).unwrap();
+            assert!(conversation_batch(Path::new("absent"),Path::new("absent"),None,&input,false).is_err());
+        }
+        fs::write(&input, vec![b' '; 65537]).unwrap();
+        assert!(
+            conversation_batch(
+                Path::new("absent"),
+                Path::new("absent"),
+                None,
+                &input,
+                false
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn cli_conversation_batch_requires_input_flag_and_preserves_the_existing_single_command() {
+        use clap::Parser;
+        let args = [
+            "fallout-cli",
+            "conversation-batch-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+        ];
+        assert!(crate::Args::try_parse_from(args).is_err());
+        let parsed = crate::Args::try_parse_from(args.into_iter().chain([
+            "--requests",
+            "r.json",
+            "--bind-result-fragments",
+        ]))
+        .unwrap();
+        match parsed.command {
+            crate::Command::ConversationBatchSources {
+                requests,
+                bind_result_fragments,
+                ..
+            } => {
+                assert_eq!(requests, Path::new("r.json"));
+                assert!(bind_result_fragments);
+            }
+            _ => panic!("conversation batch command changed"),
+        }
+        let root = directory();
+        conversation_batch_fixture(&root, "valid");
+        let single = conversation(
+            &root,
+            &root.join("order.json"),
+            None,
+            Input {
+                topic: crate::parse_cell_key("Base.esm:100").unwrap(),
+                info: crate::parse_cell_key("Base.esm:300").unwrap(),
+                speaker: None,
+                bind_result_fragments: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(single["subtitle_payloads"].as_array().unwrap().len(), 2);
+        assert_eq!(single["loaded_fragments"].as_array().unwrap().len(), 2);
+        assert!(single.get("conversation_batch").is_none());
+        assert_eq!(single["runtime_ready"], false);
     }
 
     fn grid_fixture(root: &Path, duplicate: bool) {

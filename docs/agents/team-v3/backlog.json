@@ -533,7 +533,7 @@
       },
       {
         "id": "V3-VM-24",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Prepare a reusable source-bound native query plan without retaining World borrows",
         "existing_gap": "NativeCalls owns a PreparedEvent borrowing the current World, whereas query::Request already owns canonical subject/item identities and can evaluate fresh same-campaign state. No source-native plan seals the call occurrence/caller proof while reusing that existing immutable query request after a strict cold restore. VM20 captures historical source/local data and cannot be live query authority.",
@@ -566,11 +566,30 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "scripts",
+            "task_id": "V3-VM-24",
+            "original": "1f826be18aff0a192ba55f03429b1432727b0234",
+            "integrated": "d0f04a48bbe45af4befcfb91c0b9035fb1a1a2fc",
+            "candidate_parent": "bbd740bd430496ef1dc6c343df8b173bc8499b58",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/runtime.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-VM-24.patch",
+              "bytes": 71886,
+              "sha256": "8a2f9f7262eeeea9d541623a69ac56dc524ba564a39feb53dc5cd7712a39c67f"
+            },
+            "finished_at": "2026-10-04T12:55:09.425382+00:00"
+          }
+        ]
       },
       {
         "id": "V3-VM-25",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Prepare one bounded condition request batch across several exact source records",
         "existing_gap": "VM19 Requests::prepare accepts one PreparedRecord only. Real package/dialogue candidate hosts need CTDA sites from multiple exact records in a single explicit selection, otherwise repeatedly validate/hash the same complete source cohort and manually aggregate budgets.",
@@ -601,7 +620,26 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "scripts",
+            "task_id": "V3-VM-25",
+            "original": "e640fee763470755c2921816dcd3764de8564fdd",
+            "integrated": "b68c22f15960109618b2d6f5e26ac7d53981eb4c",
+            "candidate_parent": "d0f04a48bbe45af4befcfb91c0b9035fb1a1a2fc",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/scripts.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-VM-25.patch",
+              "bytes": 61724,
+              "sha256": "d3a16f3e97ef3825b27a53a887c3b0888dfb5be73a350f335f59012ca836bdfc"
+            },
+            "finished_at": "2026-10-04T12:55:10.020422+00:00"
+          }
+        ]
       },
       {
         "id": "V3-VM-26",
@@ -1486,7 +1524,7 @@
       {
         "id": "V3-STATE-24",
         "title": "Initialize an explicit source-checked inventory bank and its starting lots atomically",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "runtime",
         "owned_paths": [
           "crates/fallout-runtime/src/inventory.rs",
@@ -1534,12 +1572,26 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\runtime-tasks-23-34.json",
           "sha256": "aaf72b3b35e89cc7f49cd63d8dcad26b3f3a017380fec543c13987a7be2ff304"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "runtime",
+            "task_id": "V3-STATE-24",
+            "original": "6c9171597d3adf713c72cd74e574872852ba5102",
+            "exit_code": 0,
+            "log": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch12-integration-01\\V3-STATE-24.log",
+              "bytes": 182,
+              "sha256": "5100ceb033ea052cd23a829dbaf3aaefaa9094dac8ad4a2c3f242c8c8c29414d"
+            },
+            "integrated": "c4027312d5b7e8c00f55217d24ff43c52f51949f"
+          }
+        ]
       },
       {
         "id": "V3-STATE-25",
         "title": "Commit explicit facts edits across existing item lots as one transaction",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "runtime",
         "owned_paths": [
           "crates/fallout-runtime/src/inventory.rs",
@@ -1586,12 +1638,26 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\runtime-tasks-23-34.json",
           "sha256": "aaf72b3b35e89cc7f49cd63d8dcad26b3f3a017380fec543c13987a7be2ff304"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "runtime",
+            "task_id": "V3-STATE-25",
+            "original": "af7c185e34e0725b5cdf0bdcc6ff2075f5f8b62d",
+            "exit_code": 0,
+            "log": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch12-integration-01\\V3-STATE-25.log",
+              "bytes": 177,
+              "sha256": "97ac6b156fd929bd92fd55eccb45a5884377f1147213b1a2aa7e1744397080af"
+            },
+            "integrated": "59b462e79497d8b2f65778e2d4a20722f41cd9d7"
+          }
+        ]
       },
       {
         "id": "V3-STATE-26",
         "title": "Remove explicitly requested quantities from several lots atomically",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "runtime",
         "owned_paths": [
           "crates/fallout-runtime/src/inventory.rs",
@@ -1635,7 +1701,21 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\runtime-tasks-23-34.json",
           "sha256": "aaf72b3b35e89cc7f49cd63d8dcad26b3f3a017380fec543c13987a7be2ff304"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "runtime",
+            "task_id": "V3-STATE-26",
+            "original": "a066148bded3d093443211710de27dd4818fedc4",
+            "exit_code": 0,
+            "log": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch12-integration-01\\V3-STATE-26.log",
+              "bytes": 177,
+              "sha256": "33edb869c96e58ec8593abcc27b8572ba0b6169a4509bdc1d7510bfaad5099ea"
+            },
+            "integrated": "36c60f309027d1a653e7fd901bc5d5a749d24d78"
+          }
+        ]
       },
       {
         "id": "V3-STATE-27",
@@ -2052,6 +2132,406 @@
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\runtime-tasks-23-34.json",
           "sha256": "aaf72b3b35e89cc7f49cd63d8dcad26b3f3a017380fec543c13987a7be2ff304"
         }
+      },
+      {
+        "id": "V3-STATE-35",
+        "title": "Transfer an explicit partial lot without publishing an intermediate split",
+        "state": "ready",
+        "producer": "runtime",
+        "owned_paths": [
+          "crates/fallout-runtime/src/inventory.rs",
+          "crates/fallout-runtime/src/state/**",
+          "crates/fallout-runtime/tests/items.rs",
+          "crates/fallout-cli/src/item_state_inspection.rs"
+        ],
+        "committed_base": "a066148bded3d093443211710de27dd4818fedc4",
+        "existing_exact_apis": [
+          "World::split_item",
+          "World::transfer_item",
+          "World::item_by_handle",
+          "World::inventory_count_trace_bounded"
+        ],
+        "source_evidence": [
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "lines": 2257,
+            "line": 1495,
+            "observed_boundary": "split_item allocates and commits separately"
+          },
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "lines": 2257,
+            "line": 1529,
+            "observed_boundary": "transfer_item moves only the whole existing lot"
+          }
+        ],
+        "observed_production_gap": "Taking part of a container lot requires split_item followed by transfer_item; a failed transfer leaves the split and allocator advance visible.",
+        "implementation_boundary": "Add private stage/commit for one ItemHandle, strict partial NonZeroU32 quantity and different explicitly initialized destination owner. Preserve existing split facts bit-for-bit and original remainder ID; new destination lot gets the next ID only at successful commit. Preflight both membership/count indices, copied facts, total canonical link/opaque capacity, ID and one revision. Do not add merge/equipment/automatic lot choice rules. Whole-lot transfer remains the existing operation.",
+        "consumer": "Item-state CLI takes 3 from an authored 8-count lot into a different initialized bank in one revision, saves and cold-restores both banks.",
+        "acceptance": [
+          "Literal before/after native snapshots prove source ID keeps5, new destination ID has3 with identical full Facts, conserved base totals, exact next_item and one revision.",
+          "Uninitialized/same destination, zero/full/overdraw quantity, stale handle/epoch/revision and insufficient duplicated-facts capacity refuse without a split, ID advance or partial transfer.",
+          "Drop stage has no effects; a destination filled between stage/commit invalidates the operation; cold restore expires old handles."
+        ],
+        "explicit_bounds": [
+          "one source lot",
+          "Facts/key/link/opaque copied bytes",
+          "canonical item/link/opaque capacity",
+          "u32 quantities/u64 counts and allocator/revision overflow"
+        ],
+        "non_overlap": "STATE22 transfers whole IDs; STATE26 removes quantities. Neither supplies atomic split-and-transfer. Independent of queued local/journal batches.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-STATE-36",
+        "title": "Retire an explicit group of script instances without partial owner teardown",
+        "state": "ready",
+        "producer": "runtime",
+        "owned_paths": [
+          "crates/fallout-runtime/src/state.rs",
+          "crates/fallout-runtime/src/state/**",
+          "crates/fallout-runtime/tests/state.rs",
+          "crates/fallout-cli/src/script_state_inspection.rs"
+        ],
+        "committed_base": "a066148bded3d093443211710de27dd4818fedc4",
+        "existing_exact_apis": [
+          "World::remove_instance",
+          "World::instance",
+          "World::handle",
+          "World::owner_instance"
+        ],
+        "source_evidence": [
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/state.rs",
+            "sha256": "c620e3eca856506324ba2d2aa4a9d820ef9ce2dbc8de30bb00c688cdf70703bd",
+            "lines": 674,
+            "line": 392,
+            "observed_boundary": "remove_instance scans pending events/items then removes one owner and frees one slot"
+          }
+        ],
+        "observed_production_gap": "A host tearing down several explicit script instances has only repeated single removals; a pending event or inventory link on the final instance leaves a partial teardown.",
+        "implementation_boundary": "Add bounded duplicate-free InstanceHandle group stage/commit. Share single-removal admission; refuse any selected instance with pending events or item script_instance links, including selected-group links rather than implicitly removing items/events. Scan bounded journal/items once using a selected-ID set, preflight all slot generation increments and one revision, then free slots/owners/local charges atomically. Definition cache behavior must remain exactly existing remove_instance policy.",
+        "consumer": "Script-state CLI retires two caller-selected source instances while retaining an unrelated instance and its event, then saves/cold-restores the remaining canonical world.",
+        "acceptance": [
+          "Complete literal snapshots establish exact owner/instance removal, surviving locals/journal/items, allocator unchanged and one revision.",
+          "Bad final handle, pending event, linked item, stale revision/restore, duplicate row and overflow refuse the entire group.",
+          "Reuse the freed slots through existing initialization and prove old handles stay invalid; no hidden definition-cache eviction or event acknowledgement."
+        ],
+        "explicit_bounds": [
+          "selected handles",
+          "visited journal/items",
+          "metadata/ID set bytes",
+          "removed local count and free-slot generation arithmetic"
+        ],
+        "non_overlap": "STATE34 creates instances, STATE29 writes locals and STATE31 appends events. This implements the missing explicit teardown transaction, not automatic unload lifecycle.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-STATE-37",
+        "title": "Add explicit source-checked lots to an existing bank atomically",
+        "state": "ready",
+        "producer": "runtime",
+        "owned_paths": [
+          "crates/fallout-runtime/src/inventory.rs",
+          "crates/fallout-runtime/src/source_items.rs",
+          "crates/fallout-runtime/tests/source_items.rs",
+          "crates/fallout-cli/src/item_state_inspection.rs"
+        ],
+        "committed_base": "a066148bded3d093443211710de27dd4818fedc4",
+        "existing_exact_apis": [
+          "World::stage_source_inventory_initialization",
+          "World::add_source_item",
+          "source_items::validate",
+          "World::inventory_view"
+        ],
+        "source_evidence": [
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "lines": 2257,
+            "line": 1018,
+            "observed_boundary": "source initialization is restricted to an uninitialized owner"
+          },
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "lines": 2257,
+            "line": 1459,
+            "observed_boundary": "add_item publishes one lot at a time"
+          }
+        ],
+        "observed_production_gap": "An already initialized bank cannot receive several source-checked new lots all-or-none; STATE24 deliberately refuses initialized banks.",
+        "implementation_boundary": "Add a bounded source addition stage for one already initialized owner and caller-ordered Facts/nonzero counts. Reuse Content/Policy and canonical facts validation, cumulative IDs/count indices/capacity calculations. No clearing or replacing the existing bank; existing lot IDs/facts remain untouched. All validation precedes new IDs and one revision; empty list is explicitly no-op.",
+        "consumer": "Item-state CLI adds two explicit differing lots to an existing nonempty bank, then observes per-base counts and cold restore.",
+        "acceptance": [
+          "Literal full snapshots prove existing lots unchanged, two new IDs in request order, raw condition/opaque/link bits and one revision.",
+          "Bad final source/policy role or reference, uninitialized owner, duplicate invalid slots, aggregate capacity or ID exhaustion refuses all additions.",
+          "Same-base lots remain distinct; no source CNTO/LVLI inference, automatic stack merge or random selection."
+        ],
+        "explicit_bounds": [
+          "new lots",
+          "source-role checks",
+          "staged fixed/key/Facts bytes",
+          "aggregate item/link/extra capacity",
+          "per-owner counts and allocator/revision"
+        ],
+        "non_overlap": "STATE24 boots unknown banks; STATE25 edits existing facts; this targets new lots in an already initialized bank.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-STATE-38",
+        "title": "Initialize several explicit inventory owners in one boot publication",
+        "state": "ready",
+        "producer": "runtime",
+        "owned_paths": [
+          "crates/fallout-runtime/src/inventory.rs",
+          "crates/fallout-runtime/src/source_items.rs",
+          "crates/fallout-runtime/tests/source_items.rs",
+          "crates/fallout-cli/src/item_state_inspection.rs"
+        ],
+        "committed_base": "a066148bded3d093443211710de27dd4818fedc4",
+        "existing_exact_apis": [
+          "World::stage_source_inventory_initialization",
+          "World::commit_source_inventory_initialization",
+          "source_items::Policy",
+          "foreign::Content"
+        ],
+        "source_evidence": [
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "lines": 2257,
+            "line": 429,
+            "observed_boundary": "StagedSourceInventory contains one owner"
+          },
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "ae34c3fc4613dd0b15b3cfd89bff7c1b9e82026e09b9e893ede8ccf7035514b6",
+            "lines": 2257,
+            "line": 1106,
+            "observed_boundary": "commit_source_inventory_initialization publishes one bank"
+          }
+        ],
+        "observed_production_gap": "Scene boot can atomically initialize one bank, but initializing two actors or actor/container owners still exposes a successful prefix when a later owner fails.",
+        "implementation_boundary": "Add bounded group stage/commit of unique uninitialized ReferenceIds and per-owner explicit ordered lots. Share STATE24 validation helpers, preflight total canonical capacity and global item-ID span, retain one exact Content/Policy binding and one revision. Created IDs follow owner request order then lot order. Do not loop the mutating single commit. Explicit empty owner bank is allowed, group empty is no-op, initialized owner refuses.",
+        "consumer": "Owned item-state boot consumer initializes one actor bank, one container bank and one explicitly empty bank, then cold-restores exact results.",
+        "acceptance": [
+          "Independent complete snapshot proves all three unknown-to-known transitions together, exact global ID sequence and one revision, with unrelated state preserved.",
+          "Bad final owner/source/Facts, duplicate owner, existing empty bank, stale stage or cumulative overflow leaves every bank unknown and all counters unchanged.",
+          "An exact-capacity fixture succeeds; one-under item/link/opaque/source-read admission refuses before cloning source metadata or publishing any owner."
+        ],
+        "explicit_bounds": [
+          "owners",
+          "total lots/source checks",
+          "aggregate staged metadata/Facts bytes",
+          "canonical item/link/extra capacity",
+          "global ID/revision range"
+        ],
+        "non_overlap": "STATE27 groups source references and STATE34 groups instances. This is a separate inventory component transaction over already registered owners; no dependency on either task.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-STATE-39",
+        "title": "Fork an exact source-validated native boundary into a fresh save repository",
+        "state": "ready",
+        "producer": "runtime",
+        "owned_paths": [
+          "crates/fallout-runtime/src/save/**",
+          "crates/fallout-cli/src/native_save_inspection.rs",
+          "crates/fallout-runtime/tests/save*.rs",
+          "docs/native-save*.md"
+        ],
+        "committed_base": "a066148bded3d093443211710de27dd4818fedc4",
+        "existing_exact_apis": [
+          "Repository::open",
+          "Repository::load",
+          "Recovery",
+          "Captured::at_boundary",
+          "Repository::create",
+          "Repository::commit"
+        ],
+        "source_evidence": [
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/save/repository.rs",
+            "sha256": "ffa7e100a4799162aa79f7d71a97c7210e9157e2af85b2a19622678e6b5abfee",
+            "lines": 864,
+            "line": 594,
+            "observed_boundary": "load reads current under explicit Recovery"
+          },
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/save/repository.rs",
+            "sha256": "ffa7e100a4799162aa79f7d71a97c7210e9157e2af85b2a19622678e6b5abfee",
+            "lines": 864,
+            "line": 347,
+            "observed_boundary": "create and commit are independent primitives"
+          }
+        ],
+        "observed_production_gap": "Continue can load and repair its repository, but there is no explicit source-bound Save As consumer that preserves the source repository and copies an independently selected valid boundary to a new destination.",
+        "implementation_boundary": "Add an owned native-save Save As workflow taking explicit source repository/Recovery, expected campaign/cohort and selected native STAT hash plus absent destination. Bind the expected raw STAT hash to the same LoadReceipt.metadata.snapshot_sha256 returned with the restored World, not to a second independent slot read or canonical re-encode. Validate source and seal the loaded boundary with existing restore/capture APIs before creating destination. Preserve existing recovery semantics: Strict reads current; PreviousIfCurrentInvalid can use previous only after current refusal. No forced previous selection, implicit fallback or source repair. Destination generation starts under existing repository rules; preserve canonical state/revision exactly. Failures retain diagnostic artifacts honestly rather than claiming rollback of filesystem publication. Do not create a second save format or source decoder.",
+        "consumer": "Actual native-save CLI forks an authored valid current boundary and, in a separate invalid-current fixture, its valid previous boundary under explicit PreviousIfCurrentInvalid. Cold-load each destination and compare complete canonical DTOs.",
+        "acceptance": [
+          "Source directory entries and current/previous bytes remain unchanged; destination canonical snapshot equals the literal selected input while native container generation follows existing commit rules.",
+          "Wrong expected STAT/campaign/cohort, schema-invalid checksum-valid source, existing/protected/aliased destination refuse before destination repository creation.",
+          "Interrupted/failed destination publication is reported Failed, never Saved; exact destination artifacts are preserved for diagnosis and source remains untouched."
+        ],
+        "explicit_bounds": [
+          "existing native slot/read/restore caps",
+          "one source candidate and one capture",
+          "bounded path/report/error bytes",
+          "one publication"
+        ],
+        "non_overlap": "STATE20/21/32 inspect/load; root route-boot intentionally changes canonical state. Save As performs no gameplay mutation and uses the existing repository APIs.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": "APPROVED: Minimal additive NativeSave/RuntimeCommand flags and dispatch require coordinator relocation only; no new root route-boot helper ownership or production framework. Exact reviewed existing producer adoption/minimal shared relocation is preauthorized at a clean task boundary; retain and declare mappings, do not replay a whole branch.",
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-STATE-40",
+        "title": "Share one immutable captured boundary across bounded save destinations",
+        "state": "ready",
+        "producer": "runtime",
+        "owned_paths": [
+          "crates/fallout-runtime/src/save/mod.rs",
+          "crates/fallout-runtime/src/save/source_validation.rs",
+          "crates/fallout-runtime/src/save/worker.rs",
+          "crates/fallout-runtime/src/save/worker/**",
+          "crates/fallout-runtime/tests/save*.rs",
+          "crates/fallout-cli/src/native_save_inspection.rs"
+        ],
+        "committed_base": "a066148bded3d093443211710de27dd4818fedc4",
+        "existing_exact_apis": [
+          "Captured::at_boundary",
+          "Captured::snapshot",
+          "SaveWorker::try_submit",
+          "SaveTicket"
+        ],
+        "source_evidence": [
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/save/mod.rs",
+            "sha256": "465a0796f9bacd937ea02c139129f91b23bdbfa08c1ca203366887252918d1d1",
+            "lines": 70,
+            "line": 53,
+            "observed_boundary": "Captured derives Clone over owned Snapshot and SourceValidation"
+          },
+          {
+            "commit": "a066148bded3d093443211710de27dd4818fedc4",
+            "path": "crates/fallout-runtime/src/save/mod.rs",
+            "sha256": "465a0796f9bacd937ea02c139129f91b23bdbfa08c1ca203366887252918d1d1",
+            "lines": 70,
+            "line": 62,
+            "observed_boundary": "at_boundary makes one full snapshot"
+          }
+        ],
+        "observed_production_gap": "Captured::clone duplicates the entire canonical Snapshot even when manual and backup destinations intentionally publish the exact same boundary. Queue permits account captures, but sharing one immutable boundary is not available.",
+        "implementation_boundary": "Make immutable Captured payload internally shared through Arc, preserving public snapshot borrowing and source validation lifetime; create exactly once at_boundary. Clone must be O(1) and retain the same immutable boundary. Keep per-admission queue logical byte accounting conservative even when backing allocation is shared; no capacity credit from aliases. Rejected submission returns the same capture authority intact. No coalescing or dropping accepted saves and no extra writer per repository.",
+        "consumer": "Owned native-save consumer captures one authored world once, clones the handle into two explicitly distinct repositories with bounded existing workers, mutates the live world, then verifies both published boundaries retain the original literal state.",
+        "acceptance": [
+          "Private pointer/strong-lifetime tests prove the canonical snapshot/source context are shared rather than deep-cloned; actual two repository outputs cold-restore the same original boundary.",
+          "Full queue, cancellation of a consumer, publication failure and source-world drop retain/release aliases correctly; no successful save status before actual commit.",
+          "Each accepted alias consumes established queue/retention permits; last capture/result drop frees backing payload exactly once and no changed save schema/bytes."
+        ],
+        "explicit_bounds": [
+          "two explicit destinations in consumer",
+          "existing per-worker queue and capture/source budgets",
+          "Arc alias count overflow handled by standard ownership",
+          "bounded receipts/results"
+        ],
+        "non_overlap": "STATE14 retains source context; STATE33 closes admission. This removes duplicate snapshot storage at a real multi-destination capture consumer, without changing lifecycle or defining dedup policies.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
       }
     ],
     "actors": [
@@ -2376,7 +2856,7 @@
       },
       {
         "id": "V3-ACT-19",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "title": "Bind an actor's authored object script to an existing compiled definition",
         "depends_on": [],
         "gap": "quest_scripts::Attachments only scans QUST. actors::associations::Role excludes script attachments. An actor source inspector therefore cannot supply an exact NPC_/CREA SCRI-to-loaded_scripts::Handle boot request even though the compiled catalogue and FormID binder already exist.",
@@ -2409,11 +2889,30 @@
           "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
           "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
           "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ],
+        "reviewed_mapping": [
+          {
+            "lane": "actors",
+            "task_id": "V3-ACT-19",
+            "original": "cd027a64eb640df7d0825e34ee759a5195e02b73",
+            "integrated": "02b4fb97bbe7f3ac1b0072faea44a49e34e089b9",
+            "candidate_parent": "36c60f309027d1a653e7fd901bc5d5a749d24d78",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/actors.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-ACT-19.patch",
+              "bytes": 47741,
+              "sha256": "f4d5c1d2b37cc2b3ffd2561c929f3ffad9d73b04bfc4f47022b99e7b70ca4fcb"
+            },
+            "finished_at": "2026-10-04T12:45:02.129339+00:00"
+          }
         ]
       },
       {
         "id": "V3-ACT-20",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "title": "Provide authored AI behavior inputs and explicit combat-style source linkage",
         "depends_on": [],
         "gap": "actors/fields.rs handles ACBS, DATA and DNAM; all other actor fields remain Opaque. The associations Role also lacks combat style. There is no selected actor host input for authored AIDT fields or an explicitly authored combat-style reference, distinct from effective actor values and AI behavior.",
@@ -2446,6 +2945,25 @@
           "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
           "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
           "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ],
+        "reviewed_mapping": [
+          {
+            "lane": "actors",
+            "task_id": "V3-ACT-20",
+            "original": "29355147f9daee74d1a68cfd0f43f57246bc3887",
+            "integrated": "687c35f4952546125969492b9d4ce30abc03bd95",
+            "candidate_parent": "02b4fb97bbe7f3ac1b0072faea44a49e34e089b9",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/actors.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-ACT-20.patch",
+              "bytes": 48921,
+              "sha256": "000a29414e2508d7ce93f0c32d3198314e441781813b1df4106ef9ce6768f458"
+            },
+            "finished_at": "2026-10-04T12:45:02.745213+00:00"
+          }
         ]
       },
       {
@@ -3713,7 +4231,7 @@
       },
       {
         "id": "V3-ASSET-25",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Prepare reusable immutable two-file clip sources",
         "gap": "clip::evaluate reparses skeleton and clip for each explicit sample. Same-container PreparedSource ASSET15 does not own a two-file source/name mapping or controlled packet binding.",
@@ -3748,11 +4266,30 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-25",
+            "original": "cd4f5bf635b7930e7a2107c859c242fb45dbd360",
+            "integrated": "1039cc90eb4ed40e25024b6532343d171bdc17fe",
+            "candidate_parent": "14bed868d4351846163ebb007104e9b85e8036b1",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/assets.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-ASSET-25.patch",
+              "bytes": 59112,
+              "sha256": "bce2b866fd5cbe9063d8b127d3b4b56aa9d12d582cc4d140bb64909acbb17fee"
+            },
+            "finished_at": "2026-10-04T12:55:10.867912+00:00"
+          }
+        ]
       },
       {
         "id": "V3-ASSET-26",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Collect source-local visibility for an exact required ancestry path",
         "gap": "visibility::evaluate returns one object/controller local Boolean sample. Scene ancestry and Boolean channels are already decoded, but there is no bounded source-qualified path observation for a selected descendant whose required ancestors carry visibility channels.",
@@ -3788,11 +4325,30 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-26",
+            "original": "ad2bd01a454559ff4552c58e731e548c34438d67",
+            "integrated": "254c644f98fd5a907f33cce75418f4cbf7bda38b",
+            "candidate_parent": "1039cc90eb4ed40e25024b6532343d171bdc17fe",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/assets.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-ASSET-26.patch",
+              "bytes": 50086,
+              "sha256": "8d67e815149f567e185b9a5215e35636d3d4994b57629518eb60382c865f4320"
+            },
+            "finished_at": "2026-10-04T12:55:11.350809+00:00"
+          }
+        ]
       },
       {
         "id": "V3-ASSET-27",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Consume a reviewed complete pose set in the existing skin palette",
         "gap": "ASSET16 supports one sampled bone override. Corrected ASSET17 can validate a complete required controlled forest, but no skin consumer accepts that internally evaluated complete set.",
@@ -3836,7 +4392,26 @@
           "integrated": "ccc55309a2637f39f8c1e6e6044bea802eedc7d1",
           "status": "reviewed_integrated_pending_combined_proof"
         },
-        "scope_note": "Corrected topology has a reviewed mapping. This consumer may proceed on the existing owned producer without awaiting a public checkpoint; ASSET20/28 remain held independently."
+        "scope_note": "Corrected topology has a reviewed mapping. This consumer may proceed on the existing owned producer without awaiting a public checkpoint; ASSET20/28 remain held independently.",
+        "reviewed_mapping": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-27",
+            "original": "b9ab4cb8f938449efb2391e2759c9f696411f6c0",
+            "integrated": "d6741bb73994ff2976cc8a413cd91d3ef1854610",
+            "candidate_parent": "254c644f98fd5a907f33cce75418f4cbf7bda38b",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/assets.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-ASSET-27.patch",
+              "bytes": 66603,
+              "sha256": "a5469f32dfaabdd1ba8e1215990bfdcfb356087e901c21c0175e71573d781eff"
+            },
+            "finished_at": "2026-10-04T12:55:11.867373+00:00"
+          }
+        ]
       },
       {
         "id": "V3-ASSET-28",
@@ -4594,7 +5169,7 @@
       {
         "id": "V3-WORLD-24",
         "title": "Prepare exact CELL lighting and template declarations for a source consumer",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "world",
         "owned_paths": [
           "crates/fallout-data/src/world/**",
@@ -4645,12 +5220,46 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\world-tasks-22-33.json",
           "sha256": "f7ac66db9cb0229f9a0aa29c26f3de86664c2a8780c6fe1b2ab4e3f169acbb6e"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-24A",
+            "original": "3db3e4781c8114e0aefd072dd71284f06e04adec",
+            "integrated": "ae8315aed767f0fe932fde5bf6c97bd85cf95de6",
+            "candidate_parent": "fbc0481b2a16b26139c3370df70785e4ed01b3d9",
+            "declared_root_wiring": [],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-WORLD-24A.patch",
+              "bytes": 41137,
+              "sha256": "d9ca047e9446043987f1930942804332f2f8afb1564008922109f09e7fa72784"
+            },
+            "finished_at": "2026-10-04T12:45:04.689884+00:00"
+          },
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-24B",
+            "original": "1f352ee3d18a36096a31ae1cdcd86b3b88187e49",
+            "integrated": "809d669a33db5e0f4335e1bdb34b721aa6874d4d",
+            "candidate_parent": "ae8315aed767f0fe932fde5bf6c97bd85cf95de6",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/world.rs",
+              "crates/fallout-cli/src/world_preparation_inspection.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-WORLD-24B.patch",
+              "bytes": 11958,
+              "sha256": "820c10029c73e403bf0b154c5939d331afceb84553eec87a2ea556d95adc9430"
+            },
+            "finished_at": "2026-10-04T12:45:05.235053+00:00"
+          }
+        ]
       },
       {
         "id": "V3-WORLD-25",
         "title": "Preserve explicit CELL water height, type and noise-asset source inputs",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "world",
         "owned_paths": [
           "crates/fallout-data/src/world/**",
@@ -4701,7 +5310,41 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\world-tasks-22-33.json",
           "sha256": "f7ac66db9cb0229f9a0aa29c26f3de86664c2a8780c6fe1b2ab4e3f169acbb6e"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-25A",
+            "original": "00c22d7625889f416f2614304635f6dae3894463",
+            "integrated": "eb78fc0f83c219d33fe5e33edb31932fe041f866",
+            "candidate_parent": "809d669a33db5e0f4335e1bdb34b721aa6874d4d",
+            "declared_root_wiring": [],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-WORLD-25A.patch",
+              "bytes": 49220,
+              "sha256": "acb686033463b8f40a1d7654ff763114b5a9c28c80719d24bb3f82a1831d053f"
+            },
+            "finished_at": "2026-10-04T12:45:05.669712+00:00"
+          },
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-25B",
+            "original": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "integrated": "bbd740bd430496ef1dc6c343df8b173bc8499b58",
+            "candidate_parent": "eb78fc0f83c219d33fe5e33edb31932fe041f866",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/world.rs",
+              "crates/fallout-cli/src/world_preparation_inspection.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-WORLD-25B.patch",
+              "bytes": 16657,
+              "sha256": "8dcfe6a97fbf4a8ee9a1710c5a94fa3aecc72a4122af76a4634eb8fd7b2772db"
+            },
+            "finished_at": "2026-10-04T12:45:06.515613+00:00"
+          }
+        ]
       },
       {
         "id": "V3-WORLD-26",
@@ -5139,6 +5782,437 @@
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\world-tasks-22-33.json",
           "sha256": "f7ac66db9cb0229f9a0aa29c26f3de86664c2a8780c6fe1b2ab4e3f169acbb6e"
         }
+      },
+      {
+        "id": "V3-WORLD-34",
+        "title": "Keep an explicit bounded set of CELL source residencies live together",
+        "state": "ready",
+        "producer": "world",
+        "owned_paths": [
+          "crates/fallout-data/src/world/residency.rs",
+          "crates/fallout-data/src/world/residency/**",
+          "crates/fallout-data/tests/world*.rs",
+          "crates/fallout-cli/src/world_preparation_inspection.rs",
+          "docs/world-residency.md"
+        ],
+        "committed_base": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+        "existing_exact_apis": [
+          "CellResidency::{new,request,poll,sources,unload}",
+          "CellGridSources::prepare_cells",
+          "CellModelPlan"
+        ],
+        "source_evidence": [
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/residency.rs",
+            "sha256": "9129391dad19c77944fd30e962fb6251e92d6630595a7987bf9d75fabcbc6f63",
+            "lines": 723,
+            "line": 204,
+            "observed_boundary": "CellResidency owns one active ticket/plan"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/residency.rs",
+            "sha256": "9129391dad19c77944fd30e962fb6251e92d6630595a7987bf9d75fabcbc6f63",
+            "lines": 723,
+            "line": 299,
+            "observed_boundary": "request replaces and invalidates the previous active cell"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/cells.rs",
+            "sha256": "2c48d295c34e99987b0e09ce9c42b902072666ec758d6a92e2fc9ae93d6877ea",
+            "lines": 519,
+            "line": 440,
+            "observed_boundary": "prepare_cells returns an already bounded multi-cell source plan"
+          }
+        ],
+        "observed_production_gap": "A source grid set can be prepared but the residency host retains one active CELL. Keeping a persistent cell plus adjacent cells live requires ad hoc hosts without aggregate admission/retired-pin accounting.",
+        "implementation_boundary": "Add a small world-owned residency set for explicit unique sealed CellModelPlans, no spatial scheduling or automatic neighbor choice. Reuse existing CellResidency and ResourceJobs; statically partition a caller global worker/outstanding/byte allowance across a bounded slot count so summed pools never exceed it. Preserve independent generation per cell. Round-robin poll a bounded number of slots per call. Explicit removal invalidates only that cell; retired hosts/pins stay charged until old external leases drop. Do not erase a live slot on failed replacement admission, and do not declare set simulation-ready.",
+        "consumer": "Owned CLI keeps an authored persistent CELL and two explicit exterior cells source-resident, removes one while retaining its lease and continues reading the other two.",
+        "acceptance": [
+          "Independent raw model payload hashes and exact root/ticket identities match all three loaded cells; per-call work and global worker/byte limits remain bounded.",
+          "Duplicate/root/cohort mismatch, last-slot capacity failure or cancelled cell cannot invalidate unrelated tickets or publish a successful partial set admission.",
+          "Held removed-cell leases revoke access but remain charged; replacement fits only when actual pins drain. No copied model importer or invented streaming-radius policy."
+        ],
+        "explicit_bounds": [
+          "resident and retired slots",
+          "sum workers/outstanding/decoded/mapped/metadata bytes",
+          "poll slots and existing per-cell poll quantum",
+          "source plan count/copies"
+        ],
+        "non_overlap": "WORLD22 prepares a plan set but does not keep multiple hosts alive. WORLD15 bounded one residency. WORLD06 original gameplay transitions remain blocked and are not completed by this engineering source manager.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-WORLD-35",
+        "title": "Bind CELL lighting and water inputs to an existing resident source lifetime",
+        "state": "ready",
+        "producer": "world",
+        "owned_paths": [
+          "crates/fallout-data/src/world/residency/**",
+          "crates/fallout-data/src/world/lighting.rs",
+          "crates/fallout-data/src/world/water.rs",
+          "crates/fallout-data/tests/world*.rs",
+          "crates/fallout-cli/src/world_preparation_inspection.rs",
+          "docs/world-environment-residency.md"
+        ],
+        "committed_base": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+        "existing_exact_apis": [
+          "ResidentSources::ticket",
+          "Ticket::{root,identity,generation,check}",
+          "CellLightingSources::{load,validate_sources,receipt}",
+          "CellWaterSources::{load,validate_sources,submit_noise}"
+        ],
+        "source_evidence": [
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/residency.rs",
+            "sha256": "9129391dad19c77944fd30e962fb6251e92d6630595a7987bf9d75fabcbc6f63",
+            "lines": 723,
+            "line": 119,
+            "observed_boundary": "ResidentSources retains model inputs only"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/lighting.rs",
+            "sha256": "eb16d8100b9df1156d6b5875f6a0bef183bba86e65e96b2a69dc1ce09d9943db",
+            "lines": 516,
+            "line": 144,
+            "observed_boundary": "CellLightingSources is immutable but independent of residency"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/water.rs",
+            "sha256": "12a644406956d1b3acd9bb40ff863240f2a557ea36fe85dd5a2c3fe4aa446c9e",
+            "lines": 622,
+            "line": 161,
+            "observed_boundary": "CellWaterSources owns noise mapping independently"
+          }
+        ],
+        "observed_production_gap": "Lighting and water source requests now exist, but a resident consumer has no private composite lease that proves they belong to its exact CELL/cohort and revokes their use when that CELL is replaced.",
+        "implementation_boundary": "Add a bounded optional environment lease constructed from a live private ResidentSources plus exact lighting/water producers over the same protected Store and root. Check full ordered source cohort equality, charge complete retained source metadata and water mapping, and retain the parent ticket. Borrowed access and any child completion admission require parent ticket freshness; explicit absent/unavailable declarations remain accessible as statuses. An actual optional noise job uses existing water token/pool semantics and is retained/cancelled separately under the parent request, with no Ready escalation. Do not add environment defaults or shader data conversion.",
+        "consumer": "Owned CELL residency CLI consumes model bytes, exact lighting words and an authored noise payload from one scoped environment lease, then cancels parent while an external lease remains held.",
+        "acceptance": [
+          "Same-cohort authored CELL returns literal XCLL/LTMP/LNAM/XCLW/XCWT/XNAM bytes plus exact noise hash; every source input retains its own identity beneath the parent ticket.",
+          "Different CELL/cohort, source mutation, replaced parent or late child completion refuses before environment publication; unrelated resident cell remains valid.",
+          "All declared missing-source branches stay explicit; dropping last environment/artifact lease releases exact retained mapping/metadata charges and never fabricates rendering/collision/behavior readiness."
+        ],
+        "explicit_bounds": [
+          "one environment scope per admitted ticket",
+          "source records/metadata from existing producer limits",
+          "aggregate environment retained bytes/mapping",
+          "one optional existing noise job"
+        ],
+        "non_overlap": "WORLD24/25 provide independent source factories; this is their actual resident lifetime consumer, not another decoder or WORLD26 environment-link census. Uses existing committed24/25, no future task.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-WORLD-36",
+        "title": "Prefetch an exact door destination through existing source residency",
+        "state": "ready",
+        "producer": "world",
+        "owned_paths": [
+          "crates/fallout-data/src/world/doors.rs",
+          "crates/fallout-data/src/world/residency/**",
+          "crates/fallout-data/tests/world*.rs",
+          "crates/fallout-cli/src/world_preparation_inspection.rs",
+          "docs/world-door-sources.md"
+        ],
+        "committed_base": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+        "existing_exact_apis": [
+          "DoorDestination::{load,metadata,prepare_cell}",
+          "CellResidency::{request,poll,sources,unload}",
+          "TexturePlan::load",
+          "CellResidency::request_textures"
+        ],
+        "source_evidence": [
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/doors.rs",
+            "sha256": "b4c0c5fae93fb225a9ae7a7982ad650306c0d095f62c6899fddeb6f9caefb301",
+            "lines": 299,
+            "line": 269,
+            "observed_boundary": "prepare_cell ends at a sealed destination model plan"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/residency.rs",
+            "sha256": "9129391dad19c77944fd30e962fb6251e92d6630595a7987bf9d75fabcbc6f63",
+            "lines": 723,
+            "line": 299,
+            "observed_boundary": "existing request can consume that sealed plan"
+          }
+        ],
+        "observed_production_gap": "Door source resolution produces an exact destination plan but no reachable door-specific consumer performs bounded model/texture prefetch while preserving source-door and landing-field provenance.",
+        "implementation_boundary": "Add a world-owned prefetch adapter that consumes the private DoorDestination, validates its exact source cohort/door/XTEL target and prepares the existing destination CellModelPlan. Run existing residency and texture pipeline under an explicit cancelable request identity; return destination source lease plus unchanged source destination receipt. Destination pose words remain raw source evidence. No actor/player movement, current-cell switch, automatic activation, fade or transition timing.",
+        "consumer": "Owned CLI prefetches an authored cross-cell door destination into real existing model/texture jobs and reads actual retained payload bytes, then cancels/retries with a new generation.",
+        "acceptance": [
+          "Literal source door XTEL target and landing words, target persistent parent CELL and actual destination payload hashes match independently authored records; differing target DATA pose is never substituted.",
+          "Wrong/deleted/moved target, stale source receipt, cycle, last resource refusal and cancelled completion expose no successful destination lease.",
+          "Parent persistent CELL and spatial CELL distinctions from existing DoorDestination remain intact; selected installed door may remain explicitly unsupported under existing caps."
+        ],
+        "explicit_bounds": [
+          "existing door graph/source limits",
+          "one active prefetch plus charged retiring pins",
+          "model/texture jobs and decoded bytes",
+          "poll quantum/deadline/report bytes"
+        ],
+        "non_overlap": "WORLD17 resolves/prepares sources. WORLD04/06 require measured gameplay transitions. This adds actual prefetch consumption only, independent of multi-cell task34.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-WORLD-37",
+        "title": "Prepare model sources for an explicit subset of CELL references",
+        "state": "ready",
+        "producer": "world",
+        "owned_paths": [
+          "crates/fallout-data/src/world/preparation/**",
+          "crates/fallout-data/tests/world*.rs",
+          "crates/fallout-cli/src/world_preparation_inspection.rs",
+          "docs/world-model-selection.md"
+        ],
+        "committed_base": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+        "existing_exact_apis": [
+          "CellModelPlan::{load,graph,receipt}",
+          "world::dependencies::Report",
+          "ArchivePool",
+          "CellResidency::{request,sources}"
+        ],
+        "source_evidence": [
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/preparation/plan.rs",
+            "sha256": "0b0f4e01933244e595c4a858d0315461d74b8894729cfd91fc076c771840da88",
+            "lines": 585,
+            "line": 100,
+            "observed_boundary": "ModelCoverage is per source base"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/preparation/plan.rs",
+            "sha256": "0b0f4e01933244e595c4a858d0315461d74b8894729cfd91fc076c771840da88",
+            "lines": 585,
+            "line": 255,
+            "observed_boundary": "load walks the whole cell dependency closure"
+          }
+        ],
+        "observed_production_gap": "A source host cannot request the model dependencies of a caller-selected set of placed references without preparing every model-bearing base in the CELL. This blocks bounded explicit inspection when unrelated model paths fail.",
+        "implementation_boundary": "Add an explicitly selected factory over exact CELL plus unique canonical placed keys. Reuse protected dependency graph and existing base/MODL/path/member logic; validate each selected key belongs to the exact admitted CELL graph before resolving selected base assets. Retain full source/cohort/root and a private selected coverage set; omitted references are NotSelected, never missing or implicitly ready. Share common selected bases/requests once. Existing full-cell factory behavior and strict policies remain unchanged; no caller-built Report can create authority.",
+        "consumer": "Owned CLI selects two real placed keys sharing one base and another distinct base, loads only their existing source jobs and returns immutable selected coverage and raw payload hashes.",
+        "acceptance": [
+          "Authored selected keys and base/MODL identity independently determine exactly two requests; duplicated instances preserve their separate source identities without duplicate archive extraction.",
+          "Missing/outside-cell/deleted/wrong-kind selected key, ambiguous selected path, stale cohort or aggregate cap refuses all selection. Unselected unsafe asset is reported NotSelected, not silently admitted.",
+          "Original full-cell command produces unchanged output/refusals; selected mode explicitly cannot establish full-cell readiness."
+        ],
+        "explicit_bounds": [
+          "selected references",
+          "existing graph visits",
+          "unique selected bases/members",
+          "retained key/coverage bytes",
+          "archive mappings and decoded jobs"
+        ],
+        "non_overlap": "WORLD22 selects cells, not references within a cell; WORLD11 bounds whole plans. No actor-specific model choice, visibility decision or new source exception.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-WORLD-38",
+        "title": "Query resident placement origins through a bounded source-space index",
+        "state": "ready",
+        "producer": "world",
+        "owned_paths": [
+          "crates/fallout-data/src/world/residency/**",
+          "crates/fallout-data/tests/world*.rs",
+          "crates/fallout-cli/src/world_preparation_inspection.rs",
+          "docs/world-placement-selection.md"
+        ],
+        "committed_base": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+        "existing_exact_apis": [
+          "ResidentSources::{plan,model,ticket}",
+          "ResidentPlan::graph",
+          "Ticket::check",
+          "existing Placement DATA source positions"
+        ],
+        "source_evidence": [
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/residency.rs",
+            "sha256": "9129391dad19c77944fd30e962fb6251e92d6630595a7987bf9d75fabcbc6f63",
+            "lines": 723,
+            "line": 136,
+            "observed_boundary": "ResidentPlan exposes a source-bound graph"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/residency.rs",
+            "sha256": "9129391dad19c77944fd30e962fb6251e92d6630595a7987bf9d75fabcbc6f63",
+            "lines": 723,
+            "line": 161,
+            "observed_boundary": "resident model access currently requires an already-known request index"
+          }
+        ],
+        "observed_production_gap": "A resident source consumer has to scan every placed node to select origins within an explicitly supplied source-coordinate window; no reusable bounded index links those source identities to retained model requests.",
+        "implementation_boundary": "Build an immutable origin index only from a private resident lease and already decoded finite placement DATA, retaining exact source words and canonical keys. Use a bounded ordered axis index or point BVH with conservative f64 comparisons over source f32 positions; caller supplies finite closed AABB and explicit result limit. Return stable canonical-key results and source model-request mapping with absent model coverage explicit. Point membership is an engineering source selection, not mesh intersection, physics broadphase, actor visibility, streaming radius or geometry occlusion.",
+        "consumer": "Owned CLI runs two explicit AABB selections against a resident authored CELL and consumes the selected existing model bytes through the retained lease.",
+        "acceptance": [
+          "Literal negative-zero/extreme finite boundary points, repeated positions and distinct canonical IDs give exact independent inclusive membership; one ULP outside remains outside.",
+          "Root/generation/source mismatch, cancelled lease, malformed bounds and visited/output/copy caps refuse with no successful partial result.",
+          "No shape bounds or unsupported source geometry is pruned as a collision claim; no repeated NIF/importer parse and index lifetime remains charged until the last result/lease releases."
+        ],
+        "explicit_bounds": [
+          "indexed placements",
+          "index node/metadata bytes",
+          "visited nodes",
+          "returned keys/request indices",
+          "checked finite source-space endpoints"
+        ],
+        "non_overlap": "Independent of selected preparation37: it consumes an already available full resident plan. Physics owns shape queries; this strictly indexes authored origin points for source consumers.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-WORLD-39",
+        "title": "Retain an exact selected dialogue response as a bounded source lease",
+        "state": "ready",
+        "producer": "world",
+        "owned_paths": [
+          "crates/fallout-data/src/world/conversation.rs",
+          "crates/fallout-data/tests/world*.rs",
+          "crates/fallout-cli/src/world_preparation_inspection.rs",
+          "docs/world-conversation-sources.md"
+        ],
+        "committed_base": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+        "existing_exact_apis": [
+          "ConversationSources::{metadata,retained_bytes,subtitle_bytes,info_bytes}",
+          "ResponseSource",
+          "FragmentRequest::resolve"
+        ],
+        "source_evidence": [
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/conversation.rs",
+            "sha256": "b61e458be79122833e03a5da5cc1ccb8af5ed243d280a2627d5e89cf20a71a43",
+            "lines": 639,
+            "line": 384,
+            "observed_boundary": "ResponseSource retains response fields/sound identity"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/conversation.rs",
+            "sha256": "b61e458be79122833e03a5da5cc1ccb8af5ed243d280a2627d5e89cf20a71a43",
+            "lines": 639,
+            "line": 466,
+            "observed_boundary": "ConversationSources owns both full source records"
+          },
+          {
+            "commit": "2307c9b687f4fb06c790b17a660e6be158ea5b1e",
+            "path": "crates/fallout-data/src/world/conversation.rs",
+            "sha256": "b61e458be79122833e03a5da5cc1ccb8af5ed243d280a2627d5e89cf20a71a43",
+            "lines": 639,
+            "line": 493,
+            "observed_boundary": "subtitle_bytes returns a borrow tied to the full source object"
+          }
+        ],
+        "observed_production_gap": "A future subtitle/action host can borrow one response only while holding the entire preparation object; there is no private source-qualified owned response lease with explicit retention admission and terminal release semantics.",
+        "implementation_boundary": "Add private selected-response lease over Arc-retained existing ConversationSources, exact response section/marker and explicit NAM1 occurrence selection. Precharge the full shared parent retention on first admission, not only selected bytes; borrowed text/sound/fragment links remain bound to source identity and explicit caller response selection. Provide bounded byte-window access with checked offsets for raw non-UTF8 subtitle transport, preserving NUL/repeated fields and never guessing decoding, voice filename, response order or fragment execution. Selection must be constructor-validated, not Deserialize authority.",
+        "consumer": "Owned conversation CLI prepares one actual INFO, hands a selected response lease to a bounded delayed consumer, drops the preparation owner, then reads complete exact NAM1 bytes in chunks and independently resolves the existing fragment source handle without running it.",
+        "acceptance": [
+          "Two responses with repeated/non-UTF8 NAM1 fields produce literal selected section/occurrence bytes and sound header identity; concatenated windows equal raw source exactly.",
+          "Wrong section/occurrence/cohort, invalid byte interval, missing role or retained-parent/output budget refuses; no fallback to first response.",
+          "Multiple leases share immutable source storage but each admitted retained scope is accounted conservatively; last release frees parent. Condition truth, speaker selection, voice playback and fragment timing remain false/unavailable."
+        ],
+        "explicit_bounds": [
+          "selected responses/occurrences",
+          "entire shared source-retention bytes",
+          "byte-window output",
+          "key/metadata copies",
+          "fragment resolution work"
+        ],
+        "non_overlap": "WORLD32 batches full requests and WORLD33 pages INFO membership. This supports the selected response lifetime/byte transport after preparation, without a new source census or dialogue scheduler.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
       }
     ],
     "presentation": [
@@ -5380,7 +6454,7 @@
       },
       {
         "id": "V3-VIEW-18",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "title": "Produce typed literal tile traits with absence preserved",
         "gap": "ui::Document keeps raw topology but no selected numeric/string/boolean literal trait values; a rectangle/image consumer otherwise has to guess layout defaults.",
         "owned_paths": [
@@ -5405,7 +6479,20 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-view09-review-01\\backlog-proposal.json",
           "sha256": "3ea8acb46c5b93e935ed076c24a8b3f8a8f13d9f85cac5317724f777e3fb13bf"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "presentation",
+            "task_id": "V3-VIEW-18",
+            "original": "c4f9493ce54cbd677cb3f18dd20ae20c3bdc6fe9",
+            "integrated": "10c27ae5b02e32bca57df8e090037ab8e14525ff",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-view18-review-01\\review.json",
+              "bytes": 7903,
+              "sha256": "47b2632ae6560c9dd6f3336c7f0ec7ae87067a6e9e4ab3360f41f8bd9c9d4fcc"
+            }
+          }
+        ]
       },
       {
         "id": "V3-VIEW-19",
@@ -5678,6 +6765,449 @@
           "path": "G:\\Rust-Fallout\\local\\coordinator-view09-review-01\\backlog-proposal.json",
           "sha256": "3ea8acb46c5b93e935ed076c24a8b3f8a8f13d9f85cac5317724f777e3fb13bf"
         }
+      },
+      {
+        "id": "V3-VIEW-28",
+        "title": "Select a displayed literal rectangle through source-bound pointer hit testing",
+        "state": "ready",
+        "producer": "presentation",
+        "owned_paths": [
+          "crates/fallout-preview/src/ui/**",
+          "crates/fallout-preview/src/input.rs",
+          "crates/fallout-preview/src/main.rs",
+          "crates/fallout-preview/src/upload.rs",
+          "docs/presentation-ui.md"
+        ],
+        "committed_base": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+        "existing_exact_apis": [
+          "ui::rectangles::{Plan,Rectangle,TileView}",
+          "upload::Queue::new_tiles",
+          "InspectionInputPlugin",
+          "input::NativeDisplay epoch pattern"
+        ],
+        "source_evidence": [
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/ui/rectangles.rs",
+            "sha256": "0815cd59af6e9f2722f74e3f957cb2c6b610af4a5daa823dc49753be22c22c44",
+            "lines": 673,
+            "line": 162,
+            "observed_boundary": "Rectangle retains source identity and admitted inspection geometry"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/ui/rectangles.rs",
+            "sha256": "0815cd59af6e9f2722f74e3f957cb2c6b610af4a5daa823dc49753be22c22c44",
+            "lines": 673,
+            "line": 217,
+            "observed_boundary": "TileView labels live source tile instances"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/input.rs",
+            "sha256": "695cef8d906e926ddf6bdef90deef816030f62c4eb97c0d9d38dccd6075cc1e2",
+            "lines": 1079,
+            "line": 54,
+            "observed_boundary": "Actions has camera/native actions but no source tile pointer selection"
+          }
+        ],
+        "observed_production_gap": "A source rectangle can be displayed but pointer input cannot identify its exact visible source tile or emit a bounded source-qualified intent.",
+        "implementation_boundary": "Add an opt-in inspection point-selection adapter over already admitted literal rectangles and live TileView labels. Require caller half-open pixel-rectangle hit policy and current viewport/host epoch; use the existing parent-relative rectangle/depth/visibility rules exactly. Select the unique frontmost admitted visible nonzero-alpha rectangle; preserve clipping and existing equal-depth ambiguity refusal. Input owns focus/button quarantine and emits a source node/span/receipt/epoch intent only. Do not infer menu click actions, XML copy paths, game focus order or invoke scripts.",
+        "consumer": "Actual Bevy event consumer moves/clicks over two authored overlapping source rectangles and exposes the exact selected tile in a bounded status/intent receipt.",
+        "acceptance": [
+          "Literal pixel centers, clipped edges, hidden/zero-alpha children and different depths yield independently expected source node/span; source text and geometry remain unchanged.",
+          "Wrong window/focus, held click across reload, old epoch, retired tile or ambiguous depth emits no accepted intent; release/new press resumes.",
+          "At exact work/output limits selection is deterministic; one-under refuses without a partially selected tile or changed host state."
+        ],
+        "explicit_bounds": [
+          "visited rectangles",
+          "one pointer request per frame",
+          "source key/span receipt bytes",
+          "viewport/pixel coordinate finite bounds"
+        ],
+        "non_overlap": "VIEW20 draws source rectangles; VIEW26 selects 3D references by FormKey. This is 2D source tile input identity only and does not complete original menu behavior.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-VIEW-29",
+        "title": "Replace an explicit displayed rectangle source only after its new draw is admitted",
+        "state": "ready",
+        "producer": "presentation",
+        "owned_paths": [
+          "crates/fallout-preview/src/ui/**",
+          "crates/fallout-preview/src/loading.rs",
+          "crates/fallout-preview/src/main.rs",
+          "crates/fallout-preview/src/upload.rs",
+          "docs/presentation-ui.md"
+        ],
+        "committed_base": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+        "existing_exact_apis": [
+          "ui::rectangles::{read_request,validate_request,load}",
+          "loading::Job",
+          "upload::Queue::{new_tiles,advance,publish,dispose}"
+        ],
+        "source_evidence": [
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/main.rs",
+            "sha256": "57ea54a4729c8f5e8c0cb900f4a88430d6c27a586bb0ac87431d6e49b09529ad",
+            "lines": 1561,
+            "line": 259,
+            "observed_boundary": "start_preparation captures immutable startup options"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/main.rs",
+            "sha256": "57ea54a4729c8f5e8c0cb900f4a88430d6c27a586bb0ac87431d6e49b09529ad",
+            "lines": 1561,
+            "line": 735,
+            "observed_boundary": "drive_loading handles startup/retry/Continue but no new rectangle source request"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/upload.rs",
+            "sha256": "1dee69d8b26390e2afcb02e2948102f688f67377c3edb2cb95f8d3ebb1f6464a",
+            "lines": 692,
+            "line": 297,
+            "observed_boundary": "Queue publishes one admitted generation"
+          }
+        ],
+        "observed_production_gap": "The literal menu source is fixed at startup. Switching to a separately explicit source tile/subtree currently requires restarting the host, losing input/lifetime continuity.",
+        "implementation_boundary": "Add a bounded opt-in host request that replaces one displayed rectangle source with another exact independently supplied source request. Reuse background loading and existing tile queue; one active candidate plus one retiring/current scene, aggregate GPU/CPU/metadata admission before overlap. Keep the last admitted draw visible until candidate upload/identity checks succeed, then switch epoch atomically and retire only old owned assets. Require the existing explicit viewport/projection policy to match for this slice; no inferred navigation or camera policy. New request authority comes from strict source factory, not mutated report JSON.",
+        "consumer": "Actual window switches between two authored immutable rectangle source requests, keeps handling close/cancel while loading, and proves visible source labels/pixels belong wholly to the old or new scene.",
+        "acceptance": [
+          "Independent old/new rectangle pixels and complete TileView identities match their own exact source packets; no mixed source generation is ever presented as admitted.",
+          "Malformed/missing source, overbudget candidate, cancel, stale late completion and failed upload leave old scene usable; no orphan image/mesh/material handles.",
+          "Held source-selection inputs are quarantined across replacement; complete retirement releases overlap charges, and retry uses a new generation."
+        ],
+        "explicit_bounds": [
+          "one candidate/current/retiring ownership state",
+          "sum GPU images/meshes/materials and CPU staging bytes",
+          "per-frame upload/disposal quantum",
+          "bounded request/status output"
+        ],
+        "non_overlap": "VIEW24 updates an object pose; VIEW13 preserves camera across model/cell replacement. This adds actual new UI source requests with the existing fixed UI camera, independently of those tasks.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-VIEW-30",
+        "title": "Encode an admitted captured frame off the window thread",
+        "state": "ready",
+        "producer": "presentation",
+        "owned_paths": [
+          "crates/fallout-preview/src/main.rs",
+          "crates/fallout-preview/src/loading.rs",
+          "docs/presentation-capture.md"
+        ],
+        "committed_base": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+        "existing_exact_apis": [
+          "ScreenshotCaptured",
+          "image::DynamicImage::write_to",
+          "loading::Job ownership pattern",
+          "existing output_path protection"
+        ],
+        "source_evidence": [
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/main.rs",
+            "sha256": "57ea54a4729c8f5e8c0cb900f4a88430d6c27a586bb0ac87431d6e49b09529ad",
+            "lines": 1561,
+            "line": 1206,
+            "observed_boundary": "ScreenshotCaptured observer converts image, encodes PNG and syncs file synchronously"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/main.rs",
+            "sha256": "57ea54a4729c8f5e8c0cb900f4a88430d6c27a586bb0ac87431d6e49b09529ad",
+            "lines": 1561,
+            "line": 1240,
+            "observed_boundary": "capture success/failure immediately exits the app"
+          }
+        ],
+        "observed_production_gap": "PNG conversion/compression and disk sync execute inside the Bevy observer, so a slow capture output can stall the same window thread that must process cancellation/close.",
+        "implementation_boundary": "Move only admitted image conversion/PNG encoding/create-new write/sync into one bounded owned capture job. Freeze exact pixels plus scene epoch/request/output identity before launch; precharge image and conversion scratch bytes. Frame loop polls one terminal result without blocking. Preserve create-new/protected-root checks and existing PNG format. Close/cancel revokes delivery and drains/join ownership outside the frame loop; accepted writes are never reported complete until actual sync succeeds. No render thread or engine resource is used by the worker.",
+        "consumer": "Existing actual capture option remains responsive while a deterministic gated writer is pending, then emits a PNG with independently checked dimensions/pixels and reports real terminal status.",
+        "acceptance": [
+          "Byte-decoded PNG equals the original literal captured image within lossless channel conversion expectations; image and scene identity are frozen before subsequent scene mutation.",
+          "Existing/protected output, allocation cap, encoder/write/sync failure and worker panic never produce a success report; failed artifacts remain explicit.",
+          "Window close and stale source replacement cannot publish a success for the wrong scene; one worker/result owns bytes and final drop releases exactly once."
+        ],
+        "explicit_bounds": [
+          "one capture job/result",
+          "source pixel and conversion scratch bytes",
+          "maximum dimensions/pixel count",
+          "bounded errors/path metadata"
+        ],
+        "non_overlap": "VIEW09 moves source preparation off-thread; this targets the distinct ScreenshotCaptured write path. No renderer rewrite or new dependency; does not depend on multi-camera task33.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-VIEW-31",
+        "title": "Apply an explicit displayed-reference edit through the canonical host owner",
+        "state": "ready",
+        "producer": "presentation",
+        "owned_paths": [
+          "crates/fallout-preview/src/native.rs",
+          "crates/fallout-preview/src/native/**",
+          "crates/fallout-preview/src/input.rs",
+          "crates/fallout-preview/src/main.rs",
+          "crates/fallout-preview/src/scene.rs",
+          "docs/presentation-native.md"
+        ],
+        "committed_base": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+        "existing_exact_apis": [
+          "native::{Host,Request,Event,Observation}",
+          "World::{reference_view,stage_reference_state,commit_reference_state}",
+          "reference_state::{State,Pose}",
+          "existing native observation/apply path"
+        ],
+        "source_evidence": [
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/native.rs",
+            "sha256": "951cc2d13a530b8924c597473c04341c329b1b860409c7917b307c5683bfd8bb",
+            "lines": 578,
+            "line": 295,
+            "observed_boundary": "native Request currently has Save and Continue only"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/native.rs",
+            "sha256": "951cc2d13a530b8924c597473c04341c329b1b860409c7917b307c5683bfd8bb",
+            "lines": 578,
+            "line": 476,
+            "observed_boundary": "run is the sole canonical World owner"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/scene.rs",
+            "sha256": "4167a42ffbab6de00b171633257b306f0f2cd27dc533e7dc4cd2ac4c05fcb667",
+            "lines": 618,
+            "line": 35,
+            "observed_boundary": "ReferenceView identifies the displayed source reference"
+          }
+        ],
+        "observed_production_gap": "Preview displays canonical pose/enable and can save/Continue, but has no explicit edit-intent consumer demonstrating that an accepted runtime mutation updates the visible same source object before saving.",
+        "implementation_boundary": "Add an opt-in engineering request for one already displayed exact FormKey/reference ID, complete caller-supplied Pose/enabled, expected campaign/cohort/revision and scene epoch. Keep the existing canonical CELL unchanged; this is not movement/collision or transition logic. The sole native owner thread obtains a fresh runtime View and calls existing stage/commit; presentation never edits canonical structs directly. Return immutable postcommit Observation, apply source-to-view once and invalidate old displayed intents. No new persisted fields or original input rule.",
+        "consumer": "Actual host receives a caller-authored pose/enable edit, displays the changed object, submits existing Save, cold-Continues and displays the same canonical result.",
+        "acceptance": [
+          "Independent source pose words, basis conversion, enable visibility and full before/after/cold snapshot match one revision; unrelated references/items/scripts/journal remain unchanged.",
+          "Old display epoch/revision/campaign/cohort, unknown or undisplayed reference, changed CELL, invalid pose or duplicate intent is refused before runtime effects; stale result cannot move current draw.",
+          "Save failure remains visible; edit acceptance is distinct from durable publication and no collision/gameplay movement is claimed."
+        ],
+        "explicit_bounds": [
+          "one pending host edit",
+          "one reference view and complete State",
+          "bounded input/report bytes",
+          "existing runtime finite/identity/revision checks"
+        ],
+        "non_overlap": "VIEW04 observes and restores; VIEW10 routes only native Save/Continue intents. VIEW26 selection is unnecessary: caller supplies an exact existing displayed identity. Uses REF-STATE and REFERENCE-SAVE-HOST without new mutation authority.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-VIEW-32",
+        "title": "Observe an explicit displayed owner inventory through the live host channel",
+        "state": "ready",
+        "producer": "presentation",
+        "owned_paths": [
+          "crates/fallout-preview/src/native.rs",
+          "crates/fallout-preview/src/native/**",
+          "crates/fallout-preview/src/main.rs",
+          "docs/presentation-native.md"
+        ],
+        "committed_base": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+        "existing_exact_apis": [
+          "native::{Host,Event,Observation}",
+          "World::inventory_view",
+          "inventory::{InventoryView,ViewLimits}",
+          "existing bounded SyncSender request channel"
+        ],
+        "source_evidence": [
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/native.rs",
+            "sha256": "951cc2d13a530b8924c597473c04341c329b1b860409c7917b307c5683bfd8bb",
+            "lines": 578,
+            "line": 48,
+            "observed_boundary": "Observation contains reference bindings but no inventory observation"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/native.rs",
+            "sha256": "951cc2d13a530b8924c597473c04341c329b1b860409c7917b307c5683bfd8bb",
+            "lines": 578,
+            "line": 476,
+            "observed_boundary": "canonical World lives on the native owner thread"
+          },
+          {
+            "commit": "b9dd7cdf9de1cfec3f62c09bf82ef7f65036bd5d",
+            "path": "crates/fallout-runtime/src/inventory.rs",
+            "sha256": "8897fdea8aab8caf477f4f55dd138a875c389bd47b2534306b87b15c3d174a9e",
+            "line": 191,
+            "observed_boundary": "Already published canonical InventoryView producer; absent from current presentation checkout."
+          }
+        ],
+        "observed_production_gap": "An inventory UI cannot obtain even an explicit current owner bank from the live host without reaching into the World on the wrong thread or cloning a complete snapshot.",
+        "implementation_boundary": "Add a bounded read-only host query for one caller-selected already displayed canonical owner at an exact display epoch/revision. Native owner thread returns existing InventoryView under fixed lower-only ViewLimits; no copies of the complete World and no new inventory model. Host exposes a current revision-tagged inventory observation plus a concise visible status distinguishing unavailable versus initialized empty versus retained lots. Optional fresh report contains existing full lot/Facts data under explicit output bound; retain at most one observation and drop it on changed scene/revision/Continue. No fonts, invented original inventory layout, sorting/stack merging/equip action or new item semantics.",
+        "consumer": "Actual host queries a displayed actor owner with two unequal lots, saves/Continues, then refreshes the observation; window title reports current availability while an owned bounded report preserves exact lots.",
+        "acceptance": [
+          "Literal ItemIds/counts/base keys/NaN or signed-zero/opaque bytes match existing canonical bank and independent cold snapshot; unknown and empty stay distinct.",
+          "Wrong owner/cohort/revision or cancelled/stale host request cannot publish a usable observation; one-under lot/Facts copy allowance refuses without changing runtime or retaining a partial prefix.",
+          "Queued/failed query does not block close/SaveStatus polling, and existing reference scene behavior/output remains unchanged unless the option is supplied."
+        ],
+        "explicit_bounds": [
+          "one pending query and retained InventoryView",
+          "existing ViewLimits rows/links/extra/copied bytes",
+          "bounded optional report/title bytes",
+          "same fixed host command queue"
+        ],
+        "non_overlap": "STATE10 produces the view but presentation has no live consumer. STATE23 paging is not needed; large banks explicitly refuse the fixed whole-view cap in this slice. This is a host adapter, not a claim of finished original inventory UI.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": "APPROVED: Approve exact already published STATE10 dependency adoption before VIEW32. No presentation rewrite of inventory views or direct mutation; other five tasks remain independent without this adoption. Exact reviewed existing producer adoption/minimal shared relocation is preauthorized at a clean task boundary; retain and declare mappings, do not replay a whole branch.",
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "existing_published_dependency": {
+          "task": "STATE10",
+          "original": "ad34ee621f51edceb3735b093d22d3de36b4fbfe",
+          "published": "b9dd7cdf9de1cfec3f62c09bf82ef7f65036bd5d",
+          "ledger": "docs/integration/team-v3-development-04.json",
+          "availability": "Committed and published now; no future producer needed. Coordinator supplies exact minimal mapped adoption at a clean boundary; preserve existing parent mappings and do not replay worker stack."
+        },
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
+      },
+      {
+        "id": "V3-VIEW-33",
+        "title": "Capture explicit camera views from one unchanged resident scene",
+        "state": "ready",
+        "producer": "presentation",
+        "owned_paths": [
+          "crates/fallout-preview/src/main.rs",
+          "crates/fallout-preview/src/scene.rs",
+          "docs/presentation-camera.md",
+          "docs/presentation-capture.md"
+        ],
+        "committed_base": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+        "existing_exact_apis": [
+          "scene::source_camera",
+          "Prepared::origin",
+          "existing Screenshot/Image capture API",
+          "upload::Queue status/admission"
+        ],
+        "source_evidence": [
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/main.rs",
+            "sha256": "57ea54a4729c8f5e8c0cb900f4a88430d6c27a586bb0ac87431d6e49b09529ad",
+            "lines": 1561,
+            "line": 1166,
+            "observed_boundary": "capture admits one path, waits64frames and exits after one image"
+          },
+          {
+            "commit": "6d9f0b824c5762ba0c01d01a93db468d5526b491",
+            "path": "crates/fallout-preview/src/scene.rs",
+            "sha256": "4167a42ffbab6de00b171633257b306f0f2cd27dc533e7dc4cd2ac4c05fcb667",
+            "lines": 618,
+            "line": 552,
+            "observed_boundary": "source_camera validates explicit source position and target"
+          }
+        ],
+        "observed_production_gap": "Comparing several views of one source object requires repeated process launches and source/resource preparation, making it difficult to prove all views observed the same resident source generation.",
+        "implementation_boundary": "Add an opt-in bounded ordered list of explicit source-space camera position/target plus existing projection parameters and fresh output paths. Validate the complete request/output alias set and all cameras before first capture; retain one unchanged admitted scene/epoch/source receipt. Apply one camera, wait for its actual submitted frame/capture completion, then advance to the next; never change object pose, materials or canonical state. Each result identifies exact camera words, source origin, resident epoch and image. Use existing capture path; task30 may be reused only if already delivered, never required.",
+        "consumer": "One actual headless invocation captures two independently authored camera views of an asymmetric source model without reloading it, retaining exact same source/model/resource identities across both.",
+        "acceptance": [
+          "Independent projected landmark/pixel bounds establish distinct expected camera views and unchanged geometry/material/source hashes; each image is bound to its requested camera, not the previous frame.",
+          "Invalid last camera, duplicate/protected/existing path or aggregate output cap refuses before any capture; midsequence GPU/write/cancel failure preserves truthful completed-prefix receipts and no claim that the batch fully succeeded.",
+          "One image/readback at a time, bounded frames/time, source replacement/canonical revision change invalidates remaining batch, close disposes retained assets exactly once."
+        ],
+        "explicit_bounds": [
+          "camera count",
+          "one image/readback at a time",
+          "sum permitted output pixels/bytes",
+          "finite camera/projection bounds",
+          "per-view and total deadline"
+        ],
+        "non_overlap": "VIEW25 exports/restores one camera; this is a production capture consumer of explicit cameras over one resident scene. It performs no renderer parity scoring and does not depend on VIEW25 or task30.",
+        "dependencies": {
+          "existing_committed_base_only": true,
+          "new_worker_handoff_required": false,
+          "other_proposed_task_required": false
+        },
+        "scope_exclusions": [
+          "No new external dependency, source pin, persisted schema, canonical rule or inferred original default.",
+          "No new importer or duplicated evaluator. Engineering interaction is labeled explicitly and does not establish gameplay parity."
+        ],
+        "shared_decision": null,
+        "boundary_status": "Coordinator preauthorizes the exact stated engineering consumer and additive owned API. Publish signatures before downstream binding; minimal shared wiring must be declared. No new grant or acknowledgment required.",
+        "delivery": "Save a small tested handoff, keep the full-vision Goal active and immediately select the next ready owned task. Record genuine blockers once and continue independent work. STOP overrides.",
+        "depends_on": [],
+        "fallback_task_id": null,
+        "boundary_authorized_by": "Agent1; source-backed refill12 reviewed against existing contracts and exact committed APIs"
       }
     ],
     "physics": [
@@ -5894,7 +7424,7 @@
       },
       {
         "id": "V3-PHYS-17",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Admit a bounded multi-model resident collision selection",
         "gap": "CellCollision owns one selected-model StaticScene (model_index in Scope); a cell plan can retain many actual model sources. Independent per-model queries cannot give one bounded source-qualified cell selection with deterministic total query budgets.",
@@ -5930,11 +7460,30 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "physics",
+            "task_id": "V3-PHYS-17",
+            "original": "52ab7fdb5a22404f19489b8a53b7df67229247c0",
+            "integrated": "fd1df60b9f9d9faa8ff4bb40d3b9a51a6774b4bd",
+            "candidate_parent": "687c35f4952546125969492b9d4ce30abc03bd95",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/physics.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-PHYS-17.patch",
+              "bytes": 67481,
+              "sha256": "31a825a3475e48b9aa86749f33851f5f77e4e41749c127c7d2c4a51704cbe4a2"
+            },
+            "finished_at": "2026-10-04T12:45:03.633713+00:00"
+          }
+        ]
       },
       {
         "id": "V3-PHYS-18",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Derive collision attachment frames from exact NIF source ancestry",
         "gap": "BodyPlacement comment requires caller to compose NIF ancestry and central reference frame. NIF CollisionObject target/body links and scene locals are decoded, but there is no exact-source owned helper binding a chosen body occurrence to its collision target/ancestry frame.",
@@ -5971,7 +7520,26 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "physics",
+            "task_id": "V3-PHYS-18",
+            "original": "67d01961b486c7f689dd77c220a5f3e2406bb86d",
+            "integrated": "fbc0481b2a16b26139c3370df70785e4ed01b3d9",
+            "candidate_parent": "fd1df60b9f9d9faa8ff4bb40d3b9a51a6774b4bd",
+            "declared_root_wiring": [
+              "crates/fallout-cli/src/main.rs",
+              "crates/fallout-cli/src/commands/physics.rs"
+            ],
+            "preserved_patch": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-batch13-integration-01\\V3-PHYS-18.patch",
+              "bytes": 46977,
+              "sha256": "0be67b853c5a26ccb330f9023b444c99529a1daa8d4699b98bafff219eb0fd41"
+            },
+            "finished_at": "2026-10-04T12:45:04.269054+00:00"
+          }
+        ]
       },
       {
         "id": "V3-PHYS-19",
@@ -6530,7 +8098,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T11:31:15.536055+00:00",
+  "updated_at": "2026-10-04T12:58:19.064715+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

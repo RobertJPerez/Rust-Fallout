@@ -333,3 +333,38 @@ identical. It exposes source input completeness, campaign and revision only;
 current actor values remain unavailable, actor reference binding is false, and
 initialization remains unsupported. No race/class formula, default, state write
 or snapshot schema is introduced.
+
+## Canonical item lot to explicit model role
+
+`actor_rules::equipment_render::Requests::prepare(&World, &Content, Choice,
+Limits)` admits an explicit owner, current `ItemHandle`, source actor and ACT08
+model role. The private request seals campaign, source cohort and canonical
+revision. It cannot be deserialized or constructed from an inspector report.
+`observe(&World, &Content, &mut RecordStore, &actors::Catalogue, &ArchiveAssets,
+Limits)` reacquires the exact ACT16 lot and passes only that selected lot's base
+to the existing equipment source producer. Immutable observation getters expose
+`selection()` and `model()`; no caller-supplied base is admitted.
+
+Retained intent refuses after cold restore even when campaign, saved IDs, facts
+and revision match, because the item handle's World epoch is stale. Another
+campaign, removal, transfer or changed canonical revision also refuses before a
+joined observation escapes. Prepare a fresh current handle to observe a restored
+lot. Content, actor catalogue and fresh store must match the complete canonical
+source cohort, including source bytes/hashes and winning headers. Nested ACT16
+inventory/selection and ACT08 model budgets remain in force; additional limits
+bound source count and the complete joined serialized projection.
+
+`actor-package-context --equipment-item ID --equipment-model-role ROLE` uses
+the strict native snapshot restore, explicit subject owner and source actor.
+The existing role parser requires caller-supplied armor sex/world/biped choice
+or weapon role and mod mask. `None`, `Some(empty)` and supplied slot/modification
+metadata remain distinct canonical facts. They do not establish equipped state,
+choose a role or derive the mask. Actor origin is not inferred from the owner;
+the separate optional actor-context request provides that source join.
+
+The CLI emits `equipment_model` beside the unchanged standalone `equipment_item`
+and checks that the authoritative snapshot stays identical. Model requests can
+remain missing, ambiguous or unsupported as reported by ACT08. No equip rule,
+slot conflict, automatic texture/attachment choice, NIF decoder, live mutation
+or save format change is introduced. Equipped state and original behavior remain
+unverified.

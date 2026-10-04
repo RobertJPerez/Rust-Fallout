@@ -1622,6 +1622,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             package_capability,
             include_actor_context,
             equipment_item,
+            equipment_model_role,
             inventory_boot_request,
         } => {
             let report = actor_inspection::package_context(
@@ -1640,6 +1641,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     package_capability,
                     include_actor_context,
                     equipment_item,
+                    equipment_model_role,
                     inventory_boot_request: inventory_boot_request.as_deref(),
                 },
             )?;

@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub maximum_steps: usize,
+    /// All numeric words per manifest/capture, including output returns/writes.
     pub maximum_words: usize,
     pub maximum_writes: usize,
 }
@@ -519,6 +520,16 @@ fn validate_capture(capture: &Capture, limits: Limits) -> Result<()> {
         if step.output.writes.len() > limits.maximum_writes.saturating_sub(writes) {
             return Err(Error::Capacity("local writes"));
         }
+        let output_words = step
+            .output
+            .writes
+            .len()
+            .checked_add(usize::from(step.output.return_value.is_some()))
+            .ok_or(Error::Capacity("observation words"))?;
+        if output_words > limits.maximum_words.saturating_sub(words) {
+            return Err(Error::Capacity("observation words"));
+        }
+        words += output_words;
         writes += step.output.writes.len();
         for write in &step.output.writes {
             if write.index == 0 {

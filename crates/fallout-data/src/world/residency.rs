@@ -1,7 +1,10 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
-use super::preparation::CellModelPlan;
+use super::{
+    dependencies,
+    preparation::{CellModelPlan, PlanReceipt},
+};
 use crate::{
     cache,
     identity::FormKey,
@@ -111,13 +114,40 @@ pub struct ResidentSources {
     models: Vec<Artifact>,
     _plan_pin: Arc<PlanPin>,
 }
+/// A source lease may expose borrowed provenance and placement data, but never
+/// a cloneable resource-bearing plan. This view cannot outlive ResidentSources
+/// or detach its archive mappings from the owner's retained-plan accounting.
+///
+/// ```compile_fail
+/// use fallout_data::world::{preparation::CellModelPlan, residency::ResidentSources};
+/// fn detach(sources: &ResidentSources) -> CellModelPlan {
+///     sources.plan().unwrap().clone()
+/// }
+/// ```
+pub struct ResidentPlan<'a> {
+    plan: &'a CellModelPlan,
+}
+impl<'a> ResidentPlan<'a> {
+    pub fn graph(&self) -> &'a dependencies::Report {
+        self.plan.graph()
+    }
+    pub fn receipt(&self) -> &'a PlanReceipt {
+        self.plan.receipt()
+    }
+    pub fn root(&self) -> &'a FormKey {
+        self.plan.root()
+    }
+    pub fn identity(&self) -> &'a str {
+        self.plan.identity()
+    }
+}
 impl ResidentSources {
     pub fn ticket(&self) -> &Ticket {
         &self.ticket
     }
-    pub fn plan(&self) -> JobResult<&CellModelPlan> {
+    pub fn plan(&self) -> JobResult<ResidentPlan<'_>> {
         self.ticket.check()?;
-        Ok(&self.plan)
+        Ok(ResidentPlan { plan: &self.plan })
     }
     pub fn model(&self, index: usize) -> JobResult<&[u8]> {
         self.ticket.check()?;
@@ -147,6 +177,7 @@ pub struct Snapshot {
     pub collision: Readiness,
     pub behavior: Readiness,
     pub simulation_ready: bool,
+    pub render_published: bool,
     pub failure: Option<String>,
 }
 
@@ -169,13 +200,16 @@ pub struct CellResidency {
     behavior: Readiness,
     failure: Option<String>,
     backpressured: bool,
+    render_published: bool,
     #[cfg(test)]
     pause: Option<Arc<resource_jobs::tests::Pause>>,
 }
 impl CellResidency {
     pub fn new(source_tree: &Path, cache_root: Option<&Path>, limits: Limits) -> JobResult<Self> {
         let ceiling = Limits::default();
-        if limits.models == 0
+        if limits.workers == 0
+            || limits.workers > ceiling.workers
+            || limits.models == 0
             || limits.models > ceiling.models
             || limits.source_bytes == 0
             || limits.source_bytes > ceiling.source_bytes
@@ -225,6 +259,7 @@ impl CellResidency {
             behavior: Readiness::Pending,
             failure: None,
             backpressured: false,
+            render_published: false,
             #[cfg(test)]
             pause: None,
         })
@@ -415,7 +450,7 @@ impl CellResidency {
         self.validate(ticket)?;
         self.dependencies = readiness;
         self.stage = if readiness == Readiness::Ready {
-            if self.stage == Stage::RenderResident {
+            if self.render_published {
                 Stage::RenderResident
             } else {
                 Stage::DependenciesReady
@@ -440,18 +475,26 @@ impl CellResidency {
     /// GPU staging happen outside it; keep this callback short and nonblocking.
     /// A failed callback leaves residency unchanged; the host must clean up its
     /// own partial GPU/entity work rather than treating this as a rollback API.
+    /// A successful publication consumes the current epoch's admission, even
+    /// if a later dependency report downgrades readiness. Retry uses a new epoch.
     pub fn publish_render<T>(
         &mut self,
         ticket: &Ticket,
         publish: impl FnOnce() -> JobResult<T>,
     ) -> JobResult<T> {
         self.validate(ticket)?;
+        if self.render_published {
+            return Err(JobError::Invalid(
+                "cell render already published for this generation".into(),
+            ));
+        }
         if self.dependencies != Readiness::Ready {
             return Err(JobError::Invalid(
                 "cell render dependencies are not ready".into(),
             ));
         }
         let value = ticket.token.commit(publish)?;
+        self.render_published = true;
         self.stage = Stage::RenderResident;
         Ok(value)
     }
@@ -471,6 +514,7 @@ impl CellResidency {
         Ok(())
     }
     fn clear_work(&mut self) {
+        self.render_published = false;
         for (_, handle) in self.pending.drain(..) {
             handle.cancel();
         }
@@ -527,6 +571,7 @@ impl CellResidency {
                 && self.dependencies == Readiness::Ready
                 && self.collision == Readiness::Ready
                 && self.behavior == Readiness::Ready,
+            render_published: self.render_published,
             failure: self.failure.clone(),
         }
     }

@@ -21,6 +21,11 @@ static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
 
 pub mod event_commit;
 pub mod initialization;
+mod readiness;
+pub use readiness::{
+    ComponentUnavailable, HostLimits, HostReadiness, HostRequirements, HostUnavailable,
+    InstanceRequirement, InstanceUnavailable, JournalHead,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {

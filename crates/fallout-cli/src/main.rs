@@ -536,6 +536,23 @@ enum Command {
         #[arg(long)]
         index_cache: Option<PathBuf>,
     },
+    /// Inspect exact cell model and texture residency through bounded source jobs.
+    CellResidencySources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Private decoded-member cache outside the source installation.
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+        /// Per-stage worker polling deadline; planning/fingerprinting is separate.
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Prepare an explicitly requested winning topic/INFO for source consumers.
     ConversationSources {
         #[arg(long)]
@@ -1537,6 +1554,30 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if failed {
                 return Err("dialogue membership has unresolved topic links; see report".into());
+            }
+        }
+        Command::CellResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::ResidencyInput {
+                    cell: parse_cell_key(&cell)?,
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("cell source dependencies are unavailable; see report".into());
             }
         }
         Command::ConversationSources {

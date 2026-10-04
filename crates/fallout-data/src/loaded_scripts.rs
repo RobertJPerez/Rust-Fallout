@@ -310,7 +310,15 @@ impl Catalogue {
                 catalogue.counts.deleted_candidates_skipped += 1;
                 continue;
             }
-            let record = Arc::new(store.read(location)?);
+            let record = store.read(location)?;
+            if record.integrity_issue.is_some() {
+                return Err(crate::malformed(
+                    store.source_name(location),
+                    record.header.offset,
+                    "loaded script source is untrusted checksum recovery",
+                ));
+            }
+            let record = Arc::new(record);
             catalogue.counts.candidate_records_read += 1;
             catalogue.counts.payload_bytes_scanned += record.payload.len() as u64;
             let units = script_units::decode(

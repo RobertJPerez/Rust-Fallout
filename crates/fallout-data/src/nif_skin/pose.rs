@@ -109,7 +109,7 @@ impl Budget<'_> {
     }
 }
 
-fn compose(parent: Affine, local: Affine) -> Affine {
+pub(crate) fn compose(parent: Affine, local: Affine) -> Affine {
     std::array::from_fn(|r| {
         std::array::from_fn(|c| {
             (0..3).map(|k| parent[r][k] * local[k][c]).sum::<f64>()
@@ -131,7 +131,7 @@ fn skin_affine(t: &Transform) -> Affine {
     })
 }
 
-fn scene_affine(t: nif_scene::Transform) -> Affine {
+pub(crate) fn scene_affine(t: nif_scene::Transform) -> Affine {
     std::array::from_fn(|r| {
         std::array::from_fn(|c| {
             if c == 3 {

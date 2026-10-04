@@ -3,6 +3,7 @@
 pub mod boolean;
 mod families;
 pub mod keyframe;
+pub mod pose;
 mod preflight;
 mod read;
 pub mod sampling;
@@ -32,7 +33,7 @@ impl Default for Limits {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Controller {
     pub next_controller: Option<u32>,
     pub flags: u16,
@@ -82,7 +83,7 @@ pub struct Sequence {
     pub accum_root_name: Option<u32>,
     pub notes: NoteLinks,
 }
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct TransformInterpolator {
     pub translation_bits: [u32; 3],
     /// Stored quaternion order is W,X,Y,Z. No normalization is performed.

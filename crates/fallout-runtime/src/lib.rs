@@ -5,6 +5,7 @@
 pub mod catalogue;
 pub mod event_operands;
 pub mod events;
+pub mod execution;
 pub mod foreign;
 pub mod identity;
 pub mod inventory;

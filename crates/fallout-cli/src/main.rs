@@ -316,6 +316,9 @@ enum Command {
         /// Prepare immutable source plans once and reuse them across events.
         #[arg(long)]
         prepared_sources: bool,
+        /// Inventory source-bound native capabilities with faithful rejection.
+        #[arg(long)]
+        native_capabilities: bool,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -991,6 +994,7 @@ fn run(args: Args) -> Result<()> {
             index_cache,
             player_id,
             prepared_sources,
+            native_capabilities,
         } => {
             let report = event_operand_inspection::inspect(
                 &install,
@@ -998,8 +1002,14 @@ fn run(args: Args) -> Result<()> {
                 index_cache.as_deref(),
                 player_id,
                 prepared_sources,
+                native_capabilities,
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
+            if native_capabilities && report["native_unsupported"] != 0 {
+                return Err(
+                    "Pending native calls retain unsupported faithful semantics; see report".into(),
+                );
+            }
             if report["prepared_probes"] != report["pending_events_checked"]
                 || report["unresolved_operands"] != 0
             {

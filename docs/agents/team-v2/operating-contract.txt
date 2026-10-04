@@ -65,7 +65,13 @@ When active, work through dependency-ready tasks until Robert stops. Take the
 next ready assignment task after a handoff; when the listed queue is exhausted,
 derive a small source-backed task within owned paths from the master brief and
 NEXT_STEPS.md, record its consumer and exit in your outbox, and proceed. If one
-dependency is blocked, record it once and continue independent owned work.
+dependency is blocked, record it once and continue independent owned work. The
+coordinator keeps a concrete independent fallback after each dependency-gated
+task and replenishes it at every handoff. A worker checks its current assignment
+again before declaring a lane blocked; do not repeat an unchanged blocker audit
+while a ready task exists. A source investigation or regression is useful only
+when it has a specific unresolved question, source/input, named consumer and
+exit result; do not invent a feature just to keep the lane busy.
 Startup prompts explicitly request a
 persistent Goal when available. Goals support continuation/resumption but do not
 promise unlimited session/service lifetime. Never spin on identical failing checks.

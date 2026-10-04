@@ -16,3 +16,10 @@ This is Robert Perez's team-v2 startup instruction. It supersedes the old four-a
 Read G:\Rust-Fallout\local\team\control.json and your assignment under G:\Rust-Fallout\local\team-v2. Claim your lane lease before writing. Require active generation team-v2-20261003 and your active assignment before implementation. Keep builds/evidence private and write only your own status/outbox. Use the absolute shared lease path in the contract. Workers take the automatic focused build slot themselves after control enables it; reserve only heavy builds through coordinator. Check all current-run STOP rows between process polls. Read the operating contract for exact paths, handoffs, resource reservations and interface decisions.
 
 Only after control and your assignment are active, use your lane objective as an ongoing Goal if available. Complete small meaningful tasks, run appropriate checks, hand off tested commits and continue ready assigned work until I stop you. Decide routine cross-lane dependencies promptly, keep candidate review and integration moving, and advance the next ready coordinator task without waiting for Robert. STOP means stop immediately, cancel only your own processes and preserve the current work; do not finish another checkpoint first. Never lose old drafts/evidence or claim source inspection is gameplay parity.
+
+At each worker handoff, check the next task for a real consumer. Keep an independent
+ready fallback after any dependency-gated task and replenish it before the worker
+finishes the current task. Record interface decisions promptly in the board and
+outbox; workers do not need a separate build grant. Route exact review defects to
+their owner. Do not let a lane run repeated audits of the same blocker when a
+bounded source investigation or existing-consumer regression can move it forward.

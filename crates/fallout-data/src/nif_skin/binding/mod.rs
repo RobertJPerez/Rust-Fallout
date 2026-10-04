@@ -146,10 +146,19 @@ pub fn decode_with_limits(
     source: &str,
     limits: Limits,
 ) -> Result<(nif::NifIndex, Source)> {
+    let (index, source, _) = decode_with_scene(bytes, source, limits)?;
+    Ok((index, source))
+}
+
+pub(super) fn decode_with_scene(
+    bytes: &[u8],
+    source: &str,
+    limits: Limits,
+) -> Result<(nif::NifIndex, Source, nif_scene::Scene)> {
     let (index, skin, scene) =
         super::partition::decode_with_scene(bytes, source, limits.partition)?;
-    let bindings = graph::bind(bytes, &index, &skin.skin, scene, source, limits)?;
-    Ok((index, Source { skin, bindings }))
+    let bindings = graph::bind(bytes, &index, &skin.skin, &scene, source, limits)?;
+    Ok((index, Source { skin, bindings }, scene))
 }
 
 fn reserve<T>(remaining: &mut usize, count: usize, source: &str) -> Result<()> {

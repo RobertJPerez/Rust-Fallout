@@ -126,6 +126,12 @@ enum Command {
         include_partitions: bool,
         #[arg(long)]
         include_bindings: bool,
+        /// Evaluate one exact geometry block using stored source locals.
+        #[arg(long, requires = "pose_weight_tolerance", conflicts_with_all = ["oracle_report", "include_partitions", "include_bindings"])]
+        pose_geometry: Option<u32>,
+        /// Admit the raw weight sum within this absolute tolerance; never normalize.
+        #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
+        pose_weight_tolerance: Option<f64>,
     },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
@@ -1644,7 +1650,18 @@ fn run(args: Args) -> Result<()> {
             oracle_report,
             include_partitions,
             include_bindings,
+            pose_geometry,
+            pose_weight_tolerance,
         } => {
+            if let Some(geometry) = pose_geometry {
+                let tolerance = pose_weight_tolerance.ok_or("pose weight tolerance missing")?;
+                let report = nif_skin_inspection::inspect_pose(&input, geometry, tolerance)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source-local skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
             let report = nif_skin_inspection::inspect(
                 &input,
                 oracle_report.as_deref(),

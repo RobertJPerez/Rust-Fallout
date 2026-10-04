@@ -363,3 +363,84 @@ The additive `--include-bindings` CLI flag/dispatch argument is the only shared
 root wiring. Scene access/API, source binding limits and schema mode were approved
 before implementation. No scene, runtime/save, preview, parity or source-lock file
 is edited in this lane.
+
+## V3-ASSET-01 source-local palette and CPU deformation
+
+`nif_skin::pose::evaluate(bytes, source, Request, Limits)` reuses the existing
+scene, partition and binding decoder once. The request identifies one exact
+geometry block and supplies either `PreserveRawNonnegative` or
+`RequireUnitSum { absolute_tolerance }`. Both policies retain every contribution
+and duplicate influence. The latter checks the raw sum and never divides by it.
+Missing weights, negative weights, unweighted vertices and unresolved source
+ancestry refuse with a specific error. An undecoded scene edge prevents this
+initial evaluator from certifying complete ancestry, even if it is elsewhere in
+the file. External skeleton binding remains unsupported.
+
+The receipt uses `engineering-source-local-skin-v1`, original NIF axes/units and
+column-vector affine rows. For each authored bone ordinal its skin-space palette
+is `SkinTransform * BoneToRoot * SkinToBone`. `BoneToRoot` composes decoded node
+locals up to, excluding, the selected skeleton root. The last two source transform
+roles are described in the pinned nifly `include/Skin.hpp`; field decoding uses
+the fully inspected `src/Skin.cpp` and admitted XML branches. The implementation
+is original Rust math with independently authored analytic fixtures, without
+copying or linking the reference implementation.
+
+Returned positions are the raw weighted sum of transformed source points.
+Normals are weighted linear directions without inverse-transpose correction or
+renormalization; that explicit engineering rule does not establish retail normal
+behavior. The returned `skin_to_source_world` is
+`RootToSourceWorld * inverse(SkinTransform)`. Presentation applies this matrix
+once to the evaluated skin arrays, then its existing source-coordinate conversion
+and placement. It must not apply the geometry object's local/world matrix again.
+Source rotations, reflection and scale remain intact; singular/overflowing skin
+mappings refuse rather than receiving an identity fallback.
+
+Stored source locals need not equal the original bind pose. Controllers remain
+unapplied, with exact object/controller IDs recorded for every required ancestry
+path. This static source-local request does not sample a clip, drive a clock,
+infer transitions/events or claim measured retail playback. ASSET06/09 sampling
+will enter through the separate explicit-time source/controller request.
+
+Limits nest the existing bounded source decoder and add a 64 MiB element-storage
+budget, 16 million work units and an ancestry depth ceiling of 1,024. Element
+accounting includes temporary block maps, returned palette/vertex arrays, receipt
+and controller records; allocator capacity/overhead is not a process memory cap.
+Source scans, ancestry steps, palette entries, influences and final vertex checks
+consume work, including empty relations. No recursive traversal is introduced.
+
+The existing three CLI source schemas remain unchanged. A separate single-file
+mode selects `fallout nif-skin INPUT --pose-geometry BLOCK
+--pose-weight-tolerance TOLERANCE`; both arguments are required together.
+Source-oracle/partition/binding flags cannot be combined with this mode. Its
+receipt binds the whole input hash, exact geometry/data/instance/root IDs, palette,
+raw sums, evaluated arrays and display transform. Refusal emits an error receipt
+and exits nonzero. The callable API is the presentation skin consumer boundary;
+the diagnostic exposes the same production math for reproducible checks.
+
+The focused handoff checks pass 57 skin/partition/binding/pose tests, including
+11 new analytic pose cases, plus 36 CLI tests, affected-package Clippy with
+warnings denied and formatting. Analytic cases distinguish root, geometry and
+skin spaces; nested rotation/scale, changed source locals, reflection, duplicate
+weights, absent normals, unresolved ancestry, singular transforms and exact
+budget ceilings have explicit expectations.
+
+`tools/nif-skin-oracle/check_pose.py` checks one preserved stream-34 original
+input against the already independently decoded native schema-3 source fields.
+Its full 4x4 rational calculation folds the hierarchy from root to bone, while
+Rust prepends locals while walking toward the root. All 25 palette entries and
+300 coefficients pass the declared binary64 forward-error bound; maximum
+absolute error is `1.247655587073829e-14`. The evaluated source has 1,706 vertices.
+The admitted raw unit-sum tolerance, exactly `2^-23`, comes from this selected
+source's maximum error and does not normalize weights. Zero-tolerance and missing
+geometry requests refuse, and an intentionally changed palette coefficient fails
+the independent comparison. Frozen binary, input and native report hashes remain
+unchanged. Receipts stay in ignored `local/v3-asset-01`; this selected engineering
+comparison establishes neither whole-corpus pose support nor retail playback.
+
+For that same immutable input, the new frozen CLI and preserved ASSET09 binary
+emit byte-identical source receipts in all three schema modes. Both missing-pair
+cases and all three conflicting source flags refuse at argument parsing. Three
+failed private compatibility harness attempts remain preserved: they mismatched
+oracle schema/count admission or compared schema-1 dependencies to schema-3
+retired dependencies. The final check compares matching modes through both
+frozen binaries; these failures did not require a production change.

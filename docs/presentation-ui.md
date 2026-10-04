@@ -73,3 +73,35 @@ claiming allocator peak memory. Failure returns no closure and the CLI does not
 create its report until complete dependency admission; a subsequent output/write
 failure can still leave a partial immutable report. Default single-file --menu
 output and original UI evaluation/font/display acceptance remain unchanged.
+
+The opt-in `--menu-entities REQUEST.json` observes one exact source value. Its
+strict schema-1 request binds `source { path, archive_sha256, payload_sha256 }`, a
+`selection`, and an ordered `definitions` array of literal `name`/`value` pairs.
+Selection is either `element-text` with `node` and the complete element `span`, or
+`attribute` with its owner `node`, exact `name_span` and `value_span`. Existing
+node/span identities must match. This request carries its own selection and cannot
+be combined with the include-closure or authored-name selector flags.
+
+Element text admits direct text, entity references and CDATA; comments contribute
+no text and nested markup/operators refuse. Attribute observations retain their
+literal whitespace. XML builtin names use the pinned tokenizer's five-entry
+resolver, and numeric references use its Unicode character-reference API. Numeric
+validation follows that API's documented behavior, including zero/surrogate/range
+refusal; complete XML LegalChar checking remains outside its verified scope.
+There is no DTD fetch, attribute whitespace normalization or localization rule.
+
+Custom entities require an explicit value bound to the source payload. Duplicate
+definitions, builtin/numeric overrides, NUL and entity-shaped nested replacements
+refuse. Values are literal UTF-8; a plain ampersand and an explicitly empty value
+are supported. Unsupplied names produce `value: null` and every exact source span
+in `unresolved`. A resolved empty string remains distinct from that unavailable
+result. Missing values never publish a partly expanded string.
+
+Each occurrence and projected replacement byte is admitted before output copying,
+including repeated references and empty replacements. Limits are 128 KiB request,
+128 definitions, 64 KiB environment names/values, 32,768 pieces, 16,384 references,
+1 MiB selected input, 1 MiB expanded UTF-8, 2 MiB declared logical working metadata
+and a 12 MiB streamed report, alongside existing source-document limits. Definition
+names are at most 128 bytes; source reference names are at most 256 bytes. Copies
+begin after complete preflight. This is an explicit text observation for the later
+tile consumer; layout, operators, typed traits and original display remain open.

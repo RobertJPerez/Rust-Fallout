@@ -410,4 +410,249 @@ fn cooperative(
     }))
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CooperativeAdmissionRequest {
+    schema_version: u32,
+    source_cohort_sha256: String,
+    roots: Vec<loaded_scripts::Handle>,
+    maximum_roots: usize,
+    maximum_definitions: usize,
+    maximum_dependencies: usize,
+    maximum_instructions: usize,
+    maximum_operand_uses: usize,
+    maximum_frontier: usize,
+    maximum_variable_bytes: usize,
+    maximum_lookup_source_visits: usize,
+    maximum_indivisible_instructions: usize,
+    maximum_definition_expansions_per_advance: usize,
+    maximum_operand_visits_per_advance: usize,
+    maximum_advances: usize,
+    #[serde(deserialize_with = "required_optional_count")]
+    cancel_after_advances: Option<usize>,
+    maximum_progress_bytes: usize,
+    maximum_report_bytes: usize,
+}
+fn required_optional_count<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<usize>, D::Error> {
+    <Option<usize> as Deserialize>::deserialize(deserializer)
+}
+#[derive(serde::Serialize)]
+struct CooperativeAdmissionState<'a> {
+    outcome: &'static str,
+    failure: Option<&'a str>,
+    advances: &'a [admission::Progress],
+    progress_bytes: usize,
+    report_published: bool,
+    indivisible_unit: &'static str,
+    source_preparation: &'static str,
+    hard_time_slice: bool,
+}
+#[derive(serde::Serialize)]
+struct CooperativeAdmissionReport<'a, I: serde::Serialize> {
+    schema_version: u32,
+    scope: &'static str,
+    request_sha256: String,
+    explicit_load_order: &'a [String],
+    load_order_sha256: &'a str,
+    executable_source_sha256: &'a str,
+    prepared_counts: &'a fallout_runtime::programs::Counts,
+    execution_admission: Option<&'a admission::Report>,
+    cooperative_admission: CooperativeAdmissionState<'a>,
+    index_cache: I,
+    retail_parity_accepted: bool,
+}
+struct AdmissionBytes {
+    bytes: usize,
+    maximum: usize,
+}
+impl Write for AdmissionBytes {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self
+            .bytes
+            .checked_add(bytes.len())
+            .filter(|&n| n <= self.maximum)
+            .ok_or_else(|| std::io::Error::other("cooperative admission byte budget exceeded"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn admission_failure(error: impl std::fmt::Display, maximum: usize) -> Result<String> {
+    struct Counter {
+        bytes: usize,
+        maximum: usize,
+    }
+    impl std::fmt::Write for Counter {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            self.bytes = self
+                .bytes
+                .checked_add(text.len())
+                .filter(|&n| n <= self.maximum)
+                .ok_or(std::fmt::Error)?;
+            Ok(())
+        }
+    }
+    let mut counter = Counter { bytes: 0, maximum };
+    std::fmt::write(&mut counter, format_args!("{error}"))
+        .map_err(|_| "cooperative admission failure text byte budget exceeded")?;
+    Ok(error.to_string())
+}
+pub(super) fn inspect_cooperative_admission(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+) -> Result<Value> {
+    let mut bytes = Vec::new();
+    File::open(request_path)?
+        .take(65_536 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 65_536 {
+        return Err("cooperative admission request byte budget exceeded".into());
+    }
+    let request: CooperativeAdmissionRequest = serde_json::from_slice(&bytes)?;
+    let limits = admission::Limits::default();
+    let jobs = admission::JobLimits::default();
+    if request.schema_version != 1
+        || request.maximum_roots > limits.maximum_roots
+        || request.maximum_definitions > limits.maximum_definitions
+        || request.maximum_dependencies > limits.maximum_dependencies
+        || request.maximum_instructions > limits.maximum_instructions
+        || request.maximum_operand_uses > limits.maximum_operand_uses
+        || request.maximum_frontier > jobs.maximum_frontier
+        || request.maximum_variable_bytes > jobs.maximum_variable_bytes
+        || request.maximum_lookup_source_visits > jobs.maximum_lookup_source_visits
+        || request.maximum_indivisible_instructions > jobs.maximum_indivisible_instructions
+        || request.maximum_definition_expansions_per_advance > limits.maximum_definitions
+        || request.maximum_operand_visits_per_advance > limits.maximum_operand_uses
+        || request.maximum_advances == 0
+        || request.maximum_advances > 4096
+        || request
+            .cancel_after_advances
+            .is_some_and(|n| n > request.maximum_advances)
+        || request.maximum_progress_bytes > 2 * 1024 * 1024
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported cooperative admission schema/budget ceiling".into());
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
+    let sources = PreparedSources::load(&catalogue, &model, &signatures, Default::default())?;
+    let attachments =
+        fallout_data::quest_scripts::Attachments::load(&mut store, &catalogue, 131_072, |_, _| {
+            Ok(())
+        })?;
+    if request.source_cohort_sha256 != sources.source_cohort_sha256() {
+        return Err("cooperative admission request has a different source receipt cohort".into());
+    }
+    let mut job = admission::AdmissionJob::new(
+        &sources,
+        &attachments,
+        &request.roots,
+        admission::Limits {
+            maximum_roots: request.maximum_roots,
+            maximum_definitions: request.maximum_definitions,
+            maximum_dependencies: request.maximum_dependencies,
+            maximum_instructions: request.maximum_instructions,
+            maximum_operand_uses: request.maximum_operand_uses,
+        },
+        admission::JobLimits {
+            maximum_frontier: request.maximum_frontier,
+            maximum_variable_bytes: request.maximum_variable_bytes,
+            maximum_lookup_source_visits: request.maximum_lookup_source_visits,
+            maximum_indivisible_instructions: request.maximum_indivisible_instructions,
+        },
+    )?;
+    let budget = admission::StepBudget {
+        maximum_definition_expansions: request.maximum_definition_expansions_per_advance,
+        maximum_operand_visits: request.maximum_operand_visits_per_advance,
+    };
+    let mut advances = Vec::new();
+    let mut progress_bytes = 0;
+    let mut complete = None;
+    let (outcome, failure) = loop {
+        if request.cancel_after_advances == Some(advances.len()) {
+            drop(job);
+            break ("cancelled", None);
+        }
+        if advances.len() == request.maximum_advances {
+            drop(job);
+            break ("advance_budget", None);
+        }
+        let progress = job.advance(budget);
+        let status = progress.status;
+        let stalled = progress.step_definition_expansions == 0 && progress.step_operand_visits == 0;
+        let mut counter = AdmissionBytes {
+            bytes: 0,
+            maximum: request.maximum_progress_bytes - progress_bytes,
+        };
+        serde_json::to_writer(&mut counter, &progress)
+            .map_err(|_| "cooperative admission progress byte budget exceeded")?;
+        progress_bytes += counter.bytes;
+        advances.push(progress);
+        match status {
+            admission::AdmissionStatus::Complete => {
+                complete = Some(job.finish()?);
+                break ("complete", None);
+            }
+            admission::AdmissionStatus::Failed => {
+                let error = job
+                    .finish()
+                    .err()
+                    .ok_or("missing cooperative admission failure")?;
+                break (
+                    "failed",
+                    Some(admission_failure(error, request.maximum_report_bytes)?),
+                );
+            }
+            admission::AdmissionStatus::Pending if stalled => {
+                drop(job);
+                break ("step_budget", None);
+            }
+            admission::AdmissionStatus::Pending => {}
+        }
+    };
+    let report = CooperativeAdmissionReport {
+        schema_version: 1,
+        scope: "cooperative_declared_dependency_admission_without_execution",
+        request_sha256: format!("{:x}", sha2::Sha256::digest(&bytes)),
+        explicit_load_order: &order.names,
+        load_order_sha256: &order.sha256,
+        executable_source_sha256: &descriptors.source_sha256,
+        prepared_counts: sources.counts(),
+        execution_admission: complete.as_ref(),
+        cooperative_admission: CooperativeAdmissionState {
+            outcome,
+            failure: failure.as_deref(),
+            advances: &advances,
+            progress_bytes,
+            report_published: complete.is_some(),
+            indivisible_unit: "one cached definition operation scan, one operand's bounded source targets, final bounded cycle analysis",
+            source_preparation: "existing bounded synchronous catalogue/cache preparation before first admission advance",
+            hard_time_slice: false,
+        },
+        index_cache: store.index_cache_report(),
+        retail_parity_accepted: false,
+    };
+    let mut admitted = AdmissionBytes {
+        bytes: 0,
+        maximum: request.maximum_report_bytes,
+    };
+    serde_json::to_writer_pretty(&mut admitted, &report)
+        .map_err(|_| "cooperative admission report byte budget exceeded")?;
+    admitted
+        .write_all(b"\n")
+        .map_err(|_| "cooperative admission report byte budget exceeded")?;
+    Ok(serde_json::to_value(report)?)
+}
+
 use sha2::Digest;

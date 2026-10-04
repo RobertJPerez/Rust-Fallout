@@ -433,6 +433,429 @@ fn cached_source_rejections_retain_the_first_exact_failure_without_reparsing() {
     }
 }
 
+fn shared_graph() -> (tempfile::TempDir, Catalogue, Attachments) {
+    let call = |index: u8| instruction(0x102f, &[1, 0, b'r', index, 0]);
+    fixture(
+        &[
+            (
+                0x300,
+                event(&[call(1), call(2), call(1)].concat()),
+                vec![0x301, 0x302],
+            ),
+            (0x301, event(&call(1)), vec![0x303]),
+            (0x302, event(&call(1)), vec![0x303]),
+            (0x303, event(&call(1)), vec![0x300]),
+        ],
+        vec![],
+    )
+}
+fn shared_expected(sources: &PreparedSources<'_>, handles: &[Handle]) -> serde_json::Value {
+    use serde_json::json;
+    let dependency = |from: usize, to: usize, offset: usize, index: u16| {
+        json!({"from":handles[from],"to":handles[to],"kind":"declared_script_reference",
+            "operand_scda_offset":offset,"reference_index":index})
+    };
+    json!({
+        "source_cohort_sha256":sources.source_cohort_sha256(),"roots":[handles[0]],
+        "definitions":handles,
+        "dependencies":[dependency(0,1,17,1),dependency(0,2,26,2),dependency(0,1,35,1),
+            dependency(1,3,17,1),dependency(2,3,17,1),dependency(3,0,17,1)],
+        "dependency_findings":[],"cycle_back_edges":[{"from":handles[3].key,"to":handles[0].key}],
+        "first_unsupported":{"definition":handles[0],"source_scda_offset":10,
+            "instruction_scda_bytes":{"start":10,"end":19},"operand_scda_bytes":{"start":14,"end":19},
+            "opcode":0x102f,"calling_reference_index":null,"code":"unverified_native_semantics",
+            "detail":"Engineering host reads do not implement the original native return"},
+        "faithful_execution_admitted":false,"retail_lifecycle_verified":false
+    })
+}
+#[test]
+fn cooperative_schedules_preserve_independent_complete_graph_and_never_revisit_or_reparse() {
+    let (_directory, catalogue, attachments) = shared_graph();
+    let sources = prepared(&catalogue);
+    let handles = root_handles(&catalogue);
+    let expected = shared_expected(&sources, &handles);
+    assert_eq!(
+        serde_json::to_value(
+            check(&sources, &attachments, &handles[..1], Default::default()).unwrap()
+        )
+        .unwrap(),
+        expected
+    );
+    let attempts = sources.counts().preparation_attempts;
+    for (definitions, operands) in [(usize::MAX, usize::MAX), (1, 1), (2, 2), (1, 3), (3, 1)] {
+        let mut job = AdmissionJob::new(
+            &sources,
+            &attachments,
+            &handles[..1],
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let mut expansions = 0;
+        let mut visits = 0;
+        loop {
+            let p = job.advance(StepBudget {
+                maximum_definition_expansions: definitions,
+                maximum_operand_visits: operands,
+            });
+            assert!(
+                p.step_definition_expansions <= definitions && p.step_operand_visits <= operands
+            );
+            expansions += p.step_definition_expansions;
+            visits += p.step_operand_visits;
+            assert_eq!(p.definition_expansions, expansions);
+            assert_eq!(p.operand_visits, visits);
+            assert_eq!(sources.counts().preparation_attempts, attempts);
+            if p.status == AdmissionStatus::Complete {
+                assert_eq!(expansions, 4);
+                assert_eq!(visits, 6);
+                assert_eq!(p.charged_instructions, 14);
+                assert_eq!(p.charged_operand_uses, 6);
+                assert_eq!(p.dependencies, 6);
+                let terminal = job.advance(StepBudget {
+                    maximum_definition_expansions: 0,
+                    maximum_operand_visits: 0,
+                });
+                assert_eq!(terminal, job.progress());
+                assert_eq!(
+                    serde_json::to_value(job.finish().unwrap()).unwrap(),
+                    expected
+                );
+                break;
+            }
+            assert_eq!(p.status, AdmissionStatus::Pending);
+            assert!(p.step_definition_expansions + p.step_operand_visits > 0);
+        }
+    }
+    let mut job = AdmissionJob::new(
+        &sources,
+        &attachments,
+        &handles[..1],
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    let initial = job.progress();
+    assert_eq!(
+        job.advance(StepBudget {
+            maximum_definition_expansions: 0,
+            maximum_operand_visits: 0
+        }),
+        initial
+    );
+    assert!(matches!(job.finish(), Err(Error::Incomplete)));
+    let mut cancelled = AdmissionJob::new(
+        &sources,
+        &attachments,
+        &handles[..1],
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        cancelled
+            .advance(StepBudget {
+                maximum_definition_expansions: 1,
+                maximum_operand_visits: 1
+            })
+            .status,
+        AdmissionStatus::Pending
+    );
+    drop(cancelled);
+    assert_eq!(sources.counts().preparation_attempts, attempts);
+    let reordered = [
+        handles[2].clone(),
+        handles[0].clone(),
+        handles[1].clone(),
+        handles[0].clone(),
+    ];
+    let mut job = AdmissionJob::new(
+        &sources,
+        &attachments,
+        &reordered,
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    while job
+        .advance(StepBudget {
+            maximum_definition_expansions: 1,
+            maximum_operand_visits: 1,
+        })
+        .status
+        == AdmissionStatus::Pending
+    {}
+    let mut all_roots = expected.clone();
+    all_roots["roots"] = serde_json::json!([handles[0], handles[1], handles[2]]);
+    assert_eq!(
+        serde_json::to_value(job.finish().unwrap()).unwrap(),
+        all_roots
+    );
+    let mut stale = handles[0].clone();
+    stale.version_sha256 = "f".repeat(64);
+    let conflict = [handles[0].clone(), stale.clone()];
+    assert!(matches!(
+        AdmissionJob::new(
+            &sources,
+            &attachments,
+            &conflict,
+            Default::default(),
+            Default::default()
+        ),
+        Err(Error::ConflictingVersion)
+    ));
+    let stale_root = [stale];
+    let mut job = AdmissionJob::new(
+        &sources,
+        &attachments,
+        &stale_root,
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        job.advance(StepBudget {
+            maximum_definition_expansions: 1,
+            maximum_operand_visits: 1
+        })
+        .status,
+        AdmissionStatus::Failed
+    );
+    assert!(matches!(
+        job.finish(),
+        Err(Error::Source(LookupError::DefinitionChanged))
+    ));
+}
+#[test]
+fn cooperative_global_and_copy_limits_never_reset_or_publish_a_partial_report() {
+    let (_directory, catalogue, attachments) = shared_graph();
+    let sources = prepared(&catalogue);
+    let roots = root_handles(&catalogue);
+    let limits = Limits {
+        maximum_roots: 1,
+        maximum_definitions: 4,
+        maximum_dependencies: 6,
+        maximum_instructions: 14,
+        maximum_operand_uses: 6,
+    };
+    let mut sample = AdmissionJob::new(
+        &sources,
+        &attachments,
+        &roots[..1],
+        limits,
+        Default::default(),
+    )
+    .unwrap();
+    let complete = sample.advance(StepBudget {
+        maximum_definition_expansions: usize::MAX,
+        maximum_operand_visits: usize::MAX,
+    });
+    assert_eq!(complete.status, AdmissionStatus::Complete);
+    let jobs = JobLimits {
+        maximum_frontier: 2,
+        maximum_variable_bytes: complete.variable_bytes,
+        maximum_lookup_source_visits: 0,
+        maximum_indivisible_instructions: 5,
+    };
+    for n in 0..7 {
+        let mut bound = limits;
+        let mut job_bound = jobs;
+        match n {
+            0 => bound.maximum_definitions -= 1,
+            1 => bound.maximum_dependencies -= 1,
+            2 => bound.maximum_instructions -= 1,
+            3 => bound.maximum_operand_uses -= 1,
+            4 => job_bound.maximum_frontier -= 1,
+            5 => job_bound.maximum_variable_bytes -= 1,
+            _ => job_bound.maximum_indivisible_instructions -= 1,
+        }
+        let mut job =
+            AdmissionJob::new(&sources, &attachments, &roots[..1], bound, job_bound).unwrap();
+        loop {
+            let p = job.advance(StepBudget {
+                maximum_definition_expansions: 1,
+                maximum_operand_visits: 1,
+            });
+            if p.status == AdmissionStatus::Failed {
+                let failed = job.progress();
+                assert_eq!(
+                    job.advance(StepBudget {
+                        maximum_definition_expansions: usize::MAX,
+                        maximum_operand_visits: usize::MAX
+                    }),
+                    failed
+                );
+                assert!(job.finish().is_err());
+                break;
+            }
+            assert_ne!(
+                p.status,
+                AdmissionStatus::Complete,
+                "{n} bypassed global cap"
+            );
+        }
+    }
+    let mut exact = AdmissionJob::new(&sources, &attachments, &roots[..1], limits, jobs).unwrap();
+    while exact
+        .advance(StepBudget {
+            maximum_definition_expansions: 1,
+            maximum_operand_visits: 1,
+        })
+        .status
+        == AdmissionStatus::Pending
+    {}
+    assert_eq!(
+        serde_json::to_value(exact.finish().unwrap()).unwrap(),
+        shared_expected(&sources, &roots)
+    );
+    assert!(matches!(
+        AdmissionJob::new(
+            &sources,
+            &attachments,
+            &roots[..1],
+            Limits {
+                maximum_roots: 0,
+                ..limits
+            },
+            jobs
+        ),
+        Err(Error::Capacity("roots"))
+    ));
+    assert!(matches!(
+        AdmissionJob::new(
+            &sources,
+            &attachments,
+            &roots[..1],
+            limits,
+            JobLimits {
+                maximum_frontier: 0,
+                ..jobs
+            }
+        ),
+        Err(Error::Capacity("frontier"))
+    ));
+    assert!(matches!(
+        AdmissionJob::new(
+            &sources,
+            &attachments,
+            &roots[..1],
+            limits,
+            JobLimits {
+                maximum_variable_bytes: 0,
+                ..jobs
+            }
+        ),
+        Err(Error::Capacity("variable bytes"))
+    ));
+}
+#[test]
+fn cooperative_foreign_lookup_visits_and_cached_rejections_keep_exact_diagnostics() {
+    let quest = |id, script: u32| record(b"QUST", id, 0, &field(b"SCRI", &script.to_le_bytes()));
+    let (_directory, catalogue, attachments) = fixture(
+        &[
+            (0x300, event(&foreign()), vec![0x200]),
+            (0x301, event(&foreign()), vec![0x201]),
+        ],
+        vec![quest(0x200, 0x301), quest(0x201, 0x300)],
+    );
+    let sources = prepared(&catalogue);
+    let roots = root_handles(&catalogue);
+    for maximum in [1, 2] {
+        let mut job = AdmissionJob::new(
+            &sources,
+            &attachments,
+            &roots[..1],
+            Default::default(),
+            JobLimits {
+                maximum_lookup_source_visits: maximum,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        loop {
+            let p = job.advance(StepBudget {
+                maximum_definition_expansions: 1,
+                maximum_operand_visits: 1,
+            });
+            if p.status != AdmissionStatus::Pending {
+                if maximum == 1 {
+                    assert_eq!(p.status, AdmissionStatus::Failed);
+                    assert!(matches!(
+                        job.finish(),
+                        Err(Error::Capacity("lookup source visits"))
+                    ));
+                } else {
+                    assert_eq!(p.lookup_source_visits, 2);
+                    // Each source has an own write, caller prefix and foreign
+                    // read. Prefix visits count even though they add no edge.
+                    assert_eq!(p.operand_visits, 6);
+                    let expected =
+                        check(&sources, &attachments, &roots[..1], Default::default()).unwrap();
+                    assert_eq!(
+                        serde_json::to_value(job.finish().unwrap()).unwrap(),
+                        serde_json::to_value(expected).unwrap()
+                    );
+                }
+                break;
+            }
+        }
+    }
+    let (_directory, bad, attachments) =
+        fixture(&[(0x300, event(&instruction(0x19, &[])), vec![])], vec![]);
+    let cached = prepared(&bad);
+    let roots = root_handles(&bad);
+    let attempts = cached.counts().preparation_attempts;
+    let mut job = AdmissionJob::new(
+        &cached,
+        &attachments,
+        &roots,
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    let p = job.advance(StepBudget {
+        maximum_definition_expansions: 1,
+        maximum_operand_visits: 0,
+    });
+    assert_eq!(p.status, AdmissionStatus::Complete);
+    assert_eq!(p.operand_visits, 0);
+    let report = job.finish().unwrap();
+    assert_eq!(report.first_unsupported.code, Code::SourcePlanUnavailable);
+    assert_eq!(report.first_unsupported.source_scda_offset, Some(10));
+    assert_eq!(cached.counts().preparation_attempts, attempts);
+    for maximum in [p.variable_bytes, p.variable_bytes - 1] {
+        let mut limited = AdmissionJob::new(
+            &cached,
+            &attachments,
+            &roots,
+            Default::default(),
+            JobLimits {
+                maximum_variable_bytes: maximum,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let progress = limited.advance(StepBudget {
+            maximum_definition_expansions: 1,
+            maximum_operand_visits: 0,
+        });
+        if maximum == p.variable_bytes {
+            assert_eq!(progress.status, AdmissionStatus::Complete);
+            assert_eq!(
+                serde_json::to_value(limited.finish().unwrap()).unwrap(),
+                serde_json::to_value(&report).unwrap()
+            );
+        } else {
+            assert_eq!(progress.status, AdmissionStatus::Failed);
+            assert!(matches!(
+                limited.finish(),
+                Err(Error::Capacity("variable bytes"))
+            ));
+        }
+        assert_eq!(cached.counts().preparation_attempts, attempts);
+    }
+}
+
 #[test]
 #[ignore = "built CLI and authored metadata inputs; source work bounds, no original launch"]
 fn cli_operand_use_budget_helper() {
@@ -594,6 +1017,298 @@ fn cli_admission_helper() {
     fs::write(output.join("altered-stderr.txt"), result.stderr).unwrap();
     assert!(!result.status.success());
     assert!(!rejected.exists());
+}
+
+fn cooperative_cli_run(
+    cli: &std::path::Path,
+    install: &std::path::Path,
+    order: &std::path::Path,
+    work: &std::path::Path,
+    raw: &[u8],
+    extra: &[&str],
+) -> (std::process::Output, std::path::PathBuf) {
+    fs::create_dir(work).unwrap();
+    let request = work.join("request.json");
+    let report = work.join("report.json");
+    fs::write(&request, raw).unwrap();
+    let input = fs::read(install.join("Data/FalloutNV.esm")).unwrap();
+    let metadata = fs::read(install.join("FalloutNV.exe")).unwrap();
+    let order_bytes = fs::read(order).unwrap();
+    let output = std::process::Command::new(cli)
+        .args(["source-plans", "--install"])
+        .arg(install)
+        .arg("--load-order")
+        .arg(order)
+        .arg("--cooperative-admission")
+        .arg(&request)
+        .arg("--output")
+        .arg(&report)
+        .args(extra)
+        .output()
+        .unwrap();
+    fs::write(work.join("stdout.txt"), &output.stdout).unwrap();
+    fs::write(work.join("stderr.txt"), &output.stderr).unwrap();
+    fs::write(work.join("process.json"),serde_json::to_vec_pretty(&serde_json::json!({
+        "success":output.status.success(),"exit_code":output.status.code(),"report_exists":report.exists()
+    })).unwrap()).unwrap();
+    assert_eq!(fs::read(request).unwrap(), raw);
+    assert_eq!(fs::read(install.join("Data/FalloutNV.esm")).unwrap(), input);
+    assert_eq!(fs::read(install.join("FalloutNV.exe")).unwrap(), metadata);
+    assert_eq!(fs::read(order).unwrap(), order_bytes);
+    (output, report)
+}
+#[test]
+#[ignore = "requires explicitly frozen CLI and fresh authored evidence; never Original execution"]
+fn cli_cooperative_admission_helper() {
+    use serde_json::{Value as Json, json};
+    use std::{cell::Cell, path::PathBuf};
+    let cli = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_CLI").unwrap());
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").unwrap());
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_COOPERATIVE_ADMISSION_EVIDENCE").unwrap());
+    assert!(cli.is_file());
+    assert!(!evidence.exists());
+    fs::create_dir(&evidence).unwrap();
+    let (directory, catalogue, _attachments) = shared_graph();
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        directory.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let sources = prepared(&catalogue);
+    let roots = root_handles(&catalogue);
+    let expected = shared_expected(&sources, &roots);
+    let request = json!({"schema_version":1,"source_cohort_sha256":sources.source_cohort_sha256(),"roots":[roots[0]],
+        "maximum_roots":32,"maximum_definitions":256,"maximum_dependencies":4096,"maximum_instructions":65536,
+        "maximum_operand_uses":65536,"maximum_frontier":256,"maximum_variable_bytes":2097152,
+        "maximum_lookup_source_visits":16777216,"maximum_indivisible_instructions":65536,
+        "maximum_definition_expansions_per_advance":1,"maximum_operand_visits_per_advance":1,"maximum_advances":64,
+        "cancel_after_advances":null,"maximum_progress_bytes":2097152,"maximum_report_bytes":8388608});
+    let cases = Cell::new(0_usize);
+    let raw_run = |name: &str, raw: &[u8], extra: &[&str]| {
+        cases.set(cases.get() + 1);
+        cooperative_cli_run(&cli, &install, &order, &evidence.join(name), raw, extra)
+    };
+    let run =
+        |name: &str, request: &Json| raw_run(name, &serde_json::to_vec(request).unwrap(), &[]);
+    let no_report = |name: &str, request: &Json| {
+        let (output, path) = run(name, request);
+        assert!(!output.status.success(), "{name}");
+        assert!(!path.exists(), "{name}: partial report published");
+    };
+    let (output, path) = run("base-0", &request);
+    assert!(!output.status.success()); // structural completion never admits faithful execution
+    let baseline_bytes = fs::read(path).unwrap();
+    let baseline: Json = serde_json::from_slice(&baseline_bytes).unwrap();
+    assert_eq!(baseline["execution_admission"], expected);
+    assert_eq!(baseline["cooperative_admission"]["outcome"], "complete");
+    assert_eq!(baseline["cooperative_admission"]["report_published"], true);
+    assert_eq!(baseline["cooperative_admission"]["hard_time_slice"], false);
+    let steps = baseline["cooperative_admission"]["advances"]
+        .as_array()
+        .unwrap();
+    assert_eq!(steps.len(), 6);
+    assert_eq!(steps.last().unwrap()["definition_expansions"], 4);
+    assert_eq!(steps.last().unwrap()["operand_visits"], 6);
+    assert_eq!(steps.last().unwrap()["charged_instructions"], 14);
+    assert_eq!(steps.last().unwrap()["charged_operand_uses"], 6);
+    assert_eq!(baseline["prepared_counts"]["preparation_attempts"], 4);
+    for (n, definitions, operands) in [(0, 256, 65536), (1, 2, 2), (2, 1, 3), (3, 3, 1)] {
+        let mut changed = request.clone();
+        changed["maximum_definition_expansions_per_advance"] = json!(definitions);
+        changed["maximum_operand_visits_per_advance"] = json!(operands);
+        let (output, path) = run(&format!("schedule-{n}"), &changed);
+        assert!(!output.status.success());
+        let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(report["execution_admission"], expected);
+        assert_eq!(report["prepared_counts"], baseline["prepared_counts"]);
+    }
+    let mut changed = request.clone();
+    changed["roots"] = json!([roots[2], roots[0], roots[1], roots[0]]);
+    let (_, path) = run("root-order-duplicates", &changed);
+    let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let mut all_roots = expected.clone();
+    all_roots["roots"] = json!([roots[0], roots[1], roots[2]]);
+    assert_eq!(report["execution_admission"], all_roots);
+    for (n, kind, field, value) in [
+        (0, "cancelled", "cancel_after_advances", json!(0)),
+        (1, "cancelled", "cancel_after_advances", json!(1)),
+        (2, "advance_budget", "maximum_advances", json!(1)),
+        (
+            3,
+            "step_budget",
+            "maximum_definition_expansions_per_advance",
+            json!(0),
+        ),
+        (
+            4,
+            "step_budget",
+            "maximum_operand_visits_per_advance",
+            json!(0),
+        ),
+    ] {
+        let mut changed = request.clone();
+        changed[field] = value;
+        let (output, path) = run(&format!("unfinished-{n}"), &changed);
+        assert!(!output.status.success());
+        let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(report["cooperative_admission"]["outcome"], kind);
+        assert_eq!(report["cooperative_admission"]["report_published"], false);
+        assert!(report["execution_admission"].is_null());
+    }
+    let last = steps.last().unwrap();
+    let exact_fields = [
+        ("maximum_roots", 1),
+        ("maximum_definitions", 4),
+        ("maximum_dependencies", 6),
+        ("maximum_instructions", 14),
+        ("maximum_operand_uses", 6),
+        ("maximum_frontier", 2),
+        (
+            "maximum_variable_bytes",
+            last["variable_bytes"].as_u64().unwrap(),
+        ),
+        ("maximum_indivisible_instructions", 5),
+        ("maximum_advances", 6),
+        (
+            "maximum_progress_bytes",
+            baseline["cooperative_admission"]["progress_bytes"]
+                .as_u64()
+                .unwrap(),
+        ),
+        ("maximum_report_bytes", baseline_bytes.len() as u64),
+    ];
+    let mut exact = request.clone();
+    exact["maximum_lookup_source_visits"] = json!(0);
+    for (key, value) in exact_fields {
+        exact[key] = json!(value);
+    }
+    let (_, path) = run("exact0", &exact);
+    let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(report["execution_admission"], expected);
+    for (n, (key, value)) in exact_fields.into_iter().enumerate() {
+        let mut low = exact.clone();
+        low[key] = json!(value - 1);
+        let (output, path) = run(&format!("one-under-{n}"), &low);
+        assert!(!output.status.success());
+        if path.exists() {
+            let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+            assert_eq!(report["cooperative_admission"]["report_published"], false);
+            assert!(report["execution_admission"].is_null());
+        }
+    }
+    for key in [
+        "maximum_roots",
+        "maximum_definitions",
+        "maximum_dependencies",
+        "maximum_instructions",
+        "maximum_operand_uses",
+        "maximum_frontier",
+        "maximum_variable_bytes",
+        "maximum_lookup_source_visits",
+        "maximum_indivisible_instructions",
+        "maximum_definition_expansions_per_advance",
+        "maximum_operand_visits_per_advance",
+        "maximum_progress_bytes",
+        "maximum_report_bytes",
+    ] {
+        let mut over = request.clone();
+        over[key] = json!(match key {
+            "maximum_definition_expansions_per_advance" => 257,
+            "maximum_operand_visits_per_advance" => 65537,
+            _ => request[key].as_u64().unwrap() + 1,
+        });
+        no_report(&format!("ceiling-{key}"), &over);
+    }
+    for key in request.as_object().unwrap().keys() {
+        let mut missing = request.clone();
+        missing.as_object_mut().unwrap().remove(key);
+        no_report(&format!("missing-{key}"), &missing);
+    }
+    for (name, field, value) in [
+        ("schema", "schema_version", json!(0)),
+        ("cohort", "source_cohort_sha256", json!("0".repeat(64))),
+        ("empty-roots", "roots", json!([])),
+        ("zero-advances", "maximum_advances", json!(0)),
+        ("advance-ceiling", "maximum_advances", json!(4097)),
+        ("cancel-late", "cancel_after_advances", json!(65)),
+        ("cancel-type", "cancel_after_advances", json!({"count":0})),
+        ("unknown", "extra", json!(true)),
+    ] {
+        let mut changed = request.clone();
+        changed[field] = value;
+        no_report(name, &changed);
+    }
+    let mut wrong = request.clone();
+    wrong["roots"][0]["version_sha256"] = json!("f".repeat(64));
+    let (_, path) = run("stale-root", &wrong);
+    let stale: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(stale["cooperative_admission"]["outcome"], "failed");
+    assert!(stale["execution_admission"].is_null());
+    wrong["roots"] = json!([roots[0], wrong["roots"][0]]);
+    no_report("conflicting-version", &wrong);
+    for (n, path) in [
+        vec!["extra"],
+        vec!["key", "extra"],
+        vec!["key", "record", "extra"],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut bad = request.clone();
+        let mut field = &mut bad["roots"][0];
+        for key in &path[..path.len() - 1] {
+            field = &mut field[*key];
+        }
+        field[path[path.len() - 1]] = json!(1);
+        no_report(&format!("nested-unknown-{n}"), &bad);
+    }
+    for (n, raw) in [
+        b"{".to_vec(),
+        [
+            b"{\"schema_version\":1,".as_slice(),
+            &serde_json::to_vec(&request).unwrap()[1..],
+        ]
+        .concat(),
+        vec![b' '; 65537],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (output, path) = raw_run(&format!("raw-{n}"), &raw, &[]);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    let raw = serde_json::to_vec(&request).unwrap();
+    for (n, flag) in [
+        "--execution-admission",
+        "--cooperative-preparation",
+        "--selected-source",
+        "--comparison-bundle",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (output, path) = raw_run(&format!("conflict-{n}"), &raw, &[flag, "unopened.json"]);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    fs::write(evidence.join("assertions.json"),serde_json::to_vec_pretty(&json!({
+        "cases":cases.get(),"complete_expected_graph":true,"definitions":4,"operand_visits":6,
+        "dependencies":6,"instructions":14,"default_advances":6,"one_canonical_cycle_back_edge":true,
+        "shared_and_repeated_edges_preserved":true,"partial_report_never_published":true,
+        "source_and_metadata_unchanged":true,"original_launched":false,"retail_parity_accepted":false
+    })).unwrap()).unwrap();
 }
 
 #[test]

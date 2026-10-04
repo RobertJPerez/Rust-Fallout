@@ -13,10 +13,10 @@ use fallout_data::{
     quest_scripts::{self, Attachments, DeclarationStatus},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    ops::Range,
-};
+use std::{collections::BTreeMap, ops::Range};
+
+mod job;
+pub use job::{AdmissionJob, AdmissionStatus, JobLimits, Progress, StepBudget};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -59,6 +59,8 @@ pub enum Error {
     SchemaVersion(u32),
     #[error("execution admission request has a different source receipt cohort")]
     CohortChanged,
+    #[error("execution admission is incomplete")]
+    Incomplete,
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,7 +143,7 @@ pub struct Report {
     pub retail_lifecycle_verified: bool,
 }
 
-fn operation(plan: &Plan<'_>) -> Unsupported {
+fn operation(plan: &Plan<'_>, variables: &mut job::Variables) -> Result<Unsupported, Error> {
     for instruction in plan.control().instructions() {
         // Delimiters locate the event; their lifecycle remains an independent
         // final gate even for a source that has no executable body operation.
@@ -177,7 +179,9 @@ fn operation(plan: &Plan<'_>) -> Unsupported {
                 "The source statement has no measured execution contract",
             ),
         };
-        return Unsupported {
+        variables.charge(job::handle_bytes(plan.handle())?)?;
+        variables.charge(detail.len())?;
+        return Ok(Unsupported {
             definition: plan.handle().clone(),
             source_scda_offset: Some(instruction.bytes.start),
             instruction_scda_bytes: Some(instruction.bytes.clone()),
@@ -186,16 +190,26 @@ fn operation(plan: &Plan<'_>) -> Unsupported {
             calling_reference_index: instruction.calling_reference,
             code,
             detail: detail.into(),
-        };
+        });
     }
-    Unsupported {
+    let detail =
+        "A structural empty event does not establish original activation, timing or acknowledgment";
+    variables.charge(job::handle_bytes(plan.handle())?)?;
+    variables.charge(detail.len())?;
+    Ok(Unsupported {
         definition: plan.handle().clone(),
         source_scda_offset: plan.control().instructions().first().map(|i| i.bytes.start),
-        instruction_scda_bytes: plan.control().instructions().first().map(|i| i.bytes.clone()),
-        operand_scda_bytes: None, opcode: None, calling_reference_index: None,
+        instruction_scda_bytes: plan
+            .control()
+            .instructions()
+            .first()
+            .map(|i| i.bytes.clone()),
+        operand_scda_bytes: None,
+        opcode: None,
+        calling_reference_index: None,
         code: Code::UnverifiedEventLifecycle,
-        detail: "A structural empty event does not establish original activation, timing or acknowledgment".into(),
-    }
+        detail: detail.into(),
+    })
 }
 
 fn source_offset(error: &definition_plan::Error) -> Option<usize> {
@@ -219,53 +233,61 @@ fn source_offset(error: &definition_plan::Error) -> Option<usize> {
     }
 }
 
-fn back_edges(nodes: &[Handle], edges: &[Dependency]) -> Vec<BackEdge> {
-    let mut adjacency = BTreeMap::<ScriptKey, Vec<ScriptKey>>::new();
+fn back_edges(
+    nodes: &[Handle],
+    edges: &[Dependency],
+    variables: &mut job::Variables,
+) -> Result<Vec<BackEdge>, Error> {
+    let mut adjacency = BTreeMap::<&ScriptKey, Vec<&ScriptKey>>::new();
     for edge in edges {
         adjacency
-            .entry(edge.from.key.clone())
+            .entry(&edge.from.key)
             .or_default()
-            .push(edge.to.key.clone());
+            .push(&edge.to.key);
     }
     for next in adjacency.values_mut() {
         next.sort();
         next.dedup();
     }
-    let mut colors = BTreeMap::<ScriptKey, u8>::new();
+    let mut colors = BTreeMap::<&ScriptKey, u8>::new();
     let mut result = Vec::new();
-    let mut ordered: Vec<_> = nodes.iter().map(|h| h.key.clone()).collect();
+    let mut ordered: Vec<_> = nodes.iter().map(|h| &h.key).collect();
     ordered.sort();
     for root in ordered {
         if colors.contains_key(&root) {
             continue;
         }
-        colors.insert(root.clone(), 1);
+        colors.insert(root, 1);
         let mut stack = vec![(root, 0)];
         while let Some((node, next_index)) = stack.last_mut() {
             let Some(next) = adjacency
-                .get(node)
+                .get(*node)
                 .and_then(|next| next.get(*next_index))
-                .cloned()
+                .copied()
             else {
-                colors.insert(node.clone(), 2);
+                colors.insert(*node, 2);
                 stack.pop();
                 continue;
             };
             *next_index += 1;
             match colors.get(&next) {
-                Some(1) => result.push(BackEdge {
-                    from: node.clone(),
-                    to: next,
-                }),
+                Some(1) => {
+                    variables.charge(node.record.origin_plugin.len())?;
+                    variables.charge(next.record.origin_plugin.len())?;
+                    result.push(BackEdge {
+                        from: (**node).clone(),
+                        to: next.clone(),
+                    });
+                }
                 Some(_) => {}
                 None => {
-                    colors.insert(next.clone(), 1);
+                    colors.insert(next, 1);
                     stack.push((next, 0));
                 }
             }
         }
     }
-    result
+    Ok(result)
 }
 
 /// Root priority is canonical ScriptKey order, then breadth-first declared
@@ -277,152 +299,16 @@ pub fn check(
     roots: &[Handle],
     limits: Limits,
 ) -> Result<Report, Error> {
-    if roots.is_empty() {
-        return Err(Error::EmptyRoots);
-    }
-    if roots.len() > limits.maximum_roots {
-        return Err(Error::Capacity("roots"));
-    }
-    let catalogue = sources.catalogue();
-    let mut roots = roots.to_vec();
-    roots.sort_by(|left, right| left.key.cmp(&right.key));
-    for pair in roots.windows(2) {
-        if pair[0].key == pair[1].key && pair[0] != pair[1] {
-            return Err(Error::ConflictingVersion);
-        }
-    }
-    roots.dedup();
-    let mut queue: VecDeque<_> = roots.iter().cloned().collect();
-    let mut scheduled: BTreeSet<_> = roots.iter().map(|h| h.key.clone()).collect();
-    if scheduled.len() > limits.maximum_definitions {
-        return Err(Error::Capacity("definitions"));
-    }
-    let mut definitions = Vec::new();
-    let mut dependencies = Vec::new();
-    let mut dependency_findings = Vec::new();
-    let mut first = None;
-    let mut instructions = 0;
-    let mut operand_uses = 0;
-    while let Some(handle) = queue.pop_front() {
-        // A stale requested version is a caller error, never a source capability
-        // rejection silently substituted with the current winning version.
-        if catalogue.get_handle(&handle).is_none() {
-            return Err(LookupError::DefinitionChanged.into());
-        }
-        definitions.push(handle.clone());
-        let prepared = match sources.get(&handle) {
-            Ok(prepared) => prepared,
-            Err(LookupError::Source(error)) => {
-                first.get_or_insert(Unsupported {
-                    definition: handle,
-                    source_scda_offset: source_offset(&error),
-                    instruction_scda_bytes: None,
-                    operand_scda_bytes: None,
-                    opcode: None,
-                    calling_reference_index: None,
-                    code: Code::SourcePlanUnavailable,
-                    detail: error.to_string(),
-                });
-                continue;
-            }
-            Err(error) => return Err(error.into()),
-        };
-        let plan = prepared.plan();
-        if plan.control().instructions().len()
-            > limits.maximum_instructions.saturating_sub(instructions)
-        {
-            return Err(Error::Capacity("instructions"));
-        }
-        instructions += plan.control().instructions().len();
-        let remaining = limits.maximum_operand_uses.saturating_sub(operand_uses);
-        if let Some(excluded) = plan.bindings().uses.get(remaining) {
-            return Err(Error::OperandUseBudget {
-                definition: Box::new(handle),
-                source_scda_offset: excluded.scda_offset,
-            });
-        }
-        operand_uses = operand_uses
-            .checked_add(plan.bindings().uses.len())
-            .ok_or(Error::Capacity("operand uses"))?;
-        first.get_or_insert_with(|| operation(plan));
-        for use_ in &plan.bindings().uses {
-            let mut targets = Vec::new();
-            if use_.status == 4 {
-                let context = use_.context_reference.expect("prepared foreign context");
-                let lookup = quest_scripts::declaration(
-                    catalogue,
-                    attachments,
-                    &handle,
-                    context,
-                    use_.index,
-                );
-                if lookup.status == DeclarationStatus::StaticQuestDeclaration {
-                    if let Some(target) = lookup.target_script {
-                        targets.push((target, DependencyKind::ForeignQuestDeclaration, context));
-                    }
-                } else {
-                    if dependency_findings.len() >= limits.maximum_dependencies {
-                        return Err(Error::Capacity("dependency findings"));
-                    }
-                    dependency_findings.push(Unsupported {
-                        definition: handle.clone(), instruction_scda_bytes: None,
-                        source_scda_offset: Some(use_.scda_offset),
-                        operand_scda_bytes: Some(use_.scda_offset..use_.scda_offset + 2),
-                        opcode: None, calling_reference_index: Some(context), code: Code::ForeignContextUnavailable,
-                        detail: format!("Exact static foreign declaration request: {:?}; live context remains separate", lookup.status),
-                    });
-                }
-            } else if use_.status == 2
-                && let Some(reference) = plan.source().reference(u32::from(use_.index))
-                && reference.status == ReferenceStatus::DefinedForm
-                && reference
-                    .target
-                    .as_ref()
-                    .is_some_and(|target| target.record_kind == "SCPT")
-                && let Some(form) = &reference.form_key
-            {
-                for script in catalogue.record_scripts(form) {
-                    if targets.len() >= limits.maximum_definitions {
-                        return Err(Error::Capacity("referenced script units"));
-                    }
-                    targets.push((
-                        script.handle().clone(),
-                        DependencyKind::DeclaredScriptReference,
-                        use_.index,
-                    ));
-                }
-            }
-            for (to, kind, reference_index) in targets {
-                if dependencies.len() >= limits.maximum_dependencies {
-                    return Err(Error::Capacity("dependencies"));
-                }
-                if !scheduled.contains(&to.key) {
-                    if scheduled.len() >= limits.maximum_definitions {
-                        return Err(Error::Capacity("definitions"));
-                    }
-                    scheduled.insert(to.key.clone());
-                    queue.push_back(to.clone());
-                }
-                dependencies.push(Dependency {
-                    from: handle.clone(),
-                    to,
-                    kind,
-                    operand_scda_offset: use_.scda_offset,
-                    reference_index,
-                });
-            }
-        }
-    }
-    let cycle_back_edges = back_edges(&definitions, &dependencies);
-    Ok(Report {
-        source_cohort_sha256: sources.source_cohort_sha256().into(),
+    let mut job = AdmissionJob::new(
+        sources,
+        attachments,
         roots,
-        definitions,
-        dependencies,
-        dependency_findings,
-        cycle_back_edges,
-        first_unsupported: first.expect("nonempty checked roots"),
-        faithful_execution_admitted: false,
-        retail_lifecycle_verified: false,
-    })
+        limits,
+        JobLimits::legacy(limits),
+    )?;
+    job.advance(StepBudget {
+        maximum_definition_expansions: usize::MAX,
+        maximum_operand_visits: usize::MAX,
+    });
+    job.finish()
 }

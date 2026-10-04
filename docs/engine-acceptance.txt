@@ -1,0 +1,70 @@
+# Engine acceptance
+
+The tools/engine-acceptance/scene_replay.py script runs and compares fixed
+interior preview captures. It records the assigned source revision and relevant
+source file hashes, preview binary hash, scenario and load-order hashes, ordered
+plugin hashes from the scene report, requested camera inputs, source origin,
+placement transforms, model and texture digests, residency identities, and PNG
+pixels.
+
+The harness uses the existing preview command with explicit source-space camera
+position and target, headless 1280 by 900 output, and a separate report and PNG
+for each required scenario. It creates a new evidence directory and never
+replaces a report or capture. A run is complete only when every required
+scenario exits successfully and produces fresh report and image files. An
+all-skipped or partially completed matrix cannot pass.
+
+The scenario input is a private JSON file. Its schema is:
+
+    {
+      "schema_version": 1,
+      "cell_editor_id": "GSDocMitchellHouse",
+      "viewport": {"width": 1280, "height": 900},
+      "runs": [
+        {
+          "id": "view-a",
+          "required": true,
+          "camera": {
+            "source_position": [2130, 2130, 7440],
+            "source_target": [1883, 1763, 7420]
+          },
+          "image_tolerance": {
+            "max_channel_delta": 0,
+            "max_changed_pixels": 0
+          }
+        }
+      ]
+    }
+
+Camera values are engineering inspection inputs. They are not retail defaults
+or a matched original-game capture. Image tolerances must be set before a run
+and remain part of the pinned scenario file.
+
+Use a unique destination under local/v4-evidence. Keep the scenario file and all
+outputs private because captures contain retail assets. Build the preview
+through the shared slot wrapper, then run capture and comparison through the
+heavy slot wrapper:
+
+    python tools/team-build.py --lane engine-acceptance --session <lease-uuid> -- cargo build -p fallout-preview
+    python tools/team-build.py --lane engine-acceptance --session <lease-uuid> --slot heavy -- python tools/engine-acceptance/scene_replay.py capture --repo . --binary target-v4/debug/fallout-preview.exe --install 'G:\SteamLibrary\steamapps\common\Fallout New Vegas' --load-order <private-load-order.json> --config <private-scenarios.json> --output-dir local/v4-evidence/engine-acceptance-01/<unique-run-id>
+    python tools/team-build.py --lane engine-acceptance --session <lease-uuid> --slot heavy -- python tools/engine-acceptance/scene_replay.py verify --expected local/v4-evidence/engine-acceptance-01/<frozen-run>/manifest.json --actual local/v4-evidence/engine-acceptance-01/<new-run>/manifest.json
+
+A capture manifest is a candidate frozen engineering baseline. Verification
+passes only when the current source, binary, inputs, camera request, placement
+poses, resource manifest, and pixels match that candidate. A changed pose or
+missing model/texture resource fails the frozen assertion. This tests replay
+stability; it does not validate retail behavior.
+
+Observation states remain explicit. The current host provides a PNG, source
+placement transforms, input camera coordinates, and model/texture/residency
+reports. It does not report the applied camera transform, a canonical player
+body pose, per-frame readiness, or post-exit resource drain. Those fields are
+recorded as absent or unsupported and keep scene acceptance partial even when
+the harness comparison passes. The preview also explicitly reports that
+simulation readiness and retail parity are false.
+
+The Python stdlib test suite exercises exact image comparison, tolerance
+handling, stale capture rejection, per-run completion, absent-observation
+status, and negative missing-resource and changed-pose mutations:
+
+    python tools/engine-acceptance/test_scene_replay.py

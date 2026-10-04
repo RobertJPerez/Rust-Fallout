@@ -71,6 +71,17 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve an explicit winning CELL's exact lighting and template declarations.
+    CellLightingSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+    },
     /// Prepare an explicit world's separately selected persistent CELL source plan.
     PersistentCellSources {
         #[arg(long)]

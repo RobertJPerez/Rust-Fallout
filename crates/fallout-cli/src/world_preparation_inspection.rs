@@ -11,6 +11,7 @@ use fallout_data::{
         cells::CellGridSources,
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
+        lighting::CellLightingSources,
         preparation::CellModelPlan,
         residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
     },
@@ -74,6 +75,33 @@ pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
             Ok([x.parse::<i32>()?, y.parse::<i32>()?])
         })
         .collect()
+}
+
+pub(super) fn lighting(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    cell: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let prepared = CellLightingSources::load(&mut store, &cell, Default::default());
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact winning CELL lighting and declared template source inputs",
+        "requested_cell":cell,"lighting_sources":null,"source_error":null,
+        "source_request_prepared":false,"source_inputs_available":false,
+        "inheritance_evaluated":false,"rendering_admitted":false,
+        "runtime_ready":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(sources) => {
+            report["source_inputs_available"] = json!(sources.source_inputs_available());
+            report["lighting_sources"] = serde_json::to_value(&sources)?;
+            report["source_request_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
 }
 
 pub(super) fn persistent_cell(
@@ -2297,5 +2325,224 @@ mod tests {
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
         }
+    }
+
+    const LIGHTING_WORDS: [u8; 40] = [
+        1, 2, 3, 241, 4, 5, 6, 242, 7, 8, 9, 243, 69, 35, 193, 127, 0, 0, 0, 128, 0, 0, 0, 128,
+        255, 255, 255, 127, 0, 0, 192, 63, 0, 0, 128, 127, 0, 0, 0, 64,
+    ];
+    fn lighting_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let prefix = match mode {
+            "full" => 40,
+            "unsupported" => 31,
+            _ => 28,
+        };
+        let mut cell = field(b"DATA", &[1]);
+        if mode != "absent" {
+            cell.extend(field(b"XCLL", &LIGHTING_WORDS[..prefix]));
+            cell.extend(field(
+                b"LTMP",
+                &(if mode == "null" { 0_u32 } else { 0x200 }).to_le_bytes(),
+            ));
+            cell.extend(field(b"LNAM", &[9, 1, 0, 128]));
+        }
+        if mode == "duplicate" {
+            cell.extend(field(b"XCLL", &LIGHTING_WORDS[..28]));
+        }
+        let hedr = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        fs::write(
+            root.join("Data/Base.esm"),
+            [record(b"TES4", 0, &hedr), record(b"CELL", 0x100, &cell)].concat(),
+        )
+        .unwrap();
+        let mut patch_header = hedr;
+        patch_header.extend(field(b"MAST", b"Base.esm\0"));
+        patch_header.extend(field(b"DATA", &[0; 8]));
+        let mut patch = record(b"TES4", 0, &patch_header);
+        if mode != "missing" {
+            let body = if mode == "missing-data" {
+                Vec::new()
+            } else {
+                field(b"DATA", &LIGHTING_WORDS)
+            };
+            let mut template = record(
+                if mode == "wrong-record-kind" {
+                    b"STAT"
+                } else {
+                    b"LGTM"
+                },
+                0x200,
+                &body,
+            );
+            if mode == "deleted" {
+                template[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+            }
+            patch.extend(template);
+        }
+        fs::write(root.join("Data/Patch.esp"), patch).unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("lighting-case.json"),
+            serde_json::to_vec(&json!({"mode":mode,"prefix":prefix})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_LIGHTING_FIXTURE={}", root.display());
+    }
+    fn lighting_report(root: &Path) -> Value {
+        lighting(
+            root,
+            &root.join("order.json"),
+            None,
+            crate::parse_cell_key("Base.esm:100").unwrap(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn cli_lighting_retains_literal_short_and_full_inputs_and_winning_template() {
+        for (mode, prefix) in [("short", 28), ("full", 40)] {
+            let root = directory();
+            lighting_fixture(&root, mode);
+            let report = lighting_report(&root);
+            assert_eq!(report["source_request_prepared"], true);
+            assert_eq!(report["source_inputs_available"], true);
+            assert!(report["source_error"].is_null());
+            let sources = &report["lighting_sources"];
+            assert_eq!(sources["cell"]["key"]["local_id"], 0x100);
+            assert_eq!(sources["cell"]["header"]["offset"], 42);
+            assert_eq!(sources["cell_flags"]["value"], 1);
+            assert_eq!(sources["xcll"]["site"]["decoded_header_offset"], 7);
+            assert_eq!(sources["xcll"]["site"]["span"]["decoded_offset"], 13);
+            assert_eq!(sources["xcll"]["site"]["span"]["bytes"], prefix);
+            assert_eq!(sources["xcll"]["physical_framing_offset"], 73);
+            assert_eq!(
+                sources["xcll"]["framing"],
+                json!(field(b"XCLL", &LIGHTING_WORDS[..prefix]))
+            );
+            assert_eq!(
+                sources["xcll"]["value"]["ambient"],
+                json!({"red":1,"green":2,"blue":3,"unused":241})
+            );
+            assert_eq!(sources["xcll"]["value"]["fog_near_word"], 0x7fc12345_u32);
+            assert_eq!(sources["xcll"]["value"]["fog_far_word"], 0x80000000_u32);
+            assert_eq!(sources["xcll"]["value"]["rotation_xy"], i32::MIN);
+            assert_eq!(sources["xcll"]["value"]["rotation_z"], i32::MAX);
+            assert_eq!(
+                sources["xcll"]["value"]["directional_fade_word"].is_null(),
+                prefix == 28
+            );
+            assert_eq!(sources["lnam"]["value"], 0x80000109_u32);
+            assert_eq!(
+                sources["ltmp"]["site"]["decoded_header_offset"],
+                13 + prefix
+            );
+            assert_eq!(sources["template"]["input_status"], "resolved");
+            assert_eq!(sources["template"]["source"]["source_ordinal"], 1);
+            assert_eq!(sources["template"]["source"]["header"]["offset"], 71);
+            assert_eq!(
+                sources["template"]["lighting"]["physical_framing_offset"],
+                95
+            );
+            assert_eq!(
+                sources["template"]["lighting"]["value"]["fog_power_word"],
+                0x40000000_u32
+            );
+            for flag in [
+                "inheritance_evaluated",
+                "rendering_admitted",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[flag], false);
+            }
+        }
+    }
+    #[test]
+    fn cli_lighting_missing_status_and_factory_refusal_stay_distinct() {
+        for mode in [
+            "null",
+            "missing",
+            "deleted",
+            "wrong-record-kind",
+            "missing-data",
+            "absent",
+            "duplicate",
+            "unsupported",
+        ] {
+            let root = directory();
+            lighting_fixture(&root, mode);
+            let report = lighting_report(&root);
+            let refused = ["duplicate", "unsupported"].contains(&mode);
+            assert_eq!(report["source_request_prepared"], !refused);
+            assert_eq!(report["source_inputs_available"], mode == "null");
+            assert_eq!(report["lighting_sources"].is_null(), refused);
+            assert_eq!(report["source_error"].is_null(), !refused);
+            if !refused && mode != "absent" {
+                assert_eq!(report["lighting_sources"]["template"]["input_status"], mode);
+            }
+            if mode == "absent" {
+                for field in ["xcll", "ltmp", "lnam", "template"] {
+                    assert!(report["lighting_sources"][field].is_null());
+                }
+            }
+            assert_eq!(report["runtime_ready"], false);
+        }
+        let root = directory();
+        lighting_fixture(&root, "full");
+        for cell in ["Base.esm:999", "Base.esm:200"] {
+            let report = lighting(
+                &root,
+                &root.join("order.json"),
+                None,
+                crate::parse_cell_key(cell).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(report["source_request_prepared"], false);
+            assert_eq!(report["source_inputs_available"], false);
+            assert!(report["lighting_sources"].is_null());
+            assert!(report["source_error"].is_string());
+        }
+    }
+    #[test]
+    fn cli_lighting_requires_canonical_cell_input() {
+        use clap::Parser;
+        for arguments in [
+            vec![
+                "fallout",
+                "cell-lighting-sources",
+                "--install",
+                "authored",
+                "--load-order",
+                "order.json",
+            ],
+            vec![
+                "fallout",
+                "cell-lighting-sources",
+                "--install",
+                "authored",
+                "--cell",
+                "Base.esm:100",
+            ],
+        ] {
+            assert!(crate::Args::try_parse_from(arguments).is_err());
+        }
+        let parsed = crate::Args::try_parse_from([
+            "fallout",
+            "cell-lighting-sources",
+            "--install",
+            "authored",
+            "--load-order",
+            "order.json",
+            "--cell",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::World(crate::WorldCommand::CellLightingSources { .. })
+        ));
     }
 }

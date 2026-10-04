@@ -67,3 +67,14 @@ master-context winning overrides, each template status, absent fields, NaN and
 unknown flags, strict malformed/tainted refusal, changed names/order/count/bytes,
 and exact/one-under admission for every allowance. These are engineering/source
 checks; installed consumer evidence and original gameplay acceptance are separate.
+
+`cell-lighting-sources --install ... --load-order ... --cell Origin.esm:hex`
+is the owned headless consumer. An optional private `--index-cache` reuses the
+existing protected header index. It opens no archives and schedules no jobs.
+Reports retain ordered plugin/order fingerprints and the complete source receipt.
+`source_request_prepared` indicates factory success; `source_inputs_available`
+reports source presence separately. Explicit unavailable declarations retain a
+receipt and status. Factory refusals retain a source error and null receipt.
+The CLI emits its report and exits unsuccessfully for either unavailable or
+refused inputs; available declarations exit successfully. No effective light,
+inheritance evaluation, rendering or retail-parity result is emitted.

@@ -111,6 +111,15 @@ impl DialogueSources {
             source_cohort_sha256: self.cohort.clone(),
         })
     }
+    pub fn prepare_batch(
+        &self,
+        store: &mut RecordStore,
+        requests: &[Request],
+        signatures: &Signatures,
+        limits: BatchLimits,
+    ) -> Result<ConversationBatch> {
+        prepare_batch(self, store, requests, signatures, limits)
+    }
     pub fn prepare(
         &self,
         store: &mut RecordStore,
@@ -299,6 +308,410 @@ impl DialogueSources {
             retained_bytes,
         })
     }
+}
+
+/// Aggregate source admission, separate from membership and loaded catalogue budgets.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct BatchLimits {
+    pub requests: usize,
+    pub record_bytes: usize,
+    /// Preflight reads plus the existing typed preparer's topic/INFO/condition reads.
+    pub read_bytes: usize,
+    /// Topic and INFO decoded payload copies, conservatively repeated per request.
+    pub raw_bytes: usize,
+    pub fields: usize,
+    /// Reserve a possible section per field, including duplicated INFO owner sections.
+    pub section_slots: usize,
+    pub conditions: usize,
+    pub fragments: usize,
+    /// Conservative copied source/envelope metadata reservation, not allocator use.
+    pub source_metadata_bytes: usize,
+    /// Sum of each existing closure's raw payloads and exact compact metadata.
+    pub retained_bytes: usize,
+}
+impl Default for BatchLimits {
+    fn default() -> Self {
+        Self {
+            requests: 8,
+            record_bytes: 8 * 1024 * 1024,
+            read_bytes: 128 * 1024 * 1024,
+            raw_bytes: 64 * 1024 * 1024,
+            fields: 8 * 2 * 65536,
+            section_slots: 8 * (3 + 3 * 65536),
+            conditions: 8 * 8192,
+            fragments: 8 * 8192,
+            source_metadata_bytes: 128 * 1024 * 1024,
+            retained_bytes: 256 * 1024 * 1024,
+        }
+    }
+}
+impl BatchLimits {
+    fn validate(self) -> Result<Self> {
+        let ceiling = Self::default();
+        for (value, max) in [
+            (self.requests, ceiling.requests),
+            (self.record_bytes, ceiling.record_bytes),
+            (self.read_bytes, ceiling.read_bytes),
+            (self.raw_bytes, ceiling.raw_bytes),
+            (self.fields, ceiling.fields),
+            (self.section_slots, ceiling.section_slots),
+            (self.conditions, ceiling.conditions),
+            (self.fragments, ceiling.fragments),
+            (self.source_metadata_bytes, ceiling.source_metadata_bytes),
+            (self.retained_bytes, ceiling.retained_bytes),
+        ] {
+            if value > max {
+                return Err(batch_error("limit exceeds ceiling"));
+            }
+        }
+        Ok(self)
+    }
+}
+#[derive(Debug, Default, Serialize)]
+pub struct BatchUsage {
+    pub requests: usize,
+    pub maximum_record_bytes: usize,
+    pub read_bytes: usize,
+    pub raw_bytes: usize,
+    pub fields: usize,
+    pub section_slots: usize,
+    pub conditions: usize,
+    pub fragments: usize,
+    pub source_metadata_bytes: usize,
+    pub retained_bytes: usize,
+}
+#[derive(Serialize)]
+pub struct BatchReceipt {
+    pub schema_version: u32,
+    pub identity: String,
+    pub source_cohort_sha256: String,
+    pub sources: Vec<SourceReceipt>,
+    pub requests: Vec<Request>,
+    pub conversation_identities: Vec<String>,
+    pub usage: BatchUsage,
+    pub limits: BatchLimits,
+    pub selection_order_verified: bool,
+    pub condition_truth_verified: bool,
+    pub speaker_assignment_verified: bool,
+    pub fragment_timing_verified: bool,
+    pub voice_filename_verified: bool,
+}
+/// Only the sealed source factory constructs this all-or-none immutable result.
+pub struct ConversationBatch {
+    receipt: BatchReceipt,
+    conversations: Vec<ConversationSources>,
+}
+impl ConversationBatch {
+    pub fn receipt(&self) -> &BatchReceipt {
+        &self.receipt
+    }
+    pub fn conversations(&self) -> &[ConversationSources] {
+        &self.conversations
+    }
+    pub fn identity(&self) -> &str {
+        &self.receipt.identity
+    }
+    pub fn validate_sources(&self, store: &mut RecordStore) -> Result<()> {
+        if !same_sources(&self.receipt.sources, &store.source_receipts()?) {
+            return Err(batch_error("ordered source names/count/bytes changed"));
+        }
+        Ok(())
+    }
+}
+impl Serialize for ConversationBatch {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut result = serializer.serialize_struct("ConversationBatch", 2)?;
+        result.serialize_field("receipt", &self.receipt)?;
+        result.serialize_field("conversations", &BatchMetadata(&self.conversations))?;
+        result.end()
+    }
+}
+struct BatchMetadata<'a>(&'a [ConversationSources]);
+impl Serialize for BatchMetadata<'_> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
+        for source in self.0 {
+            seq.serialize_element(source.metadata())?;
+        }
+        seq.end()
+    }
+}
+struct BatchPlan {
+    typed_read_bytes: usize,
+    fields: usize,
+    conditions: usize,
+    fragments: usize,
+}
+fn prepare_batch(
+    dialogue: &DialogueSources,
+    store: &mut RecordStore,
+    requests: &[Request],
+    signatures: &Signatures,
+    limits: BatchLimits,
+) -> Result<ConversationBatch> {
+    let limits = limits.validate()?;
+    if requests.is_empty() {
+        return Err(batch_error("explicit request batch is empty"));
+    }
+    let mut usage = BatchUsage::default();
+    batch_charge(
+        &mut usage.requests,
+        requests.len(),
+        limits.requests,
+        "requests",
+    )?;
+    if !same_sources(&dialogue.sources, &store.source_receipts()?) {
+        return Err(batch_error("ordered source names/count/bytes changed"));
+    }
+    // Admit copies before retaining the private request set and final envelope.
+    let envelope = json_bytes(&(&dialogue.sources, requests), limits.source_metadata_bytes)?;
+    batch_charge(
+        &mut usage.source_metadata_bytes,
+        batch_mul(envelope, 4)?,
+        limits.source_metadata_bytes,
+        "source metadata",
+    )?;
+    let mut unique = std::collections::BTreeSet::new();
+    for request in requests {
+        batch_charge(
+            &mut usage.source_metadata_bytes,
+            8192,
+            limits.source_metadata_bytes,
+            "source metadata",
+        )?;
+        if request.source_cohort_sha256 != dialogue.cohort
+            || !dialogue.topic_infos(&request.topic).contains(&request.info)
+        {
+            return Err(batch_error("request cohort or live membership changed"));
+        }
+        if !unique.insert((
+            request.topic.clone(),
+            request.info.clone(),
+            request.speaker.clone(),
+        )) {
+            return Err(batch_error("duplicate explicit topic/INFO/speaker request"));
+        }
+        live(store, &request.topic, &[*b"DIAL"])?;
+        let info = live(store, &request.info, &[*b"INFO"])?;
+        let parent = store
+            .definition(info)
+            .parent
+            .topic
+            .map(|raw| store.key_for(info, raw))
+            .transpose()?
+            .flatten();
+        if parent.as_ref() != Some(&request.topic) {
+            return Err(batch_error("winning INFO physical parent differs"));
+        }
+        if let Some(speaker) = &request.speaker {
+            live(store, speaker, &[*b"ACHR", *b"ACRE", *b"NPC_", *b"CREA"])?;
+        }
+    }
+    let mut plans = Vec::with_capacity(requests.len());
+    for request in requests {
+        let mut counts = [0_usize; 2];
+        let mut conditions = 0;
+        let mut fragments = 0;
+        let mut typed_read_bytes = 0_usize;
+        for (is_info, key) in [(false, &request.topic), (true, &request.info)] {
+            let kinds = if is_info { [*b"INFO"] } else { [*b"DIAL"] };
+            let location = live(store, key, &kinds)?;
+            let mut remaining = limits.read_bytes - usage.read_bytes;
+            let record = read(
+                store,
+                location,
+                Limits {
+                    read_bytes: remaining,
+                    record_bytes: limits.record_bytes,
+                    ..Default::default()
+                },
+                &mut remaining,
+            )?;
+            let cost = (record.header.stored_size as usize).max(record.payload.len());
+            usage.maximum_record_bytes = usage.maximum_record_bytes.max(cost);
+            // One preflight read, one typed topic read or two typed INFO reads.
+            let future_reads = if is_info { 2 } else { 1 };
+            batch_charge(
+                &mut usage.read_bytes,
+                batch_mul(cost, 1 + future_reads)?,
+                limits.read_bytes,
+                "read bytes",
+            )?;
+            typed_read_bytes = typed_read_bytes
+                .checked_add(batch_mul(cost, future_reads)?)
+                .ok_or_else(|| batch_error("read cost overflow"))?;
+            batch_charge(
+                &mut usage.raw_bytes,
+                record.payload.len(),
+                limits.raw_bytes,
+                "raw bytes",
+            )?;
+            batch_charge(
+                &mut usage.source_metadata_bytes,
+                batch_mul(record.payload.len(), 4)?,
+                limits.source_metadata_bytes,
+                "source metadata",
+            )?;
+            plugin::visit_subrecords(&record, store.source_name(location), |field| {
+                batch_charge(&mut usage.fields, 1, limits.fields, "fields")?;
+                counts[usize::from(is_info)] += 1;
+                // A conservative slot per source field requires no second ownership parser.
+                batch_charge(
+                    &mut usage.section_slots,
+                    if is_info { 2 } else { 1 },
+                    limits.section_slots,
+                    "section slots",
+                )?;
+                batch_charge(
+                    &mut usage.source_metadata_bytes,
+                    3072,
+                    limits.source_metadata_bytes,
+                    "source metadata",
+                )?;
+                if is_info && field.kind == *b"CTDA" {
+                    batch_charge(&mut usage.conditions, 1, limits.conditions, "conditions")?;
+                    conditions += 1;
+                }
+                if is_info && field.kind == *b"SCHR" {
+                    batch_charge(&mut usage.fragments, 1, limits.fragments, "fragments")?;
+                    fragments += 1;
+                }
+                Ok(())
+            })?;
+        }
+        batch_charge(
+            &mut usage.section_slots,
+            3,
+            limits.section_slots,
+            "section slots",
+        )?;
+        plans.push(BatchPlan {
+            typed_read_bytes,
+            fields: counts[0].max(counts[1]),
+            conditions,
+            fragments,
+        });
+    }
+    // All raw counts/source reservations were admitted before any typed closure.
+    let mut conversations = Vec::with_capacity(requests.len());
+    let mut identities = Vec::with_capacity(requests.len());
+    for (request, plan) in requests.iter().zip(plans) {
+        let source = dialogue.prepare(
+            store,
+            request,
+            signatures,
+            Limits {
+                read_bytes: plan.typed_read_bytes,
+                record_bytes: limits.record_bytes,
+                fields: plan.fields.min(Limits::default().fields),
+                conditions: plan.conditions.min(Limits::default().conditions),
+                retained_bytes: (limits.retained_bytes - usage.retained_bytes)
+                    .min(Limits::default().retained_bytes),
+                ..Default::default()
+            },
+        )?;
+        let metadata = source.metadata();
+        if metadata.conditions.conditions().sites().len() != plan.conditions
+            || metadata.fragments.len() != plan.fragments
+        {
+            return Err(batch_error(
+                "preflight condition or fragment identity differs",
+            ));
+        }
+        if metadata
+            .fragments
+            .iter()
+            .any(|fragment| !fragment.role_unique || fragment.role.is_none())
+        {
+            return Err(batch_error("fragment role is unverified or repeated"));
+        }
+        batch_charge(
+            &mut usage.retained_bytes,
+            source.retained_bytes(),
+            limits.retained_bytes,
+            "retained bytes",
+        )?;
+        identities.push(batch_digest(b"nv-conversation-closure-v1\0", metadata)?);
+        conversations.push(source);
+    }
+    let sources = store.source_receipts()?;
+    if !same_sources(&dialogue.sources, &sources) {
+        return Err(batch_error(
+            "ordered source bytes changed before publication",
+        ));
+    }
+    let identity = batch_digest(
+        b"nv-conversation-source-batch-v1\0",
+        &(&dialogue.cohort, requests, &identities),
+    )?;
+    Ok(ConversationBatch {
+        receipt: BatchReceipt {
+            schema_version: 1,
+            identity,
+            source_cohort_sha256: dialogue.cohort.clone(),
+            sources,
+            requests: requests.to_vec(),
+            conversation_identities: identities,
+            usage,
+            limits,
+            selection_order_verified: false,
+            condition_truth_verified: false,
+            speaker_assignment_verified: false,
+            fragment_timing_verified: false,
+            voice_filename_verified: false,
+        },
+        conversations,
+    })
+}
+fn batch_error(reason: &str) -> Error {
+    Error::Unsupported(format!("conversation batch: {reason}"))
+}
+fn batch_charge(used: &mut usize, add: usize, maximum: usize, name: &str) -> Result<()> {
+    *used = used
+        .checked_add(add)
+        .filter(|n| *n <= maximum)
+        .ok_or_else(|| batch_error(&format!("{name} allowance exceeded")))?;
+    Ok(())
+}
+fn batch_mul(first: usize, second: usize) -> Result<usize> {
+    first
+        .checked_mul(second)
+        .ok_or_else(|| batch_error("source reservation overflow"))
+}
+struct BatchHash {
+    hash: Sha256,
+    bytes: usize,
+}
+impl Write for BatchHash {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self
+            .bytes
+            .checked_add(bytes.len())
+            .filter(|n| *n <= 256 * 1024 * 1024)
+            .ok_or_else(|| std::io::Error::other("conversation batch identity ceiling"))?;
+        self.hash.update(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn batch_digest(domain: &[u8], value: &impl Serialize) -> Result<String> {
+    let mut writer = BatchHash {
+        hash: Sha256::new(),
+        bytes: 0,
+    };
+    writer.hash.update(domain);
+    serde_json::to_writer(&mut writer, value).map_err(|error| batch_error(&error.to_string()))?;
+    Ok(format!("{:x}", writer.hash.finalize()))
 }
 
 #[derive(Default)]

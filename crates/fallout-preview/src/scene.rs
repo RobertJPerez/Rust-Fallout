@@ -104,10 +104,14 @@ pub struct CellReport {
     pub source_residency: world::residency::Snapshot,
 }
 
-pub fn load_model(install: &Path, path: &AssetPath) -> Result<(Prepared, Report)> {
+pub fn load_model(
+    install: &Path,
+    path: &AssetPath,
+    skin: Option<crate::pose::SkinRequest>,
+) -> Result<(Prepared, Report)> {
     let assets = ArchiveAssets::open_nv(install)?;
     let mut textures = Textures::default();
-    let (model, report) = model::load(&assets, path, &mut textures)?;
+    let (model, report) = model::load(&assets, path, &mut textures, skin)?;
     let prepared = Prepared {
         center: model.center,
         radius: model.radius,

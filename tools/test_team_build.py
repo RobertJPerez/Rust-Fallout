@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 import ctypes
 from ctypes import wintypes
 import importlib.util
@@ -82,6 +83,38 @@ class AuthorizationTests(unittest.TestCase):
             with self.subTest(encoding=encoding):
                 self.save(encoding)
                 self.assertEqual(self.authorize().worktree, self.worktree)
+
+    def test_resource_budget_defaults_and_live_changes_preserve_identity(self):
+        first = self.authorize()
+        self.assertEqual(first.resource_capacity, 1)
+        for capacity in (2, 1):
+            self.control["maximum_focused_cargo_builds"] = capacity
+            self.save()
+            current = self.authorize(expected=first)
+            self.assertEqual(current, first)
+            self.assertEqual(current.resource_capacity, capacity)
+        self.assignment["allowed_resource_slots"].append("heavy")
+        self.control["maximum_focused_cargo_builds"] = 2
+        self.save()
+        self.assertEqual(self.authorize("heavy").resource_capacity, 1)
+
+    def test_invalid_resource_budgets_refuse_before_launch(self):
+        invalid = {
+            "maximum_focused_cargo_builds": (None, True, False, "2", 0, 3, -1, 1.0, 2.0, []),
+            "maximum_heavy_commands": (None, True, False, "1", 0, 2, -1, 1.0, []),
+        }
+        for field, values in invalid.items():
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    self.control[field] = value
+                    self.save()
+                    with patch.object(build, "WindowsMutex") as mutex, patch.object(build, "WindowsChild") as child:
+                        with self.assertRaisesRegex(ValueError, field):
+                            build.run(self.lane, "test-session", "focused", ["unused"])
+                        mutex.assert_not_called()
+                        child.assert_not_called()
+            self.control.pop(field)
+            self.save()
 
     def test_paused_or_stop_control_refuses(self):
         for update in ({"mode": "paused"}, {"stop_requested": True}):
@@ -276,6 +309,174 @@ class AuthorizationTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 build.run(self.lane, "test-session", "focused", ["unused"])
             mutex_type.return_value.__exit__.assert_called_once()
+
+    def hold_test_mutex(self, name, command=None):
+        ready, release = threading.Event(), threading.Event()
+        failures = []
+
+        def holder():
+            try:
+                with build.WindowsMutex(name) as mutex, ExitStack() as stack:
+                    if not mutex.acquire():
+                        raise RuntimeError("Private test mutex unexpectedly occupied")
+                    if command is not None:
+                        stack.enter_context(build.WindowsChild(command, self.root))
+                    ready.set()
+                    if not release.wait(30):
+                        raise RuntimeError("Private test mutex holder timed out")
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                ready.set()
+
+        thread = threading.Thread(target=holder)
+        thread.start()
+
+        def cleanup():
+            release.set()
+            thread.join(5)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+
+        self.addCleanup(cleanup)
+        self.assertTrue(ready.wait(5), "Private test mutex holder did not start")
+        self.assertEqual(failures, [])
+        return thread
+
+    def await_test_json(self, path):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if path.exists():
+                try:
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    pass
+            time.sleep(0.01)
+        raise RuntimeError(f"Helper did not write {path.name} before deadline")
+
+    def helper_process_handles(self, path):
+        kernel = build.windows_api()
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        handles = []
+        for pid in self.await_test_json(path):
+            handle = kernel.OpenProcess(0x00100000, False, pid)
+            if not handle:
+                raise RuntimeError(f"Could not open private helper PID {pid}")
+            self.addCleanup(kernel.CloseHandle, handle)
+            handles.append(handle)
+        return handles
+
+    def helper_tree_command(self, path):
+        return [sys.executable, "-c", (
+            "import json,os,subprocess,sys,time; from pathlib import Path; "
+            "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
+            f"Path({str(path)!r}).write_text(json.dumps([os.getpid(),child.pid]),encoding='utf-8'); "
+            "time.sleep(60)"
+        )]
+
+    @unittest.skipUnless(os.name == "nt", "Windows focused-slot admission")
+    def test_second_focused_slot_runs_beside_legacy_first_mutex_owner(self):
+        self.control["maximum_focused_cargo_builds"] = 2
+        self.save()
+        name = "Local\\RustFalloutSecondSlotTest-" + str(uuid.uuid4())
+        self.hold_test_mutex(name)
+        output = self.root / "second-slot.json"
+        command = [sys.executable, "-c", "from pathlib import Path; import sys; Path(sys.argv[1]).write_text('ran'); sys.exit(17)", str(output)]
+        with patch.object(build, "MUTEX_NAMES", {"focused": name, "heavy": "unused"}), patch.object(build, "POLL_SECONDS", 0.02):
+            self.assertEqual(build.run(self.lane, "test-session", "focused", command), 17)
+        self.assertEqual(output.read_text(), "ran")
+
+    @unittest.skipUnless(os.name == "nt", "Windows focused-slot admission")
+    def test_third_focused_command_is_busy_without_launching(self):
+        self.control["maximum_focused_cargo_builds"] = 2
+        self.save()
+        name = "Local\\RustFalloutThirdSlotTest-" + str(uuid.uuid4())
+        self.hold_test_mutex(name)
+        self.hold_test_mutex(name + "-2")
+        with patch.object(build, "MUTEX_NAMES", {"focused": name, "heavy": "unused"}), patch.object(build, "WindowsChild", wraps=build.WindowsChild) as child:
+            self.assertEqual(build.run(self.lane, "test-session", "focused", [sys.executable, "-c", "raise SystemExit(99)"]), build.BUSY)
+            child.assert_not_called()
+
+    @unittest.skipUnless(os.name == "nt", "Windows focused-slot admission")
+    def test_default_capacity_one_refuses_free_second_mutex(self):
+        name = "Local\\RustFalloutSerialSlotTest-" + str(uuid.uuid4())
+        self.hold_test_mutex(name)
+        with build.WindowsMutex(name + "-2") as second:
+            self.assertTrue(second.acquire())
+        with patch.object(build, "MUTEX_NAMES", {"focused": name, "heavy": "unused"}), patch.object(build, "WindowsChild", wraps=build.WindowsChild) as child:
+            self.assertEqual(build.run(self.lane, "test-session", "focused", [sys.executable, "-c", "raise SystemExit(99)"]), build.BUSY)
+            child.assert_not_called()
+
+    @unittest.skipUnless(os.name == "nt", "Windows focused-slot revocation")
+    def test_reduced_budget_stops_only_second_slot_tree_and_releases_mutex(self):
+        self.control["maximum_focused_cargo_builds"] = 2
+        self.save()
+        name = "Local\\RustFalloutBudgetTest-" + str(uuid.uuid4())
+        first_receipt, second_receipt = self.root / "first-tree.json", self.root / "second-tree.json"
+        first_owner = self.hold_test_mutex(name, self.helper_tree_command(first_receipt))
+        first_handles = self.helper_process_handles(first_receipt)
+        second_handles, failures = [], []
+
+        def reduce_budget():
+            try:
+                second_handles.extend(self.helper_process_handles(second_receipt))
+                self.control["maximum_focused_cargo_builds"] = 1
+                self.save()
+            except BaseException as error:
+                failures.append(error)
+                self.control["stop_requested"] = True
+                self.save()
+
+        reducer = threading.Thread(target=reduce_budget)
+        reducer.start()
+        try:
+            with patch.object(build, "MUTEX_NAMES", {"focused": name, "heavy": "unused"}), patch.object(build, "POLL_SECONDS", 0.02):
+                with self.assertRaisesRegex(RuntimeError, "outside the current build budget"):
+                    build.run(self.lane, "test-session", "focused", self.helper_tree_command(second_receipt))
+        finally:
+            reducer.join(15)
+        self.assertFalse(reducer.is_alive())
+        self.assertEqual(failures, [])
+        self.assertEqual(len(second_handles), 2)
+        kernel = build.windows_api()
+        for handle in second_handles:
+            self.assertEqual(kernel.WaitForSingleObject(handle, 5000), build.WAIT_OBJECT_0)
+        for handle in first_handles:
+            self.assertEqual(kernel.WaitForSingleObject(handle, 0), build.WAIT_TIMEOUT)
+        self.assertTrue(first_owner.is_alive())
+        with build.WindowsMutex(name) as first, build.WindowsMutex(name + "-2") as second:
+            self.assertFalse(first.acquire())
+            self.assertTrue(second.acquire())
+
+    @unittest.skipUnless(os.name == "nt", "Windows focused-slot revocation")
+    def test_reduced_budget_keeps_running_first_slot_authorized(self):
+        self.control["maximum_focused_cargo_builds"] = 2
+        self.save()
+        name = "Local\\RustFalloutFirstBudgetTest-" + str(uuid.uuid4())
+        receipt = self.root / "first-budget.json"
+        failures = []
+
+        def reduce_budget():
+            try:
+                self.await_test_json(receipt)
+                self.control["maximum_focused_cargo_builds"] = 1
+                self.save()
+            except BaseException as error:
+                failures.append(error)
+                self.control["stop_requested"] = True
+                self.save()
+
+        reducer = threading.Thread(target=reduce_budget)
+        reducer.start()
+        command = [sys.executable, "-c", "import json,sys,time; from pathlib import Path; Path(sys.argv[1]).write_text(json.dumps('started')); time.sleep(0.3); sys.exit(37)", str(receipt)]
+        try:
+            with patch.object(build, "MUTEX_NAMES", {"focused": name, "heavy": "unused"}), patch.object(build, "POLL_SECONDS", 0.02):
+                self.assertEqual(build.run(self.lane, "test-session", "focused", command), 37)
+        finally:
+            reducer.join(15)
+        self.assertFalse(reducer.is_alive())
+        self.assertEqual(failures, [])
 
     @unittest.skipUnless(os.name == "nt", "Windows job cancellation")
     def test_real_stop_cancels_child_and_grandchild(self):

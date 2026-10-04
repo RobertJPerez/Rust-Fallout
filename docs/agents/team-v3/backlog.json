@@ -713,6 +713,341 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-29",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Queue one explicitly selected source event on an existing saved script instance",
+        "existing_gap": "World::enqueue validates block identity, but copy_probe::steps only seeds/enqueues inside a brand-new probe world. Strict saved CLI consumes pending events; it has no standalone source-qualified host operation to append an explicitly requested block to an existing owner with explicit event context.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/event_request.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "event_request::prepare(world,sources,content,instance,expected_owner,definition,begin_offset,event_id,explicit_context,Limits)->private Request; apply to a private restored result using existing World::enqueue. No clock advance or inferred object-mask dispatch.",
+        "consumer": "Owned saved-event enqueue CLI used by future standalone activation/input host; emits source-qualified pending sequence and cold-restorable snapshot, without executing it.",
+        "acceptance": [
+          "Authored two instances sharing one script and two blocks prove exact selected instance/owner/offset/event ID and distinct caller/containing/target roles. Literal result adds exactly one pending event at current explicit clocks and increments only existing sequence/revision.",
+          "Wrong owner/definition/version/cohort/offset/event ID, missing context reference and pending/sequence/revision exhaustion produce no result artifact. Existing queued order remains byte-for-byte logically equal.",
+          "Bound selected source instructions, context arguments, retained request bytes and output snapshot; do not silently map ObjectEvent masks or choose first block."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/copy_probe.rs:174",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/state.rs:586",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/events.rs:31"
+        ],
+        "non_overlap": "VM23 drains an already-existing prefix; this appends one explicit source event without executing/booting anything. Runtime remains sole queue owner.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-30",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Stage a source literal integer assignment under an exact engineering policy",
+        "existing_gap": "local_copy accepts only one Kind::Local; existing expression::Kind::Number retains literal bytes but no host can execute even an exactly representable authored numeric literal assignment.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/literal_assignment.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Separate literal_assignment::stage(world,sources,content,sequence,EngineeringExactIntegralDecimal,Limits)->opaque existing StagedEventChanges plus source trace. Accept only a single existing Number token whose bounded ASCII integral value is exactly representable as binary64; preserve observed sign when present in the admitted token. Unsupported spellings/operators/coercions refuse.",
+        "consumer": "Actual strict saved one-event CLI initializes a declared own numeric slot from its compiled source literal rather than an external initializer.",
+        "acceptance": [
+          "Derive exact accepted literal values and bits from independent integer/rational arithmetic, including zero, exact large integers and representation boundary. Show exact source token ranges and one destination/one acknowledgment after cold restore.",
+          "Fractional/exponent spellings outside the declared grammar, malformed/overlong/overflow/inexact integers, operator tokens, nonnumeric target or any extra statement refuse. Explicitly do not inherit Rust parse rounding as original semantics.",
+          "Charge literal bytes before parse, all arithmetic checked, source/destination binding and stale epoch/revision validated; preserve old copy behavior and no output on refusal."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-data/src/obscript/expression.rs:92",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/local_copy.rs:448"
+        ],
+        "non_overlap": "New explicit exact-literal engineering adapter; not VM22 multi-copy, VM26 foreign read, VM27 reference copy or blocked measured VM04.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-31",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Commit one source-native inventory count to an own numeric local",
+        "existing_gap": "NativeCalls can return a real source-bound EngineeringObservation CountTrace but local_copy rejects Command expressions. Query results cannot feed a canonical script destination through the actual saved host.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/native_assignment.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "native_assignment::stage(world,sources,content,sequence,explicit Inputs,EngineeringExactCountToNumber,Limits)->opaque staged event. Reuse NativeCalls source/subject/argument resolver for exactly one supported GetItemCount expression and existing stage_event_changes; reject totals not exactly representable under the named conversion policy.",
+        "consumer": "Standalone saved event performs one compiled own assignment from existing canonical inventory query, with exact contribution trace and one commit/acknowledgment.",
+        "acceptance": [
+          "Independent authored two stacks plus lot variations give literal count, contribution IDs and exact destination bits. Caller prefixes/explicit subject/player remain distinct and source SCDA call/destination bindings exact.",
+          "Faithful, form lists, unsupported command/caller/argument, extra expression token, unrelated destination type, unavailable inventory and inexact numeric conversion refuse with no state change.",
+          "Late stage stale/campaign/cohort/epoch and contribution/argument/output limits reject atomically; inventory itself is read-only and cold result preserves every bank/lot/reference."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/native.rs:232",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/local_copy.rs:448",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/query.rs:36"
+        ],
+        "non_overlap": "VM18/24 observe queries without effects; this bridges their existing native boundary to a single opaque own-local effect, with no new native handler.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-32",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Make dependency admission resumable without restarting completed graph work",
+        "existing_gap": "admission::check synchronously traverses selected dependencies and chooses a canonical first unsupported site. VM15 makes source compilation cooperative but does not make this later dependency traversal yieldable for a responsive boot host.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/admission.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md",
+          "crates/fallout-cli/src/definition_plan_inspection.rs"
+        ],
+        "proposed_additive_boundary": "Add AdmissionJob borrowing immutable PreparedSources/Attachments, advance(expansion and operand-visit step budget), progress and finish. Store bounded frontier/canonical diagnostic bookkeeping privately; check delegates to the same engine for compatibility.",
+        "consumer": "Owned definition-plan CLI advances a selected source-root admission across several calls and cancel/drop; final report remains identical to existing check.",
+        "acceptance": [
+          "Independent authored dependency graph with cycle, shared edge, conflicting version and unsupported sites proves stable complete final ordering/first refusal across one-shot, one-node and multi-step schedules.",
+          "An unfinished/cancelled job is not a Report/admission token. No definition is repeatedly parsed or visited because of yielding; global limits do not reset between steps.",
+          "Bound frontier, visited sets, source handles, diagnostic strings and all operand scans before retention; one indivisible operation limit is explicit, no real-time deadline claim."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/admission.rs:23",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/admission.rs:94",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/programs.rs"
+        ],
+        "non_overlap": "VM15 compilation job and VM23 canonical event draining remain separate; this is the synchronous post-compilation graph traversal, not another census.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-33",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Boot a bounded explicit quest-owner set as one private result",
+        "existing_gap": "attachment_boot::prepare/BootPlan::apply and boot_saved_quest admit only one QUST attachment at a time. Booting a selected standalone quest set currently requires repeatedly restoring/encoding snapshots and can expose partially booted files.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/attachment_boot.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add bounded prepare_many over existing exact QUST attachments and explicit initializer/context requests; private apply restores once and creates all selected Owner::Quest instances using canonical create_instance/assign. Reuse current single-plan validation rather than duplicate source matching.",
+        "consumer": "Owned saved quest-set boot consumer publishes one complete cold-restorable snapshot only after every explicitly selected owner initializes.",
+        "acceptance": [
+          "Two authored quests sharing one SCPT plus a third distinct definition retain separate owners/locals and exact physical QUST/SCRI/script source receipts. Caller selection order defines only engineering creation order, never retail activation priority.",
+          "Duplicate quest/owner, late wrong attachment/initializer/context/source version or aggregate capacity drops the entire private result; no events/stages/clocks/reference creation.",
+          "Share one full catalogue/prepared source selection, globally bound roots/initializers/context/retention/output, and keep single-quest API behavior unchanged."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/attachment_boot.rs",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-cli/src/event_operand_inspection.rs:35"
+        ],
+        "non_overlap": "Refines VM21 single-quest startup into an atomic real multi-owner boot consumer; does not implement VM23 event batch or new quest state. Uses already committed21 code, not VM22.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-34",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Assign one exact source reference literal to an own reference local",
+        "existing_gap": "expression::Kind::ReferenceLiteral and World::resolve_script_reference exist, but current source assignment supports only numeric-local reads; no single-event host connects an admitted SCRO/SCRV literal to typed canonical destination.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/reference_literal.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "reference_literal::stage(world,sources,content,sequence,explicit_player,EngineeringIdentityAssignment,Limits) reuses prepared token/binder and World::resolve_script_reference, admits one ReferenceLiteral and own Kind::Reference destination, then uses existing opaque stage_event_changes.",
+        "consumer": "Strict saved event CLI stores the exact existing content/live/null reference result admitted by the source resolver without routing identity through Number.",
+        "acceptance": [
+          "Independent source reference-table entries prove content FormKey and live IDs beyond2^53 remain exact through one commit/cold restore; any null is the explicit source resolver result, never a fallback.",
+          "Wrong/deleted/unavailable target, missing explicit player, wrong table kind/index, nonreference destination, non-single-token expression, foreign write or stale source/stage refuses.",
+          "Bind physical source reference table entry and destination declaration offsets/version/cohort. Cap source scans and owned trace before allocation; no reference registration or inventory mutation."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-data/src/obscript/expression.rs:105",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/native.rs:288",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/local_copy.rs:448"
+        ],
+        "non_overlap": "VM27 copies an initialized own reference local; this resolves a source reference literal through the existing canonical binder, with no dependency on27.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-35",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Boot one exact embedded fragment into an existing saved campaign",
+        "existing_gap": "copy_probe::seeded creates a brand-new World and a Fragment owner from a manifest, while saved hosts only consume existing activations. There is no strict existing-snapshot producer for a caller-selected embedded script unit and explicit activation/context.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/fragment_boot.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "fragment_boot::prepare(sources,content,exact embedded Handle,explicit nonzero activation,initializer/context request,Limits)->private plan; apply to strictly restored private World with existing create_instance/assign. Require exact selected record/header offset/version and compiler-admitted embedded unit.",
+        "consumer": "Owned saved fragment boot CLI creates one explicit engineering activation without executing or queuing a result script.",
+        "acceptance": [
+          "An authored record with two embedded units proves the exact selected SCHR header offset, SCDA digest and independent activation IDs/locals. Existing quest/placed owners and pending events remain unchanged.",
+          "Null/duplicate activation, standalone instead of selected embedded handle, wrong header/source/cohort, ambiguous/missing source unit, late invalid initializer/context or budget refuse before output.",
+          "Cold restore retains owner/definition and caller/containing/target separation. Physical embedded ownership certainty is reported as supplied by existing catalogue; do not declare dialogue/stage trigger semantics verified."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/copy_probe.rs:148",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/identity.rs:68",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-data/src/loaded_scripts.rs"
+        ],
+        "non_overlap": "Distinct lifecycle gap from VM21 QUST boot/VM28 placed boot and29 existing-instance enqueue; uses current canonical Fragment model without new schema.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-36",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Consume one saved copy event for an explicitly named quest or placed owner",
+        "existing_gap": "copy_probe::commit_pending unconditionally requires Owner::Fragment although the source-bound stage_source_local_copy_with_sources and canonical journal support other existing owner kinds. A booted quest/placed instance cannot use the same actual saved copy consumer.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/copy_probe.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add a separate commit_pending_owned(world,sources,content,sequence,expected Owner,Engineering,Limits) that requires exact current journal HEAD and owner identity, then reuses unchanged single-copy stage+commit. Keep current Fragment API/default restrictions intact.",
+        "consumer": "Saved own-copy CLI runs exactly one existing source-supported event for a supplied Quest or Placed owner, without creating an owner or choosing events.",
+        "acceptance": [
+          "Authored existing quest and placed instances sharing source/local indices prove only named owner changes; the other instance plus all inventory/reference state stays unchanged. Exact literal copied bits and one existing HEAD acknowledgment survive cold restore.",
+          "Wrong owner kind/key/reference, missing canonical placed origin, stale sequence/source/cohort/revision/epoch and unsupported later shape refuse atomically. Owner equality is not original activation/attachment evidence.",
+          "Bound all current source/operand/trace/output work; no batch execution or new own-local operation, no inferred scheduler or automatic event enqueue."
+        ],
+        "source_evidence": [
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/copy_probe.rs:101",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/execution/local_copy.rs:417",
+          "933b4d0b3b6401db6d2effa118c5876c3f3b2d82:crates/fallout-runtime/src/identity.rs:68"
+        ],
+        "non_overlap": "Closes Fragment-only saved consumer gate using existing owner-neutral staging. Does not duplicate VM23 journal prefix orVM22 multi-statement execution.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "No task requires a new sibling producer, cross-lane feature, original launch, new dependency/pin or save schema. Use the existing committed APIs and exact source cohort.",
+          "Only opt-in explicitly named Engineering effects; Faithful refuses before changes. Do not claim original conversion, scheduling, activation, native return, fragment ownership or parity.",
+          "Strict saved current-schema input; all mutation happens in a private restored result World through existing canonical APIs. Finish source/shape/identity/budget validation before publishing a fresh bounded result snapshot. Cold-restore result and compare unrelated state.",
+          "Preserve default APIs/CLI outputs and use existing compiler, bound operands and opaque staged changes. No second interpreter/parser or caller-supplied source report as authority.",
+          "If another completed handoff closes the exact gap at selection time, skip this task rather than repeat it. Declare precise additive API and minimal main/module wiring before implementation."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\scripts29-36.json",
+          "sha256": "b5d39f6db57e94b41f767160c8d0a653f172fad2d0d2a8eb11adc20fc1991c84"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
       }
     ],
     "runtime": [
@@ -4968,11 +5303,356 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-24",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Advance route search cooperatively without restarting its frontier",
+        "gap": "RouteGraph::route allocates and drains its whole Dijkstra heap synchronously. Total expansion caps cannot let a standalone frame host yield and continue a still-useful search.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "RouteGraph::start_search(start,goal,explicit immutable policy,globalLimits)->RouteJob borrowing this exact graph. advance(StepBudget)->Pending/Complete; finish only returns complete Route. Refactor one-shot route over same search core; no persistent save continuation.",
+        "consumer": "Owned navigation CLI exercises multiple advances and cancellation on an authored graph, producing the same complete route/refusal as current route.",
+        "acceptance": [
+          "Literal graph with cycles, zero-cost links, alternate equal costs and missing/special neighbors proves identical source-qualified node/link ordering across1-expansion and larger slices. Frontier work must not restart after yield.",
+          "Precharge distance/predecessor/heap/diagnostic storage, bound both stale heap pops and edge visits per advance and globally; source graph cannot change under the borrow. Cancellation drops all local state and yields no route.",
+          "No hard wall-time promise; any indivisible predicate or diagnostic copy is bounded explicitly. No original scheduler/actor update order."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/navigation/mod.rs:320",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/navigation/mod.rs:64"
+        ],
+        "non_overlap": "Refines unfinished generic route-budget seed10 into an actual responsive consumer. Does not implement corridor20/endpoints21/funnel22 or multi-cell19.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-25",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Apply an explicit source-bound navigation exclusion and cost overlay",
+        "gap": "RouteGraph exposes a policy callback, but the actual JSON route consumer has only broad mask/cost decisions. There is no validated reusable exact-triangle/source-edge overlay for temporary engineering closures or caller-supplied per-link penalties.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "Private RouteOverlay::prepare(&RouteGraph,explicit blocked TriangleId/source-edge selections and nonnegative costs,Limits), borrowed by existing route policy. Exact graph lifetime binds authority; caller policy is explicit, never inferred from runtime doors or collision.",
+        "consumer": "Owned navigation CLI selects an authored blockage/penalty overlay and obtains an alternate source route through the existing search engine without rebuilding geometry.",
+        "acceptance": [
+          "Independent diamond/parallel-door graph proves blocked start/goal, blocked directed edge and penalty reroute; duplicate/conflicting/unknown IDs and changed graph source fail before search. Directed edge identity includes source edge and exact target, not endpoints alone.",
+          "No true blocked destination reached indirectly: node exclusion enforced on start/goal and every target. Unknown special-link eligibility remains unsupported even when overlay contains a cost.",
+          "Cap overlay rows/key bytes/lookup work and cumulative route work; report explicit policy identity. No nearest obstacle projection, canonical state mutation or actor avoidance semantics."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/navigation/mod.rs:23",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/navigation/mod.rs:320",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-cli/src/navigation_inspection.rs"
+        ],
+        "non_overlap": "Uses existing callback/search; concrete host policy admission fills a runtime consumer gap, not new A* or task19 selection/corridor/funnel work.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-26",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Return the first certified ray hit without retaining every farther hit",
+        "gap": "StaticScene::ray_cast collects and sorts all hits and the spatial index returns all candidate ordinals. A reticle/picking or obstruction host cannot request bounded nearest-only output without materializing far hits.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Add StaticScene::ray_first(Ray,FirstHitBudget)->Result<Option<Hit>> and an internal conservative nearest traversal over existing admitted geometry. Keep old all-hit API intact; explicit tie rule uses distance then SourceId.",
+        "consumer": "Owned collision CLI nearest mode exercises actual admitted source shapes and reports one fully source-qualified witness or no-hit/refusal.",
+        "acceptance": [
+          "Independent literal scenes with front/back overlap, same-distance different SourceId, ray beginning inside and reversed insertion order prove exact selected hit. Compare all-hit first only for full queries whose narrow predicates all succeed; independent geometry remains primary oracle.",
+          "Prune only when a conservative bound proves a node strictly farther than current best; tied or uncertain bounds must visit. Never hide a possibly nearer narrow-phase uncertainty. Unbounded/fallback index primitives remain covered.",
+          "Bound node/primitive/geometry visits and traversal storage separately; output holds at most one hit. Preserve frozen source/filter/margin limitations and raw input words, including tested skew/high-range cases."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:555",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/index.rs:313"
+        ],
+        "non_overlap": "New nearest-only query semantics/algorithm over completed07; no multi-model17, canonical reference16 or sweep23 prerequisite.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-27",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Query an exact finite endpoint segment without silently rotating its line",
+        "gap": "The public collision request accepts a tolerance-unit Ray plus max_distance. Standalone source-to-target visibility/picking callers have two endpoints, and an ad-hoc normalized subtraction can change a distant skew line or its finite endpoint boundary.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Add explicit engineering Segment {start,end} query on existing immutable scene, preserving original endpoint words and parameter interval[0,1]. Reuse source shape kernels through a rigorously bounded parameter conversion or a shared parameterized ray helper; refuse uncertifiable conversion rather than normalizing away an error.",
+        "consumer": "Owned collision CLI finite-segment consumer returns full source-qualified intersections lying on the declared finite segment; not actor visibility/gameplay truth.",
+        "acceptance": [
+          "Independent exact rational endpoint segments establish near miss, interior contact, endpoint-only contact, reversed endpoints and zero-length policy. Distant skew, subnormal differences and overflow require valid error bounds or explicit refusal.",
+          "Every returned parameter and position has a witness within the original endpoint interval and the declared geometry, not merely a renormalized surrogate line. Include just-beyond-end solids and source transforms.",
+          "Global query/output budgets and raw seven-or-more endpoint/request words retained. Existing Ray outputs remain unchanged; no automatic units, filter or target exemption."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/mod.rs:84",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:555",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/shape.rs:70"
+        ],
+        "non_overlap": "Zero-radius static segment API, distinct from23 moving sphere sweep; no motion response or new primitives. May conservatively refuse unsupported numerical domains.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-28",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Produce a certified closest-point query for supported source solids",
+        "gap": "Existing overlap returns the requested center at distance0 and ray returns a line intersection. Neither supplies actual closest-point/distance information needed by a later clearance or contact proposal host.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Add explicit closest_point(point,max_distance,ClosestLimits) for the existing source Sphere and Box/certified cuboid core subset. Return source ID, closest point, distance bounds and optional nonambiguous outward direction under a declared closed-solid contract. All other selected shapes refuse for this first bounded slice.",
+        "consumer": "Owned collision inspector queries a selected admitted solid or fully supported selected scene and obtains a geometric witness suitable for later engineering clearance consumers.",
+        "acceptance": [
+          "Exact rational axis-aligned boxes and independently derived sphere cases verify outside/inside/on-surface/center/tied objects. Closed-solid inside distance is explicitly0 and no arbitrary center normal is invented.",
+          "Source transforms/engineering scales and squared-distance overflow/underflow/near-surface uncertainty need certified finite bounds or refusal. Never declare a nearest result if an unsupported selected shape could be closer.",
+          "Retain complete source/filter/shell provenance; no penetration resolution, impulse, character snap or shell-radius inclusion. Bound visits/outputs and preserve old overlap semantics."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:605",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/shape.rs:4",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/mod.rs:118"
+        ],
+        "non_overlap": "Concrete new geometry query; not repeat old grazing audits or claimed generalconvex/sweep support. Independent of16?23.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-29",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Build admitted static geometry in bounded cooperative steps",
+        "gap": "StaticScene::build synchronously expands all placements/shared shape DAG paths, transforms primitives, builds caches and index before returning. CellCollision::admit therefore has no nonblocking progress/cancel boundary for the geometry conversion stage.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "Private StaticSceneBuildJob over already decoded immutable Collision plus explicit placements/units; advance(shape/primitive/geometry step bounds)->Progress; finish yields complete StaticScene only. Keep a borrowed source lifetime and global accounting. One-shot build uses same core or preserves proven behavior.",
+        "consumer": "Owned collision CLI repeatedly advances authored multi-body/shared-DAG build and drops a partial job; an optional existing CellCollision admission path may consume only completed scene without requiring new17/18/16.",
+        "acceptance": [
+          "Independent authored shared-DAG and higher-ID transforms produce identical leaf occurrence/source IDs and literal queries after different step sizes. Cancellation/late unsupported branch yields no queryable partial scene and releases scratch.",
+          "Charge pending stack, geometry cache, leaf/index construction and copy work globally before retention. Initial existing decoder and any indivisible bounded sort are disclosed; do not claim the whole importer is frame-time bounded.",
+          "No duplicate worker pool or importer; no world-owned readiness promotion on progress/completion. All decoder inputs remain exact and old synchronous source query remains compatible."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:293",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:390",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/cell.rs:76"
+        ],
+        "non_overlap": "Refines seed14 lifecycle into actual cancellable conversion work;17 aggregates models and18 derives frames, neither supplies this job.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-30",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Keep a selected navigation graph scoped to its resident cell generation",
+        "gap": "Navigation load_cell and RouteGraph have no CellResidency owner/ticket lifetime. Collision already revokes selected queries after unload, but a route graph/result can currently be used as a detached source proposal after its cell generation ends.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/navigation/**",
+          "crates/fallout-runtime/tests/navigation*.rs",
+          "crates/fallout-cli/src/navigation_inspection.rs",
+          "tools/navigation-oracle/**",
+          "docs/navigation-*.md"
+        ],
+        "proposed_additive_boundary": "navigation::cell::CellNavigation admission accepts existing CellResidency+Ticket and protected RecordStore, validates full ordered store receipts against ResidentSources.plan().graph().sources and exact CELL root, then calls existing load_cell/RouteGraph::build. Retain a store borrow/read handles plus source Arc/ticket; route/result access requires original owner and matching Arc/generation.",
+        "consumer": "Owned navigation CLI actual cell lifecycle admits a local graph, queries, unloads/cancels, then demonstrates old graph/result access refuses; a fresh generation requires fresh admission.",
+        "acceptance": [
+          "Authored two cell owners with identical filenames/coordinates/triangle IDs prove owner and ticket identity, not strings, determines access. Changed plugin body/order/cohort/CELL, stale generation and cross-owner ticket refuse before graph publication.",
+          "Retain exact protected plugin handles from existing RecordStore; compare ordered full receipts, live CELL and decoded NAVM DATA/GRUP identity through existing loaders. Do not accept arbitrary public SourceMesh JSON as source authority.",
+          "Bound decoded records/graph and retained provenance; dropping/cancelling releases its own resources once. Do not set world behavior/collision readiness or claim whole-cell nav completeness. Old graph-only engineering API stays compatible."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-data/src/navigation/load.rs:56",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/navigation/mod.rs:122",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-data/src/world/residency.rs:131",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-data/src/store.rs:32",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-data/src/world/dependencies.rs:79"
+        ],
+        "non_overlap": "Applies existing cell lifetime to navigation only;16 binds collision to canonical ReferenceId,17 aggregates collision models,19 multi-cell loads NAVM. No new world interface required.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-PHYS-31",
+        "state": "ready",
+        "depends_on": [],
+        "title": "Execute a source-scene query batch under one shared work and output allowance",
+        "gap": "QueryRequest accepts at most one ray and one overlap, each receives a fresh QueryBudget::default. Repeated frame queries have no production global budget/result transaction and pay external orchestration overhead.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/physics/**",
+          "crates/fallout-runtime/tests/physics*.rs",
+          "crates/fallout-cli/src/collision.rs",
+          "tools/collision-oracle/**",
+          "docs/physics-*.md"
+        ],
+        "proposed_additive_boundary": "StaticScene::query_batch(&[QueryKind::{Ray,SphereOverlap}],BatchLimits)->bounded ordered result using the same narrow/broad phase helpers with one shared work meter. Old single-query wrappers keep their current budget meaning. Consumer uses an already built scene once; no new geometry/source admission.",
+        "consumer": "Owned collision CLI submits explicit ordered mixed queries and publishes one complete result only when every query succeeds under the aggregate allowance.",
+        "acceptance": [
+          "Independent authored mixed rays/overlaps with repeated/nonmonotonic requests preserve full SourceId, numeric input words and result ordering; each result equals literal geometry and unchanged single-query output.",
+          "Late uncertain geometry/invalid input/one-over total primitive/geometry/hit/retention bound emits no partial successful batch. Bound broad-phase visits too; per-query limits cannot reset cumulative work.",
+          "Scene source/units immutable for the whole borrowed batch. No parallel scheduling/default per-frame rays or original physics tick assumption; no batching original process launches."
+        ],
+        "source_evidence": [
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-cli/src/collision.rs:260",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-cli/src/collision.rs:352",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:555",
+          "1bdf21211e69562d1326ed0d4e5355be10506149:crates/fallout-runtime/src/physics/scene.rs:605"
+        ],
+        "non_overlap": "Query-level batch over one existing scene;17 is build/model aggregation,24/29 are cooperative jobs,23 is a sweep. Does not duplicate an existing production multiquery API.",
+        "common_conditions": [
+          "Coordinator has fully reviewed and approved this owned additive engineering consumer boundary. Exact signatures and minimal wiring must be declared. No original or faithful semantics are inferred.",
+          "Independent of activePHYS16 and proposed17?23; no new sibling or cross-lane producer prerequisite, new dependency/pin, save format or canonical movement effects. Existing committed07 spatial index may be consumed at this exact worker HEAD, not an uncommitted future API.",
+          "Retain raw source filter/material/welding/identity and existing core-geometry scope. Units, coordinate frame, costs and policies are caller-explicit engineering choices. Original step/slope/filter/margin/door/avoidance behavior remains unsupported.",
+          "Use existing RecordStore/NIF/NAVM decoders and central Affine; no visual-mesh substitution, second importer, arbitrary source-report JSON authority or parallel actor state.",
+          "Globally bound source/geometry/index/frontier/query/output work and retention before allocation. Any late unsupported or uncertain geometry refuses the affected complete result; never silently skip an obstacle and certify clear space.",
+          "Actual owned CLI consumer with independently derived literal/rational geometry or graph expectations. No original process needed for bounded authored scope. Old raw queries/source reports and all old failure evidence remain intact.",
+          "If another completed handoff closes the exact gap at selection time, skip rather than re-audit. Declare additive API/minimal wiring before implementation; small tested handoff then next ready task."
+        ],
+        "source_proposal": {
+          "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-09\\physics24-31.json",
+          "sha256": "18119bf85c8104c4f03eeb6e36751ce2ba0f6fa9f729a2b5a4a490d28d2df345"
+        },
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "boundary_authorized_by": "coordinator; source-backed rolling refill09",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
       }
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T09:27:31.790236+00:00",
+  "updated_at": "2026-10-04T09:59:00.342730+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

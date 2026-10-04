@@ -1037,3 +1037,46 @@ one archive candidate and no source issues each. These choices do not imply
 that the selected actor wears or carries those items. The base ESM source audit
 observed all 389 ARMO, 131 ARMA and 261 WEAP headers at version 15, alongside
 older STAT versions that remain unsupported by this slice.
+
+## Selected render request admission (V3-ACT-11)
+
+The existing `render_manifest` now reports `selected_source_cycles`, with indices
+in its ordered `sources`, and `selected_requests_admitted`. The latter admits only
+the selected physical source requests: at least one request, no source issues or
+selected cycles, no ambiguous selected declaration, and exactly one archive
+candidate for every selected path. It does not decode NIF bytes, validate textures,
+compose FaceGen, choose equipment, or establish renderer/gameplay readiness.
+
+Cycle analysis reuses the shared graph helper over the exact admitted actor and
+extra-head-part links. Broad inventory, template and race option edges cannot
+become selected render links. The new node/edge work consumes the existing render
+visit budget, and every node of a selected cycle produces a bounded
+`cyclic_selected_render_source` issue. Cycles retain their original source headers,
+links, offsets and path requests rather than being removed or chosen by traversal
+order. Missing, inherited and repeated declarations keep precise diagnostics.
+
+The existing authored head-part cycle `110 -> 111 -> 110` now reports the selected
+cycle and refuses admission. A separate authored fixture independently selects
+male race A/body/skeleton source declarations, then a winning compressed actor
+and race override selects female race B and different skeleton/body paths. Its
+expected source offsets come from the authored file layout. A unique archive
+candidate cannot admit duplicate model declarations, unknown template selection
+or missing candidates. Archive metadata fixtures contain no decoded NIF models.
+
+Validation on 2026-10-04 passed 22 dependency tests plus six equipment tests (one
+unrelated installed test ignored), format, warnings-denied data/CLI Clippy and
+the CLI build. Complete base, override and cyclic-source CLI projections match
+the independent native scalar and Python physical dependency/render readers.
+The cyclic fixture retains its existing scalar-source findings and exits 1 after
+emitting its matched report; the clean base and override cases exit 0. A changed
+admission flag fails the actual CLI comparison. Earlier compilation attempts and
+all immutable input/output receipts are preserved under
+`local/v3-act11-render-admission-20261004-01`.
+
+The installed `FalloutNV.esm:104C0C` projection also matches the full independent
+reader: six selected sources, 26 requests, no selected cycles or source issues,
+and source-request admission true. Its structural source/archive manifest was
+freshly checked against the preserved independent baseline, and all selected
+physical source bodies/field origins were freshly verified. All 31 original
+plugin/archive inputs and five private frozen/baseline inputs keep their hashes.
+This source admission establishes no renderer or gameplay acceptance.

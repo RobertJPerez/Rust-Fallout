@@ -484,7 +484,7 @@
       },
       {
         "id": "V3-VM-23",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Drain an explicit bounded saved journal prefix through the existing copy host",
         "existing_gap": "VM17 commit_pending consumes only one explicitly selected saved HEAD. The real strict saved-state runner has no production path to consume several explicitly supplied sequential existing events without repeatedly encoding/loading the whole snapshot. VM22 concerns several statements inside one event and does not close this journal-level gap.",
@@ -516,7 +516,20 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "scripts",
+            "task_id": "V3-VM-23",
+            "original": "4623fec13416665b92998d2ff3318ab5f9204aec",
+            "integrated": "1734f94048effb316ef3ce6d1f2193957d9906eb",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-vm23-review-01\\review.json",
+              "bytes": 5721,
+              "sha256": "62ae835111b29acb940884c244a6de5b04272e7c65d8189a89ff380cdecd52a0"
+            }
+          }
+        ]
       },
       {
         "id": "V3-VM-24",
@@ -1408,7 +1421,7 @@
       {
         "id": "V3-STATE-23",
         "title": "Page one canonical inventory bank without cloning every lot",
-        "state": "completed_producer",
+        "state": "reviewed_integrated_producer",
         "producer": "runtime",
         "owned_paths": [
           "crates/fallout-runtime/src/inventory.rs",
@@ -1455,7 +1468,20 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\runtime-tasks-23-34.json",
           "sha256": "aaf72b3b35e89cc7f49cd63d8dcad26b3f3a017380fec543c13987a7be2ff304"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "runtime",
+            "task_id": "V3-STATE-23",
+            "original": "898aae9cb9e03d6ba54d5c55d5c379edc7f05cb9",
+            "integrated": "6a262a4bd1d40fd4a5832011851c8fb4b3647e31",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-state23-review-01\\review.json",
+              "bytes": 4546,
+              "sha256": "e57e381d1faf6b381a608759688c66cbeaacb5647a3a5c28ba81b118202be73b"
+            }
+          }
+        ]
       },
       {
         "id": "V3-STATE-24",
@@ -2130,13 +2156,14 @@
       },
       {
         "id": "V3-ACT-10",
-        "state": "ready",
+        "state": "completed_producer",
         "title": "Bound package context against stale caller and campaign",
         "depends_on": [],
         "consumer": "Actor package request and script condition consumers.",
         "acceptance": "Existing package dependency request rejects stale/cross-source actor, target and condition handles before dispatch; no source attachment treated as package truth.",
         "fallback_task_id": null,
-        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work.",
+        "scope_note": "Existing producer closed; downstream gameplay acceptance does not reopen this source task."
       },
       {
         "id": "V3-ACT-11",
@@ -2297,7 +2324,7 @@
       },
       {
         "id": "V3-ACT-18",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "title": "Turn explicit direct actor inventory declarations into an engineering initialization plan",
         "depends_on": [],
         "gap": "inventory::Definition already preserves physical CNTO/COED, signed counts and exact optional ownership/condition words; actors expose that data and template closure but there is no bounded actor-owned plan that a boot harness can apply using canonical lot APIs. Canonical add_item exists but callers currently must independently hand-assemble all lots.",
@@ -2332,6 +2359,19 @@
           "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
           "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
           "Input/live canonical World remains unchanged; only a newly restored private result may be initialized. No live partial boot API."
+        ],
+        "reviewed_mapping": [
+          {
+            "lane": "actors",
+            "task_id": "V3-ACT-18",
+            "original": "fcb41e5a0019a3b78e496bbe221a3b0de29fc62c",
+            "integrated": "15d0eebfbda3681359caa3947d725d76522b82ee",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-act18-review-01\\review.json",
+              "bytes": 3518,
+              "sha256": "276be3ea27aaeabfee9172019593fc47775e37048f43d2ed3f510bac0d111be1"
+            }
+          }
         ]
       },
       {
@@ -2640,14 +2680,16 @@
       },
       {
         "id": "V3-ACT-27",
-        "state": "blocked",
+        "state": "ready",
         "title": "Connect an explicit canonical item lot to the existing model-role producer",
-        "depends_on": [
-          "V3-ACT-16 reviewed exact producer"
-        ],
+        "depends_on": [],
         "gap": "ACT16 will admit a canonical owner/ItemId and ACT08 already admits explicit source model roles, but an actual inventory selection would otherwise manually copy the base between these APIs.",
         "source_evidence": [
-          "Existing V3-ACT-16 unpublished producer; exact receipt/API must be reviewed first",
+          {
+            "task_id": "V3-ACT-16",
+            "original": "d6bde906dbc7819518e7bd9e918c9a0b98139b23",
+            "integrated": "64f236ecfa72b0bc1d553593e588968d33a170f8"
+          },
           "1ed3e266:crates/fallout-data/src/actors/dependencies/equipment.rs"
         ],
         "consumer": "Owned actor headless consumer accepts strict snapshot, owner, exact ItemId plus explicit ACT08 role/modmask; joins admitted immutable lot selection to the existing equipment source request without equip mutation.",
@@ -2665,7 +2707,7 @@
           "Cold reload, removed/wrong-owner/stale campaign or source override refuse before a request escapes; unknown equipped_slots never means equipped.",
           "No new model parser, slot/modmask derivation, live state/save change or automatic texture/attachment choice; old ACT08 and ACT16 standalone outputs remain stable."
         ],
-        "bounded_no_original_fallback": "While ACT16 is unreviewed this task is not counted ready. Work on ACT21-26; an authored existing inventory snapshot later proves the join without original equip behavior.",
+        "bounded_no_original_fallback": "Reviewed exact prerequisite is already available. Continue this owned engineering consumer without new grants or original-capture dependency.",
         "common_conditions": [
           "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
           "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
@@ -2675,18 +2717,25 @@
         ],
         "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
-        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment.",
+        "reviewed_dependency_mapping": {
+          "task_id": "V3-ACT-16",
+          "original": "d6bde906dbc7819518e7bd9e918c9a0b98139b23",
+          "integrated": "64f236ecfa72b0bc1d553593e588968d33a170f8"
+        }
       },
       {
         "id": "V3-ACT-28",
-        "state": "blocked",
+        "state": "ready",
         "title": "Join an authored package destination request to an explicit engineering route query",
-        "depends_on": [
-          "V3-ACT-17 reviewed exact producer"
-        ],
+        "depends_on": [],
         "gap": "ACT17 will supply source location/target operands; navigation already offers bounded explicit-node routes. The actor host has no exact package-source-to-query join, and must not guess start/end triangles or claim package execution.",
         "source_evidence": [
-          "Existing V3-ACT-17 unpublished producer; exact receipt/API must be reviewed first",
+          {
+            "task_id": "V3-ACT-17",
+            "original": "6eef1fee08662b124d040327dc7cff009848d086",
+            "integrated": "9cd43222081d9b0dca245c99504595e1a184ec2e"
+          },
           "c8a2fe21:crates/fallout-runtime/src/navigation/mod.rs",
           "Master brief section8 AI source navigation and section10 route traversal"
         ],
@@ -2705,7 +2754,7 @@
           "Independent small graph expectations preserve doors/special links/unreachable/cycles and explicit endpoint mismatch; changed package/source/caller refuses atomically.",
           "No nearest-navmesh heuristic, package eligibility/scheduling, movement or canonical pose mutation. Faithful AI remains refused even when an engineering path exists."
         ],
-        "bounded_no_original_fallback": "Until ACT17 is reviewed this task is not counted ready. Use ACT21-26. A literal tiny graph and authored PACK then exercise the real route join without original travel or movement.",
+        "bounded_no_original_fallback": "Reviewed exact prerequisite is already available. Continue this owned engineering consumer without new grants or original-capture dependency.",
         "common_conditions": [
           "Reuse existing RecordStore/source receipts/FormKey binder and typed producer APIs; no second plugin/NIF/archive decoder.",
           "Only actor-owned paths plus declared minimal module export/CLI dispatch. No dependencies, pins, runtime defaults, save schema or implicit live state mutation.",
@@ -2715,7 +2764,303 @@
         ],
         "boundary_status": "Coordinator approved existing owned-path source request boundary; publish exact additive signatures before a sibling binds. No external path/API/default/dependency/save change.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill 07",
-        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment."
+        "delivery": "Small tested consumer and exact preserved handoff; continue the next ready task without ending the full-vision Goal or waiting for acknowledgment.",
+        "reviewed_dependency_mapping": {
+          "task_id": "V3-ACT-17",
+          "original": "6eef1fee08662b124d040327dc7cff009848d086",
+          "integrated": "9cd43222081d9b0dca245c99504595e1a184ec2e"
+        }
+      },
+      {
+        "id": "V3-ACT-29",
+        "state": "ready",
+        "priority": 1,
+        "title": "Bind selected actor render requests to current canonical placement",
+        "depends_on": [],
+        "production_gap": "ACT15 resolves a current reference to its exact placed actor and ACT01/11/14 produce source render requests, but no actor-owned API joins those producers into a current canonical pose/enable-qualified request for a visible actor host.",
+        "consumer": "A headless actor-render-context CLI and later presentation actor host receive selected source paths together with the exact current reference state; neither needs to rediscover actor NAME/base bindings.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/render_context.rs",
+          "crates/fallout-runtime/src/actor_rules/mod.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules_render_context.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-rules.md"
+        ],
+        "existing_apis": [
+          "actor_rules::context::observe, context.rs:101",
+          "actors::dependencies::Catalogue::render_manifest, dependencies/render.rs:142",
+          "dependencies::RenderRole and Manifest::paths",
+          "reference_state::View and State getters"
+        ],
+        "proposed_boundary": "Add observe(world, content, placements, actors, dependencies, archives, reference_id, explicit_selected_path_occurrences, limits) -> RenderContext. Each requested occurrence carries its source identity/field/role binding; return current reference observation and selected existing PathRequest data. Do not accept a separately supplied actor base as authority.",
+        "semantics": [
+          "Derive the exact base from the validated ACHR/ACRE context and use the existing render manifest admission, role ambiguity/cycle/asset collision diagnostics.",
+          "For display-admitted requests require an existing canonical component, explicit enabled=true and available positive scale. Disabled and unavailable state have distinct typed outcomes; neither creates a draw request. Preserve raw source DATA separately from current saved pose.",
+          "Output source-coordinate pose and exact selected asset identities only. No new transform algorithm, f32 renderer conversion, NIF parser, animation/rig selection or claim of GPU readiness. Do not impose new default race/gender/equipment precedence."
+        ],
+        "acceptance": [
+          "Two authored references to one base have distinct saved transforms and enable values that differ from source DATA; selected requests bind the correct reference and source occurrence exactly.",
+          "An unavailable component/scale, disabled reference, role collision, selected HDPT cycle, changed source cohort, wrong base or stale canonical context cannot emit an admitted mesh request.",
+          "Exact path selection and order are preserved; unrelated source paths never become implicit requests. Bound output before copying repeated path/source data."
+        ],
+        "non_overlap": "ACT27 joins an explicitly selected inventory lot to item model roles. This task joins the placed actor's own source manifest to canonical placement. It does not implement root host/rendering or ACT19 script attachment.",
+        "common_conditions": [
+          "Every task uses reviewed existing APIs at source_base; no sibling task or untested ACT19 dependency. No new crate, dependency, source pin, save version, raw record importer, canonical identity owner or guessed retail behavior.",
+          "Implement only actor-owned files, actor-owned tests/oracle tools/docs, and declared minimal export/CLI wiring. Root owns current shared command-family files; coordinate the exact additive hunk in handoff rather than rewriting main or another family.",
+          "An observation is not reusable mutation authority. Reacquire canonical views for each application. Retained requests must bind exact campaign, complete ordered source cohort, full snapshot identity/revision and any existing private handle/epoch supplied by canonical APIs; equal-state restore invalidates old handles.",
+          "Explicit engineering requests must distinguish authored source declarations, current canonical facts and unavailable evaluated behavior. Never initialize omitted facts, select a player, infer source enable parents, choose equipment or invent cell membership.",
+          "All private candidate consumers restore an input schema4 snapshot using existing strict code, validate request and aggregate budgets before mutation, discard the candidate on every failure and emit a new snapshot only on complete success. Input World/repository/artifacts remain unchanged. Reuse the ACT18 private-candidate pattern without a second save loader.",
+          "Bound selected items/references, source visits, retained links/bytes, copied facts, serialized output and private snapshot bytes before allocation/clone; use checked arithmetic. Refuse over-budget work explicitly, never silently truncate successful results.",
+          "Acceptance includes the real owned CLI using a frozen tested executable, independently authored raw plugin bytes/canonical expectations, exact source/binary/request/artifact hashes, cold restore and complete unrelated-state conservation where a snapshot is produced. Source fixture expectations cannot be copied from earlier successful output. Preserve failed attempts.",
+          "No original game launch or newly measured retail behavior is needed for these engineering contracts. Existing source parsers and pinned schema evidence remain the only raw layout authorities. Original inputs remain read-only."
+        ],
+        "boundary_status": "Coordinator preauthorizes this exact existing-API owned consumer and minimal declared export/CLI wiring; no new grants required.",
+        "boundary_authorized_by": "coordinator; reviewed source-backed refill11",
+        "delivery": "Commit a small tested handoff, keep full-vision Goal active, then select the next ready task without acknowledgment. STOP overrides immediately."
+      },
+      {
+        "id": "V3-ACT-30",
+        "state": "ready",
+        "priority": 2,
+        "title": "Apply an explicit placed-actor reference component in a private candidate",
+        "depends_on": [],
+        "production_gap": "Existing canonical stage/commit reference-state APIs are not reachable through a source-qualified placed-actor consumer. ACT15 is read-only, ACT18 changes inventory only, and root first-route boot requires already existing reference components.",
+        "consumer": "An authored engineering setup command can initialize or replace the component of an already registered canonical actor reference and produce a cold-restorable snapshot for the first visible actor route.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/reference_intent.rs",
+          "crates/fallout-runtime/src/actor_rules/mod.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules_reference_intent.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-rules.md"
+        ],
+        "existing_apis": [
+          "actor_rules::context::observe",
+          "foreign::Content::source_form",
+          "reference_state::Pose::from_source and State::new, reference_state/mod.rs:18-100",
+          "World::stage_reference_state and commit_reference_state, reference_state/mod.rs:198-206",
+          "actor_rules::inventory_boot private restore/application pattern"
+        ],
+        "proposed_boundary": "Add apply_private(input_snapshot, exact_catalogue, content, actor_catalogues, existing_reference_id, explicit_state, expected_snapshot_sha256, EngineeringIntent, limits) -> CandidateSnapshot. Explicit state includes a CELL FormKey, all finite position/rotation source words, optional supplied scale and an explicit enabled boolean. The API creates no reference identity.",
+        "semantics": [
+          "Validate the existing authored actor reference through ACT15; resolve the requested cell through Content and require a current CELL source record. This binds a requested residency identifier, not a claim that source spatial membership was measured.",
+          "Create the state using existing constructors, freshly acquire View, and stage/commit through the canonical owner on the private World. Missing scale remains None. Reject absent pose/enable input rather than borrowing defaults from source DATA.",
+          "Do not call or duplicate newer source-reference registration/batching APIs; those are unnecessary prerequisites. No movement, teleport, enable-parent, player-spawn or retail initialization semantics are claimed."
+        ],
+        "acceptance": [
+          "Start with a registered actor whose component is absent; explicit supplied component succeeds and cold restore preserves all bits including signed zero and absent scale.",
+          "Replacing an existing component changes exactly the selected reference state and canonical revision according to existing APIs. All source declarations, identities, inventories, instances, queue/journal state and unrelated references remain identical.",
+          "Wrong actor/base/campaign/cohort, non-CELL key, stale snapshot identity, invalid finite/positive scale, malformed pose and resource overflow fail before any result snapshot is published."
+        ],
+        "non_overlap": "No generic runtime source initializer, no new identity registration, no root boot composition, no movement solver and no ACT18 inventory initialization. This is an actor-owned consumer of existing canonical state authority.",
+        "common_conditions": [
+          "Every task uses reviewed existing APIs at source_base; no sibling task or untested ACT19 dependency. No new crate, dependency, source pin, save version, raw record importer, canonical identity owner or guessed retail behavior.",
+          "Implement only actor-owned files, actor-owned tests/oracle tools/docs, and declared minimal export/CLI wiring. Root owns current shared command-family files; coordinate the exact additive hunk in handoff rather than rewriting main or another family.",
+          "An observation is not reusable mutation authority. Reacquire canonical views for each application. Retained requests must bind exact campaign, complete ordered source cohort, full snapshot identity/revision and any existing private handle/epoch supplied by canonical APIs; equal-state restore invalidates old handles.",
+          "Explicit engineering requests must distinguish authored source declarations, current canonical facts and unavailable evaluated behavior. Never initialize omitted facts, select a player, infer source enable parents, choose equipment or invent cell membership.",
+          "All private candidate consumers restore an input schema4 snapshot using existing strict code, validate request and aggregate budgets before mutation, discard the candidate on every failure and emit a new snapshot only on complete success. Input World/repository/artifacts remain unchanged. Reuse the ACT18 private-candidate pattern without a second save loader.",
+          "Bound selected items/references, source visits, retained links/bytes, copied facts, serialized output and private snapshot bytes before allocation/clone; use checked arithmetic. Refuse over-budget work explicitly, never silently truncate successful results.",
+          "Acceptance includes the real owned CLI using a frozen tested executable, independently authored raw plugin bytes/canonical expectations, exact source/binary/request/artifact hashes, cold restore and complete unrelated-state conservation where a snapshot is produced. Source fixture expectations cannot be copied from earlier successful output. Preserve failed attempts.",
+          "No original game launch or newly measured retail behavior is needed for these engineering contracts. Existing source parsers and pinned schema evidence remain the only raw layout authorities. Original inputs remain read-only."
+        ],
+        "boundary_status": "Coordinator preauthorizes this exact existing-API owned consumer and minimal declared export/CLI wiring; no new grants required.",
+        "boundary_authorized_by": "coordinator; reviewed source-backed refill11",
+        "delivery": "Commit a small tested handoff, keep full-vision Goal active, then select the next ready task without acknowledgment. STOP overrides immediately."
+      },
+      {
+        "id": "V3-ACT-31",
+        "state": "ready",
+        "priority": 3,
+        "title": "Transfer one explicitly selected actor inventory lot through canonical state",
+        "depends_on": [],
+        "production_gap": "ACT16 can select a canonical inventory lot and core runtime can transfer it, but no actor consumer validates the source actor and selected lot together before producing a usable private inventory transfer candidate.",
+        "consumer": "A source-qualified headless container/inventory action supplies one exact lot and destination to the canonical owner; later UI can use the same bounded request without reimplementing transfer rules.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/inventory_transfer.rs",
+          "crates/fallout-runtime/src/actor_rules/mod.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules_inventory_transfer.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-rules.md"
+        ],
+        "existing_apis": [
+          "actor_rules::context::observe",
+          "actor_rules::equipment::observe and observe_handle, equipment.rs:100,151",
+          "World::transfer_item, inventory.rs:425",
+          "World::restore and World::snapshot"
+        ],
+        "proposed_boundary": "Add apply_private(input_snapshot, catalogue, content, actor_catalogues, source_actor_id, exact_item_id, explicit_destination_id, expected_snapshot_sha256, EngineeringIntent, limits) -> CandidateSnapshot. A direct live adapter may additionally accept an existing ItemHandle and must retain its restore/epoch refusal.",
+        "semantics": [
+          "Bind source actor through ACT15 and exact chosen lot through ACT16. Destination must already exist and have an initialized inventory. Do not initialize it or select a lot by base/count.",
+          "Call existing transfer_item exactly once on the private World. Transfer the whole lot with its canonical identity and complete facts; do not split, merge or implement a second transaction layer.",
+          "This is an explicit engineering inventory action, not death loot, theft permissions, pickup distance, barter, ownership law or automatic gameplay availability."
+        ],
+        "acceptance": [
+          "Two same-base lots with different conditions/opaque facts exist; transfer the explicitly chosen one, retaining ID, count and every fact while the other remains untouched. Verify source/destination counts and whole cold-restored snapshot.",
+          "Distinguish uninitialized from known-empty inventory, reject wrong owner/missing lot/stale handle/invalid source/cohort/unknown destination/overflow. No refusal publishes a mutated candidate.",
+          "Same-owner no-op follows existing runtime behavior rather than inventing another revision rule. All unrelated components/events/IDs remain conserved."
+        ],
+        "non_overlap": "STATE22 owns generic atomic multi-transfer batches; this task uses the older canonical whole-lot operation as one actor-scoped consumer. ACT18 boot counts and ACT24 leveled death declarations are not reused as transfer selection rules.",
+        "common_conditions": [
+          "Every task uses reviewed existing APIs at source_base; no sibling task or untested ACT19 dependency. No new crate, dependency, source pin, save version, raw record importer, canonical identity owner or guessed retail behavior.",
+          "Implement only actor-owned files, actor-owned tests/oracle tools/docs, and declared minimal export/CLI wiring. Root owns current shared command-family files; coordinate the exact additive hunk in handoff rather than rewriting main or another family.",
+          "An observation is not reusable mutation authority. Reacquire canonical views for each application. Retained requests must bind exact campaign, complete ordered source cohort, full snapshot identity/revision and any existing private handle/epoch supplied by canonical APIs; equal-state restore invalidates old handles.",
+          "Explicit engineering requests must distinguish authored source declarations, current canonical facts and unavailable evaluated behavior. Never initialize omitted facts, select a player, infer source enable parents, choose equipment or invent cell membership.",
+          "All private candidate consumers restore an input schema4 snapshot using existing strict code, validate request and aggregate budgets before mutation, discard the candidate on every failure and emit a new snapshot only on complete success. Input World/repository/artifacts remain unchanged. Reuse the ACT18 private-candidate pattern without a second save loader.",
+          "Bound selected items/references, source visits, retained links/bytes, copied facts, serialized output and private snapshot bytes before allocation/clone; use checked arithmetic. Refuse over-budget work explicitly, never silently truncate successful results.",
+          "Acceptance includes the real owned CLI using a frozen tested executable, independently authored raw plugin bytes/canonical expectations, exact source/binary/request/artifact hashes, cold restore and complete unrelated-state conservation where a snapshot is produced. Source fixture expectations cannot be copied from earlier successful output. Preserve failed attempts.",
+          "No original game launch or newly measured retail behavior is needed for these engineering contracts. Existing source parsers and pinned schema evidence remain the only raw layout authorities. Original inputs remain read-only."
+        ],
+        "boundary_status": "Coordinator preauthorizes this exact existing-API owned consumer and minimal declared export/CLI wiring; no new grants required.",
+        "boundary_authorized_by": "coordinator; reviewed source-backed refill11",
+        "delivery": "Commit a small tested handoff, keep full-vision Goal active, then select the next ready task without acknowledgment. STOP overrides immediately."
+      },
+      {
+        "id": "V3-ACT-32",
+        "state": "ready",
+        "priority": 4,
+        "title": "Apply explicit canonical equipment-slot metadata without selecting equipment",
+        "depends_on": [],
+        "production_gap": "Current actor equipment APIs only observe an exact lot. There is no actor-source-qualified consumer for an explicit replacement of that lot's already-defined equipped_slots metadata, needed before a host can display authored equipment state.",
+        "consumer": "A headless equipment-facts command produces current canonical metadata that existing selected-item/model consumers can observe, without inventing which item or slot should be equipped.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/equipment_intent.rs",
+          "crates/fallout-runtime/src/actor_rules/mod.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules_equipment_intent.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-rules.md"
+        ],
+        "existing_apis": [
+          "actor_rules::context::observe",
+          "actor_rules::equipment::observe",
+          "inventory::Facts::equipped_slots, inventory.rs:52 onward",
+          "World::replace_item_facts, inventory.rs:487",
+          "inventory facts validator, inventory.rs:588 onward"
+        ],
+        "proposed_boundary": "Add apply_private(input_snapshot, catalogue, content, actor_catalogues, actor_id, exact_item_id, supplied_slots: Option<Vec<u16>>, expected_snapshot_sha256, EngineeringIntent, limits) -> CandidateSnapshot. Clone only the admitted selected Facts, replace only equipped_slots, and call canonical replace_item_facts.",
+        "semantics": [
+          "Preserve None versus Some(empty). Existing canonical validation rejects duplicate supplied slots but does not require sorted order; retain caller order and arbitrary valid u16 values without inventing a retail slot mapping.",
+          "All other Facts fields remain byte/word-equivalent, including base, ownership, condition, ammo, modification order, quest flag, script linkage and opaque extras.",
+          "No choose-best-item, BMDT/weapon-mask interpretation, automatic unequip of other lots, slot-conflict policy, animation change or retail equipped-effect claim."
+        ],
+        "acceptance": [
+          "Actual CLI proves None, known-empty and non-sorted unique slot vectors round-trip exactly through strict cold restore, while duplicate slots refuse through the existing validator.",
+          "An actor with two same-base lots changes only the selected lot's equipped_slots; every other fact, count, ID, owner and unrelated state remains identical apart from existing revision behavior.",
+          "Wrong owner/source/cohort, stale input snapshot, missing lot and aggregate copy/link/output limits fail with no published result. Equal-value replacement follows the current canonical revision contract."
+        ],
+        "non_overlap": "ACT08/16/27 select/project model and canonical facts without mutating them. Runtime retains all schema/validation/state ownership. This adds a bounded actor consumer only.",
+        "common_conditions": [
+          "Every task uses reviewed existing APIs at source_base; no sibling task or untested ACT19 dependency. No new crate, dependency, source pin, save version, raw record importer, canonical identity owner or guessed retail behavior.",
+          "Implement only actor-owned files, actor-owned tests/oracle tools/docs, and declared minimal export/CLI wiring. Root owns current shared command-family files; coordinate the exact additive hunk in handoff rather than rewriting main or another family.",
+          "An observation is not reusable mutation authority. Reacquire canonical views for each application. Retained requests must bind exact campaign, complete ordered source cohort, full snapshot identity/revision and any existing private handle/epoch supplied by canonical APIs; equal-state restore invalidates old handles.",
+          "Explicit engineering requests must distinguish authored source declarations, current canonical facts and unavailable evaluated behavior. Never initialize omitted facts, select a player, infer source enable parents, choose equipment or invent cell membership.",
+          "All private candidate consumers restore an input schema4 snapshot using existing strict code, validate request and aggregate budgets before mutation, discard the candidate on every failure and emit a new snapshot only on complete success. Input World/repository/artifacts remain unchanged. Reuse the ACT18 private-candidate pattern without a second save loader.",
+          "Bound selected items/references, source visits, retained links/bytes, copied facts, serialized output and private snapshot bytes before allocation/clone; use checked arithmetic. Refuse over-budget work explicitly, never silently truncate successful results.",
+          "Acceptance includes the real owned CLI using a frozen tested executable, independently authored raw plugin bytes/canonical expectations, exact source/binary/request/artifact hashes, cold restore and complete unrelated-state conservation where a snapshot is produced. Source fixture expectations cannot be copied from earlier successful output. Preserve failed attempts.",
+          "No original game launch or newly measured retail behavior is needed for these engineering contracts. Existing source parsers and pinned schema evidence remain the only raw layout authorities. Original inputs remain read-only."
+        ],
+        "boundary_status": "Coordinator preauthorizes this exact existing-API owned consumer and minimal declared export/CLI wiring; no new grants required.",
+        "boundary_authorized_by": "coordinator; reviewed source-backed refill11",
+        "delivery": "Commit a small tested handoff, keep full-vision Goal active, then select the next ready task without acknowledgment. STOP overrides immediately."
+      },
+      {
+        "id": "V3-ACT-33",
+        "state": "ready",
+        "priority": 6,
+        "title": "Join explicit current actor pairs to directed faction relation inputs",
+        "depends_on": [],
+        "production_gap": "Existing faction Requests accepts an explicit subject but checks only its existence/origin, and emits each source faction's relations without binding both endpoints to exact current actor bases. A pair-scoped request is missing for dialogue/AI consumers.",
+        "consumer": "A headless current-actor-pair request returns exact directed physical SNAM/FACT XNAM inputs relevant to the two selected references, ready for a future measured reaction evaluator.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/faction_pair.rs",
+          "crates/fallout-runtime/src/actor_rules/mod.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules_faction_pair.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-rules.md"
+        ],
+        "existing_apis": [
+          "actor_rules::context::observe for each endpoint",
+          "actor_rules::factions::Requests::prepare and observe, factions.rs:167,334",
+          "actors::factions::Value::Relation",
+          "existing actor association physical SNAM declarations"
+        ],
+        "proposed_boundary": "Add observe_pair(world, content, placements, actors, associations, factions, from_reference, to_reference, limits) -> DirectedPairInputs. Derive each actor key from ACT15 and join source faction relation targets only to the other explicit actor's physical faction occurrences.",
+        "semantics": [
+          "Retain directed source relation order, source and target physical occurrence indices, repeated memberships/ranks, raw signed modifier and raw reaction word. Build a bounded target-key index rather than unrestricted pairwise scanning.",
+          "Preserve template ambiguity, unresolved references and unsupported current membership as explicit unavailable inputs. Matching physical declarations are not effective membership or an evaluated reaction.",
+          "Do not sum modifiers, infer symmetric hostility/friendship, supply same-faction defaults or evaluate disposition, reputation or combat."
+        ],
+        "acceptance": [
+          "Authored actor A has repeated faction X and Y entries, B has repeated Z; X->Z and Z->X have distinct signed modifiers/reaction words. Independently derive all exact directed matching occurrence tuples, preserving multiplicity and order.",
+          "An explicit reference to a different base with similar source headers refuses rather than lending its origin to another actor's Requests. Campaign/cohort/override changes and restored stale handles are rejected or freshly rebound.",
+          "Large repeated endpoint memberships cannot exceed checked relation-pair/output budgets or cause unbounded cartesian allocation. Source and complete canonical snapshots remain unchanged."
+        ],
+        "non_overlap": "ACT07 produces individual actor faction declarations; ACT20 emits AIDT/CSTY and ACT21 emits initialization declarations. This is a new two-current-reference join, not a second source census or reaction evaluator.",
+        "common_conditions": [
+          "Every task uses reviewed existing APIs at source_base; no sibling task or untested ACT19 dependency. No new crate, dependency, source pin, save version, raw record importer, canonical identity owner or guessed retail behavior.",
+          "Implement only actor-owned files, actor-owned tests/oracle tools/docs, and declared minimal export/CLI wiring. Root owns current shared command-family files; coordinate the exact additive hunk in handoff rather than rewriting main or another family.",
+          "An observation is not reusable mutation authority. Reacquire canonical views for each application. Retained requests must bind exact campaign, complete ordered source cohort, full snapshot identity/revision and any existing private handle/epoch supplied by canonical APIs; equal-state restore invalidates old handles.",
+          "Explicit engineering requests must distinguish authored source declarations, current canonical facts and unavailable evaluated behavior. Never initialize omitted facts, select a player, infer source enable parents, choose equipment or invent cell membership.",
+          "All private candidate consumers restore an input schema4 snapshot using existing strict code, validate request and aggregate budgets before mutation, discard the candidate on every failure and emit a new snapshot only on complete success. Input World/repository/artifacts remain unchanged. Reuse the ACT18 private-candidate pattern without a second save loader.",
+          "Bound selected items/references, source visits, retained links/bytes, copied facts, serialized output and private snapshot bytes before allocation/clone; use checked arithmetic. Refuse over-budget work explicitly, never silently truncate successful results.",
+          "Acceptance includes the real owned CLI using a frozen tested executable, independently authored raw plugin bytes/canonical expectations, exact source/binary/request/artifact hashes, cold restore and complete unrelated-state conservation where a snapshot is produced. Source fixture expectations cannot be copied from earlier successful output. Preserve failed attempts.",
+          "No original game launch or newly measured retail behavior is needed for these engineering contracts. Existing source parsers and pinned schema evidence remain the only raw layout authorities. Original inputs remain read-only."
+        ],
+        "boundary_status": "Coordinator preauthorizes this exact existing-API owned consumer and minimal declared export/CLI wiring; no new grants required.",
+        "boundary_authorized_by": "coordinator; reviewed source-backed refill11",
+        "delivery": "Commit a small tested handoff, keep full-vision Goal active, then select the next ready task without acknowledgment. STOP overrides immediately."
+      },
+      {
+        "id": "V3-ACT-34",
+        "state": "ready",
+        "priority": 5,
+        "title": "Prepare bounded selected actor contexts with shared source admission",
+        "depends_on": [],
+        "production_gap": "ACT15 validates and projects source context independently for each reference. A visible actor group with many references to one base repeats cohort admission and source projection, with no aggregate batch work/copy bound or shared source table.",
+        "consumer": "An explicit selected-reference batch CLI and later actor frame host obtain exact per-reference contexts while retaining each unique base declaration once and sharing a bounded immutable source admission.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/context_batch.rs",
+          "crates/fallout-runtime/src/actor_rules/context.rs",
+          "crates/fallout-runtime/src/actor_rules/mod.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules_context_batch.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-rules.md"
+        ],
+        "existing_apis": [
+          "actor_rules::context::observe and its existing source/placement/base validation",
+          "placements::Catalogue::get",
+          "actors::Catalogue source/key accessors",
+          "World::reference_view"
+        ],
+        "proposed_boundary": "Add observe_batch(world, content, placements, actors, explicitly_selected_reference_ids, BatchLimits) -> ContextBatch. Factor the existing single-context checks into a private immutable admitted-source helper shared by single and batch paths; keep existing single output/refusal behavior. Batch holds ordered per-reference views and a deduplicated borrowed base-source table.",
+        "semantics": [
+          "Reject duplicate requested IDs explicitly, preserve accepted request order and check all selected joins before publishing the batch. Never discover or initialize extra references.",
+          "Source table deduplication is keyed by exact canonical FormKey plus bound winning source identity, not numeric local ID or display name. Per-reference current state and authored placement remain distinct even when bases are shared.",
+          "Charge all visited source fields and retained/output bytes cumulatively. An unavailable canonical component is an explicit context value, while a nonactor or inconsistent source join refuses the whole request. No reusable mutation authority is exported."
+        ],
+        "acceptance": [
+          "A literal selected list mixes NPC/CREA, repeated bases, differing source/current poses and absent/disabled state. Complete output must match independent raw-source and schema4 expectations, with one shared base row per exact source and correct per-reference indices.",
+          "Permuting the list permutes only the per-reference projection; source-sharing identity remains deterministic. Duplicate IDs, malformed late reference and aggregate overflow refuse without partial output.",
+          "Demonstrate a batch of many same-base placements visits/adopts the source cohort once and retains one base projection, using measured structural counters and a literal bound rather than timing claims. Single-context existing behavior remains unchanged."
+        ],
+        "non_overlap": "STATE15/23 own canonical paging; this is not a second pager. It adds bounded actor-specific ACHR/ACRE->NPC/CREA source joins for an explicit selected set. It requires neither ACT29 nor a renderer or event scheduler.",
+        "common_conditions": [
+          "Every task uses reviewed existing APIs at source_base; no sibling task or untested ACT19 dependency. No new crate, dependency, source pin, save version, raw record importer, canonical identity owner or guessed retail behavior.",
+          "Implement only actor-owned files, actor-owned tests/oracle tools/docs, and declared minimal export/CLI wiring. Root owns current shared command-family files; coordinate the exact additive hunk in handoff rather than rewriting main or another family.",
+          "An observation is not reusable mutation authority. Reacquire canonical views for each application. Retained requests must bind exact campaign, complete ordered source cohort, full snapshot identity/revision and any existing private handle/epoch supplied by canonical APIs; equal-state restore invalidates old handles.",
+          "Explicit engineering requests must distinguish authored source declarations, current canonical facts and unavailable evaluated behavior. Never initialize omitted facts, select a player, infer source enable parents, choose equipment or invent cell membership.",
+          "All private candidate consumers restore an input schema4 snapshot using existing strict code, validate request and aggregate budgets before mutation, discard the candidate on every failure and emit a new snapshot only on complete success. Input World/repository/artifacts remain unchanged. Reuse the ACT18 private-candidate pattern without a second save loader.",
+          "Bound selected items/references, source visits, retained links/bytes, copied facts, serialized output and private snapshot bytes before allocation/clone; use checked arithmetic. Refuse over-budget work explicitly, never silently truncate successful results.",
+          "Acceptance includes the real owned CLI using a frozen tested executable, independently authored raw plugin bytes/canonical expectations, exact source/binary/request/artifact hashes, cold restore and complete unrelated-state conservation where a snapshot is produced. Source fixture expectations cannot be copied from earlier successful output. Preserve failed attempts.",
+          "No original game launch or newly measured retail behavior is needed for these engineering contracts. Existing source parsers and pinned schema evidence remain the only raw layout authorities. Original inputs remain read-only."
+        ],
+        "boundary_status": "Coordinator preauthorizes this exact existing-API owned consumer and minimal declared export/CLI wiring; no new grants required.",
+        "boundary_authorized_by": "coordinator; reviewed source-backed refill11",
+        "delivery": "Commit a small tested handoff, keep full-vision Goal active, then select the next ready task without acknowledgment. STOP overrides immediately."
       }
     ],
     "assets": [
@@ -3143,7 +3488,7 @@
       },
       {
         "id": "V3-ASSET-22",
-        "state": "handed_off_review_pending",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Produce source-bound partition draw and influence streams",
         "gap": "NiSkinPartition is already decoded into palette, vertex map, flat weight words, raw local bone indices, triangle/strip arrays and presence fields. There is no source-qualified draw/influence stream producer for presentation; ASSET18 CSR derives SkinData weights, which is a distinct source stream.",
@@ -3179,11 +3524,46 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
-        "scope_note": "Tested source producer handoff exists; independent review in progress. Do not repeat as new task; correctness corrections remain allowed."
+        "scope_note": "Independent review GO and exact producer mapped in batch10; fresh combined checks pending. CPU engineering scope only; no original animation or gameplay parity claim.",
+        "reviewed_mapping": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-22",
+            "original": "435081ad474e48a70bfffed139cf065f18551f68",
+            "integrated": "32393c8c68ec097b42afab3701fa67b694b5e5dc",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset22-review-01\\review.json",
+              "bytes": 2541,
+              "sha256": "937d5d1b0d2997bf1ec11134183658a201e6fbcb3ff8771f06d4a42cba8f9c96"
+            }
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-23",
+            "original": "0784c9249cab04665077c6090d7a097da37d720d",
+            "integrated": "5ce74324ca2e78b91d5322668e4c8ca1872b4b21",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset23-review-01\\review.json",
+              "bytes": 3321,
+              "sha256": "2b04bbab10ad39e9e8b8568e01648f43b622606de1f4dfde62c06d2c6830ef10"
+            }
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-24",
+            "original": "29d8e341208fd9edefa75e6457ef8eb943cf801b",
+            "integrated": "a3872f436cd2cef2bed08399e31944e41012582e",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset24-review-01\\review.json",
+              "bytes": 7280,
+              "sha256": "98df67cbbe7f5daed49334df0721d77753bde22d60bb2450c6ee08c3324ee35b"
+            }
+          }
+        ]
       },
       {
         "id": "V3-ASSET-23",
-        "state": "handed_off_review_pending",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Evaluate an explicitly selected partition mesh from the existing palette",
         "gap": "Current skin pose evaluates the geometry arrays as a whole, while partition decoder exposes source vertex maps and faces separately. There is no actual selected partition deformation output for a body-part draw consumer.",
@@ -3219,11 +3599,46 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
-        "scope_note": "Tested source producer handoff exists; independent review in progress. Do not repeat as new task; correctness corrections remain allowed."
+        "scope_note": "Independent review GO and exact producer mapped in batch10; fresh combined checks pending. CPU engineering scope only; no original animation or gameplay parity claim.",
+        "reviewed_mapping": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-22",
+            "original": "435081ad474e48a70bfffed139cf065f18551f68",
+            "integrated": "32393c8c68ec097b42afab3701fa67b694b5e5dc",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset22-review-01\\review.json",
+              "bytes": 2541,
+              "sha256": "937d5d1b0d2997bf1ec11134183658a201e6fbcb3ff8771f06d4a42cba8f9c96"
+            }
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-23",
+            "original": "0784c9249cab04665077c6090d7a097da37d720d",
+            "integrated": "5ce74324ca2e78b91d5322668e4c8ca1872b4b21",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset23-review-01\\review.json",
+              "bytes": 3321,
+              "sha256": "2b04bbab10ad39e9e8b8568e01648f43b622606de1f4dfde62c06d2c6830ef10"
+            }
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-24",
+            "original": "29d8e341208fd9edefa75e6457ef8eb943cf801b",
+            "integrated": "a3872f436cd2cef2bed08399e31944e41012582e",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset24-review-01\\review.json",
+              "bytes": 7280,
+              "sha256": "98df67cbbe7f5daed49334df0721d77753bde22d60bb2450c6ee08c3324ee35b"
+            }
+          }
+        ]
       },
       {
         "id": "V3-ASSET-24",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Resolve an explicitly sampled rigid attachment transform",
         "gap": "ASSET10 attachment::evaluate accepts StoredNiAvLocals only. ASSET03 and ASSET02 can independently produce exact sampled node transforms, but there is no source-bound pose-aware rigid attachment evaluation.",
@@ -3259,7 +3674,42 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-22",
+            "original": "435081ad474e48a70bfffed139cf065f18551f68",
+            "integrated": "32393c8c68ec097b42afab3701fa67b694b5e5dc",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset22-review-01\\review.json",
+              "bytes": 2541,
+              "sha256": "937d5d1b0d2997bf1ec11134183658a201e6fbcb3ff8771f06d4a42cba8f9c96"
+            }
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-23",
+            "original": "0784c9249cab04665077c6090d7a097da37d720d",
+            "integrated": "5ce74324ca2e78b91d5322668e4c8ca1872b4b21",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset23-review-01\\review.json",
+              "bytes": 3321,
+              "sha256": "2b04bbab10ad39e9e8b8568e01648f43b622606de1f4dfde62c06d2c6830ef10"
+            }
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-24",
+            "original": "29d8e341208fd9edefa75e6457ef8eb943cf801b",
+            "integrated": "a3872f436cd2cef2bed08399e31944e41012582e",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-asset24-review-01\\review.json",
+              "bytes": 7280,
+              "sha256": "98df67cbbe7f5daed49334df0721d77753bde22d60bb2450c6ee08c3324ee35b"
+            }
+          }
+        ]
       },
       {
         "id": "V3-ASSET-25",
@@ -3987,7 +4437,7 @@
       {
         "id": "V3-WORLD-22",
         "title": "Prepare an explicitly requested set of source grid cells under one aggregate plan budget",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "world",
         "owned_paths": [
           "crates/fallout-data/src/world/cells.rs",
@@ -4037,12 +4487,36 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\world-tasks-22-33.json",
           "sha256": "f7ac66db9cb0229f9a0aa29c26f3de86664c2a8780c6fe1b2ab4e3f169acbb6e"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-22A",
+            "original": "5559adeceea54df776ba87442b64e3edf3af3dae",
+            "integrated": "3711045eac81f248fede3638d8161bddb378f893",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-world22a-review-01\\review-handoff.json",
+              "bytes": 3684,
+              "sha256": "d09a1744accffb7e396b3c2bb9694e2447c2bde9e328ae578cb80b94a2ebae70"
+            }
+          },
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-22B",
+            "original": "531e5588751d5b86251f11bf5b92ee0dd2a6b552",
+            "integrated": "20d34dc7c5336e033d5da89bd021b719a030aaa1",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-world22b-consumers-review-01\\review-handoff.json",
+              "bytes": 1023,
+              "sha256": "72c293d8d629f3d429b9cf6d9091dbd26143c564352a87789771a8f6a6ec668c"
+            }
+          }
+        ]
       },
       {
         "id": "V3-WORLD-23",
         "title": "Request a worldspace's exact persistent CELL group without treating it as a grid cell",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "producer": "world",
         "owned_paths": [
           "crates/fallout-data/src/world/cells.rs",
@@ -4090,7 +4564,32 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-backlog-refresh-08\\world-tasks-22-33.json",
           "sha256": "f7ac66db9cb0229f9a0aa29c26f3de86664c2a8780c6fe1b2ab4e3f169acbb6e"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-23A",
+            "original": "71555de724ad931d52b074a0cf702c6df7ec0364",
+            "integrated": "d651d731e3d695820784b8b709934e3d4302cad7",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-world23-review-01\\review-handoff.json",
+              "bytes": 1914,
+              "sha256": "42a6d04223aee155668b912384699074ca05ca129bf5a63e2361ed198c5cf281"
+            }
+          },
+          {
+            "lane": "world",
+            "task_id": "V3-WORLD-23B",
+            "original": "aaa5fdd7c300562f132ce5d1caf43486a35ffdae",
+            "integrated": "036a81351de273c87eae5eab6cd01fecdea3de11",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-world23-review-01\\review-handoff.json",
+              "bytes": 1914,
+              "sha256": "42a6d04223aee155668b912384699074ca05ca129bf5a63e2361ed198c5cf281"
+            }
+          }
+        ],
+        "scope_note": "Authored persistent-cell preparation accepted; installed cohort selects exact persistent root then strictly refuses unchanged precollection node budget. No installed model plan or gameplay acceptance."
       },
       {
         "id": "V3-WORLD-24",
@@ -4839,7 +5338,7 @@
       },
       {
         "id": "V3-VIEW-17",
-        "state": "ready",
+        "state": "reviewed_integrated_producer",
         "title": "Resolve explicit menu entity inputs without invented values",
         "gap": "Document retains EntityReference nodes and raw escaped attributes; all text consumers currently lack a bounded way to distinguish unresolved custom entities from supplied values.",
         "owned_paths": [
@@ -4864,7 +5363,20 @@
         "proposal_identity": {
           "path": "G:\\Rust-Fallout\\local\\coordinator-view09-review-01\\backlog-proposal.json",
           "sha256": "3ea8acb46c5b93e935ed076c24a8b3f8a8f13d9f85cac5317724f777e3fb13bf"
-        }
+        },
+        "reviewed_mapping": [
+          {
+            "lane": "presentation",
+            "task_id": "V3-VIEW-17",
+            "original": "f7690c15d26fd5fe26f67f214cddcc1d0d42bb2c",
+            "integrated": "c74dad1f7bf9275e0de14febc5265c46837daeeb",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-view17-review-01\\review-handoff.json",
+              "bytes": 2975,
+              "sha256": "f6f85beb31f93229cce085bce8dc6d571f75b0da1c4f56f294d99528f79a6ee8"
+            }
+          }
+        ]
       },
       {
         "id": "V3-VIEW-18",
@@ -5327,7 +5839,7 @@
       },
       {
         "id": "V3-PHYS-16",
-        "state": "completed_producer",
+        "state": "reviewed_integrated_producer",
         "depends_on": [],
         "title": "Bind selected collision placements to current canonical reference identity",
         "gap": "BodyPlacement accepts a ReferenceId and caller frame directly. Cell admission verifies model SHA/ticket, but neither checks the ReferenceId against World::reference_origin/authored_reference nor joins it to the exact winning placed/base source record. Whole-cell and canonical movement remain unavailable.",
@@ -5365,7 +5877,20 @@
         "published_reference_dependency": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9; existing current reference-state producer, consume once at a clean task boundary if needed.",
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_mapping": [
+          {
+            "lane": "physics",
+            "task_id": "V3-PHYS-16",
+            "original": "d6181ebb30ae6cea4d6db5b3c19949f9224a3837",
+            "integrated": "35fefa71907b52578406bf39e1b1da4991a0550f",
+            "review": {
+              "path": "G:\\Rust-Fallout\\local\\coordinator-phys16-review-01\\review.json",
+              "bytes": 2870,
+              "sha256": "4b7d6214dc8a1a96ada648883059bdb014120bc0534e021642f77c3be873695a"
+            }
+          }
+        ]
       },
       {
         "id": "V3-PHYS-17",
@@ -6005,7 +6530,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T10:33:59.895875+00:00",
+  "updated_at": "2026-10-04T11:31:15.536055+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

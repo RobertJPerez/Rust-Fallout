@@ -41,13 +41,15 @@ use std::{
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies", "menu_rectangles"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies", "menu_rectangles", "menu_image"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
     #[arg(skip)]
     native_shutdown: native::Shutdown,
     #[arg(skip)]
     rectangle_request: Option<Arc<ui::rectangles::Request>>,
+    #[arg(skip)]
+    image_request: Option<Arc<ui::images::Request>>,
     #[arg(long)]
     install: Option<PathBuf>,
     /// Archive path, for example meshes/furniture/chair01.nif.
@@ -77,6 +79,9 @@ struct Options {
     /// Exact literal rectangle subtree under a mandatory caller inspection policy.
     #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["camera_position", "camera_look_at"])]
     menu_rectangles: Option<PathBuf>,
+    /// Exact source image tile and DDS identities with explicit UV/sampling policy.
+    #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["camera_position", "camera_look_at"])]
+    menu_image: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -129,6 +134,21 @@ struct Options {
     headless: bool,
     #[arg(long)]
     report: Option<PathBuf>,
+}
+
+impl Options {
+    fn tile_viewport(&self) -> Option<&ui::rectangles::Viewport> {
+        self.rectangle_request
+            .as_ref()
+            .map(|r| &r.viewport)
+            .or_else(|| self.image_request.as_ref().map(|r| &r.viewport))
+    }
+    fn tile_camera(&self) -> Option<(Transform, Projection)> {
+        self.rectangle_request
+            .as_ref()
+            .map(|r| ui::rectangles::camera(r))
+            .or_else(|| self.image_request.as_ref().map(|r| ui::images::camera(r)))
+    }
 }
 
 #[derive(Resource)]
@@ -338,6 +358,12 @@ fn run() -> model::Result<AppExit> {
             ui::rectangles::Limits::default(),
         )?));
     }
+    if let Some(path) = &options.menu_image {
+        options.image_request = Some(Arc::new(ui::images::read_request(
+            path,
+            ui::images::Limits::default(),
+        )?));
+    }
     if let Some(path) = &options.menu_dependencies {
         let limits = ui::dependencies::Limits::default();
         let request = ui::dependencies::read_request(path, limits)?;
@@ -470,8 +496,8 @@ fn run() -> model::Result<AppExit> {
         fly: options.camera_position.is_some(),
         home: if options.material_fixture {
             Transform::from_xyz(0., 0., 1000.).looking_at(Vec3::ZERO, Vec3::Y)
-        } else if let Some(request) = &options.rectangle_request {
-            ui::rectangles::camera(request).0
+        } else if let Some((camera, _)) = options.tile_camera() {
+            camera
         } else {
             orbit.transform()
         },
@@ -481,11 +507,10 @@ fn run() -> model::Result<AppExit> {
             primary_window: (!headless).then(|| Window {
                 title: "Fallout Rust - Loading source data".into(),
                 resolution: options
-                    .rectangle_request
-                    .as_ref()
-                    .map_or((1280, 900), |r| (r.viewport.width, r.viewport.height))
+                    .tile_viewport()
+                    .map_or((1280, 900), |r| (r.width, r.height))
                     .into(),
-                resizable: options.rectangle_request.is_none(),
+                resizable: options.tile_viewport().is_none(),
                 ..default()
             }),
             exit_condition: if headless {
@@ -503,14 +528,12 @@ fn run() -> model::Result<AppExit> {
         plugins = plugins.disable::<WinitPlugin>();
     }
     let mut app = App::new();
-    let background =
-        options
-            .rectangle_request
-            .as_ref()
-            .map_or(Color::srgb(0.035, 0.045, 0.055), |r| {
-                let [red, green, blue, alpha] = r.viewport.background;
-                Color::srgba(red, green, blue, alpha)
-            });
+    let background = options
+        .tile_viewport()
+        .map_or(Color::srgb(0.035, 0.045, 0.055), |r| {
+            let [red, green, blue, alpha] = r.background;
+            Color::srgba(red, green, blue, alpha)
+        });
     app.add_plugins(plugins)
         .add_plugins(material::InspectionPlugin)
         .add_plugins(input::InspectionInputPlugin)
@@ -543,6 +566,45 @@ fn prepare_scene(
     epoch: u64,
 ) -> model::Result<ReadyScene> {
     context.stage("Reading source data")?;
+    if let Some(request) = &options.image_request {
+        let limits = ui::images::Limits::default();
+        let (prepared, report, view) = ui::images::load(
+            options
+                .install
+                .as_deref()
+                .expect("image requires installation"),
+            request,
+            limits,
+            context,
+            epoch,
+        )?;
+        context.stage("Preparing bounded source image upload")?;
+        let orbit = Orbit {
+            center: prepared.center,
+            radius: prepared.radius,
+            yaw: 0.,
+            pitch: 0.,
+            distance: prepared.radius * 3.,
+        };
+        let (home, projection) = ui::images::camera(request);
+        let queue = upload::Queue::new_image(epoch, prepared, view)?;
+        write_tile_report(
+            options.report.as_deref().expect("image requires report"),
+            context,
+            |writer| ui::images::write_report(writer, &report, limits.literal.output_bytes),
+        )?;
+        eprintln!(
+            "Exact source image: {}x{} DDS, {} retained bytes; explicit UV/sampling policy",
+            report.texture.width, report.texture.height, report.texture.retained_bytes
+        );
+        return Ok(ReadyScene {
+            upload: DrawScene { queue, cell: None },
+            orbit,
+            navigation: Navigation { fly: false, home },
+            fixture: None,
+            projection: Some(projection),
+        });
+    }
     if let Some(request) = &options.rectangle_request {
         let limits = ui::rectangles::Limits::default();
         let (prepared, report, views) = ui::rectangles::load(
@@ -566,13 +628,14 @@ fn prepare_scene(
         let (home, projection) = ui::rectangles::camera(request);
         let queue = upload::Queue::new_tiles(epoch, prepared, views)?;
         context.check()?;
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(options.report.as_ref().expect("rectangles require report"))?;
-        ui::rectangles::write_report(&mut file, &report, limits.output_bytes)?;
-        file.sync_all()?;
-        context.check()?;
+        write_tile_report(
+            options
+                .report
+                .as_deref()
+                .expect("rectangles require report"),
+            context,
+            |writer| ui::rectangles::write_report(writer, &report, limits.output_bytes),
+        )?;
         eprintln!(
             "{} exact literal source rectangles; fixed caller inspection viewport",
             report.plan.rectangles.len()
@@ -726,6 +789,24 @@ fn prepare_scene(
             None
         },
     })
+}
+
+fn write_tile_report(
+    path: &Path,
+    context: &loading::Context,
+    write: impl FnOnce(&mut Vec<u8>) -> model::Result<()>,
+) -> model::Result<()> {
+    context.check()?;
+    // The existing writer counts the complete bounded JSON before retaining it.
+    // Semantic output admission finishes off-thread before create_new.
+    let mut bytes = Vec::new();
+    write(&mut bytes)?;
+    context.check()?;
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    context.check()?;
+    Ok(())
 }
 
 #[expect(
@@ -1032,8 +1113,8 @@ fn setup(
             Camera3d::default(),
             Tonemapping::None,
             navigation.home,
-            if let Some(request) = &options.rectangle_request {
-                ui::rectangles::camera(request).1
+            if let Some((_, projection)) = options.tile_camera() {
+                projection
             } else if options.material_fixture {
                 Projection::Orthographic(OrthographicProjection {
                     scaling_mode: ScalingMode::Fixed {
@@ -1051,7 +1132,7 @@ fn setup(
                     ..default()
                 })
             },
-            if options.material_fixture || options.rectangle_request.is_some() {
+            if options.material_fixture || options.tile_viewport().is_some() {
                 Msaa::Off
             } else {
                 Msaa::default()
@@ -1061,14 +1142,8 @@ fn setup(
     let target = if options.headless {
         let mut image = Image::new_uninit(
             Extent3d {
-                width: options
-                    .rectangle_request
-                    .as_ref()
-                    .map_or(1280, |r| r.viewport.width),
-                height: options
-                    .rectangle_request
-                    .as_ref()
-                    .map_or(900, |r| r.viewport.height),
+                width: options.tile_viewport().map_or(1280, |r| r.width),
+                height: options.tile_viewport().map_or(900, |r| r.height),
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
@@ -1112,7 +1187,7 @@ fn controls(
         exit.write(AppExit::Success);
         return;
     }
-    if options.rectangle_request.is_some() {
+    if options.tile_viewport().is_some() {
         return;
     }
     let delta = time.delta_secs().min(0.1);

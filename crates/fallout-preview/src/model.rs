@@ -685,6 +685,17 @@ fn from_texture_source(
 }
 
 pub fn decode_diffuse(bytes: &[u8], clamp: u32) -> Result<Image> {
+    decode_diffuse_bounded(bytes, clamp, u64::MAX, 128 * 1024 * 1024)
+}
+
+/// The selected tile consumer has tighter input/mip-texel limits. Header,
+/// format and payload interpretation remain in this single existing adapter.
+pub fn decode_diffuse_bounded(
+    bytes: &[u8],
+    clamp: u32,
+    max_pixels: u64,
+    max_bytes: usize,
+) -> Result<Image> {
     // Avoid trusting a DDS header with unbounded dimensions before it reaches
     // the image library or GPU. No custom pixel decompressor lives here.
     if bytes.len() < 128 || &bytes[..4] != b"DDS " {
@@ -697,6 +708,8 @@ pub fn decode_diffuse(bytes: &[u8], clamp: u32) -> Result<Image> {
         || width > 16384
         || height > 16384
         || bytes.len() > 128 * 1024 * 1024
+        || bytes.len() > max_bytes
+        || u64::from(width) * u64::from(height) > max_pixels
     {
         return Err("DDS exceeds preview dimensions or byte budget".into());
     }
@@ -735,6 +748,14 @@ pub fn decode_diffuse(bytes: &[u8], clamp: u32) -> Result<Image> {
     let levels = image.texture_descriptor.mip_level_count;
     if levels == 0 || levels > width.max(height).ilog2() + 1 {
         return Err("invalid DDS mip count".into());
+    }
+    let pixels = (0..levels)
+        .try_fold(0u64, |total, mip| {
+            total.checked_add(u64::from((width >> mip).max(1)) * u64::from((height >> mip).max(1)))
+        })
+        .ok_or("DDS mip texel count overflow")?;
+    if pixels > max_pixels {
+        return Err("DDS exceeds selected image mip texel budget".into());
     }
     let expected: usize = (0..levels)
         .map(|mip| {

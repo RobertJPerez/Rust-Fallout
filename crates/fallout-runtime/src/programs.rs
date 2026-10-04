@@ -10,7 +10,7 @@ use fallout_data::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
+use std::{iter::Peekable, sync::Arc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -65,6 +65,8 @@ pub struct Counts {
 pub enum Error {
     #[error("prepared-source catalogue budget exceeded: {0}")]
     Capacity(&'static str),
+    #[error("source preparation is incomplete: {remaining_definitions} definitions remain")]
+    Incomplete { remaining_definitions: usize },
     #[error(transparent)]
     State(#[from] crate::Error),
 }
@@ -102,7 +104,7 @@ struct Entry<'a> {
 }
 
 /// All source borrows belong to the immutable input catalogue. Construction is
-/// eager and atomic; there is no mutable cache or self-referential allocation.
+/// atomic; there is no mutable public cache or self-referential allocation.
 /// Worlds may share it while retaining independent live values and journals.
 pub struct PreparedSources<'a> {
     catalogue: &'a Catalogue,
@@ -111,6 +113,130 @@ pub struct PreparedSources<'a> {
     entries: Vec<Entry<'a>>,
     absent: Arc<definition_plan::Error>,
     counts: Counts,
+}
+
+/// Cooperative allowances for one call, in addition to the existing total and
+/// per-definition limits. A definition is indivisible: an oversized next body
+/// yields without decoding it. Zero allowances are valid and cannot busy-loop.
+#[derive(Debug, Clone, Copy)]
+pub struct StepBudget {
+    pub maximum_definitions: usize,
+    pub maximum_source_bytes: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PreparationStatus {
+    Pending,
+    Complete,
+    Failed,
+}
+
+/// Historical counters only. This grants neither cached-plan access nor
+/// execution authority, even when status is complete. Consume `finish` first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Progress {
+    pub status: PreparationStatus,
+    pub processed_definitions: usize,
+    pub step_definitions: usize,
+    pub step_source_bytes: usize,
+    pub next_definition_bytes: Option<usize>,
+    pub counts: Counts,
+}
+
+/// Privately accumulates the same immutable plans as `PreparedSources::load`.
+/// Dropping this value cancels; failure/incompletion cannot expose its cache.
+/// Setup checks/hashes the bounded catalogue and decoder up front. `advance`
+/// provides boundaries between definitions, not a hard wall-clock time slice.
+pub struct PreparationJob<'a, 'm, 'o> {
+    sources: PreparedSources<'a>,
+    model: &'m Model<'o>,
+    signatures: &'m Signatures,
+    limits: Limits,
+    pending: Peekable<Box<dyn Iterator<Item = &'a LoadedScript> + 'a>>,
+    status: PreparationStatus,
+    processed: usize,
+    failure: Option<Error>,
+}
+
+impl<'a, 'm, 'o> PreparationJob<'a, 'm, 'o> {
+    pub fn new(
+        catalogue: &'a Catalogue,
+        model: &'m Model<'o>,
+        signatures: &'m Signatures,
+        limits: Limits,
+    ) -> Result<Self, Error> {
+        let sources = PreparedSources::initialize(catalogue, model, signatures, limits)?;
+        let status = if sources.counts.definitions == 0 {
+            PreparationStatus::Complete
+        } else {
+            PreparationStatus::Pending
+        };
+        let pending: Box<dyn Iterator<Item = &'a LoadedScript> + 'a> =
+            Box::new(catalogue.iter().map(|(_, source)| source));
+        Ok(Self {
+            sources,
+            model,
+            signatures,
+            limits,
+            pending: pending.peekable(),
+            status,
+            processed: 0,
+            failure: None,
+        })
+    }
+
+    pub fn advance(&mut self, budget: StepBudget) -> Progress {
+        let mut step_definitions = 0;
+        let mut step_source_bytes = 0;
+        while self.status == PreparationStatus::Pending {
+            let Some(source) = self.pending.peek() else {
+                self.status = PreparationStatus::Complete;
+                break;
+            };
+            let bytes = source.compiled().map_or(0, <[u8]>::len);
+            if step_definitions == budget.maximum_definitions
+                || bytes > budget.maximum_source_bytes - step_source_bytes
+            {
+                break;
+            }
+            let source = self.pending.next().expect("peeked definition");
+            step_definitions += 1;
+            step_source_bytes += bytes;
+            self.processed += 1;
+            if let Err(error) =
+                self.sources
+                    .prepare_one(source, self.model, self.signatures, self.limits)
+            {
+                self.failure = Some(error);
+                self.status = PreparationStatus::Failed;
+            }
+        }
+        Progress {
+            status: self.status,
+            processed_definitions: self.processed,
+            step_definitions,
+            step_source_bytes,
+            next_definition_bytes: if self.status == PreparationStatus::Pending {
+                self.pending
+                    .peek()
+                    .map(|s| s.compiled().map_or(0, <[u8]>::len))
+            } else {
+                None
+            },
+            counts: self.sources.counts.clone(),
+        }
+    }
+
+    pub fn finish(self) -> Result<PreparedSources<'a>, Error> {
+        match self.status {
+            PreparationStatus::Complete => Ok(self.sources),
+            PreparationStatus::Failed => Err(self.failure.expect("failed preparation")),
+            PreparationStatus::Pending => Err(Error::Incomplete {
+                remaining_definitions: self.sources.counts.definitions - self.processed,
+            }),
+        }
+    }
 }
 
 fn decoder_identity(
@@ -184,6 +310,20 @@ impl<'a> PreparedSources<'a> {
         signatures: &Signatures,
         limits: Limits,
     ) -> Result<Self, Error> {
+        let mut job = PreparationJob::new(catalogue, model, signatures, limits)?;
+        job.advance(StepBudget {
+            maximum_definitions: usize::MAX,
+            maximum_source_bytes: usize::MAX,
+        });
+        job.finish()
+    }
+
+    fn initialize(
+        catalogue: &'a Catalogue,
+        model: &Model<'_>,
+        signatures: &Signatures,
+        limits: Limits,
+    ) -> Result<Self, Error> {
         // Check the candidate bound before the cohort helper allocates its
         // ordered source identity projection or any cache entry is retained.
         let definitions = catalogue.iter().count();
@@ -195,108 +335,116 @@ impl<'a> PreparedSources<'a> {
         }
         let decoder_sha256 = decoder_identity(model, signatures, limits.maximum_parameters)?;
         let cohort = snapshot::cohort(catalogue)?;
-        let mut entries = Vec::new();
-        let mut counts = Counts {
-            definitions,
-            source_receipts: catalogue.sources.len(),
-            ..Counts::default()
-        };
-        for (_, source) in catalogue.iter() {
-            if source.compiled().is_none() && source.issues().is_empty() {
-                counts.absent_compiled_fields += 1;
-                continue;
-            }
-            let bytes = source.compiled().map_or(0, <[u8]>::len);
-            if bytes
-                > limits
-                    .maximum_attempted_bytes
-                    .saturating_sub(counts.attempted_source_bytes)
-            {
-                return Err(Error::Capacity("attempted source bytes"));
-            }
-            // A source rejection still consumed preparation work. It is charged
-            // once and retained; repeated event lookups never decode it again.
-            counts.attempted_source_bytes += bytes;
-            let record_bytes = source.decoded_record_bytes();
-            if record_bytes
-                > limits
-                    .maximum_attempted_record_bytes
-                    .saturating_sub(counts.attempted_record_bytes)
-            {
-                return Err(Error::Capacity("attempted owning-record bytes"));
-            }
-            counts.attempted_record_bytes += record_bytes;
-            counts.preparation_attempts += 1;
-            let mut source_limits = limits.source;
-            source_limits.control.decode.max_instructions =
-                source_limits.control.decode.max_instructions.min(
-                    limits
-                        .maximum_instructions
-                        .saturating_sub(counts.instructions),
-                );
-            source_limits.maximum_expressions = source_limits.maximum_expressions.min(
-                limits
-                    .maximum_expressions
-                    .saturating_sub(counts.expressions),
-            );
-            source_limits.maximum_tokens = source_limits
-                .maximum_tokens
-                .min(limits.maximum_tokens.saturating_sub(counts.tokens));
-            source_limits.maximum_nodes = source_limits
-                .maximum_nodes
-                .min(limits.maximum_nodes.saturating_sub(counts.nodes));
-            source_limits.maximum_operand_uses = source_limits
-                .maximum_operand_uses
-                .min(limits.maximum_uses.saturating_sub(counts.uses));
-            source_limits.expression.decoding.max_tokens = source_limits
-                .expression
-                .decoding
-                .max_tokens
-                .min(source_limits.maximum_tokens);
-            source_limits.expression.max_nodes = source_limits
-                .expression
-                .max_nodes
-                .min(source_limits.maximum_nodes);
-            let admission = match definition_plan::prepare(
-                catalogue,
-                source.handle(),
-                model,
-                signatures,
-                source_limits,
-            ) {
-                Ok(plan) => {
-                    counts.prepared += 1;
-                    counts.instructions += plan.control().instructions().len();
-                    counts.expressions += plan.statements().len();
-                    counts.tokens += plan.tokens();
-                    counts.nodes += plan.nodes();
-                    counts.uses += plan.bindings().uses.len();
-                    let binding_sha256 = operand_binding::digest(&plan.bindings().uses);
-                    Admission::Prepared(Box::new(PreparedDefinition {
-                        plan,
-                        binding_sha256,
-                    }))
-                }
-                Err(error) if resource_failure(&error) => {
-                    // Do not mislabel a caller's exhausted aggregate allowance
-                    // as an intrinsic source finding, or publish a partial cache.
-                    return Err(Error::Capacity("source preparation"));
-                }
-                Err(error) => {
-                    counts.rejected += 1;
-                    Admission::Rejected(Arc::new(error))
-                }
-            };
-            entries.push(Entry { source, admission });
-        }
         Ok(Self {
             catalogue,
             cohort,
             decoder_sha256,
-            entries,
+            entries: Vec::new(),
             absent: Arc::new(definition_plan::Error::MissingBody),
-            counts,
+            counts: Counts {
+                definitions,
+                source_receipts: catalogue.sources.len(),
+                ..Counts::default()
+            },
         })
+    }
+
+    fn prepare_one(
+        &mut self,
+        source: &'a LoadedScript,
+        model: &Model<'_>,
+        signatures: &Signatures,
+        limits: Limits,
+    ) -> Result<(), Error> {
+        let counts = &mut self.counts;
+        let catalogue = self.catalogue;
+        if source.compiled().is_none() && source.issues().is_empty() {
+            counts.absent_compiled_fields += 1;
+            return Ok(());
+        }
+        let bytes = source.compiled().map_or(0, <[u8]>::len);
+        if bytes
+            > limits
+                .maximum_attempted_bytes
+                .saturating_sub(counts.attempted_source_bytes)
+        {
+            return Err(Error::Capacity("attempted source bytes"));
+        }
+        // A source rejection still consumed preparation work. It is charged
+        // once and retained; repeated event lookups never decode it again.
+        counts.attempted_source_bytes += bytes;
+        let record_bytes = source.decoded_record_bytes();
+        if record_bytes
+            > limits
+                .maximum_attempted_record_bytes
+                .saturating_sub(counts.attempted_record_bytes)
+        {
+            return Err(Error::Capacity("attempted owning-record bytes"));
+        }
+        counts.attempted_record_bytes += record_bytes;
+        counts.preparation_attempts += 1;
+        let mut source_limits = limits.source;
+        source_limits.control.decode.max_instructions =
+            source_limits.control.decode.max_instructions.min(
+                limits
+                    .maximum_instructions
+                    .saturating_sub(counts.instructions),
+            );
+        source_limits.maximum_expressions = source_limits.maximum_expressions.min(
+            limits
+                .maximum_expressions
+                .saturating_sub(counts.expressions),
+        );
+        source_limits.maximum_tokens = source_limits
+            .maximum_tokens
+            .min(limits.maximum_tokens.saturating_sub(counts.tokens));
+        source_limits.maximum_nodes = source_limits
+            .maximum_nodes
+            .min(limits.maximum_nodes.saturating_sub(counts.nodes));
+        source_limits.maximum_operand_uses = source_limits
+            .maximum_operand_uses
+            .min(limits.maximum_uses.saturating_sub(counts.uses));
+        source_limits.expression.decoding.max_tokens = source_limits
+            .expression
+            .decoding
+            .max_tokens
+            .min(source_limits.maximum_tokens);
+        source_limits.expression.max_nodes = source_limits
+            .expression
+            .max_nodes
+            .min(source_limits.maximum_nodes);
+        let admission = match definition_plan::prepare(
+            catalogue,
+            source.handle(),
+            model,
+            signatures,
+            source_limits,
+        ) {
+            Ok(plan) => {
+                counts.prepared += 1;
+                counts.instructions += plan.control().instructions().len();
+                counts.expressions += plan.statements().len();
+                counts.tokens += plan.tokens();
+                counts.nodes += plan.nodes();
+                counts.uses += plan.bindings().uses.len();
+                let binding_sha256 = operand_binding::digest(&plan.bindings().uses);
+                Admission::Prepared(Box::new(PreparedDefinition {
+                    plan,
+                    binding_sha256,
+                }))
+            }
+            Err(error) if resource_failure(&error) => {
+                // Do not mislabel a caller's exhausted aggregate allowance
+                // as an intrinsic source finding, or publish a partial cache.
+                return Err(Error::Capacity("source preparation"));
+            }
+            Err(error) => {
+                counts.rejected += 1;
+                Admission::Rejected(Arc::new(error))
+            }
+        };
+        self.entries.push(Entry { source, admission });
+        Ok(())
     }
 
     pub fn source_cohort_sha256(&self) -> &str {

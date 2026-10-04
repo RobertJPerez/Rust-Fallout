@@ -16,7 +16,7 @@ use fallout_runtime::{
     foreign::Content,
     identity::{Owner, Value},
     preparation,
-    programs::{self, LookupError, PreparedSources},
+    programs::{self, LookupError, PreparationJob, PreparationStatus, PreparedSources, StepBudget},
 };
 use std::{fs, sync::Arc};
 
@@ -563,4 +563,449 @@ fn decoder_identity_binds_descriptors_convention_and_ordered_parameter_words() {
         ),
         Err(programs::Error::Capacity(_))
     ));
+}
+
+#[test]
+fn cooperative_steps_preserve_plans_findings_and_exact_total_accounting() {
+    let body = event(&assignment(&[b's', 2, 0]));
+    let extras = [
+        record(b"SCPT", 0x301, 0, &script(Some(&body), None, false)),
+        record(b"SCPT", 0x302, 0, &script(Some(&body), None, true)),
+        record(b"SCPT", 0x303, 0, &script(None, None, false)),
+        record(b"SCPT", 0x304, 0, &script(None, None, true)),
+    ]
+    .concat();
+    let (_directory, catalogue) = fixture(&body, &extras);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::new();
+    let eager = cache(&catalogue, Default::default()).unwrap();
+    let mut job = PreparationJob::new(&catalogue, &model, &signatures, Default::default()).unwrap();
+    let mut visited = 0;
+    let mut bytes = 0;
+    let mut calls = 0;
+    loop {
+        let progress = job.advance(StepBudget {
+            maximum_definitions: 2,
+            maximum_source_bytes: body.len(),
+        });
+        calls += 1;
+        assert!(progress.step_definitions <= 2);
+        assert!(progress.step_source_bytes <= body.len());
+        visited += progress.step_definitions;
+        bytes += progress.step_source_bytes;
+        assert_eq!(progress.processed_definitions, visited);
+        assert_eq!(progress.counts.attempted_source_bytes, bytes);
+        assert_ne!(progress.status, PreparationStatus::Failed);
+        if progress.status == PreparationStatus::Complete {
+            break;
+        }
+        assert!(progress.step_definitions > 0);
+        let unchanged = job.advance(StepBudget {
+            maximum_definitions: 0,
+            maximum_source_bytes: usize::MAX,
+        });
+        assert_eq!(unchanged.counts, progress.counts);
+        assert_eq!(unchanged.processed_definitions, visited);
+        assert_eq!(unchanged.step_definitions, 0);
+    }
+    assert!(calls >= 3);
+    let completed = job.advance(StepBudget {
+        maximum_definitions: usize::MAX,
+        maximum_source_bytes: usize::MAX,
+    });
+    assert_eq!(completed.status, PreparationStatus::Complete);
+    assert_eq!(completed.step_definitions, 0);
+    let sources = job.finish().unwrap();
+    assert_eq!(sources.counts(), eager.counts());
+    assert_eq!(sources.counts().definitions, 5);
+    assert_eq!(sources.counts().prepared, 2);
+    assert_eq!(sources.counts().rejected, 2);
+    assert_eq!(sources.counts().absent_compiled_fields, 1);
+    assert_eq!(sources.counts().preparation_attempts, 4);
+    assert_eq!(sources.source_cohort_sha256(), eager.source_cohort_sha256());
+    assert_eq!(sources.decoder_sha256(), eager.decoder_sha256());
+    for (_, source) in catalogue.iter() {
+        let fresh = definition_plan::prepare(
+            &catalogue,
+            source.handle(),
+            &model,
+            &signatures,
+            Default::default(),
+        );
+        match (fresh, sources.get(source.handle())) {
+            (Ok(fresh), Ok(cached)) => {
+                assert_eq!(fresh.control().bytes(), cached.plan().control().bytes());
+                assert_eq!(
+                    fresh.control().instructions(),
+                    cached.plan().control().instructions()
+                );
+                assert_eq!(fresh.nodes(), cached.plan().nodes());
+                assert_eq!(
+                    fallout_data::obscript::operand_binding::digest(&fresh.bindings().uses),
+                    cached.binding_sha256()
+                );
+            }
+            (Err(fresh), Err(LookupError::Source(cached))) => {
+                assert_eq!(fresh.to_string(), cached.to_string());
+                let Err(LookupError::Source(again)) = sources.get(source.handle()) else {
+                    panic!("lost cached finding");
+                };
+                assert!(Arc::ptr_eq(&cached, &again));
+            }
+            _ => panic!("cooperative plan/finding differs from the source preparer"),
+        }
+    }
+}
+
+#[test]
+fn indivisible_step_can_yield_without_work_and_incomplete_finish_refuses() {
+    let body = event(&[]);
+    let (_directory, catalogue) = fixture(&body, &[]);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::new();
+    let mut job = PreparationJob::new(&catalogue, &model, &signatures, Default::default()).unwrap();
+    for _ in 0..3 {
+        let progress = job.advance(StepBudget {
+            maximum_definitions: 1,
+            maximum_source_bytes: body.len() - 1,
+        });
+        assert_eq!(progress.status, PreparationStatus::Pending);
+        assert_eq!(progress.next_definition_bytes, Some(body.len()));
+        assert_eq!(progress.processed_definitions, 0);
+        assert_eq!(progress.counts.preparation_attempts, 0);
+    }
+    assert!(matches!(
+        job.finish(),
+        Err(programs::Error::Incomplete {
+            remaining_definitions: 1
+        })
+    ));
+    let mut cancelled =
+        PreparationJob::new(&catalogue, &model, &signatures, Default::default()).unwrap();
+    cancelled.advance(StepBudget {
+        maximum_definitions: 0,
+        maximum_source_bytes: 0,
+    });
+    drop(cancelled);
+    let fresh = cache(&catalogue, Default::default()).unwrap();
+    assert_eq!(fresh.counts().prepared, 1);
+    assert_eq!(fresh.counts().preparation_attempts, 1);
+    assert!(matches!(
+        PreparationJob::new(
+            &catalogue,
+            &model,
+            &signatures,
+            programs::Limits {
+                maximum_definitions: 0,
+                ..Default::default()
+            }
+        ),
+        Err(programs::Error::Capacity("definitions"))
+    ));
+}
+
+#[test]
+fn zero_body_and_absent_definitions_still_consume_definition_allowance() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("FalloutNV.esm"),
+        [
+            header(&[]),
+            record(b"SCPT", 0x300, 0, &script(None, None, false)),
+            record(b"SCPT", 0x301, 0, &script(None, None, true)),
+            record(b"SCPT", 0x302, 0, &script(Some(&[]), None, false)),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::new();
+    let mut job = PreparationJob::new(&catalogue, &model, &signatures, Default::default()).unwrap();
+    for processed in 1..=3 {
+        let progress = job.advance(StepBudget {
+            maximum_definitions: 1,
+            maximum_source_bytes: 0,
+        });
+        assert_eq!(progress.processed_definitions, processed);
+        assert_eq!(progress.step_definitions, 1);
+        assert_eq!(progress.step_source_bytes, 0);
+        assert_eq!(
+            progress.status,
+            if processed == 3 {
+                PreparationStatus::Complete
+            } else {
+                PreparationStatus::Pending
+            }
+        );
+    }
+    let sources = job.finish().unwrap();
+    assert_eq!(sources.counts().absent_compiled_fields, 1);
+    assert_eq!(sources.counts().rejected, 1);
+    assert_eq!(sources.counts().prepared, 1);
+    assert_eq!(sources.counts().preparation_attempts, 2);
+}
+
+#[test]
+fn failed_job_keeps_the_first_total_limit_error_and_never_resumes_preparation() {
+    let body = event(&[]);
+    let extra = record(b"SCPT", 0x301, 0, &script(Some(&body), None, false));
+    let (_directory, catalogue) = fixture(&body, &extra);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::new();
+    for (limits, expected) in [
+        (
+            programs::Limits {
+                maximum_attempted_bytes: body.len(),
+                ..Default::default()
+            },
+            "attempted source bytes",
+        ),
+        (
+            programs::Limits {
+                maximum_instructions: 2,
+                ..Default::default()
+            },
+            "source preparation",
+        ),
+    ] {
+        let mut job = PreparationJob::new(&catalogue, &model, &signatures, limits).unwrap();
+        let step = StepBudget {
+            maximum_definitions: 1,
+            maximum_source_bytes: body.len(),
+        };
+        let first = job.advance(step);
+        assert_eq!(first.status, PreparationStatus::Pending);
+        assert_eq!(first.counts.prepared, 1);
+        let failure = job.advance(step);
+        assert_eq!(failure.status, PreparationStatus::Failed);
+        assert_eq!(failure.next_definition_bytes, None);
+        assert_eq!(failure.counts.prepared, 1);
+        let repeated = job.advance(step);
+        assert_eq!(repeated.counts, failure.counts);
+        assert_eq!(
+            repeated.processed_definitions,
+            failure.processed_definitions
+        );
+        assert_eq!(repeated.step_definitions, 0);
+        assert!(
+            matches!(job.finish(), Err(programs::Error::Capacity(reason)) if reason == expected)
+        );
+        assert!(
+            matches!(cache(&catalogue, limits), Err(programs::Error::Capacity(reason)) if reason == expected)
+        );
+    }
+}
+
+#[test]
+#[ignore = "built CLI and authored executable metadata copy; cooperative source work, no original launch"]
+fn cli_cooperative_preparation_helper() {
+    use serde_json::{Value as Json, json};
+    use std::{path::PathBuf, process::Command};
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("input"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_PREPARATION_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let body = event(&assignment(&[b's', 2, 0]));
+    let extras: Vec<_> = (0x301..0x325)
+        .flat_map(|id| record(b"SCPT", id, 0, &script(Some(&body), None, false)))
+        .collect();
+    let (temporary, catalogue) = fixture(&body, &extras);
+    assert_eq!(catalogue.iter().count(), 37);
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let run = |name: &str, request: &Json| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let request_path = directory.join("request.json");
+        let report_path = directory.join("report.json");
+        fs::write(&request_path, serde_json::to_vec_pretty(request).unwrap()).unwrap();
+        let output = Command::new(&cli)
+            .args(["source-plans", "--install"])
+            .arg(&install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg("--cooperative-preparation")
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        (output, report_path)
+    };
+    let mut expected_cache = None;
+    for (name, definitions, bytes, advances, cancel, outcome, processed, calls) in [
+        ("all", 100, 100 * body.len(), 100, None, "complete", 37, 1),
+        (
+            "one-definition",
+            1,
+            100 * body.len(),
+            100,
+            None,
+            "complete",
+            37,
+            37,
+        ),
+        (
+            "three-bodies",
+            20,
+            3 * body.len(),
+            100,
+            None,
+            "complete",
+            37,
+            13,
+        ),
+        (
+            "cancel-two",
+            20,
+            3 * body.len(),
+            100,
+            Some(2),
+            "cancelled",
+            6,
+            2,
+        ),
+        (
+            "cancel-zero",
+            20,
+            3 * body.len(),
+            100,
+            Some(0),
+            "cancelled",
+            0,
+            0,
+        ),
+        (
+            "advance-cap",
+            20,
+            3 * body.len(),
+            1,
+            None,
+            "advance_budget",
+            3,
+            1,
+        ),
+        (
+            "indivisible",
+            20,
+            body.len() - 1,
+            100,
+            None,
+            "step_budget",
+            0,
+            1,
+        ),
+        (
+            "after-cancellation",
+            100,
+            100 * body.len(),
+            100,
+            None,
+            "complete",
+            37,
+            1,
+        ),
+    ] {
+        let request = json!({"schema_version":1,"maximum_definitions_per_advance":definitions,
+            "maximum_source_bytes_per_advance":bytes,"maximum_advances":advances,"cancel_after_advances":cancel});
+        let (output, path) = run(name, &request);
+        assert_eq!(
+            output.status.success(),
+            outcome == "complete",
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        let result = &report["cooperative_preparation"];
+        assert_eq!(result["outcome"], outcome, "{name}");
+        let steps = result["advances"].as_array().unwrap();
+        assert_eq!(steps.len(), calls);
+        assert_eq!(
+            steps
+                .last()
+                .map_or(0, |p| p["processed_definitions"].as_u64().unwrap()),
+            processed
+        );
+        let mut attempted = 0;
+        for step in steps {
+            assert!(step["step_definitions"].as_u64().unwrap() <= definitions as u64);
+            assert!(step["step_source_bytes"].as_u64().unwrap() <= bytes as u64);
+            attempted += step["step_definitions"].as_u64().unwrap();
+            assert_eq!(step["counts"]["preparation_attempts"], attempted);
+            assert_eq!(
+                step["counts"]["attempted_source_bytes"],
+                attempted * body.len() as u64
+            );
+        }
+        if outcome == "complete" {
+            assert_eq!(result["cache"]["counts"]["prepared"], 37);
+            assert_eq!(result["cache"]["counts"]["rejected"], 0);
+            assert_eq!(result["prepared_sources_published"], true);
+            match &expected_cache {
+                None => expected_cache = Some(result["cache"].clone()),
+                Some(expected) => assert_eq!(&result["cache"], expected),
+            }
+        } else {
+            assert!(result["cache"].is_null());
+            assert_eq!(result["prepared_sources_published"], false);
+        }
+        assert_eq!(result["hard_time_slice"], false);
+        assert_eq!(report["execution_ready"], false);
+        assert_eq!(report["retail_parity_accepted"], false);
+    }
+    let mut invalid = json!({"schema_version":1,"maximum_definitions_per_advance":1,
+        "maximum_source_bytes_per_advance":100,"maximum_advances":100,"cancel_after_advances":null});
+    for (name, field, value) in [
+        ("unknown-field", "execute", json!(true)),
+        ("wrong-version", "schema_version", json!(2)),
+        (
+            "zero-allowance",
+            "maximum_definitions_per_advance",
+            json!(0),
+        ),
+        ("too-many-advances", "maximum_advances", json!(4097)),
+        ("invalid-cancellation", "cancel_after_advances", json!(101)),
+    ] {
+        let previous = invalid[field].clone();
+        invalid[field] = value;
+        let (output, path) = run(name, &invalid);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+        if previous.is_null() && field == "execute" {
+            invalid.as_object_mut().unwrap().remove(field);
+        } else {
+            invalid[field] = previous;
+        }
+    }
+    fs::write(
+        evidence.join("source-shape.json"),
+        serde_json::to_vec_pretty(&json!({
+            "scope":"authored_cooperative_source_preparation_only", "definitions":37,
+            "compiled_bytes_per_definition":body.len(), "original_executed":false,
+            "equivalent_completed_cache":expected_cache, "normal_cases":8, "refusals":5,
+        }))
+        .unwrap(),
+    )
+    .unwrap();
 }

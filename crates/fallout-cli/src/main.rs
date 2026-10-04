@@ -300,6 +300,17 @@ enum Command {
         #[arg(long)]
         new_repository: PathBuf,
     },
+    /// Explicitly import our schema-3 native save, keeping pose/enable unavailable.
+    NativeMigrateV3 {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        new_repository: PathBuf,
+    },
     /// Inspect native container integrity without loading or changing game state.
     NativeSaveFile {
         #[arg(long)]
@@ -1122,6 +1133,20 @@ fn run(args: Args) -> Result<()> {
         } => {
             let report =
                 native_migration_inspection::import(&install, &load_order, &file, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeMigrateV3 {
+            install,
+            load_order,
+            file,
+            new_repository,
+        } => {
+            let report = native_migration_inspection::import_v3(
+                &install,
+                &load_order,
+                &file,
+                &new_repository,
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeSaveFile { file } => {

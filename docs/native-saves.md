@@ -6,6 +6,8 @@ state against the same source-bound catalogue. This checkpoint persists script
 instances, local banks, references, contexts, clocks and pending events. Player,
 actor, quest and complete world state still need their own components.
 [Explicit item banks](item-runtime-state.md) are included beginning with schema 3.
+[Explicit reference pose and enable state](reference-state.md) are included in
+schema 4, with unavailable components preserved by explicit legacy imports.
 
 ```powershell
 .\target\release\fallout.exe native-save-probe `
@@ -120,7 +122,7 @@ Unknown versions, tags, reserved values, trailing bytes and invalid extents fail
 | Chunk | Version | Payload |
 | --- | --- | --- |
 | META | 1 | 88 bytes: NV adapter ID, state schema, generation, boundary tick, cohort digest, snapshot length, campaign identity and state revision |
-| STAT | 1 | Exact canonical snapshot JSON, schema 3 |
+| STAT | 1 | Exact canonical snapshot JSON, schema 4 |
 
 The fixed overhead is 232 bytes. The default snapshot limit is 64 MiB; filesystem
 length is checked before allocation. META must agree with STAT's identity,
@@ -155,7 +157,9 @@ at one; they do not invent original inventory contents. Normal decoding
 does not silently migrate old state. The migrated snapshot still needs full
 source-bound restoration. Normal native-envelope loading rejects old state schemas.
 [Explicit native import](native-save-migration.md) now handles schema 2 envelopes
-in a new repository after full validation. Original-save compatibility is separate.
+in a new repository after full validation. Schema 3 uses the explicit
+`native-migrate-v3` command or `save::format::migrate_v3`, preserving inventory and
+leaving reference pose/enable unavailable. Original-save compatibility is separate.
 
 ## Publication and recovery
 

@@ -396,6 +396,7 @@ fn legacy_snapshot_migration_preserves_state_and_requires_explicit_campaign() {
     fields.remove("state_revision");
     fields.remove("next_item");
     fields.remove("inventory_banks");
+    fields.remove("reference_states");
     fields.insert("schema_version".into(), 1.into());
     let bytes = serde_json::to_vec(&old).unwrap();
     assert!(Snapshot::decode(&bytes, Limits::default()).is_err());

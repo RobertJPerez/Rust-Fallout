@@ -151,6 +151,15 @@ pub fn migrate_v2(bytes: &[u8], limits: Limits) -> Result<Migration> {
         snapshot: decoded.snapshot,
     })
 }
+/// Explicit import of schema-3 saves, preserving inventory and unavailable pose.
+pub fn migrate_v3(bytes: &[u8], limits: Limits) -> Result<Migration> {
+    let decoded = decode_schema(bytes, limits, 3)?;
+    Ok(Migration {
+        source_state_schema: 3,
+        source_metadata: decoded.metadata,
+        snapshot: decoded.snapshot,
+    })
+}
 fn decode_schema(bytes: &[u8], limits: Limits, source_schema: u32) -> Result<Decoded> {
     let maximum = limits
         .max_snapshot_bytes
@@ -200,10 +209,10 @@ fn decode_schema(bytes: &[u8], limits: Limits, source_schema: u32) -> Result<Dec
     if body.len() != snapshot_bytes || reader.cursor != unsigned.len() {
         return Err(fail("snapshot extent mismatch or trailing container bytes"));
     }
-    let snapshot = if source_schema == 2 {
-        Snapshot::migrate_v2(body, limits)?
-    } else {
-        Snapshot::decode(body, limits)?
+    let snapshot = match source_schema {
+        2 => Snapshot::migrate_v2(body, limits)?,
+        3 => Snapshot::migrate_v3(body, limits)?,
+        _ => Snapshot::decode(body, limits)?,
     };
     if snapshot.campaign != campaign
         || snapshot.state_revision != state_revision

@@ -426,6 +426,7 @@ fn legacy_foreign_envelope(snapshot: &Snapshot) -> Vec<u8> {
     let mut value = serde_json::to_value(snapshot).unwrap();
     let object = value.as_object_mut().unwrap();
     object.remove("inventory_banks");
+    object.remove("reference_states");
     object.remove("next_item");
     object.insert("schema_version".into(), 2.into());
     let body = serde_json::to_vec(&value).unwrap();

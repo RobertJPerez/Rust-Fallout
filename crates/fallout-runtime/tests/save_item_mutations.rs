@@ -337,6 +337,7 @@ fn source_item_mutation_boundaries_keep_exact_counts_ids_and_cold_queries() {
     legacy["schema_version"] = json!(2);
     legacy.as_object_mut().unwrap().remove("next_item");
     legacy.as_object_mut().unwrap().remove("inventory_banks");
+    legacy.as_object_mut().unwrap().remove("reference_states");
     let legacy_bytes = serde_json::to_vec(&legacy).unwrap();
     fs::write(root.join("legacy-v2.json"), &legacy_bytes).unwrap();
     let migrated = Snapshot::migrate_v2(&legacy_bytes, limits()).unwrap();

@@ -394,15 +394,7 @@ pub fn inspect_cell_key(store: &mut RecordStore, root: &FormKey, limits: Limits)
     }
     // Admission precedes the shared receipt method's bounded vector/name clones.
     let sources = store.source_receipts()?;
-    let mut cohort = Sha256::new();
-    cohort.update(b"nv-world-source-cohort-v1\0");
-    for (ordinal, source) in sources.iter().enumerate() {
-        cohort.update((ordinal as u64).to_le_bytes());
-        cohort.update((source.source_name.len() as u64).to_le_bytes());
-        cohort.update(source.source_name.as_bytes());
-        cohort.update(source.source_bytes.to_le_bytes());
-        cohort.update(source.source_sha256.as_bytes());
-    }
+    let cohort = source_cohort(&sources);
     let mut builder = Builder {
         store,
         budget,
@@ -508,7 +500,7 @@ pub fn inspect_cell_key(store: &mut RecordStore, root: &FormKey, limits: Limits)
         profile: ProfileId::NvOriginal,
         root: root.clone(),
         sources,
-        source_cohort_sha256: format!("{:x}", cohort.finalize()),
+        source_cohort_sha256: cohort,
         nodes: builder.nodes,
         edges: builder.edges,
         cyclic_link_components,
@@ -523,4 +515,17 @@ pub fn inspect_cell_key(store: &mut RecordStore, root: &FormKey, limits: Limits)
             "archive/model precedence, streaming, physics, input and gameplay acceptance",
         ],
     })
+}
+
+pub(super) fn source_cohort(sources: &[SourceReceipt]) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"nv-world-source-cohort-v1\0");
+    for (ordinal, source) in sources.iter().enumerate() {
+        hash.update((ordinal as u64).to_le_bytes());
+        hash.update((source.source_name.len() as u64).to_le_bytes());
+        hash.update(source.source_name.as_bytes());
+        hash.update(source.source_bytes.to_le_bytes());
+        hash.update(source.source_sha256.as_bytes());
+    }
+    format!("{:x}", hash.finalize())
 }

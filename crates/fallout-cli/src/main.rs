@@ -1916,6 +1916,24 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
             }
         }
+        WorldCommand::PersistentCellSources {
+            install,
+            load_order,
+            index_cache,
+            world,
+        } => {
+            let report = world_preparation_inspection::persistent_cell(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&world)?,
+            )?;
+            let prepared = report["source_plan_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("persistent CELL source plan refused; see report".into());
+            }
+        }
         WorldCommand::GridSetSources {
             install,
             load_order,

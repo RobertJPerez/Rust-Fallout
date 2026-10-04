@@ -76,6 +76,56 @@ pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
         .collect()
 }
 
+pub(super) fn persistent_cell(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    world: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let sources = CellGridSources::load(&mut store, &world, Default::default())?;
+    let mut selected = None;
+    let prepared = (|| -> fallout_data::Result<_> {
+        let request = sources.request_persistent()?;
+        selected = Some(request.clone());
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        sources.prepare_persistent(&mut store, &request, assets.mounts(), Default::default())
+    })();
+    let entry = selected.as_ref().and_then(|request| {
+        sources
+            .metadata()
+            .entries
+            .iter()
+            .find(|entry| &entry.key == request.cell())
+    });
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact source persistent CELL group, separately requested without grid authority",
+        "cell_grid_sources":sources.metadata(),"persistent_request":selected,
+        "persistent_cell":entry,"cell_models":null,"dependency_usage":null,
+        "root_members":null,"source_error":null,"source_plan_prepared":false,
+        "complete_model_selection":false,"residency":null,"runtime_ready":false,
+        "current_cell_changed":false,"activation_applied":false,
+        "lookup_precedence_verified":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(plan) => {
+            report["complete_model_selection"] = json!(
+                plan.receipt()
+                    .coverage
+                    .iter()
+                    .all(|base| base.status == "one-archive-source; retail-precedence-unverified")
+            );
+            report["cell_models"] = serde_json::to_value(plan.receipt())?;
+            report["dependency_usage"] = serde_json::to_value(&plan.graph().usage)?;
+            report["root_members"] = json!(plan.graph().root_members);
+            report["source_plan_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
 /// Source planning only: each selected plan remains owned by the aggregate set.
 pub(super) fn grid_set(
     install: &Path,
@@ -1755,6 +1805,198 @@ mod tests {
             );
             assert_eq!(report["residency"]["dependencies"], "Pending");
         }
+    }
+    fn persistent_fixture(root: &Path, mode: &str) {
+        grid_fixture(root, false);
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let mut base = fs::read(root.join("Data/Base.esm")).unwrap();
+        base.extend(group(
+            0x100,
+            1,
+            &group(
+                0x202,
+                6,
+                &group(
+                    0x202,
+                    9,
+                    &record(
+                        b"REFR",
+                        0x350,
+                        &[
+                            field(b"NAME", &0x400_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                ),
+            ),
+        ));
+        fs::write(root.join("Data/Base.esm"), base).unwrap();
+        let (raw, flags) = match mode {
+            "missing" => (0x202, 0),
+            "deleted" => (
+                0x202,
+                fallout_data::plugin::PERSISTENT | fallout_data::plugin::DELETED,
+            ),
+            "multiple" => (0x0100_0203, fallout_data::plugin::PERSISTENT),
+            _ => (0x202, fallout_data::plugin::PERSISTENT),
+        };
+        let mut persistent = record(
+            b"CELL",
+            raw,
+            &[
+                field(b"DATA", &[0]),
+                field(b"XCLC", &[0xee, 0xff, 0xff, 0xff, 0, 0, 0, 0]),
+            ]
+            .concat(),
+        );
+        persistent[8..12].copy_from_slice(&flags.to_le_bytes());
+        let mut patch = [
+            record(
+                b"TES4",
+                0,
+                &[
+                    field(
+                        b"HEDR",
+                        &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                    ),
+                    field(b"MAST", b"Base.esm\0"),
+                    field(b"DATA", &[0; 8]),
+                ]
+                .concat(),
+            ),
+            group(0x100, 1, &persistent),
+        ]
+        .concat();
+        if mode == "malformed" {
+            patch.extend(record(b"STAT", 0x400, &field(b"MODL", b"m.nif")));
+        }
+        if mode == "no-modl" {
+            patch.extend(record(b"STAT", 0x400, &[]));
+        }
+        fs::write(root.join("Data/Patch.esp"), patch).unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("persistent-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_PERSISTENT_FIXTURE={}", root.display());
+    }
+    #[test]
+    fn cli_persistent_group_consumes_exact_source_models_without_grid_or_residency() {
+        for mode in ["valid", "no-modl"] {
+            let directory = directory();
+            persistent_fixture(&directory, mode);
+            let paths = [
+                "Data/Base.esm",
+                "Data/Patch.esp",
+                "Data/models.bsa",
+                "Data/textures.bsa",
+                "order.json",
+            ];
+            let before = paths.map(|path| Sha256::digest(fs::read(directory.join(path)).unwrap()));
+            let report = persistent_cell(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                crate::parse_cell_key("Base.esm:100").unwrap(),
+            )
+            .unwrap();
+            assert_eq!(report["source_plan_prepared"], true);
+            assert_eq!(report["complete_model_selection"], mode == "valid");
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["persistent_request"]["cell"]["local_id"], 0x202);
+            assert!(report["persistent_request"].get("grid").is_none());
+            assert_eq!(report["persistent_cell"]["role"], "persistent-group");
+            assert_eq!(report["persistent_cell"]["header"]["offset"], 95);
+            assert_eq!(report["persistent_cell"]["header"]["flags"], 0x400);
+            assert_eq!(
+                report["persistent_cell"]["fields"]["grid"]["value"],
+                json!([-18, 0])
+            );
+            assert_eq!(
+                report["persistent_cell"]["fields"]["grid"]["decoded_offset"],
+                7
+            );
+            assert_eq!(report["cell_models"]["root"]["local_id"], 0x202);
+            assert_eq!(report["root_members"], 1);
+            assert_eq!(
+                report["cell_models"]["requests"].as_array().unwrap().len(),
+                usize::from(mode == "valid")
+            );
+            assert_eq!(
+                report["cell_models"]["source_cohort_sha256"],
+                report["cell_grid_sources"]["source_cohort_sha256"]
+            );
+            assert!(report["residency"].is_null());
+            for field in [
+                "runtime_ready",
+                "activation_applied",
+                "current_cell_changed",
+                "lookup_precedence_verified",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[field], false);
+            }
+            for (path, hash) in paths.into_iter().zip(before) {
+                assert_eq!(
+                    Sha256::digest(fs::read(directory.join(path)).unwrap()),
+                    hash
+                );
+            }
+        }
+    }
+    #[test]
+    fn cli_persistent_group_selection_and_factory_refusals_do_not_publish_partial_state() {
+        for mode in ["missing", "deleted", "multiple", "malformed"] {
+            let directory = directory();
+            persistent_fixture(&directory, mode);
+            let report = persistent_cell(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                crate::parse_cell_key("Base.esm:100").unwrap(),
+            )
+            .unwrap();
+            assert_eq!(report["source_plan_prepared"], false);
+            assert!(report["cell_models"].is_null());
+            assert!(report["residency"].is_null());
+            assert!(!report["source_error"].as_str().unwrap().is_empty());
+            assert_eq!(report["persistent_request"].is_null(), mode != "malformed");
+            assert_eq!(report["persistent_cell"].is_null(), mode != "malformed");
+            assert_eq!(report["runtime_ready"], false);
+        }
+    }
+    #[test]
+    fn cli_persistent_group_flags_do_not_accept_grid_authority() {
+        use clap::Parser;
+        let args = [
+            "fallout",
+            "persistent-cell-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+            "--world",
+            "Base.esm:100",
+        ];
+        let parsed = crate::Args::try_parse_from(args).unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::PersistentCellSources { .. }
+        ));
+        assert!(crate::Args::try_parse_from(args.into_iter().chain(["--grid=0,0"])).is_err());
     }
     fn grid_set_fixture(root: &Path, mode: &str) {
         grid_fixture(root, false);

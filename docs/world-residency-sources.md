@@ -38,3 +38,29 @@ coverage unverified. Dependencies, rendering, collision and behavior remain
 Pending; no original game process was launched. The source check supports this
 consumer's engineering acceptance, while a selected real absolute/missing/
 ambiguous texture failure and original engine handling remain open.
+
+A subsequent selected-source check reproduced one of the documented GRA exporter
+failures through the existing `asset` cache and `nif-assets` consumer. The 9,847-byte
+model has SHA-256 `e8085c43c048fca538e4d2400815caf6f89b793dc37ac36ec5bf939039017f81`.
+Block 20, slot 0 retains the authored absolute path and its precise refusal; the
+consumer exits 1 with one texture failure. Captured source archives and the cached
+model remained unchanged. This closes reproduction of that selected refusal;
+original engine handling and any compatibility admission remain unverified.
+
+[The bounded proof harness](../tools/world-oracle/texture_refusal.py) accepts a
+local case JSON with `archive_name`, `archive_sha256`, `member`, `block`, `slot`
+and `raw_path_hex`. Its output must be a new directory outside the installation.
+It uses the existing importer and cache, compares the selected raw path exactly,
+and publishes a completion receipt only after source fingerprint checks. Authored
+wrong-block, wrong-path and changed-archive cases all refused completion.
+
+During an active team run, invoke it through the heavy wrapper with the lane's
+session and private target:
+
+```powershell
+py -3 tools/world-oracle/texture_refusal.py --cli FROZEN_CLI --install INSTALL --case LOCAL_CASE.json --output NEW_LOCAL_EVIDENCE
+```
+
+Full original case data, extracted artifacts and reports remain local. The proof
+does not parse a second asset format, rewrite paths, launch the original game or
+claim that the selected effect model belongs to a CELL residency request.

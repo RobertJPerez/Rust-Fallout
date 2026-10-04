@@ -690,6 +690,316 @@ pub(super) fn boot_saved_quest(
     file.sync_all()?;
     Ok(report)
 }
+
+enum QuestSetIntent {
+    Engineering,
+    Faithful,
+}
+impl<'de> serde::Deserialize<'de> for QuestSetIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        match <String as serde::Deserialize>::deserialize(d)?.as_str() {
+            "engineering" => Ok(Self::Engineering),
+            "faithful" => Ok(Self::Faithful),
+            _ => Err(serde::de::Error::custom("unsupported quest set intent")),
+        }
+    }
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QuestSetInput {
+    quest: fallout_data::identity::FormKey,
+    expected_definition: loaded_scripts::Handle,
+    initialization: ReferenceBootInitialization,
+}
+#[derive(serde::Serialize)]
+struct QuestSetSelection {
+    quest: fallout_data::identity::FormKey,
+    expected_definition: loaded_scripts::Handle,
+    initialization: attachment_boot::Request,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedQuestSetBootRequest {
+    schema_version: u32,
+    intent: QuestSetIntent,
+    source_cohort_sha256: String,
+    selections: Vec<QuestSetInput>,
+    maximum_quests: usize,
+    #[serde(with = "ReferenceInitializationLimits")]
+    initialization_limits: attachment_boot::Limits,
+    maximum_retained_variable_bytes: usize,
+    maximum_prepared_instructions: usize,
+    maximum_prepared_operand_uses: usize,
+    maximum_prepared_tokens: usize,
+    maximum_prepared_record_bytes: usize,
+    maximum_trace_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+struct QuestSetRowTrace<'a> {
+    selection: &'a QuestSetSelection,
+    quest_attachment: Option<&'a quest_scripts::Attachment>,
+    script_source: Option<&'a loaded_scripts::Version>,
+}
+#[derive(serde::Serialize)]
+struct QuestSetTrace<'a> {
+    selections: Vec<QuestSetRowTrace<'a>>,
+    source_receipts: &'a [fallout_data::store::SourceReceipt],
+    initialization_counts: Option<attachment_boot::ManyCounts>,
+    source_cohort_sha256: &'a str,
+    decoder_sha256: &'a str,
+}
+#[derive(serde::Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum QuestSetOutcome {
+    Unsupported {
+        reason: local_copy::Unsupported,
+        detail: &'static str,
+    },
+    EngineeringBooted {
+        instances: Vec<fallout_runtime::identity::InstanceId>,
+    },
+}
+#[derive(serde::Serialize)]
+struct QuestSetReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    trace: &'a QuestSetTrace<'a>,
+    quest_set_boot: QuestSetOutcome,
+}
+pub(super) fn boot_saved_quest_set(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedQuestSetBootRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        64 * 1024,
+        "quest set boot request byte budget exceeded",
+    )?)?;
+    let d = attachment_boot::ManyLimits::default();
+    let i = request.initialization_limits;
+    let p = programs::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    if request.schema_version != 1
+        || request.maximum_quests > d.maximum_quests
+        || request.selections.is_empty()
+        || request.selections.len() > request.maximum_quests
+        || i.maximum_initializers > d.input.maximum_initializers
+        || i.maximum_context_arguments > d.input.maximum_context_arguments
+        || i.maximum_variable_bytes > d.input.maximum_variable_bytes
+        || i.maximum_source_receipt_bytes > d.input.maximum_source_receipt_bytes
+        || i.maximum_declarations > d.input.maximum_declarations
+        || request.maximum_retained_variable_bytes > d.maximum_retained_variable_bytes
+        || request.maximum_prepared_instructions > p.maximum_instructions
+        || request.maximum_prepared_operand_uses > p.maximum_uses
+        || request.maximum_prepared_tokens > p.maximum_tokens
+        || request.maximum_prepared_record_bytes > p.maximum_attempted_record_bytes
+        || request.maximum_trace_bytes == 0
+        || request.maximum_trace_bytes > 2 * 1024 * 1024
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+        || request.source_cohort_sha256.len() != 64
+        || !request
+            .source_cohort_sha256
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    {
+        return Err("unsupported quest set boot schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(install, result_path, report_path, "quest set boot")?;
+    // Bound names before key comparisons and the selected-source handle copies.
+    // The runtime later charges the complete initializer/context/name totals.
+    let mut handle_bytes = 0usize;
+    for row in &request.selections {
+        for size in [
+            row.quest.origin_plugin.len(),
+            row.expected_definition.key.record.origin_plugin.len(),
+            row.expected_definition.version_sha256.len(),
+        ] {
+            handle_bytes = handle_bytes
+                .checked_add(size)
+                .filter(|&n| {
+                    n <= i.maximum_variable_bytes && n <= request.maximum_retained_variable_bytes
+                })
+                .ok_or("quest set boot selected-name byte budget exceeded")?;
+        }
+    }
+    let selections: Vec<_> = request
+        .selections
+        .into_iter()
+        .map(|row| QuestSetSelection {
+            quest: row.quest,
+            expected_definition: row.expected_definition,
+            initialization: attachment_boot::Request {
+                campaign: row.initialization.campaign,
+                context: row.initialization.context.into_context(),
+                initializers: row.initialization.initializers,
+            },
+        })
+        .collect();
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let attachments =
+        quest_scripts::Attachments::load(&mut store, &catalogue, 1_000_000, |_, _| Ok(()))?;
+    let mut unique = BTreeMap::new();
+    for row in &selections {
+        let actual = attachments
+            .get(&row.quest)
+            .and_then(|a| a.script.as_ref())
+            .ok_or("quest set boot exact attachment is unavailable")?;
+        if actual != &row.expected_definition {
+            return Err("quest set boot expected definition differs from source".into());
+        }
+        unique.insert(&actual.key, actual);
+    }
+    let handles: Vec<_> = unique.values().map(|handle| (*handle).clone()).collect();
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &handles,
+        programs::Limits {
+            maximum_instructions: request.maximum_prepared_instructions,
+            maximum_uses: request.maximum_prepared_operand_uses,
+            maximum_tokens: request.maximum_prepared_tokens,
+            maximum_nodes: request.maximum_prepared_tokens,
+            maximum_expressions: request.maximum_prepared_tokens.min(p.maximum_expressions),
+            maximum_attempted_record_bytes: request.maximum_prepared_record_bytes,
+            ..p
+        },
+    )?;
+    if sources.source_cohort_sha256() != request.source_cohort_sha256 {
+        return Err("quest set boot requested source cohort differs".into());
+    }
+    let borrowed: Vec<_> = selections
+        .iter()
+        .map(|row| attachment_boot::Selection {
+            quest: &row.quest,
+            expected_definition: &row.expected_definition,
+            initialization: &row.initialization,
+        })
+        .collect();
+    let prepared = attachment_boot::prepare_many(
+        &sources,
+        &attachments,
+        &content,
+        &borrowed,
+        match request.intent {
+            QuestSetIntent::Engineering => local_copy::Intent::Engineering,
+            QuestSetIntent::Faithful => local_copy::Intent::Faithful,
+        },
+        attachment_boot::ManyLimits {
+            maximum_quests: request.maximum_quests,
+            input: i,
+            maximum_retained_variable_bytes: request.maximum_retained_variable_bytes,
+        },
+    )?;
+    let trace = QuestSetTrace {
+        selections: selections
+            .iter()
+            .map(|row| QuestSetRowTrace {
+                selection: row,
+                quest_attachment: attachments.get(&row.quest),
+                script_source: catalogue
+                    .get_handle(&row.expected_definition)
+                    .map(|s| s.version()),
+            })
+            .collect(),
+        source_receipts: attachments.source_receipts(),
+        initialization_counts: match &prepared {
+            attachment_boot::ManyPreparation::Ready(plan) => Some(plan.counts()),
+            _ => None,
+        },
+        source_cohort_sha256: sources.source_cohort_sha256(),
+        decoder_sha256: sources.decoder_sha256(),
+    };
+    let mut trace_bytes = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_trace_bytes,
+    };
+    serde_json::to_writer(&mut trace_bytes, &trace)
+        .map_err(|_| "quest set boot trace byte budget exceeded")?;
+    let trace_size = trace_bytes.bytes.len();
+    drop(trace_bytes);
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "quest set boot snapshot byte budget exceeded",
+    )?;
+    let snapshot = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?;
+    let before_revision = snapshot.state_revision;
+    let campaign = snapshot.campaign;
+    let (outcome, result_bytes, artifact) = match prepared {
+        attachment_boot::ManyPreparation::Unsupported { reason, detail } => {
+            let world =
+                fallout_runtime::World::restore(Arc::clone(&catalogue), snapshot, world_limits)?;
+            sources.validate_world(&world)?;
+            (
+                QuestSetOutcome::Unsupported { reason, detail },
+                None,
+                Value::Null,
+            )
+        }
+        attachment_boot::ManyPreparation::Ready(plan) => {
+            let result = plan.apply(snapshot, world_limits)?;
+            let bytes = result
+                .snapshot
+                .encode(request.maximum_result_snapshot_bytes)?;
+            let cold = fallout_runtime::World::restore(
+                Arc::clone(&catalogue),
+                fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+                world_limits,
+            )?;
+            if cold.snapshot() != result.snapshot {
+                return Err("quest set boot complete cold result differs".into());
+            }
+            for (row, &instance) in plan.plans().iter().zip(&result.instances) {
+                let owner = fallout_runtime::identity::Owner::Quest {
+                    key: row.attachment().quest.clone(),
+                };
+                if cold.owner_instance(&owner) != Some(instance)
+                    || cold.instance(cold.handle(instance)?)?.definition() != row.definition()
+                {
+                    return Err("quest set boot cold owner or definition differs".into());
+                }
+            }
+            let artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":result.snapshot.schema_version,"decode_restore_equal":true,"after_revision":result.snapshot.state_revision});
+            (
+                QuestSetOutcome::EngineeringBooted {
+                    instances: result.instances,
+                },
+                Some(bytes),
+                artifact,
+            )
+        }
+    };
+    let report = QuestSetReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering boot of an atomic selected quest owner set","campaign":campaign,"before_revision":before_revision,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,"trace_bytes":trace_size,"prepared_sources":{"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"private_result":true,"event_enqueued":false,"reference_created":false,"quest_activation_verified":false,"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        trace: &trace,
+        quest_set_boot: outcome,
+    };
+    let report = admit_saved_copy_report(&report, request.maximum_report_bytes, "quest set boot")?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
+}
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum SavedIntent {

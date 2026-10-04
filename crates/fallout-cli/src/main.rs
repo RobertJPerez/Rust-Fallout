@@ -418,6 +418,9 @@ enum Command {
         /// Boot the exact source-attached script of an existing authored reference.
         #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         reference_boot_request: Option<Box<PathBuf>>,
+        /// Boot an explicit quest owner set atomically in one private result.
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_native_current", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        quest_boot_set_request: Option<Box<PathBuf>>,
         /// Queue one explicitly selected source block on an existing saved instance.
         #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "reference_boot_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_event_request: Option<Box<PathBuf>>,
@@ -1259,6 +1262,7 @@ fn run(args: Args) -> Result<()> {
             snapshot_foreign_copy_request,
             snapshot_reference_copy_request,
             reference_boot_request,
+            quest_boot_set_request,
             snapshot_event_request,
             snapshot_literal_assignment_request,
             snapshot_native_assignment_request,
@@ -1270,6 +1274,27 @@ fn run(args: Args) -> Result<()> {
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = quest_boot_set_request {
+                let report = event_operand_inspection::boot_saved_quest_set(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["quest_set_boot"]["status"] != "engineering_booted" {
+                    return Err(
+                        "Saved quest set activation remains unsupported; see engineering report"
+                            .into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_native_assignment_request {
                 let report = event_operand_inspection::assign_saved_native(
                     &install,

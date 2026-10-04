@@ -943,3 +943,1101 @@ fn cli_attachment_boot_helper() {
     assert_eq!(world.snapshot(), before);
     fs::write(evidence.join("scope.json"),serde_json::to_vec_pretty(&json!({"scope":"explicit source-attached engineering quest owner only","actual_cli_calls":calls.get(),"initialization_counts":plan.counts(),"original_executed":false,"quest_activation_verified":false,"retail_parity_accepted":false,"input_world_unchanged":true})).unwrap()).unwrap();
 }
+
+fn many_fixture() -> (Fixture, [u64; 3]) {
+    let original = fixture();
+    let script_path = original.directory.path().join("FalloutNV.esm");
+    let mut scripts = fs::read(&script_path).unwrap();
+    scripts.extend(record(
+        b"SCPT",
+        0x305,
+        0,
+        &unit(&[(2, 0), (42, 1), (90, 0)], &[(b"SCRV", 90)]),
+    ));
+    fs::write(script_path, scripts).unwrap();
+    let quest_path = original.directory.path().join("Quest.esp");
+    let mut quests = fs::read(&quest_path).unwrap();
+    let mut offsets = [0; 3];
+    for (index, (id, script)) in [(0x120, 0x300_u32), (0x121, 0x300), (0x122, 0x305)]
+        .into_iter()
+        .enumerate()
+    {
+        offsets[index] = quests.len() as u64;
+        quests.extend(record(
+            b"QUST",
+            0x01000000 | id,
+            0,
+            &field(b"SCRI", &script.to_le_bytes()),
+        ));
+    }
+    fs::write(quest_path, quests).unwrap();
+    let (catalogue, attachments, content) =
+        load_all(original.directory.path(), &["FalloutNV.esm", "Quest.esp"]);
+    (
+        Fixture {
+            directory: original.directory,
+            catalogue,
+            attachments,
+            content,
+        },
+        offsets,
+    )
+}
+fn many_sources<'a>(catalogue: &'a Catalogue, model: &Model<'_>) -> PreparedSources<'a> {
+    let handles = [0x300, 0x305].map(|id| {
+        catalogue
+            .record_scripts(&form(id))
+            .next()
+            .unwrap()
+            .handle()
+            .clone()
+    });
+    PreparedSources::load_selected(
+        catalogue,
+        model,
+        &Signatures::new(),
+        &handles,
+        Default::default(),
+    )
+    .unwrap()
+}
+fn many_requests(campaign: CampaignId) -> [Request; 3] {
+    let mut requests = [request(campaign), request(campaign), request(campaign)];
+    requests[1].initializers[0].value = Value::Number {
+        bits: 0x3ff0000000000000,
+    };
+    requests[1].initializers[1].value = Value::Number {
+        bits: 0x4000000000000000,
+    };
+    requests[2].initializers[0].value = Value::Number {
+        bits: 0x7ff8000000000001,
+    };
+    requests[2].initializers[1].value = Value::Number {
+        bits: 0x8000000000000000,
+    };
+    requests
+}
+fn many_expected(
+    before: &Snapshot,
+    keys: &[FormKey],
+    requests: &[Request],
+    definitions: &[fallout_data::loaded_scripts::Handle],
+) -> Snapshot {
+    let mut after = before.clone();
+    for ((key, request), definition) in keys.iter().zip(requests).zip(definitions) {
+        let instance =
+            fallout_runtime::identity::InstanceId(after.next_instance.try_into().unwrap());
+        after.next_instance += 1;
+        after.state_revision += 1 + u64::from(!request.initializers.is_empty());
+        let indices: &[u32] = if definition.key.record.local_id == 0x300 {
+            &[2, 42, 90, 99]
+        } else {
+            &[2, 42, 90]
+        };
+        after.instances.push(ScriptInstance {
+            id: instance,
+            definition: definition.clone(),
+            owner: Owner::Quest { key: key.clone() },
+            context: request.context.clone(),
+            locals: indices
+                .iter()
+                .map(|&index| Local {
+                    index,
+                    value: request
+                        .initializers
+                        .iter()
+                        .find(|e| e.index == index)
+                        .map_or(Value::Uninitialized, |e| e.value.clone()),
+                })
+                .collect(),
+        });
+    }
+    after
+}
+fn ready_many<'p, 's>(
+    sources: &'p PreparedSources<'s>,
+    f: &'p Fixture,
+    selections: &[attachment_boot::Selection<'p>],
+    limits: attachment_boot::ManyLimits,
+) -> attachment_boot::ManyBootPlan<'p, 's> {
+    match attachment_boot::prepare_many(
+        sources,
+        &f.attachments,
+        &f.content,
+        selections,
+        fallout_runtime::execution::local_copy::Intent::Engineering,
+        limits,
+    )
+    .unwrap()
+    {
+        attachment_boot::ManyPreparation::Ready(plan) => plan,
+        _ => panic!("engineering plan expected"),
+    }
+}
+#[test]
+fn atomic_quest_set_preserves_shared_definition_owners_exact_receipts_and_complete_cold_state() {
+    use sha2::{Digest, Sha256};
+    let (f, offsets) = many_fixture();
+    let mut world = base(Arc::clone(&f.catalogue));
+    world
+        .advance_clocks(fallout_runtime::events::Clocks {
+            tick: 17,
+            game_nanoseconds: 123,
+            menu_nanoseconds: 7,
+            real_nanoseconds: 999,
+        })
+        .unwrap();
+    let before = world.snapshot();
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let sources = many_sources(&f.catalogue, &model);
+    let keys = [quest(0x120), quest(0x121), quest(0x122)];
+    let definitions = [form(0x300), form(0x300), form(0x305)].map(|key| {
+        f.catalogue
+            .record_scripts(&key)
+            .next()
+            .unwrap()
+            .handle()
+            .clone()
+    });
+    let requests = many_requests(world.campaign());
+    let selections: Vec<_> = (0..3)
+        .map(|i| attachment_boot::Selection {
+            quest: &keys[i],
+            expected_definition: &definitions[i],
+            initialization: &requests[i],
+        })
+        .collect();
+    let plan = ready_many(&sources, &f, &selections, Default::default());
+    assert_eq!(
+        plan.counts(),
+        attachment_boot::ManyCounts {
+            quests: 3,
+            input: attachment_boot::Counts {
+                initializers: 9,
+                context_arguments: 3,
+                variable_bytes: 336,
+                source_receipt_bytes: 498,
+                declarations: 11
+            },
+            retained_variable_bytes: 6936
+        }
+    );
+    assert_eq!(sources.counts().preparation_attempts, 2);
+    let quest_sha = format!(
+        "{:x}",
+        Sha256::digest(fs::read(f.directory.path().join("Quest.esp")).unwrap())
+    );
+    for (i, row) in plan.plans().iter().enumerate() {
+        assert_eq!(row.attachment().quest, keys[i]);
+        assert_eq!(row.definition(), &definitions[i]);
+        assert_eq!(row.attachment().source.record_file_offset, offsets[i]);
+        assert_eq!(row.attachment().source.plugin, "Quest.esp");
+        assert_eq!(row.attachment().source.sha256, quest_sha);
+        assert_eq!(row.attachment().fields.len(), 1);
+        assert_eq!(row.attachment().fields[0].decoded_offset, 0);
+        assert_eq!(
+            row.attachment().fields[0].key.as_ref(),
+            Some(&definitions[i].key.record)
+        );
+        assert_eq!(
+            row.attachment().source.decoded_record_sha256.as_deref(),
+            Some(
+                format!(
+                    "{:x}",
+                    Sha256::digest(field(
+                        b"SCRI",
+                        &(if i < 2 { 0x300_u32 } else { 0x305 }).to_le_bytes()
+                    ))
+                )
+                .as_str()
+            )
+        );
+    }
+    let result = plan.apply(before.clone(), Default::default()).unwrap();
+    let expected = many_expected(&before, &keys, &requests, &definitions);
+    assert_eq!(result.snapshot, expected);
+    assert_eq!(
+        result
+            .instances
+            .iter()
+            .map(|id| id.0.get())
+            .collect::<Vec<_>>(),
+        vec![2, 3, 4]
+    );
+    let bytes = result.snapshot.encode(1024 * 1024).unwrap();
+    let cold = World::restore(
+        Arc::clone(&f.catalogue),
+        Snapshot::decode(&bytes, Default::default()).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(cold.snapshot(), expected);
+    for (key, &instance) in keys.iter().zip(&result.instances) {
+        assert_eq!(
+            cold.owner_instance(&Owner::Quest { key: key.clone() }),
+            Some(instance)
+        );
+    }
+    let reversed: Vec<_> = selections.iter().rev().copied().collect();
+    let reverse_plan = ready_many(&sources, &f, &reversed, Default::default());
+    assert_eq!(
+        reverse_plan
+            .apply(before.clone(), Default::default())
+            .unwrap()
+            .snapshot,
+        many_expected(
+            &before,
+            &keys.into_iter().rev().collect::<Vec<_>>(),
+            &requests.into_iter().rev().collect::<Vec<_>>(),
+            &definitions.into_iter().rev().collect::<Vec<_>>()
+        )
+    );
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn quest_set_global_exact_limits_and_late_failures_discard_every_private_owner() {
+    use fallout_runtime::execution::local_copy::Intent;
+    let (f, _) = many_fixture();
+    let world = base(Arc::clone(&f.catalogue));
+    let before = world.snapshot();
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let sources = many_sources(&f.catalogue, &model);
+    let keys = [quest(0x120), quest(0x121), quest(0x122)];
+    let definitions = [form(0x300), form(0x300), form(0x305)].map(|key| {
+        f.catalogue
+            .record_scripts(&key)
+            .next()
+            .unwrap()
+            .handle()
+            .clone()
+    });
+    let requests = many_requests(world.campaign());
+    let selections: Vec<_> = (0..3)
+        .map(|i| attachment_boot::Selection {
+            quest: &keys[i],
+            expected_definition: &definitions[i],
+            initialization: &requests[i],
+        })
+        .collect();
+    let counts = ready_many(&sources, &f, &selections, Default::default()).counts();
+    let exact = attachment_boot::ManyLimits {
+        maximum_quests: 3,
+        input: Limits {
+            maximum_initializers: 9,
+            maximum_context_arguments: 3,
+            maximum_variable_bytes: 336,
+            maximum_source_receipt_bytes: 498,
+            maximum_declarations: 11,
+        },
+        maximum_retained_variable_bytes: 6936,
+    };
+    assert_eq!(
+        ready_many(&sources, &f, &selections, exact).counts(),
+        counts
+    );
+    for (name, mut limits) in (0..7).map(|i| (i, exact)) {
+        match name {
+            0 => limits.maximum_quests -= 1,
+            1 => limits.input.maximum_initializers -= 1,
+            2 => limits.input.maximum_context_arguments -= 1,
+            3 => limits.input.maximum_variable_bytes -= 1,
+            4 => limits.input.maximum_source_receipt_bytes -= 1,
+            5 => limits.input.maximum_declarations -= 1,
+            _ => limits.maximum_retained_variable_bytes -= 1,
+        }
+        assert!(
+            matches!(
+                attachment_boot::prepare_many(
+                    &sources,
+                    &f.attachments,
+                    &f.content,
+                    &selections,
+                    Intent::Engineering,
+                    limits
+                ),
+                Err(Error::Capacity(_))
+            ),
+            "budget {name}"
+        );
+    }
+    let mut duplicate = selections.clone();
+    duplicate[2] = selections[0];
+    assert!(matches!(
+        attachment_boot::prepare_many(
+            &sources,
+            &f.attachments,
+            &f.content,
+            &duplicate,
+            Intent::Engineering,
+            Default::default()
+        ),
+        Err(Error::Input("duplicate selected quest"))
+    ));
+    let mut stale = definitions[2].clone();
+    stale.version_sha256 = "0".repeat(64);
+    let mut invalid = selections.clone();
+    invalid[2].expected_definition = &stale;
+    assert!(
+        attachment_boot::prepare_many(
+            &sources,
+            &f.attachments,
+            &f.content,
+            &invalid,
+            Intent::Engineering,
+            Default::default()
+        )
+        .is_err()
+    );
+    for key in [quest(0x103), quest(0x104), quest(0x200), quest(0x777)] {
+        let mut invalid = selections.clone();
+        invalid[2].quest = &key;
+        assert!(
+            attachment_boot::prepare_many(
+                &sources,
+                &f.attachments,
+                &f.content,
+                &invalid,
+                Intent::Engineering,
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+    for failure in 0..5 {
+        let mut late = request(world.campaign());
+        match failure {
+            0 => late.initializers.push(Initializer {
+                index: 999,
+                value: Value::Number { bits: 1 },
+            }),
+            1 => late.initializers[2].value = Value::Number { bits: 1 },
+            2 => {
+                late.context.calling_reference = Some(fallout_runtime::identity::ReferenceId(
+                    999.try_into().unwrap(),
+                ))
+            }
+            3 => late.context.arguments.push(ReferenceValue::Live {
+                id: fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+            }),
+            _ => {
+                late.initializers[2].value = Value::Reference {
+                    value: ReferenceValue::Live {
+                        id: fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+                    },
+                }
+            }
+        }
+        let mut invalid = selections.clone();
+        invalid[2].initialization = &late;
+        let plan = ready_many(&sources, &f, &invalid, Default::default());
+        assert!(
+            plan.apply(before.clone(), Default::default()).is_err(),
+            "late {failure}"
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let plan = ready_many(&sources, &f, &selections, Default::default());
+    assert!(
+        plan.apply(
+            before.clone(),
+            fallout_runtime::Limits {
+                max_instances: 3,
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        plan.apply(
+            before.clone(),
+            fallout_runtime::Limits {
+                max_locals: 14,
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+    let mut owned = world.snapshot();
+    owned.instances[0].owner = Owner::Quest {
+        key: keys[2].clone(),
+    };
+    assert!(plan.apply(owned, Default::default()).is_err());
+    let mut wrong = before.clone();
+    wrong.campaign = CampaignId::from_bytes([0x78; 16]).unwrap();
+    assert!(plan.apply(wrong, Default::default()).is_err());
+    assert!(matches!(
+        attachment_boot::prepare_many(
+            &sources,
+            &f.attachments,
+            &f.content,
+            &[],
+            Intent::Engineering,
+            Default::default()
+        ),
+        Err(Error::Input("quest selection is empty"))
+    ));
+    assert!(matches!(
+        attachment_boot::prepare_many(
+            &sources,
+            &f.attachments,
+            &f.content,
+            &selections,
+            Intent::Faithful,
+            exact
+        )
+        .unwrap(),
+        attachment_boot::ManyPreparation::Unsupported { .. }
+    ));
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+#[ignore = "frozen built CLI and authored executable metadata; no Original launch"]
+fn cli_atomic_quest_set_boot_helper() {
+    use serde_json::{Value as Json, json};
+    use sha2::{Digest, Sha256};
+    use std::{cell::Cell, path::PathBuf, process::Command};
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let metadata = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("metadata"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_QUEST_SET_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let (f, offsets) = many_fixture();
+    let mut world = base(Arc::clone(&f.catalogue));
+    world
+        .advance_clocks(fallout_runtime::events::Clocks {
+            tick: 17,
+            game_nanoseconds: 123,
+            menu_nanoseconds: 7,
+            real_nanoseconds: 999,
+        })
+        .unwrap();
+    let before = world.snapshot();
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let sources = many_sources(&f.catalogue, &model);
+    let keys = [quest(0x120), quest(0x121), quest(0x122)];
+    let definitions = [form(0x300), form(0x300), form(0x305)].map(|key| {
+        f.catalogue
+            .record_scripts(&key)
+            .next()
+            .unwrap()
+            .handle()
+            .clone()
+    });
+    let requests = many_requests(world.campaign());
+    let expected_snapshot = many_expected(&before, &keys, &requests, &definitions);
+    let request = json!({"schema_version":1,"intent":"engineering","source_cohort_sha256":sources.source_cohort_sha256(),
+        "selections":(0..3).map(|i| json!({"quest":keys[i],"expected_definition":definitions[i],"initialization":requests[i]})).collect::<Vec<_>>(),
+        "maximum_quests":32,"initialization_limits":{"maximum_initializers":128,"maximum_context_arguments":64,"maximum_variable_bytes":65536,"maximum_source_receipt_bytes":1048576,"maximum_declarations":65536},
+        "maximum_retained_variable_bytes":2097152,"maximum_prepared_instructions":2000000,"maximum_prepared_operand_uses":1000000,"maximum_prepared_tokens":2000000,"maximum_prepared_record_bytes":536870912,
+        "maximum_trace_bytes":2097152,"maximum_result_snapshot_bytes":67108864,"maximum_report_bytes":8388608});
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    for name in ["FalloutNV.esm", "Quest.esp"] {
+        fs::copy(
+            f.directory.path().join(name),
+            install.join("Data").join(name),
+        )
+        .unwrap();
+    }
+    fs::copy(
+        metadata.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let protected_hashes: Vec<_> = ["FalloutNV.exe", "Data/FalloutNV.esm", "Data/Quest.esp"]
+        .map(|p| format!("{:x}", Sha256::digest(fs::read(install.join(p)).unwrap())))
+        .into();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\",\"Quest.esp\"]").unwrap();
+    fs::write(
+        evidence.join("independent-expected.snapshot.json"),
+        expected_snapshot.encode(1024 * 1024).unwrap(),
+    )
+    .unwrap();
+    let calls = Cell::new(0);
+    let run_on = |name: &str,
+                  install: &Path,
+                  snapshot: &Snapshot,
+                  raw: &[u8],
+                  result_override: Option<&Path>,
+                  report_override: Option<&Path>,
+                  extra: &[&str]| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let input = directory.join("input.snapshot.json");
+        let original = snapshot.encode(64 * 1024 * 1024).unwrap();
+        fs::write(&input, &original).unwrap();
+        let request_path = directory.join("request.json");
+        fs::write(&request_path, raw).unwrap();
+        let report =
+            report_override.map_or_else(|| directory.join("report.json"), Path::to_path_buf);
+        let result = result_override
+            .map_or_else(|| directory.join("result.snapshot.json"), Path::to_path_buf);
+        calls.set(calls.get() + 1);
+        let output = Command::new(&cli)
+            .args(["event-operands", "--install"])
+            .arg(install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg("--quest-boot-set-request")
+            .arg(&request_path)
+            .arg("--snapshot-input")
+            .arg(&input)
+            .arg("--snapshot-output")
+            .arg(&result)
+            .arg("--output")
+            .arg(&report)
+            .args(extra)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        fs::write(directory.join("result.json"), serde_json::to_vec_pretty(&json!({"success":output.status.success(),"exit_code":output.status.code(),"result_exists":result.exists(),"report_exists":report.exists()})).unwrap()).unwrap();
+        assert_eq!(fs::read(input).unwrap(), original, "{name}: input mutated");
+        (output, report, result)
+    };
+    let run = |name: &str, snapshot: &Snapshot, request: &Json| {
+        run_on(
+            name,
+            &install,
+            snapshot,
+            &serde_json::to_vec(request).unwrap(),
+            None,
+            None,
+            &[],
+        )
+    };
+    let failed = |name: &str, snapshot: &Snapshot, request: &Json| {
+        let (output, report, result) = run(name, snapshot, request);
+        assert!(!output.status.success(), "{name}");
+        assert!(!report.exists(), "{name}");
+        assert!(!result.exists(), "{name}");
+    };
+    let (output, report_path, result) = run("valid", &before, &request);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Json = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+    let actual = Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap();
+    assert_eq!(actual, expected_snapshot);
+    assert_eq!(
+        report["quest_set_boot"],
+        json!({"status":"engineering_booted","instances":[2,3,4]})
+    );
+    assert_eq!(
+        report["trace"]["initialization_counts"],
+        json!({"quests":3,"input":{"initializers":9,"context_arguments":3,"variable_bytes":336,"source_receipt_bytes":498,"declarations":11},"retained_variable_bytes":6936})
+    );
+    assert_eq!(
+        report["prepared_sources"]["counts"]["preparation_attempts"],
+        2
+    );
+    assert_eq!(report["prepared_sources"]["counts"]["instructions"], 4);
+    assert_eq!(
+        report["prepared_sources"]["counts"]["attempted_record_bytes"],
+        425
+    );
+    assert_eq!(
+        report["trace"]["source_receipts"],
+        serde_json::to_value(f.attachments.source_receipts()).unwrap()
+    );
+    for (i, offset) in offsets.into_iter().enumerate() {
+        assert_eq!(
+            report["trace"]["selections"][i]["quest_attachment"]["source"]["record_file_offset"],
+            offset
+        );
+        assert_eq!(
+            report["trace"]["selections"][i]["selection"],
+            request["selections"][i]
+        );
+        assert_eq!(
+            report["trace"]["selections"][i]["quest_attachment"],
+            serde_json::to_value(f.attachments.get(&keys[i]).unwrap()).unwrap()
+        );
+        assert_eq!(
+            report["trace"]["selections"][i]["script_source"],
+            serde_json::to_value(f.catalogue.get_handle(&definitions[i]).unwrap().version())
+                .unwrap()
+        );
+    }
+    assert_eq!(
+        World::restore(Arc::clone(&f.catalogue), actual.clone(), Default::default())
+            .unwrap()
+            .snapshot(),
+        expected_snapshot
+    );
+    for flag in [
+        "event_enqueued",
+        "reference_created",
+        "quest_activation_verified",
+        "faithful_execution_admitted",
+        "retail_parity_accepted",
+    ] {
+        assert_eq!(report[flag], false);
+    }
+    let mut reverse = request.clone();
+    reverse["selections"].as_array_mut().unwrap().reverse();
+    let (output, _, result) = run("reverse", &before, &reverse);
+    assert!(output.status.success());
+    assert_eq!(
+        Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap(),
+        many_expected(
+            &before,
+            &keys.clone().into_iter().rev().collect::<Vec<_>>(),
+            &many_requests(world.campaign())
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>(),
+            &definitions.clone().into_iter().rev().collect::<Vec<_>>()
+        )
+    );
+    let mut empty = request.clone();
+    for row in empty["selections"].as_array_mut().unwrap() {
+        row["initialization"]["initializers"] = json!([]);
+        row["initialization"]["context"] = json!(Context::default());
+    }
+    let (output, _, result) = run("empty-initializers", &before, &empty);
+    assert!(output.status.success());
+    let empty_requests = (0..3)
+        .map(|_| Request {
+            campaign: world.campaign(),
+            context: Context::default(),
+            initializers: vec![],
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap(),
+        many_expected(&before, &keys, &empty_requests, &definitions)
+    );
+    let mut faithful = request.clone();
+    faithful["intent"] = json!("faithful");
+    let (output, report_path, result) = run("faithful", &before, &faithful);
+    assert!(!output.status.success());
+    assert!(!result.exists());
+    let unsupported: Json = serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+    assert_eq!(unsupported["quest_set_boot"]["status"], "unsupported");
+    assert!(unsupported["result_snapshot"].is_null());
+    for (name, pointer, value) in [
+        (
+            "duplicate-quest",
+            "/selections/2",
+            request["selections"][0].clone(),
+        ),
+        (
+            "late-stale-definition",
+            "/selections/2/expected_definition/version_sha256",
+            json!("0".repeat(64)),
+        ),
+        (
+            "late-wrong-script",
+            "/selections/2/expected_definition",
+            json!(definitions[0]),
+        ),
+        (
+            "late-attachment",
+            "/selections/2/quest",
+            json!(quest(0x103)),
+        ),
+        (
+            "late-wrong-kind",
+            "/selections/2/quest",
+            json!(quest(0x200)),
+        ),
+        (
+            "late-missing-local",
+            "/selections/2/initialization/initializers/0/index",
+            json!(999),
+        ),
+        (
+            "late-wrong-local-kind",
+            "/selections/2/initialization/initializers/2/value",
+            json!({"kind":"number","bits":1}),
+        ),
+        (
+            "late-live-local",
+            "/selections/2/initialization/initializers/2/value",
+            json!({"kind":"reference","value":{"kind":"live","id":999}}),
+        ),
+        (
+            "late-context-caller",
+            "/selections/2/initialization/context/calling_reference",
+            json!(999),
+        ),
+        (
+            "late-context-target",
+            "/selections/2/initialization/context/target",
+            json!({"kind":"live","id":999}),
+        ),
+        (
+            "late-campaign",
+            "/selections/2/initialization/campaign",
+            json!(vec![0x78; 16]),
+        ),
+        (
+            "zero-campaign",
+            "/selections/2/initialization/campaign",
+            json!(vec![0; 16]),
+        ),
+        (
+            "duplicate-local",
+            "/selections/2/initialization/initializers/1/index",
+            json!(2),
+        ),
+        ("empty-set", "/selections", json!([])),
+        (
+            "wrong-cohort",
+            "/source_cohort_sha256",
+            json!("0".repeat(64)),
+        ),
+        (
+            "cohort-uppercase",
+            "/source_cohort_sha256",
+            json!("A".repeat(64)),
+        ),
+        ("schema", "/schema_version", json!(2)),
+        ("intent-map", "/intent", json!({"engineering":null})),
+        ("intent-unverified", "/intent", json!("activate")),
+    ] {
+        let mut invalid = request.clone();
+        *invalid.pointer_mut(pointer).unwrap() = value;
+        failed(name, &before, &invalid);
+    }
+    failed("duplicate-existing-owner", &actual, &request);
+    let mut existing_late = before.clone();
+    existing_late.instances[0].owner = Owner::Quest {
+        key: keys[2].clone(),
+    };
+    failed("late-existing-owner", &existing_late, &request);
+    let mut legacy = before.clone();
+    legacy.schema_version = 3;
+    failed("legacy", &legacy, &request);
+    let mut stale = before.clone();
+    stale.catalogue_sha256 = "0".repeat(64);
+    failed("stale-snapshot", &stale, &request);
+    let mut revision = before.clone();
+    revision.state_revision = u64::MAX - 4;
+    failed("late-revision-overflow", &revision, &request);
+    let mut ids = before.clone();
+    ids.next_instance = u64::MAX - 2;
+    failed("late-instance-overflow", &ids, &request);
+    let cap_values = [
+        ("quests", "/maximum_quests", 3),
+        (
+            "initializers",
+            "/initialization_limits/maximum_initializers",
+            9,
+        ),
+        (
+            "arguments",
+            "/initialization_limits/maximum_context_arguments",
+            3,
+        ),
+        (
+            "variables",
+            "/initialization_limits/maximum_variable_bytes",
+            336,
+        ),
+        (
+            "receipts",
+            "/initialization_limits/maximum_source_receipt_bytes",
+            498,
+        ),
+        (
+            "declarations",
+            "/initialization_limits/maximum_declarations",
+            11,
+        ),
+        ("retention", "/maximum_retained_variable_bytes", 6936),
+        ("instructions", "/maximum_prepared_instructions", 4),
+        ("record", "/maximum_prepared_record_bytes", 425),
+        (
+            "trace",
+            "/maximum_trace_bytes",
+            report["trace_bytes"].as_u64().unwrap(),
+        ),
+        (
+            "snapshot",
+            "/maximum_result_snapshot_bytes",
+            expected_snapshot.encode(1024 * 1024).unwrap().len() as u64,
+        ),
+    ];
+    for (name, pointer, exact) in cap_values {
+        let mut bounded = request.clone();
+        *bounded.pointer_mut(pointer).unwrap() = json!(exact);
+        let (output, _, result) = run(&format!("cap-{name}-exact"), &before, &bounded);
+        assert!(
+            output.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap(),
+            expected_snapshot
+        );
+        *bounded.pointer_mut(pointer).unwrap() = json!(exact - 1);
+        failed(&format!("cap-{name}-under"), &before, &bounded);
+    }
+    for pointer in ["/maximum_prepared_operand_uses", "/maximum_prepared_tokens"] {
+        let mut bounded = request.clone();
+        *bounded.pointer_mut(pointer).unwrap() = json!(0);
+        let (output, _, _) = run(
+            if pointer.contains("operand") {
+                "zero-uses"
+            } else {
+                "zero-tokens"
+            },
+            &before,
+            &bounded,
+        );
+        assert!(output.status.success());
+    }
+    for name in ["exact", "under"] {
+        let mut expected_report = report.clone();
+        expected_report["result_snapshot"]["path"] = json!(
+            evidence
+                .join(format!("report-{name}"))
+                .join("result.snapshot.json")
+        );
+        let exact = serde_json::to_vec_pretty(&expected_report).unwrap().len() + 1;
+        let mut bounded = request.clone();
+        bounded["maximum_report_bytes"] = json!(exact - usize::from(name == "under"));
+        let (output, report_path, result) = run(&format!("report-{name}"), &before, &bounded);
+        assert_eq!(
+            output.status.success(),
+            name == "exact",
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(report_path.exists(), name == "exact");
+        assert_eq!(result.exists(), name == "exact");
+        if name == "exact" {
+            assert_eq!(fs::read(report_path).unwrap().len(), exact);
+        }
+    }
+    for key in request.as_object().unwrap().keys() {
+        let mut invalid = request.clone();
+        invalid.as_object_mut().unwrap().remove(key);
+        failed(&format!("missing-{key}"), &before, &invalid);
+    }
+    for key in request["initialization_limits"].as_object().unwrap().keys() {
+        let mut invalid = request.clone();
+        invalid["initialization_limits"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+        failed(&format!("missing-limit-{key}"), &before, &invalid);
+    }
+    for (name, pointer) in [
+        ("quest", "/selections/2/quest"),
+        ("definition", "/selections/2/expected_definition"),
+        ("initialization", "/selections/2/initialization"),
+        ("context", "/selections/2/initialization/context"),
+        ("target", "/selections/2/initialization/context/target"),
+        (
+            "caller",
+            "/selections/2/initialization/context/calling_reference",
+        ),
+        (
+            "container",
+            "/selections/2/initialization/context/containing_reference",
+        ),
+        ("args", "/selections/2/initialization/context/arguments"),
+        ("value", "/selections/2/initialization/initializers/0/value"),
+    ] {
+        let (parent, key) = pointer.rsplit_once('/').unwrap();
+        let mut invalid = request.clone();
+        invalid
+            .pointer_mut(parent)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+        failed(&format!("missing-row-{name}"), &before, &invalid);
+    }
+    for (name, pointer) in [
+        ("root", ""),
+        ("limits", "/initialization_limits"),
+        ("row", "/selections/2"),
+        ("quest", "/selections/2/quest"),
+        ("handle", "/selections/2/expected_definition"),
+        ("key", "/selections/2/expected_definition/key"),
+        ("record", "/selections/2/expected_definition/key/record"),
+        ("init", "/selections/2/initialization"),
+        ("context", "/selections/2/initialization/context"),
+        ("value", "/selections/2/initialization/initializers/0/value"),
+    ] {
+        let mut invalid = request.clone();
+        invalid.pointer_mut(pointer).unwrap()["unknown"] = json!(true);
+        failed(&format!("unknown-{name}"), &before, &invalid);
+    }
+    for key in request
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|k| k.starts_with("maximum_"))
+    {
+        let mut invalid = request.clone();
+        invalid[key] = json!(request[key].as_u64().unwrap() + 1);
+        failed(&format!("ceiling-{key}"), &before, &invalid);
+    }
+    for key in request["initialization_limits"].as_object().unwrap().keys() {
+        let mut invalid = request.clone();
+        invalid["initialization_limits"][key] =
+            json!(request["initialization_limits"][key].as_u64().unwrap() + 1);
+        failed(&format!("ceiling-limit-{key}"), &before, &invalid);
+    }
+    for (name, raw) in [
+        ("malformed", b"{".to_vec()),
+        (
+            "duplicate-field",
+            b"{\"schema_version\":1,\"schema_version\":1}".to_vec(),
+        ),
+        ("oversized", vec![b' '; 64 * 1024 + 1]),
+    ] {
+        let (output, report, result) = run_on(name, &install, &before, &raw, None, None, &[]);
+        assert!(!output.status.success());
+        assert!(!report.exists());
+        assert!(!result.exists());
+    }
+    let existing = evidence.join("existing.snapshot.json");
+    fs::write(&existing, b"preserve-existing").unwrap();
+    let raw = serde_json::to_vec(&request).unwrap();
+    let (output, report, _) = run_on(
+        "existing-output",
+        &install,
+        &before,
+        &raw,
+        Some(&existing),
+        None,
+        &[],
+    );
+    assert!(!output.status.success());
+    assert!(!report.exists());
+    assert_eq!(fs::read(&existing).unwrap(), b"preserve-existing");
+    let (output, _, result) = run_on(
+        "existing-report",
+        &install,
+        &before,
+        &raw,
+        None,
+        Some(&existing),
+        &[],
+    );
+    assert!(!output.status.success());
+    assert!(!result.exists());
+    assert_eq!(fs::read(&existing).unwrap(), b"preserve-existing");
+    for (name, result_path, report_path) in [
+        (
+            "protected-result",
+            install.join("Data/forbidden.json"),
+            evidence.join("unused-report.json"),
+        ),
+        (
+            "protected-report",
+            evidence.join("unused-result.json"),
+            install.join("Data/forbidden-report.json"),
+        ),
+        (
+            "same-output",
+            evidence.join("same.json"),
+            evidence.join("same.json"),
+        ),
+    ] {
+        let (output, report, result) = run_on(
+            name,
+            &install,
+            &before,
+            &raw,
+            Some(&result_path),
+            Some(&report_path),
+            &[],
+        );
+        assert!(!output.status.success());
+        assert!(!report.exists());
+        assert!(!result.exists());
+    }
+    for (name, flags) in [
+        ("old-boot", vec!["--quest-boot-request", "unused"]),
+        ("old-boot-output", vec!["--quest-boot-output", "unused"]),
+        ("copy", vec!["--snapshot-copy-request", "unused"]),
+        ("batch", vec!["--snapshot-copy-batch-request", "unused"]),
+        ("foreign", vec!["--snapshot-foreign-copy-request", "unused"]),
+        (
+            "reference",
+            vec!["--snapshot-reference-copy-request", "unused"],
+        ),
+        ("placed", vec!["--reference-boot-request", "unused"]),
+        ("event", vec!["--snapshot-event-request", "unused"]),
+        (
+            "literal",
+            vec!["--snapshot-literal-assignment-request", "unused"],
+        ),
+        (
+            "native-assignment",
+            vec!["--snapshot-native-assignment-request", "unused"],
+        ),
+        ("native", vec!["--snapshot-native-request", "unused"]),
+        (
+            "native-plan",
+            vec!["--snapshot-native-plan-request", "unused"],
+        ),
+        (
+            "native-current",
+            vec!["--snapshot-native-current", "unused"],
+        ),
+        ("seed", vec!["--engineering-local-copy", "unused"]),
+        ("capabilities", vec!["--native-capabilities"]),
+        ("player", vec!["--player-id", "1"]),
+        ("prepared", vec!["--prepared-sources"]),
+    ] {
+        let (output, report, result) = run_on(
+            &format!("conflict-{name}"),
+            &install,
+            &before,
+            &raw,
+            None,
+            None,
+            &flags,
+        );
+        assert!(!output.status.success(), "{name}");
+        assert!(!report.exists());
+        assert!(!result.exists());
+    }
+    let changed = evidence.join("changed-source-copy");
+    fs::create_dir(&changed).unwrap();
+    fs::create_dir(changed.join("Data")).unwrap();
+    fs::copy(install.join("FalloutNV.exe"), changed.join("FalloutNV.exe")).unwrap();
+    fs::copy(
+        install.join("Data/Quest.esp"),
+        changed.join("Data/Quest.esp"),
+    )
+    .unwrap();
+    fs::write(
+        changed.join("Data/FalloutNV.esm"),
+        [
+            fs::read(install.join("Data/FalloutNV.esm")).unwrap(),
+            record(b"GLOB", 0x501, 0, &[]),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let (output, report, result) =
+        run_on("changed-source", &changed, &before, &raw, None, None, &[]);
+    assert!(!output.status.success());
+    assert!(!report.exists());
+    assert!(!result.exists());
+    let after_hashes: Vec<_> = ["FalloutNV.exe", "Data/FalloutNV.esm", "Data/Quest.esp"]
+        .map(|p| format!("{:x}", Sha256::digest(fs::read(install.join(p)).unwrap())))
+        .into();
+    assert_eq!(after_hashes, protected_hashes);
+    assert_eq!(world.snapshot(), before);
+    fs::write(evidence.join("scope.json"), serde_json::to_vec_pretty(&json!({"scope":"atomic explicit engineering quest owner set","actual_cli_calls":calls.get(),"independent_counts":{"quests":3,"initializers":9,"arguments":3,"variables":336,"receipt_comparison_bytes":498,"declarations":11,"retained_copy_reservations":6936,"unique_prepared_definitions":2,"prepared_record_bytes":425},"protected_source_hashes":protected_hashes,"original_executed":false,"quest_activation_verified":false,"retail_parity_accepted":false,"input_world_unchanged":true})).unwrap()).unwrap();
+}

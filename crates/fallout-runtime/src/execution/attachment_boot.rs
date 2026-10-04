@@ -126,7 +126,29 @@ pub fn prepare<'p, 's>(
     let validation_world =
         World::with_campaign(catalogue, crate::Limits::default(), request.campaign)?;
     content.validate_world(&validation_world)?;
-    let form = content.source_form(&validation_world, explicit_quest)?;
+    let attachment = validated_attachment(attachments, content, &validation_world, explicit_quest)?;
+    let definition = attachment
+        .script
+        .as_ref()
+        .expect("checked exact attachment");
+    counts.declarations = prepare_definition(sources, definition, limits)?;
+    Ok(BootPlan {
+        sources,
+        content,
+        attachment,
+        request,
+        counts,
+    })
+}
+
+// Both entry points use exactly the same physical attachment validation.
+fn validated_attachment<'a>(
+    attachments: &'a Attachments,
+    content: &Content,
+    validation_world: &World<'_>,
+    explicit_quest: &FormKey,
+) -> Result<&'a Attachment, Error> {
+    let form = content.source_form(validation_world, explicit_quest)?;
     if form.kind != *b"QUST" {
         return Err(Error::Input("explicit attachment owner is not a quest"));
     }
@@ -151,14 +173,7 @@ pub fn prepare<'p, 's>(
             "quest attachment field differs from its definition",
         ));
     }
-    counts.declarations = prepare_definition(sources, definition, limits)?;
-    Ok(BootPlan {
-        sources,
-        content,
-        attachment,
-        request,
-        counts,
-    })
+    Ok(attachment)
 }
 
 /// Shared bounded initializer/context/cohort validation. Retains the historical
@@ -320,6 +335,229 @@ impl BootPlan<'_, '_> {
         let instance = initialize(&mut result, self.definition(), owner, self.request)?;
         Ok(BootResult {
             instance,
+            snapshot: result.snapshot(),
+        })
+    }
+}
+
+/// Explicit caller order controls engineering creation only, never activation.
+#[derive(Debug, Clone, Copy)]
+pub struct Selection<'a> {
+    pub quest: &'a FormKey,
+    pub expected_definition: &'a Handle,
+    pub initialization: &'a Request,
+}
+#[derive(Debug, Clone, Copy)]
+pub struct ManyLimits {
+    pub maximum_quests: usize,
+    /// All five counters are cumulative across the complete selection.
+    pub input: Limits,
+    /// Conservative selected-name copy reservations, not a heap measurement.
+    pub maximum_retained_variable_bytes: usize,
+}
+impl Default for ManyLimits {
+    fn default() -> Self {
+        Self {
+            maximum_quests: 32,
+            input: Limits::default(),
+            maximum_retained_variable_bytes: 2 * 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ManyCounts {
+    pub quests: usize,
+    pub input: Counts,
+    pub retained_variable_bytes: usize,
+}
+pub enum ManyPreparation<'p, 's> {
+    Unsupported {
+        reason: super::local_copy::Unsupported,
+        detail: &'static str,
+    },
+    Ready(ManyBootPlan<'p, 's>),
+}
+/// Borrowed immutable source plans; no deserialization or live-world mutation.
+pub struct ManyBootPlan<'p, 's> {
+    plans: Vec<BootPlan<'p, 's>>,
+    counts: ManyCounts,
+}
+#[derive(Debug, Serialize)]
+pub struct ManyBootResult {
+    /// Instance identities in explicit selection order.
+    pub instances: Vec<InstanceId>,
+    pub snapshot: Snapshot,
+}
+
+pub fn prepare_many<'p, 's>(
+    sources: &'p PreparedSources<'s>,
+    attachments: &'p Attachments,
+    content: &'p Content,
+    selections: &[Selection<'p>],
+    intent: super::local_copy::Intent,
+    limits: ManyLimits,
+) -> Result<ManyPreparation<'p, 's>, Error> {
+    if intent == super::local_copy::Intent::Faithful {
+        return Ok(ManyPreparation::Unsupported {
+            reason: super::local_copy::Unsupported::UnverifiedRetailSemantics,
+            detail: "original quest activation order and constructor semantics are unverified",
+        });
+    }
+    if selections.is_empty() {
+        return Err(Error::Input("quest selection is empty"));
+    }
+    if selections.len() > limits.maximum_quests {
+        return Err(Error::Capacity("selected quests"));
+    }
+    let campaign = selections[0].initialization.campaign;
+    let mut counts = ManyCounts {
+        quests: selections.len(),
+        input: Counts {
+            initializers: 0,
+            context_arguments: 0,
+            variable_bytes: 0,
+            source_receipt_bytes: 0,
+            declarations: 0,
+        },
+        retained_variable_bytes: 0,
+    };
+    // One empty validation World, separate from the single private restoration
+    // in apply. It creates no owners, references, events or local values.
+    let validation = World::with_campaign(sources.catalogue(), Default::default(), campaign)?;
+    content.validate_world(&validation)?;
+    let mut seen = BTreeSet::new();
+    let mut plans = Vec::with_capacity(selections.len());
+    for selection in selections {
+        if selection.initialization.campaign != campaign {
+            return Err(Error::Input("selected initializer campaigns differ"));
+        }
+        let remaining = Limits {
+            maximum_initializers: limits.input.maximum_initializers - counts.input.initializers,
+            maximum_context_arguments: limits.input.maximum_context_arguments
+                - counts.input.context_arguments,
+            maximum_variable_bytes: limits.input.maximum_variable_bytes
+                - counts.input.variable_bytes,
+            maximum_source_receipt_bytes: limits.input.maximum_source_receipt_bytes
+                - counts.input.source_receipt_bytes,
+            maximum_declarations: limits.input.maximum_declarations - counts.input.declarations,
+        };
+        let mut row = prepare_input(
+            sources,
+            attachments.source_receipts(),
+            selection.quest,
+            selection.initialization,
+            remaining,
+        )?;
+        // Admit caller-supplied handle strings before comparing or retaining
+        // any key. Duplicate detection borrows admitted canonical quest keys.
+        for size in [
+            selection.expected_definition.key.record.origin_plugin.len(),
+            selection.expected_definition.version_sha256.len(),
+        ] {
+            charge(
+                &mut row.variable_bytes,
+                size,
+                remaining.maximum_variable_bytes,
+                "variable bytes",
+            )?;
+        }
+        if !seen.insert(selection.quest) {
+            return Err(Error::Input("duplicate selected quest"));
+        }
+        let attachment = validated_attachment(attachments, content, &validation, selection.quest)?;
+        let definition = attachment
+            .script
+            .as_ref()
+            .expect("checked exact attachment");
+        if definition != selection.expected_definition {
+            return Err(Error::Input(
+                "selected definition differs from the exact quest attachment",
+            ));
+        }
+        row.declarations = prepare_definition(sources, definition, remaining)?;
+        // Reserve repeated names for owner indexes, canonical validation,
+        // context/assignment copies and the returned snapshot. Handle copies
+        // include the cached schema key and temporary normalization. Fixed
+        // metadata is covered conservatively. World restoration/snapshot
+        // admission separately bounds the complete pre-existing state.
+        for _ in 0..6 {
+            charge(
+                &mut counts.retained_variable_bytes,
+                row.variable_bytes,
+                limits.maximum_retained_variable_bytes,
+                "retained variable bytes",
+            )?;
+        }
+        for _ in 0..8 {
+            for size in [
+                definition.key.record.origin_plugin.len(),
+                definition.version_sha256.len(),
+            ] {
+                charge(
+                    &mut counts.retained_variable_bytes,
+                    size,
+                    limits.maximum_retained_variable_bytes,
+                    "retained variable bytes",
+                )?;
+            }
+        }
+        charge(
+            &mut counts.retained_variable_bytes,
+            1024,
+            limits.maximum_retained_variable_bytes,
+            "retained variable bytes",
+        )?;
+        counts.input.initializers += row.initializers;
+        counts.input.context_arguments += row.context_arguments;
+        counts.input.variable_bytes += row.variable_bytes;
+        counts.input.source_receipt_bytes += row.source_receipt_bytes;
+        counts.input.declarations += row.declarations;
+        plans.push(BootPlan {
+            sources,
+            content,
+            attachment,
+            request: selection.initialization,
+            counts: row,
+        });
+    }
+    Ok(ManyPreparation::Ready(ManyBootPlan { plans, counts }))
+}
+impl<'p, 's> ManyBootPlan<'p, 's> {
+    pub fn plans(&self) -> &[BootPlan<'p, 's>] {
+        &self.plans
+    }
+    pub fn counts(&self) -> ManyCounts {
+        self.counts
+    }
+    /// Restore once and publish only a complete result. A late failure drops
+    /// every earlier private initialization together with this restored World.
+    pub fn apply(
+        &self,
+        snapshot: Snapshot,
+        limits: crate::Limits,
+    ) -> Result<ManyBootResult, Error> {
+        let first = &self.plans[0];
+        if snapshot.campaign != first.request.campaign {
+            return Err(Error::Input(
+                "initializer campaign differs from the supplied snapshot",
+            ));
+        }
+        let mut result = World::restore(first.sources.catalogue(), snapshot, limits)?;
+        first.sources.validate_world(&result)?;
+        first.content.validate_world(&result)?;
+        let mut instances = Vec::with_capacity(self.plans.len());
+        for plan in &self.plans {
+            instances.push(initialize(
+                &mut result,
+                plan.definition(),
+                Owner::Quest {
+                    key: plan.attachment.quest.clone(),
+                },
+                plan.request,
+            )?);
+        }
+        Ok(ManyBootResult {
+            instances,
             snapshot: result.snapshot(),
         })
     }

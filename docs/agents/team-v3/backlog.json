@@ -56,6 +56,77 @@
         "consumer": "Strict content store/index/source joins used by first source-driven route.",
         "acceptance": "Reproduce a concrete failing dependency from worker diagnostics; fix within shared ownership with independent expectation, no blanket exception or second importer.",
         "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-07",
+        "state": "ready",
+        "title": "Enable and audit controller event backend",
+        "depends_on": [],
+        "consumer": "Presentation actual Bevy controller adapter",
+        "acceptance": "Enable only pinned Bevy bevy_gilrs feature; resolve additive lock entries; audit resolved licenses/platform/MSRV and source hashes; changed-package compile/check; physical device acceptance remains explicit."
+      },
+      {
+        "id": "V3-COORD-08",
+        "state": "ready",
+        "title": "Validate reference/pose/residency consumer integration",
+        "depends_on": [],
+        "consumer": "Combined runtime/world/presentation source scene.",
+        "acceptance": "Integrate exact producer commits once, reproduce stale revision/generation/source mismatch across actual consumers; lane owners retain their modules and authority.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-09",
+        "state": "ready",
+        "title": "Close shared source-store admission on first route",
+        "depends_on": [],
+        "consumer": "Source graph/store used by all route consumers.",
+        "acceptance": "Fix one concrete worker diagnostic with exact independently checked source bytes; no global loose parsing exception or replacement importer.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-10",
+        "state": "ready",
+        "title": "Verify original capture transport receipt import",
+        "depends_on": [],
+        "consumer": "Scripts original/replacement trace transport.",
+        "acceptance": "Validate exact completed profile/binary/input receipt and opened/written path evidence before retail capture admission; staging-only receipts cannot claim original execution.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-11",
+        "state": "ready",
+        "title": "Publish reviewed producer dependency slices promptly",
+        "depends_on": [],
+        "consumer": "Workers consuming reference, skin, residency and query APIs.",
+        "acceptance": "Map exact tested dependency commits, scoped combined checks and immediate outbox/board delivery; no wait for public checkpoint to use reviewed development code.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-12",
+        "state": "ready",
+        "title": "Audit shared CLI dispatch and refusal propagation",
+        "depends_on": [],
+        "consumer": "Actual command-line source/probe/save consumers.",
+        "acceptance": "Conflicting additive worker dispatch is reconciled; malformed/unsupported/stale requests produce a failing command and structured source cause, never successful no-op.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-13",
+        "state": "ready",
+        "title": "Compose bounded standalone first-route boot admission",
+        "depends_on": [],
+        "consumer": "Standalone source-driven host and later playable route.",
+        "acceptance": "Existing prepared sources/runtime/window consumers form one bounded boot request; exact unmet capabilities surface before state effects; inspection is not declared gameplay parity.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-14",
+        "state": "ready",
+        "title": "Make new-feature proof inputs and scopes reproducible",
+        "depends_on": [],
+        "consumer": "Next honest integration checkpoint.",
+        "acceptance": "Parameterize existing independent ASSET09/ACT07B/VM05 receipts into fresh input/binary/source manifests; no reuse of old proof outputs as new acceptance.",
+        "fallback_task_id": null
       }
     ],
     "scripts": [
@@ -118,6 +189,86 @@
         "consumer": "Measured route survives budget yield and cold Continue.",
         "acceptance": "Coordinate continuation schema with runtime; preserve current PC/context/locals and exactly-once effects, no invented retail schedule.",
         "fallback_task_id": "V3-VM-03"
+      },
+      {
+        "id": "V3-VM-07",
+        "state": "ready",
+        "title": "Harden prepared execution against stale source and revision",
+        "depends_on": [],
+        "consumer": "Existing local-copy/native prepare, evaluate and canonical commit consumers.",
+        "acceptance": "Adversarial changed source handles, revisions and staged effects refuse atomically; fix a demonstrated failing path, preserve unsupported outcomes.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-08",
+        "state": "ready",
+        "title": "Bind event caller and local scope in executable probe fixtures",
+        "depends_on": [],
+        "consumer": "Actual trace runner and existing event operand/program preparation.",
+        "acceptance": "Selected authored event caller, local and external bindings retain exact site/source; altered scope/site refuses before evaluation.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-09",
+        "state": "ready",
+        "title": "Validate imported capture provenance and numeric bit boundaries",
+        "depends_on": [],
+        "consumer": "Original/replacement trace import and comparison.",
+        "acceptance": "Bound all imported numeric bit words and receipt identities; missing producer, reordered effects and incomplete original captures block; no self-produced original expectation.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-10",
+        "state": "ready",
+        "title": "Bound expression dependency admission for first-route plans",
+        "depends_on": [],
+        "consumer": "Prepared expression plans used by replacement execution.",
+        "acceptance": "Nested/cyclic/unsupported expressions identify exact source position with bounded work; no admitted successful no-op, duplicate decoder or invented operator semantics.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-11",
+        "state": "ready",
+        "title": "Execute supported local-copy probes through the standalone runner",
+        "depends_on": [],
+        "consumer": "Replacement half of the original/replacement comparison runner.",
+        "acceptance": "Consume real prepared local-copy APIs with finite explicit inputs and canonical commit; preserve ordering and raw values, refuse all unmeasured conversions/branches.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-12",
+        "state": "ready",
+        "title": "Add source-bound probe fixture generation and round-trip checks",
+        "depends_on": [],
+        "consumer": "Isolated retail microfixture recorder inputs.",
+        "acceptance": "Emit minimal authored fixtures with pinned source bytes, caller and expected trace shape; independent existing decoder round-trip and truncation tests; no original behavior fabricated.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-13",
+        "state": "ready",
+        "title": "Make trace mismatch reports actionable by exact source step",
+        "depends_on": [],
+        "consumer": "Engine debugging of actual probe mismatches.",
+        "acceptance": "Report first differing original/replacement source offset, caller, raw value/effect and ordering; bounded retention and missing-step diagnostics; invoke through existing runner.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-14",
+        "state": "ready",
+        "title": "Refuse unsupported first-route dispatch before state effects",
+        "depends_on": [],
+        "consumer": "Actual selected quest/script capability admission and execution.",
+        "acceptance": "A mixed supported/unsupported plan cannot commit earlier side effects or report whole-route ready; exercise real prepared dispatch with authored independent expectations.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ],
     "runtime": [
@@ -169,6 +320,96 @@
         "consumer": "Actor rules or measured quest execution requests canonical state.",
         "acceptance": "Explicit field schema and evidence, atomic mutation and save/restore; add only fields exercised by named consumer, no guessed default actor values.",
         "fallback_task_id": "V3-STATE-03"
+      },
+      {
+        "id": "V3-STATE-06",
+        "state": "ready",
+        "title": "Bound retained save completion and shutdown results",
+        "depends_on": [],
+        "consumer": "Application SaveStatus and orderly host shutdown.",
+        "acceptance": "Completed/failing/cancelled worker results release retained bytes once; sticky failure and durable-publication status survive repeated polling; no save-success from enqueue.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-07",
+        "state": "ready",
+        "title": "Verify save admission under process termination and rotation",
+        "depends_on": [],
+        "consumer": "Existing repository publisher and cold recovery.",
+        "acceptance": "Selected crash points keep a valid current/previous generation and source schema; fresh child restore and explicit repair expectations, owned temporary fixtures only.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-08",
+        "state": "ready",
+        "title": "Reject stale canonical mutations across captured snapshots",
+        "depends_on": [],
+        "consumer": "World transaction and native/local-copy effect commit.",
+        "acceptance": "Race two explicit revisions; loser cannot partly mutate references/inventory/clocks or publish a success receipt; exact source/campaign isolation retained.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-09",
+        "state": "ready",
+        "title": "Validate snapshot budgets before retaining source contexts",
+        "depends_on": [],
+        "consumer": "Save capture and untrusted cold-load admission.",
+        "acceptance": "Exact/one-over instance, local, event and retained-source limits reject before unbounded allocation or catalogue clone; valid boundary fixture restores.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-10",
+        "state": "ready",
+        "title": "Expose immutable canonical inventory views for consumers",
+        "depends_on": [],
+        "consumer": "Actor item queries and standalone script query dispatch.",
+        "acceptance": "Reuse existing inventory/source-item authority; snapshot identifies campaign/revision and exact lots; overflow/unknown identities refuse without mutation, no new item rules.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-11",
+        "state": "ready",
+        "title": "Preserve foreign/source identity through cold-save restore",
+        "depends_on": [],
+        "consumer": "Existing native migration and canonical save loader.",
+        "acceptance": "Cross-campaign, changed plugin/source and stale foreign handles refuse; supported explicit migration retains provenance, unavailable fields remain unavailable.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-12",
+        "state": "ready",
+        "title": "Exercise save queue cancellation and completion ownership",
+        "depends_on": [],
+        "consumer": "Existing async SaveTicket/SaveStatus host API.",
+        "acceptance": "Cancelling/disconnecting a consumer cannot acknowledge unpublished state; late completion handled once with bounded bytes, deterministic shutdown test through real queue.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-13",
+        "state": "ready",
+        "title": "Surface structured save failure to the application",
+        "depends_on": [],
+        "consumer": "Presentation save status and command-line host.",
+        "acceptance": "Owned read-only failure/status adapter retains actual cause and publication generation; no production IO failure hidden behind successful shutdown or enqueue.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-14",
+        "state": "ready",
+        "title": "Prevent source-context expiry during asynchronous publication",
+        "depends_on": [],
+        "consumer": "Captured immutable save source/schema context.",
+        "acceptance": "Removed instances and canonical unload cannot invalidate queued publication context; context releases after terminal result and exact bounded failure case is independently checked.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ],
     "actors": [
@@ -234,6 +475,86 @@
         "consumer": "Actual player/enemy encounter and equipment, after required state/query inputs exist.",
         "acceptance": "Pinned formula/rounding thresholds, explicit unsupported modifiers and source record provenance; no guessed damage constants.",
         "fallback_task_id": "V3-ACT-02"
+      },
+      {
+        "id": "V3-ACT-07",
+        "state": "ready",
+        "title": "Preserve actor faction and relationship source requests",
+        "depends_on": [],
+        "consumer": "Runtime actor initialization and condition query inputs.",
+        "acceptance": "Winning record links and authored rank/disposition inputs stay source-bound; unknown inheritance and condition truth refuse, no guessed faction defaults.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-08",
+        "state": "ready",
+        "title": "Resolve explicitly selected equipment model roles",
+        "depends_on": [],
+        "consumer": "Presentation equipment/weapon attachment consumer.",
+        "acceptance": "Caller supplies explicit equipped choice; resolve winning model/slot links with exact provenance; never infer equipped state from inventory presence.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-09",
+        "state": "ready",
+        "title": "Separate authored actor stat fields from evaluated values",
+        "depends_on": [],
+        "consumer": "Runtime initialization request and actor inspector consumer.",
+        "acceptance": "Selected existing decoded source fields retain raw values and template provenance; unavailable/autocalculated/runtime values remain explicit rather than invented.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-10",
+        "state": "ready",
+        "title": "Bound package context against stale caller and campaign",
+        "depends_on": [],
+        "consumer": "Actor package request and script condition consumers.",
+        "acceptance": "Existing package dependency request rejects stale/cross-source actor, target and condition handles before dispatch; no source attachment treated as package truth.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-11",
+        "state": "ready",
+        "title": "Validate actor render requests against changed overrides",
+        "depends_on": [],
+        "consumer": "Presentation actor model role admission.",
+        "acceptance": "Authored template/race/sex/model overrides independently alter expected selected roles; missing/cyclic/ambiguous source graph cannot mark render dependencies complete.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-12",
+        "state": "ready",
+        "title": "Resolve actor voice/dialogue selection source links",
+        "depends_on": [],
+        "consumer": "World conversation request and later original audio consumer.",
+        "acceptance": "Exact winning voice/race/actor links and selection inputs preserved; missing paths unsupported, no inferred audio language or dialogue condition truth.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-13",
+        "state": "ready",
+        "title": "Make unsupported package behavior explicit to the host",
+        "depends_on": [],
+        "consumer": "Actor package eligibility and first-route capability admission.",
+        "acceptance": "Bounded capability request distinguishes source-complete from executable eligibility/scheduling; actual caller gets exact unsupported dependency, never successful no-op AI.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-14",
+        "state": "ready",
+        "title": "Close first-route creature model dependency gaps",
+        "depends_on": [],
+        "consumer": "Existing actor render_manifest and asset bindings.",
+        "acceptance": "Select one actual creature dependency diagnostic, implement needed supported model role with independent source oracle/fixture; no second NIF decoder or rig timing guess.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ],
     "assets": [
@@ -286,6 +607,96 @@
         "consumer": "Actor equipment produces correct visible attachment across pose changes.",
         "acceptance": "Identity-bound attachment transforms, first/third person cases and missing bones; saved authority stays with runtime.",
         "fallback_task_id": "V3-ASSET-02"
+      },
+      {
+        "id": "V3-ASSET-06",
+        "state": "ready",
+        "title": "Consume authored visibility channel at explicit time",
+        "depends_on": [],
+        "consumer": "Presentation selected-source pose/visibility adapter.",
+        "acceptance": "Reuse decoded boolean keys and exact controller links; explicit finite time and source identity, unavailable interpolation/flags refuse; no animation event timing claim.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-07",
+        "state": "ready",
+        "title": "Validate explicit-time channel source link and ancestry",
+        "depends_on": [],
+        "consumer": "Actual source pose evaluator used by renderer.",
+        "acceptance": "Changed target/controller/interpolator/data and unsupported chain/ancestry refuse before palette admission; no fallback to another object or repaired rotations.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-08",
+        "state": "ready",
+        "title": "Bound skin/pose retention for real geometry payloads",
+        "depends_on": [],
+        "consumer": "Source pose evaluation and renderer GPU admission.",
+        "acceptance": "Work/bytes/vertices/bones at exact ceilings and one-over are checked before allocation; failed evaluations cannot retain partial palettes or alter source.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-09",
+        "state": "ready",
+        "title": "Verify normals and singular transforms in skin output",
+        "depends_on": [],
+        "consumer": "Actual evaluated skin arrays passed to presentation.",
+        "acceptance": "Independent analytic nonuniform/reflection/singular transforms establish declared source-space normal handling; ambiguous unsupported mapping refuses, no silent normalization repair.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-10",
+        "state": "ready",
+        "title": "Resolve one source-bound rigid attachment transform",
+        "depends_on": [],
+        "consumer": "Presentation explicit equipment/weapon attachment.",
+        "acceptance": "Use named exact skeleton/node source links and caller explicit attachment; independently verify transform order and source identity, no guessed socket/default pose.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-11",
+        "state": "ready",
+        "title": "Cover next supported real animation controller needed by route",
+        "depends_on": [],
+        "consumer": "Existing decoded NIF animation and explicit-time evaluator.",
+        "acceptance": "Choose actual first-person/creature diagnostic, implement one bounded controller source branch with fresh independent expectation; measured playback remains separately gated.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-12",
+        "state": "ready",
+        "title": "Preserve source timing domains at sample boundaries",
+        "depends_on": [],
+        "consumer": "Explicit-time source channel evaluator.",
+        "acceptance": "Repeat/cycle/clamp flags are source observations until measured; exact endpoints and repeated/decreasing key-time inputs have declared refusal or engineering semantics, no guessed transitions.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-13",
+        "state": "ready",
+        "title": "Verify shared skeleton and multiple geometry bindings",
+        "depends_on": [],
+        "consumer": "Actual actor skin/palette renderer consumer.",
+        "acceptance": "Two source geometries sharing skeleton retain independent geometry/bone mapping and budgets; stale or mismatched container SHA refuses, no duplicated decoder.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-14",
+        "state": "ready",
+        "title": "Diagnose selected mesh unsupported palette input precisely",
+        "depends_on": [],
+        "consumer": "Actor/first-person source pose requests.",
+        "acceptance": "Real failing source geometry returns exact offending block/link/array and retained capability result; fix supported branch with independent fixture, do not mark visible playback accepted.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ],
     "world": [
@@ -348,6 +759,86 @@
         "consumer": "One supported house/exterior route retains explicit source object changes.",
         "acceptance": "Use STATE04 snapshot consumer and PHYS04 readiness, stale completion and cold resume tested; faithful traversal only after measured units/activation.",
         "fallback_task_id": "V3-WORLD-05"
+      },
+      {
+        "id": "V3-WORLD-07",
+        "state": "ready",
+        "title": "Retain texture dependencies through cell residency",
+        "depends_on": [],
+        "consumer": "Presentation textured source scene loading.",
+        "acceptance": "Reuse existing asset/texture plans and ResourceJobs; texture source readiness and pin budgets remain generation-bound; missing required texture blocks full dependency readiness.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-08",
+        "state": "ready",
+        "title": "Exercise unload/retry while retained sources are borrowed",
+        "depends_on": [],
+        "consumer": "Actual CellResidency renderer/physics source leases.",
+        "acceptance": "Cancelled/retried old tickets cannot publish or repin; borrowed payload remains charged until released; independently control worker completion ordering.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-09",
+        "state": "ready",
+        "title": "Resolve conversation request identity and source closure",
+        "depends_on": [],
+        "consumer": "World dialogue request used by presentation.",
+        "acceptance": "Winning topic/info/speaker/script/condition links preserve exact source and authored order; unknown condition truth remains explicit; changed-source request refuses.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-10",
+        "state": "ready",
+        "title": "Bind profile observations to lookup policy admission",
+        "depends_on": [],
+        "consumer": "Actual archive/loose lookup request consumer.",
+        "acceptance": "Profile/file/order hashes bind existing explicit policy; mismatched or absent measured evidence blocks production precedence rather than selecting an invented winner.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-11",
+        "state": "ready",
+        "title": "Bound cell model/resource plan retention",
+        "depends_on": [],
+        "consumer": "Existing cell preparation and residency request API.",
+        "acceptance": "Exact and one-over metadata/mapped extents/queued bytes refuse before retaining source graphs; zero-model and malformed batches remain correctly charged and cancellable.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-12",
+        "state": "ready",
+        "title": "Validate source coordinates at cell and model boundaries",
+        "depends_on": [],
+        "consumer": "Renderer/physics source placement conversion consumers.",
+        "acceptance": "Use existing central coordinate conventions; explicit finite extreme values and cell boundaries reject overflow, preserve original units and do not imply measured unit scale.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-13",
+        "state": "ready",
+        "title": "Preserve authored world/terrain parent dependency requests",
+        "depends_on": [],
+        "consumer": "Terrain preparation and real-cell streaming consumer.",
+        "acceptance": "Winning parent and layer/source fields remain distinct from evaluated inheritance; missing defaults or cycles block readiness, no procedural terrain replacement.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-14",
+        "state": "ready",
+        "title": "Close a selected real source asset path failure",
+        "depends_on": [],
+        "consumer": "Existing source resource lookup and selected route.",
+        "acceptance": "Reproduce one documented missing/absolute-exporter/ambiguous member with exact source digest; implement evidence-scoped admission or precise refusal, no blanket path rewrite.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ],
     "presentation": [
@@ -409,6 +900,86 @@
         "consumer": "WORLD05 selected voice/subtitle request.",
         "acceptance": "Codec/provenance audit, explicit localization/priority and measured timing; actual local cue, missing file clear, raw voice stays local.",
         "fallback_task_id": "V3-VIEW-05"
+      },
+      {
+        "id": "V3-VIEW-07",
+        "state": "ready",
+        "title": "Retain original UI tile tree and action sources",
+        "depends_on": [],
+        "consumer": "Actual first original XML/tile menu consumer.",
+        "acceptance": "Bound existing menu source hierarchy/attributes/operators and source action IDs; unsupported operators remain explicit, no recreation with guessed layout or second source importer.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-08",
+        "state": "ready",
+        "title": "Keep GPU admission and disposal generation-bound",
+        "depends_on": [],
+        "consumer": "Actual loaded cell/pose renderer.",
+        "acceptance": "Delayed upload cannot spawn stale resources after unload/retry; old mesh/material handles release owned budgets; validate actual adapter with controlled completion sequence.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-09",
+        "state": "ready",
+        "title": "Handle loading cancellation and visible failure states",
+        "depends_on": [],
+        "consumer": "Responsive source scene window.",
+        "acceptance": "Actual window remains responsive while source work runs; cancel/retry uses source ticket identity and surfaced diagnostics; no fake ready scene after source failure.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-10",
+        "state": "ready",
+        "title": "Keep action intent separate from canonical mutation",
+        "depends_on": [],
+        "consumer": "Keyboard/controller host input adapter.",
+        "acceptance": "Presentation emits bounded typed intents with focus/device/context/revision; never writes runtime authority directly; release, reconnect and context transition cases independently checked.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-11",
+        "state": "ready",
+        "title": "Close first-route source material transparency gap",
+        "depends_on": [],
+        "consumer": "Existing source NIF/material-to-Bevy adapter.",
+        "acceptance": "Select actual unsupported material diagnostic, preserve source alpha flags/texture binding and independent expected engineering mapping; retail visual parity still unmeasured.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-12",
+        "state": "ready",
+        "title": "Show unsupported source pose and menu diagnostics",
+        "depends_on": [],
+        "consumer": "Actual preview actor/menu request consumer.",
+        "acceptance": "Bounded actionable source/block/capability errors visible in running application; original unsupported behavior cannot become a successful displayed default.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-13",
+        "state": "ready",
+        "title": "Preserve camera state across source scene replacement",
+        "depends_on": [],
+        "consumer": "Responsive cell/terrain window and input adapter.",
+        "acceptance": "New source scene does not reset explicit camera/input context inadvertently; finite canonical conversion, focus loss and cancelled scene cases use actual adapter.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VIEW-14",
+        "state": "ready",
+        "title": "Validate source UI texture and font dependencies",
+        "depends_on": [],
+        "consumer": "Original XML/tile menu display.",
+        "acceptance": "Resolve exact authored font/texture paths through existing source lookup; required missing asset blocks that menu slice, no placeholder accepted as original presentation.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ],
     "physics": [
@@ -473,8 +1044,90 @@
         "consumer": "ACT05 package travel through real cell links.",
         "acceptance": "Portal/special-link preservation, appropriate funnel only on valid corridors, explicit unreachable paths and dynamic obstacle behavior.",
         "fallback_task_id": "V3-PHYS-02"
+      },
+      {
+        "id": "V3-PHYS-07",
+        "state": "ready",
+        "title": "Accelerate source collision queries with bounded spatial indexing",
+        "depends_on": [],
+        "consumer": "Actual StaticScene ray/overlap query consumer.",
+        "acceptance": "Index only supported authored geometry; compare query results against independent exhaustive reference; deterministic tie/source IDs and total build/query budgets.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-08",
+        "state": "ready",
+        "title": "Handle degenerate and grazing collision query geometry",
+        "depends_on": [],
+        "consumer": "Static ray/overlap and future explicit movement proposals.",
+        "acceptance": "Independent tangent/inside/zero-length/overflow/reflection cases have declared engineering outcomes; unsupported shapes or nonfinite results refuse, no visual-box collision.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-09",
+        "state": "ready",
+        "title": "Preserve navigation portal and special-link source identity",
+        "depends_on": [],
+        "consumer": "Authored NAVM/NAVI route query consumer.",
+        "acceptance": "Winning portal/door/special edges and source coordinates retained; missing/unsupported connection blocks route, no fabricated nearest-navmesh connection.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-10",
+        "state": "ready",
+        "title": "Bound route search with admissible declared costs",
+        "depends_on": [],
+        "consumer": "Actual authored navigation route queries.",
+        "acceptance": "Explicit cost model uses proved admissible heuristic or Dijkstra; compare to independent small graph expectations including unreachable/cyclic cases and exact work ceilings.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-11",
+        "state": "ready",
+        "title": "Make collision query source/generation refusal atomic",
+        "depends_on": [],
+        "consumer": "World/actor query callers.",
+        "acceptance": "Changed source SHA, stale cell ticket and mismatched placed reference cannot return usable hit; no geometry repin after unload or mutable second world.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-12",
+        "state": "ready",
+        "title": "Implement source-supported convex query branch needed by route",
+        "depends_on": [],
+        "consumer": "Static query scene for an actual selected collision diagnostic.",
+        "acceptance": "One needed decoded shape/filter/transform branch gets independent analytic tests and exact source attribution; unknown Havok behavior still blocks faithful readiness.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-13",
+        "state": "ready",
+        "title": "Return explicit engineering sweep movement proposals",
+        "depends_on": [],
+        "consumer": "Future canonical character movement consumer.",
+        "acceptance": "Caller declares units/shape/time budget; bounded source-shape sweep reports proposed pose/hits without mutating runtime or claiming measured retail stepping.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-14",
+        "state": "ready",
+        "title": "Account collision geometry lifetime through cancellation",
+        "depends_on": [],
+        "consumer": "Actual query scene and world unload consumer.",
+        "acceptance": "Retained geometry/reference IDs and bytes release once after ticket cancellation/query completion; failed or stale builds cannot publish collision-ready cell.",
+        "fallback_task_id": null,
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
       }
     ]
   },
-  "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list."
+  "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
+  "updated_at": "2026-10-04T03:53:10.681422+00:00",
+  "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices."
 }

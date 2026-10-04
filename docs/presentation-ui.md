@@ -44,3 +44,32 @@ it is not a completed inspection. A successful report proves retained source
 structure, never evaluated original menu rendering. The existing original
 source/operator/font review remains authoritative for subsequent trait and font
 work; this implementation does not repeat that audit.
+
+The opt-in --menu-includes REQUEST.json reads an exact include dependency
+closure. The strict schema-1 request supplies the root member path/archive/payload
+SHA-256 and one binding for every include source-value span: parent member path,
+parent payload SHA-256, src_span { start, end }, exact raw_src, and a target
+with exact member path/archive/payload SHA-256. Bare source names such as
+list_box.xml require this explicit binding; the consumer does not infer a
+directory, search order, loose-file override or template inclusion rule. Only
+literal src and empty/whitespace/comment include bodies are admitted. Unknown
+fields, custom entities in paths, duplicate/unused bindings, changed source hashes,
+missing or ambiguous members and unsafe paths refuse the complete request.
+
+The closure retains separate source-qualified Documents and exact include edges.
+Duplicate dependencies share their immutable document. Iterative traversal reports
+cycles with member/value-span routes and bounds the full dependency depth even
+when a longer path reaches a reused subtree. No nodes are spliced, templates
+instantiated or operators evaluated. A selected authored name still belongs to
+the root source; original_display_ready remains false.
+
+Closure limits are 64 files, 256 edges, 16 include levels, 4 MiB aggregate source,
+131,072 events, 65,536 nodes and 16 MiB declared logical retained metadata, with
+the existing per-document limits. Remaining budgets constrain each archive read
+and parse before retention. The caller request is limited to 128 KiB and the
+closure report to 32 MiB through the existing bounded serializer. Working request
+maps/DFS state and tokenizer temporary allocation are bounded separately, without
+claiming allocator peak memory. Failure returns no closure and the CLI does not
+create its report until complete dependency admission; a subsequent output/write
+failure can still leave a partial immutable report. Default single-file --menu
+output and original UI evaluation/font/display acceptance remain unchanged.

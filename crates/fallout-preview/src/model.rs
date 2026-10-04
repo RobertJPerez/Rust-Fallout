@@ -715,6 +715,36 @@ pub(crate) fn diffuse_physical_mip_pixels(width: u32, height: u32, levels: u32) 
         .map_err(Into::into)
 }
 
+/// Bevy rounds the base BC extent before wgpu derives smaller mip extents.
+/// Raw DDS mips halve the unrounded base. Equal per-mip block rows/columns are
+/// required: otherwise wgpu may slice past the retained source payload. No mip
+/// padding, source data repair or alternate format decoding is performed here.
+fn require_diffuse_mip_layout(
+    width: u32,
+    height: u32,
+    levels: u32,
+    descriptor_width: u32,
+    descriptor_height: u32,
+) -> Result<()> {
+    // The caller has already admitted dimensions and mip count with the physical
+    // counter, so shifts are bounded and every dimension is at most 16,384.
+    for mip in 0..levels {
+        let blocks = |width: u32, height: u32| {
+            [
+                (width >> mip).max(1).div_ceil(4),
+                (height >> mip).max(1).div_ceil(4),
+            ]
+        };
+        if blocks(width, height) != blocks(descriptor_width, descriptor_height) {
+            return Err(format!(
+                "DDS mip {mip} raw block layout differs from rounded image upload extent"
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 /// The selected tile consumer has tighter input/mip-texel limits. Header,
 /// format and payload interpretation remain in this single existing adapter.
 pub fn decode_diffuse_bounded(
@@ -751,6 +781,13 @@ pub fn decode_diffuse_bounded(
     if diffuse_physical_mip_pixels(width, height, header_levels)? > max_pixels {
         return Err("DDS exceeds selected image physical mip texel budget".into());
     }
+    require_diffuse_mip_layout(
+        width,
+        height,
+        header_levels,
+        width.div_ceil(4) * 4,
+        height.div_ceil(4) * 4,
+    )?;
     let wrap = ImageAddressMode::Repeat;
     let edge = ImageAddressMode::ClampToEdge;
     let (u, v) = match clamp {
@@ -798,6 +835,13 @@ pub fn decode_diffuse_bounded(
     {
         return Err("DDS exceeds selected image physical mip texel budget".into());
     }
+    require_diffuse_mip_layout(
+        width,
+        height,
+        levels,
+        image.texture_descriptor.size.width,
+        image.texture_descriptor.size.height,
+    )?;
     let expected: usize = (0..levels)
         .map(|mip| {
             ((width >> mip).max(1).div_ceil(4) * (height >> mip).max(1).div_ceil(4)) as usize

@@ -1664,3 +1664,76 @@ These are explicit engineering samples. Playback clocks, events, actor selection
 retail pose/normal rules and gameplay equipment acceptance remain separate.
 Checkpoint45, saved state, dependencies, source pins and existing defaults stay
 unchanged.
+
+### Reusable exact sequence text-key index (V3-ASSET-35)
+
+`markers::PreparedSequence::prepare(bytes, source, expected_sha256, sequence,
+PreparationLimits)` admits the exact source once with the existing animation
+decoder. Every key in the selected linked text-key block must have a finite
+source time and an authored string, including keys outside any later interval.
+The private selection owns physical ordinals, original binary32 time words,
+string-table indices and raw string bytes. Sequence/text-key spans use the
+decoder's existing hashes. Whole decoded source/index objects are released when
+preparation returns. Caller bytes can then change or be dropped.
+
+`query(IntervalRequest, QueryLimits)` checks the expected digest and selected
+sequence, then binary-searches the numeric closed interval `[start,end]`. A
+bounded heap sort restores physical source order among matches; every comparison
+and swap is charged before execution. Equal times, duplicate strings, non-UTF8
+bytes and signed-zero words remain distinct source observations. Numeric zero
+membership includes both signs. Empty intervals and authored empty arrays return
+explicit empty observations. The immutable index has no cursor or clock.
+
+`IndexedObservation.observation` preserves the old one-shot observation's
+semantic fields. Its four storage/work counters describe the new execution
+scope: charged output includes the wrapper and released ordinal scratch;
+`decoded_source_retained_bytes` is zero because no decoded catalogue coexists
+with a query. Combined storage includes the live prepared selection. `usage`
+separately reports output elements, scratch-inclusive charged bytes, prepared
+bytes, two visits to each matching index entry, binary-search probes and actual
+ordinal-sort comparisons. Decode, whole-source hash and full-key-validation
+counters are zero for every query. These are logical element charges; Vec spare
+capacity and allocator bookkeeping are excluded.
+
+Preparation defaults admit at most65,536 selected keys,16MiB selected arrays and
+128million own hash/metadata/key/copy/sort work units. The existing decoder has
+32MiB array and1million reference-check allowances,16,384 blocks and64MiB input.
+Its complete declared array allowance plus the preparation allowance must fit
+48MiB before decoding. The historical actual decoded-source charge and
+preparation peak remain in `PreparationUsage`; they are separate from live query
+storage. Decoder framing/reference caps remain separate from the reported own
+work counter. No additional parser or source-format conversion is introduced.
+
+Query defaults allow65,536 matches,4MiB charged output,1million work units and
+20MiB live prepared/output storage. `query_many` admits a nonempty list of at
+most64 exact requests, preserving list order, under64MiB aggregate output,
+64million work and80MiB combined storage. Per-query caps still apply. Every
+request's identity and interval are validated before result allocation. A later
+query resource refusal drops the whole incomplete batch; it neither returns
+partial observations nor mutates the prepared selection.
+
+The actual inspector accepts `nif-animation --prepared-markers-request` with
+strict schema1 `expected_sha256`, `sequence` and `intervals` objects containing
+only explicit `source_start`/`source_end`. Request input is at most64KiB and the
+list contains1..64 intervals. Both input directories are protected. Other
+animation modes and the old marker request flag conflict at argument parsing.
+The driver conservatively charges the released request buffer, both typed
+interval lists, report/path/hash headers and both path copies. Source input plus
+declared preparation and driver allowances fit128MiB. Source bytes are dropped
+before indexed execution; the driver charge is subtracted from aggregate query
+and80MiB combined allowances. The report's source hash comes from successful
+preparation. Semantic failure emits a null batch and nonzero exit; structural
+request/output-path refusal creates no report. Existing marker commands keep
+their prior format and counter scope.
+
+Independent fixtures cover unsorted and duplicate times, both zero signs,
+repeated raw non-UTF8 strings, overlapping/empty/point intervals, physical order,
+permutations/repeated queries, mutation/drop ownership, invalid out-of-window
+keys, identity/absence failures and exact/one-under limits. A4,096-key source
+admits empty/one/three-match queries in fewer than100 charged work units. The
+public `tools/nif-animation-oracle/check_prepared_markers.py` consumer checks
+literal entries and complete old single-query report equality through frozen
+executables. Selected installed KF queries retain native source spans and raw
+strings in private evidence. Query efficiency is established by counters, not a
+wall-time claim. Text-key observation does not dispatch events or establish
+retail timing, transitions, playback or gameplay acceptance.

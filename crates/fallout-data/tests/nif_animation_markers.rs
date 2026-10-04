@@ -353,3 +353,451 @@ fn wrong_text_key_type_invalid_string_reference_and_truncated_source_refuse() {
         .is_err()
     );
 }
+
+fn indexed_request(bytes: &[u8], start: f64, end: f64) -> markers::IntervalRequest {
+    markers::IntervalRequest {
+        expected_sha256: Sha256::digest(bytes).into(),
+        sequence: 0,
+        source_start: start,
+        source_end: end,
+    }
+}
+fn prepared_keys() -> Vec<(f32, u32)> {
+    vec![
+        (2., 1),
+        (-0., 2),
+        (1., 3),
+        (1., 1),
+        (-2., 4),
+        (0., 2),
+        (3., 5),
+    ]
+}
+fn prepared_bytes() -> Vec<u8> {
+    container(&[
+        ("NiControllerSequence", sequence(1)),
+        ("NiTextKeyExtraData", text(&prepared_keys())),
+    ])
+}
+fn prepare_markers(bytes: &[u8]) -> markers::PreparedSequence {
+    markers::PreparedSequence::prepare(
+        bytes,
+        "independent indexed source",
+        Sha256::digest(bytes).into(),
+        0,
+        Default::default(),
+    )
+    .unwrap()
+}
+fn semantic_observation(value: &markers::Observation) -> serde_json::Value {
+    let mut value = serde_json::to_value(value).unwrap();
+    for field in [
+        "retained_bytes",
+        "decoded_source_retained_bytes",
+        "combined_retained_bytes",
+        "work_units",
+    ] {
+        value.as_object_mut().unwrap().remove(field);
+    }
+    value
+}
+
+#[test]
+fn prepared_index_preserves_literals_zeros_physical_order_and_old_semantic_fields() {
+    let bytes = prepared_bytes();
+    let prepared = prepare_markers(&bytes);
+    assert_eq!(prepared.usage().animation_decodes, 1);
+    assert_eq!(prepared.usage().full_source_sha256_traversals, 1);
+    assert_eq!(prepared.usage().validated_keys, 7);
+    assert_eq!(prepared.sequence(), 0);
+    let cases = [
+        (0., 2., vec![0, 1, 2, 3, 5]),
+        (1., 1., vec![2, 3]),
+        (0., -0., vec![1, 5]),
+        (-9., 9., vec![0, 1, 2, 3, 4, 5, 6]),
+        (4., 5., vec![]),
+        (f64::from_bits(1f64.to_bits() + 1), 2., vec![0]),
+    ];
+    for (start, end, ordinals) in cases {
+        let result = prepared
+            .query(indexed_request(&bytes, start, end), Default::default())
+            .unwrap();
+        assert_eq!(
+            result
+                .observation
+                .entries
+                .iter()
+                .map(|e| e.source_key_ordinal)
+                .collect::<Vec<_>>(),
+            ordinals
+        );
+        assert_eq!(
+            semantic_observation(&result.observation),
+            semantic_observation(&query(&bytes, start, end))
+        );
+        assert_eq!(result.usage.animation_decodes, 0);
+        assert_eq!(result.usage.full_source_sha256_traversals, 0);
+        assert_eq!(result.usage.full_key_validations, 0);
+        assert_eq!(result.observation.decoded_source_retained_bytes, 0);
+        assert_eq!(
+            result.usage.matching_index_visits,
+            result.observation.entries.len() * 2
+        );
+        assert_eq!(
+            result.usage.combined_retained_bytes,
+            prepared.usage().retained_bytes + result.usage.charged_bytes
+        );
+        assert_eq!(
+            result.usage.output_bytes
+                + result.observation.entries.len() * std::mem::size_of::<usize>(),
+            result.usage.charged_bytes
+        );
+        assert!(!result.observation.retail_behavior_verified);
+    }
+    let point = prepared
+        .query(indexed_request(&bytes, -0., 0.), Default::default())
+        .unwrap();
+    assert_eq!(point.observation.source_start_f64_bits, (-0f64).to_bits());
+    assert_eq!(point.observation.entries[0].time_bits, (-0f32).to_bits());
+    assert_eq!(point.observation.entries[1].time_bits, 0f32.to_bits());
+    assert_eq!(point.observation.entries[0].raw_string_bytes, [255, 0, 0]);
+    assert_eq!(point.observation.entries[1].raw_string_bytes, [255, 0, 0]);
+}
+
+#[test]
+fn prepared_index_owns_selected_source_after_input_mutation_drop_and_refusals() {
+    let mut bytes = prepared_bytes();
+    let request = indexed_request(&bytes, -9., 9.);
+    let prepared = prepare_markers(&bytes);
+    let before =
+        serde_json::to_value(prepared.query(request, Default::default()).unwrap()).unwrap();
+    bytes.fill(0);
+    drop(bytes);
+    for bad in [
+        markers::IntervalRequest {
+            sequence: 1,
+            ..request
+        },
+        markers::IntervalRequest {
+            expected_sha256: [0; 32],
+            ..request
+        },
+        markers::IntervalRequest {
+            source_start: f64::NAN,
+            ..request
+        },
+        markers::IntervalRequest {
+            source_end: f64::INFINITY,
+            ..request
+        },
+        markers::IntervalRequest {
+            source_start: 10.,
+            ..request
+        },
+    ] {
+        assert!(prepared.query(bad, Default::default()).is_err());
+    }
+    assert!(
+        prepared
+            .query(
+                request,
+                markers::QueryLimits {
+                    work_units: 1,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(
+        serde_json::to_value(prepared.query(request, Default::default()).unwrap()).unwrap(),
+        before
+    );
+    assert!(!format!("{prepared:?}").contains("raw_string_bytes"));
+}
+
+#[test]
+fn prepared_index_preparation_validates_out_of_window_keys_links_and_exact_admission() {
+    let bytes = prepared_bytes();
+    let baseline = prepare_markers(&bytes).usage();
+    let exact = markers::PreparationLimits {
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        max_combined_retained_bytes: baseline.decoder_array_admission_bytes
+            + baseline.retained_bytes,
+        keys: 7,
+        ..Default::default()
+    };
+    assert!(
+        markers::PreparedSequence::prepare(
+            &bytes,
+            "exact",
+            Sha256::digest(&bytes).into(),
+            0,
+            exact
+        )
+        .is_ok()
+    );
+    for limits in [
+        markers::PreparationLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        markers::PreparationLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        markers::PreparationLimits {
+            max_combined_retained_bytes: exact.max_combined_retained_bytes - 1,
+            ..exact
+        },
+        markers::PreparationLimits { keys: 6, ..exact },
+        markers::PreparationLimits {
+            source: fallout_data::nif_animation::Limits {
+                input_bytes: bytes.len() - 1,
+                ..exact.source
+            },
+            ..exact
+        },
+    ] {
+        assert!(
+            markers::PreparedSequence::prepare(
+                &bytes,
+                "one below",
+                Sha256::digest(&bytes).into(),
+                0,
+                limits
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        markers::PreparedSequence::prepare(&bytes, "foreign", [0; 32], 0, Default::default())
+            .is_err()
+    );
+    for selected in [1, 99] {
+        assert!(
+            markers::PreparedSequence::prepare(
+                &bytes,
+                "wrong selection",
+                Sha256::digest(&bytes).into(),
+                selected,
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+    for keys in [
+        vec![(99., NULL)],
+        vec![(f32::NAN, 1)],
+        vec![(f32::INFINITY, 1)],
+        vec![(2., 99)],
+    ] {
+        let bytes = container(&[
+            ("NiControllerSequence", sequence(1)),
+            ("NiTextKeyExtraData", text(&keys)),
+        ]);
+        assert!(
+            markers::PreparedSequence::prepare(
+                &bytes,
+                "invalid selected key",
+                Sha256::digest(&bytes).into(),
+                0,
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+    let bytes = container(&[
+        ("NiControllerSequence", sequence(NULL)),
+        ("NiTextKeyExtraData", text(&prepared_keys())),
+    ]);
+    assert!(
+        markers::PreparedSequence::prepare(
+            &bytes,
+            "absent link",
+            Sha256::digest(&bytes).into(),
+            0,
+            Default::default()
+        )
+        .is_err()
+    );
+    let bytes = container(&[
+        ("NiControllerSequence", sequence(1)),
+        ("NiTextKeyExtraData", text(&prepared_keys())),
+        ("NiTextKeyExtraData", text(&[(99., NULL)])),
+    ]);
+    assert_eq!(prepare_markers(&bytes).usage().validated_keys, 7);
+}
+
+#[test]
+fn prepared_index_query_and_batch_exact_caps_are_atomic_and_permutation_preserving() {
+    let bytes = prepared_bytes();
+    let prepared = prepare_markers(&bytes);
+    let request = indexed_request(&bytes, 0., 2.);
+    let baseline = prepared.query(request, Default::default()).unwrap().usage;
+    let exact = markers::QueryLimits {
+        entries: 5,
+        array_bytes: baseline.charged_bytes,
+        work_units: baseline.work_units,
+        max_combined_retained_bytes: baseline.combined_retained_bytes,
+    };
+    assert!(prepared.query(request, exact).is_ok());
+    for limits in [
+        markers::QueryLimits {
+            entries: 4,
+            ..exact
+        },
+        markers::QueryLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        markers::QueryLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        markers::QueryLimits {
+            max_combined_retained_bytes: exact.max_combined_retained_bytes - 1,
+            ..exact
+        },
+    ] {
+        assert!(prepared.query(request, limits).is_err());
+    }
+    let requests = [
+        request,
+        indexed_request(&bytes, -0., 0.),
+        indexed_request(&bytes, 4., 5.),
+    ];
+    let batch = prepared.query_many(&requests, Default::default()).unwrap();
+    for (result, request) in batch.intervals.iter().zip(requests) {
+        assert_eq!(
+            serde_json::to_value(result).unwrap(),
+            serde_json::to_value(prepared.query(request, Default::default()).unwrap()).unwrap()
+        );
+    }
+    let perm = prepared
+        .query_many(&[requests[2], requests[0], requests[1]], Default::default())
+        .unwrap();
+    for (result, ordinal) in perm.intervals.iter().zip([2, 0, 1]) {
+        assert_eq!(
+            serde_json::to_value(result).unwrap(),
+            serde_json::to_value(&batch.intervals[ordinal]).unwrap()
+        );
+    }
+    let exact = markers::BatchLimits {
+        intervals: 3,
+        array_bytes: batch.charged_bytes,
+        work_units: batch.work_units,
+        max_combined_retained_bytes: batch.combined_retained_bytes,
+        ..Default::default()
+    };
+    assert!(prepared.query_many(&requests, exact).is_ok());
+    for limits in [
+        markers::BatchLimits {
+            intervals: 2,
+            ..exact
+        },
+        markers::BatchLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        markers::BatchLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        markers::BatchLimits {
+            max_combined_retained_bytes: exact.max_combined_retained_bytes - 1,
+            ..exact
+        },
+        markers::BatchLimits {
+            query: markers::QueryLimits {
+                entries: 1,
+                ..Default::default()
+            },
+            ..exact
+        },
+    ] {
+        assert!(prepared.query_many(&requests, limits).is_err());
+    }
+    assert!(prepared.query_many(&[], Default::default()).is_err());
+    assert!(
+        prepared
+            .query_many(
+                &[
+                    requests[0],
+                    markers::IntervalRequest {
+                        source_start: 10.,
+                        ..requests[2]
+                    }
+                ],
+                Default::default()
+            )
+            .is_err()
+    );
+    assert!(
+        prepared
+            .query_many(
+                &[requests[2], requests[1], requests[0]],
+                markers::BatchLimits {
+                    query: markers::QueryLimits {
+                        entries: 2,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(
+        serde_json::to_value(prepared.query(request, Default::default()).unwrap())
+            .unwrap()
+            .get("usage")
+            .unwrap(),
+        &serde_json::to_value(baseline).unwrap()
+    );
+}
+
+#[test]
+fn prepared_index_small_query_visits_boundaries_without_scanning_thousands_of_keys() {
+    let source_keys = (0..4096).rev().map(|i| (i as f32, 1)).collect::<Vec<_>>();
+    let bytes = container(&[
+        ("NiControllerSequence", sequence(1)),
+        ("NiTextKeyExtraData", text(&source_keys)),
+    ]);
+    let prepared = prepare_markers(&bytes);
+    assert_eq!(prepared.usage().validated_keys, 4096);
+    for (start, end, ordinals) in [
+        (9000., 9001., vec![]),
+        (2000., 2000., vec![2095]),
+        (1999., 2001., vec![2094, 2095, 2096]),
+    ] {
+        let value = prepared
+            .query(
+                indexed_request(&bytes, start, end),
+                markers::QueryLimits {
+                    work_units: 100,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(value.usage.boundary_probes <= 26);
+        assert_eq!(value.usage.matching_index_visits, ordinals.len() * 2);
+        assert_eq!(
+            value
+                .observation
+                .entries
+                .iter()
+                .map(|e| e.source_key_ordinal)
+                .collect::<Vec<_>>(),
+            ordinals
+        );
+    }
+    let bytes = container(&[
+        ("NiControllerSequence", sequence(1)),
+        ("NiTextKeyExtraData", text(&[])),
+    ]);
+    let value = prepare_markers(&bytes)
+        .query(indexed_request(&bytes, -9., 9.), Default::default())
+        .unwrap();
+    assert!(value.observation.entries.is_empty());
+    assert_eq!(value.usage.boundary_probes, 0);
+}

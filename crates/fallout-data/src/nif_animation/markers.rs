@@ -5,6 +5,12 @@ use crate::{Error, Result};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+mod prepared;
+pub use prepared::{
+    BatchLimits, IndexedBatch, IndexedObservation, IntervalRequest, PreparationLimits,
+    PreparationUsage, PreparedSequence, QueryLimits, QueryUsage,
+};
+
 pub const CONTRACT: &str = "engineering-source-text-key-interval-v1";
 
 #[derive(Clone, Copy, Debug)]

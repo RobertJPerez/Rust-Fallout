@@ -393,6 +393,115 @@ pub fn inspect_markers(
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct IndexedMarkerInterval {
+    source_start: f64,
+    source_end: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IndexedMarkerRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    sequence: u32,
+    intervals: Vec<IndexedMarkerInterval>,
+}
+#[derive(Serialize)]
+pub struct PreparedMarkerReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<nif_animation::markers::IndexedBatch>,
+    error: Option<String>,
+    pub failures: usize,
+    driver_retained_bytes: usize,
+    initial_concurrent_admission_bytes: usize,
+    indexed_concurrent_admission_bytes: Option<usize>,
+}
+
+pub fn inspect_prepared_markers(input: &Path, request_path: &Path) -> Result<PreparedMarkerReport> {
+    use nif_animation::markers::{self, IntervalRequest, PreparedSequence};
+    let request: IndexedMarkerRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.intervals.is_empty() || request.intervals.len() > 64 {
+        return Err("indexed markers require schema1 and 1..64 explicit intervals".into());
+    }
+    let preparation = markers::PreparationLimits::default();
+    // Conservative driver admission includes the released request byte buffer,
+    // both typed interval vectors, report/path/hash and parsed request headers.
+    let driver_retained_bytes = 64 * 1024
+        + std::mem::size_of::<IndexedMarkerRequest>()
+        + std::mem::size_of::<PreparedMarkerReport>()
+        + 64
+        + input.as_os_str().as_encoded_bytes().len() * 2
+        + request.intervals.len()
+            * (std::mem::size_of::<IndexedMarkerInterval>()
+                + std::mem::size_of::<IntervalRequest>());
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let initial_concurrent_admission_bytes = bytes.len()
+        + preparation.source.array_bytes
+        + preparation.array_bytes
+        + driver_retained_bytes;
+    if initial_concurrent_admission_bytes > 128 * 1024 * 1024 {
+        return Err("indexed markers input/preparation/driver admission exceeded".into());
+    }
+    let source = input.display().to_string();
+    let prepared = PreparedSequence::prepare(
+        &bytes,
+        &source,
+        request.expected_sha256,
+        request.sequence,
+        preparation,
+    );
+    let sha256 = prepared
+        .as_ref()
+        .map(|p| p.source_sha256().to_owned())
+        .unwrap_or_else(|_| format!("{:x}", Sha256::digest(&bytes)));
+    drop(bytes);
+    let evaluated = prepared.and_then(|prepared| {
+        let intervals = request
+            .intervals
+            .iter()
+            .map(|interval| IntervalRequest {
+                expected_sha256: request.expected_sha256,
+                sequence: request.sequence,
+                source_start: interval.source_start,
+                source_end: interval.source_end,
+            })
+            .collect::<Vec<_>>();
+        let limits = markers::BatchLimits::default();
+        prepared.query_many(
+            &intervals,
+            markers::BatchLimits {
+                array_bytes: limits.array_bytes - driver_retained_bytes,
+                max_combined_retained_bytes: limits.max_combined_retained_bytes
+                    - driver_retained_bytes,
+                ..limits
+            },
+        )
+    });
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    let indexed_concurrent_admission_bytes = evaluation
+        .as_ref()
+        .map(|batch| batch.combined_retained_bytes + driver_retained_bytes);
+    Ok(PreparedMarkerReport {
+        schema_version: 1,
+        contract: "engineering-prepared-text-key-interval-batch-v1",
+        input: input.into(),
+        sha256,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+        driver_retained_bytes,
+        initial_concurrent_admission_bytes,
+        indexed_concurrent_admission_bytes,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AttachmentRequest {
     schema_version: u32,
     expected_skeleton_sha256: [u8; 32],

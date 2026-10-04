@@ -14,6 +14,7 @@ use fallout_data::{
     loaded_scripts::{Handle, Version},
     plugin,
     quest_scripts::{Attachment, Attachments, Status},
+    store::SourceReceipt,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -112,6 +113,63 @@ pub fn prepare<'p, 's>(
     request: &'p Request,
     limits: Limits,
 ) -> Result<BootPlan<'p, 's>, Error> {
+    let mut counts = prepare_input(
+        sources,
+        attachments.source_receipts(),
+        explicit_quest,
+        request,
+        limits,
+    )?;
+    let catalogue = sources.catalogue();
+    // This empty private World supplies the existing content/cohort validation
+    // API. It creates no script owner, values, references or journal entries.
+    let validation_world =
+        World::with_campaign(catalogue, crate::Limits::default(), request.campaign)?;
+    content.validate_world(&validation_world)?;
+    let form = content.source_form(&validation_world, explicit_quest)?;
+    if form.kind != *b"QUST" {
+        return Err(Error::Input("explicit attachment owner is not a quest"));
+    }
+    let attachment = attachments
+        .get(explicit_quest)
+        .ok_or(Error::Input("quest attachment is missing"))?;
+    if form.flags & plugin::DELETED != 0 || attachment.status != Status::LoadedDefinition {
+        return Err(Error::Attachment(attachment.status));
+    }
+    if !attachment.findings.is_empty()
+        || attachment.fields.len() != 1
+        || attachment.source.decoded_record_sha256.is_none()
+    {
+        return Err(Error::Input("quest attachment retains source findings"));
+    }
+    let definition = attachment
+        .script
+        .as_ref()
+        .ok_or(Error::Input("quest attachment lost its exact definition"))?;
+    if attachment.fields[0].key.as_ref() != Some(&definition.key.record) {
+        return Err(Error::Input(
+            "quest attachment field differs from its definition",
+        ));
+    }
+    counts.declarations = prepare_definition(sources, definition, limits)?;
+    Ok(BootPlan {
+        sources,
+        content,
+        attachment,
+        request,
+        counts,
+    })
+}
+
+/// Shared bounded initializer/context/cohort validation. Retains the historical
+/// quest route's validation order, error strings and logical counters.
+pub(crate) fn prepare_input(
+    sources: &PreparedSources<'_>,
+    receipts: &[SourceReceipt],
+    explicit_quest: &FormKey,
+    request: &Request,
+    limits: Limits,
+) -> Result<Counts, Error> {
     CampaignId::from_bytes(request.campaign.bytes())?;
     if request.initializers.len() > limits.maximum_initializers {
         return Err(Error::Capacity("initializers"));
@@ -120,7 +178,6 @@ pub fn prepare<'p, 's>(
         return Err(Error::Capacity("context arguments"));
     }
     let catalogue = sources.catalogue();
-    let receipts = attachments.source_receipts();
     if receipts.len() != catalogue.sources.len() {
         return Err(Error::Input(
             "attachment source receipts differ from the prepared catalogue",
@@ -186,51 +243,40 @@ pub fn prepare<'p, 's>(
     }
     // Canonical-name validation may allocate; admit all input strings first.
     crate::identity::valid_form(explicit_quest)?;
-    // This empty private World supplies the existing content/cohort validation
-    // API. It creates no script owner, values, references or journal entries.
-    let validation_world =
-        World::with_campaign(catalogue, crate::Limits::default(), request.campaign)?;
-    content.validate_world(&validation_world)?;
-    let form = content.source_form(&validation_world, explicit_quest)?;
-    if form.kind != *b"QUST" {
-        return Err(Error::Input("explicit attachment owner is not a quest"));
-    }
-    let attachment = attachments
-        .get(explicit_quest)
-        .ok_or(Error::Input("quest attachment is missing"))?;
-    if form.flags & plugin::DELETED != 0 || attachment.status != Status::LoadedDefinition {
-        return Err(Error::Attachment(attachment.status));
-    }
-    if !attachment.findings.is_empty()
-        || attachment.fields.len() != 1
-        || attachment.source.decoded_record_sha256.is_none()
-    {
-        return Err(Error::Input("quest attachment retains source findings"));
-    }
-    let definition = attachment
-        .script
-        .as_ref()
-        .ok_or(Error::Input("quest attachment lost its exact definition"))?;
-    if attachment.fields[0].key.as_ref() != Some(&definition.key.record) {
-        return Err(Error::Input(
-            "quest attachment field differs from its definition",
-        ));
-    }
+    Ok(counts)
+}
+
+pub(crate) fn prepare_definition(
+    sources: &PreparedSources<'_>,
+    definition: &Handle,
+    limits: Limits,
+) -> Result<usize, Error> {
     sources.get(definition)?;
-    let script = catalogue
+    let script = sources
+        .catalogue()
         .get_handle(definition)
         .ok_or(crate::Error::DefinitionChanged)?;
-    counts.declarations = script.declarations().len();
-    if counts.declarations > limits.maximum_declarations {
+    let declarations = script.declarations().len();
+    if declarations > limits.maximum_declarations {
         return Err(Error::Capacity("local declarations"));
     }
-    Ok(BootPlan {
-        sources,
-        content,
-        attachment,
-        request,
-        counts,
-    })
+    Ok(declarations)
+}
+
+pub(crate) fn initialize(
+    result: &mut World<'_>,
+    definition: &Handle,
+    owner: Owner,
+    request: &Request,
+) -> Result<InstanceId, Error> {
+    let handle = result.create_instance(definition, owner, request.context.clone())?;
+    let assignments: Vec<_> = request
+        .initializers
+        .iter()
+        .map(|entry| (entry.index, entry.value.clone()))
+        .collect();
+    result.assign(handle, &assignments)?;
+    Ok(result.instance(handle)?.id())
 }
 
 impl BootPlan<'_, '_> {
@@ -271,16 +317,7 @@ impl BootPlan<'_, '_> {
         let owner = Owner::Quest {
             key: self.attachment.quest.clone(),
         };
-        let handle =
-            result.create_instance(self.definition(), owner, self.request.context.clone())?;
-        let assignments: Vec<_> = self
-            .request
-            .initializers
-            .iter()
-            .map(|entry| (entry.index, entry.value.clone()))
-            .collect();
-        result.assign(handle, &assignments)?;
-        let instance = result.instance(handle)?.id();
+        let instance = initialize(&mut result, self.definition(), owner, self.request)?;
         Ok(BootResult {
             instance,
             snapshot: result.snapshot(),

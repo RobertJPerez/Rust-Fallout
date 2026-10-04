@@ -5,6 +5,7 @@ use fallout_data::{
     plugin,
     store::RecordStore,
 };
+use fallout_runtime::source_items::{SourceInventoryGroupLimits, SourceInventoryRequest};
 use fallout_runtime::{
     Limits, World,
     events::{Clocks, Context, Trigger},
@@ -17,6 +18,688 @@ use fallout_runtime::{
     state::initialization,
 };
 use std::num::NonZeroU32;
+
+#[test]
+fn campaign_lifecycle_package_preserves_all_canonical_boundaries_through_native_and_fresh_cold_consumers()
+ {
+    use std::{fs, path::PathBuf, process::Command};
+    let scratch = tempfile::tempdir().unwrap();
+    let root = std::env::var_os("FALLOUT_RUNTIME_PACKAGE_EVIDENCE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| scratch.path().join("package"));
+    fs::create_dir(&root).unwrap();
+    let (catalogue, content) = initialization_fixture_at(&root);
+    // Authoritative source identities for the named actor/container owners are
+    // supplied explicitly. This is still an engineering initialization policy.
+    let mut bytes = fs::read(root.join("FalloutNV.esm")).unwrap();
+    bytes.extend(record(
+        b"ACHR",
+        0x701,
+        0,
+        &field(b"NAME", &0x112u32.to_le_bytes()),
+    ));
+    bytes.extend(record(b"CONT", 0x600, 0, &[]));
+    bytes.extend(record(
+        b"REFR",
+        0x703,
+        0,
+        &field(b"NAME", &0x600u32.to_le_bytes()),
+    ));
+    fs::write(root.join("FalloutNV.esm"), bytes).unwrap();
+    drop(content);
+    drop(catalogue);
+    let mut store =
+        RecordStore::open_nv_headers(&root, &["FalloutNV.esm".into()], plugin::Limits::default())
+            .unwrap();
+    let catalogue = Catalogue::load(&mut store, CatalogueLimits::default(), |_, _| Ok(())).unwrap();
+    let content = Content::load(&mut store, &catalogue, 100).unwrap();
+    let (mut world, unrelated, lots) = initialization_world(&catalogue, Limits::default());
+    world.initialize_inventory(unrelated).unwrap();
+    let (old_item, _) = world
+        .add_source_item(&content, &policy(), unrelated, lots[0].0.clone(), lots[0].1)
+        .unwrap();
+    let actor = world.register_reference(Some(form(0x701))).unwrap();
+    let container = world.register_reference(Some(form(0x703))).unwrap();
+    let empty = world.register_reference(None).unwrap();
+    for activation in [2, 3] {
+        let stage = world
+            .stage_instance_initialization(
+                &definition(&catalogue),
+                &Owner::Fragment {
+                    activation: activation.try_into().unwrap(),
+                },
+                &Context::default(),
+                &[
+                    (2, Value::Number { bits: activation }),
+                    (
+                        42,
+                        Value::Number {
+                            bits: u64::MAX - activation,
+                        },
+                    ),
+                    (
+                        90,
+                        Value::Reference {
+                            value: ReferenceValue::Null,
+                        },
+                    ),
+                ],
+                initialization::Limits::default(),
+            )
+            .unwrap();
+        world.commit_instance_initialization(stage).unwrap();
+    }
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let mut worker = SaveWorker::start(repository.clone(), 2).unwrap();
+    let mut snapshots = vec![("before", before.clone())];
+    let mut wires = Vec::new();
+    let saved = worker
+        .try_submit(Captured::at_boundary(&world))
+        .unwrap()
+        .wait()
+        .unwrap();
+    assert_eq!(saved.metadata.generation, 1);
+    wires.push(fs::read(repository.path().join("current.frsv")).unwrap());
+    let mut bad = lots.clone();
+    bad[1].0.base = form(0x777);
+    let bad_requests = [
+        SourceInventoryRequest {
+            owner: actor,
+            lots: &lots,
+        },
+        SourceInventoryRequest {
+            owner: container,
+            lots: &bad,
+        },
+        SourceInventoryRequest {
+            owner: empty,
+            lots: &[],
+        },
+    ];
+    assert!(
+        world
+            .stage_source_inventory_group(
+                &content,
+                &policy(),
+                &bad_requests,
+                SourceInventoryGroupLimits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    let requests = [
+        SourceInventoryRequest {
+            owner: actor,
+            lots: &lots,
+        },
+        SourceInventoryRequest {
+            owner: container,
+            lots: &lots[1..],
+        },
+        SourceInventoryRequest {
+            owner: empty,
+            lots: &[],
+        },
+    ];
+    let stage = world
+        .stage_source_inventory_group(
+            &content,
+            &policy(),
+            &requests,
+            SourceInventoryGroupLimits::default(),
+        )
+        .unwrap();
+    let boot = world
+        .commit_source_inventory_group(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(boot.after_revision(), before.state_revision + 1);
+    let boot_snapshot = world.snapshot();
+    assert_eq!(boot_snapshot.instances, before.instances);
+    assert_eq!(boot_snapshot.pending_events, before.pending_events);
+    assert_eq!(boot_snapshot.clocks, before.clocks);
+    assert_eq!(world.item(old_item).unwrap().facts(), &lots[0].0);
+    snapshots.push(("boot", boot_snapshot.clone()));
+    assert_eq!(
+        worker
+            .try_submit(Captured::at_boundary(&world))
+            .unwrap()
+            .wait()
+            .unwrap()
+            .metadata
+            .generation,
+        2
+    );
+    wires.push(fs::read(repository.path().join("current.frsv")).unwrap());
+    assert!(
+        world
+            .stage_source_inventory_additions(
+                &content,
+                &policy(),
+                actor,
+                &bad,
+                SourceInventoryLimits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), boot_snapshot);
+    let stage = world
+        .stage_source_inventory_additions(
+            &content,
+            &policy(),
+            actor,
+            &lots,
+            SourceInventoryLimits::default(),
+        )
+        .unwrap();
+    let additions = world
+        .commit_source_inventory_additions(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(additions.after_revision(), boot.after_revision() + 1);
+    assert_eq!(world.inventory_count(actor, &form(0x100)).unwrap(), 26);
+    let addition_snapshot = world.snapshot();
+    snapshots.push(("addition", addition_snapshot.clone()));
+    assert_eq!(
+        worker
+            .try_submit(Captured::at_boundary(&world))
+            .unwrap()
+            .wait()
+            .unwrap()
+            .metadata
+            .generation,
+        3
+    );
+    wires.push(fs::read(repository.path().join("current.frsv")).unwrap());
+    let selected = [
+        world.handle(InstanceId(3.try_into().unwrap())).unwrap(),
+        world.handle(InstanceId(2.try_into().unwrap())).unwrap(),
+    ];
+    let survivor = world.handle(InstanceId(1.try_into().unwrap())).unwrap();
+    assert!(
+        world
+            .stage_instance_retirement_group(
+                &[selected[0], survivor],
+                fallout_runtime::state::retirement::Limits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), addition_snapshot);
+    let stage = world
+        .stage_instance_retirement_group(
+            &selected,
+            fallout_runtime::state::retirement::Limits::default(),
+        )
+        .unwrap();
+    let retirement = world.commit_instance_retirement_group(stage).unwrap();
+    let after = world.snapshot();
+    let mut expected = addition_snapshot;
+    expected.instances.truncate(1);
+    expected.state_revision += 1;
+    assert_eq!(after, expected);
+    snapshots.push(("retirement", after));
+    assert_eq!(
+        worker
+            .try_submit(Captured::at_boundary(&world))
+            .unwrap()
+            .wait()
+            .unwrap()
+            .metadata
+            .generation,
+        4
+    );
+    wires.push(fs::read(repository.path().join("current.frsv")).unwrap());
+    worker.finish().unwrap();
+    fs::write(
+        root.join("receipts.json"),
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"boot":boot,"additions":additions,"retirement":retirement}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    drop(world);
+    drop(content);
+    drop(catalogue);
+    for ((phase, snapshot), wire) in snapshots.iter().zip(&wires) {
+        let phase_root = root.join(phase);
+        fs::create_dir(&phase_root).unwrap();
+        fs::write(
+            root.join(format!("expected.{phase}.json")),
+            snapshot.encode(1 << 20).unwrap(),
+        )
+        .unwrap();
+        let copy = Repository::create(&phase_root.join("native"), &[], snapshot.campaign).unwrap();
+        fs::write(copy.path().join("current.frsv"), wire).unwrap();
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_campaign_lifecycle_package_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_RUNTIME_PACKAGE_COLD_ROOT", &root)
+            .env("FALLOUT_RUNTIME_PACKAGE_COLD_PHASE", phase)
+            .output()
+            .unwrap();
+        fs::write(phase_root.join("cold.stdout.txt"), &child.stdout).unwrap();
+        fs::write(phase_root.join("cold.stderr.txt"), &child.stderr).unwrap();
+        assert!(
+            child.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert_eq!(fs::read(copy.path().join("current.frsv")).unwrap(), *wire);
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        wires[3]
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        wires[2]
+    );
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+#[test]
+#[ignore = "fresh connected campaign consumer invoked by parent"]
+fn cold_campaign_lifecycle_package_helper() {
+    use std::{fs, path::PathBuf};
+    let root = PathBuf::from(std::env::var_os("FALLOUT_RUNTIME_PACKAGE_COLD_ROOT").unwrap());
+    let phase = std::env::var("FALLOUT_RUNTIME_PACKAGE_COLD_PHASE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let repository = Repository::open(&root.join(&phase).join("native"), &[]).unwrap();
+    let (world, receipt) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    let expected = Snapshot::decode(
+        &fs::read(root.join(format!("expected.{phase}.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(world.snapshot(), expected);
+    let views = expected
+        .references
+        .iter()
+        .map(|reference| {
+            world
+                .inventory_view(
+                    reference.id,
+                    ViewLimits {
+                        max_items: 256,
+                        max_links: 32_768,
+                        max_extra_bytes: 2 * 1024 * 1024,
+                    },
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    fs::write(
+        root.join(&phase).join("cold.restored.json"),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.views.json"),
+        serde_json::to_vec_pretty(&views).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn source_inventory_group_boots_actor_container_and_empty_owner_in_request_order_once() {
+    let (_dir, catalogue, content) = initialization_fixture();
+    let (mut world, container, lots) = initialization_world(&catalogue, Limits::default());
+    let actor = world.register_reference(Some(form(0x112))).unwrap();
+    let empty = world.register_reference(None).unwrap();
+    let requests = [
+        SourceInventoryRequest {
+            owner: actor,
+            lots: &lots,
+        },
+        SourceInventoryRequest {
+            owner: container,
+            lots: &lots[1..],
+        },
+        SourceInventoryRequest {
+            owner: empty,
+            lots: &[],
+        },
+    ];
+    let before = world.snapshot();
+    let stage = world
+        .stage_source_inventory_group(
+            &content,
+            &policy(),
+            &requests,
+            SourceInventoryGroupLimits::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        stage.owners().collect::<Vec<_>>(),
+        [actor, container, empty]
+    );
+    assert_eq!(stage.usage().owners, 3);
+    assert_eq!(stage.usage().inventory.lots, 3);
+    assert_eq!(world.snapshot(), before);
+    let receipt = world
+        .commit_source_inventory_group(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(receipt.before_revision(), before.state_revision);
+    assert_eq!(receipt.after_revision(), before.state_revision + 1);
+    assert_eq!(
+        receipt
+            .owners()
+            .iter()
+            .map(|row| row.owner())
+            .collect::<Vec<_>>(),
+        [actor, container, empty]
+    );
+    assert_eq!(
+        receipt
+            .owners()
+            .iter()
+            .map(|row| row
+                .item_ids()
+                .iter()
+                .map(|id| id.0.get())
+                .collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+        [vec![1, 2], vec![3], vec![]]
+    );
+    assert_eq!(world.inventory_count(actor, &form(0x100)).unwrap(), 13);
+    assert_eq!(world.inventory_count(container, &form(0x100)).unwrap(), 2);
+    assert_eq!(world.inventory_count(empty, &form(0x100)).unwrap(), 0);
+    assert_eq!(world.inventory_items(empty).unwrap().count(), 0);
+    for (row, request) in receipt.owners().iter().zip(&requests) {
+        for (&id, (facts, count)) in row.item_ids().iter().zip(request.lots) {
+            assert_eq!(world.item(id).unwrap().facts(), facts);
+            assert_eq!(world.item(id).unwrap().count(), count.get());
+        }
+    }
+    let after = world.snapshot();
+    assert_eq!(after.next_item, 4);
+    assert_eq!(after.references, before.references);
+    assert_eq!(after.instances, before.instances);
+    assert_eq!(after.pending_events, before.pending_events);
+    assert_eq!(after.clocks, before.clocks);
+    assert!(
+        world
+            .stage_source_inventory_group(
+                &content,
+                &policy(),
+                &[SourceInventoryRequest {
+                    owner: empty,
+                    lots: &[]
+                }],
+                SourceInventoryGroupLimits::default()
+            )
+            .is_err()
+    );
+    let stage = world
+        .stage_source_inventory_group(
+            &content,
+            &policy(),
+            &[],
+            SourceInventoryGroupLimits::default(),
+        )
+        .unwrap();
+    let receipt = world
+        .commit_source_inventory_group(&content, &policy(), stage)
+        .unwrap();
+    assert!(receipt.owners().is_empty());
+    assert_eq!(receipt.before_revision(), receipt.after_revision());
+    assert_eq!(world.snapshot(), after);
+}
+#[test]
+fn source_inventory_group_invalid_final_owner_or_lot_and_duplicate_owner_leave_all_banks_unknown() {
+    let (_dir, catalogue, content) = initialization_fixture();
+    let (mut world, first, lots) = initialization_world(&catalogue, Limits::default());
+    let last = world.register_reference(None).unwrap();
+    let before = world.snapshot();
+    let missing = ReferenceId(999.try_into().unwrap());
+    let mut bad = lots.clone();
+    bad[1].0.modifications = Some(vec![form(0x113), form(0x777)]);
+    let mut legacy = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    let stage = legacy
+        .stage_source_inventory_initialization(
+            &content,
+            &policy(),
+            first,
+            &lots,
+            SourceInventoryLimits::default(),
+        )
+        .unwrap();
+    legacy
+        .commit_source_inventory_initialization(&content, &policy(), stage)
+        .unwrap();
+    assert!(
+        legacy
+            .stage_source_inventory_initialization(
+                &content,
+                &policy(),
+                last,
+                &bad,
+                SourceInventoryLimits::default()
+            )
+            .is_err()
+    );
+    assert_ne!(legacy.snapshot(), before);
+    assert!(legacy.inventory_items(first).is_ok());
+    assert!(legacy.inventory_items(last).is_err());
+    for requests in [
+        vec![
+            SourceInventoryRequest {
+                owner: first,
+                lots: &lots,
+            },
+            SourceInventoryRequest {
+                owner: missing,
+                lots: &[],
+            },
+        ],
+        vec![
+            SourceInventoryRequest {
+                owner: first,
+                lots: &lots,
+            },
+            SourceInventoryRequest {
+                owner: first,
+                lots: &[],
+            },
+        ],
+        vec![
+            SourceInventoryRequest {
+                owner: first,
+                lots: &lots,
+            },
+            SourceInventoryRequest {
+                owner: last,
+                lots: &bad,
+            },
+        ],
+    ] {
+        assert!(
+            world
+                .stage_source_inventory_group(
+                    &content,
+                    &policy(),
+                    &requests,
+                    SourceInventoryGroupLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        assert!(world.inventory_items(first).is_err());
+        assert!(world.inventory_items(last).is_err());
+    }
+    world.initialize_inventory(last).unwrap();
+    let before = world.snapshot();
+    assert!(
+        world
+            .stage_source_inventory_group(
+                &content,
+                &policy(),
+                &[
+                    SourceInventoryRequest {
+                        owner: first,
+                        lots: &lots
+                    },
+                    SourceInventoryRequest {
+                        owner: last,
+                        lots: &[]
+                    }
+                ],
+                SourceInventoryGroupLimits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+}
+#[test]
+fn source_inventory_group_cumulative_exact_bounds_and_stale_commit_are_atomic() {
+    let (_dir, catalogue, content) = initialization_fixture();
+    let (mut world, first, lots) = initialization_world(&catalogue, Limits::default());
+    let second = world.register_reference(None).unwrap();
+    let requests = [
+        SourceInventoryRequest {
+            owner: first,
+            lots: &lots,
+        },
+        SourceInventoryRequest {
+            owner: second,
+            lots: &lots,
+        },
+    ];
+    let before = world.snapshot();
+    let usage = world
+        .stage_source_inventory_group(
+            &content,
+            &policy(),
+            &requests,
+            SourceInventoryGroupLimits::default(),
+        )
+        .unwrap()
+        .usage();
+    let exact = SourceInventoryGroupLimits {
+        max_owners: 2,
+        max_lots: 4,
+        max_source_checks: usage.inventory.source_checks,
+        max_copied_bytes: usage.inventory.copied_bytes,
+    };
+    assert!(
+        world
+            .stage_source_inventory_group(&content, &policy(), &requests, exact)
+            .is_ok()
+    );
+    for limits in [
+        SourceInventoryGroupLimits {
+            max_owners: 1,
+            ..exact
+        },
+        SourceInventoryGroupLimits {
+            max_lots: 3,
+            ..exact
+        },
+        SourceInventoryGroupLimits {
+            max_source_checks: usage.inventory.source_checks - 1,
+            ..exact
+        },
+        SourceInventoryGroupLimits {
+            max_copied_bytes: usage.inventory.copied_bytes - 1,
+            ..exact
+        },
+    ] {
+        assert!(
+            world
+                .stage_source_inventory_group(&content, &policy(), &requests, limits)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_source_inventory_group(&content, &policy(), &requests, exact)
+        .unwrap();
+    world.initialize_inventory(second).unwrap();
+    let after = world.snapshot();
+    assert!(
+        world
+            .commit_source_inventory_group(&content, &policy(), stage)
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), after);
+    assert!(world.inventory_items(first).is_err());
+    for limits in [
+        Limits {
+            max_inventory_banks: 1,
+            ..Limits::default()
+        },
+        Limits {
+            max_item_instances: 3,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_links: 31,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_bytes: 11,
+            ..Limits::default()
+        },
+    ] {
+        let (mut world, first, lots) = initialization_world(&catalogue, limits);
+        let second = world.register_reference(None).unwrap();
+        let before = world.snapshot();
+        let requests = [
+            SourceInventoryRequest {
+                owner: first,
+                lots: &lots,
+            },
+            SourceInventoryRequest {
+                owner: second,
+                lots: &lots,
+            },
+        ];
+        assert!(
+            world
+                .stage_source_inventory_group(&content, &policy(), &requests, exact)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let limits = Limits {
+        max_inventory_banks: 2,
+        max_item_instances: 4,
+        max_total_item_links: 32,
+        max_total_item_bytes: 12,
+        ..Default::default()
+    };
+    let (mut world, first, lots) = initialization_world(&catalogue, limits);
+    let second = world.register_reference(None).unwrap();
+    let requests = [
+        SourceInventoryRequest {
+            owner: first,
+            lots: &lots,
+        },
+        SourceInventoryRequest {
+            owner: second,
+            lots: &lots,
+        },
+    ];
+    let stage = world
+        .stage_source_inventory_group(&content, &policy(), &requests, exact)
+        .unwrap();
+    world
+        .commit_source_inventory_group(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(world.snapshot().next_item, 5);
+}
 
 #[test]
 fn source_additions_preserve_original_lots_and_publish_distinct_same_base_ids_once() {

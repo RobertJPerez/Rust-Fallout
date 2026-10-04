@@ -844,6 +844,88 @@ mod source_publication_tests {
             .is_err()
         );
     }
+    #[test]
+    fn group_allocator_revision_and_final_owner_bindings_refuse_without_initializing_first_owner() {
+        let (_dir, catalogue, content) = fixture();
+        let mut world = World::new(&catalogue, crate::Limits::default()).unwrap();
+        let first = world.register_reference(None).unwrap();
+        let last = world.register_reference(None).unwrap();
+        let lots = [(Facts::unknown(common::form(0x100)), 1.try_into().unwrap())];
+        let requests = [
+            SourceInventoryRequest {
+                owner: first,
+                lots: &lots,
+            },
+            SourceInventoryRequest {
+                owner: last,
+                lots: &lots,
+            },
+        ];
+        world.next_item = u64::MAX - 1;
+        let before = world.snapshot();
+        assert!(
+            world
+                .stage_source_inventory_group(
+                    &content,
+                    &policy(),
+                    &requests,
+                    SourceInventoryGroupLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        world.next_item = 1;
+        world.revision = u64::MAX;
+        let before = world.snapshot();
+        assert!(
+            world
+                .stage_source_inventory_group(
+                    &content,
+                    &policy(),
+                    &requests,
+                    SourceInventoryGroupLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        let stage = world
+            .stage_source_inventory_group(
+                &content,
+                &policy(),
+                &[],
+                SourceInventoryGroupLimits::default(),
+            )
+            .unwrap();
+        world
+            .commit_source_inventory_group(&content, &policy(), stage)
+            .unwrap();
+        assert_eq!(world.snapshot(), before);
+        world.revision = 2;
+        let before = world.snapshot();
+        for fault in 0..4 {
+            let mut stage = world
+                .stage_source_inventory_group(
+                    &content,
+                    &policy(),
+                    &requests,
+                    SourceInventoryGroupLimits::default(),
+                )
+                .unwrap();
+            match fault {
+                0 => stage.0.owners[1].owner = first,
+                1 => stage.0.owners[1].authored = Some(common::form(0x100)),
+                2 => stage.0.final_next_item += 1,
+                _ => stage.0.counts[1].before += 1,
+            }
+            assert!(
+                world
+                    .commit_source_inventory_group(&content, &policy(), stage)
+                    .is_err()
+            );
+            assert_eq!(world.snapshot(), before);
+            assert!(!world.inventory_banks.contains_key(&first));
+        }
+    }
 }
 #[derive(Debug, Serialize)]
 pub struct SourceInventoryOwnerReceipt {
@@ -870,6 +952,133 @@ struct SourcePublicationReceipt {
     after_revision: u64,
     owners: Vec<SourceInventoryOwnerReceipt>,
     usage: SourceInventoryUsage,
+}
+/// Caller-supplied owner and ordered lots; no source container expansion.
+#[derive(Debug, Clone, Copy)]
+pub struct SourceInventoryRequest<'a> {
+    pub owner: ReferenceId,
+    pub lots: &'a [(Facts, NonZeroU32)],
+}
+#[derive(Debug, Clone, Copy)]
+pub struct SourceInventoryGroupLimits {
+    pub max_owners: usize,
+    pub max_lots: usize,
+    pub max_source_checks: usize,
+    pub max_copied_bytes: usize,
+}
+impl Default for SourceInventoryGroupLimits {
+    fn default() -> Self {
+        let limits = SourceInventoryLimits::default();
+        Self {
+            max_owners: 64,
+            max_lots: limits.max_lots,
+            max_source_checks: limits.max_source_checks,
+            max_copied_bytes: limits.max_copied_bytes,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct SourceInventoryGroupUsage {
+    pub owners: usize,
+    pub inventory: SourceInventoryUsage,
+}
+#[derive(Debug)]
+#[must_use = "staging initializes no owners; commit the group or drop it"]
+pub struct StagedSourceInventoryGroup(SourcePublication);
+impl StagedSourceInventoryGroup {
+    pub fn owners(&self) -> impl ExactSizeIterator<Item = ReferenceId> + '_ {
+        self.0.owners.iter().map(|row| row.owner)
+    }
+    pub fn usage(&self) -> SourceInventoryGroupUsage {
+        SourceInventoryGroupUsage {
+            owners: self.0.owners.len(),
+            inventory: self.0.usage,
+        }
+    }
+}
+/// Read-only persistent publication identities; not saved replay authority.
+#[derive(Debug, Serialize)]
+pub struct SourceInventoryGroupReceipt {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    before_revision: u64,
+    after_revision: u64,
+    owners: Vec<SourceInventoryOwnerReceipt>,
+    usage: SourceInventoryGroupUsage,
+}
+impl SourceInventoryGroupReceipt {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn policy_sha256(&self) -> &str {
+        &self.policy_sha256
+    }
+    pub fn before_revision(&self) -> u64 {
+        self.before_revision
+    }
+    pub fn after_revision(&self) -> u64 {
+        self.after_revision
+    }
+    pub fn owners(&self) -> &[SourceInventoryOwnerReceipt] {
+        &self.owners
+    }
+    pub fn usage(&self) -> SourceInventoryGroupUsage {
+        self.usage
+    }
+}
+impl World<'_> {
+    /// Initialize all explicit unknown owners together, with IDs in request/lot
+    /// order. An empty owner is initialized; an empty request group is a no-op.
+    pub fn stage_source_inventory_group(
+        &self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        requests: &[SourceInventoryRequest<'_>],
+        limits: SourceInventoryGroupLimits,
+    ) -> crate::source_items::Result<StagedSourceInventoryGroup> {
+        let source_limits = SourceInventoryLimits {
+            max_lots: limits.max_lots,
+            max_source_checks: limits.max_source_checks,
+            max_copied_bytes: limits.max_copied_bytes,
+        };
+        self.stage_source_publication(
+            content,
+            policy,
+            requests.iter().map(|request| (request.owner, request.lots)),
+            (
+                true,
+                limits.max_owners,
+                size_of::<StagedSourceInventoryGroup>() + size_of::<SourceInventoryGroupReceipt>(),
+            ),
+            source_limits,
+        )
+        .map(StagedSourceInventoryGroup)
+    }
+    pub fn commit_source_inventory_group(
+        &mut self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        stage: StagedSourceInventoryGroup,
+    ) -> crate::source_items::Result<SourceInventoryGroupReceipt> {
+        let receipt = self.commit_source_publication(content, policy, stage.0)?;
+        let usage = SourceInventoryGroupUsage {
+            owners: receipt.owners.len(),
+            inventory: receipt.usage,
+        };
+        Ok(SourceInventoryGroupReceipt {
+            campaign: receipt.campaign,
+            catalogue_sha256: receipt.catalogue_sha256,
+            policy_sha256: receipt.policy_sha256,
+            before_revision: receipt.before_revision,
+            after_revision: receipt.after_revision,
+            owners: receipt.owners,
+            usage,
+        })
+    }
 }
 impl World<'_> {
     fn source_publication_capacity(

@@ -15,8 +15,10 @@ use std::{
 pub type Result<T> = std::result::Result<T, Failure>;
 pub use crate::inventory::{
     SourceFactsCountChange, SourceFactsLimits, SourceFactsReceipt, SourceFactsRow,
-    SourceFactsUsage, SourceInventoryLimits, SourceInventoryOwnerReceipt, SourceInventoryReceipt,
-    SourceInventoryUsage, StagedSourceFacts, StagedSourceInventory, StagedSourceInventoryAdditions,
+    SourceFactsUsage, SourceInventoryGroupLimits, SourceInventoryGroupReceipt,
+    SourceInventoryGroupUsage, SourceInventoryLimits, SourceInventoryOwnerReceipt,
+    SourceInventoryReceipt, SourceInventoryRequest, SourceInventoryUsage, StagedSourceFacts,
+    StagedSourceInventory, StagedSourceInventoryAdditions, StagedSourceInventoryGroup,
 };
 #[derive(Debug, thiserror::Error)]
 pub enum Failure {

@@ -169,6 +169,16 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
                 .then(|| key.clone())
         })
         .ok_or("Item initialization probe needs a nondeleted placed source owner")?;
+    let package_actor = store.winning_definitions().find_map(|(key, location)| {
+        let header = &store.definition(location).header;
+        (header.kind == *b"NPC_" && header.flags & fallout_data::plugin::DELETED == 0)
+            .then(|| key.clone())
+    });
+    let package_container = store.winning_definitions().find_map(|(key, location)| {
+        let header = &store.definition(location).header;
+        (header.kind == *b"CONT" && header.flags & fallout_data::plugin::DELETED == 0)
+            .then(|| key.clone())
+    });
     let mut engineering = script_state_inspection::engineering_world(&scripts)?;
     // A distinct campaign keeps this probe's persistent counters separate.
     let mut snapshot = engineering.world.snapshot();
@@ -573,7 +583,290 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         &placed,
         &keys,
     )?;
+    report["campaign_lifecycle_package"] = match (package_actor, package_container) {
+        (Some(actor), Some(container)) => campaign_lifecycle_probe(
+            install,
+            repository_path,
+            &scripts,
+            &content,
+            &[actor, container],
+            &keys,
+        )?,
+        _ => {
+            json!({"status":"unavailable","reason":"Explicit engineering actor/container source identities unavailable","retail_parity_accepted":false})
+        }
+    };
     Ok(report)
+}
+
+fn campaign_lifecycle_probe(
+    install: &Path,
+    repository_path: &Path,
+    scripts: &loaded_scripts::Catalogue,
+    content: &Content,
+    owner_keys: &[fallout_data::identity::FormKey; 2],
+    keys: &[fallout_data::identity::FormKey],
+) -> Result<Value> {
+    use fallout_runtime::{
+        events::{Clocks, Context, Trigger},
+        identity::{Owner, ReferenceValue, Value as LocalValue},
+        schema::{self, Kind},
+        source_items::{SourceInventoryGroupLimits, SourceInventoryRequest},
+        state::{initialization, retirement},
+    };
+    let Some(script) = scripts.iter().map(|(_, script)| script).find(|script| {
+        schema::locals(script)
+            .values()
+            .any(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+    }) else {
+        return Ok(
+            json!({"status":"unavailable","reason":"No supported explicit script local declaration","retail_parity_accepted":false}),
+        );
+    };
+    let mut world = World::with_campaign(
+        scripts,
+        Limits::default(),
+        CampaignId::from_bytes([57; 16])?,
+    )?;
+    let unrelated = world.register_reference(None)?;
+    let actor = world.register_reference(Some(owner_keys[0].clone()))?;
+    let container = world.register_reference(Some(owner_keys[1].clone()))?;
+    let empty = world.register_reference(None)?;
+    let unknown = world.register_reference(None)?;
+    let context = Context {
+        calling_reference: Some(unrelated),
+        containing_reference: Some(unrelated),
+        target: Some(ReferenceValue::Live { id: unrelated }),
+        arguments: vec![ReferenceValue::Null],
+    };
+    let mut handles = Vec::new();
+    let mut initialization_inputs = Vec::new();
+    for index in 0usize..3 {
+        let owner = Owner::Fragment {
+            activation: u64::try_from(index + 1)?.try_into()?,
+        };
+        let assignments = schema::locals(script)
+            .iter()
+            .filter_map(|(&slot, local)| {
+                let value = match local.kind {
+                    Kind::Float | Kind::Integer => LocalValue::Number {
+                        bits: [0x8000_0000_0000_0000, 0x7ff8_1234_5678_9abc, u64::MAX][index],
+                    },
+                    Kind::Reference => LocalValue::Reference {
+                        value: match index {
+                            0 => ReferenceValue::Live { id: unrelated },
+                            1 => ReferenceValue::Null,
+                            _ => ReferenceValue::Content {
+                                key: script.handle().key.record.clone(),
+                            },
+                        },
+                    },
+                    _ => return None,
+                };
+                Some((slot, value))
+            })
+            .collect::<Vec<_>>();
+        let stage = world.stage_instance_initialization(
+            script.handle(),
+            &owner,
+            &context,
+            &assignments,
+            initialization::Limits::default(),
+        )?;
+        let (receipt, handle) = world.commit_instance_initialization(stage)?;
+        handles.push(handle);
+        initialization_inputs.push(
+            json!({"owner":owner,"context":context,"assignments":assignments,"receipt":receipt}),
+        );
+    }
+    world.enqueue(
+        handles[0],
+        Trigger::ObjectEvent { mask: 0x8000_0001 },
+        context,
+    )?;
+    let mut facts = Facts::unknown(keys[0].clone());
+    facts.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abc,
+    });
+    facts.ownership = Some(Ownership::Live {
+        reference: unrelated,
+    });
+    facts.equipped_slots = Some(vec![7, 1]);
+    facts.ammo = Some(Ammo {
+        base: keys[1].clone(),
+        count: 0,
+    });
+    facts.modifications = Some(vec![keys[2].clone()]);
+    facts.quest_item = Some(false);
+    facts.script_instance = Some(world.instance(handles[0])?.id());
+    facts.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 255, 1],
+    }];
+    let base_kinds = keys
+        .iter()
+        .map(|key| content.source_form(&world, key).map(|source| source.kind))
+        .collect::<std::result::Result<std::collections::BTreeSet<_>, _>>()?
+        .into_iter()
+        .collect::<Vec<_>>();
+    let policy = Policy::new(&[
+        (Role::Base, &base_kinds),
+        (Role::Ammo, &[content.source_form(&world, &keys[1])?.kind]),
+        (
+            Role::Modification,
+            &[content.source_form(&world, &keys[2])?.kind],
+        ),
+    ])?;
+    let starting = [(facts.clone(), 8.try_into()?)];
+    let stage = world.stage_source_inventory_initialization(
+        content,
+        &policy,
+        unrelated,
+        &starting,
+        SourceInventoryLimits::default(),
+    )?;
+    world.commit_source_inventory_initialization(content, &policy, stage)?;
+    world.advance_clocks(Clocks {
+        tick: 1,
+        game_nanoseconds: 3,
+        menu_nanoseconds: 5,
+        real_nanoseconds: 7,
+    })?;
+    let before = world.snapshot();
+    let repository = Repository::create(
+        &repository_path.join("campaign-lifecycle"),
+        &[install.into()],
+        world.campaign(),
+    )?;
+    let before_write = repository.commit(&Captured::at_boundary(&world))?;
+    let mut second = facts.clone();
+    second.condition = Some(Condition::Float32 { bits: 0x8000_0000 });
+    let actor_lots = [
+        (facts.clone(), 4.try_into()?),
+        (second.clone(), 3.try_into()?),
+    ];
+    let container_lots = [
+        (Facts::unknown(keys[1].clone()), 2.try_into()?),
+        (Facts::unknown(keys[2].clone()), 1.try_into()?),
+    ];
+    let requests = [
+        SourceInventoryRequest {
+            owner: actor,
+            lots: &actor_lots,
+        },
+        SourceInventoryRequest {
+            owner: container,
+            lots: &container_lots,
+        },
+        SourceInventoryRequest {
+            owner: empty,
+            lots: &[],
+        },
+    ];
+    let mut bad_container = container_lots.clone();
+    bad_container[1].0.equipped_slots = Some(vec![7, 7]);
+    let bad_requests = [
+        requests[0],
+        SourceInventoryRequest {
+            owner: container,
+            lots: &bad_container,
+        },
+        requests[2],
+    ];
+    if world
+        .stage_source_inventory_group(
+            content,
+            &policy,
+            &bad_requests,
+            SourceInventoryGroupLimits::default(),
+        )
+        .is_ok()
+        || world.snapshot() != before
+    {
+        return Err("Campaign boot invalid last lot changed state".into());
+    }
+    let stage = world.stage_source_inventory_group(
+        content,
+        &policy,
+        &requests,
+        SourceInventoryGroupLimits::default(),
+    )?;
+    let boot = world.commit_source_inventory_group(content, &policy, stage)?;
+    let boot_snapshot = world.snapshot();
+    if boot_snapshot.state_revision != before.state_revision + 1
+        || boot_snapshot.instances != before.instances
+        || boot_snapshot.pending_events != before.pending_events
+        || boot_snapshot.clocks != before.clocks
+    {
+        return Err("Campaign boot canonical boundary differs".into());
+    }
+    let additions_lots = [(facts, 11.try_into()?), (second, 2.try_into()?)];
+    let mut bad_additions = additions_lots.clone();
+    bad_additions[1].0.ownership = Some(Ownership::Live {
+        reference: ReferenceId(999.try_into()?),
+    });
+    if world
+        .stage_source_inventory_additions(
+            content,
+            &policy,
+            actor,
+            &bad_additions,
+            SourceInventoryLimits::default(),
+        )
+        .is_ok()
+        || world.snapshot() != boot_snapshot
+    {
+        return Err("Campaign additions invalid last lot changed state".into());
+    }
+    let stage = world.stage_source_inventory_additions(
+        content,
+        &policy,
+        actor,
+        &additions_lots,
+        SourceInventoryLimits::default(),
+    )?;
+    let additions = world.commit_source_inventory_additions(content, &policy, stage)?;
+    let addition_snapshot = world.snapshot();
+    if addition_snapshot.state_revision != boot_snapshot.state_revision + 1
+        || world.inventory_count(actor, &keys[0])? != 20
+    {
+        return Err("Campaign additions count/revision differs".into());
+    }
+    let addition_write = repository.commit(&Captured::at_boundary(&world))?;
+    if world
+        .stage_instance_retirement_group(&[handles[1], handles[0]], retirement::Limits::default())
+        .is_ok()
+        || world.snapshot() != addition_snapshot
+    {
+        return Err("Campaign retirement invalid final linked instance changed state".into());
+    }
+    let stage = world.stage_instance_retirement_group(
+        &[handles[2], handles[1]],
+        retirement::Limits::default(),
+    )?;
+    let retired = world.commit_instance_retirement_group(stage)?;
+    let current = world.snapshot();
+    let mut expected = addition_snapshot.clone();
+    expected.instances.truncate(1);
+    expected.state_revision += 1;
+    if current != expected {
+        return Err("Campaign retirement whole canonical boundary differs".into());
+    }
+    let current_write = repository.commit(&Captured::at_boundary(&world))?;
+    let (restored, loaded) = repository.load(scripts, Limits::default(), Recovery::Strict)?;
+    if restored.snapshot() != current || restored.instance(handles[0]).is_ok() {
+        return Err("Campaign native restore identity differs".into());
+    }
+    let owners = [unrelated, actor, container, empty, unknown];
+    Ok(
+        json!({"status":"available","scope":"Three explicit engineering transactions; source identities do not supply initialization defaults","owner_keys":owner_keys,
+        "owner_sources":[content.source_form(&world,&owner_keys[0])?,content.source_form(&world,&owner_keys[1])?],"owners":owners,"policy":policy,
+        "script_inputs":initialization_inputs,"starting_lots":starting,"boot_lots":{"actor":actor_lots,"container":container_lots,"empty":[]},"addition_lots":additions_lots,
+        "before_snapshot":before,"boot_snapshot":boot_snapshot,"addition_snapshot":addition_snapshot,"current_snapshot":current,
+        "boot_receipt":boot,"addition_receipt":additions,"retirement_receipt":retired,"writes":[before_write,addition_write,current_write],"load_receipt":loaded,
+        "inventory_views":views(&world,&owners)?,"query_traces":traces(&world,&owners[..4],keys)?,"invalid_last_boot_addition_retirement_unchanged":true,
+        "unknown_distinct_from_empty":true,"bytecode_executed":false,"retail_parity_accepted":false}),
+    )
 }
 
 fn partial_transfer_probe(

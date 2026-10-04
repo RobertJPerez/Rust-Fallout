@@ -1,0 +1,378 @@
+{
+  "schema_version": 1,
+  "revision": "e12ecaf9117301ed834d546a93131f9e9d2a8c2a",
+  "promoted_merge_revision": "7673e10df0770873daca01fe621b1062904f22f9",
+  "scope": "Combined data/runtime/CLI/preview engineering checks and fresh authored pose, sampled-skin, marker and resident texture consumers",
+  "source_manifest_sha256": "b05f2adea494cd95a74fb28c00e3c29a77ca07e77d01d706eb80612eae4ce7f3",
+  "rust_passing_results": 992,
+  "ignored_helpers": 26,
+  "rust_result_lines": 108,
+  "commands": [
+    {
+      "name": "rust",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "7cad1a4e9d519722ba4e8ab3305c32a3c9643199b13f5f245b70db63883c5653"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "514691fc3de36f1b4323d31494421810dd0468c419b546094bc2e9003068508d"
+    },
+    {
+      "name": "format",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer-build",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "build",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--bins",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "c75699d2446738741ce0e6d1cc1ac084edbda0e8b9c2251bdcaa93ea8eeb2a41"
+    }
+  ],
+  "binaries": {
+    "fallout": {
+      "bytes": 17358336,
+      "sha256": "dbd607cc30f0ac10c837befabb4487fd830b58086ee3a4931a60fdc4d2599808"
+    },
+    "fallout-evidence": {
+      "bytes": 8747520,
+      "sha256": "7ec6591a7cdaf96623fb1f4f635835a9e4aecd2718d0227731ed4a6a61a10714"
+    },
+    "fallout-playtest": {
+      "bytes": 2120704,
+      "sha256": "dcf2255d066e2d0e0312cddacc1e69b018a451894e358bc813e8adbc609a9e75"
+    },
+    "fallout-preview": {
+      "bytes": 101661696,
+      "sha256": "3e48665b140ae2ad2469ea42590d759676372792d091880abc62357449efe3d5"
+    },
+    "fallout-tests": {
+      "bytes": 5966848,
+      "sha256": "a8a188c365f725b42bc77f106bc4f6bc1430ee09b117332f93c1124bb9885712"
+    },
+    "fallout_evidence-tests": {
+      "bytes": 1204224,
+      "sha256": "772609497fd07a15a1efd36e4fee8082ecf4352dd1ed7245dd235a2778d1799a"
+    },
+    "fallout_playtest-tests": {
+      "bytes": 733696,
+      "sha256": "540f8e7a5adf10a1e1359af96565eb442f67a386d5350449cfb1e45afafefb96"
+    },
+    "fallout_data-tests": {
+      "bytes": 3940352,
+      "sha256": "dd722e9fc466eb66479f566bb0edf3f9ec1e2f5171c0d68ef4cc531a77645f86"
+    },
+    "fallout_preview-tests": {
+      "bytes": 40593920,
+      "sha256": "80fc18db9e9a378b3c6fd9f842d091d44921fc01b55fabbb2aa702846826bd80"
+    },
+    "fallout_runtime-tests": {
+      "bytes": 4882944,
+      "sha256": "d2f86b441f98e91bb793f5ed7630cc6a1d64d040ded9f043fc3c65bcd919f1ed"
+    }
+  },
+  "combined_receipt_sha256": "70c53f1b90fc375cef3b9104d955bc6559cad5385b800cc88a923b961884f577",
+  "authored_consumer_receipt_sha256": "655ca0bd9ea3651d30b467187dbc0e281fd5899967812f28cd8853af286157d9",
+  "gpu_receipt_sha256": "8f5e2354e70c58d5bf4586c5ac4d0a01743423cc1dc85977a3ea08f5320c598e",
+  "visual_review_sha256": "fe3e29d619fa744478ebc774b18d8738ee945e435d054caf4642ecc817e53706",
+  "authored_cli_calls": 26,
+  "authored_analytic_cases": 7,
+  "authored_intentional_refusals": 19,
+  "authored_consumer_summaries": {
+    "sampled-skin": {
+      "sha256": "018f3862e3749800aa137c27f0a5e7f1dab624a45a97b8e0176f7ebcb9cc0fc7",
+      "invocations": 12,
+      "intentional_refusals": 9
+    },
+    "markers": {
+      "sha256": "a2d21862d67f252f5cc4ec81796720339f944c5d98c719d6aede6e13ca4c6b9b",
+      "invocations": 14,
+      "intentional_refusals": 10
+    }
+  },
+  "gpu_checks": [
+    {
+      "case": "time-zero",
+      "accepted": true
+    },
+    {
+      "case": "time-three",
+      "accepted": true
+    },
+    {
+      "case": "chair",
+      "accepted": true
+    },
+    {
+      "case": "cell",
+      "accepted": true
+    },
+    {
+      "case": "wrong-controller",
+      "accepted": true
+    },
+    {
+      "case": "nonfinite-time",
+      "accepted": true
+    },
+    {
+      "case": "outside-time",
+      "accepted": true
+    },
+    {
+      "case": "zero-scale",
+      "accepted": true
+    },
+    {
+      "case": "controlled-descendant",
+      "accepted": true
+    },
+    {
+      "case": "oversized-file",
+      "accepted": true
+    },
+    {
+      "case": "protected-output",
+      "accepted": true
+    }
+  ],
+  "fixed_camera_pose_bounds": {
+    "time-zero": [
+      737,
+      741,
+      775,
+      779
+    ],
+    "time-three": [
+      427,
+      81,
+      504,
+      158
+    ]
+  },
+  "winding_scope": "exact actual Mesh test in combined06; capture report has no GPU index readback",
+  "cell_texture_consumer": {
+    "root": {
+      "profile": "nv-original",
+      "origin_plugin": "falloutnv.esm",
+      "local_id": 1064441
+    },
+    "identity": "ba0a7319896b10a9b4728a382c9101486580f0d3ede8269bcfb8c7177cacf3f1",
+    "generation": 2,
+    "stage": "DependenciesReady",
+    "completed_models": 207,
+    "completed_textures": 312,
+    "requested_textures": 312,
+    "texture_state": "Decoded",
+    "texture_identity": "dee4813c0325d7bea9ed57cf8808492f6a0fc4784046e5021e7c6be55730572a",
+    "complete_texture_coverage": true,
+    "texture_reference_coverage_verified": false,
+    "requested_models": 207,
+    "outstanding": 519,
+    "pinned_source_bytes": 66028711,
+    "retained_plans": 1,
+    "plan_metadata_bytes": 7235275,
+    "mapped_source_bytes": 3219641344,
+    "backpressured": false,
+    "complete_model_coverage": false,
+    "dependencies": "Ready",
+    "collision": "Unsupported",
+    "behavior": "Unsupported",
+    "simulation_ready": false,
+    "render_published": false,
+    "failure": null
+  },
+  "commit_map": [
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-15",
+      "original": "2dfa2204d62a08782d628865ec070efd5c249eb9",
+      "integrated": "d2b83dd236cdbdaeb37daa4b19850e0a1cbbb268"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-15",
+      "original": "bffaeafe48896deec0e87b283ec5443bdd381fd4",
+      "integrated": "7872d7636a71d1e021003bf07de804160c9fd755"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-16",
+      "original": "4b71bf496aa81b88bbea5d11c887deed9b14f6b5",
+      "integrated": "e41fd734437f43960a39dad7e28dfd8821b3f3a2"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-17",
+      "original": "41f9317f95253be44d019f2b44d4c337051c0e4d",
+      "integrated": "011ed0d2ecb9b231fc1ce411b953de1d247d8dc5"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-02B",
+      "original": "41778b81f9c3296b3dab30fcf9d09d257fc9e9ec",
+      "integrated": "28cf98f1a2fab7a3dc515bb90c444cc42c90de8b"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-16",
+      "original": "e49209b6d7d96576ca11b9ded21dbe19fddfa9c1",
+      "integrated": "f5c03961b5bb510050f31602277840010a27c031"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-19",
+      "original": "a0c4c3ad1b040a608e8ae6fce2b1d771c91264c0",
+      "integrated": "a21b21cc5f9f393897c8d2caf86a15dcee71f0e5"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-08",
+      "original": "33fce70e9fba3629d919b4b82af77f3d945027a1",
+      "integrated": "d1eb23febdfd86314fa92ea9cf6890b66715a553"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-09",
+      "original": "12eafeb7184175b8880a429ac8e6a16637a6e716",
+      "integrated": "6575cddf5b1da93a568a6f9580a34ef6b770a099"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-14A",
+      "original": "4ef9759f9f6f81b186c579f2449adb758c7f1ec1",
+      "integrated": "5848da0c2a3c370c1e0ba63fa1b4b909cb5c69c8"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-14B",
+      "original": "f3d9f86fc54320098a3388da10680247717574f0",
+      "integrated": "e0c573ce310e87fbeac8dfa0a2e1d6f639672f69"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-17A",
+      "original": "91f6fd99976334f97db574f94670bf12419f263f",
+      "integrated": "702536caabc2f7fc302c6c93aed29972226c64d2"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-17B",
+      "original": "806e0efc8ddde233e7e9c690026e7d0ad955858e",
+      "integrated": "79d4a61e3d5dcbba774bb1f4c9a694a30f59cbe3"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-16",
+      "original": "9c3c55ce1ba91ce3f04a8dd2ae293a19e5d1c3a9",
+      "integrated": "3e96084b9db701ce190ca19ff7a58685eaf890ab"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-17",
+      "original": "19c346e0997f9f4f976f1f710a956858229859c2",
+      "integrated": "e12ecaf9117301ed834d546a93131f9e9d2a8c2a"
+    }
+  ],
+  "shared_dependency": {
+    "revision": "3ec332487c96953918a6986cb37d09c4f54459c8",
+    "package": "quick-xml",
+    "version": "0.42.0",
+    "check_receipt_sha256": "089c4e98d9a9272f1dacb45171d27fe47420f3b01ad033126a40b1832caef8cb",
+    "scope": "Separately checked shared dependency commit; all compiled Rust/source fixture/oracle tool/profile bytes match the frozen batch. Only Cargo.lock, preview Cargo.toml and additive source pin differ in these tested paths. Frozen batch executables predate the unused XML dependency and are not claimed to include it."
+  },
+  "raw_evidence": [
+    "integration/local/team-v3-combined-06",
+    "integration/local/team-v3-combined-06-authored-01",
+    "integration/local/team-v3-gpu-06",
+    "main/local/coordinator-xml-dependency-01"
+  ],
+  "limits": [
+    "CELL residency is pre-upload DependenciesReady; the later visible frame is not a post-upload state snapshot or complete model/reference coverage.",
+    "Two exact source-time CPU observations and visible authored triangles establish this explicit pose consumer, not an animation clock, original playback or sampled-skin GPU validation.",
+    "Exact actual Mesh unit coverage checks winding; the capture report has no GPU index readback.",
+    "Authored CLI and explicit source door/actor/save requests do not establish scheduling, dialogue, physical movement or gameplay parity.",
+    "Original camera/material/input comparison and manual responsiveness remain open. Previous terrain proof is preserved, not rerun in this batch.",
+    "Physics query stack and the separately held multi-node pose-set topology correction are outside this batch."
+  ],
+  "last_verified_checkpoint": 45,
+  "new_checkpoint_claimed": false,
+  "original_process_started": false,
+  "original_gameplay_scenarios_accepted": 0,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false
+}

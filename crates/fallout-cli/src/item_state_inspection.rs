@@ -3,12 +3,14 @@ use super::{Result, inspection_input::Order, script_state_inspection};
 use fallout_data::{inventory, loaded_scripts};
 use fallout_runtime::{
     Limits, World,
+    foreign::{Content, SourceForm},
     identity::{CampaignId, ReferenceId},
     inventory::{
         Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, Page, PageLimits,
         PageRequest, TransferLimits, ViewLimits,
     },
     save::{Captured, Recovery, Repository},
+    source_items::{Policy, Role, SourceInventoryLimits},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -154,6 +156,19 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         .iter()
         .map(|(key, _)| key.clone())
         .collect::<Vec<_>>();
+    let content = Content::load(&mut store, &scripts, 1_000_000)?;
+    let placed = store
+        .winning_definitions()
+        .find_map(|(key, location)| {
+            let header = &store.definition(location).header;
+            let source = SourceForm {
+                kind: header.kind,
+                flags: header.flags,
+            };
+            (source.is_placed() && header.flags & fallout_data::plugin::DELETED == 0)
+                .then(|| key.clone())
+        })
+        .ok_or("Item initialization probe needs a nondeleted placed source owner")?;
     let mut engineering = script_state_inspection::engineering_world(&scripts)?;
     // A distinct campaign keeps this probe's persistent counters separate.
     let mut snapshot = engineering.world.snapshot();
@@ -250,7 +265,7 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
             return Err("Grouped transfer changed an original lot identity/quantity/fact".into());
         }
     }
-    let expected = engineering.world.snapshot();
+    let transfer_after = engineering.world.snapshot();
     for key in &keys {
         let total = |snapshot: &fallout_runtime::snapshot::Snapshot| {
             snapshot
@@ -261,19 +276,90 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
                 .map(|item| u64::from(item.count()))
                 .sum::<u64>()
         };
-        if total(&transfer_before) != total(&expected) {
+        if total(&transfer_before) != total(&transfer_after) {
             return Err("Grouped transfer changed a per-base total".into());
         }
     }
-    let expected_traces = traces(&engineering.world, &[a, b], &keys)?;
-    let expected_views = views(&engineering.world, &[a, b, absent])?;
-    let expected_pages = pages(&engineering.world, &[a, b, absent])?;
+    let placed_source = content.source_form(&engineering.world, &placed)?;
+    let source_owner = engineering.world.register_reference(Some(placed.clone()))?;
+    let mut starting_first = engineering.world.item(separate)?.facts().clone();
+    starting_first.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abc,
+    });
+    let mut starting_second = starting_first.clone();
+    starting_second.condition = Some(Condition::Float32 { bits: 0x8000_0000 });
+    let starting_lots = [
+        (starting_first, 11.try_into()?),
+        (starting_second, 2.try_into()?),
+    ];
+    // These caller-supplied engineering rules admit the selected exact source
+    // kinds for each used role. They make no claim about original item rules.
+    let base_kind = content.source_form(&engineering.world, &keys[0])?.kind;
+    let ammo_kind = content.source_form(&engineering.world, &keys[1])?.kind;
+    let modification_kind = content.source_form(&engineering.world, &keys[2])?.kind;
+    let source_policy = Policy::new(&[
+        (Role::Base, &[base_kind]),
+        (Role::Ammo, &[ammo_kind]),
+        (Role::Modification, &[modification_kind]),
+    ])?;
+    let initialization_before = engineering.world.snapshot();
+    let mut bad = starting_lots.clone();
+    bad[1].0.base = placed.clone();
+    if engineering
+        .world
+        .stage_source_inventory_initialization(
+            &content,
+            &source_policy,
+            source_owner,
+            &bad,
+            SourceInventoryLimits::default(),
+        )
+        .is_ok()
+        || engineering.world.snapshot() != initialization_before
+    {
+        return Err("Invalid final source lot partly initialized a bank".into());
+    }
+    let stage = engineering.world.stage_source_inventory_initialization(
+        &content,
+        &source_policy,
+        source_owner,
+        &starting_lots,
+        SourceInventoryLimits::default(),
+    )?;
+    if engineering.world.snapshot() != initialization_before {
+        return Err("Source inventory staging changed state".into());
+    }
+    let source_initialization = engineering.world.commit_source_inventory_initialization(
+        &content,
+        &source_policy,
+        stage,
+    )?;
+    if source_initialization.before_revision() != initialization_before.state_revision
+        || source_initialization.after_revision()
+            != initialization_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Source initialization revision exhausted")?
+        || source_initialization.item_ids().len() != starting_lots.len()
+    {
+        return Err("Source inventory initialization boundary differs".into());
+    }
+    for (&id, (facts, count)) in source_initialization.item_ids().iter().zip(&starting_lots) {
+        let item = engineering.world.item(id)?;
+        if item.owner() != source_owner || item.facts() != facts || item.count() != count.get() {
+            return Err("Source inventory starting lot differs".into());
+        }
+    }
+    let expected = engineering.world.snapshot();
+    let expected_traces = traces(&engineering.world, &[a, b, source_owner], &keys)?;
+    let expected_views = views(&engineering.world, &[a, b, source_owner, absent])?;
+    let expected_pages = pages(&engineering.world, &[a, b, source_owner, absent])?;
     verify_pages(&expected_pages, &expected_views)?;
     let restored = World::restore(&scripts, expected.clone(), Limits::default())?;
     if restored.snapshot() != expected
-        || traces(&restored, &[a, b], &keys)? != expected_traces
-        || views(&restored, &[a, b, absent])? != expected_views
-        || serde_json::to_value(pages(&restored, &[a, b, absent])?)?
+        || traces(&restored, &[a, b, source_owner], &keys)? != expected_traces
+        || views(&restored, &[a, b, source_owner, absent])? != expected_views
+        || serde_json::to_value(pages(&restored, &[a, b, source_owner, absent])?)?
             != serde_json::to_value(&expected_pages)?
     {
         return Err("Canonical item restoration differs".into());
@@ -286,6 +372,9 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     let before_world = World::restore(&scripts, transfer_before.clone(), Limits::default())?;
     let native_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
     drop(before_world);
+    let before_world = World::restore(&scripts, initialization_before.clone(), Limits::default())?;
+    let source_inventory_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
     let capture = Captured::at_boundary(&engineering.world);
     let worker_repository = repository.clone();
     let worker = std::thread::spawn(move || worker_repository.commit(&capture));
@@ -295,9 +384,9 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     let write = worker.join().map_err(|_| "Item save worker panicked")??;
     let (loaded, receipt) = repository.load(&scripts, Limits::default(), Recovery::Strict)?;
     if loaded.snapshot() != expected
-        || traces(&loaded, &[a, b], &keys)? != expected_traces
-        || views(&loaded, &[a, b, absent])? != expected_views
-        || serde_json::to_value(pages(&loaded, &[a, b, absent])?)?
+        || traces(&loaded, &[a, b, source_owner], &keys)? != expected_traces
+        || views(&loaded, &[a, b, source_owner, absent])? != expected_views
+        || serde_json::to_value(pages(&loaded, &[a, b, source_owner, absent])?)?
             != serde_json::to_value(&expected_pages)?
     {
         return Err("Owned native item capture differs".into());
@@ -305,7 +394,7 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     let bytes = expected.encode(Limits::default().max_snapshot_bytes)?;
     Ok(
         json!({"schema_version":1,"profile":"nv-original","sources":scripts.sources,"inventory_counts":base.counts,"source_item_inputs":selected.iter().map(|(_,value)|value).collect::<Vec<_>>(),
-        "engineering_inputs":{"owners":[a,b],"uninitialized_owner":absent,"item_keys":keys,"original_id":original,"separate_id":separate,"split_id":split,
+        "engineering_inputs":{"owners":[a,b,source_owner],"uninitialized_owner":absent,"item_keys":keys,"original_id":original,"separate_id":separate,"split_id":split,
         "counts":[17,3,5,2],"condition_bits":[0x7ff8_1234_5678_9abc_u64,0x7ff8_1234_5678_9abd_u64],"equipment_slots":[7,1],"opaque_extra":{"tag":"TEST","bytes":[0,255,1]}},
         "item_instances":expected.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":expected.inventory_banks.len(),"script_instances":expected.instances.len(),
         "query_traces":expected_traces,"snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"state_schema":expected.schema_version,
@@ -313,6 +402,9 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         "inventory_pages":expected_pages,"all_inventory_pages_equal_after_restore":true,
         "atomic_inventory_transfer":atomic_transfer,"atomic_inventory_transfer_invalid_last_preserved_state":true,
         "atomic_inventory_transfer_totals_and_facts_conserved":true,"native_before_write":native_before_write,
+        "source_inventory_initialization":source_initialization,"source_inventory_before_write":source_inventory_before_write,
+        "source_inventory_inputs":{"owner":source_owner,"authored":placed,"source":placed_source,"policy":source_policy,"lots":starting_lots},
+        "source_inventory_invalid_last_preserved_uninitialized":true,"source_inventory_exact_lots_and_one_revision":true,
         "canonical_state_round_trip_equal":true,"all_query_traces_equal_after_restore":true,"rejected_mutations_preserved_state":true,"uninitialized_inventory_rejected":true,"worker_capture_isolated":true,
         "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
     )

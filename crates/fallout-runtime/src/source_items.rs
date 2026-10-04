@@ -13,6 +13,9 @@ use std::{
     num::NonZeroU32,
 };
 pub type Result<T> = std::result::Result<T, Failure>;
+pub use crate::inventory::{
+    SourceInventoryLimits, SourceInventoryReceipt, SourceInventoryUsage, StagedSourceInventory,
+};
 #[derive(Debug, thiserror::Error)]
 pub enum Failure {
     #[error(transparent)]

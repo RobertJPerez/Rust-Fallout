@@ -1129,3 +1129,315 @@ fn edit_save_failure_keeps_unsaved_commit_distinct_from_durable_repository() {
     );
     stop(host);
 }
+
+fn inventory_request(world: &World<'_>, selected: &FormKey) -> inventory::Request {
+    inventory::Request {
+        schema_version: 1,
+        scene_epoch: 7,
+        sequence: 1,
+        expected_campaign: world.campaign(),
+        expected_catalogue_sha256: world.catalogue_fingerprint().into(),
+        expected_revision: world.revision(),
+        key: selected.clone(),
+        owner: world.authored_reference(selected).unwrap(),
+        limits: inventory::Limits {
+            max_items: 2,
+            max_links: 4,
+            max_extra_bytes: 7,
+        },
+        output_bytes: 65536,
+    }
+}
+fn seed_inventory(world: &mut World<'_>, owner: fallout_runtime::identity::ReferenceId) {
+    use fallout_runtime::inventory::{Condition, Facts, OpaqueExtra};
+    world.initialize_inventory(owner).unwrap();
+    let mut a = Facts::unknown(key(0x500));
+    a.condition = Some(Condition::Float32 { bits: 0x7fc01234 });
+    a.equipped_slots = Some(vec![2, 7]);
+    a.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 255, 1],
+    }];
+    let mut b = Facts::unknown(key(0x501));
+    b.condition = Some(Condition::Float64 {
+        bits: 0x8000000000000000,
+    });
+    b.extra_fields = vec![OpaqueExtra {
+        tag: *b"KEEP",
+        bytes: vec![8, 0, 254, 2],
+    }];
+    world.add_item(owner, a, 2.try_into().unwrap()).unwrap();
+    world.add_item(owner, b, 3.try_into().unwrap()).unwrap();
+}
+
+#[test]
+fn inventory_observation_preserves_unknown_empty_unequal_lots_and_complete_source_facts() {
+    let mut f = fixture();
+    let selected = f.keys[0].clone();
+    let owner = f.world.authored_reference(&selected).unwrap();
+    let query = |world: &World<'_>| {
+        let request = inventory_request(world, &selected);
+        let displayed = world.reference_view(owner).unwrap();
+        inventory::observe(world, &f.keys, inventory::Command { request, displayed }).unwrap()
+    };
+    let before = f.world.snapshot();
+    let unknown = query(&f.world);
+    assert!(unknown.view.items().is_none());
+    assert_eq!(
+        unknown.status(),
+        format!("Inventory unavailable; revision {}", before.state_revision)
+    );
+    assert_eq!(f.world.snapshot(), before);
+    f.world.initialize_inventory(owner).unwrap();
+    let before = f.world.snapshot();
+    let empty = query(&f.world);
+    assert_eq!(empty.view.items(), Some([].as_slice()));
+    assert!(empty.status().contains("initialized empty"));
+    assert_eq!(f.world.snapshot(), before);
+    // Use explicit canonical source bits; no presentation-side lot reconstruction.
+    use fallout_runtime::inventory::{Condition, Facts, OpaqueExtra};
+    let mut a = Facts::unknown(key(0x500));
+    a.condition = Some(Condition::Float32 { bits: 0x7fc01234 });
+    a.equipped_slots = Some(vec![2, 7]);
+    a.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 255, 1],
+    }];
+    let mut b = Facts::unknown(key(0x501));
+    b.condition = Some(Condition::Float64 {
+        bits: 0x8000000000000000,
+    });
+    b.extra_fields = vec![OpaqueExtra {
+        tag: *b"KEEP",
+        bytes: vec![8, 0, 254, 2],
+    }];
+    let first = f
+        .world
+        .add_item(owner, a.clone(), 2.try_into().unwrap())
+        .unwrap();
+    let second = f
+        .world
+        .add_item(owner, b.clone(), 3.try_into().unwrap())
+        .unwrap();
+    let before = f.world.snapshot();
+    let observed = query(&f.world);
+    let lots = observed.view.items().unwrap();
+    assert_eq!(
+        lots.iter()
+            .map(|item| (item.id(), item.count()))
+            .collect::<Vec<_>>(),
+        [(first, 2), (second, 3)]
+    );
+    assert_eq!(lots[0].facts(), &a);
+    assert_eq!(lots[1].facts(), &b);
+    assert_eq!(
+        lots,
+        before
+            .inventory_banks
+            .iter()
+            .find(|bank| bank.owner == owner)
+            .unwrap()
+            .items
+            .as_slice()
+    );
+    assert_eq!(observed.view.usage().links, 4);
+    assert_eq!(observed.view.usage().extra_bytes, 7);
+    assert_eq!(f.world.snapshot(), before);
+    let parsed: serde_json::Value = serde_json::from_slice(&observed.report_bytes).unwrap();
+    assert_eq!(
+        parsed["view"]["items"][0]["facts"]["condition"]["bits"],
+        0x7fc01234u32
+    );
+    assert_eq!(
+        parsed["view"]["items"][1]["facts"]["condition"]["bits"],
+        0x8000000000000000u64
+    );
+    assert!(!parsed["original_inventory_ui_accepted"].as_bool().unwrap());
+}
+
+#[test]
+fn inventory_query_refuses_identity_epoch_and_one_under_copy_or_encoding_without_effects() {
+    let mut f = fixture();
+    let owner = f.world.authored_reference(&f.keys[0]).unwrap();
+    seed_inventory(&mut f.world, owner);
+    let before = f.world.snapshot();
+    let request = inventory_request(&f.world, &f.keys[0]);
+    let displayed = f.world.reference_view(owner).unwrap();
+    let exact = inventory::observe(
+        &f.world,
+        &f.keys,
+        inventory::Command {
+            request: request.clone(),
+            displayed: displayed.clone(),
+        },
+    )
+    .unwrap();
+    let length = exact.report_bytes.len();
+    for index in 0..10 {
+        let mut r = request.clone();
+        match index {
+            0 => r.limits.max_items = 1,
+            1 => r.limits.max_links = 3,
+            2 => r.limits.max_extra_bytes = 6,
+            3 => r.output_bytes = length - 1,
+            4 => r.expected_revision += 1,
+            5 => r.expected_catalogue_sha256 = "a".repeat(64),
+            6 => r.expected_campaign = CampaignId::from_bytes([3; 16]).unwrap(),
+            7 => r.owner = fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+            8 => r.key = f.keys[1].clone(),
+            9 => r.limits.max_items = 129,
+            _ => unreachable!(),
+        }
+        assert!(
+            inventory::observe(
+                &f.world,
+                &f.keys,
+                inventory::Command {
+                    request: r,
+                    displayed: displayed.clone()
+                }
+            )
+            .is_err(),
+            "case{index}"
+        );
+        assert_eq!(f.world.snapshot(), before);
+    }
+    let mut r = request.clone();
+    r.output_bytes = length;
+    assert_eq!(
+        inventory::observe(
+            &f.world,
+            &f.keys,
+            inventory::Command {
+                request: r,
+                displayed: displayed.clone()
+            }
+        )
+        .unwrap()
+        .report_bytes,
+        exact.report_bytes
+    );
+    f.world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(
+        inventory::observe(&f.world, &f.keys, inventory::Command { request, displayed }).is_err()
+    );
+    assert_eq!(f.world.snapshot(), before);
+}
+
+#[test]
+fn inventory_request_ingress_has_strict_shape_and_exact_input_and_lower_only_limits() {
+    let f = fixture();
+    let request = inventory_request(&f.world, &f.keys[0]);
+    let raw = serde_json::to_vec(&request).unwrap();
+    let path = f.root.join("inventory-query.json");
+    fs::write(&path, &raw).unwrap();
+    assert!(inventory::read_request(&path, raw.len() - 1).is_err());
+    assert_eq!(
+        inventory::read_request(&path, raw.len()).unwrap().owner,
+        request.owner
+    );
+    let mut padded = raw.clone();
+    padded.resize(inventory::REQUEST_BYTES, b' ');
+    fs::write(&path, &padded).unwrap();
+    assert!(inventory::read_request(&path, inventory::REQUEST_BYTES).is_ok());
+    padded.push(b' ');
+    fs::write(&path, &padded).unwrap();
+    assert!(inventory::read_request(&path, inventory::REQUEST_BYTES).is_err());
+    assert_eq!(fs::read(&path).unwrap(), padded);
+    for (pointer, value) in [
+        ("/schema_version", 2.into()),
+        ("/scene_epoch", 0.into()),
+        ("/sequence", 0.into()),
+        ("/limits/max_items", 129.into()),
+        ("/limits/max_links", 1025.into()),
+        ("/limits/max_extra_bytes", 65537.into()),
+        ("/output_bytes", (inventory::OUTPUT_BYTES + 1).into()),
+    ] {
+        let mut malformed = serde_json::to_value(&request).unwrap();
+        *malformed.pointer_mut(pointer).unwrap() = value;
+        fs::write(&path, serde_json::to_vec(&malformed).unwrap()).unwrap();
+        assert!(inventory::read_request(&path, inventory::REQUEST_BYTES).is_err());
+    }
+    let mut malformed = serde_json::to_value(&request).unwrap();
+    malformed["limits"]["copied_bytes"] = 1.into();
+    fs::write(&path, serde_json::to_vec(&malformed).unwrap()).unwrap();
+    assert!(inventory::read_request(&path, inventory::REQUEST_BYTES).is_err());
+}
+
+#[test]
+fn inventory_host_retains_one_admitted_view_and_clears_it_on_continue_and_close() {
+    let mut f = fixture();
+    let owner = f.world.authored_reference(&f.keys[0]).unwrap();
+    seed_inventory(&mut f.world, owner);
+    f.repository
+        .commit(&Captured::at_boundary(&f.world))
+        .unwrap();
+    let before = f.world.snapshot();
+    let (mut host, initial) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    let displayed = initial
+        .binding(&f.keys[0])
+        .unwrap()
+        .canonical
+        .as_ref()
+        .unwrap();
+    let request = inventory_request(&f.world, &f.keys[0]);
+    assert!(host.inventory_request(request.clone(), displayed, 7, true));
+    assert!(!host.inventory_request(request.clone(), displayed, 7, true));
+    let mut busy = request.clone();
+    busy.sequence = 2;
+    assert!(!host.inventory_request(busy.clone(), displayed, 7, true));
+    assert!(matches!(
+        event(&mut host),
+        Event::InventoryReady {
+            scene_epoch: 7,
+            sequence: 1,
+            ..
+        }
+    ));
+    assert!(host.inventory(7).is_none());
+    assert!(host.accept_inventory(7, displayed));
+    assert_eq!(host.inventory(7).unwrap().view.items().unwrap().len(), 2);
+    assert!(host.inventory(8).is_none());
+    assert!(!host.inventory_request(busy, displayed, 7, true));
+    assert!(host.request(Request::Save));
+    assert!(matches!(event(&mut host), Event::Saved(_)));
+    assert!(host.inventory(7).is_some());
+    assert!(host.request(Request::Continue));
+    assert!(host.inventory(7).is_none());
+    let Event::Continued(fresh) = event(&mut host) else {
+        panic!("Continue failed")
+    };
+    let current = fresh
+        .binding(&f.keys[0])
+        .unwrap()
+        .canonical
+        .as_ref()
+        .unwrap();
+    let mut stale = request.clone();
+    stale.sequence = 3;
+    assert!(host.inventory_request(stale, displayed, 7, true));
+    assert!(matches!(event(&mut host), Event::Failed(_)));
+    assert!(host.inventory(7).is_none());
+    let mut fresh_request = request;
+    fresh_request.sequence = 4;
+    assert!(host.inventory_request(fresh_request, current, 7, true));
+    assert!(matches!(
+        event(&mut host),
+        Event::InventoryReady { sequence: 4, .. }
+    ));
+    assert!(host.accept_inventory(7, current));
+    let (cold, _) = f
+        .repository
+        .load(
+            Arc::clone(&f.catalogue),
+            Limits::default(),
+            Recovery::Strict,
+        )
+        .unwrap();
+    assert_eq!(cold.snapshot(), before);
+    assert_eq!(
+        host.inventory(7).unwrap().view.items(),
+        Some(cold.snapshot().inventory_banks[0].items.as_slice())
+    );
+    stop(host);
+}

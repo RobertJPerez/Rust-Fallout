@@ -110,3 +110,31 @@ initial CELL report remains an immutable record of initial restoration. Output
 paths are distinct and stay outside the installation, edit-input directory and
 selected native repository. This demonstrates caller-authored canonical editing
 and persistence, without collision, movement simulation or retail gameplay proof.
+
+`--native-inventory REQUEST` queries one already displayed complete canonical
+owner through the same native owner channel. Its strict 4 KiB JSON request binds
+schema version 1, nonzero scene epoch/sequence, expected campaign/cohort/revision,
+authored key, persistent owner ID, three explicit producer limits and output
+bytes. Limits can only be lowered from 128 lots, 1024 Facts links and 64 KiB of
+opaque extra payload; the complete encoded observation including newline is
+limited separately to 1 MiB. These are the existing producer's three logical
+copy limits. They do not claim a total allocator or fourth producer byte ceiling.
+
+The owner calls the reviewed `World::inventory_view` without cloning the World,
+initializing a bank or changing any item. Source bit patterns, opaque payload,
+lot IDs and unequal counts remain intact. Exactly one owned observation is
+retained; it becomes usable after current display admission and is dropped for
+an edit, Continue or scene replacement. Unavailable, initialized empty and a
+retained lot count are distinct bounded window-title outcomes. A stale authority
+epoch, owner, revision or refused limit returns no usable partial observation.
+
+The optional fresh `--native-inventory-report` accompanies an actual capture and
+contains the complete existing `InventoryView` and source/display identity.
+Output never writes into the source request directory, installation or native
+repository. In the combined engineering request, querying waits for the explicit
+edit to reach the display and for a requested Save to publish; its revision must
+be supplied for that exact boundary. These are separate runtime operations:
+a later rejected query does not roll back an already accepted edit or Save.
+No original inventory layout, font, sorting, stack merge or equip behavior is
+inferred. Close and SaveStatus polling remain outside query/encoding work on the
+native owner thread.

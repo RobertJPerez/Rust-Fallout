@@ -51,6 +51,8 @@ struct Options {
     #[arg(skip)]
     native_edit_request: Option<Arc<native::edit::Request>>,
     #[arg(skip)]
+    native_inventory_request: Option<Arc<native::inventory::Request>>,
+    #[arg(skip)]
     rectangle_request: Option<Arc<ui::rectangles::Request>>,
     #[arg(skip)]
     image_request: Option<Arc<ui::images::Request>>,
@@ -155,6 +157,12 @@ struct Options {
     /// Fresh receipt for the displayed canonical edit and actual GPU capture.
     #[arg(long, requires_all = ["native_edit", "capture"])]
     native_edit_receipt: Option<PathBuf>,
+    /// One source/revision-bound read-only query for an exact displayed owner.
+    #[arg(long, requires = "native_save")]
+    native_inventory: Option<PathBuf>,
+    /// Fresh bounded full-lot report with a successfully captured current view.
+    #[arg(long,requires_all=["native_inventory","capture"])]
+    native_inventory_report: Option<PathBuf>,
     /// Camera position in original source units (x,y,z).
     #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
         requires_all = ["camera_look_at", "load_order"])]
@@ -319,6 +327,13 @@ struct EditRun {
     save_publication: Option<serde_json::Value>,
     error: Option<String>,
 }
+#[derive(Resource)]
+struct InventoryRun {
+    request: Arc<native::inventory::Request>,
+    attempted: bool,
+    done: bool,
+    error: Option<String>,
+}
 
 fn read_object_source(options: &Options) -> model::Result<Vec<u8>> {
     if let Some(path) = &options.model_file {
@@ -444,6 +459,7 @@ fn retry_outputs(options: &Options) -> Result<(), String> {
         options.capture.as_ref(),
         options.pose_receipt.as_ref(),
         options.native_edit_receipt.as_ref(),
+        options.native_inventory_report.as_ref(),
     ]
     .into_iter()
     .flatten()
@@ -506,6 +522,16 @@ fn validate_pose_times(options: &Options) -> model::Result<()> {
 fn run() -> model::Result<AppExit> {
     let mut options = Options::parse();
     validate_pose_times(&options)?;
+    if let Some(path) = &options.native_inventory {
+        options.native_inventory_request = Some(Arc::new(native::inventory::read_request(
+            path,
+            native::inventory::REQUEST_BYTES,
+        )?));
+    }
+    if let Some(path) = &options.native_inventory_report {
+        options.native_inventory_report =
+            Some(output_path(path, options.install.as_deref(), None)?);
+    }
     if let Some(path) = &options.native_edit {
         options.native_edit_request = Some(Arc::new(native::edit::read_request(
             path,
@@ -553,11 +579,37 @@ fn run() -> model::Result<AppExit> {
     {
         return Err("Edit receipt, capture and report require different fresh paths".into());
     }
+    if let Some(inventory) = &options.native_inventory_report
+        && [
+            options.report.as_ref(),
+            options.capture.as_ref(),
+            options.native_edit_receipt.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|path| path == inventory)
+    {
+        return Err("Inventory report and other outputs require different fresh paths".into());
+    }
+    if let Some(request) = &options.native_inventory {
+        for path in [
+            options.report.as_ref(),
+            options.capture.as_ref(),
+            options.native_edit_receipt.as_ref(),
+            options.native_inventory_report.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            output_path(path, options.native_save.as_deref(), Some(request))?;
+        }
+    }
     if let Some(request) = &options.native_edit {
         for path in [
             options.report.as_ref(),
             options.capture.as_ref(),
             options.native_edit_receipt.as_ref(),
+            options.native_inventory_report.as_ref(),
         ]
         .into_iter()
         .flatten()
@@ -778,6 +830,14 @@ fn run() -> model::Result<AppExit> {
         plugins = plugins.disable::<WinitPlugin>();
     }
     let mut app = App::new();
+    if let Some(request) = &options.native_inventory_request {
+        app.insert_resource(InventoryRun {
+            request: Arc::clone(request),
+            attempted: false,
+            done: false,
+            error: None,
+        });
+    }
     if let Some(request) = &options.native_edit_request {
         app.insert_resource(EditRun {
             request: Arc::clone(request),
@@ -1149,6 +1209,7 @@ struct LoadingOptions<'w> {
     options: Res<'w, Options>,
     live: Option<Res<'w, LivePose>>,
     edit: Option<ResMut<'w, EditRun>>,
+    inventory: Option<ResMut<'w, InventoryRun>>,
 }
 
 #[expect(
@@ -1179,6 +1240,7 @@ fn drive_loading(
     let options = &*request.options;
     let live = &request.live;
     let editing = &mut request.edit;
+    let inventory_run = &mut request.inventory;
     let window_ready = created
         .read()
         .any(|event| windows.iter().any(|(id, _)| id == event.window));
@@ -1364,8 +1426,62 @@ fn drive_loading(
             if let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut()) {
                 if let Some(event) = host.poll() {
                     match event {
+                        native::Event::InventoryReady {
+                            scene_epoch,
+                            sequence,
+                            revision,
+                        } => {
+                            let mut selected = references
+                                .iter()
+                                .filter(|(view, _, _)| {
+                                    inventory_run
+                                        .as_ref()
+                                        .is_some_and(|run| run.request.key == view.key)
+                                })
+                                .map(|(view, _, _)| view.canonical.clone());
+                            let current = selected.next().flatten();
+                            let unique = selected.next().is_none();
+                            let valid = scene_epoch == epoch
+                                && unique
+                                && inventory_run.as_ref().is_some_and(|run| {
+                                    run.attempted && run.request.sequence == sequence
+                                })
+                                && display.0
+                                    == Some(input::DisplayIdentity {
+                                        scene_epoch: epoch,
+                                        revision,
+                                    })
+                                && current
+                                    .as_ref()
+                                    .is_some_and(|view| host.accept_inventory(epoch, view));
+                            if let Some(run) = inventory_run.as_mut() {
+                                if valid {
+                                    run.done = true;
+                                    capture.frame = 0;
+                                    capture.started = Instant::now();
+                                } else {
+                                    let error = "Discarded stale/incomplete inventory observation"
+                                        .to_string();
+                                    run.error = Some(error.clone());
+                                    host.failure(error);
+                                    if options.headless {
+                                        exit.write(AppExit::error());
+                                    }
+                                }
+                            }
+                        }
+                        native::Event::Inventory(_) => {
+                            unreachable!("host retains the single inventory observation")
+                        }
                         native::Event::Edited(applied) => {
                             let valid = applied.receipt.scene_epoch == epoch
+                                && references
+                                    .iter()
+                                    .filter(|(view, _, _)| {
+                                        Some(&view.key) == applied.receipt.before.authored()
+                                    })
+                                    .count()
+                                    == 1
                                 && display.0
                                     == Some(input::DisplayIdentity {
                                         scene_epoch: epoch,
@@ -1475,8 +1591,13 @@ fn drive_loading(
                             if let Some(edit) = editing.as_mut() {
                                 edit.error = Some(error.clone());
                             }
+                            if let Some(run) = inventory_run.as_mut() {
+                                run.error = Some(error.clone());
+                            }
                             if options.native_save_after_ready
-                                || (options.native_edit_request.is_some() && options.headless)
+                                || ((options.native_edit_request.is_some()
+                                    || options.native_inventory_request.is_some())
+                                    && options.headless)
                             {
                                 exit.write(AppExit::error());
                             }
@@ -1517,6 +1638,38 @@ fn drive_loading(
                             .iter()
                             .any(|(id, window)| id == intent.window && window.focused);
                     host.intent(intent, epoch, admitted);
+                }
+                if let Some(run) = inventory_run.as_mut()
+                    && !run.attempted
+                    && editing
+                        .as_ref()
+                        .is_none_or(|edit| edit.receipt.is_some() && edit.error.is_none())
+                    && (!options.native_save_after_ready || host.published())
+                {
+                    run.attempted = true;
+                    let mut selected = references
+                        .iter()
+                        .filter(|(view, _, _)| view.key == run.request.key)
+                        .map(|(view, _, _)| view.canonical.clone());
+                    let current = selected.next().flatten();
+                    let unique = selected.next().is_none();
+                    let admitted = unique
+                        && display.0
+                            == Some(input::DisplayIdentity {
+                                scene_epoch: epoch,
+                                revision: run.request.expected_revision,
+                            });
+                    let accepted = current.as_ref().is_some_and(|view| {
+                        host.inventory_request((*run.request).clone(), view, epoch, admitted)
+                    });
+                    if !accepted {
+                        let error="Inventory query refused: current displayed owner unavailable/stale or host busy".to_string();
+                        run.error = Some(error.clone());
+                        host.failure(error);
+                        if options.headless {
+                            exit.write(AppExit::error());
+                        }
+                    }
                 }
             }
             Phase::Ready(queue)
@@ -1923,18 +2076,33 @@ fn apply_native_observation(
     true
 }
 
+#[derive(SystemParam)]
+struct CaptureOptions<'w> {
+    options: Res<'w, Options>,
+    live: Option<Res<'w, LivePose>>,
+    editing: Option<Res<'w, EditRun>>,
+    inventory: Option<Res<'w, InventoryRun>>,
+}
+
 fn capture(
     mut commands: Commands,
-    options: Res<Options>,
+    request: CaptureOptions,
     loading: Res<Loading>,
     mut state: ResMut<Capture>,
     mut exit: MessageWriter<AppExit>,
-    live: Option<Res<LivePose>>,
-    editing: Option<Res<EditRun>>,
 ) {
+    let options = &*request.options;
+    let live = request.live;
+    let editing = request.editing;
+    let inventory_run = request.inventory;
     if !matches!(loading.phase, Phase::Ready(_)) {
         return;
     }
+    if options.native_inventory_request.is_some() && inventory_run.as_ref().is_none_or(|run| {
+        !run.done || run.error.is_some()
+            || !matches!(&loading.phase,Phase::Ready(queue) if queue.cell.as_ref()
+                .and_then(|cell|cell.native.as_ref()).is_some_and(|host|host.inventory(loading.epoch).is_some()))
+    }){return;}
     if options.native_edit_request.is_some()
         && editing.as_ref().is_none_or(|edit| {
             edit.error.is_some() || edit.receipt.as_ref().is_none_or(|receipt| {
@@ -1985,6 +2153,23 @@ fn capture(
         .map(Screenshot::image)
         .unwrap_or_else(Screenshot::primary_window);
     let report_path = options.report.clone();
+    let inventory_report_path = options.native_inventory_report.clone();
+    let inventory_data = match &loading.phase {
+        Phase::Ready(queue) => queue
+            .cell
+            .as_ref()
+            .and_then(|cell| cell.native.as_ref())
+            .and_then(|host| host.inventory(loading.epoch))
+            .map(|observation| {
+                (
+                    observation.scene_epoch,
+                    observation.sequence,
+                    observation.view.revision(),
+                    Arc::clone(&observation.report_bytes),
+                )
+            }),
+        _ => None,
+    };
     let edit_receipt_path = options.native_edit_receipt.clone();
     let edit_identity = editing
         .as_ref()
@@ -2054,16 +2239,22 @@ fn capture(
               live: Option<Res<LivePose>>,
               editing: Option<Res<EditRun>>| {
             let mut save = || -> model::Result<()> {
-                if let Some((epoch,sequence,revision)) = edit_identity {
-                    if loading.epoch != epoch
+                if let Some((epoch,sequence,revision,_))=&inventory_data
+                    && (loading.epoch!=*epoch || !matches!(&loading.phase,Phase::Ready(queue)
+                        if queue.cell.as_ref().and_then(|cell|cell.native.as_ref())
+                            .and_then(|host|host.inventory(*epoch)).is_some_and(|observation| {
+                                observation.sequence==*sequence && observation.view.revision()==*revision
+                            })))
+                    {return Err("Discarded stale inventory capture readback".into());}
+                if let Some((epoch,sequence,revision)) = edit_identity
+                    && (loading.epoch != epoch
                         || !matches!(&loading.phase,Phase::Ready(queue) if queue.cell.as_ref()
                             .and_then(|cell|cell.native.as_ref()).is_some_and(|host| {
                                 host.revision()==revision && host.applied_edit().is_some_and(|receipt|receipt.intent_sequence==sequence)
                             }))
                         || editing.as_ref().is_none_or(|edit|edit.error.is_some()
-                            || edit.receipt.as_ref().is_none_or(|receipt|receipt.intent_sequence!=sequence))
+                            || edit.receipt.as_ref().is_none_or(|receipt|receipt.intent_sequence!=sequence)))
                     { return Err("Discarded stale canonical edit capture readback".into()); }
-                }
                 if let Some((epoch, sequence, time)) = pose_identity {
                     let current = live.as_ref().and_then(|live| live.receipt.as_ref());
                     if loading.epoch != epoch
@@ -2086,6 +2277,11 @@ fn capture(
                 let image = event.image.clone().try_into_dynamic()?.to_rgb8();
                 image.write_to(&mut file, image::ImageFormat::Png)?;
                 file.sync_all()?;
+                if let Some(report_path)=&inventory_report_path {
+                    let bytes=&inventory_data.as_ref().ok_or("Current inventory observation unavailable")?.3;
+                    let mut report_file=OpenOptions::new().write(true).create_new(true).open(report_path)?;
+                    report_file.write_all(bytes)?;report_file.sync_all()?;
+                }
                 if let Some(receipt_path) = &edit_receipt_path {
                     let bytes = pose_capture_receipt(
                         edit_bytes.as_ref().ok_or("Current edit receipt unavailable")?,

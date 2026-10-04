@@ -526,8 +526,39 @@ fn actual_cell_draw_continue_and_cold_restore_keep_canonical_identity() {
 
 #[test]
 fn actual_displayed_edit_save_and_fresh_cold_continue() {
-    let (files, world, repository) = authored();
+    let (files, mut world, _) = authored();
     let root = &files.root;
+    use fallout_runtime::inventory::{Condition, Facts, OpaqueExtra};
+    let owner = world.authored_reference(&form(0x500)).unwrap();
+    world.initialize_inventory(owner).unwrap();
+    let mut first = Facts::unknown(form(0x100));
+    first.condition = Some(Condition::Float32 { bits: 0x7fc01234 });
+    first.equipped_slots = Some(vec![2, 7]);
+    first.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 255, 1],
+    }];
+    let mut second = Facts::unknown(form(0x100));
+    second.condition = Some(Condition::Float64 {
+        bits: 0x8000000000000000,
+    });
+    second.extra_fields = vec![OpaqueExtra {
+        tag: *b"KEEP",
+        bytes: vec![8, 0, 254, 2],
+    }];
+    let item_a = world
+        .add_item(owner, first.clone(), 2.try_into().unwrap())
+        .unwrap();
+    let item_b = world
+        .add_item(owner, second.clone(), 3.try_into().unwrap())
+        .unwrap();
+    let repository = Repository::create(
+        &root.join("native-package-live"),
+        std::slice::from_ref(&root.join("install")),
+        world.campaign(),
+    )
+    .unwrap();
+    repository.commit(&Captured::at_boundary(&world)).unwrap();
     let original = world.snapshot();
     let selected = form(0x500);
     let source_view = world
@@ -603,11 +634,38 @@ fn actual_displayed_edit_save_and_fresh_cold_continue() {
         save_publication: None,
         error: None,
     });
+    let inventory_request = inventory::Request {
+        schema_version: 1,
+        scene_epoch: 7,
+        sequence: 1,
+        expected_campaign: world.campaign(),
+        expected_catalogue_sha256: world.catalogue_fingerprint().into(),
+        expected_revision: world.revision() + 1,
+        key: selected.clone(),
+        owner,
+        limits: inventory::Limits {
+            max_items: 2,
+            max_links: 4,
+            max_extra_bytes: 7,
+        },
+        output_bytes: 65536,
+    };
+    app.world_mut()
+        .resource_mut::<crate::Options>()
+        .native_inventory_request = Some(Arc::new(inventory_request.clone()));
+    app.insert_resource(crate::InventoryRun {
+        request: Arc::new(inventory_request.clone()),
+        attempted: false,
+        done: false,
+        error: None,
+    });
     loop {
         app.update();
         let edit = app.world().resource::<crate::EditRun>();
         assert!(edit.error.is_none(), "{:?}", edit.error);
-        if edit.save_publication.is_some() {
+        let query = app.world().resource::<crate::InventoryRun>();
+        assert!(query.error.is_none(), "{:?}", query.error);
+        if edit.save_publication.is_some() && query.done {
             break;
         }
         assert!(Instant::now() < deadline, "actual edit+Save did not return");
@@ -664,6 +722,38 @@ fn actual_displayed_edit_save_and_fresh_cold_continue() {
             .revision,
         expected.state_revision
     );
+    if let crate::Phase::Ready(scene) = &app.world().resource::<crate::Loading>().phase {
+        let host = scene.cell.as_ref().unwrap().native.as_ref().unwrap();
+        let observation = host.inventory(7).unwrap();
+        let lots = observation.view.items().unwrap();
+        assert_eq!(
+            lots.iter()
+                .map(|item| (item.id(), item.count()))
+                .collect::<Vec<_>>(),
+            [(item_a, 2), (item_b, 3)]
+        );
+        assert_eq!(lots[0].facts(), &first);
+        assert_eq!(lots[1].facts(), &second);
+        assert_eq!(
+            lots,
+            expected
+                .inventory_banks
+                .iter()
+                .find(|bank| bank.owner == owner)
+                .unwrap()
+                .items
+                .as_slice()
+        );
+        assert_eq!(
+            host.title(),
+            format!(
+                "Inventory 2 retained lots; revision {}",
+                expected.state_revision
+            )
+        );
+    } else {
+        panic!("package did not remain ready");
+    }
     if files.retain {
         let inputs = root.join("inputs");
         fs::create_dir(&inputs).unwrap();
@@ -679,6 +769,19 @@ fn actual_displayed_edit_save_and_fresh_cold_continue() {
         fs::write(
             inputs.join("edit-disabled.json"),
             serde_json::to_vec_pretty(&disabled).unwrap(),
+        )
+        .unwrap();
+        let mut cli_query = inventory_request.clone();
+        cli_query.scene_epoch = 1;
+        fs::write(
+            inputs.join("inventory-after-edit.json"),
+            serde_json::to_vec_pretty(&cli_query).unwrap(),
+        )
+        .unwrap();
+        cli_query.expected_revision = world.revision();
+        fs::write(
+            inputs.join("inventory-initial.json"),
+            serde_json::to_vec_pretty(&cli_query).unwrap(),
         )
         .unwrap();
         fs::write(
@@ -786,6 +889,42 @@ fn actual_displayed_edit_save_and_fresh_cold_continue() {
             .unwrap()
             .state()
     );
+    let cold_display = view.canonical.as_ref().unwrap().clone();
+    if let crate::Phase::Ready(scene) =
+        &mut cold_app.world_mut().resource_mut::<crate::Loading>().phase
+    {
+        let host = scene.cell.as_mut().unwrap().native.as_mut().unwrap();
+        let mut refreshed = inventory_request;
+        refreshed.scene_epoch = 9;
+        refreshed.sequence = 2;
+        assert!(host.inventory_request(refreshed, &cold_display, 9, true));
+    }
+    loop {
+        cold_app.update();
+        if let crate::Phase::Ready(scene) =
+            &mut cold_app.world_mut().resource_mut::<crate::Loading>().phase
+        {
+            let host = scene.cell.as_mut().unwrap().native.as_mut().unwrap();
+            // No scripted resource in this fresh app: manually admit the exact current ECS View.
+            if host.accept_inventory(9, &cold_display) {
+                assert_eq!(
+                    host.inventory(9).unwrap().view.items(),
+                    Some(
+                        cold.snapshot()
+                            .inventory_banks
+                            .iter()
+                            .find(|bank| bank.owner == owner)
+                            .unwrap()
+                            .items
+                            .as_slice()
+                    )
+                );
+                break;
+            }
+        }
+        assert!(Instant::now() < deadline);
+        thread::yield_now();
+    }
     cold_app
         .world_mut()
         .resource_mut::<crate::input::Actions>()

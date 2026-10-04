@@ -22,6 +22,7 @@ use std::{
 };
 
 pub mod edit;
+pub mod inventory;
 #[cfg(test)]
 mod render_tests;
 
@@ -196,6 +197,8 @@ impl Session {
                 last_intent_sequence: 0,
                 last_edit_sequence: 0,
                 applied_edit: None,
+                inventory: None,
+                last_inventory_sequence: 0,
             },
             initial,
         ))
@@ -310,6 +313,7 @@ pub enum Request {
     Save,
     Continue,
     Edit(Box<edit::Command>),
+    Inventory(Box<inventory::Command>),
 }
 
 struct Command {
@@ -321,6 +325,12 @@ pub enum Event {
     Saved(fallout_runtime::save::WriteReceipt),
     Continued(Box<Observation>),
     Edited(Box<edit::Applied>),
+    Inventory(Box<inventory::Observation>),
+    InventoryReady {
+        scene_epoch: u64,
+        sequence: u64,
+        revision: u64,
+    },
     Failed(String),
 }
 
@@ -335,6 +345,8 @@ pub struct Host {
     last_intent_sequence: u64,
     last_edit_sequence: u64,
     applied_edit: Option<edit::Receipt>,
+    inventory: Option<Box<inventory::Observation>>,
+    last_inventory_sequence: u64,
 }
 
 impl Host {
@@ -349,6 +361,52 @@ impl Host {
     }
     pub fn applied_edit(&self) -> Option<&edit::Receipt> {
         self.applied_edit.as_ref()
+    }
+    pub fn inventory(&self, scene_epoch: u64) -> Option<&inventory::Observation> {
+        self.inventory.as_deref().filter(|observation| {
+            observation.accepted
+                && observation.scene_epoch == scene_epoch
+                && observation.view.revision() == self.revision
+        })
+    }
+    pub fn accept_inventory(&mut self, scene_epoch: u64, displayed: &View) -> bool {
+        if let Some(observation) = self.inventory.as_mut()
+            && observation.matches(scene_epoch, displayed)
+            && observation.view.revision() == self.revision
+        {
+            observation.accepted = true;
+            return true;
+        }
+        self.inventory = None;
+        false
+    }
+    pub fn inventory_request(
+        &mut self,
+        request: inventory::Request,
+        displayed: &View,
+        scene_epoch: u64,
+        admitted: bool,
+    ) -> bool {
+        if request.sequence <= self.last_inventory_sequence {
+            return false;
+        }
+        self.last_inventory_sequence = request.sequence;
+        if self.pending {
+            return false;
+        }
+        self.inventory = None;
+        if !admitted
+            || request.scene_epoch != scene_epoch
+            || request.expected_revision != self.revision
+            || request.validate_display(displayed).is_err()
+        {
+            self.failure("Inventory query belongs to a different displayed identity".into());
+            return false;
+        }
+        self.request(Request::Inventory(Box::new(inventory::Command {
+            request,
+            displayed: displayed.clone(),
+        })))
     }
 
     /// The adapter supplies the actual current ECS observation, never a forged
@@ -425,10 +483,14 @@ impl Host {
             return false;
         }
         let saving = matches!(request, Request::Save);
+        if matches!(request, Request::Continue | Request::Edit(_)) {
+            self.inventory = None;
+        }
         let title = match &request {
             Request::Save => "Save pending publication",
             Request::Continue => "Continue validating current native save",
             Request::Edit(_) => "Engineering reference edit pending canonical commit",
+            Request::Inventory(_) => "Engineering inventory observation pending",
         };
         match self
             .commands
@@ -481,6 +543,19 @@ impl Host {
             }
         };
         self.pending = false;
+        let event = match event {
+            Event::Inventory(observation) => {
+                let event = Event::InventoryReady {
+                    scene_epoch: observation.scene_epoch,
+                    sequence: observation.sequence,
+                    revision: observation.view.revision(),
+                };
+                self.title = observation.status();
+                self.inventory = Some(observation);
+                event
+            }
+            event => event,
+        };
         match &event {
             Event::Saved(receipt) => {
                 self.published = true;
@@ -504,6 +579,8 @@ impl Host {
                 );
             }
             Event::Failed(error) => self.failure(error.clone()),
+            Event::InventoryReady { .. } => {}
+            Event::Inventory(_) => unreachable!("stored owner observation before adapter event"),
         }
         Some(event)
     }
@@ -577,6 +654,10 @@ fn run(
             continue;
         }
         let event = match request.request {
+            Request::Inventory(command) => match inventory::observe(&world, &keys, *command) {
+                Ok(observation) => Event::Inventory(Box::new(observation)),
+                Err(error) => Event::Failed(error.to_string()),
+            },
             Request::Edit(command) => match edit::apply(
                 &mut world,
                 &cell,

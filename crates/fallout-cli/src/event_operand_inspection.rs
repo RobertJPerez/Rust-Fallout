@@ -7,8 +7,8 @@ use fallout_data::{loaded_scripts, obscript, quest_scripts, script_reference_att
 use fallout_runtime::{
     event_operands,
     execution::{
-        attachment_boot, copy_probe, event_request, foreign_copy, local_copy, native, native_plan,
-        pending_batch, reference_attachment_boot, reference_copy,
+        attachment_boot, copy_probe, event_request, foreign_copy, literal_assignment, local_copy,
+        native, native_plan, pending_batch, reference_attachment_boot, reference_copy,
     },
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
@@ -1140,6 +1140,210 @@ pub(super) fn copy_saved_reference(
         &report,
         request.maximum_report_bytes,
         "saved reference copy",
+    )?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SavedLiteralIntent {
+    Faithful,
+    EngineeringExactIntegralDecimal,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedLiteralAssignmentRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    owner: fallout_runtime::identity::Owner,
+    intent: SavedLiteralIntent,
+    maximum_source_instructions: usize,
+    maximum_operand_uses: usize,
+    maximum_statement_bytes: usize,
+    maximum_literal_bytes: usize,
+    maximum_trace_source_bytes: usize,
+    maximum_trace_rows: usize,
+    maximum_trace_variable_bytes: usize,
+    maximum_trace_binding_uses: usize,
+    maximum_stage_variable_bytes: usize,
+    maximum_trace_bytes: usize,
+    maximum_prepared_instructions: usize,
+    maximum_prepared_operand_uses: usize,
+    maximum_prepared_tokens: usize,
+    maximum_prepared_record_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+struct SavedLiteralReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    snapshot_literal_assignment: SavedCopyOutcome<'a, literal_assignment::Committed>,
+}
+pub(super) fn assign_saved_literal(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedLiteralAssignmentRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved literal assignment request byte budget exceeded",
+    )?)?;
+    let defaults = literal_assignment::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    let p = programs::Limits::default();
+    if request.schema_version != 1
+        || request.maximum_source_instructions > defaults.maximum_event_instructions
+        || request.maximum_operand_uses > defaults.maximum_operand_uses
+        || request.maximum_statement_bytes > defaults.maximum_statement_bytes
+        || request.maximum_literal_bytes > defaults.maximum_literal_bytes
+        || request.maximum_trace_source_bytes > defaults.observation.maximum_source_bytes
+        || request.maximum_trace_rows > defaults.observation.maximum_rows
+        || request.maximum_trace_variable_bytes > defaults.observation.maximum_variable_bytes
+        || request.maximum_trace_binding_uses > defaults.observation.maximum_binding_uses
+        || request.maximum_stage_variable_bytes > defaults.maximum_stage_variable_bytes
+        || request.maximum_trace_bytes > defaults.maximum_trace_bytes
+        || request.maximum_prepared_instructions > p.maximum_instructions
+        || request.maximum_prepared_operand_uses > p.maximum_uses
+        || request.maximum_prepared_tokens > p.maximum_tokens
+        || request.maximum_prepared_record_bytes > p.maximum_attempted_record_bytes
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved literal assignment schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(
+        install,
+        result_path,
+        report_path,
+        "saved literal assignment",
+    )?;
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "saved literal assignment snapshot byte budget exceeded",
+    )?;
+    let mut world = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|p| p.sequence == request.sequence.get())
+        .ok_or("saved literal assignment must name the existing journal head")?;
+    let instance = world.instance(world.handle(pending.instance)?)?;
+    if instance.owner() != &request.owner {
+        return Err("saved literal assignment explicit owner differs from journal head".into());
+    }
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        std::slice::from_ref(instance.definition()),
+        programs::Limits {
+            maximum_instructions: request.maximum_prepared_instructions,
+            maximum_uses: request.maximum_prepared_operand_uses,
+            maximum_tokens: request.maximum_prepared_tokens,
+            maximum_nodes: request.maximum_prepared_tokens,
+            maximum_expressions: request.maximum_prepared_tokens.min(p.maximum_expressions),
+            maximum_attempted_record_bytes: request.maximum_prepared_record_bytes,
+            ..p
+        },
+    )?;
+    let before_revision = world.revision();
+    let outcome = literal_assignment::stage(
+        &world,
+        &sources,
+        &content,
+        literal_assignment::Selection {
+            sequence: request.sequence.get(),
+            intent: match request.intent {
+                SavedLiteralIntent::Faithful => literal_assignment::Intent::Faithful,
+                SavedLiteralIntent::EngineeringExactIntegralDecimal => {
+                    literal_assignment::Intent::EngineeringExactIntegralDecimal
+                }
+            },
+        },
+        literal_assignment::Limits {
+            maximum_event_instructions: request.maximum_source_instructions,
+            maximum_operand_uses: request.maximum_operand_uses,
+            maximum_statement_bytes: request.maximum_statement_bytes,
+            maximum_literal_bytes: request.maximum_literal_bytes,
+            observation: preparation::ObservationLimits {
+                maximum_source_bytes: request.maximum_trace_source_bytes,
+                maximum_rows: request.maximum_trace_rows,
+                maximum_variable_bytes: request.maximum_trace_variable_bytes,
+                maximum_binding_uses: request.maximum_trace_binding_uses,
+            },
+            maximum_stage_variable_bytes: request.maximum_stage_variable_bytes,
+            maximum_trace_bytes: request.maximum_trace_bytes,
+        },
+    )?;
+    let (committed, unsupported) = match outcome {
+        literal_assignment::Preparation::Unsupported { reason, detail } => {
+            (None, Some((reason, detail)))
+        }
+        literal_assignment::Preparation::Staged(proposal) => {
+            (Some(proposal.commit(&mut world)?), None)
+        }
+    };
+    let mut artifact = Value::Null;
+    let result_bytes = if committed.is_some() {
+        let snapshot = world.snapshot();
+        let bytes = snapshot.encode(request.maximum_result_snapshot_bytes)?;
+        let cold = fallout_runtime::World::restore(
+            Arc::clone(&catalogue),
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+            world_limits,
+        )?;
+        if cold.snapshot() != snapshot {
+            return Err("saved literal assignment complete cold result differs".into());
+        }
+        artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":snapshot.schema_version,"decode_restore_equal":true,"remaining_head":snapshot.pending_events.first()});
+        Some(bytes)
+    } else {
+        None
+    };
+    let outcome = match (&committed, &unsupported) {
+        (Some(committed), _) => SavedCopyOutcome::EngineeringCommitted { committed },
+        (_, Some((reason, detail))) => SavedCopyOutcome::Unsupported {
+            reason: *reason,
+            detail,
+        },
+        _ => unreachable!("complete preparation outcome"),
+    };
+    let report = SavedLiteralReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering exact integral decimal source assignment","campaign":world.campaign(),"owner":request.owner,"before_revision":before_revision,"after_revision":world.revision(),"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,
+            "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"private_result_discarded":committed.is_none(),"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        snapshot_literal_assignment: outcome,
+    };
+    let report = admit_saved_copy_report(
+        &report,
+        request.maximum_report_bytes,
+        "saved literal assignment",
     )?;
     write_saved_copy_result(result_path, result_bytes)?;
     Ok(report)

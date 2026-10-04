@@ -221,6 +221,13 @@ fn decode(
     name: &str,
     maximum_fields: usize,
 ) -> Result<(Vec<Field>, Vec<Finding>)> {
+    if record.integrity_issue.is_some() {
+        return Err(malformed(
+            name,
+            record.header.offset,
+            "tainted record cannot supply package source inputs",
+        ));
+    }
     let mut fields = Vec::new();
     let mut findings = Vec::new();
     let mut seen = [0usize; 2];

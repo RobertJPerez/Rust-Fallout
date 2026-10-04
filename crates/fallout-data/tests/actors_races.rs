@@ -98,6 +98,66 @@ fn single(path: &Path, version: u16, body: &[u8]) -> RecordStore {
 }
 
 #[test]
+fn forensic_checksum_recovery_cannot_supply_typed_race_inputs() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("FalloutNV.esm");
+    let body = complete(0x8000_0000);
+    let mut compressed = disk(0x100, plugin::COMPRESSED, 15, &body);
+    fs::write(&path, [header(&[]), compressed.clone()].concat()).unwrap();
+    let recovery = plugin::Limits {
+        inspect_checksum_mismatches: true,
+        ..Default::default()
+    };
+    let expected = {
+        let mut store = source(directory.path(), &["FalloutNV.esm"]);
+        let catalogue = Catalogue::load(&mut store, Limits::default()).unwrap();
+        serde_json::to_value((
+            catalogue.sources(),
+            catalogue.winning_content_sha256(),
+            catalogue.counts(),
+            catalogue.iter().map(|(_, d)| d).collect::<Vec<_>>(),
+        ))
+        .unwrap()
+    };
+    {
+        let mut store =
+            RecordStore::open_nv(directory.path(), &["FalloutNV.esm".into()], recovery).unwrap();
+        let catalogue = Catalogue::load(&mut store, Limits::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value((
+                catalogue.sources(),
+                catalogue.winning_content_sha256(),
+                catalogue.counts(),
+                catalogue.iter().map(|(_, d)| d).collect::<Vec<_>>(),
+            ))
+            .unwrap(),
+            expected,
+        );
+    }
+    *compressed.last_mut().unwrap() ^= 1;
+    fs::write(&path, [header(&[]), compressed].concat()).unwrap();
+    assert!(
+        RecordStore::open_nv(
+            directory.path(),
+            &["FalloutNV.esm".into()],
+            plugin::Limits::default(),
+        )
+        .is_err()
+    );
+    let mut store =
+        RecordStore::open_nv(directory.path(), &["FalloutNV.esm".into()], recovery).unwrap();
+    let at = store.winning_definitions().next().unwrap().1;
+    let record = store.read(at).unwrap();
+    assert_eq!(record.payload, body);
+    assert!(record.integrity_issue.is_some());
+    let result = Catalogue::load(&mut store, Limits::default());
+    assert!(result.is_err(), "recovered RACE body supplied typed inputs");
+    let diagnostic = result.err().unwrap().to_string();
+    assert!(diagnostic.contains("tainted record cannot supply race source inputs"));
+    assert!(diagnostic.contains("FalloutNV.esm at 0x"));
+}
+
+#[test]
 fn race_bytes_keep_signed_skill_order_unused_float_payloads_and_header_provenance() {
     let directory = tempfile::tempdir().unwrap();
     let body = complete(0x3f80_0001);

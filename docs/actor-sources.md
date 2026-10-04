@@ -752,3 +752,25 @@ hashes to the two-commit range. Only this documentation's validation results wer
 filled after the comparisons. Earlier prototypes and failed fixture setup or
 admission tests remain preserved separately. These receipts establish source
 decoding and engineering bounds; no gameplay scenario is accepted.
+
+## Forensic source admission repair (ACT-07D)
+
+Reachable `RecordStore::open_nv` checksum recovery originally allowed the RACE
+and PACK scalar catalogues to accept typed fields from a recovered body marked
+with `integrity_issue`. Authored compressed records reproduce both gaps while
+preserving the exact recovered payload. The existing strict mode rejects the
+same corrupted inputs. Each scalar decoder now rejects the integrity marker
+before visiting any fields and reports the source filename, record offset and
+specific race/package source-admission reason. Recovery remains diagnostic;
+it does not repair or authorize source data.
+
+All 58 actor tests pass, including both captured admission regressions and exact
+valid-source projections across strict and forensic modes. Affected all-target
+Clippy with warnings denied, CLI build, formatting and whitespace checks pass.
+The sealed repaired binary produces the same complete 318,736,895-byte installed
+source report and 14,913-byte default authored report as the preserved ACT-07
+binary. The installed report also matches the preserved independent complete
+source oracle. Receipts remain under `local/act07d-trust-validation-20261004-01`
+and `local/act07d-good-source-results-20261004-01`; the binary is sealed under
+`local/act07d-trust-frozen-tools-20261004-01`. No source schema, runtime state,
+save format, scheduling or verified gameplay behavior changes.

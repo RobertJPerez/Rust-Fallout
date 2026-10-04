@@ -8,6 +8,9 @@ use fallout_data::{
 use serde::Serialize;
 use std::sync::Arc;
 
+mod reference;
+pub use reference::ReferenceAdmission;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub enum Phase {
     Prepared,

@@ -361,3 +361,132 @@ fn retirement_keeps_leases_until_draw_disposal_and_final_external_user() {
         Phase::Released
     );
 }
+
+fn reference_key(local_id: u32) -> FormKey {
+    FormKey {
+        profile: ProfileId::NvOriginal,
+        origin_plugin: "falloutnv.esm".into(),
+        local_id,
+    }
+}
+
+fn uploaded(scene: &mut SceneLifetime) {
+    // Injected acknowledgement tests the admission mechanism only, not a GPU.
+    scene.submission_complete(EPOCH).unwrap();
+    scene
+        .publish_uploaded(EPOCH, || Ok(true), || Ok(()))
+        .unwrap();
+}
+
+#[test]
+fn prepared_reference_admission_needs_upload_and_complete_protected_membership() {
+    let (_fixture, owner, ticket) = setup();
+    let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+    let active = [reference_key(0x300)];
+    assert!(
+        scene
+            .admit_references(EPOCH, 4, 4, &active, &active)
+            .is_err()
+    );
+    uploaded(&mut scene);
+    let before = serde_json::to_value(scene.snapshot()).unwrap();
+    assert!(scene.admit_references(EPOCH, 4, 4, &active, &[]).is_err());
+    // A base in the same protected graph is not a member of this CELL.
+    assert!(
+        scene
+            .admit_references(EPOCH, 4, 4, &[], &[reference_key(0x400)])
+            .is_err()
+    );
+    let mut foreign = active[0].clone();
+    foreign.profile = ProfileId::Fo3Original;
+    assert!(
+        scene
+            .admit_references(EPOCH, 4, 4, &[], &[foreign])
+            .is_err()
+    );
+    assert!(
+        scene
+            .admit_references(EPOCH, 4, 4, &[], &[reference_key(0x900)])
+            .is_err()
+    );
+    assert_eq!(serde_json::to_value(scene.snapshot()).unwrap(), before);
+}
+
+#[test]
+fn explicit_unavailable_pose_is_a_binding_and_admission_publishes_once() {
+    let (_fixture, owner, ticket) = setup();
+    let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+    uploaded(&mut scene);
+    let active = [reference_key(0x300)];
+    let projected: std::collections::BTreeMap<FormKey, Option<[f32; 3]>> =
+        [(active[0].clone(), None)].into_iter().collect();
+    let observed: Vec<_> = projected.keys().cloned().collect();
+    let admission: engine_bridge::ReferenceAdmission<'_> = scene
+        .admit_references(EPOCH, 4, 4, &active, &observed)
+        .unwrap();
+    assert_eq!(admission.scene_epoch(), EPOCH);
+    assert_eq!(admission.source_generation(), scene.ticket().generation());
+    assert_eq!(admission.source_identity(), scene.ticket().identity());
+    assert_eq!(admission.observed_keys(), observed);
+    let calls = Cell::new(0);
+    let mut shown = true;
+    admission
+        .publish(EPOCH, 4, |keys| {
+            assert_eq!(keys, active);
+            shown = projected[&keys[0]].is_some();
+            calls.set(calls.get() + 1);
+        })
+        .unwrap();
+    assert!(!shown);
+    assert_eq!(calls.get(), 1);
+    assert!(!scene.snapshot().simulation_ready);
+}
+
+#[test]
+fn changed_display_revision_or_scene_epoch_refuses_before_reference_commit() {
+    let (_fixture, owner, ticket) = setup();
+    let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+    uploaded(&mut scene);
+    let active = [reference_key(0x300)];
+    let before = serde_json::to_value(scene.snapshot()).unwrap();
+    let calls = Cell::new(0);
+    assert!(matches!(
+        scene.admit_references(EPOCH, 4, 5, &active, &active),
+        Err(JobError::Stale)
+    ));
+    for (epoch, revision) in [(EPOCH + 1, 4), (EPOCH, 5)] {
+        let admission = scene
+            .admit_references(EPOCH, 4, 4, &active, &active)
+            .unwrap();
+        assert!(matches!(
+            admission.publish(epoch, revision, |_| calls.set(1)),
+            Err(JobError::Stale)
+        ));
+    }
+    assert_eq!(calls.get(), 0);
+    assert_eq!(serde_json::to_value(scene.snapshot()).unwrap(), before);
+    scene.begin_retirement(EPOCH).unwrap();
+    assert!(
+        scene
+            .admit_references(EPOCH, 4, 4, &active, &active)
+            .is_err()
+    );
+}
+
+#[test]
+fn ambiguous_or_unbounded_reference_sets_never_reach_publication() {
+    let (_fixture, owner, ticket) = setup();
+    let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+    uploaded(&mut scene);
+    let key = reference_key(0x300);
+    let repeated = [key.clone(), key.clone()];
+    assert!(
+        scene
+            .admit_references(EPOCH, 4, 4, &repeated, &repeated)
+            .is_err()
+    );
+    let reversed = [reference_key(0x301), key.clone()];
+    assert!(scene.admit_references(EPOCH, 4, 4, &[], &reversed).is_err());
+    let excess = vec![key; 10_001];
+    assert!(scene.admit_references(EPOCH, 4, 4, &[], &excess).is_err());
+}

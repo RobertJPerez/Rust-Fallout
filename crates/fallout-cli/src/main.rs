@@ -1806,6 +1806,33 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
             }
         }
+        WorldCommand::GridTerrainSources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            world,
+            grid_x,
+            grid_y,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::grid_terrain(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::GridInput {
+                    world: parse_cell_key(&world)?,
+                    grid: [grid_x, grid_y],
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("grid CELL terrain sources are unavailable; see report".into());
+            }
+        }
         WorldCommand::ConversationSources {
             install,
             load_order,

@@ -68,6 +68,25 @@ pub(crate) enum WorldCommand {
         #[arg(long, default_value_t = 30_000)]
         source_timeout_ms: u64,
     },
+    /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
+    GridTerrainSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        #[arg(long, allow_hyphen_values = true)]
+        grid_x: i32,
+        #[arg(long, allow_hyphen_values = true)]
+        grid_y: i32,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Prepare an explicitly requested winning topic/INFO for source consumers.
     ConversationSources {
         #[arg(long)]

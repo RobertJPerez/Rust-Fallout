@@ -72,3 +72,13 @@ Store and existing importer/cache; it does not create a second resource route.
 An unavailable request emits its report and exits 1. Source availability does
 not satisfy original lookup precedence or activation acceptance, and
 `current_cell_changed`, `activation_applied` and `runtime_ready` remain false.
+
+`grid-terrain-sources` uses the same explicit world/grid flags, protected directory
+and private selection as the model command. It calls `prepare_terrain` and the
+existing `TexturePreparation` job/cache pipeline, with bounded polling and
+owned-request cancellation on timeout/failure. The report retains the exact
+terrain source plan, source-bound texture receipt and job usage. Requested member
+completion remains separate from missing/ambiguous paths and unapplied default
+layers; either unresolved authored coverage or strict planning refusal exits 1.
+Duplicate LAND refuses before a job request. `surface_prepared`, runtime readiness
+and activation stay false; this command does not decode a DDS/material surface.

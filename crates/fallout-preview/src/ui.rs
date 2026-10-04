@@ -1,16 +1,16 @@
 //! Retained source menu structure for the original tile consumer. This uses the
-//! existing archive importer and the audited tokenizer, never another importer
-//! or an entity/include resolver. Interpretation belongs to subsequent slices.
+//! existing archive importer and audited tokenizer. Bounded source consumers
+//! live in the owned submodules.
 use crate::model::Result;
 use fallout_data::{
     assets::ArchiveAssets,
     vfs::{AssetPath, AssetSource},
 };
 use quick_xml::{events::Event, reader::Reader};
-use serde::Serialize;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use std::{
-    io::{self, Write},
+    io::{self, Read, Write},
     mem::size_of,
     path::Path,
 };
@@ -40,7 +40,8 @@ impl Default for Limits {
 }
 
 /// Half-open offsets into the exact UTF-8 source, including its optional BOM.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -338,7 +339,7 @@ impl<W: Write> Write for BoundedOutput<W> {
         self.inner.flush()
     }
 }
-pub fn write_report(writer: impl Write, report: &Report, limit: usize) -> Result<()> {
+fn write_json(writer: impl Write, report: &impl Serialize, limit: usize) -> Result<()> {
     let mut writer = BoundedOutput {
         inner: writer,
         written: 0,
@@ -349,6 +350,30 @@ pub fn write_report(writer: impl Write, report: &Report, limit: usize) -> Result
     writer.flush()?;
     Ok(())
 }
+
+pub fn write_report(writer: impl Write, report: &Report, limit: usize) -> Result<()> {
+    write_json(writer, report, limit)
+}
+
+fn read_json<T: DeserializeOwned>(path: &Path, limit: usize, kind: &str) -> Result<T> {
+    let file = fallout_data::baseline::open_source(path)?;
+    if file.metadata()?.len() > limit as u64 {
+        return Err(format!("Menu {kind} request byte budget exceeded").into());
+    }
+    let maximum = u64::try_from(limit)?
+        .checked_add(1)
+        .ok_or_else(|| format!("Menu {kind} request byte limit overflow"))?;
+    let mut bytes = Vec::new();
+    file.take(maximum).read_to_end(&mut bytes)?;
+    if bytes.len() > limit {
+        return Err(format!("Menu {kind} request byte budget exceeded").into());
+    }
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
+pub mod entities;
+pub mod includes;
+pub mod traits;
 
 #[cfg(test)]
 mod tests;

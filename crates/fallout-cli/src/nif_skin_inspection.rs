@@ -250,6 +250,258 @@ pub fn inspect_influences(input: &Path, request_path: &Path) -> Result<Influence
     })
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PartitionStreamsRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    partition_block: u32,
+    partition_ordinal: usize,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PartitionPoseRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    partition_block: u32,
+    partition_ordinal: usize,
+    weights: InfluenceWeightPolicy,
+}
+#[derive(Serialize)]
+pub struct PartitionPoseReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<nif_skin::pose::partition::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_partition_pose(input: &Path, request_path: &Path) -> Result<PartitionPoseReport> {
+    let request: PartitionPoseRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("partition pose request requires schema1".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = nif_skin::pose::partition::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::pose::partition::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: request.weights.policy(),
+            },
+            partition_block: request.partition_block,
+            partition_ordinal: request.partition_ordinal,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PartitionPoseReport {
+        schema_version: 1,
+        contract: "engineering-source-geometry-partition-subset-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+#[derive(Serialize)]
+pub struct PartitionStreamsReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<partition::streams::Streams>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_partition_streams(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PartitionStreamsReport> {
+    let request: PartitionStreamsRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("partition streams request requires schema1".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = partition::streams::prepare(
+        &bytes,
+        &input.display().to_string(),
+        partition::streams::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            geometry: request.geometry,
+            partition_block: request.partition_block,
+            partition_ordinal: request.partition_ordinal,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PartitionStreamsReport {
+        schema_version: 1,
+        contract: "source-qualified-authored-partition-streams-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SharedGeometryRequest {
+    geometry: u32,
+    weights: InfluenceWeightPolicy,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SharedSkinRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometries: Vec<SharedGeometryRequest>,
+}
+#[derive(Serialize)]
+pub struct SharedSkinReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<nif_skin::pose::GeometryBatch>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_shared_skin(input: &Path, request_path: &Path) -> Result<SharedSkinReport> {
+    let request: SharedSkinRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.geometries.len() > 64 {
+        return Err("shared skin requires schema1 and at most64 geometry requests".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let geometries: Vec<_> = request
+        .geometries
+        .iter()
+        .map(|request| nif_skin::pose::Request {
+            geometry: request.geometry,
+            weights: request.weights.policy(),
+        })
+        .collect();
+    let evaluated = nif_skin::pose::evaluate_many(
+        &bytes,
+        &input.display().to_string(),
+        request.expected_source_sha256,
+        &geometries,
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(SharedSkinReport {
+        schema_version: 1,
+        contract: "engineering-shared-source-skin-batch-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExternalBoneRequest {
+    bone_ordinal: usize,
+    rig_node: u32,
+    expected_skin_bone_name_bytes: Vec<u8>,
+    expected_rig_node_name_bytes: Vec<u8>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExternalSkinRequest {
+    schema_version: u32,
+    expected_skin_sha256: [u8; 32],
+    expected_rig_sha256: [u8; 32],
+    geometry: u32,
+    rig_root: u32,
+    explicit_bone_mapping: Vec<ExternalBoneRequest>,
+    explicit_root_space_mapping: nif_skin::pose::Affine,
+    weights: InfluenceWeightPolicy,
+}
+#[derive(Serialize)]
+pub struct ExternalSkinReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    rig_input: PathBuf,
+    skin_sha256: String,
+    rig_sha256: String,
+    evaluation: Option<nif_skin::external::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_external_skin(
+    input: &Path,
+    rig: &Path,
+    request_path: &Path,
+) -> Result<ExternalSkinReport> {
+    let request: ExternalSkinRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.explicit_bone_mapping.len() > 4096 {
+        return Err("external skin requires schema1 and at most 4096 explicit mapped bones".into());
+    }
+    let skin_bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let rig_bytes = read_bounded(rig, 64 * 1024 * 1024)?;
+    let source = format!("{} + {}", input.display(), rig.display());
+    let value = nif_skin::external::Request {
+        expected_skin_sha256: request.expected_skin_sha256,
+        expected_rig_sha256: request.expected_rig_sha256,
+        geometry: request.geometry,
+        rig_root: request.rig_root,
+        explicit_bone_mapping: request
+            .explicit_bone_mapping
+            .into_iter()
+            .map(|m| nif_skin::external::BoneMapping {
+                bone_ordinal: m.bone_ordinal,
+                rig_node: m.rig_node,
+                expected_skin_bone_name_bytes: m.expected_skin_bone_name_bytes,
+                expected_rig_node_name_bytes: m.expected_rig_node_name_bytes,
+            })
+            .collect(),
+        explicit_root_space_mapping: request.explicit_root_space_mapping,
+        weights: request.weights.policy(),
+    };
+    let evaluated =
+        nif_skin::external::evaluate(&skin_bytes, &rig_bytes, &source, &value, Default::default());
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ExternalSkinReport {
+        schema_version: 1,
+        contract: "engineering-exact-external-rig-skin-v1",
+        input: input.into(),
+        rig_input: rig.into(),
+        skin_sha256: format!("{:x}", Sha256::digest(&skin_bytes)),
+        rig_sha256: format!("{:x}", Sha256::digest(&rig_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
     if expected["sha256"].as_str() != Some(actual.sha256.as_str())
         || expected["decoded_bytes"].as_u64() != Some(actual.decoded_bytes as u64)

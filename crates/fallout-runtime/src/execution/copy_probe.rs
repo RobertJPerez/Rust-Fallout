@@ -53,6 +53,8 @@ pub enum Error {
     #[error(transparent)]
     Copy(#[from] local_copy::Error),
     #[error(transparent)]
+    MultiCopy(#[from] local_copy::MultiError),
+    #[error(transparent)]
     Content(#[from] crate::foreign::Failure),
 }
 #[derive(Debug, Serialize)]
@@ -242,6 +244,70 @@ pub fn observe(
     transport_receipt_sha256: &str,
     limits: Limits,
 ) -> Result<Observation, Error> {
+    let mut capture = probe_capture(
+        sources,
+        manifest,
+        request,
+        producer_executable_sha256,
+        transport_receipt_sha256,
+        limits,
+    )?;
+    let (mut world, handle) = seeded(sources, manifest, request, limits)?;
+    content.validate_world(&world)?;
+    let initial = world.snapshot();
+    let unsupported = if let Some(refusal) = own_scope(manifest, request) {
+        Some(refusal)
+    } else if let Some(step) = manifest
+        .steps
+        .iter()
+        .enumerate()
+        .position(|(index, input)| input.event_ordinal as usize != index)
+    {
+        Some(Unsupported {
+            step: Some(step),
+            detail: "Standalone copy steps execute complete events and require consecutive distinct event ordinals starting at zero".into(),
+        })
+    } else {
+        let (mut preview, preview_handle) = seeded(sources, manifest, request, limits)?;
+        steps(&mut preview, preview_handle, sources, content, manifest)?.err()
+    };
+    let completed = if unsupported.is_none() {
+        steps(&mut world, handle, sources, content, manifest)?
+            .map_err(|_| Error::Input("fixed-source preview and execution diverged"))?
+    } else {
+        Completed {
+            observations: Vec::new(),
+            committed: Vec::new(),
+        }
+    };
+    let final_snapshot = world.snapshot();
+    let canonical_restore_verified = verify_restore(sources, &final_snapshot, limits)?;
+    capture.finish = if unsupported.is_some() {
+        trace::Finish::Unsupported
+    } else {
+        trace::Finish::Completed
+    };
+    capture.steps = completed.observations;
+    trace::compare(sources, manifest, None, Some(&capture), Default::default())?;
+    Ok(Observation {
+        capture,
+        unsupported,
+        committed: completed.committed,
+        initial_snapshot: initial,
+        final_snapshot,
+        canonical_restore_verified,
+        faithful_execution_admitted: false,
+    })
+}
+
+fn probe_capture(
+    sources: &PreparedSources<'_>,
+    manifest: &trace::Manifest,
+    request: &Request,
+    producer_executable_sha256: &str,
+    transport_receipt_sha256: &str,
+    limits: Limits,
+) -> Result<trace::Capture, Error> {
     trace::validate_manifest(sources, manifest, Default::default())?;
     if request.schema_version != 1 {
         return Err(Error::Input("schema version"));
@@ -271,70 +337,271 @@ pub fn observe(
             "replacement producer cannot be the original executable",
         ));
     }
-    let mut capture=trace::Capture{schema_version:1,identity:manifest.identity.clone(),producer:trace::Producer::Replacement,
+    let capture=trace::Capture{schema_version:1,identity:manifest.identity.clone(),producer:trace::Producer::Replacement,
         producer_executable_sha256:producer_executable_sha256.into(),transport_receipt_sha256:transport_receipt_sha256.into(),
         instrumentation:"Standalone engineering own-local bit-copy through canonical staging/commit. Preview uses a discarded private world. No original scheduling, conversion, initialization or behavior claim.".into(),
         finish:trace::Finish::Unsupported,steps:Vec::new()};
     // Validate all supplied provenance before initializing either private world.
     trace::compare(sources, manifest, None, Some(&capture), Default::default())?;
-    let (mut world, handle) = seeded(sources, manifest, request, limits)?;
-    content.validate_world(&world)?;
-    let initial = world.snapshot();
-    let unsupported = if manifest.purpose != trace::Operation::Assignment
+    Ok(capture)
+}
+
+fn own_scope(manifest: &trace::Manifest, request: &Request) -> Option<Unsupported> {
+    if manifest.purpose != trace::Operation::Assignment
         || manifest.steps.iter().any(|input| {
             input.operation != trace::Operation::Assignment
                 || input.caller.activation != request.activation.get()
                 || input.caller.calling_reference.is_some()
                 || input.caller.containing_reference.is_some()
                 || input.caller.target.is_some()
-        }) {
-        Some(Unsupported{step:None,detail:"Only explicit own-scope engineering assignment copies are supported; conversion, branch, native and external caller behavior are unmeasured".into()})
-    } else if let Some(step) = manifest
-        .steps
-        .iter()
-        .enumerate()
-        .position(|(index, input)| input.event_ordinal as usize != index)
-    {
-        Some(Unsupported {
-            step: Some(step),
-            detail: "Standalone copy steps execute complete events and require consecutive distinct event ordinals starting at zero".into(),
         })
+    {
+        Some(Unsupported{step:None,detail:"Only explicit own-scope engineering assignment copies are supported; conversion, branch, native and external caller behavior are unmeasured".into()})
     } else {
-        let (mut preview, preview_handle) = seeded(sources, manifest, request, limits)?;
-        steps(&mut preview, preview_handle, sources, content, manifest)?.err()
-    };
-    let completed = if unsupported.is_none() {
-        steps(&mut world, handle, sources, content, manifest)?
-            .map_err(|_| Error::Input("fixed-source preview and execution diverged"))?
-    } else {
-        Completed {
-            observations: Vec::new(),
-            committed: Vec::new(),
-        }
-    };
-    let final_snapshot = world.snapshot();
+        None
+    }
+}
+
+fn verify_restore(
+    sources: &PreparedSources<'_>,
+    final_snapshot: &Snapshot,
+    limits: Limits,
+) -> Result<bool, Error> {
     let restored = World::restore(
         sources.catalogue(),
         final_snapshot.clone(),
         world_limits(limits),
     )?;
-    let canonical_restore_verified = restored.snapshot() == final_snapshot;
+    let canonical_restore_verified = &restored.snapshot() == final_snapshot;
     if !canonical_restore_verified {
         return Err(Error::Input("canonical restore changed probe state"));
     }
+    Ok(canonical_restore_verified)
+}
+
+/// Separate multi-copy consumer. These aggregate bounds include repeated event
+/// source windows and binding-table scans, and are charged before retention.
+#[derive(Debug, Clone, Copy)]
+pub struct MultiProbeLimits {
+    pub probe: Limits,
+    pub event: local_copy::MultiLimits,
+    pub observation: crate::preparation::ObservationLimits,
+    pub maximum_statement_bytes: usize,
+}
+impl Default for MultiProbeLimits {
+    fn default() -> Self {
+        Self {
+            probe: Limits::default(),
+            event: local_copy::MultiLimits::default(),
+            observation: crate::preparation::ObservationLimits::default(),
+            maximum_statement_bytes: 65_539,
+        }
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct MultiObservation {
+    pub capture: trace::Capture,
+    pub unsupported: Option<Unsupported>,
+    pub committed: Vec<local_copy::CommittedMultiCopy>,
+    pub initial_snapshot: Snapshot,
+    pub final_snapshot: Snapshot,
+    pub canonical_restore_verified: bool,
+    pub faithful_execution_admitted: bool,
+}
+struct MultiCompleted {
+    observations: Vec<trace::Step>,
+    committed: Vec<local_copy::CommittedMultiCopy>,
+}
+fn multi_steps(
+    world: &mut World<'_>,
+    handle: InstanceHandle,
+    sources: &PreparedSources<'_>,
+    content: &Content,
+    manifest: &trace::Manifest,
+    limits: MultiProbeLimits,
+) -> Result<Result<MultiCompleted, Unsupported>, Error> {
+    let mut observations = Vec::with_capacity(manifest.steps.len());
+    let mut committed = Vec::new();
+    let mut remaining = limits.observation;
+    let mut remaining_statement_bytes = limits.maximum_statement_bytes;
+    let mut start = 0;
+    while start < manifest.steps.len() {
+        let first = &manifest.steps[start];
+        let end = start
+            + manifest.steps[start..]
+                .iter()
+                .take_while(|input| input.event_ordinal == first.event_ordinal)
+                .count();
+        if manifest.steps[start..end].iter().any(|input| {
+            input.event_id != first.event_id || input.begin_scda_offset != first.begin_scda_offset
+        }) {
+            return Ok(Err(Unsupported {
+                step: Some(start),
+                detail: "One event ordinal must name one complete source event".into(),
+            }));
+        }
+        let sequence = world.enqueue(
+            handle,
+            Trigger::Block {
+                event_id: first.event_id,
+                begin_byte_offset: first.begin_scda_offset,
+            },
+            Context::default(),
+        )?;
+        let mut event_limits = limits.event;
+        event_limits.maximum_statement_bytes = event_limits
+            .maximum_statement_bytes
+            .min(remaining_statement_bytes);
+        event_limits.observation.maximum_source_bytes = event_limits
+            .observation
+            .maximum_source_bytes
+            .min(remaining.maximum_source_bytes);
+        event_limits.observation.maximum_rows = event_limits
+            .observation
+            .maximum_rows
+            .min(remaining.maximum_rows);
+        event_limits.observation.maximum_variable_bytes = event_limits
+            .observation
+            .maximum_variable_bytes
+            .min(remaining.maximum_variable_bytes);
+        event_limits.observation.maximum_binding_uses = event_limits
+            .observation
+            .maximum_binding_uses
+            .min(remaining.maximum_binding_uses);
+        let stage = match world.stage_source_multi_copy_with_sources(
+            sequence,
+            sources,
+            content,
+            local_copy::Intent::Engineering,
+            event_limits,
+        )? {
+            local_copy::MultiPreparation::Staged(stage) => stage,
+            local_copy::MultiPreparation::Unsupported { reason, detail } => {
+                return Ok(Err(Unsupported {
+                    step: Some(start),
+                    detail: format!("{reason:?}: {detail}"),
+                }));
+            }
+        };
+        let source = stage.trace();
+        if source.statements.len() != end - start {
+            return Ok(Err(Unsupported {
+                step: Some(start),
+                detail: "Manifest must cover every admitted statement of its complete source event"
+                    .into(),
+            }));
+        }
+        for (offset, (input, statement)) in manifest.steps[start..end]
+            .iter()
+            .zip(&source.statements)
+            .enumerate()
+        {
+            if input.scda_offset as usize != statement.statement_scda_bytes.start
+                || input.operands != [trace::Word::binary64(statement.copied_bits)]
+            {
+                return Ok(Err(Unsupported { step: Some(start+offset), detail: "Manifest source site/operand bits differ from the actual sequential overlay observation".into() }));
+            }
+        }
+        let counts = &source.frame.counts;
+        remaining.maximum_source_bytes -= counts.source_bytes;
+        remaining.maximum_rows -= counts.rows;
+        remaining.maximum_variable_bytes -= counts.variable_bytes;
+        remaining.maximum_binding_uses -= counts.binding_uses;
+        remaining_statement_bytes -= source.statement_bytes;
+        // All source sites/words were checked before this one event commit.
+        let result = stage.commit(world)?;
+        for (input, statement) in manifest.steps[start..end]
+            .iter()
+            .zip(&result.trace.statements)
+        {
+            observations.push(trace::Step {
+                input: input.clone(),
+                output: trace::StepOutput {
+                    return_value: None,
+                    successor_scda_offset: Some(
+                        statement
+                            .statement_scda_bytes
+                            .end
+                            .try_into()
+                            .map_err(|_| Error::Capacity("source offsets"))?,
+                    ),
+                    writes: vec![trace::LocalWrite {
+                        index: statement.destination_index,
+                        value: trace::Word::binary64(statement.copied_bits),
+                    }],
+                    error: None,
+                },
+            });
+        }
+        committed.push(result);
+        start = end;
+    }
+    Ok(Ok(MultiCompleted {
+        observations,
+        committed,
+    }))
+}
+
+/// Multiple source observations may share one event ordinal. Each group must
+/// cover its entire event in physical order, with one acknowledgement/revision.
+pub fn observe_multi_copy(
+    sources: &PreparedSources<'_>,
+    content: &Content,
+    manifest: &trace::Manifest,
+    request: &Request,
+    producer_executable_sha256: &str,
+    transport_receipt_sha256: &str,
+    limits: MultiProbeLimits,
+) -> Result<MultiObservation, Error> {
+    let mut capture = probe_capture(
+        sources,
+        manifest,
+        request,
+        producer_executable_sha256,
+        transport_receipt_sha256,
+        limits.probe,
+    )?;
+    capture.instrumentation = "Standalone engineering sequential own-local bit copies using a bounded private overlay and one canonical commit per complete event. No original scheduling, conversion, initialization or behavior claim.".into();
+    let (mut world, handle) = seeded(sources, manifest, request, limits.probe)?;
+    content.validate_world(&world)?;
+    let initial_snapshot = world.snapshot();
+    let unsupported = if let Some(refusal) = own_scope(manifest, request) {
+        Some(refusal)
+    } else {
+        let (mut preview, preview_handle) = seeded(sources, manifest, request, limits.probe)?;
+        multi_steps(
+            &mut preview,
+            preview_handle,
+            sources,
+            content,
+            manifest,
+            limits,
+        )?
+        .err()
+    };
+    let completed = if unsupported.is_none() {
+        multi_steps(&mut world, handle, sources, content, manifest, limits)?
+            .map_err(|_| Error::Input("fixed-source preview and execution diverged"))?
+    } else {
+        MultiCompleted {
+            observations: Vec::new(),
+            committed: Vec::new(),
+        }
+    };
+    let final_snapshot = world.snapshot();
+    let canonical_restore_verified = verify_restore(sources, &final_snapshot, limits.probe)?;
     capture.finish = if unsupported.is_some() {
         trace::Finish::Unsupported
     } else {
         trace::Finish::Completed
     };
     capture.steps = completed.observations;
-    // Validate receipt/word structure even when an original capture is absent.
     trace::compare(sources, manifest, None, Some(&capture), Default::default())?;
-    Ok(Observation {
+    Ok(MultiObservation {
         capture,
         unsupported,
         committed: completed.committed,
-        initial_snapshot: initial,
+        initial_snapshot,
         final_snapshot,
         canonical_restore_verified,
         faithful_execution_admitted: false,

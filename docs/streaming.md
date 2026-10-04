@@ -122,3 +122,28 @@ missing/ambiguous/absolute paths, unsupported NIF metadata, shared exact/one-ove
 quotas, foreign/repeated admission and controlled running/queued cancellation.
 Application wiring belongs to presentation; collision readiness belongs to physics.
 This boundary alone does not establish playable traversal or retail parity.
+
+`request_terrain(&ticket, TextureSourcePlan)` explicitly adds the existing strict
+LAND/LTEX/TXST source plan to the decoded CELL epoch. The exact CELL and complete
+ordered plugin cohort must match the model lease. Declaration is allowed once,
+before dependency readiness or render publication; later readiness downgrades do
+not reopen that scope. A plain CELL request does not
+infer terrain scope, world defaults, grid membership or a current-cell change.
+
+Terrain jobs use the same workers, generation, cache and combined payload limits
+as models and model textures. Planned payload count/bytes must fit in aggregate
+regardless of which texture batch is declared first. Each poll services one batch
+with at most eight inspections/admissions, alternating pending texture consumers.
+The admitted terrain plan charges the owner's existing metadata and mapped extent
+quota; its prior caller-side construction remains bounded by terrain preparation
+limits. These are logical retained source counters, not global heap accounting.
+
+`terrain_sources(&ticket)` returns an `Arc<ResidentTerrain>` exposing only borrowed
+source receipts, the terrain report and raw selected texture bytes. Borrowed leases
+keep payload and plan charges across unload; stale access refuses. Snapshot terrain
+state is Unrequested, IoPending, Decoded or Unsupported. Requested incomplete,
+ambiguous, missing or unapplied default terrain sources block dependency readiness.
+Decoded means raw source bytes are retained. Surface construction, DDS decoding,
+GPU material preparation, collision and persistent state still require their
+respective consumers. Existing explicitly scoped requests without terrain retain
+their existing readiness behavior.

@@ -67,6 +67,53 @@ pub(crate) enum WorldCommand {
         grid_y: i32,
         #[arg(long, default_value_t = 30_000)]
         source_timeout_ms: u64,
+        /// Include strict terrain textures in this CELL's residency epoch.
+        #[arg(long)]
+        include_terrain: bool,
+    },
+    /// Prepare an explicit world's separately selected persistent CELL source plan.
+    PersistentCellSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+    },
+    /// Prepare a whole ordered explicit WRLD/XCLC CELL source-plan set.
+    GridSetSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        /// Repeat for each explicit signed i32 pair, in the requested order.
+        #[arg(long, required = true, allow_hyphen_values = true)]
+        grid: Vec<String>,
+    },
+    /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
+    GridTerrainSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        #[arg(long, allow_hyphen_values = true)]
+        grid_x: i32,
+        #[arg(long, allow_hyphen_values = true)]
+        grid_y: i32,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
     },
     /// Prepare an explicitly requested winning topic/INFO for source consumers.
     ConversationSources {

@@ -5,13 +5,14 @@ use fallout_data::{
     identity::FormKey,
     loaded_scripts::{Catalogue, Limits as ScriptLimits},
     store::RecordStore,
+    terrain::preparation::{Receipt as TerrainReceipt, TexturePreparation, TextureSourcePlan},
     vfs::MountIndex,
     world::{
         cells::CellGridSources,
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
         preparation::CellModelPlan,
-        residency::{CellResidency, Snapshot, Stage, TexturePlan, TextureState},
+        residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
     },
 };
 use serde_json::{Value, json};
@@ -57,12 +58,199 @@ pub(super) struct GridInput {
     pub source_timeout_ms: u64,
 }
 
+pub(super) struct GridSetInput {
+    pub world: FormKey,
+    pub grids: Vec<[i32; 2]>,
+}
+
+pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
+    if values.is_empty() || values.len() > 8 {
+        return Err("explicit source grid set requires 1..=8 pairs".into());
+    }
+    values
+        .iter()
+        .map(|value| {
+            let (x, y) = value.split_once(',').ok_or("grid must be signed i32 x,y")?;
+            Ok([x.parse::<i32>()?, y.parse::<i32>()?])
+        })
+        .collect()
+}
+
+pub(super) fn persistent_cell(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    world: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let sources = CellGridSources::load(&mut store, &world, Default::default())?;
+    let mut selected = None;
+    let prepared = (|| -> fallout_data::Result<_> {
+        let request = sources.request_persistent()?;
+        selected = Some(request.clone());
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        sources.prepare_persistent(&mut store, &request, assets.mounts(), Default::default())
+    })();
+    let entry = selected.as_ref().and_then(|request| {
+        sources
+            .metadata()
+            .entries
+            .iter()
+            .find(|entry| &entry.key == request.cell())
+    });
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact source persistent CELL group, separately requested without grid authority",
+        "cell_grid_sources":sources.metadata(),"persistent_request":selected,
+        "persistent_cell":entry,"cell_models":null,"dependency_usage":null,
+        "root_members":null,"source_error":null,"source_plan_prepared":false,
+        "complete_model_selection":false,"residency":null,"runtime_ready":false,
+        "current_cell_changed":false,"activation_applied":false,
+        "lookup_precedence_verified":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(plan) => {
+            report["complete_model_selection"] = json!(
+                plan.receipt()
+                    .coverage
+                    .iter()
+                    .all(|base| base.status == "one-archive-source; retail-precedence-unverified")
+            );
+            report["cell_models"] = serde_json::to_value(plan.receipt())?;
+            report["dependency_usage"] = serde_json::to_value(&plan.graph().usage)?;
+            report["root_members"] = json!(plan.graph().root_members);
+            report["source_plan_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+/// Source planning only: each selected plan remains owned by the aggregate set.
+pub(super) fn grid_set(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    input: GridSetInput,
+) -> Result<Value> {
+    // Refuse an oversized direct caller before touching its source tree as well.
+    if input.grids.is_empty() || input.grids.len() > 8 {
+        return Err("explicit source grid set requires 1..=8 pairs".into());
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let sources = CellGridSources::load(&mut store, &input.world, Default::default())?;
+    let mut selected = None;
+    let prepared = (|| -> fallout_data::Result<_> {
+        let request = sources.request_set(&input.grids)?;
+        selected = Some(request.clone());
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        sources.prepare_cells(&mut store, &request, assets.mounts(), Default::default())
+    })();
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Explicit ordered WRLD/XCLC CELL source plans under one construction budget",
+        "cell_grid_sources":sources.metadata(),"explicit_grids":input.grids,
+        "cell_grid_set_request":selected,"cell_model_plan_set":null,
+        "selected_cells":[],"source_error":null,"source_plans_prepared":false,
+        "complete_model_selection":false,"current_cell_changed":false,
+        "activation_applied":false,"runtime_ready":false,"lookup_precedence_verified":false,
+        "retail_parity_accepted":false});
+    match prepared {
+        Ok(set) => {
+            let mut entries = Vec::with_capacity(set.requests().len());
+            for request in set.requests() {
+                entries.push(
+                    sources
+                        .metadata()
+                        .entries
+                        .iter()
+                        .find(|entry| &entry.key == request.cell())
+                        .ok_or("selected CELL absent from sealed directory")?,
+                );
+            }
+            report["selected_cells"] = serde_json::to_value(entries)?;
+            report["complete_model_selection"] = json!((0..set.requests().len()).all(|index| {
+                set.plan(index)
+                    .expect("private source set plan count matches requests")
+                    .receipt()
+                    .coverage
+                    .iter()
+                    .all(|base| base.status == "one-archive-source; retail-precedence-unverified")
+            }));
+            report["cell_model_plan_set"] = serde_json::to_value(&set)?;
+            report["source_plans_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
 pub(super) fn grid_residency(
     install: &Path,
     order_path: &Path,
     index_cache: Option<&Path>,
     resource_cache: Option<&Path>,
     input: GridInput,
+) -> Result<Value> {
+    grid_report(
+        install,
+        order_path,
+        index_cache,
+        resource_cache,
+        input,
+        GridKind::Models,
+    )
+}
+
+pub(super) fn grid_terrain(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+) -> Result<Value> {
+    grid_report(
+        install,
+        order_path,
+        index_cache,
+        resource_cache,
+        input,
+        GridKind::TerrainTextures,
+    )
+}
+
+pub(super) fn grid_cell_residency(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+) -> Result<Value> {
+    grid_report(
+        install,
+        order_path,
+        index_cache,
+        resource_cache,
+        input,
+        GridKind::CellSources,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum GridKind {
+    Models,
+    TerrainTextures,
+    CellSources,
+}
+
+fn grid_report(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+    kind: GridKind,
 ) -> Result<Value> {
     let deadline = source_deadline(input.source_timeout_ms)?;
     let order = Order::read(order_path)?;
@@ -74,15 +262,59 @@ pub(super) fn grid_residency(
         Ok(request) => {
             selected = Some(serde_json::to_value(&request)?);
             let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
-            match sources.prepare_cell(&mut store, &request, assets.mounts(), Default::default()) {
-                Ok(plan) => Ok(consume_plan(
-                    install,
-                    resource_cache,
-                    deadline,
-                    plan,
+            match kind {
+                GridKind::Models => match sources.prepare_cell(
+                    &mut store,
+                    &request,
                     assets.mounts(),
-                )?),
-                Err(error) => Err(error.to_string()),
+                    Default::default(),
+                ) {
+                    Ok(plan) => Ok(consume_plan(
+                        install,
+                        resource_cache,
+                        deadline,
+                        plan,
+                        assets.mounts(),
+                    )?),
+                    Err(error) => Err(error.to_string()),
+                },
+                GridKind::TerrainTextures => match sources.prepare_terrain(
+                    &mut store,
+                    &request,
+                    assets.mounts(),
+                    Default::default(),
+                ) {
+                    Ok(plan) => Ok(consume_terrain(install, resource_cache, deadline, plan)?),
+                    Err(error) => Err(error.to_string()),
+                },
+                GridKind::CellSources => {
+                    let prepared = (|| -> fallout_data::Result<_> {
+                        let models = sources.prepare_cell(
+                            &mut store,
+                            &request,
+                            assets.mounts(),
+                            Default::default(),
+                        )?;
+                        let terrain = sources.prepare_terrain(
+                            &mut store,
+                            &request,
+                            assets.mounts(),
+                            Default::default(),
+                        )?;
+                        Ok((models, terrain))
+                    })();
+                    match prepared {
+                        Ok((models, terrain)) => Ok(consume_cell_plan(
+                            install,
+                            resource_cache,
+                            deadline,
+                            models,
+                            assets.mounts(),
+                            Some(terrain),
+                        )?),
+                        Err(error) => Err(error.to_string()),
+                    }
+                }
             }
         }
         Err(error) => Err(error.to_string()),
@@ -100,10 +332,72 @@ pub(super) fn grid_residency(
     report["cell_grid_request"] = json!(selected);
     report["current_cell_changed"] = json!(false);
     report["activation_applied"] = json!(false);
-    report["scope"] = json!(
-        "Explicit WRLD/XCLC source CELL model/texture jobs; persistent groups remain separate, no position/grid inference or runtime activation"
-    );
+    match kind {
+        GridKind::Models => {
+            report["scope"] = json!(
+                "Explicit WRLD/XCLC source CELL model/texture jobs; persistent groups remain separate, no position/grid inference or runtime activation"
+            )
+        }
+        GridKind::TerrainTextures => {
+            report["surface_prepared"] = json!(false);
+            report["scope"] = json!(
+                "Explicit WRLD/XCLC CELL strict LAND/world/layer external texture source jobs; surface, inheritance and runtime activation remain unadmitted"
+            );
+        }
+        GridKind::CellSources => {
+            report["terrain_scope_requested"] = json!(true);
+            report["surface_prepared"] = json!(false);
+            report["scope"] = json!(
+                "Explicit WRLD/XCLC CELL model and both texture source batches in one residency epoch; retained leases checked across unload and final quota drain; no surface, inheritance or runtime activation"
+            );
+        }
+    }
     Ok(report)
+}
+
+fn consume_terrain(
+    install: &Path,
+    resource_cache: Option<&Path>,
+    deadline: Duration,
+    plan: TextureSourcePlan,
+) -> Result<Value> {
+    let source_plan = serde_json::to_value(plan.receipt())?;
+    let mut preparation =
+        TexturePreparation::new(plan, install, resource_cache, Default::default())?;
+    let start = Instant::now();
+    let result = (|| -> Result<TerrainReceipt> {
+        loop {
+            if preparation.poll()? {
+                let ready = preparation
+                    .take_ready()?
+                    .ok_or("terrain source batch completed without receipt")?;
+                return Ok(ready.publish_for(preparation.plan().terrain())?);
+            }
+            if start.elapsed() >= deadline {
+                return Err(
+                    "terrain source polling deadline exceeded; owned request cancelled".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    })();
+    let (textures, error, available) = match result {
+        Ok(receipt) => {
+            let available = receipt.all_requested_texture_sources_ready
+                && receipt.all_authored_texture_sources_resolved;
+            (Some(serde_json::to_value(receipt)?), None, available)
+        }
+        Err(error) => {
+            preparation.cancel();
+            (None, Some(error.to_string()), false)
+        }
+    };
+    let usage = preparation.usage();
+    Ok(json!({"schema_version":1,"profile":"nv-original",
+        "terrain_source_plan":source_plan,"terrain_textures":textures,
+        "terrain_job_usage":{"outstanding":usage.outstanding,"decoded_bytes":usage.decoded_bytes},"source_error":error,
+        "captured_sources_available":available,"lookup_precedence_verified":false,
+        "surface_prepared":false,"runtime_ready":false,"retail_parity_accepted":false}))
 }
 
 pub(super) fn door_residency(
@@ -162,12 +456,29 @@ fn consume_plan(
     plan: CellModelPlan,
     mounts: &MountIndex,
 ) -> Result<Value> {
+    consume_cell_plan(install, resource_cache, deadline, plan, mounts, None)
+}
+
+fn consume_cell_plan(
+    install: &Path,
+    resource_cache: Option<&Path>,
+    deadline: Duration,
+    plan: CellModelPlan,
+    mounts: &MountIndex,
+    terrain: Option<TextureSourcePlan>,
+) -> Result<Value> {
     let model_receipt = serde_json::to_value(plan.receipt())?;
+    let terrain_requested = terrain.is_some();
+    let terrain_receipt = terrain
+        .as_ref()
+        .map(|plan| serde_json::to_value(plan.receipt()))
+        .transpose()?;
     let mut owner = CellResidency::new(install, resource_cache, Default::default())?;
     let ticket = owner.request(plan)?;
     let mut error = None;
     let mut textures = None;
     let mut texture_payloads = Vec::new();
+    let mut terrain_payloads = Vec::new();
     if let Err(failed) = poll_sources(&mut owner, false, deadline) {
         error = Some(failed.to_string());
     } else {
@@ -175,7 +486,12 @@ fn consume_plan(
             Ok(plan) => {
                 textures = Some(serde_json::to_value(plan.receipt())?);
                 owner.request_textures(&ticket, plan)?;
-                if let Err(failed) = poll_sources(&mut owner, true, deadline) {
+                if let Some(plan) = terrain {
+                    owner.request_terrain(&ticket, plan)?;
+                }
+                if let Err(failed) =
+                    poll_cell_sources(&mut owner, true, terrain_requested, deadline)
+                {
                     error = Some(failed.to_string());
                 } else {
                     // Consume the retained lease, not another archive/cache read.
@@ -190,23 +506,87 @@ fn consume_plan(
                         texture_payloads.push(json!({"request":index,"bytes":bytes.len(),
                             "sha256":format!("{:x}", Sha256::digest(bytes))}));
                     }
+                    if terrain_requested {
+                        let sources = owner.terrain_sources(&ticket)?;
+                        for (index, request) in sources.receipt()?.requests.iter().enumerate() {
+                            let bytes = sources.texture(index)?;
+                            if bytes.len() != request.decoded_bytes {
+                                return Err("resident terrain texture extent differs from sealed source request".into());
+                            }
+                            terrain_payloads.push(json!({"request":index,"bytes":bytes.len(),
+                                "sha256":format!("{:x}", Sha256::digest(bytes)),
+                                "cell_identity":sources.ticket().identity(),"generation":sources.ticket().generation()}));
+                        }
+                    }
                 }
             }
             Err(failed) => error = Some(failed.to_string()),
         }
     }
     let snapshot = owner.snapshot();
-    let available =
-        error.is_none() && snapshot.complete_model_coverage && snapshot.complete_texture_coverage;
-    Ok(json!({"schema_version":1,"profile":"nv-original",
+    let available = error.is_none()
+        && snapshot.complete_model_coverage
+        && snapshot.complete_texture_coverage
+        && (!terrain_requested || snapshot.complete_terrain_coverage);
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
         "cell_models":model_receipt,"cell_textures":textures,"texture_payloads":texture_payloads,
         "residency":snapshot,"source_error":error,
         "captured_sources_available":available,"lookup_precedence_verified":false,
         "runtime_ready":false,"retail_parity_accepted":false,
-        "scope":"Protected exact CELL/model/external-texture source jobs; no GPU/DDS/physics/behavior admission"}))
+        "scope":"Protected exact CELL/model/external-texture source jobs; no GPU/DDS/physics/behavior admission"});
+    if terrain_requested {
+        report["cell_terrain"] = json!(terrain_receipt);
+        report["terrain_payloads"] = json!(terrain_payloads);
+        // Exercise the real lifetime with leases held across unload. Payloads
+        // are consumed above; no source read or staging can follow revocation.
+        let models = owner.sources(&ticket).ok();
+        let textures = owner.texture_sources(&ticket).ok();
+        let terrain = owner.terrain_sources(&ticket).ok();
+        let terrain_ticket_matches = terrain.as_ref().is_some_and(|sources| {
+            sources.ticket().identity() == ticket.identity()
+                && sources.ticket().generation() == ticket.generation()
+                && sources.ticket().root() == ticket.root()
+        });
+        owner.unload()?;
+        report["residency_after_unload"] = serde_json::to_value(owner.poll()?)?;
+        report["retained_source_lifetime"] = json!({
+            "terrain_ticket_matches_cell":terrain_ticket_matches,
+            "old_ticket_rejected":ticket.check().is_err(),
+            "old_owner_access_rejected":owner.terrain_sources(&ticket).is_err(),
+            "borrowed_model_access_rejected":models.as_ref().map(|s| s.plan().is_err()),
+            "borrowed_texture_access_rejected":textures.as_ref().map(|s| s.receipt().is_err()),
+            "borrowed_terrain_access_rejected":terrain.as_ref().map(|s| s.receipt().is_err()),
+            "terrain_lease_retained":terrain.is_some()});
+        drop(terrain);
+        drop(textures);
+        drop(models);
+        let start = Instant::now();
+        loop {
+            let drained = owner.poll()?;
+            if drained.stage == Stage::Unrequested {
+                report["residency_after_release"] = serde_json::to_value(drained)?;
+                break;
+            }
+            if start.elapsed() >= deadline {
+                return Err(
+                    "unloaded CELL source reservations did not drain within deadline".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+    Ok(report)
 }
 
 fn poll_sources(owner: &mut CellResidency, textures: bool, timeout: Duration) -> Result<Snapshot> {
+    poll_cell_sources(owner, textures, false, timeout)
+}
+fn poll_cell_sources(
+    owner: &mut CellResidency,
+    textures: bool,
+    terrain: bool,
+    timeout: Duration,
+) -> Result<Snapshot> {
     let start = Instant::now();
     loop {
         let snapshot = owner.poll()?;
@@ -218,7 +598,12 @@ fn poll_sources(owner: &mut CellResidency, textures: bool, timeout: Duration) ->
         } else {
             snapshot.stage == Stage::Decoded
         };
-        if complete {
+        let terrain_complete = !terrain
+            || matches!(
+                snapshot.terrain_state,
+                TerrainState::Decoded | TerrainState::Unsupported
+            );
+        if complete && terrain_complete {
             return Ok(snapshot);
         }
         if start.elapsed() >= timeout {
@@ -656,6 +1041,405 @@ mod tests {
             source_timeout_ms: 10_000,
         }
     }
+    fn terrain_grid_fixture(root: &Path, mode: &str) {
+        grid_fixture(root, false);
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let texture = if mode == "default" { 0_u32 } else { 0x600 };
+        let land = record(
+            b"LAND",
+            0x500,
+            &field(
+                b"BTXT",
+                &[texture.to_le_bytes().as_slice(), &[0; 4]].concat(),
+            ),
+        );
+        let mut lands = land;
+        if mode == "duplicate" {
+            lands.extend(record(
+                b"LAND",
+                0x501,
+                &field(
+                    b"BTXT",
+                    &[texture.to_le_bytes().as_slice(), &[0; 4]].concat(),
+                ),
+            ));
+        }
+        let path = root.join("Data/Base.esm");
+        let mut bytes = fs::read(&path).unwrap();
+        bytes.extend(group(0x100, 1, &group(0x200, 6, &group(0x200, 9, &lands))));
+        bytes.extend(record(
+            b"LTEX",
+            0x600,
+            &field(b"TNAM", &0x700_u32.to_le_bytes()),
+        ));
+        bytes.extend(record(
+            b"TXST",
+            0x700,
+            &field(
+                b"TX00",
+                if mode == "missing" {
+                    b"missing.dds\0"
+                } else {
+                    b"t.dds\0"
+                },
+            ),
+        ));
+        fs::write(path, bytes).unwrap();
+        if mode == "ambiguous" {
+            archive(
+                root,
+                "other-terrain",
+                b"textures",
+                b"t.dds",
+                b"other-source",
+            );
+        }
+        fs::write(
+            root.join("terrain-grid-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+    }
+    #[test]
+    fn cli_terrain_grid_consumes_exact_existing_jobs_and_private_cache_without_surface_admission() {
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let paths = [
+            "Data/Base.esm",
+            "Data/models.bsa",
+            "Data/textures.bsa",
+            "order.json",
+        ];
+        let before: Vec<_> = paths
+            .iter()
+            .map(|path| Sha256::digest(fs::read(directory.join(path)).unwrap()))
+            .collect();
+        let cache = directory.with_file_name(format!(
+            "{}-terrain-cache",
+            directory.file_name().unwrap().to_string_lossy()
+        ));
+        fs::create_dir(&cache).unwrap();
+        for reused in [false, true] {
+            let report = grid_terrain(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                Some(&cache),
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["cell_grid_request"]["cell"]["local_id"], 0x200);
+            assert_eq!(report["terrain_source_plan"]["root"]["local_id"], 0x200);
+            assert_eq!(
+                report["terrain_source_plan"]["source_cohort_sha256"],
+                report["cell_grid_sources"]["source_cohort_sha256"]
+            );
+            assert_eq!(
+                report["terrain_textures"]["textures"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                report["terrain_textures"]["textures"][0]["sha256"],
+                format!("{:x}", Sha256::digest(b"authored-source-texture"))
+            );
+            assert_eq!(
+                report["terrain_textures"]["textures"][0]["cache"]["reused"],
+                reused
+            );
+            assert_eq!(report["captured_sources_available"], true);
+            assert_eq!(report["terrain_job_usage"]["outstanding"], 0);
+            assert_eq!(report["terrain_job_usage"]["decoded_bytes"], 0);
+            assert_eq!(report["surface_prepared"], false);
+            assert_eq!(report["current_cell_changed"], false);
+            assert_eq!(report["activation_applied"], false);
+            assert_eq!(report["runtime_ready"], false);
+            assert_eq!(report["terrain_textures"]["runtime_ready"], false);
+        }
+        for (path, sha) in paths.iter().zip(before) {
+            assert_eq!(Sha256::digest(fs::read(directory.join(path)).unwrap()), sha);
+        }
+    }
+    #[test]
+    fn cli_combined_grid_consumes_one_cell_epoch_then_proves_unload_and_final_release() {
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let paths = [
+            "Data/Base.esm",
+            "Data/models.bsa",
+            "Data/textures.bsa",
+            "order.json",
+        ];
+        let before: Vec<_> = paths
+            .iter()
+            .map(|p| Sha256::digest(fs::read(directory.join(p)).unwrap()))
+            .collect();
+        let cache = directory.with_file_name(format!(
+            "{}-combined-cache",
+            directory.file_name().unwrap().to_string_lossy()
+        ));
+        fs::create_dir(&cache).unwrap();
+        for _ in 0..2 {
+            let report = grid_cell_residency(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                Some(&cache),
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["captured_sources_available"], true);
+            assert_eq!(report["terrain_scope_requested"], true);
+            assert_eq!(
+                report["cell_terrain"]["source_cohort_sha256"],
+                report["cell_models"]["source_cohort_sha256"]
+            );
+            assert_eq!(
+                report["cell_terrain"]["root"],
+                report["cell_grid_request"]["cell"]
+            );
+            assert_eq!(report["residency"]["terrain_state"], "Decoded");
+            assert_eq!(report["residency"]["completed_models"], 1);
+            assert_eq!(report["residency"]["completed_textures"], 1);
+            assert_eq!(report["residency"]["completed_terrain_textures"], 1);
+            assert_eq!(report["residency"]["outstanding"], 3);
+            let payload = &report["terrain_payloads"][0];
+            assert_eq!(
+                payload["sha256"],
+                format!("{:x}", Sha256::digest(b"authored-source-texture"))
+            );
+            assert_eq!(payload["bytes"], 23);
+            assert_eq!(payload["cell_identity"], report["residency"]["identity"]);
+            assert_eq!(payload["generation"], report["residency"]["generation"]);
+            for field in [
+                "terrain_ticket_matches_cell",
+                "old_ticket_rejected",
+                "old_owner_access_rejected",
+                "borrowed_model_access_rejected",
+                "borrowed_texture_access_rejected",
+                "borrowed_terrain_access_rejected",
+                "terrain_lease_retained",
+            ] {
+                assert_eq!(report["retained_source_lifetime"][field], true, "{field}");
+            }
+            assert_eq!(report["residency_after_unload"]["stage"], "Unloading");
+            for field in [
+                "outstanding",
+                "pinned_source_bytes",
+                "retained_plans",
+                "plan_metadata_bytes",
+                "mapped_source_bytes",
+            ] {
+                assert_eq!(
+                    report["residency_after_unload"][field], report["residency"][field],
+                    "{field}"
+                );
+                assert_eq!(report["residency_after_release"][field], 0, "{field}");
+            }
+            assert_eq!(report["residency_after_release"]["stage"], "Unrequested");
+            for field in ["dependencies", "collision", "behavior"] {
+                assert_eq!(report["residency"][field], "Pending");
+            }
+            for field in ["simulation_ready", "render_published"] {
+                assert_eq!(report["residency"][field], false);
+            }
+            for field in [
+                "surface_prepared",
+                "current_cell_changed",
+                "activation_applied",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[field], false);
+            }
+        }
+        for (path, sha) in paths.iter().zip(before) {
+            assert_eq!(Sha256::digest(fs::read(directory.join(path)).unwrap()), sha);
+        }
+    }
+    #[test]
+    fn cli_combined_grid_keeps_source_refusals_and_no_job_selection_failures() {
+        for mode in ["missing", "ambiguous", "default", "duplicate"] {
+            let directory = directory();
+            terrain_grid_fixture(&directory, mode);
+            let report = grid_cell_residency(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                None,
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["captured_sources_available"], false, "{mode}");
+            assert_eq!(report["terrain_scope_requested"], true);
+            assert_eq!(report["runtime_ready"], false);
+            if mode == "duplicate" {
+                assert!(report["residency"].is_null());
+                assert!(report["cell_terrain"].is_null());
+                assert!(
+                    report["source_error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("exactly one winning present LAND")
+                );
+            } else {
+                assert_eq!(report["residency"]["terrain_state"], "Unsupported");
+                assert_eq!(report["residency"]["dependencies"], "Pending");
+                assert_eq!(report["residency"]["simulation_ready"], false);
+                assert_eq!(report["residency_after_release"]["stage"], "Unrequested");
+                assert_eq!(report["residency_after_release"]["outstanding"], 0);
+            }
+        }
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let report = grid_cell_residency(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            grid_input([i32::MIN, i32::MAX]),
+        )
+        .unwrap();
+        assert!(report["residency"].is_null());
+        assert!(report["cell_grid_request"].is_null());
+        for timeout in [0, 120001] {
+            let mut input = grid_input([-18, 0]);
+            input.source_timeout_ms = timeout;
+            assert!(
+                grid_cell_residency(Path::new("absent"), Path::new("absent"), None, None, input)
+                    .is_err()
+            );
+        }
+        use clap::Parser;
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "grid-residency-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--world",
+            "Base.esm:100",
+            "--grid-x",
+            "-18",
+            "--grid-y",
+            "0",
+            "--include-terrain",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::World(crate::WorldCommand::GridResidencySources {
+                include_terrain: true,
+                grid_x: -18,
+                ..
+            })
+        ));
+    }
+    #[test]
+    fn cli_terrain_grid_retains_missing_ambiguous_default_and_duplicate_land_refusals() {
+        for mode in ["missing", "ambiguous", "default", "duplicate"] {
+            let directory = directory();
+            terrain_grid_fixture(&directory, mode);
+            let report = grid_terrain(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                None,
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["captured_sources_available"], false, "{mode}");
+            assert_eq!(report["surface_prepared"], false);
+            assert_eq!(report["runtime_ready"], false);
+            assert_eq!(report["cell_grid_request"]["cell"]["local_id"], 0x200);
+            if mode == "duplicate" {
+                assert!(report["terrain_source_plan"].is_null());
+                assert!(report["terrain_textures"].is_null());
+                assert!(
+                    report["source_error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("exactly one winning present LAND")
+                );
+            } else {
+                assert_eq!(
+                    report["terrain_textures"]["all_requested_texture_sources_ready"],
+                    true
+                );
+                assert_eq!(
+                    report["terrain_textures"]["all_authored_texture_sources_resolved"],
+                    false
+                );
+                let sources = &report["terrain_source_plan"]["texture_sources"];
+                assert!(
+                    sources["failures"].as_u64().unwrap() > 0
+                        || sources["unapplied_default_layers"].as_u64().unwrap() > 0
+                );
+            }
+        }
+    }
+    #[test]
+    fn cli_terrain_grid_missing_selection_and_bad_deadline_never_start_jobs() {
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let report = grid_terrain(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            grid_input([i32::MAX, i32::MIN]),
+        )
+        .unwrap();
+        assert!(report["cell_grid_request"].is_null());
+        assert!(report["terrain_source_plan"].is_null());
+        assert!(report["terrain_textures"].is_null());
+        assert_eq!(report["captured_sources_available"], false);
+        assert!(report["source_error"].as_str().unwrap().contains("no live"));
+        for timeout in [0, 120_001] {
+            let mut input = grid_input([-18, 0]);
+            input.source_timeout_ms = timeout;
+            assert!(
+                grid_terrain(Path::new("absent"), Path::new("absent"), None, None, input).is_err()
+            );
+        }
+        use clap::Parser;
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "grid-terrain-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--world",
+            "Base.esm:100",
+            "--grid-x",
+            "-2147483648",
+            "--grid-y",
+            "2147483647",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::World(crate::WorldCommand::GridTerrainSources {
+                grid_x: i32::MIN,
+                grid_y: i32::MAX,
+                ..
+            })
+        ));
+    }
     #[test]
     fn cli_grid_consumer_selects_explicit_cell_and_uses_existing_resident_sources() {
         let directory = directory();
@@ -1021,6 +1805,475 @@ mod tests {
             );
             assert_eq!(report["residency"]["dependencies"], "Pending");
         }
+    }
+    fn persistent_fixture(root: &Path, mode: &str) {
+        grid_fixture(root, false);
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let mut base = fs::read(root.join("Data/Base.esm")).unwrap();
+        base.extend(group(
+            0x100,
+            1,
+            &group(
+                0x202,
+                6,
+                &group(
+                    0x202,
+                    9,
+                    &record(
+                        b"REFR",
+                        0x350,
+                        &[
+                            field(b"NAME", &0x400_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                ),
+            ),
+        ));
+        fs::write(root.join("Data/Base.esm"), base).unwrap();
+        let (raw, flags) = match mode {
+            "missing" => (0x202, 0),
+            "deleted" => (
+                0x202,
+                fallout_data::plugin::PERSISTENT | fallout_data::plugin::DELETED,
+            ),
+            "multiple" => (0x0100_0203, fallout_data::plugin::PERSISTENT),
+            _ => (0x202, fallout_data::plugin::PERSISTENT),
+        };
+        let mut persistent = record(
+            b"CELL",
+            raw,
+            &[
+                field(b"DATA", &[0]),
+                field(b"XCLC", &[0xee, 0xff, 0xff, 0xff, 0, 0, 0, 0]),
+            ]
+            .concat(),
+        );
+        persistent[8..12].copy_from_slice(&flags.to_le_bytes());
+        let mut patch = [
+            record(
+                b"TES4",
+                0,
+                &[
+                    field(
+                        b"HEDR",
+                        &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                    ),
+                    field(b"MAST", b"Base.esm\0"),
+                    field(b"DATA", &[0; 8]),
+                ]
+                .concat(),
+            ),
+            group(0x100, 1, &persistent),
+        ]
+        .concat();
+        if mode == "malformed" {
+            patch.extend(record(b"STAT", 0x400, &field(b"MODL", b"m.nif")));
+        }
+        if mode == "no-modl" {
+            patch.extend(record(b"STAT", 0x400, &[]));
+        }
+        fs::write(root.join("Data/Patch.esp"), patch).unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("persistent-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_PERSISTENT_FIXTURE={}", root.display());
+    }
+    #[test]
+    fn cli_persistent_group_consumes_exact_source_models_without_grid_or_residency() {
+        for mode in ["valid", "no-modl"] {
+            let directory = directory();
+            persistent_fixture(&directory, mode);
+            let paths = [
+                "Data/Base.esm",
+                "Data/Patch.esp",
+                "Data/models.bsa",
+                "Data/textures.bsa",
+                "order.json",
+            ];
+            let before = paths.map(|path| Sha256::digest(fs::read(directory.join(path)).unwrap()));
+            let report = persistent_cell(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                crate::parse_cell_key("Base.esm:100").unwrap(),
+            )
+            .unwrap();
+            assert_eq!(report["source_plan_prepared"], true);
+            assert_eq!(report["complete_model_selection"], mode == "valid");
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["persistent_request"]["cell"]["local_id"], 0x202);
+            assert!(report["persistent_request"].get("grid").is_none());
+            assert_eq!(report["persistent_cell"]["role"], "persistent-group");
+            assert_eq!(report["persistent_cell"]["header"]["offset"], 95);
+            assert_eq!(report["persistent_cell"]["header"]["flags"], 0x400);
+            assert_eq!(
+                report["persistent_cell"]["fields"]["grid"]["value"],
+                json!([-18, 0])
+            );
+            assert_eq!(
+                report["persistent_cell"]["fields"]["grid"]["decoded_offset"],
+                7
+            );
+            assert_eq!(report["cell_models"]["root"]["local_id"], 0x202);
+            assert_eq!(report["root_members"], 1);
+            assert_eq!(
+                report["cell_models"]["requests"].as_array().unwrap().len(),
+                usize::from(mode == "valid")
+            );
+            assert_eq!(
+                report["cell_models"]["source_cohort_sha256"],
+                report["cell_grid_sources"]["source_cohort_sha256"]
+            );
+            assert!(report["residency"].is_null());
+            for field in [
+                "runtime_ready",
+                "activation_applied",
+                "current_cell_changed",
+                "lookup_precedence_verified",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[field], false);
+            }
+            for (path, hash) in paths.into_iter().zip(before) {
+                assert_eq!(
+                    Sha256::digest(fs::read(directory.join(path)).unwrap()),
+                    hash
+                );
+            }
+        }
+    }
+    #[test]
+    fn cli_persistent_group_selection_and_factory_refusals_do_not_publish_partial_state() {
+        for mode in ["missing", "deleted", "multiple", "malformed"] {
+            let directory = directory();
+            persistent_fixture(&directory, mode);
+            let report = persistent_cell(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                crate::parse_cell_key("Base.esm:100").unwrap(),
+            )
+            .unwrap();
+            assert_eq!(report["source_plan_prepared"], false);
+            assert!(report["cell_models"].is_null());
+            assert!(report["residency"].is_null());
+            assert!(!report["source_error"].as_str().unwrap().is_empty());
+            assert_eq!(report["persistent_request"].is_null(), mode != "malformed");
+            assert_eq!(report["persistent_cell"].is_null(), mode != "malformed");
+            assert_eq!(report["runtime_ready"], false);
+        }
+    }
+    #[test]
+    fn cli_persistent_group_flags_do_not_accept_grid_authority() {
+        use clap::Parser;
+        let args = [
+            "fallout",
+            "persistent-cell-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+            "--world",
+            "Base.esm:100",
+        ];
+        let parsed = crate::Args::try_parse_from(args).unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::World(crate::WorldCommand::PersistentCellSources { .. })
+        ));
+        assert!(crate::Args::try_parse_from(args.into_iter().chain(["--grid=0,0"])).is_err());
+    }
+    fn grid_set_fixture(root: &Path, mode: &str) {
+        grid_fixture(root, false);
+        archive(root, "second-model", b"meshes", b"n.nif", &[5, 6, 7, 8, 9]);
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let cell = |id, grid: [i32; 2]| {
+            record(
+                b"CELL",
+                id,
+                &[
+                    field(b"DATA", &[0]),
+                    field(
+                        b"XCLC",
+                        &grid
+                            .into_iter()
+                            .flat_map(i32::to_le_bytes)
+                            .collect::<Vec<_>>(),
+                    ),
+                ]
+                .concat(),
+            )
+        };
+        let mut children = cell(0x201, [-17, 0]);
+        children.extend(group(
+            0x201,
+            6,
+            &group(
+                0x201,
+                9,
+                &[
+                    record(
+                        b"REFR",
+                        0x301,
+                        &[
+                            field(b"NAME", &0x400_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                    record(
+                        b"REFR",
+                        0x302,
+                        &[
+                            field(b"NAME", &0x401_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                ]
+                .concat(),
+            ),
+        ));
+        if mode == "ambiguous" {
+            children.extend(cell(0x203, [-17, 0]));
+        }
+        let mut base = fs::read(root.join("Data/Base.esm")).unwrap();
+        assert_eq!(base.len(), 314); // Literal authored header/group/record extents.
+        base.extend(group(0x100, 1, &children));
+        let model = match mode {
+            "malformed" => field(b"MODL", b"n.nif"),
+            "no-modl" => vec![],
+            _ => field(b"MODL", b"n.nif\0"),
+        };
+        base.extend(record(b"STAT", 0x401, &model));
+        fs::write(root.join("Data/Base.esm"), base).unwrap();
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [
+                record(
+                    b"TES4",
+                    0,
+                    &[
+                        field(
+                            b"HEDR",
+                            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                        ),
+                        field(b"MAST", b"Base.esm\0"),
+                        field(b"DATA", &[0; 8]),
+                    ]
+                    .concat(),
+                ),
+                group(0x100, 1, &cell(0x200, [5, -6])),
+                record(b"STAT", 0x400, &field(b"MODL", b"m.nif\0")),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("grid-set-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_GRID_SET_FIXTURE={}", root.display());
+    }
+    fn grid_set_input(grids: Vec<[i32; 2]>) -> GridSetInput {
+        GridSetInput {
+            world: crate::parse_cell_key("Base.esm:100").unwrap(),
+            grids,
+        }
+    }
+    #[test]
+    fn cli_grid_set_preserves_literal_unequal_override_pair_and_source_quota() {
+        let directory = directory();
+        grid_set_fixture(&directory, "valid");
+        let paths = [
+            "Data/Base.esm",
+            "Data/Patch.esp",
+            "Data/models.bsa",
+            "Data/second-model.bsa",
+            "order.json",
+        ];
+        let before = paths.map(|path| Sha256::digest(fs::read(directory.join(path)).unwrap()));
+        let report = grid_set(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            grid_set_input(vec![[-17, 0], [5, -6]]),
+        )
+        .unwrap();
+        assert_eq!(report["source_plans_prepared"], true);
+        assert_eq!(report["complete_model_selection"], true);
+        assert!(report["source_error"].is_null());
+        for (index, cell, offset) in [(0, 0x201, 338), (1, 0x200, 95)] {
+            assert_eq!(report["selected_cells"][index]["key"]["local_id"], cell);
+            assert_eq!(report["selected_cells"][index]["header"]["offset"], offset);
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["root"]["local_id"],
+                cell
+            );
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["coverage"][0]["header"]["offset"],
+                140
+            );
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["coverage"][0]["source_plugin"],
+                "Patch.esp"
+            );
+            assert_eq!(
+                report["cell_model_plan_set"]["plans"][index]["coverage"][0]["model_field"]["decoded_offset"],
+                0
+            );
+        }
+        assert_eq!(
+            report["cell_model_plan_set"]["plans"][0]["requests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            report["cell_model_plan_set"]["plans"][1]["requests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(report["cell_model_plan_set"]["usage"]["models"], 3);
+        assert_eq!(report["cell_model_plan_set"]["usage"]["archives"], 2);
+        assert_eq!(
+            report["cell_model_plan_set"]["usage"]["mapped_bytes"],
+            fs::metadata(directory.join("Data/models.bsa"))
+                .unwrap()
+                .len()
+                + fs::metadata(directory.join("Data/second-model.bsa"))
+                    .unwrap()
+                    .len()
+        );
+        assert_eq!(
+            report["cell_model_plan_set"]["source_cohort_sha256"],
+            report["cell_grid_sources"]["source_cohort_sha256"]
+        );
+        for flag in [
+            "runtime_ready",
+            "activation_applied",
+            "current_cell_changed",
+            "lookup_precedence_verified",
+            "retail_parity_accepted",
+        ] {
+            assert_eq!(report[flag], false);
+        }
+        for (path, hash) in paths.into_iter().zip(before) {
+            assert_eq!(
+                Sha256::digest(fs::read(directory.join(path)).unwrap()),
+                hash
+            );
+        }
+    }
+    #[test]
+    fn cli_grid_set_refusals_never_emit_partial_bundle_and_coverage_remains_separate() {
+        for mode in ["valid", "ambiguous", "malformed", "no-modl"] {
+            let directory = directory();
+            grid_set_fixture(&directory, mode);
+            let report = grid_set(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                grid_set_input(vec![[5, -6], [-17, 0]]),
+            )
+            .unwrap();
+            if mode == "no-modl" {
+                assert_eq!(report["source_plans_prepared"], true);
+                assert_eq!(report["complete_model_selection"], false);
+            } else if mode != "valid" {
+                assert_eq!(report["source_plans_prepared"], false);
+                assert!(report["cell_model_plan_set"].is_null());
+                assert!(report["selected_cells"].as_array().unwrap().is_empty());
+                assert!(!report["source_error"].as_str().unwrap().is_empty());
+                assert_eq!(
+                    report["cell_grid_set_request"].is_null(),
+                    mode == "ambiguous"
+                );
+            }
+            for grids in [vec![[5, -6], [999, 999]], vec![[5, -6], [5, -6]]] {
+                let report = grid_set(
+                    &directory,
+                    &directory.join("order.json"),
+                    None,
+                    grid_set_input(grids),
+                )
+                .unwrap();
+                assert_eq!(report["source_plans_prepared"], false);
+                assert!(report["cell_model_plan_set"].is_null());
+                assert!(report["cell_grid_set_request"].is_null());
+            }
+        }
+    }
+    #[test]
+    fn cli_grid_set_explicit_pairs_require_signed_bounds_and_repeated_flags() {
+        use clap::Parser;
+        let args = [
+            "fallout-cli",
+            "grid-set-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+            "--world",
+            "Base.esm:100",
+        ];
+        assert!(crate::Args::try_parse_from(args).is_err());
+        let parsed = crate::Args::try_parse_from(
+            args.into_iter()
+                .chain(["--grid=-2147483648,2147483647", "--grid=0,0"]),
+        )
+        .unwrap();
+        match parsed.command {
+            crate::Command::World(crate::WorldCommand::GridSetSources { grid, .. }) => assert_eq!(
+                parse_grid_set(&grid).unwrap(),
+                [[i32::MIN, i32::MAX], [0, 0]]
+            ),
+            _ => panic!("explicit set command changed"),
+        }
+        for value in ["0", "0,1,2", "2147483648,0", "0,-2147483649", ","] {
+            assert!(parse_grid_set(&[value.into()]).is_err());
+        }
+        assert!(parse_grid_set(&[]).is_err());
+        assert!(parse_grid_set(&vec!["0,0".into(); 9]).is_err());
+        assert!(
+            grid_set(
+                Path::new("absent"),
+                Path::new("absent"),
+                None,
+                grid_set_input(vec![])
+            )
+            .is_err()
+        );
     }
     #[test]
     fn cli_residency_missing_model_and_bad_timeout_never_claim_availability() {

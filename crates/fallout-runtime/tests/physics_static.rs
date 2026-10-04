@@ -136,6 +136,466 @@ fn close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-6, "{actual} != {expected}");
 }
 
+fn shape_list(children: &[u32]) -> Vec<u8> {
+    let mut list = Vec::new();
+    words(&mut list, &[children.len() as u32]);
+    words(&mut list, children);
+    words(&mut list, &[0; 7]);
+    words(&mut list, &[children.len() as u32]);
+    list.extend(vec![0; 4 * children.len()]);
+    list
+}
+fn separated_cuboids(count: usize) -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = vec![
+        ("bhkRigidBody", body(1)),
+        (
+            "bhkListShape",
+            shape_list(&(2..2 + count as u32).collect::<Vec<_>>()),
+        ),
+    ];
+    for i in 0..count {
+        blocks.push((
+            "bhkConvexVerticesShape",
+            convex_bounds([4. * i as f32, 0., 0.], [4. * i as f32 + 1., 1., 1.]),
+        ));
+    }
+    blocks
+}
+
+#[test]
+fn source_index_preserves_independent_exhaustive_hits_with_bounded_work() {
+    let blocks = separated_cuboids(64);
+    let scene = scene(&blocks);
+    let small = QueryBudget {
+        primitive_tests: 10,
+        geometry_tests: 0,
+        hits: 1,
+    };
+    let first = scene
+        .ray_cast(ray([-5., 0.5, 0.5], [1., 0., 0.], 6.), small)
+        .unwrap();
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].distance, 5.);
+    assert_eq!(first[0].source.shape_block, 2);
+    assert_eq!(first[0].source.occurrence, 0);
+    // A single node rejects this parallel miss, with no narrowed primitive.
+    assert!(
+        scene
+            .ray_cast(
+                ray([-5., 2., 0.5], [1., 0., 0.], 300.),
+                QueryBudget {
+                    primitive_tests: 1,
+                    ..small
+                }
+            )
+            .unwrap()
+            .is_empty()
+    );
+    let all = scene
+        .ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 300.),
+            QueryBudget {
+                primitive_tests: 64,
+                hits: 64,
+                ..small
+            },
+        )
+        .unwrap();
+    assert_eq!(all.len(), 64);
+    //2P capped by the127 retained nodes admits the complete tree atP64;
+    // reducingP to63 permits126 visits, exactly one below the required work.
+    assert!(matches!(
+        scene.ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 300.),
+            QueryBudget {
+                primitive_tests: 63,
+                hits: 64,
+                ..small
+            }
+        ),
+        Err(QueryError::Budget("spatial index visits"))
+    ));
+    for (i, hit) in all.iter().enumerate() {
+        assert_eq!(hit.distance, 5. + 4. * i as f64);
+        assert_eq!(hit.source.shape_block, 2 + i as u32);
+        assert_eq!(hit.source.occurrence, i);
+    }
+    let negative = scene
+        .ray_cast(
+            ray([130., 0.5, 0.5], [-1., 0., 0.], 20.),
+            QueryBudget::default(),
+        )
+        .unwrap();
+    assert_eq!(negative.len(), 5);
+    for (i, hit) in negative.iter().enumerate() {
+        assert_eq!(hit.distance, 1. + 4. * i as f64);
+        assert_eq!(hit.source.occurrence, 32 - i);
+    }
+    let overlaps = scene
+        .overlap_sphere([10., 0.5, 0.5], 5., QueryBudget::default())
+        .unwrap();
+    assert_eq!(
+        overlaps
+            .iter()
+            .map(|h| h.source.occurrence)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert!(matches!(
+        scene.ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 6.),
+            QueryBudget {
+                primitive_tests: 1,
+                ..small
+            }
+        ),
+        Err(QueryError::Budget("spatial index visits"))
+    ));
+    assert!(matches!(
+        scene.ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 300.),
+            QueryBudget {
+                primitive_tests: 64,
+                hits: 63,
+                ..small
+            }
+        ),
+        Err(QueryError::Budget("query hits"))
+    ));
+    let (_, collision) = nif_collision::decode(&container(&blocks), "index accounting").unwrap();
+    //64 cached hulls *15 source elements, plus127 balanced index nodes.
+    assert!(
+        StaticScene::build(
+            &collision,
+            &[placement()],
+            units(),
+            QueryLimits {
+                geometry_elements: 1087,
+                ..Default::default()
+            }
+        )
+        .is_ok()
+    );
+    assert!(matches!(
+        StaticScene::build(
+            &collision,
+            &[placement()],
+            units(),
+            QueryLimits {
+                geometry_elements: 1086,
+                ..Default::default()
+            }
+        ),
+        Err(QueryError::Budget("geometry/index elements"))
+    ));
+}
+
+#[test]
+fn source_index_preserves_reflections_and_approximate_frames() {
+    let (_, collision) = nif_collision::decode(
+        &container(&separated_cuboids(64)),
+        "indexed and fallback sources",
+    )
+    .unwrap();
+    for approximate in [false, true] {
+        let mut other = placement();
+        other.reference = ReferenceId(NonZeroU64::new(2).unwrap());
+        if approximate {
+            other.attachment_to_source.rows[0][1] = 1e-7;
+        } else {
+            other.attachment_to_source.rows[0] = [-1., 0., 0., 300.];
+        }
+        let scene = StaticScene::build(
+            &collision,
+            &[placement(), other],
+            units(),
+            QueryLimits::default(),
+        )
+        .unwrap();
+        let hits = scene
+            .ray_cast(
+                ray([-5., 0.5, 0.5], [1., 0., 0.], 400.),
+                QueryBudget::default(),
+            )
+            .unwrap();
+        assert_eq!(hits.len(), 128);
+        for hit in &hits {
+            let ordinal = hit.source.occurrence;
+            assert_eq!(hit.source.shape_block, 2 + ordinal as u32);
+            let expected = if hit.source.reference.0.get() == 1 {
+                5. + 4. * ordinal as f64
+            } else if approximate {
+                // Authored x'=x+1e-7*y shifts the y0.5 face by5e-8.
+                5. + 4. * ordinal as f64 + 5e-8
+            } else {
+                304. - 4. * ordinal as f64
+            };
+            assert!((hit.distance - expected).abs() <= 4. * f64::EPSILON * expected);
+        }
+        if approximate {
+            for pair in hits.as_chunks::<2>().0 {
+                assert_eq!(pair[0].source.reference.0.get(), 1);
+                assert_eq!(pair[1].source.reference.0.get(), 2);
+                assert!(pair[0].distance < pair[1].distance);
+            }
+        } else {
+            let overlaps = scene
+                .overlap_sphere([50., 0.5, 0.5], 2., QueryBudget::default())
+                .unwrap();
+            assert_eq!(
+                overlaps
+                    .iter()
+                    .map(|h| (h.source.reference.0.get(), h.source.occurrence))
+                    .collect::<Vec<_>>(),
+                vec![(1, 12), (1, 13), (2, 62), (2, 63)]
+            );
+        }
+    }
+}
+
+#[test]
+fn transformed_source_index_reaches_queries_with_small_budgets() {
+    let (_, collision) = nif_collision::decode(
+        &container(&separated_cuboids(64)),
+        "transformed source index",
+    )
+    .unwrap();
+    for (rows, scale) in [
+        (
+            [[1., 0., 0., 10.], [0., 1., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+        (
+            [[-1., 0., 0., 300.], [0., 1., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+        (
+            [[0., -1., 0., 10.], [1., 0., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+        (
+            [[2., 0., 0., 10.], [0., 2., 0., -20.], [0., 0., 2., 30.]],
+            2.,
+        ),
+        (
+            [[0.5, 0., 0., 10.], [0., 0.5, 0., -20.], [0., 0., 0.5, 30.]],
+            0.5,
+        ),
+        (
+            [
+                [0.6, -0.8, 0., 10.],
+                [0.8, 0.6, 0., -20.],
+                [0., 0., 1., 30.],
+            ],
+            1.,
+        ),
+        (
+            [[1., 1e-7, 0., 10.], [0., 1., 0., -20.], [0., 0., 1., 30.]],
+            1.,
+        ),
+    ] {
+        let frame = Affine { rows };
+        let mut place = placement();
+        place.attachment_to_source = frame;
+        let scene = StaticScene::build(
+            &collision,
+            std::slice::from_ref(&place),
+            units(),
+            QueryLimits {
+                geometry_elements: 1087,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let direction = std::array::from_fn(|i| rows[i][0] / scale);
+        let small = QueryBudget {
+            primitive_tests: 10,
+            geometry_tests: 0,
+            hits: 1,
+        };
+        let first = scene
+            .ray_cast(
+                ray(frame.point([-5., 0.5, 0.5]), direction, 6. * scale),
+                small,
+            )
+            .unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].source.occurrence, 0);
+        assert_eq!(first[0].source.shape_block, 2);
+        assert!((first[0].distance - 5. * scale).abs() <= 16. * f64::EPSILON * (5. * scale));
+        let overlaps = scene
+            .overlap_sphere(frame.point([0.5; 3]), 0., small)
+            .unwrap();
+        assert_eq!(overlaps.len(), 1);
+        assert_eq!(overlaps[0].source, first[0].source);
+        assert!(
+            scene
+                .ray_cast(
+                    ray(frame.point([-5., 2., 0.5]), direction, 0.),
+                    QueryBudget {
+                        primitive_tests: 1,
+                        ..small
+                    }
+                )
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(
+            StaticScene::build(
+                &collision,
+                &[place],
+                units(),
+                QueryLimits {
+                    geometry_elements: 1086,
+                    ..Default::default()
+                }
+            ),
+            Err(QueryError::Budget("geometry/index elements"))
+        ));
+    }
+}
+
+#[test]
+fn transformed_culling_preserves_local_conversion_refusals() {
+    let (_, collision) =
+        nif_collision::decode(&container(&separated_cuboids(8)), "local-domain culling").unwrap();
+    let mut place = placement();
+    place.attachment_to_source.rows = [[0.5, 0., 0., 0.], [0., 0.5, 0., 0.], [0., 0., 0.5, 0.]];
+    let scene = StaticScene::build(&collision, &[place], units(), QueryLimits::default()).unwrap();
+    // World-domain inputs are valid, but their local projection is outside the
+    // original predicate's domain. A bounding miss cannot turn refusal into clear.
+    assert!(matches!(
+        scene.ray_cast(ray([1e50; 3], [1., 0., 0.], 0.), QueryBudget::default()),
+        Err(QueryError::Invalid("overflowing local ray"))
+    ));
+    assert!(matches!(
+        scene.overlap_sphere([1e50; 3], 0., QueryBudget::default()),
+        Err(QueryError::Invalid("overflowing local sphere"))
+    ));
+    assert!(matches!(
+        scene.overlap_sphere([0.; 3], 1e50, QueryBudget::default()),
+        Err(QueryError::Invalid("overflowing local sphere"))
+    ));
+}
+
+#[test]
+fn culling_keeps_uncertain_source_slab_and_subnormal_boundaries() {
+    let scene = scene(&separated_cuboids(64));
+    assert!(matches!(
+        scene.ray_cast(
+            ray(
+                [-600_000_000_000_000., -799_999_999_999_999., 0.5],
+                [0.6, 0.8, 0.],
+                1_000_000_000_000_002.
+            ),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "cuboid slab predicate is numerically uncertain"
+        ))
+    ));
+    let tiny = f64::from_bits(1);
+    assert!(
+        scene
+            .overlap_sphere([-tiny, 0.5, 0.5], 0., QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        scene
+            .overlap_sphere([-tiny, 0.5, 0.5], tiny, QueryBudget::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        scene
+            .ray_cast(
+                ray([-tiny, 0.5, 0.5], [1., 0., 0.], tiny),
+                QueryBudget::default()
+            )
+            .unwrap()[0]
+            .distance,
+        tiny
+    );
+    assert!(
+        scene
+            .ray_cast(
+                ray([-1., 0.5, 0.5], [tiny, 1., 0.], 10.),
+                QueryBudget::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn source_bounds_keep_all_supported_shapes_and_shared_occurrences() {
+    let mut packed = Vec::new();
+    words(&mut packed, &[1]);
+    for word in [0u16, 1, 2, 0xabcd] {
+        packed.extend(word.to_le_bytes());
+    }
+    words(&mut packed, &[3]);
+    packed.push(0);
+    floats(&mut packed, &[0., 0., 0., 0., 2., 0., 0., 0., 2.]);
+    packed.extend(1u16.to_le_bytes());
+    packed.extend([7, 0x81, 0x34, 0x12]);
+    words(&mut packed, &[3, 42]);
+    let mut packed_shape = Vec::new();
+    words(&mut packed_shape, &[0, 0]);
+    floats(&mut packed_shape, &[0.1]);
+    words(&mut packed_shape, &[0]);
+    floats(&mut packed_shape, &[1., 1., 1., 0., 0.1, 1., 1., 1., 0.]);
+    words(&mut packed_shape, &[7]);
+    let scene = scene(&[
+        ("bhkRigidBody", body(1)),
+        ("bhkListShape", shape_list(&[2, 3, 4, 5, 6, 2, 3, 4])),
+        ("bhkSphereShape", sphere(1.)),
+        ("bhkBoxShape", bx()),
+        ("bhkCapsuleShape", capsule([0., 0., -2.], [0., 0., 2.], 1.)),
+        ("bhkConvexVerticesShape", convex_bounds([0.; 3], [1.; 3])),
+        ("bhkPackedNiTriStripsShape", packed_shape),
+        ("hkPackedNiTriStripsData", packed),
+    ]);
+    let hits = scene
+        .ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 10.),
+            QueryBudget::default(),
+        )
+        .unwrap();
+    assert_eq!(hits.len(), 8);
+    for hit in &hits {
+        let expected = match hit.source.shape_block {
+            2 => 5. - 0.5f64.sqrt(),
+            3 => 4.,
+            4 => 5. - 0.75f64.sqrt(),
+            5 | 7 => 5.,
+            _ => panic!("unexpected source"),
+        };
+        close(hit.distance, expected);
+    }
+    let overlaps = scene
+        .overlap_sphere([0., 0.5, 0.5], 0., QueryBudget::default())
+        .unwrap();
+    assert_eq!(
+        overlaps
+            .iter()
+            .map(|h| h.source.occurrence)
+            .collect::<Vec<_>>(),
+        (0..8).collect::<Vec<_>>()
+    );
+    assert!(matches!(
+        scene.ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 10.),
+            QueryBudget {
+                geometry_tests: 0,
+                ..Default::default()
+            }
+        ),
+        Err(QueryError::Budget("geometry tests"))
+    ));
+}
+
 #[test]
 fn cuboid_slab_intervals_and_query_cutoff_never_admit_rounded_false_hits() {
     let cube = scene(&[

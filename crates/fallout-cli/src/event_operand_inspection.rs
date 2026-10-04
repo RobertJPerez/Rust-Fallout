@@ -3,10 +3,10 @@ use super::{
     Result, command_catalogue, definition_plan_inspection, inspection_input::Order, script_profile,
     script_state_inspection,
 };
-use fallout_data::{loaded_scripts, obscript};
+use fallout_data::{loaded_scripts, obscript, quest_scripts};
 use fallout_runtime::{
     event_operands,
-    execution::{copy_probe, local_copy, native},
+    execution::{attachment_boot, copy_probe, local_copy, native, pending_batch},
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
     preparation, programs,
@@ -22,6 +22,125 @@ use std::{
 };
 
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedQuestBootRequest {
+    schema_version: u32,
+    quest: fallout_data::identity::FormKey,
+    initialization: attachment_boot::Request,
+}
+
+pub(super) fn boot_saved_quest(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+) -> Result<Value> {
+    let request: SavedQuestBootRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "quest boot request byte budget exceeded",
+    )?)?;
+    if request.schema_version != 1 {
+        return Err("unsupported quest boot request schema".into());
+    }
+    let parent = result_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .canonicalize()?;
+    if parent.starts_with(super::protected_tree(install)?) {
+        return Err("quest boot result must be outside the installation".into());
+    }
+    if result_path.try_exists()? {
+        return Err("quest boot result must be a fresh artifact".into());
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let attachments =
+        quest_scripts::Attachments::load(&mut store, &catalogue, 1_000_000, |_, _| Ok(()))?;
+    let handles: Vec<_> = attachments
+        .get(&request.quest)
+        .and_then(|attachment| attachment.script.as_ref())
+        .cloned()
+        .into_iter()
+        .collect();
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &handles,
+        Default::default(),
+    )?;
+    let plan = attachment_boot::prepare(
+        &sources,
+        &attachments,
+        &content,
+        &request.quest,
+        &request.initialization,
+        Default::default(),
+    )?;
+    let limits = fallout_runtime::Limits::default();
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        limits.max_snapshot_bytes,
+        "quest boot snapshot byte budget exceeded",
+    )?;
+    let snapshot = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, limits)?;
+    let result = plan.apply(snapshot, limits)?;
+    let bytes = result.snapshot.encode(limits.max_snapshot_bytes)?;
+    let cold = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&bytes, limits)?,
+        limits,
+    )?;
+    let owner = fallout_runtime::identity::Owner::Quest {
+        key: request.quest.clone(),
+    };
+    if cold.snapshot() != result.snapshot
+        || cold.owner_instance(&owner) != Some(result.instance)
+        || cold.instance(cold.handle(result.instance)?)?.definition() != plan.definition()
+    {
+        return Err("quest boot cold restoration differs from the private result".into());
+    }
+    let report = json!({"schema_version":1,"scope":"Explicit engineering creation of one source-attached quest script owner; no retail activation",
+        "quest":request.quest,"instance":result.instance,"definition":plan.definition(),
+        "quest_attachment":plan.attachment(),"script_source":plan.script_version(),
+        "source_receipts":attachments.source_receipts(),"source_cohort_sha256":plan.source_cohort_sha256(),
+        "initialization_counts":plan.counts(),"prepared_sources":{"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},
+        "campaign":request.initialization.campaign,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),
+        "snapshot_artifact":{"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":result.snapshot.schema_version},
+        "canonical_restore_verified":true,"private_result":true,"event_enqueued":false,
+        "executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),
+        "quest_activation_verified":false,"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    // Validate the complete result and bounded report before creating an output.
+    let mut admitted = BoundedJson {
+        bytes: Vec::new(),
+        maximum: 8 * 1024 * 1024,
+    };
+    serde_json::to_writer_pretty(&mut admitted, &report)?;
+    admitted.write_all(b"\n")?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(result_path)?;
+    file.write_all(&bytes)?;
+    file.flush()?;
+    file.sync_all()?;
+    Ok(report)
+}
+#[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum SavedIntent {
     Engineering,
@@ -33,6 +152,222 @@ struct SavedCopyRequest {
     sequence: std::num::NonZeroU64,
     activation: std::num::NonZeroU64,
     intent: SavedIntent,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedBatchRequest {
+    schema_version: u32,
+    intent: SavedIntent,
+    events: Vec<pending_batch::Request>,
+    maximum_source_instructions: usize,
+    maximum_statement_bytes: usize,
+    maximum_trace_source_bytes: usize,
+    maximum_trace_rows: usize,
+    maximum_trace_variable_bytes: usize,
+    maximum_trace_binding_uses: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+
+pub(super) fn copy_saved_batch(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedBatchRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved batch request byte budget exceeded",
+    )?)?;
+    let defaults = pending_batch::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    if request.schema_version != 1
+        || request.events.is_empty()
+        || request.events.len() > defaults.maximum_events
+        || request.maximum_source_instructions > defaults.maximum_source_instructions
+        || request.maximum_statement_bytes > defaults.maximum_statement_bytes
+        || request.maximum_trace_source_bytes > defaults.trace_projection.maximum_source_bytes
+        || request.maximum_trace_rows > defaults.trace_projection.maximum_rows
+        || request.maximum_trace_variable_bytes > defaults.trace_projection.maximum_variable_bytes
+        || request.maximum_trace_binding_uses > defaults.trace_projection.maximum_binding_uses
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved batch schema/count/budget ceiling".into());
+    }
+    let protected = super::protected_tree(install)?;
+    let parent = result_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .canonicalize()?;
+    if parent.starts_with(&protected) {
+        return Err("saved batch result must be outside the installation".into());
+    }
+    if result_path.try_exists()? {
+        return Err("saved batch result must be a fresh artifact".into());
+    }
+    // Both outputs are fresh artifacts. Atomic create_new also refuses a racing
+    // file/link, so the report cannot replace an input through a path alias.
+    if let Some(report) = report_path {
+        if report.try_exists()? {
+            return Err("saved batch report must be a fresh artifact".into());
+        }
+        let resolved = {
+            report
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+                .unwrap_or(Path::new("."))
+                .canonicalize()?
+                .join(
+                    report
+                        .file_name()
+                        .ok_or("saved batch report requires a filename")?,
+                )
+        };
+        if resolved
+            .parent()
+            .is_some_and(|parent| parent.starts_with(&protected))
+        {
+            return Err("saved batch report must be outside the installation".into());
+        }
+        let result_resolved = parent.join(
+            result_path
+                .file_name()
+                .ok_or("saved batch result requires a filename")?,
+        );
+        if resolved == result_resolved
+            || (cfg!(windows)
+                && resolved
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(&result_resolved.to_string_lossy()))
+        {
+            return Err("saved batch report must differ from the result snapshot".into());
+        }
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "saved batch snapshot byte budget exceeded",
+    )?;
+    let snapshot = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?;
+    let world = fallout_runtime::World::restore(Arc::clone(&catalogue), snapshot, world_limits)?;
+    let campaign = world.campaign();
+    let before_revision = world.revision();
+    // Only the existing prefix's distinct exact definitions are prepared. The
+    // complete source cohort remains the identity of the selected cache.
+    let mut selected = BTreeMap::new();
+    for pending in world.pending_events().take(request.events.len()) {
+        let handle = world
+            .instance(world.handle(pending.instance)?)?
+            .definition()
+            .clone();
+        selected.insert(handle.key.clone(), handle);
+    }
+    let handles: Vec<_> = selected.into_values().collect();
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &handles,
+        Default::default(),
+    )?;
+    let intent = match request.intent {
+        SavedIntent::Engineering => local_copy::Intent::Engineering,
+    };
+    let outcome = pending_batch::consume(
+        world,
+        &sources,
+        &content,
+        &request.events,
+        intent,
+        pending_batch::Limits {
+            maximum_events: defaults.maximum_events,
+            maximum_source_instructions: request.maximum_source_instructions,
+            maximum_statement_bytes: request.maximum_statement_bytes,
+            trace_projection: preparation::ObservationLimits {
+                maximum_source_bytes: request.maximum_trace_source_bytes,
+                maximum_rows: request.maximum_trace_rows,
+                maximum_variable_bytes: request.maximum_trace_variable_bytes,
+                maximum_binding_uses: request.maximum_trace_binding_uses,
+            },
+        },
+    )?;
+    let mut report = json!({"schema_version":1,"scope":"explicit engineering existing journal prefix","campaign":campaign,
+        "before_revision":before_revision,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),
+        "explicit_events":request.events,"intent":intent,"result_snapshot":null,
+        "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},
+        "executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),
+        "faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    let result_bytes = match outcome {
+        pending_batch::Outcome::Unsupported {
+            event_index,
+            reason,
+            detail,
+        } => {
+            report["snapshot_batch"] = json!({"status":"unsupported","event_index":event_index,"reason":reason,"detail":detail});
+            report["after_revision"] = json!(before_revision);
+            report["private_result_discarded"] = json!(true);
+            None
+        }
+        pending_batch::Outcome::EngineeringCommitted { result } => {
+            let bytes = result
+                .snapshot
+                .encode(request.maximum_result_snapshot_bytes)?;
+            let cold = fallout_runtime::World::restore(
+                Arc::clone(&catalogue),
+                fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+                world_limits,
+            )?;
+            if cold.snapshot() != result.snapshot {
+                return Err("saved batch result failed canonical restore verification".into());
+            }
+            report["after_revision"] = json!(result.snapshot.state_revision);
+            report["snapshot_batch"] = json!({"status":"engineering_committed","committed":result.committed,"counts":result.counts});
+            report["result_snapshot"] = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":result.snapshot.schema_version,"decode_restore_equal":true,"remaining_head":result.snapshot.pending_events.first()});
+            report["private_result_discarded"] = json!(false);
+            Some(bytes)
+        }
+    };
+    // Admit the exact pretty report plus newline before any result file exists.
+    let mut admitted = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_report_bytes,
+    };
+    serde_json::to_writer_pretty(&mut admitted, &report)
+        .map_err(|_| "saved batch report byte budget exceeded")?;
+    admitted
+        .write_all(b"\n")
+        .map_err(|_| "saved batch report byte budget exceeded")?;
+    if let Some(bytes) = result_bytes {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(result_path)?;
+        file.write_all(&bytes)?;
+        file.flush()?;
+        file.sync_all()?;
+    }
+    Ok(report)
 }
 
 fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>> {

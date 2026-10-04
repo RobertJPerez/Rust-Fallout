@@ -45,6 +45,8 @@ pub(super) struct ContextOptions<'a> {
     pub(super) include_stat_requests: bool,
     pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
     pub(super) include_actor_context: bool,
+    pub(super) equipment_item: Option<std::num::NonZeroU64>,
+    pub(super) inventory_boot_request: Option<&'a Path>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -68,7 +70,10 @@ pub(super) fn package_context(
     let mut store = order.store(install, cache)?;
     let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
     let world = World::restore(&scripts, snapshot, limits)?;
-    let before_observation = options.include_actor_context.then(|| world.snapshot());
+    let before_observation = (options.include_actor_context
+        || options.equipment_item.is_some()
+        || options.inventory_boot_request.is_some())
+    .then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
     let inventory = inventory::Catalogue::load(&mut store, Default::default())?;
     let actors = actors::Catalogue::load(&inventory, Default::default())?;
@@ -192,6 +197,53 @@ pub(super) fn package_context(
             return Err("actor context changed canonical state".into());
         }
     }
+    if let Some(item) = options.equipment_item {
+        let owner = options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId)
+            .ok_or("equipment item requires an explicit canonical owner")?;
+        let selection = fallout_runtime::actor_rules::equipment::observe(
+            &world,
+            &content,
+            owner,
+            fallout_runtime::inventory::ItemId(item),
+            Default::default(),
+        )?;
+        report["equipment_item"] = serde_json::to_value(selection)?;
+    }
+    if let Some(request_path) = options.inventory_boot_request {
+        let owner = options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId)
+            .ok_or("inventory boot requires an explicit canonical owner")?;
+        let mut source = baseline::open_source(request_path)?;
+        let mut bytes = Vec::new();
+        (&mut source)
+            .take(32 * 1024 * 1024 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > 32 * 1024 * 1024 {
+            return Err("inventory boot request exceeds 32 MiB".into());
+        }
+        let choices: Vec<fallout_runtime::actor_rules::inventory_boot::Choice> =
+            serde_json::from_slice(&bytes)?;
+        let plan = fallout_runtime::actor_rules::inventory_boot::prepare(
+            &world,
+            &content,
+            &actors,
+            options.actor_root,
+            owner,
+            &choices,
+            Default::default(),
+        )?;
+        let boot = plan.apply_private(&scripts, &content, &world.snapshot(), limits)?;
+        report["actor_inventory_boot"] = serde_json::to_value(boot)?;
+    }
+    if before_observation
+        .as_ref()
+        .is_some_and(|before| before != &world.snapshot())
+    {
+        return Err("actor item/context observation changed canonical state".into());
+    }
     Ok(report)
 }
 
@@ -216,6 +268,7 @@ pub(super) struct Options {
     pub(super) include_races: bool,
     pub(super) include_packages: bool,
     pub(super) include_package_dependencies: bool,
+    pub(super) package_destination: Option<FormKey>,
     pub(super) include_dependencies: bool,
     pub(super) include_render_dependencies: bool,
     pub(super) include_template_dependencies: bool,
@@ -292,6 +345,9 @@ pub(super) fn inspect(
 ) -> Result<Value> {
     if options.include_package_dependencies && !options.include_packages {
         return Err("package dependencies require --include-packages".into());
+    }
+    if options.package_destination.is_some() && !options.include_packages {
+        return Err("package destination requires --include-packages".into());
     }
     if (options.equipment_source.is_some() || options.equipment_role.is_some())
         && (!options.include_dependencies
@@ -421,6 +477,15 @@ pub(super) fn inspect(
         let packages =
             actors::packages::Catalogue::load(&mut store, actors::packages::Limits::default())?;
         report["actor_packages"] = json!({"counts":packages.counts(),"definitions":packages.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
+        if let Some(root) = &options.package_destination {
+            let destination = actors::packages::destinations::request(
+                &mut store,
+                &packages,
+                root,
+                Default::default(),
+            )?;
+            report["actor_package_destination"] = json!({"manifest":destination});
+        }
         report["scope"] = json!(format!(
             "{}; authored PACK scalar inputs, no scheduling, conditions or AI execution",
             report["scope"].as_str().unwrap_or_default()
@@ -662,6 +727,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err(
             "independent actor source comparison differs in actor_package_dependencies".into(),
+        );
+    }
+    if report.get("actor_package_destination").is_some()
+        && report.get("actor_package_destination") != oracle.get("actor_package_destination")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_package_destination".into(),
         );
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;

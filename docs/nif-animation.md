@@ -1259,3 +1259,80 @@ higher-parent hierarchy. Five prior one-shot reports and the prepared batch
 report remain byte-identical. Original reports and the review failure are
 preserved; fresh correction evidence is in
 `local/v3-asset-17/topology-correction-01`.
+
+## One exact source sample driving a rigid attachment
+
+`attachment::evaluate_sampled(skeleton_bytes, attachment_bytes, source,
+SampledRequest, SampledLimits)` combines the existing identity-bound rigid binding
+request with one exact `pose::Request` (object/controller/direct source time).
+The sampled object must be the explicit socket node. Both whole-source SHA256
+values, exact node ID/raw name, selected controller/time words and original spans
+remain bound. Neither a caller-supplied `ObjectPose` nor an arbitrary matrix may
+replace the internal source animation evaluation.
+
+The existing pose evaluator transfers its decoded skeleton index and Scene only
+through a private helper. The adapter decodes the attachment Scene once and calls
+the same private binding core used by stored-only attachment. No second importer,
+sampling implementation or extra skeleton Scene decode is added. Existing public
+one-shot pose and stored attachment requests/results remain unchanged.
+
+The result's `sample` preserves exact T/S sampling diagnostics, raw quaternion
+words, source time bits, static ancestor locals and unapplied clock fields.
+`stored_binding` is explicitly the unchanged stored-only reference observation,
+including its stored matrices. The two outer matrices are the sampled output:
+`attachment_source_to_skeleton_source = sample.source_world * P` applies once to
+already source-world attachment coordinates; `root_to_skeleton_source =
+sample.source_world * P * R` applies once to coordinates local to the selected
+attachment root. `P` is the explicit parent-axis mapping and `R` the authored
+attachment-root local. No actor/world placement is inferred. Mirrored/non-unit
+scales, shear and singular finite forward mappings remain permitted without
+normalizing source values or inventing a normal convention.
+
+This initial one-controller path refuses unsupported source chains/rotations,
+controlled required ancestors, and every other controller in the selected socket
+or attachment-root descendant subtrees. Bounded private node maps and visited
+queues inspect those original child links independently of public scene order.
+Attachment-root controllers also refuse. Unrelated source roots and socket
+siblings do not acquire controller authority. No clock, repeat, transition,
+socket choice, visibility or equip lifecycle is implemented.
+
+Combined source input defaults to128 MiB with existing64 MiB per-source caps.
+The independently bounded animation/Scene decoder allowances are admitted under
+160 MiB array elements and32 million check units before either consumer starts
+(128 MiB declared arrays by default). Existing key/sampler/source caps stay active.
+Additional aggregate elements/work default to16 MiB/128 million units. The full
+sample, full stored reference, all descendant maps/queues and result headers remain
+charged, with each phase receiving the aggregate remainder as well as its own
+cap. Adapter identity hash byte visits are charged; existing phase counters retain
+their original logical accounting. Decoder and traversal budgets separately
+bound their work. Failure publishes neither a usable result nor a partial sample
+as a complete attachment. Logical counters do not measure process memory/speed.
+
+The owned consumer is `fallout nif-rigid-attachment SKELETON ATTACHMENT --sampled
+--request REQUEST.json --output RECEIPT.json`. The opt-in flag selects strict
+schema1 with the original exact binding fields plus `object`, `controller` and
+`source_time`. Output must stay outside all three input directories. Source/request
+limits are64 MiB/64 KiB; semantic refusal records a null evaluation and nonzero
+exit. `tools/nif-animation-oracle/check_sampled_attachment.py` constructs independent
+two-source fixtures and literal first/middle/last, mirrored and zero-scale
+matrices. Engineering source transforms do not establish original rig/socket
+selection, equipment lifecycle or measured retail playback.
+
+Validation passes114 focused attachment/pose/clip/partition/skin tests (six new
+sampled attachment cases),38 serial CLI tests, affected all-target Clippy with
+warnings denied, formatting and the CLI build. Exact and one-under phase,
+aggregate, source input, sampler, ancestry and decoder-admission caps are checked.
+The initial test-build used an incorrect quaternion field name; that failed
+receipt remains preserved beside the corrected complete validation.
+
+The frozen second authored source passes five literal first/middle/last/reflected/
+zero-scale mappings, signed-zero time preservation and eighteen intended refusals,
+including controlled ancestors/descendants. Stored-only attachment output remains
+byte-identical, and its complete evaluation equals the sampled result's explicitly
+named stored reference. Three prior one-shot source poses and the source-linked
+sampled-skin receipt also remain byte-identical. The pinned original first-person
+source `3fe5a3ef...`, reused exact node12/controller13 request, refuses its missing
+transform interpolator through the new consumer, before a pose or socket-name
+binding can be accepted. This is an unchanged source capability finding, with
+no original socket/equip/animation acceptance. Frozen executable, exact commands,
+hashes and immutable receipts stay in ignored `local/v3-asset-24`.

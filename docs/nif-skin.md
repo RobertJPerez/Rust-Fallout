@@ -602,3 +602,357 @@ positions, normals, palettes, source frame and sums agree with the existing
 evaluator on both sources. Earlier authored/original pose receipts and source
 schemas1/2/3 remain byte-identical. Final checks and frozen artifacts stay in
 ignored `local/v3-asset-18`; no measured retail or GPU skinning claim is made.
+
+## Explicit two-source rig mapping
+
+`external::evaluate(skin_bytes, rig_bytes, source, &Request, Limits)` evaluates
+one source geometry against explicit node IDs from a second source. The caller
+supplies both exact whole-source SHA256 values, the skin geometry, rig root,
+one mapping for every skin bone ordinal and an explicit finite, invertible
+root-space affine matrix `X`. Each mapping includes exact expected raw name bytes
+for its selected original skin bone and rig node. Names are checked after ID
+selection, never searched or used to choose a rig. Duplicate raw names at
+different explicit IDs are valid; duplicate ordinals or rig targets refuse.
+Missing names, wrong hashes/types, incomplete mappings, unreachable ancestry,
+cycles and unsupported scene edges return no completed evaluation.
+
+`X` maps rig-root coordinates into the skin source's declared root coordinates.
+Each engineering palette is `S * X * RigBoneToRoot * SkinToBone`: `S` and
+`SkinToBone` come from the original NiSkinData; rig-relative transforms come
+from the selected rig's authored ancestor chain. The selected rig root's own
+local transform is excluded. Geometry-local transforms are excluded from the
+palette. The existing source-world display mapping remains
+`SkinRootWorld * inverse(S)` and is applied once. Invertibility of `X` is validated
+as part of this explicit relationship, although its inverse is unused in forward
+palette construction. Finite shear and reflection are admitted.
+
+The explicit external `X` gate now requires a conservative binary64 interval
+for its exact determinant to exclude zero. Every product and addition/subtraction
+extends its rounded bounds to outward adjacent representable values, including
+subnormal results. Nine bounded interval products and five additions/subtractions
+charge fourteen mapping admission units. A zero-containing or nonfinite enclosure
+refuses as singular or uncertifiable, including some truly invertible but
+numerically uncertain requests. This uses no scale epsilon. The existing finite
+inverse check follows certification; the existing stored-source SkinTransform
+inverse and all prior palette/report contracts remain unchanged.
+
+Raw influence accumulation reuses the existing private pose helpers in original
+bone/weight order. Duplicates, signed zero and nonunit sums remain intact;
+`RequireUnitSum` validates without changing weights. Normals use the existing
+weighted linear direction contract. This producer does not call a second stored
+pose evaluator, accept caller-provided palettes, select actor/equipment state or
+apply controller sampling. Required rig controllers and original skin root/owner
+controllers are recorded as unapplied observations.
+
+The receipt includes both whole-source hashes, explicit mapping, raw names and
+source-qualified node spans, selected rig root span, unapplied rig root local and
+source-world matrices, each rig-relative and authored bind matrix, palettes,
+deformed source-local positions/normals and the original skin display mapping.
+The nested skin palette's `node` IDs refer to the separately identified rig
+source. Its usage fields repeat the aggregate producer usage, rather than
+describing an independently executed evaluator. The contract is
+`engineering-exact-external-rig-skin-v1`; retail behavior is unverified.
+
+Default bounds admit 128 MiB combined source bytes, 4,096 mappings, one MiB of
+caller name bytes, ancestry depth 1,024, 64 MiB charged extra logical elements and
+sixteen million traversal units. Existing source decoders keep independent caps.
+Before decoding, their declared array/check allowances are admitted together
+under 640 MiB and 64 million units; defaults declare 576 MiB and 48 million units.
+Block-count-bounded scene/index tables remain separately governed by the source
+decoders. Private maps, path walks, controller observations, name copies and
+deformation arrays are charged. Reported storage is logical accounting including
+temporary elements, excluding allocator overhead and spare capacity; it is not
+a process-memory ceiling or playback-speed measurement.
+
+The owned headless consumer is:
+
+```text
+fallout nif-skin SKIN --external-rig RIG --external-skin-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 JSON requires `expected_skin_sha256`, `expected_rig_sha256`
+(32 byte integers each), `geometry`, `rig_root`, `explicit_bone_mapping`,
+`explicit_root_space_mapping` and explicit `weights`. Each mapping contains
+`bone_ordinal`, `rig_node`, `expected_skin_bone_name_bytes` and
+`expected_rig_node_name_bytes`. Weight policies match the compact-influence
+consumer above. Both flags must be supplied together and conflict with other
+source/pose modes. Each input is capped at 64 MiB and request JSON at 64 KiB;
+output must be outside all three input directories. Semantic refusal emits
+`evaluation: null`, exact diagnostic and nonzero exit.
+
+`tools/nif-skin-oracle/check_external.py` constructs independent named skin and
+rig sources with noncommuting transforms, an explicit rig root, duplicate names,
+non-UTF8/NUL bytes and an explicit shear/reflection mapping. It checks literal
+deformations for distinct explicit targets, complete mapping permutation and
+identity/type/name/ancestry/schema/policy/protected-directory refusals.
+
+Final validation passes 63 focused pose/clip/skin integration tests (six new
+external-rig cases), 38 serial CLI tests, affected all-target Clippy with warnings
+denied, formatting and the CLI build. A fresh frozen executable on the corrected
+pose-set base passes two literal second-source deformations, complete mapping
+permutation and twenty intended refusals. Earlier source schemas1/2/3, stored
+pose and full compact-influence receipt remain byte-identical.
+
+For installed childfemaleupperbody source `618eb19e...` and male skeleton
+`c6667dd9...`, a frozen explicit engineering identity `X` produces 25 palettes
+over 1,706 vertices. All 300 palette coefficients agree with independently
+decoded native source transforms under exact-rational forward-error bounds;
+maximum absolute error is `3.581417024842903e-14`. Deliberate coefficient mutation
+is rejected. All 28 required rig controllers remain unapplied. This validates
+source composition; original deformation, actor/child alignment, placement,
+rig parity and retail playback are unmeasured. Raw string capture used an already
+frozen pinned native executable without rebuilding it. Initial test expectation
+failure, original draft proofs and byte-exact preservation/restoration before
+the pose-set correction remain immutable beside fresh validation03, binary02
+and consumer02 evidence in ignored `local/v3-asset-20`.
+
+The coordinator's independent exact integer witness found that the original
+rounded cofactor predicate admitted singular `X` when row3 equals row1+row2.
+Frozen20 reproduces that admission; the corrected gate above refuses it. Fresh
+validation passes 72 focused data tests (two additional certification cases),
+38 serial CLI tests, Clippy, formatting and a rebuilt frozen consumer. An exact
+rational reference proves the witness determinant zero, two nearby +/-1 matrices
+invertible, four admitted extreme/reflection cases invertible, and five refused
+uncertain requests also invertible. The latter are deliberate conservative
+refusals. The public authored consumer now passes its prior literal deformations
+and permutation plus twenty-three refusals. Original native palettes retain the
+same independent error bound and all earlier source/stored-pose/CSR receipts
+remain byte-identical. Original20 proofs, first fixture-path reproduction failure
+and test-loop Clippy failure remain preserved; fresh evidence is in
+`local/v3-asset-20/root-mapping-correction-02`. This correction affects only new
+external root mapping admission, without changing the existing pose inverse.
+
+## Reusable source and shared-skeleton geometry batches
+
+`pose::PreparedSkinSource::prepare(bytes, source, PreparationLimits)` owns the
+existing NIF index, skin/binding catalogue, Scene and a bounded validated geometry
+owner map. The private-field object retains no borrow of caller bytes and exposes
+no public decoded-catalogue constructor, serialization, mutation or global cache.
+`source_sha256()` and `usage()` are read-only observations. Exact source spans,
+binary32 words and decoded arrays remain owned after the caller changes or drops
+its input. Preparation records one existing binding decode and one Scene decode;
+subsequent evaluations borrow those same internal catalogues.
+
+`PreparedSkinSource::evaluate_many(source, expected_source_sha256, &[Request],
+BatchEvaluationLimits)` requires the preparation's exact whole-source identity
+and a nonempty, ordered set of unique explicit geometries. Each geometry keeps
+its own geometry/data/instance/skin-data/root IDs, source bone order, authored skin
+mapping, weight policy, normals and placement. All numeric accumulation uses the
+existing private evaluator. A second geometry never inherits a first geometry's
+palette or raw weights. Complete observation permutation changes only output
+order. Later failure returns no completed batch. Preparation remains immutable;
+a failed evaluation does not publish partial geometry output.
+
+`pose::evaluate_many(bytes, source, expected_source_sha256, &[Request], BatchLimits)`
+is the convenience preparation/batch wrapper. Its private preparation verifies
+the exact expected hash before decoding. Existing one-shot, sampled-source and
+compact-influence paths retain their original validation order and observations;
+their shared numeric body now receives a private borrowed decoded view. No public
+matrix or catalogue becomes source authority.
+
+Preparation independently bounds the existing source decoder and admits its
+declared array/check allowances under defaults of 512 MiB and 64 million units
+(448 MiB and 48 million units declared by the default decoder). Additional header,
+hash and owner-map elements default to four MiB; source hash byte visits, owner
+admission and map initialization to 128 million units. Input and block/index/Scene
+caps remain active. Batch evaluation separately defaults to 64 geometries,
+128 MiB charged elements and 128 million units, with the existing per-geometry
+64 MiB, sixteen million units and depth1,024 caps. Complete batch output headers
+are admitted before allocation; each next geometry receives remaining aggregate
+allowances as well as its own caps.
+
+`GeometryBatch.preparation` describes the completed preparation phase. Batch
+`retained_bytes`/`work_units` describe the current evaluation phase, including
+charged temporary elements and complete output headers. The separate source
+binding retention figure includes existing skin/partition/binding elements,
+excluding independently block-bounded index/Scene storage. Preparation usage is
+repeated as provenance on each evaluation, not charged as decoding that ran again.
+These logical counters exclude allocator overhead and spare capacity and do not
+measure process memory or playback speed.
+
+The owned consumer is:
+
+```text
+fallout nif-skin INPUT --shared-skin-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 requires `expected_source_sha256` (32 byte integers) and
+`geometries`, each with exact `geometry` and an explicit raw `weights` policy.
+Input/request limits are 64 MiB/64 KiB; output must be outside both directories.
+Other source/pose modes conflict. Semantic refusal returns `evaluation: null`,
+exact error and nonzero exit. Controllers remain recorded as unapplied; source
+local engineering deformation does not establish animated actor or retail
+playback. `tools/nif-skin-oracle/check_shared.py` provides a second independent
+two-geometry source with different mappings and noncommuting transforms, literal
+positions/normals/palettes/placement, full permutation and request refusals.
+
+Validation passes 70 focused pose/clip/skin tests (seven new shared-source cases),
+38 serial CLI tests, affected all-target Clippy with warnings denied, formatting
+and the CLI build. Tests drop/mutate the caller's input, reuse one preparation,
+exercise independent and aggregate exact/one-under caps, and preserve complete
+permuted observations. The frozen second source passes two literal geometries,
+both full palettes, full permutation and twelve intended refusals.
+
+Installed source `4c89ebbb...` has geometries1/47 sharing root0. Their 37/15
+palettes, 444/180 coefficients and 2,954/392 vertices retain independent source
+identity and raw weights through one preparation. All palette coefficients meet
+the exact-rational bounds from preserved native source transforms, with maximum
+absolute error `7.530293869397177e-15`; deliberate mutation is rejected. Raw sum
+error is at most `7.450580596923828e-08`, checked with the explicitly recorded
+tolerance `1.9371509552001953e-07` without altering weights. Each original pose,
+earlier source schemas1/2/3, sampled-skin receipt and full compact-influence receipt
+remain byte-identical to frozen20. Engineering output does not establish original
+deformation or playback. Immutable checks and the frozen executable stay in
+ignored `local/v3-asset-13`. This single producer also closes the coordinator's
+refined reusable-source alias ASSET21.
+
+## Source-qualified partition rows and draw indices
+
+`partition::streams::prepare(bytes, source, Request, Limits)` produces a sealed
+`Streams` from the existing partition decoder and its existing Scene. The request
+requires the exact whole-source SHA256, geometry ID, linked partition block and
+physical partition ordinal. Read-only identity, presence, palette, vertex,
+influence, topology and usage getters expose observations. Private fields and no
+deserialization prevent an outside catalogue from becoming source authority.
+
+The identity contains independent geometry/data/instance/partition block spans
+and payload hashes, physical partition ordinal and source vertex domain. Every
+local palette entry retains its authored global bone ordinal and decoded source
+node. Every physical vertex slot retains local/source vertex indices, slot order,
+local/global bone indices, node ID and binary32 weight word. Duplicate palette
+entries, vertex mappings and bone slots remain duplicated. Signed zeros, finite
+negative weights and non-unit sums remain raw. This producer performs no numeric
+weight policy or deformation; the existing skin decoder still refuses nonfinite
+weights. Missing source bone links and wrong node types refuse.
+
+Triangles retain local and mapped source index triples. Strips retain authored
+lengths and both complete ordered index streams, including repeated and degenerate
+indices. No triangulation or winding rule is inferred. The independent authored
+triangle-count word remains visible even when it differs from a simple strip
+length calculation. All four presence flags must explicitly admit their arrays;
+absent arrays are never synthesized. Empty present arrays retain the unused width.
+The admitted nonempty NV branch uses four weight slots per vertex. Exact shared
+owner constraints from the existing decoder apply; mismatched selected dismember
+body-part counts refuse before this producer returns a stream.
+
+Checked row products and topology counts default to four million influences and
+four million indices. All output and temporary elements are charged before
+allocation under 32 MiB, including headers, raw/mapped strip copies, palette/vertex/
+influence rows, span hash strings and the decoded-node membership map. Hash byte
+visits, owner lookup, map construction, row projection and draw-index projection
+default to 128 million work units. Strip-length/count work is charged before the
+index-count scan, including strips with no indices. Decoder array/check allowances
+are separately admitted under 448 MiB and 32 million units; default declared
+allowances are 384 MiB and 32 million units. Existing 64 MiB source input and
+block/index/Scene limits remain active. Source retention reports the existing
+skin and partition element counts; index/Scene storage remains independently
+bounded. These logical element/work counters include charged temporaries and
+exclude allocator overhead and process-memory measurements. Failure returns no
+usable `Streams` or partial output.
+
+The owned consumer is:
+
+```text
+fallout nif-skin INPUT --partition-streams-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 requires `expected_source_sha256` (32 byte integers), `geometry`,
+`partition_block` and `partition_ordinal`. Request/input limits are 64 KiB/64 MiB;
+output must be outside both input directories. Other source/pose modes conflict.
+Semantic refusal records `evaluation: null` and an error with nonzero exit.
+`tools/nif-skin-oracle/check_streams.py` supplies independent container spans and
+literal authored rows for both topology branches, repeated palette and vertex
+mapping, raw weight words and explicit request/domain refusals. This stream is an
+engineering source projection. Renderer adoption, partition deformation, shader
+weight/normal rules, original draw behavior and retail playback remain separate.
+
+Validation passes 93 focused partition/skin/animation tests, including six new
+stream cases, 38 serial CLI tests, affected all-target Clippy with warnings denied,
+formatting and the CLI build. Exact and one-under input, decoder admission, row,
+draw-index, element-storage and work ceilings are checked independently. The
+first stream-test run's wrong expected error remains preserved: the existing skin
+decoder correctly refused a wrong bone type before the new producer. A later
+budget-order tightening charges strip work before scanning; both full validation
+runs remain immutable, with the final executable frozen after the second run.
+
+The second independent source passes three complete literal partition outputs,
+36 raw influence rows, sixteen intended refusals and byte-identical earlier
+schemas1/2/3. Selected installed source `618eb19e...`, geometry1, partition block8,
+ordinal0 matches preserved pinned-native evidence exactly for 159 vertex rows,
+five palette entries, 636 raw influence rows and all 420 authored strip indices.
+Deliberately changed weight/index words fail the independent comparison. Earlier
+installed-source schemas1/2/3, stored pose and compact-influence receipts remain
+byte-identical to frozen corrected20. The native projection charges 25,460 logical
+element bytes and 360,078 work units; those numbers do not measure process memory
+or rendering speed. Frozen executable, commands, hashes and full immutable
+receipts stay in ignored `local/v3-asset-22`. Retail behavior remains unverified.
+
+## Deformed geometry projected through an authored partition
+
+`pose::partition::evaluate(bytes, source, Request, Limits)` accepts exact whole-
+source SHA256, the existing explicit geometry/weight-policy request, linked
+partition block and physical ordinal. It decodes once through the existing
+binding/partition/Scene pipeline and calls the existing private geometry pose
+evaluator once. No outside palette, matrix, catalogue or public receipt is
+accepted as authority. This adapter uses the existing CPU `NiSkinData` deformation,
+then selects positions, raw weighted normals and raw weight sums through the
+authored partition vertex map. It does not substitute the partition's weight
+words or invent a hardware shader rule.
+
+Each selected vertex carries partition-local and source vertex IDs. Repeated
+source IDs remain repeated; a source-to-partition CSR map records every occurrence
+in authored local order, including source vertices with no selected occurrence.
+Triangles/strips retain original local indices and strip lengths. Source body-part
+flags and identifiers are observed without selecting visibility or dismemberment.
+The exact palette and source-world placement stay in the existing skin-root frame;
+apply placement once. Missing normals remain `null` on every selected row. Source
+controllers remain recorded as unapplied. Owner/link/ordinal/palette mismatches,
+missing vertex-map/faces and mismatched dismember counts refuse atomically.
+
+Limits separately bound the existing full pose (64 MiB/sixteen million units),
+additional subset elements/work (32 MiB/128 million units), and their aggregate
+(96 MiB/144 million units). Whole-source hash visits and source/reverse-map work
+are charged in the adapter phase. The full pose's entire charged intermediate
+arrays/work remain counted even when the selected output has one vertex. Reverse
+maps are also charged across the full source vertex domain. Selected vertex and
+draw-index ceilings default to65,535/four million. Decoder allowances default to
+448 MiB/48 million declared, admitted under512 MiB/64 million. Existing input,
+block, index and Scene limits remain active. Output arrays and temporary cursors
+are admitted before allocation; later failure publishes no partial subset.
+Counters describe logical elements/work, including released intermediates, rather
+than process memory or rendering speed.
+
+The owned consumer is `fallout nif-skin INPUT --partition-pose-request REQUEST.json
+--output RECEIPT.json`. Strict schema1 requires the exact `expected_source_sha256`,
+`geometry`, `partition_block`, `partition_ordinal` and existing explicit `weights`
+policy. Source/request limits are64 MiB/64 KiB; output stays outside both input
+directories, and other pose/source modes conflict. Semantic refusal records a null
+evaluation and nonzero exit. `tools/nif-skin-oracle/check_partition_pose.py` supplies
+a second independent authored source and literal noncommuting subset coordinates,
+palettes, normals, raw non-unit sums, placement, CSR mappings and topology. This
+producer establishes an engineering subset; original partition deformation,
+weight/normal/shader rules, rendering, body-part behavior and playback remain
+unverified.
+
+Validation passes 99 focused partition/skin/animation tests, including six new
+subset cases, 38 serial CLI tests, affected all-target Clippy with warnings denied,
+formatting and the CLI build. Independent exact/one-under caps cover source input,
+decoder admission, full deformation, subset elements/work and aggregate output.
+A one-vertex subset of a4,096-vertex source still charges the entire deformation
+and source-domain reverse map. The initial test-build missing trait import is
+preserved; the corrected full validation passes without changing deformation.
+
+The second independent source passes three literal subsets (eight vertex rows),
+noncommuting full palettes/placement, raw non-unit sums, typed topology, reverse
+mapping and fifteen intended refusals. Earlier source schemas and stored pose
+remain byte-identical. Installed `618eb19e...` geometry1/block8/ordinal0 projects
+159 vertices from the previously frozen1,706-vertex engineering CPU pose at the
+exact vertex indices in preserved native evidence. Native body-part fields, five
+palette entries and all420 strip indices are retained; source-index, position and
+strip mutations are rejected. This comparison establishes source-index projection
+equivalence, not original deformed coordinates or a shader rule. Earlier source
+schemas1/2/3, stored pose, compact influences and partition-stream receipts remain
+byte-identical to frozen22. Full deformation charges99,834 element bytes/7,104 work
+units, and the additional subset charges40,648/198,751, both present in aggregate
+usage. Commands, hashes, frozen executable and immutable receipts stay in ignored
+`local/v3-asset-23`. Gameplay/playback acceptance remains unchanged.

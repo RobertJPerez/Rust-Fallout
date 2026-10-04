@@ -59,6 +59,15 @@ struct Options {
     /// Select exactly one authored name attribute; ambiguous names are refused.
     #[arg(long, requires = "menu")]
     menu_tile: Option<String>,
+    /// Exact source-span/member/hash bindings for an opt-in menu include closure.
+    #[arg(long, requires = "menu")]
+    menu_includes: Option<PathBuf>,
+    /// Exact selected source value and explicit custom entity environment.
+    #[arg(long, requires = "menu", conflicts_with_all = ["menu_includes", "menu_tile"])]
+    menu_entities: Option<PathBuf>,
+    /// Exact selected tile and explicit literal conversion policies.
+    #[arg(long, requires = "menu", conflicts_with_all = ["menu_includes", "menu_entities", "menu_tile"])]
+    menu_traits: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -314,6 +323,82 @@ fn run() -> model::Result<AppExit> {
         return Err("capture and report must have different paths".into());
     }
     if let Some(menu) = &options.menu {
+        if let Some(request) = &options.menu_traits {
+            let limits = ui::traits::Limits::default();
+            let request = ui::traits::read_request(request, limits)?;
+            let report = ui::traits::inspect(
+                options
+                    .install
+                    .as_deref()
+                    .expect("menu requires installation"),
+                &AssetPath::new(menu.as_bytes())?,
+                &request,
+                limits,
+            )?;
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(options.report.as_ref().expect("menu requires report"))?;
+            ui::traits::write_report(file, &report, limits.output_bytes)?;
+            eprintln!(
+                "Menu literal projection: {} rows; original tile display remains unavailable",
+                report.projection.rows.len()
+            );
+            return Ok(AppExit::Success);
+        }
+        if let Some(request) = &options.menu_entities {
+            let limits = ui::entities::Limits::default();
+            let request = ui::entities::read_request(request, limits)?;
+            let report = ui::entities::inspect(
+                options
+                    .install
+                    .as_deref()
+                    .expect("menu requires installation"),
+                &AssetPath::new(menu.as_bytes())?,
+                &request,
+                limits,
+            )?;
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(options.report.as_ref().expect("menu requires report"))?;
+            ui::entities::write_report(file, &report, limits.output_bytes)?;
+            eprintln!(
+                "Menu selected value {}; {} unsupplied entities; tile display remains unavailable",
+                if report.resolution.value.is_some() {
+                    "resolved"
+                } else {
+                    "unavailable"
+                },
+                report.resolution.unresolved.len()
+            );
+            return Ok(AppExit::Success);
+        }
+        if let Some(request) = &options.menu_includes {
+            let limits = ui::includes::Limits::default();
+            let request = ui::includes::read_request(request, limits)?;
+            let report = ui::includes::inspect(
+                options
+                    .install
+                    .as_deref()
+                    .expect("menu requires installation"),
+                &AssetPath::new(menu.as_bytes())?,
+                options.menu_tile.as_deref(),
+                request,
+                limits,
+            )?;
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(options.report.as_ref().expect("menu requires report"))?;
+            ui::includes::write_report(file, &report, limits.output_bytes)?;
+            eprintln!(
+                "Menu include sources retained: {} files, {} exact edges; tile evaluation/display remains unavailable",
+                report.files.len(),
+                report.edges.len()
+            );
+            return Ok(AppExit::Success);
+        }
         let report = ui::inspect(
             options
                 .install
@@ -555,6 +640,7 @@ fn drive_loading(
     actions: Res<input::Actions>,
     mut state: ResMut<Loading>,
     mut context: ResMut<input::Context>,
+    mut display: ResMut<input::NativeDisplay>,
     mut orbit: ResMut<Orbit>,
     mut navigation: ResMut<Navigation>,
     mut cameras: Query<(&mut Transform, &mut Projection), InspectionCameraFilter>,
@@ -579,6 +665,7 @@ fn drive_loading(
     let epoch = state.epoch;
     let mut phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
     if closing {
+        display.0 = None;
         state.epoch = state.epoch.saturating_add(1);
         match phase {
             Phase::Preparing(mut job) | Phase::Draining(mut job) => {
@@ -602,13 +689,18 @@ fn drive_loading(
     }
     if actions.cancel_loading && !options.headless {
         phase = match phase {
-            Phase::WaitingForWindow => Phase::Cancelled,
+            Phase::WaitingForWindow => {
+                display.0 = None;
+                Phase::Cancelled
+            }
             Phase::Preparing(mut job) => {
+                display.0 = None;
                 job.cancel();
                 state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
                 Phase::Draining(job)
             }
             Phase::Uploading(queue) => {
+                display.0 = None;
                 state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
                 Phase::Disposing(queue, None)
             }
@@ -689,6 +781,14 @@ fn drive_loading(
         Phase::Uploading(mut queue) => match queue.advance(&mut commands, &mut assets, epoch) {
             Ok(false) => Phase::Uploading(queue),
             Ok(true) => {
+                display.0 = queue
+                    .cell
+                    .as_ref()
+                    .and_then(|cell| cell.native.as_ref())
+                    .map(|host| input::DisplayIdentity {
+                        scene_epoch: epoch,
+                        revision: host.revision(),
+                    });
                 *context = if options.headless || options.material_fixture {
                     input::Context::Suspended
                 } else if navigation.fly {
@@ -750,6 +850,10 @@ fn drive_loading(
                                     "Continue source-bound revision {}",
                                     observation.report.revision
                                 );
+                                display.0 = Some(input::DisplayIdentity {
+                                    scene_epoch: epoch,
+                                    revision: observation.report.revision,
+                                });
                             } else {
                                 host.failure(
                                     "Continue does not bind every active source view".into(),
@@ -770,10 +874,12 @@ fn drive_loading(
                         }
                     }
                 }
-                if actions.continue_saved {
-                    host.request(native::Request::Continue);
-                } else if actions.save {
-                    host.request(native::Request::Save);
+                if let Some(intent) = actions.native {
+                    let admitted = *context == intent.context
+                        && windows
+                            .iter()
+                            .any(|(id, window)| id == intent.window && window.focused);
+                    host.intent(intent, epoch, admitted);
                 }
             }
             Phase::Ready(queue)
@@ -1115,6 +1221,7 @@ mod tests {
             )
             .insert_resource(input::Context::Loading)
             .insert_resource(input::Actions::default())
+            .init_resource::<input::NativeDisplay>()
             .insert_resource(Loading { epoch: 7, phase })
             .insert_resource(Orbit {
                 center: Vec3::ZERO,

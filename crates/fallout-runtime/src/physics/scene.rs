@@ -1,4 +1,9 @@
-use super::{math::*, shape::Shape, *};
+use super::{
+    index::{Bounds, Candidates, Index},
+    math::*,
+    shape::Shape,
+    *,
+};
 use fallout_data::{
     coordinates::Affine,
     nif_collision::{Collision, Data},
@@ -35,6 +40,7 @@ struct Leaf {
 pub struct StaticScene {
     leaves: Vec<Leaf>,
     units: EngineeringUnits,
+    index: Option<Index>,
 }
 
 fn unsupported(block: u32, reason: &'static str) -> QueryError {
@@ -318,6 +324,7 @@ impl StaticScene {
         let mut scene = Self {
             leaves: Vec::new(),
             units,
+            index: None,
         };
         let mut cached = BTreeMap::<u32, Vec<Arc<Geometry>>>::new();
         let mut visits = limits.shape_visits;
@@ -512,6 +519,17 @@ impl StaticScene {
                 ));
             }
         }
+        let mut indexed = Vec::new();
+        let mut fallback = Vec::new();
+        for (ordinal, leaf) in scene.leaves.iter().enumerate() {
+            let (minimum, maximum) = leaf.geometry.shape.bounds();
+            if let Some(bounds) = Bounds::transformed(minimum, maximum, &leaf.transform) {
+                indexed.push((ordinal, bounds));
+            } else {
+                fallback.push(ordinal);
+            }
+        }
+        scene.index = Index::build(indexed, fallback, &mut elements)?;
         Ok(scene)
     }
     pub fn primitive_count(&self) -> usize {
@@ -546,7 +564,12 @@ impl StaticScene {
             ));
         }
         let mut hits = Vec::new();
-        for leaf in &self.leaves {
+        let candidates = match &self.index {
+            Some(index) => index.ray(ray, budget.primitive_tests)?,
+            None => Candidates::All(0..self.leaves.len()),
+        };
+        for ordinal in candidates {
+            let leaf = &self.leaves[ordinal];
             charge(&mut budget.primitive_tests, 1, "primitive tests")?;
             charge(
                 &mut budget.geometry_tests,
@@ -591,7 +614,12 @@ impl StaticScene {
             ));
         }
         let mut hits = Vec::new();
-        for leaf in &self.leaves {
+        let candidates = match &self.index {
+            Some(index) => index.overlap(center, radius, budget.primitive_tests)?,
+            None => Candidates::All(0..self.leaves.len()),
+        };
+        for ordinal in candidates {
+            let leaf = &self.leaves[ordinal];
             charge(&mut budget.primitive_tests, 1, "primitive tests")?;
             charge(
                 &mut budget.geometry_tests,

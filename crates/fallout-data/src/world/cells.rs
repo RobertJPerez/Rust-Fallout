@@ -3,18 +3,19 @@
 use super::{
     Cell, decode_cell,
     dependencies::source_cohort,
-    preparation::{CellModelPlan, Limits as ModelLimits},
+    preparation::{CellModelPlan, CellModelPlanSet, Limits as ModelLimits, ModelSetLimits},
 };
 use crate::{
     Error, Result,
     identity::{FormKey, ProfileId},
     plugin::{self, RecordHeader},
     store::{RecordStore, SourceReceipt},
+    terrain::preparation::{Limits as TerrainLimits, TextureSourcePlan},
     vfs::MountIndex,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct Limits {
@@ -121,6 +122,36 @@ impl CellGridRequest {
 pub struct CellGridSources {
     metadata: Metadata,
     grids: BTreeMap<[i32; 2], Vec<usize>>,
+}
+/// Explicit caller order, sealed against the same directory/source cohort.
+#[derive(Debug, Clone, Serialize)]
+pub struct CellGridSetRequest {
+    world: FormKey,
+    source_cohort_sha256: String,
+    requests: Vec<CellGridRequest>,
+}
+impl CellGridSetRequest {
+    pub fn world(&self) -> &FormKey {
+        &self.world
+    }
+    pub fn requests(&self) -> &[CellGridRequest] {
+        &self.requests
+    }
+}
+/// A separately selected source group, with no spatial-grid authority.
+#[derive(Debug, Clone, Serialize)]
+pub struct CellPersistentRequest {
+    world: FormKey,
+    cell: FormKey,
+    source_cohort_sha256: String,
+}
+impl CellPersistentRequest {
+    pub fn world(&self) -> &FormKey {
+        &self.world
+    }
+    pub fn cell(&self) -> &FormKey {
+        &self.cell
+    }
 }
 fn failure(message: &str) -> Error {
     Error::Resolution(format!("CELL grid sources: {message}"))
@@ -322,12 +353,155 @@ impl CellGridSources {
         mounts: &MountIndex,
         limits: ModelLimits,
     ) -> Result<CellModelPlan> {
+        self.validate_request_sources(store, request)?;
+        let plan = CellModelPlan::load(store, &request.cell, mounts, limits)?;
+        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
+            return Err(failure("CELL plan has another source cohort"));
+        }
+        Ok(plan)
+    }
+
+    pub fn request_persistent(&self) -> Result<CellPersistentRequest> {
+        // The directory has already bounded and classified winning entries.
+        // No candidate/key vector or coordinate conversion is needed here.
+        let mut candidates = self
+            .metadata
+            .entries
+            .iter()
+            .filter(|entry| entry.role == Role::PersistentGroup);
+        let entry = candidates
+            .next()
+            .ok_or_else(|| failure("persistent group missing"))?;
+        if candidates.next().is_some() {
+            return Err(failure("persistent group has multiple winning CELLs"));
+        }
+        Ok(CellPersistentRequest {
+            world: self.metadata.world.clone(),
+            cell: entry.key.clone(),
+            source_cohort_sha256: self.metadata.source_cohort_sha256.clone(),
+        })
+    }
+
+    pub fn prepare_persistent(
+        &self,
+        store: &mut RecordStore,
+        request: &CellPersistentRequest,
+        mounts: &MountIndex,
+        limits: ModelLimits,
+    ) -> Result<CellModelPlan> {
+        if request.world != self.metadata.world
+            || request.source_cohort_sha256 != self.metadata.source_cohort_sha256
+            || self.request_persistent()?.cell != request.cell
+        {
+            return Err(failure(
+                "persistent request belongs to another source directory",
+            ));
+        }
+        self.validate_current_sources(store)?;
+        let plan = CellModelPlan::load(store, &request.cell, mounts, limits)?;
+        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
+            return Err(failure("persistent plan has another source cohort"));
+        }
+        Ok(plan)
+    }
+
+    pub fn request_set(&self, grids: &[[i32; 2]]) -> Result<CellGridSetRequest> {
+        if grids.is_empty() || grids.len() > ModelSetLimits::default().grids {
+            return Err(failure("explicit grid set count bound"));
+        }
+        let mut seen = BTreeSet::new();
+        let mut requests = Vec::with_capacity(grids.len());
+        let mut metadata = 4096 + 4 * self.metadata.world.origin_plugin.len();
+        for grid in grids {
+            if !seen.insert(*grid) {
+                return Err(failure("duplicate explicit grid"));
+            }
+            let candidates = self.grids.get(grid).map(Vec::as_slice).unwrap_or(&[]);
+            let [index] = candidates else {
+                return Err(failure("explicit grid set has missing or ambiguous CELL"));
+            };
+            let cell = &self.metadata.entries[*index].key;
+            charge(
+                &mut metadata,
+                1024 + 8 * self.metadata.world.origin_plugin.len() + 8 * cell.origin_plugin.len(),
+                ModelSetLimits::default().metadata_bytes,
+                "set selection metadata",
+            )?;
+            requests.push(self.request(*grid)?);
+        }
+        Ok(CellGridSetRequest {
+            world: self.metadata.world.clone(),
+            source_cohort_sha256: self.metadata.source_cohort_sha256.clone(),
+            requests,
+        })
+    }
+
+    /// No successful partial set escapes selection, source or aggregate admission.
+    pub fn prepare_cells(
+        &self,
+        store: &mut RecordStore,
+        request: &CellGridSetRequest,
+        mounts: &MountIndex,
+        limits: ModelSetLimits,
+    ) -> Result<CellModelPlanSet> {
+        let limits = limits.validate()?;
+        if request.world != self.metadata.world
+            || request.source_cohort_sha256 != self.metadata.source_cohort_sha256
+        {
+            return Err(failure("set belongs to another source directory"));
+        }
+        let usage = CellModelPlanSet::preflight(
+            &request.world,
+            &request.requests,
+            &self.metadata.sources,
+            limits,
+        )?;
+        for cell in &request.requests {
+            self.validate_request_sources(store, cell)?;
+        }
+        CellModelPlanSet::load(
+            store,
+            &request.world,
+            &request.source_cohort_sha256,
+            &request.requests,
+            mounts,
+            limits,
+            usage,
+        )
+    }
+
+    /// Prepare existing strict LAND/world/layer/texture sources for the sealed
+    /// explicit CELL. This does not admit inheritance or a terrain surface.
+    pub fn prepare_terrain(
+        &self,
+        store: &mut RecordStore,
+        request: &CellGridRequest,
+        mounts: &MountIndex,
+        limits: TerrainLimits,
+    ) -> Result<TextureSourcePlan> {
+        self.validate_request_sources(store, request)?;
+        let plan = TextureSourcePlan::load(store, &request.cell, mounts, limits)?;
+        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
+            return Err(failure("terrain plan has another source cohort"));
+        }
+        Ok(plan)
+    }
+
+    fn validate_request_sources(
+        &self,
+        store: &mut RecordStore,
+        request: &CellGridRequest,
+    ) -> Result<()> {
         if request.world != self.metadata.world
             || request.source_cohort_sha256 != self.metadata.source_cohort_sha256
             || self.request(request.grid)?.cell != request.cell
         {
             return Err(failure("request belongs to another source directory"));
         }
+        self.validate_current_sources(store)
+    }
+
+    fn validate_current_sources(&self, store: &mut RecordStore) -> Result<()> {
         // Reject added sources before receipt allocation or hashing their bodies.
         if store.indices().len() != self.metadata.sources.len() {
             return Err(failure("source cohort count changed"));
@@ -340,10 +514,6 @@ impl CellGridSources {
         }) {
             return Err(failure("ordered source cohort changed"));
         }
-        let plan = CellModelPlan::load(store, &request.cell, mounts, limits)?;
-        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
-            return Err(failure("CELL plan has another source cohort"));
-        }
-        Ok(plan)
+        Ok(())
     }
 }

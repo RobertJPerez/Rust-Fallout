@@ -10,6 +10,11 @@ use fallout_data::{
         preparation::{Limits, TexturePreparation, TextureSourcePlan},
     },
     vfs::MountIndex,
+    world::{
+        cells::CellGridSources,
+        preparation::CellModelPlan,
+        residency::{CellResidency, Readiness, Stage, TerrainState, TexturePlan},
+    },
 };
 use flate2::{Compression, write::ZlibEncoder};
 use sha2::{Digest, Sha256};
@@ -243,6 +248,390 @@ fn drained(preparation: &TexturePreparation) {
         std::thread::sleep(Duration::from_millis(1));
     }
     assert_eq!(preparation.usage().decoded_bytes, 0);
+}
+
+#[test]
+fn empty_cell_terrain_leases_keep_quota_and_refuse_incomplete_default_or_ambiguous_sources() {
+    for case in 0..3 {
+        let bytes = if case == 0 {
+            source(0, Some(0x500), 0, &[(b"TX00", b"land/stone.dds")], false, 0)
+        } else if case == 1 {
+            source(
+                0x400,
+                Some(0x500),
+                0,
+                &[(b"TX00", b"land/missing.dds")],
+                false,
+                0,
+            )
+        } else {
+            default_source(0)
+        };
+        let fixture = Fixture::new(&bytes);
+        let mut mounts = fixture.mounts();
+        if case == 2 {
+            let second = fixture.source.path().join("Data/ambiguous.bsa");
+            fs::write(&second, archive(&[(b"stone.dds", &[8, 9])])).unwrap();
+            NvArchive::open(&second)
+                .unwrap()
+                .census(&mut mounts)
+                .unwrap();
+        }
+        let mut store = fixture.store();
+        let models = CellModelPlan::load(&mut store, &key(), &mounts, Default::default()).unwrap();
+        let model_metadata = models.receipt().usage.metadata_bytes;
+        assert!(models.receipt().requests.is_empty());
+        let terrain =
+            TextureSourcePlan::load(&mut store, &key(), &mounts, Default::default()).unwrap();
+        let terrain_metadata = terrain.receipt().usage.metadata_bytes;
+        let mapped: u64 = terrain
+            .receipt()
+            .archives
+            .iter()
+            .map(|a| a.source_bytes)
+            .sum();
+        if case == 0 {
+            assert!(terrain.receipt().texture_sources.unapplied_default_layers > 0);
+        } else {
+            assert!(terrain.receipt().texture_sources.failures > 0);
+        }
+        let mut owner = CellResidency::new(
+            fixture.source.path(),
+            Some(fixture.cache.path()),
+            Default::default(),
+        )
+        .unwrap();
+        let ticket = owner.request(models).unwrap();
+        assert_eq!(owner.poll().unwrap().stage, Stage::Decoded);
+        let textures =
+            TexturePlan::load(owner.sources(&ticket).unwrap(), &mounts, Default::default())
+                .unwrap();
+        owner.request_textures(&ticket, textures).unwrap();
+        owner.request_terrain(&ticket, terrain).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while owner.poll().unwrap().terrain_state == TerrainState::IoPending {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(owner.snapshot().terrain_state, TerrainState::Unsupported);
+        assert!(!owner.snapshot().simulation_ready);
+        assert!(
+            owner
+                .report_dependencies(&ticket, Readiness::Ready)
+                .is_err()
+        );
+        let sources = owner.terrain_sources(&ticket).unwrap();
+        owner.unload().unwrap();
+        let held = owner.poll().unwrap();
+        assert_eq!(held.stage, Stage::Unloading);
+        assert_eq!(held.retained_plans, 1);
+        assert_eq!(held.plan_metadata_bytes, model_metadata + terrain_metadata);
+        assert_eq!(held.mapped_source_bytes, mapped);
+        assert!(sources.receipt().is_err());
+        drop(sources);
+        assert_eq!(owner.poll().unwrap().stage, Stage::Unrequested);
+        assert_eq!(owner.snapshot().outstanding, 0);
+        assert_eq!(owner.snapshot().plan_metadata_bytes, 0);
+        assert_eq!(owner.snapshot().mapped_source_bytes, 0);
+    }
+}
+
+#[test]
+fn terrain_admission_rejects_another_cell_in_the_identical_complete_cohort() {
+    let mut bytes = default_source(0);
+    let other = [
+        record(
+            b"CELL",
+            0x201,
+            0,
+            &[
+                sub(b"DATA", &[0]),
+                sub(b"XCLC", &[1i32.to_le_bytes().as_slice(), &[0; 8]].concat()),
+            ]
+            .concat(),
+        ),
+        group(
+            0x201,
+            6,
+            &group(
+                0x201,
+                9,
+                &record(b"LAND", 0x301, 0, &layer(b"BTXT", 0x400, 0)),
+            ),
+        ),
+    ]
+    .concat();
+    bytes.extend(group(0x100, 1, &other));
+    let fixture = Fixture::new(&bytes);
+    let mounts = fixture.mounts();
+    let mut store = fixture.store();
+    let models = CellModelPlan::load(&mut store, &key(), &mounts, Default::default()).unwrap();
+    let mut other_key = key();
+    other_key.local_id = 0x201;
+    let terrain =
+        TextureSourcePlan::load(&mut store, &other_key, &mounts, Default::default()).unwrap();
+    assert_eq!(
+        models.receipt().source_cohort_sha256,
+        terrain.receipt().source_cohort_sha256
+    );
+    let mut owner = CellResidency::new(
+        fixture.source.path(),
+        Some(fixture.cache.path()),
+        Default::default(),
+    )
+    .unwrap();
+    let ticket = owner.request(models).unwrap();
+    owner.poll().unwrap();
+    let before = owner.snapshot();
+    assert!(matches!(
+        owner.request_terrain(&ticket, terrain),
+        Err(JobError::Invalid(_))
+    ));
+    let after = owner.snapshot();
+    assert_eq!(after.terrain_state, TerrainState::Unrequested);
+    assert_eq!(after.plan_metadata_bytes, before.plan_metadata_bytes);
+    assert_eq!(after.mapped_source_bytes, before.mapped_source_bytes);
+    assert_eq!(after.outstanding, 0);
+    ticket.check().unwrap();
+}
+
+fn grid_sources(store: &mut RecordStore) -> CellGridSources {
+    CellGridSources::load(
+        store,
+        &FormKey {
+            local_id: 0x100,
+            ..key()
+        },
+        Default::default(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn sealed_grid_terrain_uses_existing_exact_plan_jobs_cache_and_epoch() {
+    let fixture = Fixture::new(&default_source(0));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let mounts = fixture.mounts();
+    let plan = directory
+        .prepare_terrain(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    let direct = fixture.plan(&mut store);
+    assert_eq!(
+        serde_json::to_vec(plan.receipt()).unwrap(),
+        serde_json::to_vec(direct.receipt()).unwrap()
+    );
+    assert_eq!(plan.root(), request.cell());
+    assert_eq!(
+        plan.receipt().source_cohort_sha256,
+        directory.metadata().source_cohort_sha256
+    );
+    let models = directory
+        .prepare_cell(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    assert_eq!(
+        models.receipt().source_cohort_sha256,
+        plan.receipt().source_cohort_sha256
+    );
+    assert_eq!(plan.receipt().requests.len(), 2);
+    assert_eq!(plan.receipt().usage.texture_bytes, 9);
+    let mut preparation = fixture.prepare(plan.clone());
+    let old = preparation.wait().unwrap();
+    preparation.cancel();
+    assert!(matches!(
+        old.publish_for(plan.terrain()),
+        Err(JobError::Cancelled)
+    ));
+    preparation.retry().unwrap();
+    let ready = preparation
+        .wait()
+        .unwrap()
+        .publish_for(plan.terrain())
+        .unwrap();
+    assert_eq!(ready.textures.len(), 2);
+    assert!(
+        ready
+            .textures
+            .iter()
+            .all(|texture| texture.cache.as_ref().unwrap().reused)
+    );
+    assert_eq!(
+        ready.textures[0].sha256,
+        format!("{:x}", Sha256::digest([5, 6, 7, 8, 9]))
+    );
+    assert_eq!(
+        ready.textures[1].sha256,
+        format!("{:x}", Sha256::digest([1, 2, 3, 4]))
+    );
+    assert!(ready.all_requested_texture_sources_ready);
+    assert!(ready.all_authored_texture_sources_resolved);
+    assert!(!ready.runtime_ready);
+    drained(&preparation);
+}
+
+#[test]
+fn terrain_grid_factory_refuses_changed_source_count_order_bytes_and_directory() {
+    let fixture = Fixture::new(&default_source(0));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    drop(store);
+    let data = fixture.source.path().join("Data");
+    let empty = record(
+        b"TES4",
+        0,
+        0,
+        &sub(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        ),
+    );
+    fs::write(data.join("One.esm"), &empty).unwrap();
+    fs::write(data.join("Two.esm"), &empty).unwrap();
+    let open = |names: &[&str]| {
+        RecordStore::open_nv_headers(
+            &data,
+            &names
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect::<Vec<_>>(),
+            plugin::Limits::default(),
+        )
+        .unwrap()
+    };
+    let mut extra = open(&["FalloutNV.esm", "One.esm"]);
+    let error = directory
+        .prepare_terrain(&mut extra, &request, &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("source cohort count changed"));
+    drop(extra);
+    let mut ordered = open(&["FalloutNV.esm", "One.esm", "Two.esm"]);
+    let ordered_directory = grid_sources(&mut ordered);
+    let ordered_request = ordered_directory.request([0, 0]).unwrap();
+    drop(ordered);
+    let mut reordered = open(&["FalloutNV.esm", "Two.esm", "One.esm"]);
+    let error = ordered_directory
+        .prepare_terrain(
+            &mut reordered,
+            &ordered_request,
+            &fixture.mounts(),
+            Default::default(),
+        )
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("ordered source cohort changed"));
+    drop(reordered);
+    fs::write(data.join("FalloutNV.esm"), default_source(1)).unwrap();
+    let mut changed = fixture.store();
+    let error = directory
+        .prepare_terrain(
+            &mut changed,
+            &request,
+            &fixture.mounts(),
+            Default::default(),
+        )
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("ordered source cohort changed"));
+    let fresh = grid_sources(&mut changed);
+    let error = fresh
+        .prepare_terrain(
+            &mut changed,
+            &request,
+            &fixture.mounts(),
+            Default::default(),
+        )
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("another source directory"));
+    drop(changed);
+    let other = group(
+        0x101,
+        1,
+        &record(
+            b"CELL",
+            0x201,
+            0,
+            &[sub(b"DATA", &[0]), sub(b"XCLC", &[0; 8])].concat(),
+        ),
+    );
+    let bytes = [
+        default_source(0),
+        record(b"WRLD", 0x101, 0, &sub(b"DATA", &[0])),
+        other,
+    ]
+    .concat();
+    fs::write(data.join("FalloutNV.esm"), bytes).unwrap();
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let other = CellGridSources::load(
+        &mut store,
+        &FormKey {
+            local_id: 0x101,
+            ..key()
+        },
+        Default::default(),
+    )
+    .unwrap();
+    let error = other
+        .prepare_terrain(&mut store, &request, &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("another source directory"));
+    assert_eq!(fs::read_dir(fixture.cache.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn grid_terrain_keeps_existing_strict_land_and_texture_plan_bounds() {
+    let fixture = Fixture::new(&default_source(0));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    for limits in [
+        Limits {
+            records: 0,
+            ..Default::default()
+        },
+        Limits {
+            texture_bytes: 8,
+            ..Default::default()
+        },
+        Limits {
+            layers: 4097,
+            ..Default::default()
+        },
+    ] {
+        assert!(
+            directory
+                .prepare_terrain(&mut store, &request, &fixture.mounts(), limits)
+                .is_err()
+        );
+    }
+    assert_eq!(fs::read_dir(fixture.cache.path()).unwrap().count(), 0);
+    let fixture = Fixture::new(&source(
+        0x400,
+        Some(0x500),
+        0,
+        &[(b"TX00", b"land/stone.dds")],
+        true,
+        0,
+    ));
+    let mut store = fixture.store();
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let error = directory
+        .prepare_terrain(&mut store, &request, &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(
+        error
+            .to_string()
+            .contains("exactly one winning present LAND")
+    );
+    assert_eq!(fs::read_dir(fixture.cache.path()).unwrap().count(), 0);
 }
 
 #[test]
@@ -644,6 +1033,16 @@ fn forensic_texture_body_cannot_construct_a_ready_plan_or_cache() {
     .unwrap();
     assert_eq!(store.integrity_failures(), 1);
     let error = TextureSourcePlan::load(&mut store, &key(), &fixture.mounts(), Default::default())
+        .err()
+        .unwrap();
+    assert!(
+        error.to_string().contains("refuses tainted source cohort"),
+        "{error}"
+    );
+    let directory = grid_sources(&mut store);
+    let request = directory.request([0, 0]).unwrap();
+    let error = directory
+        .prepare_terrain(&mut store, &request, &fixture.mounts(), Default::default())
         .err()
         .unwrap();
     assert!(

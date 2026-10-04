@@ -388,6 +388,11 @@ impl Repository {
     pub fn path(&self) -> &Path {
         &self.root
     }
+    /// Cached identity of the explicitly opened repository. A later load still
+    /// revalidates the marker and source; this does not inspect a slot.
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
     fn validate_marker(&self) -> Result<()> {
         plain(&self.root, true)?;
         if read_plain(&self.root.join(".rust-fallout-saves"), MARKER.len() + 16)?

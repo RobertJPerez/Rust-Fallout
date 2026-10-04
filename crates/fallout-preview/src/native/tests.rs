@@ -168,6 +168,165 @@ fn stop(mut host: Host) {
     host.shutdown.finish().unwrap();
 }
 
+fn wait_finished(shutdown: &Shutdown) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if shutdown
+            .0
+            .tasks
+            .lock()
+            .unwrap()
+            .iter()
+            .all(JoinHandle::is_finished)
+        {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "disconnected native owner did not return"
+        );
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn nine_sequential_disconnected_hosts_reuse_completed_owner_slots() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    let before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    for index in 0..9 {
+        let (host, observation) = f
+            .session()
+            .start([0.; 3], shutdown.clone())
+            .unwrap_or_else(|error| panic!("sequential host {} refused: {error}", index + 1));
+        assert_eq!(observation.report.revision, f.world.revision());
+        drop(host);
+        wait_finished(&shutdown);
+    }
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 1);
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before
+    );
+    shutdown.finish().unwrap();
+    assert!(shutdown.0.tasks.lock().unwrap().is_empty());
+}
+
+#[test]
+fn eight_outstanding_hosts_refuse_ninth_then_reclaim_only_finished_owner() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    let before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let mut hosts = Vec::new();
+    for _ in 0..8 {
+        hosts.push(f.session().start([0.; 3], shutdown.clone()).unwrap().0);
+    }
+    assert!(
+        shutdown
+            .0
+            .tasks
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|task| !task.is_finished())
+    );
+    let Err(error) = f.session().start([0.; 3], shutdown.clone()) else {
+        panic!("ninth outstanding owner was admitted");
+    };
+    assert!(error.to_string().contains("eight-outstanding-owner"));
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 8);
+    drop(hosts.pop());
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !shutdown
+        .0
+        .tasks
+        .lock()
+        .unwrap()
+        .iter()
+        .any(JoinHandle::is_finished)
+    {
+        assert!(
+            Instant::now() < deadline,
+            "disconnected owner did not return"
+        );
+        thread::yield_now();
+    }
+    hosts.push(f.session().start([0.; 3], shutdown.clone()).unwrap().0);
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 8);
+    assert!(
+        shutdown
+            .0
+            .tasks
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|task| !task.is_finished())
+    );
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before
+    );
+    drop(hosts);
+    shutdown.finish().unwrap();
+}
+
+#[test]
+fn reused_owner_slot_preserves_disconnected_accepted_write_and_real_receipt() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    let (mut host, before) = f.session().start([0.; 3], shutdown.clone()).unwrap();
+    assert!(host.request(Request::Save));
+    drop(host);
+    wait_finished(&shutdown); // no final shutdown: retry admission stays open
+    let (mut fresh, observation) = f.session().start([0.; 3], shutdown.clone()).unwrap();
+    assert_eq!(observation.report.load.metadata.generation, 2);
+    assert_eq!(observation.report.revision, before.report.revision);
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 1);
+    assert!(!fresh.published()); // reclaimed join is not this host's save result
+    assert!(fresh.request(Request::Save));
+    let Event::Saved(receipt) = event(&mut fresh) else {
+        panic!("retry did not return actual publication receipt");
+    };
+    assert_eq!(receipt.metadata.generation, 3);
+    assert_eq!(receipt.metadata.state_revision, before.report.revision);
+    assert!(fresh.published());
+    drop(fresh);
+    shutdown.finish().unwrap();
+    assert!(f.session().start([0.; 3], shutdown).is_err());
+}
+
+#[test]
+fn reaped_owner_panic_stays_failure_for_retry_and_repeated_shutdown() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    shutdown
+        .0
+        .tasks
+        .lock()
+        .unwrap()
+        .push(thread::spawn(|| panic!("controlled native owner panic")));
+    wait_finished(&shutdown);
+    let Err(error) = f.session().start([0.; 3], shutdown.clone()) else {
+        panic!("collected owner panic was hidden by retry");
+    };
+    assert!(error.to_string().contains("panicked before retry"));
+    assert!(shutdown.0.tasks.lock().unwrap().is_empty());
+    assert!(
+        shutdown
+            .finish()
+            .unwrap_err()
+            .to_string()
+            .contains("panicked")
+    );
+    assert!(
+        shutdown
+            .finish()
+            .unwrap_err()
+            .to_string()
+            .contains("panicked")
+    );
+}
+
 #[test]
 fn shutdown_drains_an_admitted_request_without_claiming_join_as_success() {
     let f = fixture();
@@ -324,6 +483,166 @@ fn actual_save_success_requires_publication_and_writer_failure_stays_failure() {
         fs::read(f.repository.path().join("current.frsv")).unwrap(),
         current
     );
+    stop(host);
+}
+
+fn intent(
+    revision: u64,
+    sequence: u64,
+    action: crate::input::NativeAction,
+) -> crate::input::NativeIntent {
+    crate::input::NativeIntent {
+        action,
+        display: crate::input::DisplayIdentity {
+            scene_epoch: 7,
+            revision,
+        },
+        sequence,
+        context: crate::input::Context::Orbit,
+        focused: true,
+        window: Entity::PLACEHOLDER,
+        device: crate::input::Device::Keyboard,
+    }
+}
+
+#[test]
+fn typed_native_intents_cannot_replay_or_act_on_another_display_boundary() {
+    let f = fixture();
+    let before_file = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let before_world = f.world.snapshot();
+    let (mut host, observation) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    let revision = observation.report.revision;
+    assert!(!host.intent(
+        intent(revision + 1, 1, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    assert!(!host.intent(
+        intent(revision, 2, crate::input::NativeAction::Save),
+        8,
+        true
+    ));
+    assert!(!host.intent(
+        intent(revision, 3, crate::input::NativeAction::Save),
+        7,
+        false
+    ));
+    let mut loading = intent(revision, 4, crate::input::NativeAction::Save);
+    loading.context = crate::input::Context::Loading;
+    assert!(!host.intent(loading, 7, true));
+    let mut unfocused = intent(revision, 5, crate::input::NativeAction::Save);
+    unfocused.focused = false;
+    assert!(!host.intent(unfocused, 7, true));
+    assert!(!host.pending);
+    assert!(host.poll().is_none());
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before_file
+    );
+    let current = intent(revision, 6, crate::input::NativeAction::Save);
+    assert!(host.intent(current, 7, true));
+    assert!(!host.intent(current, 7, true));
+    let busy = intent(revision, 7, crate::input::NativeAction::Save);
+    assert!(!host.intent(busy, 7, true));
+    let Event::Saved(receipt) = event(&mut host) else {
+        panic!("fresh typed save failed");
+    };
+    assert_eq!(receipt.metadata.generation, 2);
+    assert_eq!(receipt.metadata.state_revision, revision);
+    assert!(!host.intent(busy, 7, true));
+    assert!(host.poll().is_none());
+    let after_file = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    assert!(!host.intent(current, 7, true));
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        after_file
+    );
+    assert_eq!(f.world.snapshot(), before_world);
+    assert!(host.intent(
+        intent(revision, 8, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    let Event::Saved(receipt) = event(&mut host) else {
+        panic!("next fresh save failed");
+    };
+    assert_eq!(receipt.metadata.generation, 3);
+    stop(host);
+}
+
+#[test]
+fn continued_world_rejects_input_sampled_from_previous_revision() {
+    let mut f = fixture();
+    let (mut host, before) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    set(
+        &mut f.world,
+        &f.cell,
+        &f.keys[0],
+        [100., 20., 30.],
+        Some(1.),
+        true,
+    );
+    f.repository
+        .commit(&Captured::at_boundary(&f.world))
+        .unwrap();
+    assert!(host.intent(
+        intent(
+            before.report.revision,
+            1,
+            crate::input::NativeAction::Continue
+        ),
+        7,
+        true
+    ));
+    let Event::Continued(after) = event(&mut host) else {
+        panic!("typed Continue failed");
+    };
+    assert!(after.report.revision > before.report.revision);
+    let bytes = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    assert!(!host.intent(
+        intent(before.report.revision, 2, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    assert!(!host.pending);
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        bytes
+    );
+    assert!(host.intent(
+        intent(after.report.revision, 3, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    let Event::Saved(receipt) = event(&mut host) else {
+        panic!("fresh restored-boundary save failed");
+    };
+    assert_eq!(receipt.metadata.state_revision, after.report.revision);
+    stop(host);
+}
+
+#[test]
+fn actual_canonical_owner_refuses_bad_revision_before_any_publication() {
+    let f = fixture();
+    let before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let (mut host, observation) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    host.commands
+        .as_ref()
+        .unwrap()
+        .try_send(Command {
+            request: Request::Save,
+            expected_revision: observation.report.revision + 1,
+        })
+        .unwrap();
+    host.pending = true;
+    assert!(
+        matches!(event(&mut host), Event::Failed(error) if error.contains("command revision differs"))
+    );
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before
+    );
+    assert!(!host.published());
     stop(host);
 }
 

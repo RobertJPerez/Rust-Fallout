@@ -105,6 +105,8 @@ struct Builder<'a> {
     expand_requested: Vec<bool>,
     pending: VecDeque<usize>,
     edges: Vec<Edge>,
+    read_bytes: usize,
+    max_read_bytes: usize,
 }
 
 impl Builder<'_> {
@@ -203,13 +205,22 @@ impl Builder<'_> {
         self.budget.metadata(node.key.origin_plugin.len())?;
         let key = node.key.clone();
         let location = self.store.winner(&key).expect("admitted winning identity");
-        let maximum = self.budget.read_maximum();
-        if maximum == 0 {
+        let maximum = self
+            .budget
+            .read_maximum()
+            .min(self.max_read_bytes - self.read_bytes);
+        if maximum == 0 && (self.max_read_bytes == usize::MAX || node.header.stored_size != 0) {
             return Err(failure("decoded bytes", "no record allowance remains"));
         }
         // Both stored and declared decoded lengths are rejected before allocation
         // by the existing strict reader. The aggregate remainder cannot be bypassed.
         let record = self.store.read_bounded(location, maximum)?;
+        charge(
+            &mut self.read_bytes,
+            record.payload.len().max(record.header.stored_size as usize),
+            self.max_read_bytes,
+            "source read bytes",
+        )?;
         if record.integrity_issue.is_some() {
             return Err(Error::Resolution(
                 "world dependency refuses tainted requested body".into(),
@@ -361,6 +372,17 @@ impl Builder<'_> {
 /// tombstones. Other CELLs, actor extras, LAND and navmesh bodies stay deferred.
 /// No result escapes on an admission, framing, integrity or decoding failure.
 pub fn inspect_cell_key(store: &mut RecordStore, root: &FormKey, limits: Limits) -> Result<Report> {
+    inspect_cell_key_read_bounded(store, root, limits, usize::MAX)
+}
+
+/// Private preparation admission: stored and decoded reads share a caller's
+/// remaining aggregate allowance. Standalone inspection retains its old limits.
+pub(in crate::world) fn inspect_cell_key_read_bounded(
+    store: &mut RecordStore,
+    root: &FormKey,
+    limits: Limits,
+    max_read_bytes: usize,
+) -> Result<Report> {
     let mut budget = Budget::new(limits)?;
     budget.metadata(1024 + 2 * root.origin_plugin.len())?;
     if root.profile != ProfileId::NvOriginal {
@@ -403,6 +425,8 @@ pub fn inspect_cell_key(store: &mut RecordStore, root: &FormKey, limits: Limits)
         expand_requested: Vec::new(),
         pending: VecDeque::new(),
         edges: Vec::new(),
+        read_bytes: 0,
+        max_read_bytes,
     };
     builder.admit(root, true)?;
     let mut members = Vec::new();

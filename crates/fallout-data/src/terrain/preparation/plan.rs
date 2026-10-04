@@ -65,7 +65,7 @@ impl TextureSourcePlan {
     pub fn root(&self) -> &FormKey {
         &self.0.receipt.root
     }
-    pub(super) fn member(&self, index: usize) -> Result<Member> {
+    pub(crate) fn member(&self, index: usize) -> Result<Member> {
         let request = &self.receipt().requests[index];
         self.0.requests[index]
             .input

@@ -5,7 +5,7 @@ use crate::{
     identity::FormKey,
     loaded_scripts::{Catalogue, Handle, OwnerKind, ReferenceStatus, ScriptKey},
     narrative, plugin,
-    store::{Location, RecordStore},
+    store::{Location, RecordStore, SourceReceipt},
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -65,9 +65,15 @@ pub struct Counts {
 
 pub struct Attachments {
     quests: BTreeMap<FormKey, Attachment>,
+    source_receipts: Vec<SourceReceipt>,
     pub counts: Counts,
 }
 impl Attachments {
+    /// Complete ordered loader receipts for consumers requiring a full cohort.
+    /// The older static declaration join retains its narrower source contract.
+    pub fn source_receipts(&self) -> &[SourceReceipt] {
+        &self.source_receipts
+    }
     pub fn get(&self, key: &FormKey) -> Option<&Attachment> {
         self.quests.get(key)
     }
@@ -115,6 +121,7 @@ impl Attachments {
         }
         let mut result = Self {
             quests: BTreeMap::new(),
+            source_receipts: Vec::new(),
             counts: Counts::default(),
         };
         for (key, location) in locations {
@@ -183,6 +190,7 @@ impl Attachments {
             *result.counts.statuses.entry(status).or_default() += 1;
             result.quests.insert(key, attachment);
         }
+        result.source_receipts = sources;
         Ok(result)
     }
 }

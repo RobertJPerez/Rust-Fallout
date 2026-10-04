@@ -1,5 +1,6 @@
 //! Authored byte fixtures and analytic expectations independent of pose helpers.
 use fallout_data::nif_skin::pose::{self, Limits, Request, WeightPolicy};
+use sha2::Digest;
 
 const NULL: u32 = u32::MAX;
 const ID: [[f32; 3]; 3] = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]];
@@ -174,6 +175,1030 @@ fn refusal(blocks: &[(&str, Vec<u8>)], expected: &str) {
     assert!(error.to_string().contains(expected), "{error}");
 }
 
+fn shared_fixture() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = fixture();
+    blocks[0].1 = node(R90, [10., 20., 30.], 3., &[1, 3, 7]);
+    let mut shape = av(RM90, [777., -777., 1000.], 11.);
+    words(&mut shape, &[10, 8, 0, NULL]);
+    shape.push(0);
+    let mut instance = Vec::new();
+    words(&mut instance, &[9, NULL, 0, 2, 2, 1]);
+    let mut second_skin = Vec::new();
+    transform(&mut second_skin, RM90, [3., 4., 5.], 2.);
+    words(&mut second_skin, &[2]);
+    second_skin.push(1);
+    for weight in [0.75, 0.25] {
+        transform(&mut second_skin, ID, [0., 0., 0.], 1.);
+        floats(&mut second_skin, &[0., 0., 0., 10.]);
+        shorts(&mut second_skin, &[3]);
+        for vertex in 0..3 {
+            shorts(&mut second_skin, &[vertex]);
+            floats(&mut second_skin, &[weight]);
+        }
+    }
+    blocks.extend([
+        ("NiTriShape", shape),
+        ("NiSkinInstance", instance),
+        ("NiSkinData", second_skin),
+        ("NiTriShapeData", mesh()),
+    ]);
+    blocks
+}
+fn shared_requests() -> [Request; 2] {
+    [
+        request(),
+        Request {
+            geometry: 7,
+            weights: WeightPolicy::PreserveRawNonnegative,
+        },
+    ]
+}
+fn source_digest(bytes: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).into()
+}
+
+fn subset_packet(map: &[u16], strip: bool) -> Vec<u8> {
+    let mut out = Vec::new();
+    shorts(
+        &mut out,
+        &[map.len() as u16, 1, 2, u16::from(strip), 4, 1, 0],
+    );
+    out.push(1);
+    shorts(&mut out, map);
+    out.push(1);
+    // Deliberately differs from NiSkinData: this producer projects that existing
+    // CPU geometry pose, without substituting a hardware partition weight rule.
+    for _ in map {
+        floats(&mut out, &[0.75, 0., 0.25, 0.]);
+    }
+    if strip {
+        shorts(&mut out, &[4]);
+    }
+    out.push(1);
+    shorts(&mut out, if strip { &[1, 0, 0, 1] } else { &[2, 0, 1] });
+    out.push(1);
+    for _ in map {
+        out.extend([0, 1, 0, 1]);
+    }
+    out
+}
+fn subset_fixture() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = fixture();
+    blocks[2].1 = node(R90, [0., 5., 0.], 2., &[]);
+    blocks[5].1 = skin(
+        &[vec![(0, 0.25), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    blocks[4].1[4..8].copy_from_slice(&7u32.to_le_bytes());
+    let mut part = Vec::new();
+    words(&mut part, &[2]);
+    part.extend(subset_packet(&[2, 0, 2], false));
+    part.extend(subset_packet(&[1, 2], true));
+    blocks.push(("NiSkinPartition", part));
+    blocks
+}
+fn subset_request(bytes: &[u8], ordinal: usize) -> pose::partition::Request {
+    pose::partition::Request {
+        expected_source_sha256: source_digest(bytes),
+        skin: request(),
+        partition_block: 7,
+        partition_ordinal: ordinal,
+    }
+}
+#[test]
+fn partition_subset_noncommuting_source_pose_has_literal_coordinates_palette_frame_and_identity() {
+    let bytes = container(&subset_fixture(), &[0]);
+    let result = pose::partition::evaluate(
+        &bytes,
+        "subset",
+        subset_request(&bytes, 0),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            result.geometry,
+            result.geometry_data,
+            result.instance,
+            result.skin_data,
+            result.skeleton_root,
+            result.partition.block,
+            result.partition.ordinal,
+            result.source_vertex_count
+        ),
+        (3, 6, 4, 5, 0, 7, 0, 3)
+    );
+    assert_eq!(
+        result
+            .vertices
+            .iter()
+            .map(|v| (
+                v.partition_vertex,
+                v.source_vertex,
+                v.position,
+                v.normal,
+                v.weight_sum
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (0, 2, [-6., -3., 6.], Some([-2., 0., 0.]), 1.),
+            (1, 0, [-9., 5., 10.], Some([-2., 0., 0.]), 1.),
+            (2, 2, [-6., -3., 6.], Some([-2., 0., 0.]), 1.)
+        ]
+    );
+    assert_eq!(
+        result.palette[0].matrix,
+        [[0., -2., 0., -2.], [2., 0., 0., 3.], [0., 0., 2., 4.]]
+    );
+    assert_eq!(
+        result.palette[1].matrix,
+        [[0., -2., 0., -6.], [2., 0., 0., 3.], [0., 0., 2., 4.]]
+    );
+    assert_eq!(
+        result.skin_to_source_world,
+        [[1.5, 0., 0., 13.], [0., 1.5, 0., 15.5], [0., 0., 1.5, 24.]]
+    );
+    assert_eq!(
+        result
+            .partition_palette
+            .iter()
+            .map(|p| (p.local_bone, p.global_bone_ordinal, p.source_bone_node))
+            .collect::<Vec<_>>(),
+        [(0, 1, 2), (1, 0, 1)]
+    );
+    assert_eq!(result.source_to_partition_offsets, [0, 1, 1, 3]);
+    assert_eq!(result.source_to_partition_vertices, [1, 0, 2]);
+    assert_eq!(
+        result.source_sha256,
+        format!("{:x}", sha2::Sha256::digest(&bytes))
+    );
+    let payload = &subset_fixture()[7].1;
+    let offset = bytes
+        .windows(payload.len())
+        .position(|p| p == payload)
+        .unwrap();
+    assert_eq!(
+        (result.partition.offset, result.partition.bytes),
+        (offset, payload.len())
+    );
+    assert_eq!(
+        (
+            result.usage.binding_decodes,
+            result.usage.scene_decodes,
+            result.usage.geometry_deformations
+        ),
+        (1, 1, 1)
+    );
+    assert!(!result.retail_behavior_verified);
+}
+#[test]
+fn partition_subset_retains_triangle_strip_order_repeated_vertices_and_observed_body_parts() {
+    let mut blocks = subset_fixture();
+    blocks[4].0 = "BSDismemberSkinInstance";
+    words(&mut blocks[4].1, &[2]);
+    shorts(&mut blocks[4].1, &[257, 7000, 1, 10]);
+    let bytes = container(&blocks, &[0]);
+    let tri =
+        pose::partition::evaluate(&bytes, "tri", subset_request(&bytes, 0), Default::default())
+            .unwrap();
+    let strip = pose::partition::evaluate(
+        &bytes,
+        "strip",
+        subset_request(&bytes, 1),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(tri.topology).unwrap(),
+        serde_json::json!({"kind":"triangles","triangles":[[2,0,1]]})
+    );
+    assert_eq!(
+        serde_json::to_value(strip.topology).unwrap(),
+        serde_json::json!({"kind":"strips","lengths":[4],"strips":[[1,0,0,1]]})
+    );
+    assert_eq!(
+        (
+            tri.body_part.unwrap().flags,
+            tri.body_part.unwrap().body_part
+        ),
+        (257, 7000)
+    );
+    assert_eq!(
+        (
+            strip.body_part.unwrap().flags,
+            strip.body_part.unwrap().body_part
+        ),
+        (1, 10)
+    );
+    assert_eq!(
+        strip
+            .vertices
+            .iter()
+            .map(|v| v.position)
+            .collect::<Vec<_>>(),
+        [[0., 11., 8.], [-6., -3., 6.]]
+    );
+    assert_eq!(strip.source_to_partition_offsets, [0, 0, 1, 2]);
+    assert_eq!(strip.source_to_partition_vertices, [0, 1]);
+    assert_eq!(strip.declared_triangles, 1);
+}
+#[test]
+fn partition_subset_identity_membership_body_count_and_missing_arrays_refuse_atomically() {
+    let blocks = subset_fixture();
+    let bytes = container(&blocks, &[0]);
+    let request = subset_request(&bytes, 0);
+    let mut stale = request;
+    stale.expected_source_sha256[0] ^= 1;
+    for (request, expected) in [
+        (stale, "SHA256 differs"),
+        (
+            pose::partition::Request {
+                skin: Request {
+                    geometry: 0,
+                    ..request.skin
+                },
+                ..request
+            },
+            "no decoded skin owner",
+        ),
+        (
+            pose::partition::Request {
+                partition_block: 5,
+                ..request
+            },
+            "partition link differs",
+        ),
+        (
+            pose::partition::Request {
+                partition_ordinal: 2,
+                ..request
+            },
+            "ordinal unavailable",
+        ),
+    ] {
+        let error =
+            pose::partition::evaluate(&bytes, "identity", request, Default::default()).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut body = blocks.clone();
+    body[4].0 = "BSDismemberSkinInstance";
+    words(&mut body[4].1, &[1]);
+    shorts(&mut body[4].1, &[257, 7000]);
+    let mut bad_palette = blocks.clone();
+    bad_palette[7].1[14..16].copy_from_slice(&2u16.to_le_bytes());
+    let mut absent = blocks;
+    let mut part = Vec::new();
+    words(&mut part, &[1]);
+    shorts(&mut part, &[3, 0, 2, 0, 4, 1, 0]);
+    part.extend([0, 0, 0, 0]);
+    absent[7].1 = part;
+    for (blocks, expected) in [
+        (body, "body-part association unavailable"),
+        (bad_palette, "outside linked instance"),
+        (absent, "requires authored vertex map and faces"),
+    ] {
+        let bytes = container(&blocks, &[0]);
+        let error = pose::partition::evaluate(
+            &bytes,
+            "source",
+            subset_request(&bytes, 0),
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+}
+#[test]
+fn partition_subset_full_pose_subset_aggregate_and_source_bounds_have_exact_ceilings() {
+    use pose::partition as subset;
+    let bytes = container(&subset_fixture(), &[0]);
+    let request = subset_request(&bytes, 1);
+    let baseline = subset::evaluate(&bytes, "baseline", request, Default::default()).unwrap();
+    let usage = baseline.usage;
+    assert_eq!(
+        usage.retained_bytes,
+        usage.full_pose_retained_bytes + usage.subset_retained_bytes
+    );
+    assert_eq!(
+        usage.work_units,
+        usage.full_pose_work_units + usage.subset_work_units
+    );
+    let mut exact = subset::Limits {
+        vertices: 2,
+        draw_indices: 4,
+        subset_array_bytes: usage.subset_retained_bytes,
+        subset_work_units: usage.subset_work_units,
+        array_bytes: usage.retained_bytes,
+        work_units: usage.work_units,
+        decoder_array_admission_bytes: usage.decoder_array_admission_bytes,
+        decoder_check_admission_units: usage.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.skin.array_bytes = usage.full_pose_retained_bytes;
+    exact.skin.work_units = usage.full_pose_work_units;
+    exact.skin.source.partition.skin.scene.input_bytes = bytes.len();
+    subset::evaluate(&bytes, "exact", request, exact).unwrap();
+    for limits in [
+        subset::Limits {
+            vertices: 1,
+            ..exact
+        },
+        subset::Limits {
+            draw_indices: 3,
+            ..exact
+        },
+        subset::Limits {
+            subset_array_bytes: exact.subset_array_bytes - 1,
+            ..exact
+        },
+        subset::Limits {
+            subset_work_units: exact.subset_work_units - 1,
+            ..exact
+        },
+        subset::Limits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        subset::Limits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        subset::Limits {
+            decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+            ..exact
+        },
+        subset::Limits {
+            decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+            ..exact
+        },
+    ] {
+        assert!(subset::evaluate(&bytes, "under", request, limits).is_err());
+    }
+    for mode in 0..3 {
+        let mut under = exact;
+        match mode {
+            0 => under.skin.array_bytes -= 1,
+            1 => under.skin.work_units -= 1,
+            _ => under.skin.source.partition.skin.scene.input_bytes -= 1,
+        }
+        assert!(subset::evaluate(&bytes, "phase-under", request, under).is_err());
+    }
+    let mut overflow = exact;
+    overflow.skin.source.array_bytes = usize::MAX;
+    assert!(
+        subset::evaluate(&bytes, "overflow", request, overflow)
+            .unwrap_err()
+            .to_string()
+            .contains("decoder array admission")
+    );
+}
+#[test]
+fn partition_subset_keeps_raw_nonunit_weights_normals_and_missing_normals_as_full_pose_observations()
+ {
+    let mut blocks = subset_fixture();
+    blocks[5].1 = skin(
+        &[vec![(0, 0.25), (0, 0.5), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    let bytes = container(&blocks, &[0]);
+    let mut request = subset_request(&bytes, 0);
+    assert!(
+        pose::partition::evaluate(&bytes, "unit", request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("raw weight sum 1.5")
+    );
+    request.skin.weights = WeightPolicy::PreserveRawNonnegative;
+    let result = pose::partition::evaluate(&bytes, "raw", request, Default::default()).unwrap();
+    assert_eq!(
+        (
+            result.vertices[1].position,
+            result.vertices[1].normal,
+            result.vertices[1].weight_sum
+        ),
+        ([-12., 7.5, 15.], Some([-3., 0., 0.]), 1.5)
+    );
+    let mut no_normals = mesh();
+    no_normals[47] = 0;
+    no_normals.drain(48..84);
+    blocks[6].1 = no_normals;
+    let bytes = container(&blocks, &[0]);
+    let request = pose::partition::Request {
+        skin: Request {
+            weights: WeightPolicy::PreserveRawNonnegative,
+            ..request.skin
+        },
+        ..subset_request(&bytes, 0)
+    };
+    let result =
+        pose::partition::evaluate(&bytes, "absent normals", request, Default::default()).unwrap();
+    assert!(result.vertices.iter().all(|v| v.normal.is_none()));
+}
+#[test]
+fn partition_subset_tiny_output_still_charges_large_full_deformation_and_source_index_map() {
+    use pose::partition as subset;
+    let count = 4096u16;
+    let mut blocks = subset_fixture();
+    let mut mesh = Vec::new();
+    words(&mut mesh, &[0]);
+    shorts(&mut mesh, &[count]);
+    mesh.extend([0, 0, 1]);
+    for _ in 0..count {
+        floats(&mut mesh, &[1., 2., 3.]);
+    }
+    shorts(&mut mesh, &[0]);
+    mesh.push(0);
+    floats(&mut mesh, &[0., 0., 0., 10.]);
+    mesh.push(0);
+    shorts(&mut mesh, &[0]);
+    words(&mut mesh, &[NULL]);
+    shorts(&mut mesh, &[0]);
+    words(&mut mesh, &[0]);
+    mesh.push(0);
+    shorts(&mut mesh, &[0]);
+    blocks[6].1 = mesh;
+    blocks[5].1 = skin(
+        &[(0..count).map(|v| (v, 1.)).collect(), vec![]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    let mut part = Vec::new();
+    words(&mut part, &[1]);
+    shorts(&mut part, &[1, 0, 1, 0, 4, 0]);
+    part.push(1);
+    shorts(&mut part, &[count - 1]);
+    part.push(1);
+    floats(&mut part, &[1., 0., 0., 0.]);
+    part.push(1);
+    part.push(1);
+    part.extend([0; 4]);
+    blocks[7].1 = part;
+    let bytes = container(&blocks, &[0]);
+    let request = subset_request(&bytes, 0);
+    let result = subset::evaluate(&bytes, "large", request, Default::default()).unwrap();
+    assert_eq!(result.vertices.len(), 1);
+    assert_eq!(result.vertices[0].source_vertex, count - 1);
+    assert_eq!(result.vertices[0].position, [-6., 5., 10.]);
+    assert!(result.usage.full_pose_retained_bytes >= usize::from(count) * 32);
+    assert!(result.usage.subset_retained_bytes >= usize::from(count) * 16);
+    let mut insufficient = subset::Limits {
+        array_bytes: result.usage.subset_retained_bytes,
+        ..Default::default()
+    };
+    assert!(subset::evaluate(&bytes, "full intermediate", request, insufficient).is_err());
+    insufficient = subset::Limits::default();
+    insufficient.skin.array_bytes = result.usage.full_pose_retained_bytes - 1;
+    assert!(subset::evaluate(&bytes, "full cap", request, insufficient).is_err());
+}
+
+#[test]
+fn shared_geometries_have_independent_literal_palettes_weights_frames_and_source_ids() {
+    let bytes = container(&shared_fixture(), &[0]);
+    let requests = shared_requests();
+    let batch = pose::evaluate_many(
+        &bytes,
+        "shared",
+        source_digest(&bytes),
+        &requests,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(batch.geometries.len(), 2);
+    for (value, request) in batch.geometries.iter().zip(requests) {
+        let one = pose::evaluate(&bytes, "one", request, Default::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            serde_json::to_value(one).unwrap()
+        );
+        assert_eq!(value.skeleton_root, 0);
+        assert_eq!(value.source_sha256, batch.source_sha256);
+    }
+    let first = &batch.geometries[0];
+    assert_eq!(
+        (
+            first.geometry,
+            first.geometry_data,
+            first.instance,
+            first.skin_data
+        ),
+        (3, 6, 4, 5)
+    );
+    assert_eq!(
+        first.positions,
+        [[-1.5, 1., 1.5], [0., -0.5, 1.], [-3.5, 0., 0.5]]
+    );
+    let second = &batch.geometries[1];
+    assert_eq!(
+        (
+            second.geometry,
+            second.geometry_data,
+            second.instance,
+            second.skin_data
+        ),
+        (7, 10, 8, 9)
+    );
+    assert_eq!(
+        second
+            .palette
+            .iter()
+            .map(|p| (p.ordinal, p.node))
+            .collect::<Vec<_>>(),
+        [(0, 2), (1, 1)]
+    );
+    assert_eq!(
+        second.palette[0].matrix,
+        [[4., 0., 0., 9.], [0., 4., 0., -4.], [0., 0., 4., 5.]]
+    );
+    assert_eq!(
+        second.palette[1].matrix,
+        [[0., 2., 0., 3.], [-2., 0., 0., -4.], [0., 0., 2., 5.]]
+    );
+    assert_eq!(
+        second.positions,
+        [[11.5, 1.5, 15.5], [19., -9., 12.], [-1.5, -2.5, 8.5]]
+    );
+    assert_eq!(second.normals, [[0.5, 3., 0.]; 3]);
+    assert_eq!(second.weight_sums, [1., 1., 1.]);
+    assert_eq!(
+        second.skin_to_source_world,
+        [
+            [-1.5, 0., 0., 14.5],
+            [0., -1.5, 0., 26.],
+            [0., 0., 1.5, 22.5]
+        ]
+    );
+    assert!(
+        !batch.retail_behavior_verified
+            && batch.geometries.iter().all(|p| !p.retail_behavior_verified)
+    );
+}
+
+#[test]
+fn shared_full_observations_permute_without_bone_or_budget_priority() {
+    let bytes = container(&shared_fixture(), &[0]);
+    let requests = shared_requests();
+    let forward = pose::evaluate_many(
+        &bytes,
+        "order",
+        source_digest(&bytes),
+        &requests,
+        Default::default(),
+    )
+    .unwrap();
+    let reverse = pose::evaluate_many(
+        &bytes,
+        "order",
+        source_digest(&bytes),
+        &[requests[1], requests[0]],
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&forward.geometries).unwrap(),
+        serde_json::to_value(reverse.geometries.iter().rev().collect::<Vec<_>>()).unwrap()
+    );
+    assert_eq!(
+        (forward.retained_bytes, forward.work_units),
+        (reverse.retained_bytes, reverse.work_units)
+    );
+    let mut changed = shared_fixture();
+    changed[9].1[129..133].copy_from_slice(&0.5f32.to_le_bytes());
+    let changed = container(&changed, &[0]);
+    let value = pose::evaluate_many(
+        &changed,
+        "changed",
+        source_digest(&changed),
+        &requests,
+        Default::default(),
+    )
+    .unwrap();
+    let mut old_first = serde_json::to_value(&forward.geometries[0]).unwrap();
+    let mut new_first = serde_json::to_value(&value.geometries[0]).unwrap();
+    old_first.as_object_mut().unwrap().remove("source_sha256");
+    new_first.as_object_mut().unwrap().remove("source_sha256");
+    assert_eq!(old_first, new_first);
+    assert_ne!(
+        forward.geometries[1].positions,
+        value.geometries[1].positions
+    );
+    assert_eq!(value.geometries[1].weight_sums, [0.75, 1., 1.]);
+}
+
+#[test]
+fn shared_stale_identity_duplicate_empty_and_later_failure_never_return_a_batch() {
+    let bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let requests = shared_requests();
+    let mut wrong = digest;
+    wrong[0] ^= 1;
+    assert!(
+        pose::evaluate_many(&bytes, "identity", wrong, &requests, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("SHA256 differs")
+    );
+    let mut changed = bytes.clone();
+    *changed.last_mut().unwrap() ^= 1;
+    assert!(
+        pose::evaluate_many(&changed, "stale", digest, &requests, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("SHA256 differs")
+    );
+    for (cases, expected) in [
+        (vec![], "nonempty"),
+        (vec![requests[0], requests[0]], "duplicate geometry"),
+        (
+            vec![
+                requests[0],
+                Request {
+                    geometry: 999,
+                    ..requests[1]
+                },
+            ],
+            "selected geometry has no decoded skin owner",
+        ),
+        (
+            vec![
+                requests[0],
+                Request {
+                    weights: WeightPolicy::RequireUnitSum {
+                        absolute_tolerance: f64::NAN,
+                    },
+                    ..requests[1]
+                },
+            ],
+            "weight tolerance",
+        ),
+    ] {
+        assert!(
+            pose::evaluate_many(&bytes, "atomic", digest, &cases, Default::default())
+                .unwrap_err()
+                .to_string()
+                .contains(expected)
+        );
+    }
+    let mut blocks = shared_fixture();
+    blocks[9].1[129..133].copy_from_slice(&(-0.5f32).to_le_bytes());
+    let bad = container(&blocks, &[0]);
+    assert!(
+        pose::evaluate_many(
+            &bad,
+            "later",
+            source_digest(&bad),
+            &requests,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("negative")
+    );
+}
+
+#[test]
+fn shared_aggregate_per_geometry_source_and_decoder_bounds_have_exact_ceilings() {
+    let bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let requests = shared_requests();
+    let baseline =
+        pose::evaluate_many(&bytes, "bounds", digest, &requests, Default::default()).unwrap();
+    let mut per = Limits {
+        array_bytes: baseline
+            .geometries
+            .iter()
+            .map(|p| p.retained_bytes)
+            .max()
+            .unwrap(),
+        work_units: baseline
+            .geometries
+            .iter()
+            .map(|p| p.work_units)
+            .max()
+            .unwrap(),
+        ancestry_depth: 2,
+        ..Default::default()
+    };
+    per.source.partition.skin.scene.input_bytes = bytes.len();
+    let exact = pose::BatchLimits {
+        pose: per,
+        geometries: 2,
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+        decoder_check_admission_units: baseline.decoder_check_admission_units,
+        preparation_array_bytes: baseline.preparation.retained_bytes,
+        preparation_work_units: baseline.preparation.work_units,
+    };
+    pose::evaluate_many(&bytes, "exact", digest, &requests, exact).unwrap();
+    for (limit, expected) in [
+        (
+            pose::BatchLimits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            pose::BatchLimits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            pose::BatchLimits {
+                geometries: 1,
+                ..exact
+            },
+            "bounded geometry",
+        ),
+        (
+            pose::BatchLimits {
+                decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+                ..exact
+            },
+            "decoder array admission",
+        ),
+        (
+            pose::BatchLimits {
+                decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+                ..exact
+            },
+            "decoder check admission",
+        ),
+        (
+            pose::BatchLimits {
+                pose: Limits {
+                    array_bytes: per.array_bytes - 1,
+                    ..per
+                },
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            pose::BatchLimits {
+                pose: Limits {
+                    work_units: per.work_units - 1,
+                    ..per
+                },
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            pose::BatchLimits {
+                pose: Limits {
+                    ancestry_depth: 1,
+                    ..per
+                },
+                ..exact
+            },
+            "ancestry depth budget",
+        ),
+    ] {
+        let error = pose::evaluate_many(&bytes, "under", digest, &requests, limit).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut short = exact;
+    short.pose.source.partition.skin.scene.input_bytes -= 1;
+    assert!(
+        pose::evaluate_many(&bytes, "input", digest, &requests, short)
+            .unwrap_err()
+            .to_string()
+            .contains("input byte budget")
+    );
+    let mut overflow = exact;
+    overflow.pose.source.array_bytes = usize::MAX;
+    assert!(
+        pose::evaluate_many(&bytes, "overflow", digest, &requests, overflow)
+            .unwrap_err()
+            .to_string()
+            .contains("decoder array admission")
+    );
+}
+
+#[test]
+fn shared_root_and_distinct_owner_controllers_remain_independent_unapplied_observations() {
+    let mut blocks = shared_fixture();
+    blocks[0].1[8..12].copy_from_slice(&11u32.to_le_bytes());
+    blocks[7].1[8..12].copy_from_slice(&12u32.to_le_bytes());
+    for target in [0, 7] {
+        let mut controller = Vec::new();
+        words(&mut controller, &[NULL]);
+        shorts(&mut controller, &[0]);
+        floats(&mut controller, &[1., 0., 0., 1.]);
+        words(&mut controller, &[target, NULL]);
+        blocks.push(("NiTransformController", controller));
+    }
+    let bytes = container(&blocks, &[0]);
+    let batch = pose::evaluate_many(
+        &bytes,
+        "controllers",
+        source_digest(&bytes),
+        &shared_requests(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        batch.geometries[0]
+            .unapplied_controllers
+            .iter()
+            .map(|p| (p.object, p.controller))
+            .collect::<Vec<_>>(),
+        [(0, 11)]
+    );
+    assert_eq!(
+        batch.geometries[1]
+            .unapplied_controllers
+            .iter()
+            .map(|p| (p.object, p.controller))
+            .collect::<Vec<_>>(),
+        [(0, 11), (7, 12)]
+    );
+    assert_eq!(
+        batch.geometries[1].positions,
+        [[11.5, 1.5, 15.5], [19., -9., 12.], [-1.5, -2.5, 8.5]]
+    );
+}
+
+#[test]
+fn shared_preparation_owns_sources_after_input_mutation_drop_and_multiple_evaluations() {
+    let mut bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let requests = shared_requests();
+    let expected =
+        pose::evaluate_many(&bytes, "expected", digest, &requests, Default::default()).unwrap();
+    let prepared =
+        pose::PreparedSkinSource::prepare(&bytes, "prepare", Default::default()).unwrap();
+    let usage = prepared.usage();
+    let source_sha = prepared.source_sha256().to_owned();
+    assert_eq!((usage.binding_decodes, usage.scene_decodes), (1, 1));
+    bytes.fill(0);
+    drop(bytes);
+    for _ in 0..3 {
+        let batch = prepared
+            .evaluate_many("reused", digest, &requests, Default::default())
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&batch).unwrap(),
+            serde_json::to_value(&expected).unwrap()
+        );
+        let reversed = prepared
+            .evaluate_many(
+                "reverse",
+                digest,
+                &[requests[1], requests[0]],
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(reversed.geometries.iter().rev().collect::<Vec<_>>()).unwrap(),
+            serde_json::to_value(&expected.geometries).unwrap()
+        );
+    }
+    let mut stale = digest;
+    stale[31] ^= 1;
+    assert!(
+        prepared
+            .evaluate_many("stale", stale, &requests, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("SHA256 differs")
+    );
+    assert_eq!(prepared.source_sha256(), source_sha);
+    assert_eq!(
+        serde_json::to_value(prepared.usage()).unwrap(),
+        serde_json::to_value(usage).unwrap()
+    );
+}
+
+#[test]
+fn shared_preparation_storage_hash_map_and_source_allowances_are_bounded_separately() {
+    let bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let requests = shared_requests();
+    let source = pose::PreparedSkinSource::prepare(&bytes, "prepare", Default::default()).unwrap();
+    let usage = source.usage();
+    let mut exact = pose::PreparationLimits {
+        array_bytes: usage.retained_bytes,
+        work_units: usage.work_units,
+        decoder_array_admission_bytes: usage.decoder_array_admission_bytes,
+        decoder_check_admission_units: usage.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.source.partition.skin.scene.input_bytes = bytes.len();
+    pose::PreparedSkinSource::prepare(&bytes, "exact", exact).unwrap();
+    for (limits, expected) in [
+        (
+            pose::PreparationLimits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            pose::PreparationLimits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            pose::PreparationLimits {
+                decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+                ..exact
+            },
+            "decoder array admission",
+        ),
+        (
+            pose::PreparationLimits {
+                decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+                ..exact
+            },
+            "decoder check admission",
+        ),
+    ] {
+        let error = pose::PreparedSkinSource::prepare(&bytes, "under", limits).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut short = exact;
+    short.source.partition.skin.scene.input_bytes -= 1;
+    assert!(
+        pose::PreparedSkinSource::prepare(&bytes, "input", short)
+            .unwrap_err()
+            .to_string()
+            .contains("input byte budget")
+    );
+    let first = source
+        .evaluate_many("one", digest, &requests[..1], Default::default())
+        .unwrap();
+    let per = pose::GeometryLimits {
+        array_bytes: first.geometries[0].retained_bytes,
+        work_units: first.geometries[0].work_units,
+        ancestry_depth: 2,
+    };
+    let one = pose::BatchEvaluationLimits {
+        geometry: per,
+        geometries: 1,
+        array_bytes: first.retained_bytes,
+        work_units: first.work_units,
+    };
+    source
+        .evaluate_many("one exact", digest, &requests[..1], one)
+        .unwrap();
+    assert!(
+        source
+            .evaluate_many(
+                "later bounded",
+                digest,
+                &requests,
+                pose::BatchEvaluationLimits {
+                    geometries: 2,
+                    ..one
+                }
+            )
+            .is_err()
+    );
+    source
+        .evaluate_many("still complete", digest, &requests, Default::default())
+        .unwrap();
+    let mut blocks = shared_fixture();
+    blocks[9].1[129..133].copy_from_slice(&0.5f32.to_le_bytes());
+    let modified = container(&blocks, &[0]);
+    let altered =
+        pose::PreparedSkinSource::prepare(&modified, "nonunit", Default::default()).unwrap();
+    let strict = [
+        requests[0],
+        Request {
+            weights: WeightPolicy::RequireUnitSum {
+                absolute_tolerance: 0.,
+            },
+            ..requests[1]
+        },
+    ];
+    assert!(
+        altered
+            .evaluate_many(
+                "later sum",
+                source_digest(&modified),
+                &strict,
+                Default::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("sum")
+    );
+    altered
+        .evaluate_many(
+            "raw remains exact",
+            source_digest(&modified),
+            &requests,
+            Default::default(),
+        )
+        .unwrap();
+}
+
 #[test]
 fn bind_palette_uses_skin_transform_bone_order_and_root_frame_once() {
     let pose = evaluate(&fixture());
@@ -294,6 +1319,652 @@ fn influence_fixture() -> Vec<(&'static str, Vec<u8>)> {
         None,
     );
     blocks
+}
+
+fn named_container(blocks: &[(&str, Vec<u8>)], roots: &[u32], strings: &[&[u8]]) -> Vec<u8> {
+    // Same authored container layout, with an explicit physical string table.
+    let mut out = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+    words(&mut out, &[0x14020007]);
+    out.push(1);
+    words(&mut out, &[11, blocks.len() as u32, 34]);
+    out.extend([0; 3]);
+    let mut types = Vec::new();
+    for (name, _) in blocks {
+        if !types.contains(name) {
+            types.push(*name);
+        }
+    }
+    shorts(&mut out, &[types.len() as u16]);
+    for name in &types {
+        words(&mut out, &[name.len() as u32]);
+        out.extend(name.as_bytes());
+    }
+    for (name, _) in blocks {
+        shorts(
+            &mut out,
+            &[types.iter().position(|n| n == name).unwrap() as u16],
+        );
+    }
+    for (_, payload) in blocks {
+        words(&mut out, &[payload.len() as u32]);
+    }
+    words(
+        &mut out,
+        &[
+            strings.len() as u32,
+            strings.iter().map(|s| s.len()).max().unwrap_or(0) as u32,
+        ],
+    );
+    for value in strings {
+        words(&mut out, &[value.len() as u32]);
+        out.extend(*value);
+    }
+    words(&mut out, &[0]);
+    for (_, payload) in blocks {
+        out.extend(payload);
+    }
+    words(&mut out, &[roots.len() as u32]);
+    words(&mut out, roots);
+    out
+}
+
+fn external_rig_blocks() -> Vec<(&'static str, Vec<u8>)> {
+    let mut rig = vec![
+        ("NiNode", node(ID, [0.; 3], 1., &[])),
+        (
+            "NiNode",
+            node(
+                [[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]],
+                [100., 200., 300.],
+                5.,
+                &[2, 4],
+            ),
+        ),
+        ("NiNode", node(R90, [0., 4., 0.], 2., &[3])),
+        ("NiNode", node(RM90, [2., 0., 1.], 3., &[])),
+        ("NiNode", node(ID, [-5., 0., 2.], 4., &[])),
+    ];
+    rig[2].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    for id in [0, 3, 4] {
+        rig[id].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    }
+    rig
+}
+fn external_fixture() -> (Vec<u8>, Vec<u8>, fallout_data::nif_skin::external::Request) {
+    use fallout_data::nif_skin::external::{BoneMapping, Request};
+    use sha2::{Digest, Sha256};
+    let mut skin = fixture();
+    skin[1].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    skin[2].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    let skin = named_container(&skin, &[0], &[b"Skin-A\xff\0", b"Twin"]);
+    let rig = named_container(&external_rig_blocks(), &[1], &[b"Rig-A\0", b"Twin"]);
+    let request = Request {
+        expected_skin_sha256: Sha256::digest(&skin).into(),
+        expected_rig_sha256: Sha256::digest(&rig).into(),
+        geometry: 3,
+        rig_root: 1,
+        explicit_bone_mapping: vec![
+            BoneMapping {
+                bone_ordinal: 0,
+                rig_node: 2,
+                expected_skin_bone_name_bytes: b"Skin-A\xff\0".to_vec(),
+                expected_rig_node_name_bytes: b"Rig-A\0".to_vec(),
+            },
+            BoneMapping {
+                bone_ordinal: 1,
+                rig_node: 3,
+                expected_skin_bone_name_bytes: b"Twin".to_vec(),
+                expected_rig_node_name_bytes: b"Twin".to_vec(),
+            },
+        ],
+        explicit_root_space_mapping: [[0., -1., 0., 3.], [1., 0., 0., -2.], [0., 0., 2., 1.]],
+        weights: WeightPolicy::RequireUnitSum {
+            absolute_tolerance: 0.,
+        },
+    };
+    (skin, rig, request)
+}
+
+#[test]
+fn external_exact_singular_large_integer_mapping_refuses_and_nearby_invertible_mappings_pass() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    let mapping = [
+        [478384076., 548195520., 675781114., 0.],
+        [95565559., 470460823., 587107439., 0.],
+        [573949635., 1018656343., 1262888553., 0.],
+    ];
+    let sum: [f64; 4] = std::array::from_fn(|c| mapping[0][c] + mapping[1][c]);
+    assert_eq!(mapping[2], sum);
+    request.explicit_root_space_mapping = mapping;
+    let error = external::evaluate(&skin, &rig, "exact singular", &request, Default::default())
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("determinant cannot be certified nonzero"),
+        "{error}"
+    );
+    let minor = 478384076i128 * 470460823 - 548195520i128 * 95565559;
+    assert_ne!(minor, 0);
+    for delta in [-1., 1.] {
+        request.explicit_root_space_mapping = mapping;
+        request.explicit_root_space_mapping[2][2] += delta;
+        let value = external::evaluate(
+            &skin,
+            &rig,
+            "nearby invertible",
+            &request,
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            value.explicit_root_space_mapping,
+            request.explicit_root_space_mapping
+        );
+        assert!(
+            value
+                .skin
+                .palette
+                .iter()
+                .flat_map(|p| p.matrix.iter().flatten())
+                .all(|v| v.is_finite())
+        );
+    }
+}
+
+#[test]
+fn external_mapping_certification_bounds_extreme_scales_and_uncertain_cancellation() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    for scale in [1e-100, 1e100] {
+        for sign in [-1., 1.] {
+            request.explicit_root_space_mapping = [
+                [sign * scale, 0., 0., 0.],
+                [0., scale, 0., 0.],
+                [0., 0., scale, 0.],
+            ];
+            external::evaluate(
+                &skin,
+                &rig,
+                "certified extreme",
+                &request,
+                Default::default(),
+            )
+            .unwrap();
+        }
+    }
+    for scale in [1e-200, 1e200, f64::from_bits(1), f64::MAX] {
+        request.explicit_root_space_mapping = [
+            [scale, 0., 0., 0.],
+            [0., scale, 0., 0.],
+            [0., 0., scale, 0.],
+        ];
+        let error = external::evaluate(
+            &skin,
+            &rig,
+            "uncertain extreme",
+            &request,
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("determinant cannot be certified nonzero"),
+            "{error}"
+        );
+    }
+    let ulp = 2f64.powi(-52);
+    request.explicit_root_space_mapping = [
+        [1., 1., 1., 0.],
+        [1., 1. + ulp, 1., 0.],
+        [1., 1., 1. + ulp, 0.],
+    ];
+    let error = external::evaluate(
+        &skin,
+        &rig,
+        "uncertain nonzero",
+        &request,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("determinant cannot be certified nonzero"),
+        "{error}"
+    );
+}
+
+#[test]
+fn external_root_mapping_and_explicit_bones_have_noncommuting_literal_expectations() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, request) = external_fixture();
+    let result = external::evaluate(
+        &skin,
+        &rig,
+        "two authored sources",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result.skin.palette[0].matrix,
+        [[-1., 0., 0., 1.5], [0., -1., 0., -1.], [0., 0., 2., 0.5]]
+    );
+    assert_eq!(
+        result.skin.palette[1].matrix,
+        [[1.5, 0., 0., -10.5], [0., 1.5, 0., -5.5], [0., 0., 3., 2.5]]
+    );
+    assert_eq!(
+        result.skin.positions,
+        [[-6.625, -2.625, 10.25], [-2.5, 0., 4.5], [-15., -5.5, 5.5]]
+    );
+    assert_eq!(
+        result.skin.normals,
+        [[0., 0.875, 0.], [0., -1., 0.], [0., 1.5, 0.]]
+    );
+    assert_eq!(result.skin.weight_sums, [1.; 3]);
+    assert_eq!(
+        result.skin.skin_to_source_world,
+        [[0., -6., 0., 10.], [6., 0., 0., 32.], [0., 0., 6., 30.]]
+    );
+    assert_eq!(
+        result
+            .mappings
+            .iter()
+            .map(|m| (m.skin_node.block, m.rig_node.block))
+            .collect::<Vec<_>>(),
+        [(1, 2), (2, 3)]
+    );
+    assert_eq!(
+        result.mappings[1].rig_bone_to_root,
+        [[6., 0., 0., 0.], [0., 6., 0., 8.], [0., 0., 6., 2.]]
+    );
+    assert_eq!(
+        result.unapplied_rig_root_local,
+        [[-5., 0., 0., 100.], [0., -5., 0., 200.], [0., 0., 5., 300.]]
+    );
+    assert!(!result.retail_behavior_verified);
+}
+
+#[test]
+fn external_same_raw_names_require_explicit_distinct_target_ids_and_permutation_has_no_priority() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    let first =
+        external::evaluate(&skin, &rig, "same sources", &request, Default::default()).unwrap();
+    request.explicit_bone_mapping.reverse();
+    let permuted =
+        external::evaluate(&skin, &rig, "same sources", &request, Default::default()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&first).unwrap(),
+        serde_json::to_value(&permuted).unwrap()
+    );
+    request.explicit_bone_mapping[0].rig_node = 4;
+    let second = external::evaluate(
+        &skin,
+        &rig,
+        "same raw Twin name",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(second.skin.positions[2], [-7.5, -6.5, 4.5]);
+    assert_ne!(first.skin.positions, second.skin.positions);
+    assert_eq!(
+        second.mappings[1].raw_rig_node_name_bytes,
+        first.mappings[1].raw_rig_node_name_bytes
+    );
+}
+
+#[test]
+fn external_duplicate_incomplete_name_sha_root_and_space_requests_refuse() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    request.explicit_bone_mapping[1].bone_ordinal = 0;
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "duplicate ordinal",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate skin bone ordinal")
+    );
+    request.explicit_bone_mapping[1].bone_ordinal = 1;
+    request.explicit_bone_mapping[1].rig_node = 2;
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "duplicate target",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate rig node target")
+    );
+    request.explicit_bone_mapping[1].rig_node = 3;
+    request.explicit_bone_mapping[1]
+        .expected_rig_node_name_bytes
+        .push(0);
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "raw NUL is exact",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("raw name differs")
+    );
+    request.explicit_bone_mapping[1]
+        .expected_rig_node_name_bytes
+        .pop();
+    request.expected_skin_sha256[0] ^= 1;
+    assert!(
+        external::evaluate(&skin, &rig, "skin SHA", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("skin source SHA256 differs")
+    );
+    request.expected_skin_sha256[0] ^= 1;
+    request.expected_rig_sha256[0] ^= 1;
+    assert!(
+        external::evaluate(&skin, &rig, "rig SHA", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("rig source SHA256 differs")
+    );
+    request.expected_rig_sha256[0] ^= 1;
+    request.rig_root = 3;
+    assert!(
+        external::evaluate(&skin, &rig, "chosen root", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("does not reach chosen rig root")
+    );
+    request.rig_root = 0;
+    assert!(
+        external::evaluate(&skin, &rig, "orphan root", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("no reachable ancestry")
+    );
+    request.rig_root = 1;
+    let original = request.explicit_root_space_mapping;
+    request.explicit_root_space_mapping[0] = [0.; 4];
+    assert!(
+        external::evaluate(&skin, &rig, "singular map", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("root-space mapping is singular")
+    );
+    request.explicit_root_space_mapping = original;
+    request.explicit_root_space_mapping[0][0] = f64::NAN;
+    assert!(
+        external::evaluate(&skin, &rig, "nonfinite map", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("root-space mapping must be finite")
+    );
+    request.explicit_root_space_mapping = original;
+    request.explicit_bone_mapping.pop();
+    assert!(
+        external::evaluate(&skin, &rig, "incomplete", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("must cover every")
+    );
+}
+
+#[test]
+fn external_combined_arrays_work_input_map_names_and_source_allowances_have_exact_ceilings() {
+    use fallout_data::nif_skin::external::{self, Limits};
+    let (skin, rig, request) = external_fixture();
+    let result = external::evaluate(&skin, &rig, "bounded", &request, Default::default()).unwrap();
+    let exact = Limits {
+        array_bytes: result.retained_bytes,
+        work_units: result.work_units,
+        source_bytes: skin.len() + rig.len(),
+        mapping_bones: 2,
+        raw_name_bytes: request
+            .explicit_bone_mapping
+            .iter()
+            .map(|m| m.expected_skin_bone_name_bytes.len() + m.expected_rig_node_name_bytes.len())
+            .sum(),
+        decoder_array_admission_bytes: result.decoder_array_admission_bytes,
+        decoder_check_admission_units: result.decoder_check_admission_units,
+        ancestry_depth: 3,
+        ..Default::default()
+    };
+    external::evaluate(&skin, &rig, "bounded", &request, exact).unwrap();
+    for (limits, error) in [
+        (
+            Limits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            Limits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            Limits {
+                source_bytes: exact.source_bytes - 1,
+                ..exact
+            },
+            "combined source input",
+        ),
+        (
+            Limits {
+                mapping_bones: 1,
+                ..exact
+            },
+            "mapping count budget",
+        ),
+        (
+            Limits {
+                raw_name_bytes: exact.raw_name_bytes - 1,
+                ..exact
+            },
+            "raw name byte budget",
+        ),
+        (
+            Limits {
+                decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+                ..exact
+            },
+            "combined decoder array",
+        ),
+        (
+            Limits {
+                decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+                ..exact
+            },
+            "combined decoder check",
+        ),
+        (
+            Limits {
+                ancestry_depth: 1,
+                ..exact
+            },
+            "ancestry depth budget",
+        ),
+    ] {
+        assert!(
+            external::evaluate(&skin, &rig, "bounded", &request, limits)
+                .unwrap_err()
+                .to_string()
+                .contains(error)
+        );
+    }
+}
+
+#[test]
+fn external_cycle_unresolved_link_orphan_and_missing_raw_name_never_return_a_palette() {
+    use fallout_data::nif_skin::external;
+    use sha2::{Digest, Sha256};
+    let (skin, rig, mut request) = external_fixture();
+    let index = fallout_data::nif::inspect(&rig, "authored mutation offsets").unwrap();
+    let mut cycle = rig.clone();
+    let first_child = index.blocks[1].offset + 80;
+    cycle[first_child..first_child + 4].copy_from_slice(&1u32.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&cycle).into();
+    let early = external::evaluate(
+        &skin,
+        &cycle,
+        "footer-root self edge",
+        &request,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        early
+            .to_string()
+            .contains("footer root also has a scene parent"),
+        "{early}"
+    );
+    // Preserve that stronger root refusal, then make root0 the footer root so
+    // this disconnected self-cycle reaches the decoder's general cycle check.
+    let footer = cycle.len() - 4;
+    cycle[footer..].copy_from_slice(&0u32.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&cycle).into();
+    assert!(
+        external::evaluate(&skin, &cycle, "cyclic rig", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("cycle")
+    );
+    let mut unresolved = rig.clone();
+    unresolved[first_child..first_child + 4].copy_from_slice(&999u32.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&unresolved).into();
+    assert!(
+        external::evaluate(
+            &skin,
+            &unresolved,
+            "invalid rig child",
+            &request,
+            Default::default()
+        )
+        .is_err()
+    );
+    request.expected_rig_sha256 = Sha256::digest(&rig).into();
+    request.explicit_bone_mapping[1].rig_node = 0;
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "same name orphan",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no reachable ancestry")
+    );
+    request.explicit_bone_mapping[1].rig_node = 3;
+    let mut no_name = rig.clone();
+    let target = index.blocks[3].offset;
+    no_name[target..target + 4].copy_from_slice(&NULL.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&no_name).into();
+    assert!(
+        external::evaluate(
+            &skin,
+            &no_name,
+            "missing raw name",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no authored raw name")
+    );
+}
+
+#[test]
+fn external_root_local_is_unapplied_and_skin_rig_controllers_are_source_observations() {
+    use fallout_data::nif_skin::external;
+    use sha2::{Digest, Sha256};
+    let (skin, _, mut request) = external_fixture();
+    let mut rig = external_rig_blocks();
+    rig[1].1 = node(ID, [999., 888., 777.], 7., &[2, 4]);
+    rig[2].1[8..12].copy_from_slice(&5u32.to_le_bytes());
+    let mut controller = Vec::new();
+    words(&mut controller, &[NULL]);
+    shorts(&mut controller, &[0xffff]);
+    floats(&mut controller, &[17., -9., 100., 101.]);
+    words(&mut controller, &[2, NULL]);
+    rig.push(("NiTransformController", controller));
+    let rig = named_container(&rig, &[1], &[b"Rig-A\0", b"Twin"]);
+    request.expected_rig_sha256 = Sha256::digest(&rig).into();
+    let result = external::evaluate(
+        &skin,
+        &rig,
+        "unapplied rig local/controller",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result.skin.positions,
+        [[-6.625, -2.625, 10.25], [-2.5, 0., 4.5], [-15., -5.5, 5.5]]
+    );
+    assert_eq!(
+        result
+            .rig_unapplied_controllers
+            .iter()
+            .map(|c| (c.object, c.controller))
+            .collect::<Vec<_>>(),
+        [(2, 5)]
+    );
+    assert!(result.skin.unapplied_controllers.is_empty());
+    let mut skin = fixture();
+    skin[0].1[8..12].copy_from_slice(&7u32.to_le_bytes());
+    skin[1].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    skin[2].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    let mut controller = Vec::new();
+    words(&mut controller, &[NULL]);
+    shorts(&mut controller, &[0xffff]);
+    floats(&mut controller, &[17., -9., 100., 101.]);
+    words(&mut controller, &[0, NULL]);
+    skin.push(("NiTransformController", controller));
+    let skin = named_container(&skin, &[0], &[b"Skin-A\xff\0", b"Twin"]);
+    request.expected_skin_sha256 = Sha256::digest(&skin).into();
+    let result = external::evaluate(
+        &skin,
+        &rig,
+        "both controllers unapplied",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result
+            .skin
+            .unapplied_controllers
+            .iter()
+            .map(|c| (c.object, c.controller))
+            .collect::<Vec<_>>(),
+        [(0, 7)]
+    );
+    assert_eq!(
+        result.skin.positions,
+        [[-6.625, -2.625, 10.25], [-2.5, 0., 4.5], [-15., -5.5, 5.5]]
+    );
 }
 
 #[test]

@@ -2,6 +2,7 @@
 //! remains available independently; no weights or authored faces are regenerated.
 mod graph;
 mod read;
+pub mod streams;
 
 use crate::{Result, nif, nif_scene::cursor::Reader};
 use serde::Serialize;

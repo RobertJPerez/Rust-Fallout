@@ -3,6 +3,19 @@ use std::path::PathBuf;
 
 #[derive(Subcommand)]
 pub(crate) enum RuntimeCommand {
+    /// Compose explicit engineering inventory/quest boot into a new native save.
+    RouteBoot {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        save_root: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
+    },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
         #[arg(long)]
@@ -113,6 +126,19 @@ pub(crate) enum RuntimeCommand {
         #[arg(long)]
         repository: PathBuf,
     },
+    /// Exercise a single asynchronous native restore and explicit host admission.
+    NativeRestoreProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        request_id: std::num::NonZeroU64,
+        #[arg(long)]
+        recover_previous: bool,
+    },
     /// Explicitly import our schema-2 native save into a new repository.
     NativeMigrateV2 {
         #[arg(long)]
@@ -216,6 +242,9 @@ pub(crate) enum RuntimeCommand {
         /// Produce engineering own-local copies through canonical commit APIs.
         #[arg(long, conflicts_with = "replacement_trace")]
         replacement_copy: Option<PathBuf>,
+        /// Engineering sequential own-local copies, one commit per complete event.
+        #[arg(long, conflicts_with_all = ["replacement_trace", "replacement_copy"])]
+        replacement_multi_copy: Option<PathBuf>,
     },
     /// Inspect source operands against explicit live engineering storage.
     EventOperands {
@@ -238,16 +267,24 @@ pub(crate) enum RuntimeCommand {
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
         /// Consume a saved journal head using explicit engineering activation/intent.
-        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_request: Option<PathBuf>,
+        /// Consume an explicit existing saved journal prefix with engineering copies.
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_copy_batch_request: Option<PathBuf>,
         /// Observe explicitly selected native occurrences from saved state.
-        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,
+        /// Create one explicitly selected source-attached quest owner in a private result.
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "quest_boot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        quest_boot_request: Option<PathBuf>,
+        #[arg(long, requires = "quest_boot_request")]
+        quest_boot_output: Option<PathBuf>,
         /// Strict current canonical snapshot; no migration or engineering seeding.
         #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
-        #[arg(long, requires = "snapshot_copy_request")]
+        #[arg(long, requires = "saved_snapshot_request")]
         snapshot_output: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.

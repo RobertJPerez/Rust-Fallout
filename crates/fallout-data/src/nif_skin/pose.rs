@@ -2,9 +2,16 @@
 //! pose. Controller playback, external rigs and retail normal rules are separate.
 
 use super::{Data, Transform, binding};
-use crate::{Error, Result, nif_animation, nif_scene};
+use crate::{Error, Result, nif, nif_animation, nif_scene};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+
+mod batch;
+pub mod partition;
+pub use batch::{
+    BatchEvaluationLimits, BatchLimits, GeometryBatch, GeometryLimits, PreparationLimits,
+    PreparationUsage, PreparedSkinSource, evaluate_many,
+};
 
 /// Column-vector affine rows, in original NIF coordinates and units.
 pub type Affine = [[f64; 4]; 3];
@@ -232,24 +239,24 @@ pub struct Evaluation {
     pub retail_behavior_verified: bool,
 }
 
-struct Budget<'a> {
-    source: &'a str,
-    storage: usize,
-    work: usize,
+pub(super) struct Budget<'a> {
+    pub(super) source: &'a str,
+    pub(super) storage: usize,
+    pub(super) work: usize,
 }
 
 impl Budget<'_> {
-    fn fail(&self, detail: &str) -> Error {
+    pub(super) fn fail(&self, detail: &str) -> Error {
         Error::Unsupported(format!("{}: source-local skin pose: {detail}", self.source))
     }
-    fn reserve<T>(&mut self, count: usize) -> Result<()> {
+    pub(super) fn reserve<T>(&mut self, count: usize) -> Result<()> {
         self.storage = count
             .checked_mul(std::mem::size_of::<T>())
             .and_then(|n| self.storage.checked_sub(n))
             .ok_or_else(|| self.fail("array storage budget exceeded"))?;
         Ok(())
     }
-    fn charge(&mut self, count: usize) -> Result<()> {
+    pub(super) fn charge(&mut self, count: usize) -> Result<()> {
         self.work = self
             .work
             .checked_sub(count)
@@ -267,7 +274,7 @@ pub(crate) fn compose(parent: Affine, local: Affine) -> Affine {
     })
 }
 
-fn skin_affine(t: &Transform) -> Affine {
+pub(super) fn skin_affine(t: &Transform) -> Affine {
     std::array::from_fn(|r| {
         std::array::from_fn(|c| {
             if c == 3 {
@@ -292,7 +299,7 @@ pub(crate) fn scene_affine(t: nif_scene::Transform) -> Affine {
     })
 }
 
-fn finite(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
+pub(super) fn finite(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
     if matrix.iter().flatten().all(|v| v.is_finite()) {
         Ok(matrix)
     } else {
@@ -300,7 +307,7 @@ fn finite(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
     }
 }
 
-fn inverse(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
+pub(super) fn inverse(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
     // General 3x3 inverse: source rotations are not silently orthogonalized.
     let cofactors: [[f64; 3]; 3] = std::array::from_fn(|r| {
         std::array::from_fn(|c| {
@@ -363,17 +370,68 @@ fn evaluate_inner(
     selected: Option<SampleOverride<'_>>,
     table: Option<&super::influences::Table>,
 ) -> Result<Evaluation> {
-    let mut budget = Budget {
+    let budget = Budget {
         source,
         storage: limits.array_bytes,
         work: limits.work_units,
     };
-    if let WeightPolicy::RequireUnitSum { absolute_tolerance } = request.weights
+    validate_weight_policy(request.weights, &budget)?;
+    let (index, decoded, scene) = binding::decode_with_scene(bytes, source, limits.source)?;
+    evaluate_decoded(
+        DecodedView {
+            hash: SourceHash::Input(bytes),
+            source,
+            index: &index,
+            decoded: &decoded,
+            scene: &scene,
+        },
+        request,
+        limits,
+        selected,
+        table,
+        budget,
+    )
+}
+
+fn validate_weight_policy(weights: WeightPolicy, budget: &Budget<'_>) -> Result<()> {
+    if let WeightPolicy::RequireUnitSum { absolute_tolerance } = weights
         && (!absolute_tolerance.is_finite() || !(0. ..=1.).contains(&absolute_tolerance))
     {
         return Err(budget.fail("weight tolerance must be finite in [0,1]"));
     }
-    let (index, decoded, scene) = binding::decode_with_scene(bytes, source, limits.source)?;
+    Ok(())
+}
+
+/// Private borrowed authority created only by the existing source decoder.
+#[derive(Clone, Copy)]
+enum SourceHash<'a> {
+    Input(&'a [u8]),
+    Prepared(&'a str),
+}
+#[derive(Clone, Copy)]
+struct DecodedView<'a> {
+    source: &'a str,
+    hash: SourceHash<'a>,
+    index: &'a nif::NifIndex,
+    decoded: &'a binding::Source,
+    scene: &'a nif_scene::Scene,
+}
+
+fn evaluate_decoded(
+    view: DecodedView<'_>,
+    request: Request,
+    limits: Limits,
+    selected: Option<SampleOverride<'_>>,
+    table: Option<&super::influences::Table>,
+    mut budget: Budget<'_>,
+) -> Result<Evaluation> {
+    let DecodedView {
+        hash,
+        source,
+        index,
+        decoded,
+        scene,
+    } = view;
     // An unknown node may contain a hidden link to a selected bone. The old
     // catalogue deliberately certifies only decoded ancestry, so refuse here.
     if !decoded.bindings.unsupported_scene_edges.is_empty() {
@@ -560,7 +618,10 @@ fn evaluate_inner(
         } else {
             "engineering-source-local-skin-v1"
         },
-        source_sha256: format!("{:x}", Sha256::digest(bytes)),
+        source_sha256: match hash {
+            SourceHash::Prepared(digest) => digest.to_owned(),
+            SourceHash::Input(bytes) => format!("{:x}", Sha256::digest(bytes)),
+        },
         geometry: request.geometry,
         geometry_data,
         instance: owner.instance,
@@ -590,7 +651,7 @@ fn evaluate_inner(
             }
             record_controller(
                 id,
-                &scene,
+                scene,
                 &objects,
                 &mut controller_seen,
                 &mut result,
@@ -614,7 +675,7 @@ fn evaluate_inner(
             }
             record_controller(
                 cursor,
-                &scene,
+                scene,
                 &objects,
                 &mut controller_seen,
                 &mut result,
@@ -697,7 +758,7 @@ fn evaluate_inner(
     Ok(result)
 }
 
-fn accumulate_weight(
+pub(super) fn accumulate_weight(
     matrix: Affine,
     bits: u32,
     vertex: usize,

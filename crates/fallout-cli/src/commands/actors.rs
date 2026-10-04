@@ -29,6 +29,8 @@ pub(crate) enum ActorsCommand {
         include_packages: bool,
         #[arg(long, requires = "include_packages")]
         include_package_dependencies: bool,
+        #[arg(long, requires = "include_packages", value_parser = actor_inspection::parse_root)]
+        package_destination: Option<identity::FormKey>,
         #[arg(long)]
         include_dependencies: bool,
         #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]
@@ -77,6 +79,10 @@ pub(crate) enum ActorsCommand {
         package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
         #[arg(long, requires = "explicit_subject")]
         include_actor_context: bool,
+        #[arg(long, requires = "explicit_subject")]
+        equipment_item: Option<std::num::NonZeroU64>,
+        #[arg(long, requires = "explicit_subject")]
+        inventory_boot_request: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {

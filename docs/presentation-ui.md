@@ -44,3 +44,99 @@ it is not a completed inspection. A successful report proves retained source
 structure, never evaluated original menu rendering. The existing original
 source/operator/font review remains authoritative for subsequent trait and font
 work; this implementation does not repeat that audit.
+
+The opt-in --menu-includes REQUEST.json reads an exact include dependency
+closure. The strict schema-1 request supplies the root member path/archive/payload
+SHA-256 and one binding for every include source-value span: parent member path,
+parent payload SHA-256, src_span { start, end }, exact raw_src, and a target
+with exact member path/archive/payload SHA-256. Bare source names such as
+list_box.xml require this explicit binding; the consumer does not infer a
+directory, search order, loose-file override or template inclusion rule. Only
+literal src and empty/whitespace/comment include bodies are admitted. Unknown
+fields, custom entities in paths, duplicate/unused bindings, changed source hashes,
+missing or ambiguous members and unsafe paths refuse the complete request.
+
+The closure retains separate source-qualified Documents and exact include edges.
+Duplicate dependencies share their immutable document. Iterative traversal reports
+cycles with member/value-span routes and bounds the full dependency depth even
+when a longer path reaches a reused subtree. No nodes are spliced, templates
+instantiated or operators evaluated. A selected authored name still belongs to
+the root source; original_display_ready remains false.
+
+Closure limits are 64 files, 256 edges, 16 include levels, 4 MiB aggregate source,
+131,072 events, 65,536 nodes and 16 MiB declared logical retained metadata, with
+the existing per-document limits. Remaining budgets constrain each archive read
+and parse before retention. The caller request is limited to 128 KiB and the
+closure report to 32 MiB through the existing bounded serializer. Working request
+maps/DFS state and tokenizer temporary allocation are bounded separately, without
+claiming allocator peak memory. Failure returns no closure and the CLI does not
+create its report until complete dependency admission; a subsequent output/write
+failure can still leave a partial immutable report. Default single-file --menu
+output and original UI evaluation/font/display acceptance remain unchanged.
+
+The opt-in `--menu-entities REQUEST.json` observes one exact source value. Its
+strict schema-1 request binds `source { path, archive_sha256, payload_sha256 }`, a
+`selection`, and an ordered `definitions` array of literal `name`/`value` pairs.
+Selection is either `element-text` with `node` and the complete element `span`, or
+`attribute` with its owner `node`, exact `name_span` and `value_span`. Existing
+node/span identities must match. This request carries its own selection and cannot
+be combined with the include-closure or authored-name selector flags.
+
+Element text admits direct text, entity references and CDATA; comments contribute
+no text and nested markup/operators refuse. Attribute observations retain their
+literal whitespace. XML builtin names use the pinned tokenizer's five-entry
+resolver, and numeric references use its Unicode character-reference API. Numeric
+validation follows that API's documented behavior, including zero/surrogate/range
+refusal; complete XML LegalChar checking remains outside its verified scope.
+There is no DTD fetch, attribute whitespace normalization or localization rule.
+
+Custom entities require an explicit value bound to the source payload. Duplicate
+definitions, builtin/numeric overrides, NUL and entity-shaped nested replacements
+refuse. Values are literal UTF-8; a plain ampersand and an explicitly empty value
+are supported. Unsupplied names produce `value: null` and every exact source span
+in `unresolved`. A resolved empty string remains distinct from that unavailable
+result. Missing values never publish a partly expanded string.
+
+Each occurrence and projected replacement byte is admitted before output copying,
+including repeated references and empty replacements. Limits are 128 KiB request,
+128 definitions, 64 KiB environment names/values, 32,768 pieces, 16,384 references,
+1 MiB selected input, 1 MiB expanded UTF-8, 2 MiB declared logical working metadata
+and a 12 MiB streamed report, alongside existing source-document limits. Definition
+names are at most 128 bytes; source reference names are at most 256 bytes. Copies
+begin after complete preflight. This is an explicit text observation for the later
+tile consumer; layout, operators, typed traits and original display remain open.
+
+The opt-in `--menu-traits REQUEST.json` projects one exact named tile's direct
+source fields. A strict schema-1 request binds `source` as above, `tile { name,
+node, span }` and explicit `conversions [{ name, kind }]`. The name must select a
+unique existing tile and match its node/span. Conversion kinds are `string`,
+`finite-f32` and `boolean-01`; their assignment is caller input, not a guessed
+runtime type for a source trait. This flag has its own selection and conflicts
+with the other menu selector/consumer flags.
+
+All direct element rows retain source order, name and whole/inner spans, plus
+exact inner source spelling. The complete direct child index list and source
+Document retain non-element nodes too. Requested absent names follow source
+rows, with null spans/spelling and `absent` status. Tile/include/template children
+remain structural. Duplicate declarations, attributed declarations, nested
+operators, unsupplied conversions and custom entities remain unresolved. Builtin
+and numeric references reuse the entity consumer with no custom definitions;
+malformed references refuse the complete projection. No field precedence,
+template expansion, arithmetic, visibility or layout default is supplied.
+
+Strings preserve literal whitespace, including a resolved empty string. Numeric
+and boolean policies trim only XML ASCII whitespace and preserve an `empty`
+result distinct from absence. Finite numbers use Rust's f32 parser and publish
+both the value and exact f32 bits, preserving negative zero. Malformed numbers,
+nonfinite numbers, overflow and a nonzero mantissa rounded to zero have explicit
+unresolved reasons. Other finite rounding follows that parser. Boolean conversion
+admits exactly `0` or `1`; custom `&true;`/`&false;` entities require future explicit
+source values and do not select a truth value here.
+
+Limits are 128 KiB request, 128 conversions, 256 rows, 2 MiB reserved copy bytes,
+1 MiB declared logical projection metadata and 16 MiB streamed output, plus
+existing Document/entity limits. Before row/value copying, the complete plan
+reserves each copied name plus twice its inner UTF-8 bytes, conservatively covering
+raw spelling and decoded value or missing-reference names. Metadata accounts for
+the borrowed plan/maps, owned row and reference structs and complete direct child list, excluding
+allocator peak and temporary entity work already bounded by that consumer.

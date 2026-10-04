@@ -28,6 +28,15 @@ can be submitted to existing `CellResidency`; it does not incorporate persistent
 world objects into the spatial cell or change canonical loaded state. Runtime,
 terrain, collision, behavior and original activation admission remain separate.
 
+`prepare_terrain(store, request, mounts, terrain_limits)` applies the same private
+request and ordered source checks before passing the exact CELL to existing
+`terrain::preparation::TextureSourcePlan::load`. Its resulting plan must retain
+the directory's canonical source cohort. Existing strict LAND/world/layer/default
+and external texture readers, quotas and unresolved-source diagnostics apply.
+The plan can feed existing `TexturePreparation` jobs and cache; this connection
+does not admit a rendered terrain surface, evaluated inheritance, collision or
+canonical spatial membership. Duplicate LAND and tainted payloads remain refused.
+
 The caller may lower these fixed source-inspection ceilings:
 
 | Allowance | Ceiling |
@@ -63,3 +72,108 @@ Store and existing importer/cache; it does not create a second resource route.
 An unavailable request emits its report and exits 1. Source availability does
 not satisfy original lookup precedence or activation acceptance, and
 `current_cell_changed`, `activation_applied` and `runtime_ready` remain false.
+
+`grid-terrain-sources` uses the same explicit world/grid flags, protected directory
+and private selection as the model command. It calls `prepare_terrain` and the
+existing `TexturePreparation` job/cache pipeline, with bounded polling and
+owned-request cancellation on timeout/failure. The report retains the exact
+terrain source plan, source-bound texture receipt and job usage. Requested member
+completion remains separate from missing/ambiguous paths and unapplied default
+layers; either unresolved authored coverage or strict planning refusal exits 1.
+Duplicate LAND refuses before a job request. `surface_prepared`, runtime readiness
+and activation stay false; this command does not decode a DDS/material surface.
+
+`grid-residency-sources --include-terrain` explicitly declares the strict terrain
+texture plan in the same CELL epoch and shared job pool as its models and model
+textures. It consumes both borrowed texture leases and retains their hashes and
+CELL ticket binding in the report. Source availability requires every declared
+source batch's coverage; original model gaps still refuse even if terrain completes.
+
+The command retains model and both texture leases across `unload()`, reports stale
+access rejection and unchanged retained payload/metadata/mapping charges, then
+releases those leases and records the drained Unrequested state. These are source
+lifetime checks. Dependency, collision and behavior reports remain Pending;
+surface, render, simulation, current-cell change and activation remain unadmitted.
+Omitting the flag preserves the existing model/texture request scope.
+
+`request_set(&[[x, y], ...])` selects a nonempty, duplicate-free explicit list
+in caller order. Every coordinate must select one live exterior grid CELL;
+a missing, deleted, non-grid or ambiguous final selection refuses the whole
+request. The private `CellGridSetRequest` retains the same directory/world/source
+seal as its single requests. It performs no coordinate arithmetic.
+
+`prepare_cells(store, request_set, mounts, ModelSetLimits)` validates that seal
+and prepares a `CellModelPlanSet` through the existing factory. Its borrowed
+requests and plans preserve caller order and exact single-plan identities.
+The result cannot be constructed from report JSON. A refusal returns no partial
+bundle and releases any plans and protected archive inputs admitted earlier.
+
+Each factory receives the aggregate allowance remaining after earlier plans,
+before reading bodies, collecting metadata or opening archive mappings. Existing
+per-cell ceilings still apply. Model requests, model bytes, graph scans, source
+receipts and plan metadata count per cell, including coincident model requests.
+An exact container-bound protected `ArchiveInput` is reused across plans; its
+immutable mapping is charged once. Container aliases are not guessed equivalent.
+
+| Aggregate construction allowance | Ceiling |
+| --- | ---: |
+| Explicit grids/plans | 8 |
+| Source receipt occurrences | 2,048 |
+| Winning headers scanned | 8,000,000 |
+| Graph nodes / edges | 4,096 / 16,384 |
+| Base records / archive candidates / model requests | 1,024 / 8,192 / 1,024 |
+| Field sites | 262,144 |
+| max(stored, decoded) plugin-body reads | 64 MiB |
+| Decoded plugin bodies / model member bytes | 64 MiB / 64 MiB |
+| Conservative model probe metadata | 512 MiB |
+| Conservative retained plan/set metadata | 32 MiB |
+| Distinct protected archive inputs | 8 |
+| Actually shared mapped archive extents | 16 GiB |
+
+All allowances are lower-only. Set metadata is admitted before selection/source
+validation copies and retained plan collection. Directory construction and plugin
+fingerprinting are separate from these preparation counters. Estimates exclude
+allocator overhead and the caller's existing index. This caller-owned immutable
+construction budget is not a global process quota or a residency owner. Cloned
+individual plans retain their already admitted shared metadata and source inputs.
+The bundle creates no jobs and applies no activation or runtime readiness policy.
+
+`grid-set-sources --install ... --load-order ... --world Base.esm:100
+--grid=-18,0 --grid=0,0` consumes the entire prepared set and emits its ordered
+requests, exact selected CELL source entries, plan receipts and aggregate usage.
+Repeat `--grid=x,y` for every intended cell; one through eight signed i32 pairs
+are required. Optional `--index-cache` reuses the protected source header index.
+No radius, source polling timeout or resource cache is involved in this planning
+consumer. Existing single-grid commands retain their flags and behavior.
+
+`source_plans_prepared` reports whole-set construction. It remains separate from
+`complete_model_selection`, which preserves missing/ambiguous/MODL coverage gaps
+inside successful plans. A refused selection or factory emits its directory and
+error with a null plan set and exits 1. Successful preparation exits 0, including
+explicitly reported incomplete model coverage. No model payload jobs or runtime
+activation occur, and the runtime/lookup/parity fields remain false.
+
+`request_persistent()` separately requires exactly one live
+`Role::PersistentGroup` in this world's winning source directory. Its sealed
+`CellPersistentRequest` contains world, CELL identity and source cohort, without
+grid coordinates. A misleading XCLC remains source metadata on the entry; it
+cannot turn the request into an exterior grid request. Deleted winners remain
+tombstones, and missing or multiple live persistent groups refuse selection.
+
+`prepare_persistent(store, request, mounts, model_limits)` verifies the same
+world/directory and full ordered source seal, then prepares the exact persistent
+CELL through existing `CellModelPlan::load` and its unchanged strict graph/model
+ceilings. It performs no extra census, predecessor fallback or quota lift. The
+plan can be retained by a host separately from spatial grid plans; this source
+API creates no residency, persistent-actor simulation or canonical state change.
+
+`persistent-cell-sources --install ... --load-order ... --world Base.esm:100`
+consumes that separately selected source group. Optional `--index-cache` uses the
+existing protected header index. The report retains the persistent request,
+winning entry including any misleading XCLC, model plan and bounded dependency
+usage. The request itself never contains a grid. A selection/factory refusal
+retains its source error and emits no model plan or residency; it exits 1.
+Successful whole-plan preparation exits 0 and separately reports incomplete
+model selection. Existing graph/model ceilings remain unchanged for installed
+worlds with large persistent groups. Runtime, activation, lookup and parity fields
+remain false; no persistent actor is created, simulated or removed.

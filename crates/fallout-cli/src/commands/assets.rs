@@ -31,6 +31,9 @@ pub(crate) enum AssetsCommand {
         attachment: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        /// Evaluate one exact controller/time request for the selected node.
+        #[arg(long)]
+        sampled: bool,
     },
     /// Evaluate linked translation/scale at explicit source time; playback unverified.
     NifSourcePose {
@@ -91,6 +94,20 @@ pub(crate) enum AssetsCommand {
         /// Export every exact raw influence and reconstruct one source-local skin.
         #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request"])]
         influences_request: Option<PathBuf>,
+        /// Explicit external stored-local skeleton source; requires a complete map.
+        #[arg(long, requires = "external_skin_request")]
+        external_rig: Option<PathBuf>,
+        #[arg(long, requires = "external_rig", conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request"])]
+        external_skin_request: Option<PathBuf>,
+        /// Evaluate unique explicit geometries from one source decode.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request"])]
+        shared_skin_request: Option<PathBuf>,
+        /// Export exact authored partition influence and topology streams.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request"])]
+        partition_streams_request: Option<PathBuf>,
+        /// Select an authored partition from one existing geometry deformation.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request"])]
+        partition_pose_request: Option<PathBuf>,
     },
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {

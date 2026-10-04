@@ -3,9 +3,14 @@ use super::{Result, inspection_input::Order, script_state_inspection};
 use fallout_data::{inventory, loaded_scripts};
 use fallout_runtime::{
     Limits, World,
+    foreign::{Content, SourceForm},
     identity::{CampaignId, ReferenceId},
-    inventory::{Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, ViewLimits},
+    inventory::{
+        Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, Page, PageLimits,
+        PageRequest, RemovalLimits, TransferLimits, ViewLimits,
+    },
     save::{Captured, Recovery, Repository},
+    source_items::{Policy, Role, SourceFactsLimits, SourceInventoryLimits},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -43,6 +48,81 @@ fn views(world: &World<'_>, owners: &[ReferenceId]) -> Result<Vec<InventoryView>
     }
     Ok(observations)
 }
+/// Actual bounded page consumer; the engineering view is only an independent
+/// equality check, not the implementation used to discover each next lot.
+fn pages(world: &World<'_>, owners: &[ReferenceId]) -> Result<Vec<Vec<Page>>> {
+    let mut remaining = PageLimits {
+        max_visited: 65_536,
+        max_rows: 1,
+        max_links: 1_000_000,
+        max_extra_bytes: 16 * 1024 * 1024,
+        max_copied_bytes: 32 * 1024 * 1024,
+    };
+    let mut page_count = 0_usize;
+    let mut observations = Vec::new();
+    for &owner in owners {
+        let mut owner_pages = Vec::new();
+        let mut after = None;
+        loop {
+            if page_count >= 65_536 {
+                return Err("Inventory page consumer page bound".into());
+            }
+            let page = world.inventory_page(
+                PageRequest {
+                    owner,
+                    after: after.as_ref(),
+                    rows: 1,
+                },
+                remaining,
+            )?;
+            page_count += 1;
+            let usage = page.usage();
+            remaining.max_visited -= usage.visited;
+            remaining.max_links -= usage.links;
+            remaining.max_extra_bytes -= usage.extra_bytes;
+            remaining.max_copied_bytes -= usage.copied_bytes;
+            after = page.next_cursor().cloned();
+            owner_pages.push(page);
+            if after.is_none() {
+                break;
+            }
+        }
+        observations.push(owner_pages);
+    }
+    Ok(observations)
+}
+fn verify_pages(pages: &[Vec<Page>], views: &[InventoryView]) -> Result<()> {
+    if pages.len() != views.len() {
+        return Err("Inventory page owners differ".into());
+    }
+    for (owner_pages, view) in pages.iter().zip(views) {
+        let mut items = Vec::new();
+        let mut initialized = None;
+        for page in owner_pages {
+            if page.campaign() != view.campaign()
+                || page.catalogue_fingerprint() != view.catalogue_fingerprint()
+                || page.revision() != view.revision()
+                || page.boundary() != view.boundary()
+                || page.owner() != view.owner()
+                || page.authored() != view.authored()
+            {
+                return Err("Inventory page binding differs".into());
+            }
+            let known = page.items().is_some();
+            if initialized.is_some_and(|prior| prior != known) {
+                return Err("Inventory page initialization changed".into());
+            }
+            initialized = Some(known);
+            items.extend(page.items().unwrap_or_default().iter());
+        }
+        if initialized != Some(view.items().is_some())
+            || items != view.items().unwrap_or_default().iter().collect::<Vec<_>>()
+        {
+            return Err("Inventory pages differ from exact canonical lots".into());
+        }
+    }
+    Ok(())
+}
 pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -> Result<Value> {
     eprintln!("Item state: reading original script and inventory identities...");
     let order = Order::read(order_path)?;
@@ -76,6 +156,19 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         .iter()
         .map(|(key, _)| key.clone())
         .collect::<Vec<_>>();
+    let content = Content::load(&mut store, &scripts, 1_000_000)?;
+    let placed = store
+        .winning_definitions()
+        .find_map(|(key, location)| {
+            let header = &store.definition(location).header;
+            let source = SourceForm {
+                kind: header.kind,
+                flags: header.flags,
+            };
+            (source.is_placed() && header.flags & fallout_data::plugin::DELETED == 0)
+                .then(|| key.clone())
+        })
+        .ok_or("Item initialization probe needs a nondeleted placed source owner")?;
     let mut engineering = script_state_inspection::engineering_world(&scripts)?;
     // A distinct campaign keeps this probe's persistent counters separate.
     let mut snapshot = engineering.world.snapshot();
@@ -133,13 +226,279 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     }
     facts.base = keys[2].clone();
     engineering.world.replace_item_facts(original, facts)?;
+    let transfer_before = engineering.world.snapshot();
+    let transfers = [(original, b), (separate, b), (split, a)];
+    if engineering
+        .world
+        .stage_inventory_transfers(
+            &[(original, b), (separate, absent)],
+            TransferLimits::default(),
+        )
+        .is_ok()
+        || engineering.world.snapshot() != transfer_before
+    {
+        return Err("Invalid final batch destination partly transferred inventory".into());
+    }
+    let stage = engineering
+        .world
+        .stage_inventory_transfers(&transfers, TransferLimits::default())?;
+    if engineering.world.snapshot() != transfer_before {
+        return Err("Inventory staging changed state".into());
+    }
+    let atomic_transfer = engineering.world.commit_inventory_transfers(stage)?;
+    if atomic_transfer.before_revision() != transfer_before.state_revision
+        || atomic_transfer.after_revision()
+            != transfer_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Transfer revision exhausted")?
+        || atomic_transfer.usage().moved_rows != 3
+    {
+        return Err("Grouped inventory transfer did not publish exactly one revision".into());
+    }
+    for row in atomic_transfer.changes() {
+        let current = engineering.world.item(row.original().id())?;
+        if current.owner() != row.target()
+            || current.count() != row.original().count()
+            || current.facts() != row.original().facts()
+        {
+            return Err("Grouped transfer changed an original lot identity/quantity/fact".into());
+        }
+    }
+    let transfer_after = engineering.world.snapshot();
+    for key in &keys {
+        let total = |snapshot: &fallout_runtime::snapshot::Snapshot| {
+            snapshot
+                .inventory_banks
+                .iter()
+                .flat_map(|bank| &bank.items)
+                .filter(|item| item.facts().base == *key)
+                .map(|item| u64::from(item.count()))
+                .sum::<u64>()
+        };
+        if total(&transfer_before) != total(&transfer_after) {
+            return Err("Grouped transfer changed a per-base total".into());
+        }
+    }
+    let placed_source = content.source_form(&engineering.world, &placed)?;
+    let source_owner = engineering.world.register_reference(Some(placed.clone()))?;
+    let mut starting_first = engineering.world.item(separate)?.facts().clone();
+    starting_first.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abc,
+    });
+    let mut starting_second = starting_first.clone();
+    starting_second.condition = Some(Condition::Float32 { bits: 0x8000_0000 });
+    let starting_lots = [
+        (starting_first, 11.try_into()?),
+        (starting_second, 2.try_into()?),
+    ];
+    // These caller-supplied engineering rules admit the selected exact source
+    // kinds for each used role. They make no claim about original item rules.
+    let base_kind = content.source_form(&engineering.world, &keys[0])?.kind;
+    let ammo_kind = content.source_form(&engineering.world, &keys[1])?.kind;
+    let modification_kind = content.source_form(&engineering.world, &keys[2])?.kind;
+    let source_policy = Policy::new(&[
+        (Role::Base, &[base_kind]),
+        (Role::Ammo, &[ammo_kind]),
+        (Role::Modification, &[modification_kind]),
+    ])?;
+    let initialization_before = engineering.world.snapshot();
+    let mut bad = starting_lots.clone();
+    bad[1].0.base = placed.clone();
+    if engineering
+        .world
+        .stage_source_inventory_initialization(
+            &content,
+            &source_policy,
+            source_owner,
+            &bad,
+            SourceInventoryLimits::default(),
+        )
+        .is_ok()
+        || engineering.world.snapshot() != initialization_before
+    {
+        return Err("Invalid final source lot partly initialized a bank".into());
+    }
+    let stage = engineering.world.stage_source_inventory_initialization(
+        &content,
+        &source_policy,
+        source_owner,
+        &starting_lots,
+        SourceInventoryLimits::default(),
+    )?;
+    if engineering.world.snapshot() != initialization_before {
+        return Err("Source inventory staging changed state".into());
+    }
+    let source_initialization = engineering.world.commit_source_inventory_initialization(
+        &content,
+        &source_policy,
+        stage,
+    )?;
+    if source_initialization.before_revision() != initialization_before.state_revision
+        || source_initialization.after_revision()
+            != initialization_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Source initialization revision exhausted")?
+        || source_initialization.item_ids().len() != starting_lots.len()
+    {
+        return Err("Source inventory initialization boundary differs".into());
+    }
+    for (&id, (facts, count)) in source_initialization.item_ids().iter().zip(&starting_lots) {
+        let item = engineering.world.item(id)?;
+        if item.owner() != source_owner || item.facts() != facts || item.count() != count.get() {
+            return Err("Source inventory starting lot differs".into());
+        }
+    }
+    let facts_before = engineering.world.snapshot();
+    let first_id = source_initialization.item_ids()[0];
+    let mut first_edit = Facts::unknown(keys[2].clone());
+    first_edit.condition = Some(Condition::Float32 { bits: 0x7fc0_1234 });
+    first_edit.equipped_slots = Some(Vec::new());
+    first_edit.modifications = Some(Vec::new());
+    first_edit.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 128, 255, 0],
+    }];
+    let mut second_edit = Facts::unknown(keys[1].clone());
+    second_edit.condition = Some(Condition::Float64 {
+        bits: 0x8000_0000_0000_0000,
+    });
+    second_edit.ownership = Some(Ownership::Unowned);
+    let facts_edits = [
+        (engineering.world.item_handle(first_id)?, first_edit),
+        (engineering.world.item_handle(separate)?, second_edit),
+    ];
+    let mut bad = facts_edits.clone();
+    bad[1].1.base = placed.clone();
+    if engineering
+        .world
+        .stage_source_item_facts(&content, &source_policy, &bad, SourceFactsLimits::default())
+        .is_ok()
+        || engineering.world.snapshot() != facts_before
+    {
+        return Err("Invalid last source facts edit partly changed a lot".into());
+    }
+    let stage = engineering.world.stage_source_item_facts(
+        &content,
+        &source_policy,
+        &facts_edits,
+        SourceFactsLimits::default(),
+    )?;
+    if engineering.world.snapshot() != facts_before {
+        return Err("Source facts staging changed state".into());
+    }
+    let facts_originals = stage
+        .rows()
+        .iter()
+        .map(|row| row.original().clone())
+        .collect::<Vec<_>>();
+    let source_facts_edit =
+        engineering
+            .world
+            .commit_source_item_facts(&content, &source_policy, stage)?;
+    if source_facts_edit.before_revision() != facts_before.state_revision
+        || source_facts_edit.after_revision()
+            != facts_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Facts revision exhausted")?
+        || source_facts_edit.item_ids() != [first_id, separate]
+    {
+        return Err("Source facts edit did not publish exactly one revision".into());
+    }
+    for (old, (_, facts)) in facts_originals.iter().zip(&facts_edits) {
+        let item = engineering.world.item(old.id())?;
+        if item.owner() != old.owner() || item.count() != old.count() || item.facts() != facts {
+            return Err(
+                "Source facts edit changed an identity/quantity/owner or supplied fact".into(),
+            );
+        }
+    }
+    let removal_before = engineering.world.snapshot();
+    let removals = [
+        (engineering.world.item_handle(first_id)?, 2.try_into()?),
+        (engineering.world.item_handle(original)?, 12.try_into()?),
+    ];
+    let mut bad = removals;
+    bad[1].1 = 13.try_into()?;
+    if engineering
+        .world
+        .stage_inventory_removals(&bad, RemovalLimits::default())
+        .is_ok()
+        || engineering.world.snapshot() != removal_before
+    {
+        return Err("Invalid final removal partly consumed a lot".into());
+    }
+    let fully_removed = engineering.world.item(original)?.clone();
+    let partial_facts = engineering.world.item(first_id)?.facts().clone();
+    let stage = engineering
+        .world
+        .stage_inventory_removals(&removals, RemovalLimits::default())?;
+    if engineering.world.snapshot() != removal_before {
+        return Err("Removal staging changed state".into());
+    }
+    let atomic_removal = engineering.world.commit_inventory_removals(stage)?;
+    if atomic_removal.before_revision() != removal_before.state_revision
+        || atomic_removal.after_revision()
+            != removal_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Removal revision exhausted")?
+        || atomic_removal.usage().removed_lots != 1
+        || atomic_removal.usage().released_links != 7
+        || atomic_removal.usage().released_extra_bytes != 3
+        || engineering.world.item(original).is_ok()
+        || engineering.world.item(first_id)?.count() != 9
+        || engineering.world.item(first_id)?.facts() != &partial_facts
+    {
+        return Err("Atomic removal differs from explicit partial/complete input".into());
+    }
     let expected = engineering.world.snapshot();
-    let expected_traces = traces(&engineering.world, &[a, b], &keys)?;
-    let expected_views = views(&engineering.world, &[a, b, absent])?;
+    // A real add at tight canonical capacity proves the released charges on
+    // separately restored proof worlds. The saved boundary stays the removal.
+    let capacity_limits = Limits {
+        max_item_instances: 5,
+        max_total_item_links: 23,
+        max_total_item_bytes: 13,
+        ..Limits::default()
+    };
+    let mut before_capacity = World::restore(&scripts, removal_before.clone(), capacity_limits)?;
+    if before_capacity
+        .add_item(
+            fully_removed.owner(),
+            fully_removed.facts().clone(),
+            1.try_into()?,
+        )
+        .is_ok()
+        || before_capacity.snapshot() != removal_before
+    {
+        return Err("Full canonical capacity unexpectedly admitted an extra lot".into());
+    }
+    let mut after_capacity = World::restore(&scripts, expected.clone(), capacity_limits)?;
+    let reclaimed_id = after_capacity.add_item(
+        fully_removed.owner(),
+        fully_removed.facts().clone(),
+        1.try_into()?,
+    )?;
+    if reclaimed_id.0.get() != expected.next_item
+        || after_capacity.item(reclaimed_id)?.facts() != fully_removed.facts()
+    {
+        return Err("Reclaimed capacity normalized or reidentified the supplied lot".into());
+    }
+    let capacity_proof = json!({"limits":{"max_item_instances":5,"max_total_item_links":23,"max_total_item_bytes":13},
+        "before_add_refused_without_effects":true,"after_removal_add_succeeded":true,"saved_world_unchanged":engineering.world.snapshot()==expected,
+        "added_id":reclaimed_id,"added_owner":fully_removed.owner(),"added_facts":fully_removed.facts(),"added_count":1,"after_add_snapshot":after_capacity.snapshot()});
+    let expected_traces = traces(&engineering.world, &[a, b, source_owner], &keys)?;
+    let expected_views = views(&engineering.world, &[a, b, source_owner, absent])?;
+    let expected_pages = pages(&engineering.world, &[a, b, source_owner, absent])?;
+    verify_pages(&expected_pages, &expected_views)?;
     let restored = World::restore(&scripts, expected.clone(), Limits::default())?;
     if restored.snapshot() != expected
-        || traces(&restored, &[a, b], &keys)? != expected_traces
-        || views(&restored, &[a, b, absent])? != expected_views
+        || traces(&restored, &[a, b, source_owner], &keys)? != expected_traces
+        || views(&restored, &[a, b, source_owner, absent])? != expected_views
+        || serde_json::to_value(pages(&restored, &[a, b, source_owner, absent])?)?
+            != serde_json::to_value(&expected_pages)?
     {
         return Err("Canonical item restoration differs".into());
     }
@@ -148,31 +507,64 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         &[install.into()],
         engineering.world.campaign(),
     )?;
+    let before_world = World::restore(&scripts, transfer_before.clone(), Limits::default())?;
+    let native_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
+    let before_world = World::restore(&scripts, initialization_before.clone(), Limits::default())?;
+    let source_inventory_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
+    let before_world = World::restore(&scripts, facts_before.clone(), Limits::default())?;
+    let source_facts_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
+    let before_world = World::restore(&scripts, removal_before.clone(), Limits::default())?;
+    let removal_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
     let capture = Captured::at_boundary(&engineering.world);
     let worker_repository = repository.clone();
     let worker = std::thread::spawn(move || worker_repository.commit(&capture));
     engineering
         .world
-        .remove_item_quantity(original, 1.try_into()?)?;
+        .remove_item_quantity(split, 1.try_into()?)?;
     let write = worker.join().map_err(|_| "Item save worker panicked")??;
     let (loaded, receipt) = repository.load(&scripts, Limits::default(), Recovery::Strict)?;
     if loaded.snapshot() != expected
-        || traces(&loaded, &[a, b], &keys)? != expected_traces
-        || views(&loaded, &[a, b, absent])? != expected_views
+        || traces(&loaded, &[a, b, source_owner], &keys)? != expected_traces
+        || views(&loaded, &[a, b, source_owner, absent])? != expected_views
+        || serde_json::to_value(pages(&loaded, &[a, b, source_owner, absent])?)?
+            != serde_json::to_value(&expected_pages)?
     {
         return Err("Owned native item capture differs".into());
     }
     let bytes = expected.encode(Limits::default().max_snapshot_bytes)?;
-    Ok(
-        json!({"schema_version":1,"profile":"nv-original","sources":scripts.sources,"inventory_counts":base.counts,"source_item_inputs":selected.iter().map(|(_,value)|value).collect::<Vec<_>>(),
-        "engineering_inputs":{"owners":[a,b],"uninitialized_owner":absent,"item_keys":keys,"original_id":original,"separate_id":separate,"split_id":split,
+    let facts_inputs = facts_edits
+        .iter()
+        .map(|(handle, facts)| Ok(json!({"id":engineering.world.item_id(*handle)?,"facts":facts})))
+        .collect::<Result<Vec<_>>>()?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original","sources":scripts.sources,"inventory_counts":base.counts,"source_item_inputs":selected.iter().map(|(_,value)|value).collect::<Vec<_>>(),
+        "engineering_inputs":{"owners":[a,b,source_owner],"uninitialized_owner":absent,"item_keys":keys,"original_id":original,"separate_id":separate,"split_id":split,
         "counts":[17,3,5,2],"condition_bits":[0x7ff8_1234_5678_9abc_u64,0x7ff8_1234_5678_9abd_u64],"equipment_slots":[7,1],"opaque_extra":{"tag":"TEST","bytes":[0,255,1]}},
         "item_instances":expected.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":expected.inventory_banks.len(),"script_instances":expected.instances.len(),
         "query_traces":expected_traces,"snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"state_schema":expected.schema_version,
         "inventory_views":expected_views,"all_inventory_views_equal_after_restore":true,
+        "inventory_pages":expected_pages,"all_inventory_pages_equal_after_restore":true,
+        "atomic_inventory_transfer":atomic_transfer,"atomic_inventory_transfer_invalid_last_preserved_state":true,
+        "atomic_inventory_transfer_totals_and_facts_conserved":true,"native_before_write":native_before_write,
+        "source_inventory_initialization":source_initialization,"source_inventory_before_write":source_inventory_before_write,
+        "source_inventory_inputs":{"owner":source_owner,"authored":placed,"source":placed_source,"policy":source_policy,"lots":starting_lots},
+        "source_inventory_invalid_last_preserved_uninitialized":true,"source_inventory_exact_lots_and_one_revision":true,
         "canonical_state_round_trip_equal":true,"all_query_traces_equal_after_restore":true,"rejected_mutations_preserved_state":true,"uninitialized_inventory_rejected":true,"worker_capture_isolated":true,
-        "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
-    )
+        "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    report["source_facts_edit"] = serde_json::to_value(source_facts_edit)?;
+    report["source_facts_before_write"] = serde_json::to_value(source_facts_before_write)?;
+    report["source_facts_inputs"] = serde_json::to_value(facts_inputs)?;
+    report["source_facts_invalid_last_preserved_state"] = true.into();
+    report["source_facts_ids_counts_owners_and_one_revision_equal"] = true.into();
+    report["atomic_inventory_removal"] = serde_json::to_value(atomic_removal)?;
+    report["removal_before_write"] = serde_json::to_value(removal_before_write)?;
+    report["removal_inputs"] = json!([{"id":first_id,"quantity":2},{"id":original,"quantity":12}]);
+    report["removal_invalid_last_preserved_state"] = true.into();
+    report["removal_capacity_proof"] = capacity_proof;
+    Ok(report)
 }
 pub(super) fn cold(
     install: &Path,
@@ -192,9 +584,12 @@ pub(super) fn cold(
     let (world, receipt) = repository.load(&scripts, Limits::default(), Recovery::Strict)?;
     let snapshot = world.snapshot();
     let bytes = snapshot.encode(Limits::default().max_snapshot_bytes)?;
+    let observations = views(&world, owners)?;
+    let paged = pages(&world, owners)?;
+    verify_pages(&paged, &observations)?;
     Ok(
         json!({"schema_version":1,"receipt":receipt,"query_traces":traces(&world,owners,keys)?,"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"snapshot_bytes":bytes.len(),
-        "inventory_views":views(&world,owners)?,
+        "inventory_views":observations,"inventory_pages":paged,"all_inventory_pages_equal":true,
         "item_instances":snapshot.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":snapshot.inventory_banks.len(),"state_schema":snapshot.schema_version,"source_bound_restore":true,"retail_parity_accepted":false}),
     )
 }

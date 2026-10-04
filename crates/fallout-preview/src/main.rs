@@ -12,6 +12,7 @@ mod scene;
 mod startup;
 mod terrain;
 mod terrain_textures;
+mod ui;
 mod upload;
 
 use bevy::{
@@ -39,7 +40,7 @@ use std::{
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
     #[arg(skip)]
@@ -52,6 +53,12 @@ struct Options {
     /// Exact bounded local NIF input; diffuse paths use the same archive lookup.
     #[arg(long, requires = "install")]
     model_file: Option<PathBuf>,
+    /// Retain exact source menu XML in a local inspection report, without evaluating tiles.
+    #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["capture", "headless"])]
+    menu: Option<String>,
+    /// Select exactly one authored name attribute; ambiguous names are refused.
+    #[arg(long, requires = "menu")]
+    menu_tile: Option<String>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -305,6 +312,25 @@ fn run() -> model::Result<AppExit> {
     }
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
+    }
+    if let Some(menu) = &options.menu {
+        let report = ui::inspect(
+            options
+                .install
+                .as_deref()
+                .expect("menu requires installation"),
+            &AssetPath::new(menu.as_bytes())?,
+            options.menu_tile.as_deref(),
+            ui::Limits::default(),
+        )?;
+        let path = options.report.as_ref().expect("menu requires report");
+        let file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        ui::write_report(file, &report, ui::Limits::default().output_bytes)?;
+        eprintln!(
+            "Menu source tree retained: {} nodes; tile evaluation/display remains unavailable",
+            report.document.nodes.len()
+        );
+        return Ok(AppExit::Success);
     }
     let headless = options.headless;
     let native_shutdown = options.native_shutdown.clone();

@@ -285,6 +285,8 @@ enum Command {
         equipment_item: Option<std::num::NonZeroU64>,
         #[arg(long, requires = "equipment_item", value_parser = actor_inspection::parse_equipment_role)]
         equipment_model_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, requires = "include_actor_context")]
+        render_path_selection: Option<PathBuf>,
         #[arg(long, requires = "explicit_subject")]
         inventory_boot_request: Option<PathBuf>,
     },
@@ -1064,6 +1066,7 @@ fn run(args: Args) -> Result<()> {
             include_actor_context,
             equipment_item,
             equipment_model_role,
+            render_path_selection,
             inventory_boot_request,
         } => {
             let report = actor_inspection::package_context(
@@ -1083,6 +1086,7 @@ fn run(args: Args) -> Result<()> {
                     include_actor_context,
                     equipment_item,
                     equipment_model_role,
+                    render_path_selection: render_path_selection.as_deref(),
                     inventory_boot_request: inventory_boot_request.as_deref(),
                 },
             )?;

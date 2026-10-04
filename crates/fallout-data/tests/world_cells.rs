@@ -1,11 +1,13 @@
 //! Authored source directories exercise actual winners, parent masters and CELL plans.
 use fallout_data::{
+    archive::NvArchive,
     identity::{FormKey, ProfileId},
     plugin,
     store::RecordStore,
     vfs::MountIndex,
     world::{
         cells::{CellGridSources, Limits, Role},
+        preparation::ModelSetLimits,
         residency::CellResidency,
     },
 };
@@ -420,4 +422,437 @@ fn wrong_or_deleted_world_and_malformed_requested_cell_refuse_construction() {
     assert!(
         CellGridSources::load(&mut fixture.open(false), &key(0x100), Limits::default()).is_err()
     );
+}
+
+fn child_group(cell: u32, kind: i32, body: &[u8]) -> Vec<u8> {
+    [
+        b"GRUP".as_slice(),
+        &(body.len() as u32 + 24).to_le_bytes(),
+        &cell.to_le_bytes(),
+        &kind.to_le_bytes(),
+        &[0; 8],
+        body,
+    ]
+    .concat()
+}
+fn model_pair(fixture: &Fixture) -> MountIndex {
+    let a = record(
+        b"REFR",
+        0x300,
+        0,
+        &[
+            field(b"NAME", &0x400_u32.to_le_bytes()),
+            field(b"DATA", &[0; 24]),
+        ]
+        .concat(),
+    );
+    let b = [
+        record(
+            b"REFR",
+            0x301,
+            0,
+            &[
+                field(b"NAME", &0x400_u32.to_le_bytes()),
+                field(b"DATA", &[0; 24]),
+            ]
+            .concat(),
+        ),
+        record(
+            b"REFR",
+            0x302,
+            0,
+            &[
+                field(b"NAME", &0x401_u32.to_le_bytes()),
+                field(b"DATA", &[0; 24]),
+            ]
+            .concat(),
+        ),
+    ]
+    .concat();
+    let extra = [
+        group(
+            0x100,
+            &[
+                child_group(0x200, 6, &child_group(0x200, 9, &a)),
+                child_group(0x201, 6, &child_group(0x201, 9, &b)),
+            ]
+            .concat(),
+        ),
+        record(b"STAT", 0x400, 0, &field(b"MODL", b"a.nif\0")),
+        record(b"STAT", 0x401, 0, &field(b"MODL", b"b.nif\0")),
+    ]
+    .concat();
+    let path = fixture.root.path().join("Data/Base.esm");
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.extend(extra);
+    fs::write(&path, bytes).unwrap();
+    // Literal two-member uncompressed BSA104. Entry extents are [104,107) and
+    // [107,112), independent of the production importer/planning algorithm.
+    let mut bytes = vec![0; 112];
+    bytes[..4].copy_from_slice(b"BSA\0");
+    for (at, word) in [
+        (4, 104_u32),
+        (8, 36),
+        (12, 3),
+        (16, 1),
+        (20, 2),
+        (24, 7),
+        (28, 12),
+        (44, 2),
+        (48, 52),
+        (68, 3),
+        (72, 104),
+        (84, 5),
+        (88, 107),
+    ] {
+        bytes[at..at + 4].copy_from_slice(&word.to_le_bytes());
+    }
+    bytes[52] = 7;
+    bytes[53..60].copy_from_slice(b"meshes\0");
+    bytes[92..104].copy_from_slice(b"a.nif\0b.nif\0");
+    bytes[104..107].copy_from_slice(&[1, 2, 3]);
+    bytes[107..112].copy_from_slice(&[5, 6, 7, 8, 9]);
+    let path = fixture.root.path().join("Data/models.bsa");
+    fs::write(&path, bytes).unwrap();
+    let mut mounts = MountIndex::default();
+    NvArchive::open(&path).unwrap().census(&mut mounts).unwrap();
+    mounts
+}
+
+#[test]
+fn unequal_ordered_cell_set_keeps_override_spans_and_reuses_exact_shared_archive() {
+    let mut fixture = Fixture::new();
+    let mounts = model_pair(&fixture);
+    fixture.patch(
+        &[
+            group(0x100, &cell(0x200, 0, 0, Some([5, -6]))),
+            record(b"STAT", 0x400, 0, &field(b"MODL", b"a.nif\0")),
+        ]
+        .concat(),
+    );
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_set(&[[0, 0], [5, -6]]).unwrap();
+    let set = directory
+        .prepare_cells(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    assert_eq!(set.requests()[0].cell(), &key(0x201));
+    assert_eq!(set.requests()[1].cell(), &key(0x200));
+    assert_eq!(set.usage().grids, 2);
+    assert_eq!(set.usage().models, 3);
+    assert_eq!(set.usage().model_bytes, 11);
+    assert_eq!(set.usage().archives, 1);
+    assert_eq!(set.usage().mapped_bytes, 112);
+    assert_eq!(set.plan(0).unwrap().receipt().requests.len(), 2);
+    assert_eq!(set.plan(1).unwrap().receipt().requests.len(), 1);
+    for i in 0..2 {
+        let plan = set.plan(i).unwrap();
+        let source = request.requests()[i].cell();
+        assert_eq!(plan.root(), source);
+        assert_eq!(
+            plan.receipt().source_cohort_sha256,
+            set.source_cohort_sha256()
+        );
+        let single = directory
+            .prepare_cell(
+                &mut store,
+                &request.requests()[i],
+                &mounts,
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(single.identity(), plan.identity());
+        let root = plan
+            .graph()
+            .nodes
+            .iter()
+            .find(|node| &node.key == source)
+            .unwrap();
+        assert_eq!(root.header.offset, if i == 0 { 145 } else { 95 });
+        let coverage = &plan.receipt().coverage[0];
+        assert_eq!(coverage.source_plugin, "Patch.esp");
+        assert_eq!(coverage.header.offset, 140);
+        assert_eq!(coverage.model_field.as_ref().unwrap().decoded_offset, 0);
+        assert_eq!(coverage.model_field.as_ref().unwrap().value, b"a.nif");
+    }
+    let held = set.plan(0).unwrap().clone();
+    let bytes = fs::read(fixture.root.path().join("Data/models.bsa")).unwrap();
+    drop(set);
+    #[cfg(windows)]
+    assert!(fs::write(fixture.root.path().join("Data/models.bsa"), &bytes).is_err());
+    drop(held);
+    fs::write(fixture.root.path().join("Data/models.bsa"), bytes).unwrap();
+}
+
+#[test]
+fn cell_set_exact_aggregate_bounds_accept_and_one_under_refuses_without_partial_pins() {
+    let fixture = Fixture::new();
+    let mounts = model_pair(&fixture);
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_set(&[[-18, 0], [0, 0]]).unwrap();
+    let set = directory
+        .prepare_cells(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    let u = set.usage();
+    let exact = ModelSetLimits {
+        grids: u.grids,
+        sources: u.sources,
+        winners_scanned: u.winners_scanned,
+        nodes: u.nodes,
+        edges: u.edges,
+        bases: u.bases,
+        candidates: u.candidates,
+        models: u.models,
+        field_sites: u.field_sites,
+        read_bytes: u.read_bytes,
+        decoded_bytes: u.decoded_bytes,
+        model_bytes: u.model_bytes,
+        probe_metadata_bytes: u.probe_metadata_bytes,
+        metadata_bytes: u.metadata_bytes,
+        archives: u.archives,
+        mapped_bytes: u.mapped_bytes,
+        ..Default::default()
+    };
+    let identity = set.identity().to_owned();
+    drop(set);
+    assert_eq!(
+        directory
+            .prepare_cells(&mut store, &request, &mounts, exact)
+            .unwrap()
+            .identity(),
+        identity
+    );
+    let variants = [
+        ModelSetLimits {
+            grids: exact.grids - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            sources: exact.sources - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            winners_scanned: exact.winners_scanned - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            nodes: exact.nodes - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            edges: exact.edges - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            bases: exact.bases - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            candidates: exact.candidates - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            models: exact.models - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            field_sites: exact.field_sites - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            read_bytes: exact.read_bytes - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            decoded_bytes: exact.decoded_bytes - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            model_bytes: exact.model_bytes - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            probe_metadata_bytes: exact.probe_metadata_bytes - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            metadata_bytes: exact.metadata_bytes - 1,
+            ..exact
+        },
+        ModelSetLimits {
+            archives: 0,
+            ..exact
+        },
+        ModelSetLimits {
+            mapped_bytes: exact.mapped_bytes - 1,
+            ..exact
+        },
+    ];
+    let path = fixture.root.path().join("Data/models.bsa");
+    let bytes = fs::read(&path).unwrap();
+    for (i, limits) in variants.into_iter().enumerate() {
+        assert!(
+            directory
+                .prepare_cells(&mut store, &request, &mounts, limits)
+                .is_err(),
+            "bound {i}"
+        );
+        // A refused late plan releases earlier plans and the pooled mapping.
+        fs::write(&path, &bytes).unwrap();
+    }
+    assert!(
+        directory
+            .prepare_cells(
+                &mut store,
+                &request,
+                &mounts,
+                ModelSetLimits {
+                    grids: 9,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn cell_set_selection_never_infers_missing_ambiguous_deleted_or_duplicate_grids() {
+    let mut fixture = Fixture::new();
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    for grids in [
+        vec![],
+        vec![[-18, 0], [-18, 0]],
+        vec![[-18, 0], [1, 2]],
+        vec![[0, 0]; 9],
+    ] {
+        assert!(directory.request_set(&grids).is_err());
+    }
+    let extremes = directory
+        .request_set(&[[i32::MIN, i32::MAX], [0, 0]])
+        .unwrap();
+    assert_eq!(extremes.requests()[0].grid(), [i32::MIN, i32::MAX]);
+    drop(store);
+    fixture.patch(&group(
+        0x100,
+        &cell(0x201, plugin::DELETED, 0, Some([0, 0])),
+    ));
+    let mut store = fixture.open(false);
+    assert!(load(&mut store).request_set(&[[-18, 0], [0, 0]]).is_err());
+    drop(store);
+    for (flags, data, grid) in [
+        (plugin::PERSISTENT, 0, Some([0, 0])),
+        (0, 1, Some([0, 0])),
+        (0, 0, None),
+    ] {
+        let mut fixture = Fixture::new();
+        fixture.patch(&group(0x100, &cell(0x201, flags, data, grid)));
+        assert!(
+            load(&mut fixture.open(false))
+                .request_set(&[[-18, 0], [0, 0]])
+                .is_err()
+        );
+    }
+    let mut fixture = Fixture::new();
+    fixture.patch(&group(0x100, &cell(0x0100_0220, 0, 0, Some([0, 0]))));
+    assert!(
+        load(&mut fixture.open(false))
+            .request_set(&[[-18, 0], [0, 0]])
+            .is_err()
+    );
+}
+
+#[test]
+fn cell_set_rejects_changed_order_count_bytes_and_another_world_directory() {
+    let mut fixture = Fixture::new();
+    fixture.patch(&[]);
+    fs::write(fixture.root.path().join("Data/Other.esm"), header(false)).unwrap();
+    fixture.names.push("Other.esm".into());
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_set(&[[-18, 0], [0, 0]]).unwrap();
+    let other = CellGridSources::load(&mut store, &key(0x101), Limits::default()).unwrap();
+    assert!(
+        other
+            .prepare_cells(
+                &mut store,
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+    drop(store);
+    fixture.names.swap(1, 2);
+    assert!(
+        directory
+            .prepare_cells(
+                &mut fixture.open(false),
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+    fixture.names.swap(1, 2);
+    fixture.names.pop();
+    assert!(
+        directory
+            .prepare_cells(
+                &mut fixture.open(false),
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+    fixture.names.push("Other.esm".into());
+    let path = fixture.root.path().join("Data/Base.esm");
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.extend(record(b"STAT", 0x900, 0, &[]));
+    fs::write(path, bytes).unwrap();
+    assert!(
+        directory
+            .prepare_cells(
+                &mut fixture.open(false),
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn empty_model_cell_sets_still_charge_metadata_and_allow_exact_zero_byte_records() {
+    let fixture = Fixture::new();
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_set(&[[-18, 0], [0, 0]]).unwrap();
+    let set = directory
+        .prepare_cells(
+            &mut store,
+            &request,
+            &MountIndex::default(),
+            Default::default(),
+        )
+        .unwrap();
+    let limits = ModelSetLimits {
+        read_bytes: set.usage().read_bytes,
+        decoded_bytes: set.usage().decoded_bytes,
+        metadata_bytes: set.usage().metadata_bytes,
+        models: 0,
+        model_bytes: 0,
+        archives: 0,
+        mapped_bytes: 0,
+        ..Default::default()
+    };
+    assert!(set.usage().metadata_bytes > 0);
+    assert_eq!(set.usage().models, 0);
+    drop(set);
+    let set = directory
+        .prepare_cells(&mut store, &request, &MountIndex::default(), limits)
+        .unwrap();
+    assert_eq!(set.usage().grids, 2);
 }

@@ -570,7 +570,30 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
             external_skin_request,
             shared_skin_request,
             partition_streams_request,
+            partition_pose_request,
         } => {
+            if let Some(request) = partition_pose_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_partition_pose(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source partition pose refused; see report".into());
+                }
+                return Ok(());
+            }
             if let Some(request) = partition_streams_request {
                 if let Some(path) = output {
                     let parent = path

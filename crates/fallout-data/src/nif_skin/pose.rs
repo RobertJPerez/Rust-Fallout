@@ -7,6 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 mod batch;
+pub mod partition;
 pub use batch::{
     BatchEvaluationLimits, BatchLimits, GeometryBatch, GeometryLimits, PreparationLimits,
     PreparationUsage, PreparedSkinSource, evaluate_many,

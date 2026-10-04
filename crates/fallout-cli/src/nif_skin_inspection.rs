@@ -259,6 +259,61 @@ struct PartitionStreamsRequest {
     partition_block: u32,
     partition_ordinal: usize,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PartitionPoseRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    partition_block: u32,
+    partition_ordinal: usize,
+    weights: InfluenceWeightPolicy,
+}
+#[derive(Serialize)]
+pub struct PartitionPoseReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<nif_skin::pose::partition::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_partition_pose(input: &Path, request_path: &Path) -> Result<PartitionPoseReport> {
+    let request: PartitionPoseRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("partition pose request requires schema1".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = nif_skin::pose::partition::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::pose::partition::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: request.weights.policy(),
+            },
+            partition_block: request.partition_block,
+            partition_ordinal: request.partition_ordinal,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PartitionPoseReport {
+        schema_version: 1,
+        contract: "engineering-source-geometry-partition-subset-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 #[derive(Serialize)]
 pub struct PartitionStreamsReport {
     schema_version: u32,

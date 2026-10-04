@@ -487,3 +487,48 @@ initial private audit's hard-coded header-length mistake and first boundary
 test's incorrect storage-error expectation are retained with the passing corrected
 runs; neither correction changed original bytes or decoding behavior. Numerical
 component/B-spline evaluation, poses and retail playback remain separate gates.
+
+## Archive source coverage audit (ASSET-07)
+
+`tools/nif-animation-oracle/coverage_matrix.py` joins the preserved archive sample
+receipts to already compared schema4 animation and schema3 skin reports. It checks
+all exact input bytes, hashes, archive member identities, tuples and container
+counts. Each inspector receipt must bind the supplied native report hash and
+contain a successful comparison. The matrix summarizes those independent checks;
+it is not another independent decoder or an actor-root resolver. Source catalogues
+remain distinct from evaluated poses and retail behavior.
+
+The input allowance is 128 MiB for the pretty animation report, 64 MiB per other
+report and 128 file rows. These limits bound admitted input bytes/rows, rather
+than Python process memory. The matrix retains one animation tree without copying
+its key or control arrays. Duplicate identities, mismatched source fields, missing
+comparison receipts, impossible catalogue counts and readiness claims refuse.
+Output creation is exclusive. Optional team authorization and STOP checks apply.
+
+Private evidence is in `local/asset-07-teamv2-20261003-01`. The deterministic
+archive-path/category sample contains 70 original NIF/KF members: 14 character,
+12 creature and 14 first-person KFs; two character, ten creature, four first-person
+and 14 other NIFs. All 70 existing animation source comparisons match. All 30 NIF
+skin/partition/binding reports match the unchanged independent skin oracle.
+Those NIFs contain 582 binding nodes but zero skin blocks or skin owners: this
+sample does not verify first-person or creature skin weights. Actor-root membership
+awaits a tested exact archive/member/hash manifest. Relative NIFZ/KFFZ references
+remain unresolved; path categories alone cannot establish actor closure.
+
+The source matrix records unparsed animation link occurrences separately from
+blocks outside its animation catalogue. It finds 243 Boolean, 173 float and 63
+point3 interpolator link occurrences; these counts are not unique block counts.
+The creature/first-person categories account for 113 Boolean link occurrences.
+An independent bounded header/layout audit finds 252 `NiBoolInterpolator` and
+three `NiBoolTimelineInterpolator` blocks across 33 original members, all stream34.
+Pinned inheritance and primitive definitions agree on exactly five bytes: raw
+uint8 value followed by a u32 `NiBoolData` link. Observed values are 0, 1 and 2;
+215 links are null and 40 address `NiBoolData`. This selects a concrete next source
+slice. It does not admit Boolean evaluation, timeline events or truth conversion.
+
+Ten altered identity, tuple, comparison, catalogue/readiness and oracle-binding
+probes refuse for their intended reasons. The first matrix run refused the
+82-MB pretty animation report at its initial 64-MiB admission limit; its snapshot
+and failure are retained. The corrected 128-MiB animation allowance and final
+matrix pass without changing any original source or inspector output. No Rust
+or native implementation changed in this audit.

@@ -8,22 +8,56 @@ pub(super) enum Shape {
     Triangle([V; 3]),
 }
 
-fn sphere_ray(o: V, d: V, center: V, radius: f64) -> Option<f64> {
+fn length(v: V) -> f64 {
+    v[0].hypot(v[1]).hypot(v[2])
+}
+
+// FMA recovers the rounding error of the second product before subtraction.
+// This avoids losing the perpendicular offset of a long, nearly axial ray.
+fn difference_of_products(a: f64, b: f64, c: f64, d: f64) -> f64 {
+    let product = c * d;
+    let error = (-c).mul_add(d, product);
+    a.mul_add(b, -product) + error
+}
+fn precise_cross(a: V, b: V) -> V {
+    [
+        difference_of_products(a[1], b[2], a[2], b[1]),
+        difference_of_products(a[2], b[0], a[0], b[2]),
+        difference_of_products(a[0], b[1], a[1], b[0]),
+    ]
+}
+
+fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
     let relative = sub(o, center);
-    let c = dot(relative, relative) - radius * radius;
-    if c <= 0. {
-        return Some(0.);
+    if length(relative) <= radius {
+        return Ok(Some(0.));
     }
-    let a = dot(d, d);
-    let b = dot(relative, d);
-    let disc = b * b - a * c;
-    if disc < 0. {
-        return None;
+    let speed = length(d);
+    if speed == 0. || !speed.is_finite() {
+        return Err(QueryError::Invalid("unrepresentable local ray speed"));
     }
-    // Stable smaller quadratic root when a ray faces toward the sphere.
-    let q = -b + disc.sqrt();
-    let t = if q != 0. { c / q } else { -b / a };
-    (t >= 0.).then_some(t)
+    let direction = d.map(|v| v / speed);
+    // Subtracting squared axial distances in the quadratic discriminant can
+    // erase a finite transverse miss. Measure that distance directly instead.
+    let perpendicular = length(precise_cross(relative, direction));
+    let along = -dot(relative, direction);
+    if perpendicular > radius || along <= 0. {
+        return Ok(None);
+    }
+    let chord = ((radius - perpendicular) * (radius + perpendicular)).sqrt();
+    let entry = along - chord;
+    // A distant true intersection can still have an unrepresentable surface
+    // entry. Refuse it instead of reporting a rounded point inside the solid.
+    if chord > 0. && entry == along {
+        return Err(QueryError::Invalid(
+            "ray surface entry exceeds numerical precision",
+        ));
+    }
+    let t = entry / speed;
+    if !t.is_finite() || entry < 0. {
+        return Err(QueryError::Invalid("unrepresentable ray surface entry"));
+    }
+    Ok(Some(t))
 }
 
 fn segment_distance2(p: V, a: V, b: V) -> f64 {
@@ -91,7 +125,7 @@ impl Shape {
             return Err(QueryError::Invalid("overflowing local ray"));
         }
         Ok(match *self {
-            Self::Sphere(radius) => sphere_ray(o, d, [0.; 3], radius),
+            Self::Sphere(radius) => sphere_ray(o, d, [0.; 3], radius)?,
             Self::Box(extents) => {
                 let mut enter: f64 = 0.;
                 let mut exit = f64::INFINITY;
@@ -114,33 +148,23 @@ impl Shape {
                     return Ok(Some(0.));
                 }
                 let edge = sub(b, a);
-                let edge2 = dot(edge, edge);
-                let mut nearest = [sphere_ray(o, d, a, radius), sphere_ray(o, d, b, radius)]
+                let edge_length = length(edge);
+                let mut nearest = [sphere_ray(o, d, a, radius)?, sphere_ray(o, d, b, radius)?]
                     .into_iter()
                     .flatten()
                     .min_by(f64::total_cmp);
-                if edge2 > 0. {
+                if edge_length > 0. {
+                    let axis = edge.map(|v| v / edge_length);
                     let relative = sub(o, a);
-                    let axial_d = dot(d, edge) / edge2;
-                    let axial_o = dot(relative, edge) / edge2;
-                    let dp = sub(d, mul(edge, axial_d));
-                    let op = sub(relative, mul(edge, axial_o));
-                    let aa = dot(dp, dp);
-                    let bb = dot(dp, op);
-                    let cc = dot(op, op) - radius * radius;
-                    let discriminant = bb * bb - aa * cc;
-                    if aa > 0. && discriminant >= 0. {
-                        for t in [
-                            (-bb - discriminant.sqrt()) / aa,
-                            (-bb + discriminant.sqrt()) / aa,
-                        ] {
-                            let axial = axial_o + t * axial_d;
-                            if t >= 0.
-                                && (0. ..=1.).contains(&axial)
-                                && nearest.is_none_or(|old| t < old)
-                            {
-                                nearest = Some(t);
-                            }
+                    let dp = precise_cross(axis, precise_cross(d, axis));
+                    let op = precise_cross(axis, precise_cross(relative, axis));
+                    if length(dp) > 0.
+                        && let Some(t) = sphere_ray(op, dp, [0.; 3], radius)?
+                    {
+                        let axial = t.mul_add(dot(d, axis), dot(relative, axis));
+                        if (0. ..=edge_length).contains(&axial) && nearest.is_none_or(|old| t < old)
+                        {
+                            nearest = Some(t);
                         }
                     }
                 }

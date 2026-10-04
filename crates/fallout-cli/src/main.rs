@@ -469,6 +469,9 @@ enum Command {
         grid_y: i32,
         #[arg(long, default_value_t = 30_000)]
         source_timeout_ms: u64,
+        /// Include strict terrain textures in this CELL's residency epoch.
+        #[arg(long)]
+        include_terrain: bool,
     },
     /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
     GridTerrainSources {
@@ -1382,8 +1385,14 @@ fn run(args: Args) -> Result<()> {
             grid_x,
             grid_y,
             source_timeout_ms,
+            include_terrain,
         } => {
-            let report = world_preparation_inspection::grid_residency(
+            let inspect = if include_terrain {
+                world_preparation_inspection::grid_cell_residency
+            } else {
+                world_preparation_inspection::grid_residency
+            };
+            let report = inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),

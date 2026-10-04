@@ -12,7 +12,7 @@ use fallout_data::{
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
         preparation::CellModelPlan,
-        residency::{CellResidency, Snapshot, Stage, TexturePlan, TextureState},
+        residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
     },
 };
 use serde_json::{Value, json};
@@ -92,10 +92,28 @@ pub(super) fn grid_terrain(
     )
 }
 
+pub(super) fn grid_cell_residency(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+) -> Result<Value> {
+    grid_report(
+        install,
+        order_path,
+        index_cache,
+        resource_cache,
+        input,
+        GridKind::CellSources,
+    )
+}
+
 #[derive(Clone, Copy)]
 enum GridKind {
     Models,
     TerrainTextures,
+    CellSources,
 }
 
 fn grid_report(
@@ -141,6 +159,34 @@ fn grid_report(
                     Ok(plan) => Ok(consume_terrain(install, resource_cache, deadline, plan)?),
                     Err(error) => Err(error.to_string()),
                 },
+                GridKind::CellSources => {
+                    let prepared = (|| -> fallout_data::Result<_> {
+                        let models = sources.prepare_cell(
+                            &mut store,
+                            &request,
+                            assets.mounts(),
+                            Default::default(),
+                        )?;
+                        let terrain = sources.prepare_terrain(
+                            &mut store,
+                            &request,
+                            assets.mounts(),
+                            Default::default(),
+                        )?;
+                        Ok((models, terrain))
+                    })();
+                    match prepared {
+                        Ok((models, terrain)) => Ok(consume_cell_plan(
+                            install,
+                            resource_cache,
+                            deadline,
+                            models,
+                            assets.mounts(),
+                            Some(terrain),
+                        )?),
+                        Err(error) => Err(error.to_string()),
+                    }
+                }
             }
         }
         Err(error) => Err(error.to_string()),
@@ -168,6 +214,13 @@ fn grid_report(
             report["surface_prepared"] = json!(false);
             report["scope"] = json!(
                 "Explicit WRLD/XCLC CELL strict LAND/world/layer external texture source jobs; surface, inheritance and runtime activation remain unadmitted"
+            );
+        }
+        GridKind::CellSources => {
+            report["terrain_scope_requested"] = json!(true);
+            report["surface_prepared"] = json!(false);
+            report["scope"] = json!(
+                "Explicit WRLD/XCLC CELL model and both texture source batches in one residency epoch; retained leases checked across unload and final quota drain; no surface, inheritance or runtime activation"
             );
         }
     }
@@ -275,12 +328,29 @@ fn consume_plan(
     plan: CellModelPlan,
     mounts: &MountIndex,
 ) -> Result<Value> {
+    consume_cell_plan(install, resource_cache, deadline, plan, mounts, None)
+}
+
+fn consume_cell_plan(
+    install: &Path,
+    resource_cache: Option<&Path>,
+    deadline: Duration,
+    plan: CellModelPlan,
+    mounts: &MountIndex,
+    terrain: Option<TextureSourcePlan>,
+) -> Result<Value> {
     let model_receipt = serde_json::to_value(plan.receipt())?;
+    let terrain_requested = terrain.is_some();
+    let terrain_receipt = terrain
+        .as_ref()
+        .map(|plan| serde_json::to_value(plan.receipt()))
+        .transpose()?;
     let mut owner = CellResidency::new(install, resource_cache, Default::default())?;
     let ticket = owner.request(plan)?;
     let mut error = None;
     let mut textures = None;
     let mut texture_payloads = Vec::new();
+    let mut terrain_payloads = Vec::new();
     if let Err(failed) = poll_sources(&mut owner, false, deadline) {
         error = Some(failed.to_string());
     } else {
@@ -288,7 +358,12 @@ fn consume_plan(
             Ok(plan) => {
                 textures = Some(serde_json::to_value(plan.receipt())?);
                 owner.request_textures(&ticket, plan)?;
-                if let Err(failed) = poll_sources(&mut owner, true, deadline) {
+                if let Some(plan) = terrain {
+                    owner.request_terrain(&ticket, plan)?;
+                }
+                if let Err(failed) =
+                    poll_cell_sources(&mut owner, true, terrain_requested, deadline)
+                {
                     error = Some(failed.to_string());
                 } else {
                     // Consume the retained lease, not another archive/cache read.
@@ -303,23 +378,87 @@ fn consume_plan(
                         texture_payloads.push(json!({"request":index,"bytes":bytes.len(),
                             "sha256":format!("{:x}", Sha256::digest(bytes))}));
                     }
+                    if terrain_requested {
+                        let sources = owner.terrain_sources(&ticket)?;
+                        for (index, request) in sources.receipt()?.requests.iter().enumerate() {
+                            let bytes = sources.texture(index)?;
+                            if bytes.len() != request.decoded_bytes {
+                                return Err("resident terrain texture extent differs from sealed source request".into());
+                            }
+                            terrain_payloads.push(json!({"request":index,"bytes":bytes.len(),
+                                "sha256":format!("{:x}", Sha256::digest(bytes)),
+                                "cell_identity":sources.ticket().identity(),"generation":sources.ticket().generation()}));
+                        }
+                    }
                 }
             }
             Err(failed) => error = Some(failed.to_string()),
         }
     }
     let snapshot = owner.snapshot();
-    let available =
-        error.is_none() && snapshot.complete_model_coverage && snapshot.complete_texture_coverage;
-    Ok(json!({"schema_version":1,"profile":"nv-original",
+    let available = error.is_none()
+        && snapshot.complete_model_coverage
+        && snapshot.complete_texture_coverage
+        && (!terrain_requested || snapshot.complete_terrain_coverage);
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
         "cell_models":model_receipt,"cell_textures":textures,"texture_payloads":texture_payloads,
         "residency":snapshot,"source_error":error,
         "captured_sources_available":available,"lookup_precedence_verified":false,
         "runtime_ready":false,"retail_parity_accepted":false,
-        "scope":"Protected exact CELL/model/external-texture source jobs; no GPU/DDS/physics/behavior admission"}))
+        "scope":"Protected exact CELL/model/external-texture source jobs; no GPU/DDS/physics/behavior admission"});
+    if terrain_requested {
+        report["cell_terrain"] = json!(terrain_receipt);
+        report["terrain_payloads"] = json!(terrain_payloads);
+        // Exercise the real lifetime with leases held across unload. Payloads
+        // are consumed above; no source read or staging can follow revocation.
+        let models = owner.sources(&ticket).ok();
+        let textures = owner.texture_sources(&ticket).ok();
+        let terrain = owner.terrain_sources(&ticket).ok();
+        let terrain_ticket_matches = terrain.as_ref().is_some_and(|sources| {
+            sources.ticket().identity() == ticket.identity()
+                && sources.ticket().generation() == ticket.generation()
+                && sources.ticket().root() == ticket.root()
+        });
+        owner.unload()?;
+        report["residency_after_unload"] = serde_json::to_value(owner.poll()?)?;
+        report["retained_source_lifetime"] = json!({
+            "terrain_ticket_matches_cell":terrain_ticket_matches,
+            "old_ticket_rejected":ticket.check().is_err(),
+            "old_owner_access_rejected":owner.terrain_sources(&ticket).is_err(),
+            "borrowed_model_access_rejected":models.as_ref().map(|s| s.plan().is_err()),
+            "borrowed_texture_access_rejected":textures.as_ref().map(|s| s.receipt().is_err()),
+            "borrowed_terrain_access_rejected":terrain.as_ref().map(|s| s.receipt().is_err()),
+            "terrain_lease_retained":terrain.is_some()});
+        drop(terrain);
+        drop(textures);
+        drop(models);
+        let start = Instant::now();
+        loop {
+            let drained = owner.poll()?;
+            if drained.stage == Stage::Unrequested {
+                report["residency_after_release"] = serde_json::to_value(drained)?;
+                break;
+            }
+            if start.elapsed() >= deadline {
+                return Err(
+                    "unloaded CELL source reservations did not drain within deadline".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+    Ok(report)
 }
 
 fn poll_sources(owner: &mut CellResidency, textures: bool, timeout: Duration) -> Result<Snapshot> {
+    poll_cell_sources(owner, textures, false, timeout)
+}
+fn poll_cell_sources(
+    owner: &mut CellResidency,
+    textures: bool,
+    terrain: bool,
+    timeout: Duration,
+) -> Result<Snapshot> {
     let start = Instant::now();
     loop {
         let snapshot = owner.poll()?;
@@ -331,7 +470,12 @@ fn poll_sources(owner: &mut CellResidency, textures: bool, timeout: Duration) ->
         } else {
             snapshot.stage == Stage::Decoded
         };
-        if complete {
+        let terrain_complete = !terrain
+            || matches!(
+                snapshot.terrain_state,
+                TerrainState::Decoded | TerrainState::Unsupported
+            );
+        if complete && terrain_complete {
             return Ok(snapshot);
         }
         if start.elapsed() >= timeout {
@@ -899,6 +1043,182 @@ mod tests {
         for (path, sha) in paths.iter().zip(before) {
             assert_eq!(Sha256::digest(fs::read(directory.join(path)).unwrap()), sha);
         }
+    }
+    #[test]
+    fn cli_combined_grid_consumes_one_cell_epoch_then_proves_unload_and_final_release() {
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let paths = [
+            "Data/Base.esm",
+            "Data/models.bsa",
+            "Data/textures.bsa",
+            "order.json",
+        ];
+        let before: Vec<_> = paths
+            .iter()
+            .map(|p| Sha256::digest(fs::read(directory.join(p)).unwrap()))
+            .collect();
+        let cache = directory.with_file_name(format!(
+            "{}-combined-cache",
+            directory.file_name().unwrap().to_string_lossy()
+        ));
+        fs::create_dir(&cache).unwrap();
+        for _ in 0..2 {
+            let report = grid_cell_residency(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                Some(&cache),
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["captured_sources_available"], true);
+            assert_eq!(report["terrain_scope_requested"], true);
+            assert_eq!(
+                report["cell_terrain"]["source_cohort_sha256"],
+                report["cell_models"]["source_cohort_sha256"]
+            );
+            assert_eq!(
+                report["cell_terrain"]["root"],
+                report["cell_grid_request"]["cell"]
+            );
+            assert_eq!(report["residency"]["terrain_state"], "Decoded");
+            assert_eq!(report["residency"]["completed_models"], 1);
+            assert_eq!(report["residency"]["completed_textures"], 1);
+            assert_eq!(report["residency"]["completed_terrain_textures"], 1);
+            assert_eq!(report["residency"]["outstanding"], 3);
+            let payload = &report["terrain_payloads"][0];
+            assert_eq!(
+                payload["sha256"],
+                format!("{:x}", Sha256::digest(b"authored-source-texture"))
+            );
+            assert_eq!(payload["bytes"], 23);
+            assert_eq!(payload["cell_identity"], report["residency"]["identity"]);
+            assert_eq!(payload["generation"], report["residency"]["generation"]);
+            for field in [
+                "terrain_ticket_matches_cell",
+                "old_ticket_rejected",
+                "old_owner_access_rejected",
+                "borrowed_model_access_rejected",
+                "borrowed_texture_access_rejected",
+                "borrowed_terrain_access_rejected",
+                "terrain_lease_retained",
+            ] {
+                assert_eq!(report["retained_source_lifetime"][field], true, "{field}");
+            }
+            assert_eq!(report["residency_after_unload"]["stage"], "Unloading");
+            for field in [
+                "outstanding",
+                "pinned_source_bytes",
+                "retained_plans",
+                "plan_metadata_bytes",
+                "mapped_source_bytes",
+            ] {
+                assert_eq!(
+                    report["residency_after_unload"][field], report["residency"][field],
+                    "{field}"
+                );
+                assert_eq!(report["residency_after_release"][field], 0, "{field}");
+            }
+            assert_eq!(report["residency_after_release"]["stage"], "Unrequested");
+            for field in ["dependencies", "collision", "behavior"] {
+                assert_eq!(report["residency"][field], "Pending");
+            }
+            for field in ["simulation_ready", "render_published"] {
+                assert_eq!(report["residency"][field], false);
+            }
+            for field in [
+                "surface_prepared",
+                "current_cell_changed",
+                "activation_applied",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[field], false);
+            }
+        }
+        for (path, sha) in paths.iter().zip(before) {
+            assert_eq!(Sha256::digest(fs::read(directory.join(path)).unwrap()), sha);
+        }
+    }
+    #[test]
+    fn cli_combined_grid_keeps_source_refusals_and_no_job_selection_failures() {
+        for mode in ["missing", "ambiguous", "default", "duplicate"] {
+            let directory = directory();
+            terrain_grid_fixture(&directory, mode);
+            let report = grid_cell_residency(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                None,
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["captured_sources_available"], false, "{mode}");
+            assert_eq!(report["terrain_scope_requested"], true);
+            assert_eq!(report["runtime_ready"], false);
+            if mode == "duplicate" {
+                assert!(report["residency"].is_null());
+                assert!(report["cell_terrain"].is_null());
+                assert!(
+                    report["source_error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("exactly one winning present LAND")
+                );
+            } else {
+                assert_eq!(report["residency"]["terrain_state"], "Unsupported");
+                assert_eq!(report["residency"]["dependencies"], "Pending");
+                assert_eq!(report["residency"]["simulation_ready"], false);
+                assert_eq!(report["residency_after_release"]["stage"], "Unrequested");
+                assert_eq!(report["residency_after_release"]["outstanding"], 0);
+            }
+        }
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let report = grid_cell_residency(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            grid_input([i32::MIN, i32::MAX]),
+        )
+        .unwrap();
+        assert!(report["residency"].is_null());
+        assert!(report["cell_grid_request"].is_null());
+        for timeout in [0, 120001] {
+            let mut input = grid_input([-18, 0]);
+            input.source_timeout_ms = timeout;
+            assert!(
+                grid_cell_residency(Path::new("absent"), Path::new("absent"), None, None, input)
+                    .is_err()
+            );
+        }
+        use clap::Parser;
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "grid-residency-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--world",
+            "Base.esm:100",
+            "--grid-x",
+            "-18",
+            "--grid-y",
+            "0",
+            "--include-terrain",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::GridResidencySources {
+                include_terrain: true,
+                grid_x: -18,
+                ..
+            }
+        ));
     }
     #[test]
     fn cli_terrain_grid_retains_missing_ambiguous_default_and_duplicate_land_refusals() {

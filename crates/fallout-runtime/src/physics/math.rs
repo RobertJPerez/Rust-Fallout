@@ -50,6 +50,9 @@ pub(super) struct Similarity {
     pub scale: f64,
 }
 impl Similarity {
+    pub fn is_identity(&self) -> bool {
+        self.inverse.rows == identity().rows
+    }
     pub fn new(forward: Affine, tolerance: f64) -> QueryResult<Self> {
         if forward.rows.iter().flatten().any(|x| !x.is_finite()) {
             return Err(QueryError::Invalid("nonfinite transform"));

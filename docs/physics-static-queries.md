@@ -95,6 +95,23 @@ subtraction residuals, refusing uncertain contact comparisons. These local
 predicates retain the declared engineering transform scope; they do not certify
 retail units or arbitrary approximately similar transforms.
 
+Scenes with at least eight identity-inverse primitive occurrences use a balanced
+source-bound index. Its bounds enclose the supported authored core geometry;
+they only reject guaranteed misses and never produce hits. Unresolved or
+overflowing bound-ray predicates keep the source candidate. Other transforms
+retain the exhaustive path, merged in original occurrence order. Thus current
+acceleration covers model-local identity frames; transformed acceleration remains
+unfinished, while transformed geometry queries remain available.
+Build accounting charges every retained index node and fallback ordinal against
+`geometry_elements`. A query derives a separate index-visit ceiling of twice its
+initial `primitive_tests`; narrow primitives still charge the original counter.
+Traversal stops before exceeding that ceiling, and any error discards the whole
+query. Candidate ordering and final distance/source ordering are deterministic.
+Balanced construction halves each range, bounding its stack depth by
+`usize::BITS`, independently of authored graph depth. Source graph traversal
+remains iterative. No visual bounds or decoded MOPP instructions replace the
+authored narrow geometry.
+
 ## Headless source consumer
 
 `fallout nif-collision INPUT --query-request REQUEST --output NEW_REPORT` invokes

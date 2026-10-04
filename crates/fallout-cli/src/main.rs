@@ -1152,6 +1152,20 @@ fn protected_tree(source: &Path) -> Result<PathBuf> {
     }
 }
 
+fn protect_native_report(output: Option<&Path>, repository: &Path) -> Result<()> {
+    if let Some(path) = output {
+        let parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .canonicalize()?;
+        if parent.starts_with(repository.canonicalize()?) {
+            return Err("report output must be outside the native repository".into());
+        }
+    }
+    Ok(())
+}
+
 fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     for entry in fs::read_dir(install.join("Data"))? {
@@ -1422,6 +1436,8 @@ fn run(args: Args) -> Result<()> {
             repository,
             player_id,
         } => {
+            // A read-only load must also leave the input directory unchanged.
+            protect_native_report(output, &repository)?;
             let report =
                 foreign_context_inspection::cold(&install, &load_order, &repository, player_id)?;
             emit(&report, output, &protected_tree(&install)?)?;
@@ -1445,6 +1461,7 @@ fn run(args: Args) -> Result<()> {
             load_order,
             repository,
         } => {
+            protect_native_report(output, &repository)?;
             let report = native_save_inspection::load(&install, &load_order, &repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }

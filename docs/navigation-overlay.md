@@ -30,8 +30,10 @@ explicit penalty. Overflow refuses the whole route. The caller supplies a stable
 bounded immutable policy; this API bounds invocation and lookup work rather than
 arbitrary caller execution or wall time.
 
-The source scope hash streams actual graph nodes, annotations, raw record source
-SHA-256 values, links and resolved target indices in graph order. The overlay
+The source scope hash streams actual graph nodes, annotations, physical source
+plugin SHA-256 values, links and resolved target indices in graph order. Existing
+RecordStore source digests cover the full retained plugin, so a change elsewhere
+in that physical source also changes this receipt. The overlay
 policy hash includes that scope and normalized private selections; penalties are
 hashed by their binary64 words, preserving signed zero. Row permutation preserves
 the policy hash. The borrowed serialization view shows actual admitted source

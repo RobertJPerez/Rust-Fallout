@@ -374,8 +374,11 @@ def _validate_provenance(value: Any, evidence_class: str, path: str) -> dict[str
         if process is not None:
             _fail(f"{path}.process must be null for a synthetic fixture")
     elif evidence_class == "engineering_capture":
-        if provenance["binary_sha256"] is None or provenance["profile_fingerprint_sha256"] is None:
-            _fail(f"{path} requires executable and profile fingerprints for an engineering capture")
+        if any(
+            provenance[field] is None
+            for field in ("binary_sha256", "profile_fingerprint_sha256", "content_fingerprint_sha256")
+        ):
+            _fail(f"{path} requires executable, profile, and content fingerprints for an engineering capture")
         process = _keys(
             process,
             {"pid", "started_utc", "ended_utc", "exit_code"},
@@ -462,9 +465,11 @@ def validate_expectation(value: Any) -> dict[str, Any]:
         if pins[field] is not None:
             _digest(pins[field], f"expectation.provenance_pins.{field}")
     if evidence_class == "engineering_capture" and (
-        pins["binary_sha256"] is None or pins["profile_fingerprint_sha256"] is None
+        pins["binary_sha256"] is None
+        or pins["profile_fingerprint_sha256"] is None
+        or pins["content_fingerprint_sha256"] is None
     ):
-        _fail("engineering expectations must pin the executable and profile")
+        _fail("engineering expectations must pin the executable, profile, and content")
 
     minimums = _keys(
         expectation["minimum_counts"],

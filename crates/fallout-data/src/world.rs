@@ -6,6 +6,7 @@ pub mod dependencies;
 pub mod doors;
 pub mod environment;
 pub mod lighting;
+pub mod ownership;
 pub mod preparation;
 pub mod regions;
 pub mod residency;

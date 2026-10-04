@@ -7,9 +7,9 @@ use fallout_data::{loaded_scripts, obscript, quest_scripts, script_reference_att
 use fallout_runtime::{
     event_operands,
     execution::{
-        attachment_boot, copy_probe, event_request, foreign_copy, literal_assignment, local_copy,
-        native, native_assignment, native_plan, pending_batch, reference_attachment_boot,
-        reference_copy, reference_literal,
+        attachment_boot, copy_probe, event_request, foreign_copy, fragment_boot,
+        literal_assignment, local_copy, native, native_assignment, native_plan, pending_batch,
+        reference_attachment_boot, reference_copy, reference_literal,
     },
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
@@ -326,6 +326,278 @@ struct ReferenceBootInitialization {
     context: ReferenceBootContext,
     initializers: Vec<copy_probe::Initializer>,
 }
+enum SavedFragmentIntent {
+    Faithful,
+    EngineeringFragmentActivation,
+}
+impl<'de> serde::Deserialize<'de> for SavedFragmentIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        match <String as serde::Deserialize>::deserialize(d)?.as_str() {
+            "faithful" => Ok(Self::Faithful),
+            "engineering_fragment_activation" => Ok(Self::EngineeringFragmentActivation),
+            _ => Err(serde::de::Error::custom(
+                "unsupported embedded fragment boot intent",
+            )),
+        }
+    }
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedFragmentBootRequest {
+    schema_version: u32,
+    definition: loaded_scripts::Handle,
+    activation: std::num::NonZeroU64,
+    intent: SavedFragmentIntent,
+    initialization: ReferenceBootInitialization,
+    #[serde(with = "ReferenceSourceLimits")]
+    source_limits: script_reference_attachment::Limits,
+    #[serde(with = "ReferenceInitializationLimits")]
+    initialization_limits: attachment_boot::Limits,
+    maximum_retained_variable_bytes: usize,
+    maximum_prepared_instructions: usize,
+    maximum_prepared_operand_uses: usize,
+    maximum_prepared_tokens: usize,
+    maximum_prepared_record_bytes: usize,
+    maximum_trace_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+struct FragmentBootTrace<'a> {
+    activation: std::num::NonZeroU64,
+    expected_definition: &'a loaded_scripts::Handle,
+    definition: &'a loaded_scripts::Handle,
+    script_source: &'a loaded_scripts::Version,
+    physical_source_owner: &'a loaded_scripts::Owner,
+    source_receipts: &'a [fallout_data::store::SourceReceipt],
+    source_preflight_counts: script_reference_attachment::Counts,
+    initialization: &'a attachment_boot::Request,
+    initialization_counts: Option<fragment_boot::Counts>,
+    source_cohort_sha256: &'a str,
+    decoder_sha256: &'a str,
+}
+#[derive(serde::Serialize)]
+struct FragmentBootReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    trace: &'a FragmentBootTrace<'a>,
+    fragment_boot: ReferenceBootOutcome,
+}
+pub(super) fn boot_saved_fragment(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedFragmentBootRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        512 * 1024,
+        "embedded fragment boot request byte budget exceeded",
+    )?)?;
+    let s = request.source_limits;
+    let d = script_reference_attachment::Limits::default();
+    let i = request.initialization_limits;
+    let j = attachment_boot::Limits::default();
+    let f = fragment_boot::Limits::default();
+    let p = programs::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    if request.schema_version != 1
+        || s.maximum_sources > d.maximum_sources
+        || s.maximum_source_bytes > d.maximum_source_bytes
+        || s.maximum_header_visits > d.maximum_header_visits
+        || s.maximum_catalogue_scripts > d.maximum_catalogue_scripts
+        || s.maximum_variable_bytes > d.maximum_variable_bytes
+        || s.maximum_record_bytes > d.maximum_record_bytes
+        || s.maximum_read_bytes > d.maximum_read_bytes
+        || s.maximum_field_visits > d.maximum_field_visits
+        || i.maximum_initializers > j.maximum_initializers
+        || i.maximum_context_arguments > j.maximum_context_arguments
+        || i.maximum_variable_bytes > j.maximum_variable_bytes
+        || i.maximum_source_receipt_bytes > j.maximum_source_receipt_bytes
+        || i.maximum_declarations > j.maximum_declarations
+        || request.maximum_retained_variable_bytes > f.maximum_retained_variable_bytes
+        || request.maximum_prepared_instructions > p.maximum_instructions
+        || request.maximum_prepared_operand_uses > p.maximum_uses
+        || request.maximum_prepared_tokens > p.maximum_tokens
+        || request.maximum_prepared_record_bytes > p.maximum_attempted_record_bytes
+        || request.maximum_trace_bytes > 2 * 1024 * 1024
+        || request.maximum_trace_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+        || request.maximum_report_bytes == 0
+    {
+        return Err("unsupported embedded fragment boot schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(install, result_path, report_path, "embedded fragment boot")?;
+    let initialization = attachment_boot::Request {
+        campaign: request.initialization.campaign,
+        context: request.initialization.context.into_context(),
+        initializers: request.initialization.initializers,
+    };
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    if order.names.len() > s.maximum_sources {
+        return Err("embedded fragment boot source count budget exceeded".into());
+    }
+    let mut store = order.store(install, cache)?;
+    // Existing diagnostic preflight bounds indexed sources/names/headers. It
+    // performs no placement attachment join and grants no execution authority.
+    let source_preflight_counts =
+        script_reference_attachment::preflight(&store, &request.definition.key.record, s)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits {
+            max_candidate_records: s.maximum_header_visits.min(1_000_000),
+            max_candidate_read_bytes: s.maximum_read_bytes,
+            max_candidate_record_bytes: s.maximum_record_bytes,
+            max_scripts: s.maximum_catalogue_scripts,
+            max_retained_bytes: s.maximum_read_bytes,
+            max_variables: s.maximum_field_visits,
+            max_references: s.maximum_field_visits,
+        },
+        |_, _| Ok(()),
+    )?);
+    let current = catalogue
+        .get_handle(&request.definition)
+        .ok_or("embedded fragment exact source handle is absent or changed")?;
+    let content = Content::load(
+        &mut store,
+        &catalogue,
+        s.maximum_header_visits.min(1_000_000),
+    )?;
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        std::slice::from_ref(&request.definition),
+        programs::Limits {
+            maximum_attempted_bytes: s.maximum_read_bytes,
+            maximum_attempted_record_bytes: request.maximum_prepared_record_bytes,
+            maximum_instructions: request.maximum_prepared_instructions,
+            maximum_expressions: request.maximum_prepared_tokens.min(p.maximum_expressions),
+            maximum_tokens: request.maximum_prepared_tokens,
+            maximum_nodes: request.maximum_prepared_tokens,
+            maximum_uses: request.maximum_prepared_operand_uses,
+            ..p
+        },
+    )?;
+    let prepared = fragment_boot::prepare(
+        &sources,
+        &content,
+        fragment_boot::Selection {
+            definition: &request.definition,
+            activation: request.activation,
+            intent: match request.intent {
+                SavedFragmentIntent::Faithful => local_copy::Intent::Faithful,
+                SavedFragmentIntent::EngineeringFragmentActivation => {
+                    local_copy::Intent::Engineering
+                }
+            },
+        },
+        &initialization,
+        fragment_boot::Limits {
+            input: i,
+            maximum_retained_variable_bytes: request.maximum_retained_variable_bytes,
+        },
+    )?;
+    let trace = FragmentBootTrace {
+        activation: request.activation,
+        expected_definition: &request.definition,
+        definition: current.handle(),
+        script_source: current.version(),
+        physical_source_owner: current.owner(),
+        source_receipts: &catalogue.sources,
+        source_preflight_counts,
+        initialization: &initialization,
+        initialization_counts: match &prepared {
+            fragment_boot::Preparation::Ready(plan) => Some(plan.counts()),
+            _ => None,
+        },
+        source_cohort_sha256: sources.source_cohort_sha256(),
+        decoder_sha256: sources.decoder_sha256(),
+    };
+    let mut trace_bytes = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_trace_bytes,
+    };
+    serde_json::to_writer(&mut trace_bytes, &trace)
+        .map_err(|_| "embedded fragment boot trace byte budget exceeded")?;
+    let trace_size = trace_bytes.bytes.len();
+    drop(trace_bytes);
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "embedded fragment boot snapshot byte budget exceeded",
+    )?;
+    let input = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?;
+    let before_revision = input.state_revision;
+    let (outcome, result_bytes, artifact) = match prepared {
+        fragment_boot::Preparation::Unsupported { reason, detail } => {
+            let world =
+                fallout_runtime::World::restore(Arc::clone(&catalogue), input, world_limits)?;
+            sources.validate_world(&world)?;
+            (
+                ReferenceBootOutcome::Unsupported { reason, detail },
+                None,
+                Value::Null,
+            )
+        }
+        fragment_boot::Preparation::Ready(plan) => {
+            let result = plan.apply(input, world_limits)?;
+            let bytes = result
+                .snapshot
+                .encode(request.maximum_result_snapshot_bytes)?;
+            let cold = fallout_runtime::World::restore(
+                Arc::clone(&catalogue),
+                fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+                world_limits,
+            )?;
+            let owner = fallout_runtime::identity::Owner::Fragment {
+                activation: request.activation,
+            };
+            if cold.snapshot() != result.snapshot
+                || cold.owner_instance(&owner) != Some(result.instance)
+                || cold.instance(cold.handle(result.instance)?)?.definition() != plan.definition()
+                || cold.instance(cold.handle(result.instance)?)?.context()
+                    != &initialization.context
+            {
+                return Err("embedded fragment boot complete cold result differs".into());
+            }
+            let artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":result.snapshot.schema_version,"decode_restore_equal":true,"after_revision":result.snapshot.state_revision});
+            (
+                ReferenceBootOutcome::EngineeringBooted {
+                    instance: result.instance,
+                },
+                Some(bytes),
+                artifact,
+            )
+        }
+    };
+    let report = FragmentBootReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering activation of one exact embedded source unit","campaign":initialization.campaign,
+            "before_revision":before_revision,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,
+            "trace_bytes":trace_size,"prepared_sources":{"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,
+            "index_cache":store.index_cache_report(),"event_enqueued":false,"reference_created":false,"original_activation_verified":false,
+            "faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        trace: &trace,
+        fragment_boot: outcome,
+    };
+    let report = admit_saved_copy_report(
+        &report,
+        request.maximum_report_bytes,
+        "embedded fragment boot",
+    )?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SavedReferenceBootRequest {

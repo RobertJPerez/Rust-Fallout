@@ -488,6 +488,7 @@ impl CellResidency {
                 "texture admission already used for this generation".into(),
             ));
         }
+        self.validate_payloads(plan.receipt().requests.len(), plan.receipt().decoded_bytes)?;
         self.textures = Some(Batch::new(plan));
         self.dependencies = Readiness::Pending;
         self.stage = Stage::Decoded;

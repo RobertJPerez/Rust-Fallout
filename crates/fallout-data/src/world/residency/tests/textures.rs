@@ -1,7 +1,7 @@
 use super::*;
 use crate::vfs::AssetSource;
 
-fn textured(paths: &[&[u8]], unknown: bool) -> Vec<u8> {
+pub(super) fn textured(paths: &[&[u8]], unknown: bool) -> Vec<u8> {
     textured_named(paths, unknown.then_some("UnsupportedTextureCarrier"))
 }
 fn textured_named(paths: &[&[u8]], unknown: Option<&str>) -> Vec<u8> {
@@ -46,7 +46,7 @@ fn textured_named(paths: &[&[u8]], unknown: Option<&str>) -> Vec<u8> {
     nif
 }
 
-fn texture_archive(
+pub(super) fn texture_archive(
     fixture: &Fixture,
     label: &str,
     names: &[&[u8]],
@@ -100,7 +100,7 @@ fn texture_archive(
     (mounts, len)
 }
 
-fn textures_decoded(owner: &mut CellResidency) {
+pub(super) fn textures_decoded(owner: &mut CellResidency) {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let state = owner.poll().unwrap();

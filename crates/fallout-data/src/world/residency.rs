@@ -1,6 +1,7 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
+mod terrain;
 mod textures;
 use super::{
     dependencies,
@@ -18,6 +19,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+pub use terrain::{ResidentTerrain, TerrainState};
 pub use textures::{ResidentTextures, TextureLimits, TexturePlan, TextureReceipt, TextureState};
 
 const POLL_WORK: usize = 8;
@@ -27,7 +29,8 @@ const EMPTY_IDENTITY: &str = "00000000000000000000000000000000000000000000000000
 pub struct Limits {
     pub workers: usize,
     pub models: usize,
-    /// Combined queued/running/retained model and texture payload reservations.
+    /// Combined queued/running/retained model and texture payload reservations,
+    /// including explicitly requested terrain textures.
     pub resources: usize,
     pub source_bytes: usize,
     pub retained_plans: usize,
@@ -177,6 +180,11 @@ pub struct Snapshot {
     pub texture_identity: Option<String>,
     pub complete_texture_coverage: bool,
     pub texture_reference_coverage_verified: bool,
+    pub completed_terrain_textures: usize,
+    pub requested_terrain_textures: usize,
+    pub terrain_state: TerrainState,
+    pub terrain_identity: Option<String>,
+    pub complete_terrain_coverage: bool,
     pub requested_models: usize,
     pub outstanding: usize,
     pub pinned_source_bytes: usize,
@@ -213,7 +221,10 @@ pub struct CellResidency {
     failure: Option<String>,
     backpressured: bool,
     render_published: bool,
+    dependencies_admitted: bool,
     textures: Option<textures::Batch>,
+    terrain: Option<terrain::Batch>,
+    terrain_turn: bool,
     #[cfg(test)]
     pause: Option<Arc<resource_jobs::tests::Pause>>,
 }
@@ -276,7 +287,10 @@ impl CellResidency {
             failure: None,
             backpressured: false,
             render_published: false,
+            dependencies_admitted: false,
             textures: None,
+            terrain: None,
+            terrain_turn: false,
             #[cfg(test)]
             pause: None,
         })
@@ -368,11 +382,23 @@ impl CellResidency {
             }
         } else if self.stage == Stage::IoPending
             || self.textures.as_ref().is_some_and(textures::Batch::pending)
+            || self.terrain.as_ref().is_some_and(terrain::Batch::pending)
         {
             let result = if self.stage == Stage::IoPending {
                 self.poll_io()
             } else {
-                self.poll_textures()
+                // One bounded batch per call preserves the existing eight
+                // admissions/completions limit and prevents either texture
+                // consumer from starving while they share one job pool.
+                let terrain_pending = self.terrain.as_ref().is_some_and(terrain::Batch::pending);
+                let textures_pending = self.textures.as_ref().is_some_and(textures::Batch::pending);
+                if terrain_pending && (self.terrain_turn || !textures_pending) {
+                    self.terrain_turn = false;
+                    self.poll_terrain()
+                } else {
+                    self.terrain_turn = true;
+                    self.poll_textures()
+                }
             };
             if let Err(error) = result {
                 self.ticket
@@ -473,6 +499,36 @@ impl CellResidency {
         self.validate(ticket)?;
         Ok(self.sources.as_ref().expect("decoded cell sources").clone())
     }
+    fn validate_payloads(&self, extra_requests: usize, extra_bytes: usize) -> JobResult<()> {
+        let plan = self.plan.as_ref().expect("active model plan");
+        let requests = plan
+            .receipt()
+            .requests
+            .len()
+            .checked_add(self.textures.as_ref().map_or(0, textures::Batch::requested))
+            .and_then(|n| n.checked_add(self.terrain.as_ref().map_or(0, terrain::Batch::requested)))
+            .and_then(|n| n.checked_add(extra_requests))
+            .ok_or(JobError::QueueFull)?;
+        if requests > self.limits.resources {
+            return Err(JobError::QueueFull);
+        }
+        let bytes = plan
+            .receipt()
+            .usage
+            .model_decoded_bytes
+            .checked_add(
+                self.textures
+                    .as_ref()
+                    .map_or(0, |b| b.plan.receipt().decoded_bytes),
+            )
+            .and_then(|n| n.checked_add(self.terrain.as_ref().map_or(0, terrain::Batch::bytes)))
+            .and_then(|n| n.checked_add(extra_bytes))
+            .ok_or(JobError::ByteBudget)?;
+        if bytes > self.limits.source_bytes {
+            return Err(JobError::ByteBudget);
+        }
+        Ok(())
+    }
     pub fn report_dependencies(&mut self, ticket: &Ticket, readiness: Readiness) -> JobResult<()> {
         self.validate(ticket)?;
         if readiness == Readiness::Ready
@@ -482,7 +538,15 @@ impl CellResidency {
                 "cell texture plan/payloads are not ready".into(),
             ));
         }
+        if readiness == Readiness::Ready
+            && self.terrain.as_ref().is_some_and(|batch| !batch.ready())
+        {
+            return Err(JobError::Invalid(
+                "requested terrain sources are not ready".into(),
+            ));
+        }
         self.dependencies = readiness;
+        self.dependencies_admitted |= readiness == Readiness::Ready;
         self.stage = if readiness == Readiness::Ready {
             if self.render_published {
                 Stage::RenderResident
@@ -549,7 +613,10 @@ impl CellResidency {
     }
     fn clear_work(&mut self) {
         self.render_published = false;
+        self.dependencies_admitted = false;
         self.textures = None;
+        self.terrain = None;
+        self.terrain_turn = false;
         for (_, handle) in self.pending.drain(..) {
             handle.cancel();
         }
@@ -606,6 +673,17 @@ impl CellResidency {
                 .textures
                 .as_ref()
                 .is_some_and(|batch| batch.plan.receipt().reference_coverage_verified),
+            completed_terrain_textures: self.terrain.as_ref().map_or(0, terrain::Batch::completed),
+            requested_terrain_textures: self.terrain.as_ref().map_or(0, terrain::Batch::requested),
+            terrain_state: self
+                .terrain
+                .as_ref()
+                .map_or(TerrainState::Unrequested, terrain::Batch::state),
+            terrain_identity: self
+                .terrain
+                .as_ref()
+                .map(|batch| batch.identity().to_owned()),
+            complete_terrain_coverage: self.terrain.as_ref().is_some_and(terrain::Batch::ready),
             outstanding: usage.outstanding,
             pinned_source_bytes: usage.decoded_bytes,
             retained_plans: plan_usage.plans,
@@ -621,6 +699,7 @@ impl CellResidency {
                 && self.textures.as_ref().is_some_and(|batch| {
                     batch.ready() && batch.plan.receipt().reference_coverage_verified
                 })
+                && self.terrain.as_ref().is_none_or(terrain::Batch::ready)
                 && self.dependencies == Readiness::Ready
                 && self.collision == Readiness::Ready
                 && self.behavior == Readiness::Ready,

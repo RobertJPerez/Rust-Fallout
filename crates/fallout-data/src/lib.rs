@@ -6,6 +6,7 @@ compile_error!("The initial runtime targets 64-bit processes.");
 pub mod actors;
 pub mod archive;
 pub mod assets;
+pub mod audio;
 pub mod baseline;
 pub mod cache;
 pub mod compressed_records;

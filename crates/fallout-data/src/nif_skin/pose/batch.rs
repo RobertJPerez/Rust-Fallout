@@ -1,5 +1,8 @@
 //! Sealed owned source preparation and atomic multi-geometry evaluation.
+mod job;
 mod table;
+
+pub use job::{EvaluationJob, EvaluationState, GeometryStepBudget, JobAdmission, Progress};
 
 use super::{Budget, DecodedView, Evaluation, Limits, Request, SourceHash, binding};
 use crate::{Result, nif, nif_scene};

@@ -1300,3 +1300,85 @@ live storage/work/ancestry limits. Unused strings and supported texture paths ar
 charged even when selected geometry output stays small. Evidence is engineering
 sampling only; presentation adoption, measured retail playback and gameplay
 acceptance remain separate, with no checkpoint reassignment.
+
+## Cooperative prepared geometry jobs (V3-ASSET-33)
+
+`PreparedSkinSource::begin_evaluation(expected_source_sha256, &[Request],
+BatchEvaluationLimits)` returns an `EvaluationJob` borrowing the existing sealed
+source and owning a bounded request copy. Source preparation has already checked
+its complete input/decoder admissions. Beginning checks the private digest and
+every geometry identity, weight policy and duplicate before copying requests.
+Changing or dropping the caller's request/input buffers cannot change the job.
+This producer uses the reviewed shared-source path; it does not require CSR,
+prepared animation forests or external clip sets.
+
+`advance(GeometryStepBudget { geometries })` evaluates at most that many remaining
+geometries and returns `Progress`. A zero count performs no evaluation or charge.
+One geometry is indivisible: it runs the existing complete deformer under its
+per-geometry limits, and can take that full bounded operation's latency. This is
+cooperative yielding between geometries, without a worker thread, executor,
+preemptible per-vertex work or a time deadline guarantee. The existing one-shot
+and synchronous batch APIs remain unchanged.
+
+The state is `running`, `complete`, `cancelled` or `failed`. Progress contains only
+state, total/historical completed counts, newly advanced counts and charged
+evaluation bytes/work; it exposes no mesh/palette arrays. Debug output likewise
+contains only source identity, admissions and progress. `admission()` separately
+reports source preparation and new whole-set validation/request/header charges.
+Partial results are private until consuming `finish()` on a complete job returns
+the existing `GeometryBatch`. Finishing an incomplete/cancelled/failed job refuses
+and drops it. Advancing any terminal state refuses, including with a zero cap.
+
+`cancel()` is terminal and idempotent, clears every internally held result and
+can discard a completed job before finish. Cancellation after failure stays
+terminal. Historical completion/work/byte observations remain available even
+though arrays have been released. A geometry failure also clears all results and
+sets `failed`. The sole existing deformer now has a private borrowed-budget entry
+point so the job records the same charges consumed before an error. It does not
+estimate failed work from a full allowance or introduce another deformation
+algorithm. The earlier private entry point wraps this body with its own budget,
+preserving existing results, diagnostics and counter scopes.
+
+Default job limits use existing64 geometries/128 MiB/128 million aggregate limits
+and64 MiB/16 million/depth1024 per geometry. Each geometry receives the aggregate
+remainder under its own cap. Job/result headers, owned request copy, complete
+output capacity and result hash bytes are admitted before allocation. Whole-set
+SHA comparison, uniqueness/geometry/policy validation and request copying are
+charged once. Per-step evaluation charges sum to complete existing outputs and
+temporaries, including released elements on a refusal. `GeometryBatch` totals
+include admission plus those charges; source preparation retains its separate
+existing decoder/array/work limits and receipt. The job array quota covers owned
+job/evaluation elements, not the borrowed source Scene/index. These are logical
+element charges, not live allocator usage or measured CPU timing.
+
+The real CLI consumer is `fallout nif-skin SOURCE --shared-skin-job-request
+REQUEST.json --output RECEIPT.json`. Strict schema1 requires
+`expected_source_sha256`, `geometries` with exact IDs and explicit strict `weights`,
+and1..128 `step_geometry_caps`, each in0..64. Optional
+`cancel_after_completed` chooses an exact historical successful-geometry count;
+omission or null means no cancellation. For example, schedule fields
+`"step_geometry_caps":[0,1,2], "cancel_after_completed":1` yield once, evaluate one
+geometry and cancel there. A large requested cap is reduced to that cancellation
+boundary before evaluation, so it cannot step past it. Boundary0 cancels before
+the first geometry; a boundary equal to the total discards the completed result.
+
+The consumer bounds source/request inputs to64 MiB/64 KiB and geometries to64,
+protects both input directories and conflicts with other skin inspection modes.
+It prepares the source once, drops bytes, and drives the explicit count schedule.
+It records admission, progress and terminal error with a null evaluation on
+cancellation/refusal/incomplete schedule; no partial packet is published. Progress
+headers/capacity and the driver's temporary geometry copy receive a separate
+bounded charge subtracted from the128 MiB aggregate before beginning. Successful
+result fields and each geometry's existing observations match synchronous source
+evaluation; scheduling does not change math, weights, normals or controller state.
+
+Five authored Rust test groups cover request/source ownership, zero/one/two/all
+steps, complete geometry equivalence, cancellation before/after/completion/failure,
+late refusal charges, no continuation/publication and exact/one-under admission,
+aggregate/per-geometry work/storage and ancestry bounds. The independent CLI tool
+`tools/nif-skin-oracle/check_job.py` uses three source geometries with literal
+palettes/positions/raw normals and an immutable previous shared consumer. It
+checks multiple schedules, an exact cancellation boundary, a failure in the last
+geometry and preserved old complete reports. This is engineering source work;
+original playback, rendering, frame latency and gameplay remain separately
+unverified, with checkpoint45 unchanged.

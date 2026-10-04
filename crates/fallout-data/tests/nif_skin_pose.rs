@@ -564,6 +564,453 @@ fn shared_requests() -> [Request; 2] {
         },
     ]
 }
+
+#[test]
+fn cooperative_skin_job_zero_one_two_all_steps_preserve_every_geometry_and_owned_requests() {
+    use pose::{EvaluationState, GeometryStepBudget};
+    let mut bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let source =
+        pose::PreparedSkinSource::prepare(&bytes, "cooperative", Default::default()).unwrap();
+    let mut requests = shared_requests().to_vec();
+    let old = source
+        .evaluate_many("old", digest, &requests, Default::default())
+        .unwrap();
+    let mut job = source
+        .begin_evaluation(digest, &requests, Default::default())
+        .unwrap();
+    let admission = job.admission();
+    requests[0].geometry = 999;
+    drop(requests);
+    bytes.fill(0xff);
+    drop(bytes);
+    let start = serde_json::to_value(job.progress()).unwrap();
+    assert_eq!(
+        serde_json::to_value(job.advance(GeometryStepBudget { geometries: 0 }).unwrap()).unwrap(),
+        start
+    );
+    let one = job.advance(GeometryStepBudget { geometries: 1 }).unwrap();
+    assert!(!format!("{job:?}").contains("positions"));
+    assert!(!format!("{job:?}").contains("palette"));
+    assert_eq!(
+        (one.state, one.completed_geometries, one.advanced_geometries),
+        (EvaluationState::Running, 1, 1)
+    );
+    assert_eq!(
+        (one.step_retained_bytes, one.step_work_units),
+        (
+            old.geometries[0].retained_bytes,
+            old.geometries[0].work_units
+        )
+    );
+    assert_eq!(
+        serde_json::to_value(job.advance(GeometryStepBudget { geometries: 0 }).unwrap()).unwrap(),
+        serde_json::to_value(job.progress()).unwrap()
+    );
+    let last = job.advance(GeometryStepBudget { geometries: 1 }).unwrap();
+    assert_eq!(
+        (
+            last.state,
+            last.completed_geometries,
+            last.advanced_geometries
+        ),
+        (EvaluationState::Complete, 2, 1)
+    );
+    assert_eq!(
+        last.evaluation_work_units,
+        old.geometries.iter().map(|v| v.work_units).sum::<usize>()
+    );
+    assert!(
+        job.advance(GeometryStepBudget { geometries: 0 })
+            .unwrap_err()
+            .to_string()
+            .contains("terminal")
+    );
+    let result = job.finish().unwrap();
+    assert_eq!(
+        serde_json::to_value(&result.geometries).unwrap(),
+        serde_json::to_value(&old.geometries).unwrap()
+    );
+    assert_eq!(
+        result.geometries[0].positions,
+        [[-1.5, 1., 1.5], [0., -0.5, 1.], [-3.5, 0., 0.5]]
+    );
+    assert_eq!(
+        result.geometries[1].positions,
+        [[11.5, 1.5, 15.5], [19., -9., 12.], [-1.5, -2.5, 8.5]]
+    );
+    assert_eq!(
+        result.retained_bytes,
+        admission.retained_bytes
+            + result
+                .geometries
+                .iter()
+                .map(|v| v.retained_bytes)
+                .sum::<usize>()
+    );
+    assert_eq!(
+        result.work_units,
+        admission.work_units
+            + result
+                .geometries
+                .iter()
+                .map(|v| v.work_units)
+                .sum::<usize>()
+    );
+    for cap in [2, usize::MAX] {
+        let mut next = source
+            .begin_evaluation(digest, &shared_requests(), Default::default())
+            .unwrap();
+        let progress = next
+            .advance(GeometryStepBudget { geometries: cap })
+            .unwrap();
+        assert_eq!(
+            (progress.completed_geometries, progress.advanced_geometries),
+            (2, 2)
+        );
+        assert_eq!(
+            serde_json::to_value(next.finish().unwrap()).unwrap(),
+            serde_json::to_value(&result).unwrap()
+        );
+    }
+    assert_eq!(source.usage().binding_decodes, 1);
+    assert_eq!(source.usage().scene_decodes, 1);
+}
+
+#[test]
+fn cooperative_skin_job_cancel_before_after_and_complete_is_terminal_and_idempotent() {
+    use pose::{EvaluationState, GeometryStepBudget};
+    let bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let source =
+        pose::PreparedSkinSource::prepare(&bytes, "cancellation", Default::default()).unwrap();
+    for completed in 0..=2 {
+        let mut job = source
+            .begin_evaluation(digest, &shared_requests(), Default::default())
+            .unwrap();
+        if completed != 0 {
+            job.advance(GeometryStepBudget {
+                geometries: completed,
+            })
+            .unwrap();
+        }
+        let before = job.progress();
+        let cancelled = job.cancel();
+        assert_eq!(cancelled.state, EvaluationState::Cancelled);
+        assert_eq!(cancelled.completed_geometries, completed);
+        assert_eq!(
+            cancelled.evaluation_retained_bytes,
+            before.evaluation_retained_bytes
+        );
+        assert_eq!(
+            cancelled.evaluation_work_units,
+            before.evaluation_work_units
+        );
+        assert_eq!(
+            serde_json::to_value(job.cancel()).unwrap(),
+            serde_json::to_value(cancelled).unwrap()
+        );
+        for cap in [0, 1, usize::MAX] {
+            assert!(
+                job.advance(GeometryStepBudget { geometries: cap })
+                    .unwrap_err()
+                    .to_string()
+                    .contains("terminal")
+            );
+        }
+        assert!(
+            job.finish()
+                .unwrap_err()
+                .to_string()
+                .contains("no complete result")
+        );
+    }
+    let mut incomplete = source
+        .begin_evaluation(digest, &shared_requests(), Default::default())
+        .unwrap();
+    incomplete
+        .advance(GeometryStepBudget { geometries: 1 })
+        .unwrap();
+    assert!(
+        incomplete
+            .finish()
+            .unwrap_err()
+            .to_string()
+            .contains("no complete result")
+    );
+    let mut fresh = source
+        .begin_evaluation(digest, &shared_requests(), Default::default())
+        .unwrap();
+    fresh.advance(GeometryStepBudget { geometries: 2 }).unwrap();
+    assert_eq!(fresh.finish().unwrap().geometries.len(), 2);
+}
+
+#[test]
+fn cooperative_skin_job_late_failure_charges_existing_work_and_discards_all_results() {
+    use pose::{EvaluationState, GeometryStepBudget};
+    let mut blocks = shared_fixture();
+    blocks[9].1 = skin(
+        &[
+            vec![(0, 0.75), (1, 0.75), (2, 0.75)],
+            vec![(0, 0.5), (1, 0.5), (2, 0.5)],
+        ],
+        None,
+    );
+    let bytes = container(&blocks, &[0]);
+    let digest = source_digest(&bytes);
+    let source =
+        pose::PreparedSkinSource::prepare(&bytes, "later refusal", Default::default()).unwrap();
+    let mut requests = shared_requests();
+    requests[1].weights = WeightPolicy::RequireUnitSum {
+        absolute_tolerance: 0.,
+    };
+    let mut failed = source
+        .begin_evaluation(digest, &requests, Default::default())
+        .unwrap();
+    let good = failed
+        .advance(GeometryStepBudget { geometries: 1 })
+        .unwrap();
+    assert!(
+        failed
+            .advance(GeometryStepBudget { geometries: 1 })
+            .unwrap_err()
+            .to_string()
+            .contains("raw weight sum 1.25")
+    );
+    let progress = failed.progress();
+    assert_eq!(
+        (progress.state, progress.completed_geometries),
+        (EvaluationState::Failed, 1)
+    );
+    let complete_raw = source
+        .evaluate_many("raw", digest, &shared_requests(), Default::default())
+        .unwrap();
+    // Unit-sum refusal occurs after this complete existing deformation work.
+    assert_eq!(
+        progress.evaluation_retained_bytes,
+        complete_raw
+            .geometries
+            .iter()
+            .map(|v| v.retained_bytes)
+            .sum::<usize>()
+    );
+    assert_eq!(
+        progress.evaluation_work_units,
+        complete_raw
+            .geometries
+            .iter()
+            .map(|v| v.work_units)
+            .sum::<usize>()
+    );
+    assert!(progress.evaluation_work_units > good.evaluation_work_units);
+    assert!(
+        failed
+            .advance(GeometryStepBudget { geometries: 1 })
+            .is_err()
+    );
+    assert!(failed.finish().is_err());
+    let mut cancelled = source
+        .begin_evaluation(digest, &requests, Default::default())
+        .unwrap();
+    assert!(
+        cancelled
+            .advance(GeometryStepBudget { geometries: 2 })
+            .is_err()
+    );
+    assert_eq!(cancelled.cancel().state, EvaluationState::Cancelled);
+    assert!(
+        cancelled
+            .advance(GeometryStepBudget { geometries: 0 })
+            .is_err()
+    );
+    assert!(cancelled.finish().is_err());
+    let mut next = source
+        .begin_evaluation(digest, &shared_requests(), Default::default())
+        .unwrap();
+    next.advance(GeometryStepBudget { geometries: 2 }).unwrap();
+    assert_eq!(
+        serde_json::to_value(next.finish().unwrap().geometries).unwrap(),
+        serde_json::to_value(complete_raw.geometries).unwrap()
+    );
+}
+
+#[test]
+fn cooperative_skin_job_identity_all_request_validation_and_admission_limits_are_early() {
+    let bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let source =
+        pose::PreparedSkinSource::prepare(&bytes, "admission", Default::default()).unwrap();
+    let requests = shared_requests();
+    let usage = source
+        .begin_evaluation(digest, &requests, Default::default())
+        .unwrap()
+        .admission();
+    let exact = pose::BatchEvaluationLimits {
+        geometries: 2,
+        array_bytes: usage.retained_bytes,
+        work_units: usage.work_units,
+        ..Default::default()
+    };
+    source.begin_evaluation(digest, &requests, exact).unwrap();
+    for (limits, reason) in [
+        (
+            pose::BatchEvaluationLimits {
+                geometries: 1,
+                ..exact
+            },
+            "bounded geometry",
+        ),
+        (
+            pose::BatchEvaluationLimits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            pose::BatchEvaluationLimits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+    ] {
+        assert!(
+            source
+                .begin_evaluation(digest, &requests, limits)
+                .unwrap_err()
+                .to_string()
+                .contains(reason)
+        );
+    }
+    assert!(
+        source
+            .begin_evaluation([0; 32], &requests, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("source SHA256 differs")
+    );
+    assert!(
+        source
+            .begin_evaluation(digest, &[], Default::default())
+            .is_err()
+    );
+    assert!(
+        source
+            .begin_evaluation(digest, &[requests[0], requests[0]], Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate geometry")
+    );
+    let mut foreign = requests;
+    foreign[1].geometry = 999;
+    assert!(
+        source
+            .begin_evaluation(digest, &foreign, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("no decoded skin owner")
+    );
+    foreign = requests;
+    foreign[1].weights = WeightPolicy::RequireUnitSum {
+        absolute_tolerance: f64::NAN,
+    };
+    assert!(
+        source
+            .begin_evaluation(digest, &foreign, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("tolerance must be finite")
+    );
+}
+
+#[test]
+fn cooperative_skin_job_complete_aggregate_geometry_and_ancestry_ceilings_are_exact() {
+    use pose::{EvaluationState, GeometryStepBudget};
+    let bytes = container(&shared_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let source = pose::PreparedSkinSource::prepare(&bytes, "ceilings", Default::default()).unwrap();
+    let mut baseline = source
+        .begin_evaluation(digest, &shared_requests(), Default::default())
+        .unwrap();
+    baseline
+        .advance(GeometryStepBudget { geometries: 2 })
+        .unwrap();
+    let result = baseline.finish().unwrap();
+    let exact = pose::BatchEvaluationLimits {
+        array_bytes: result.retained_bytes,
+        work_units: result.work_units,
+        geometry: pose::GeometryLimits {
+            ancestry_depth: 2,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut job = source
+        .begin_evaluation(digest, &shared_requests(), exact)
+        .unwrap();
+    job.advance(GeometryStepBudget { geometries: 1 }).unwrap();
+    job.advance(GeometryStepBudget { geometries: 1 }).unwrap();
+    assert_eq!(
+        serde_json::to_value(job.finish().unwrap()).unwrap(),
+        serde_json::to_value(&result).unwrap()
+    );
+    for limits in [
+        pose::BatchEvaluationLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::BatchEvaluationLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::BatchEvaluationLimits {
+            geometry: pose::GeometryLimits {
+                ancestry_depth: 1,
+                ..exact.geometry
+            },
+            ..exact
+        },
+    ] {
+        let mut short = source
+            .begin_evaluation(digest, &shared_requests(), limits)
+            .unwrap();
+        assert!(short.advance(GeometryStepBudget { geometries: 2 }).is_err());
+        assert_eq!(short.progress().state, EvaluationState::Failed);
+        assert!(
+            short.progress().evaluation_work_units
+                <= limits.work_units - short.admission().work_units
+        );
+        assert!(
+            short.progress().evaluation_retained_bytes
+                <= limits.array_bytes - short.admission().retained_bytes
+        );
+        assert!(short.finish().is_err());
+    }
+    for limits in [
+        pose::BatchEvaluationLimits {
+            geometry: pose::GeometryLimits {
+                array_bytes: result.geometries[0].retained_bytes - 1,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        pose::BatchEvaluationLimits {
+            geometry: pose::GeometryLimits {
+                work_units: result.geometries[0].work_units - 1,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    ] {
+        let mut short = source
+            .begin_evaluation(digest, &shared_requests(), limits)
+            .unwrap();
+        assert!(short.advance(GeometryStepBudget { geometries: 1 }).is_err());
+        assert_eq!(short.progress().completed_geometries, 0);
+        assert!(short.finish().is_err());
+    }
+}
 fn source_digest(bytes: &[u8]) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     Sha256::digest(bytes).into()

@@ -810,6 +810,176 @@ pub fn inspect_shared_skin(input: &Path, request_path: &Path) -> Result<SharedSk
     })
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum JobWeightPolicy {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl JobWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct JobGeometryRequest {
+    geometry: u32,
+    weights: JobWeightPolicy,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SkinJobRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometries: Vec<JobGeometryRequest>,
+    step_geometry_caps: Vec<usize>,
+    cancel_after_completed: Option<usize>,
+}
+#[derive(Serialize)]
+pub struct SkinJobReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    request: SkinJobRequest,
+    admission: Option<nif_skin::pose::JobAdmission>,
+    progress: Vec<nif_skin::pose::Progress>,
+    evaluation: Option<nif_skin::pose::GeometryBatch>,
+    driver_retained_bytes: usize,
+    retained_bytes: usize,
+    work_units: usize,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_skin_job(input: &Path, request_path: &Path) -> Result<SkinJobReport> {
+    use nif_skin::pose::{EvaluationState, GeometryStepBudget};
+    let request: SkinJobRequest = serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.geometries.len() > 64 {
+        return Err("skin job requires schema1 and at most64 geometries".into());
+    }
+    if request.step_geometry_caps.is_empty()
+        || request.step_geometry_caps.len() > 128
+        || request.step_geometry_caps.iter().any(|cap| *cap > 64)
+    {
+        return Err("skin job requires 1..128 step caps each in0..64".into());
+    }
+    if request
+        .cancel_after_completed
+        .is_some_and(|n| n > request.geometries.len())
+    {
+        return Err("skin job cancellation boundary exceeds geometry count".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let prepared = nif_skin::pose::PreparedSkinSource::prepare(&bytes, &source, Default::default());
+    let sha256 = match &prepared {
+        Ok(value) => value.source_sha256().to_owned(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    drop(bytes);
+    let geometries: Vec<_> = request
+        .geometries
+        .iter()
+        .map(|r| nif_skin::pose::Request {
+            geometry: r.geometry,
+            weights: r.weights.policy(),
+        })
+        .collect();
+    let progress_capacity = request.step_geometry_caps.len() + 2;
+    let driver_retained_bytes = std::mem::size_of::<SkinJobReport>()
+        + 64
+        + progress_capacity * std::mem::size_of::<nif_skin::pose::Progress>()
+        + geometries.len() * std::mem::size_of::<nif_skin::pose::Request>();
+    let mut admission = None;
+    let mut progress = Vec::with_capacity(progress_capacity);
+    let evaluated = (|| -> fallout_data::Result<nif_skin::pose::GeometryBatch> {
+        let prepared = prepared?;
+        let defaults = nif_skin::pose::BatchEvaluationLimits::default();
+        let limits = nif_skin::pose::BatchEvaluationLimits {
+            array_bytes: defaults
+                .array_bytes
+                .checked_sub(driver_retained_bytes)
+                .ok_or_else(|| {
+                    fallout_data::Error::Unsupported("skin job driver storage exceeded".into())
+                })?,
+            ..defaults
+        };
+        let mut job =
+            prepared.begin_evaluation(request.expected_source_sha256, &geometries, limits)?;
+        admission = Some(job.admission());
+        progress.push(job.progress());
+        if request.cancel_after_completed == Some(0) {
+            progress.push(job.cancel());
+            return Err(fallout_data::Error::Unsupported(
+                "skin job cancelled before first geometry".into(),
+            ));
+        }
+        for cap in &request.step_geometry_caps {
+            let before = job.progress();
+            let effective_cap = request.cancel_after_completed.map_or(*cap, |boundary| {
+                (*cap).min(boundary - before.completed_geometries)
+            });
+            match job.advance(GeometryStepBudget {
+                geometries: effective_cap,
+            }) {
+                Ok(value) => progress.push(value),
+                Err(error) => {
+                    let mut value = job.progress();
+                    value.advanced_geometries =
+                        value.completed_geometries - before.completed_geometries;
+                    value.step_retained_bytes =
+                        value.evaluation_retained_bytes - before.evaluation_retained_bytes;
+                    value.step_work_units =
+                        value.evaluation_work_units - before.evaluation_work_units;
+                    progress.push(value);
+                    return Err(error);
+                }
+            }
+            let current = job.progress();
+            if request.cancel_after_completed == Some(current.completed_geometries) {
+                progress.push(job.cancel());
+                return Err(fallout_data::Error::Unsupported(
+                    "skin job cancelled at requested geometry boundary".into(),
+                ));
+            }
+            if current.state == EvaluationState::Complete {
+                break;
+            }
+        }
+        job.finish()
+    })();
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    let retained_bytes = driver_retained_bytes
+        + admission.map_or(0, |a| a.retained_bytes)
+        + progress.last().map_or(0, |p| p.evaluation_retained_bytes);
+    let work_units = admission.map_or(0, |a| a.work_units)
+        + progress.last().map_or(0, |p| p.evaluation_work_units);
+    Ok(SkinJobReport {
+        schema_version: 1,
+        contract: "engineering-cooperative-skin-job-v1",
+        input: input.into(),
+        sha256,
+        request,
+        admission,
+        progress,
+        evaluation,
+        driver_retained_bytes,
+        retained_bytes,
+        work_units,
+        failures: usize::from(error.is_some()),
+        error,
+    })
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExternalBoneRequest {

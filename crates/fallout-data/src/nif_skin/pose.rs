@@ -10,8 +10,9 @@ mod batch;
 pub mod partition;
 mod set;
 pub use batch::{
-    BatchEvaluationLimits, BatchLimits, GeometryBatch, GeometryLimits, PreparationLimits,
-    PreparationUsage, PreparedSkinSource, evaluate_many,
+    BatchEvaluationLimits, BatchLimits, EvaluationJob, EvaluationState, GeometryBatch,
+    GeometryLimits, GeometryStepBudget, JobAdmission, PreparationLimits, PreparationUsage,
+    PreparedSkinSource, Progress, evaluate_many,
 };
 pub use set::{EvaluationWithSet, SetCombinedLimits, SetRequest, evaluate_set_sampled};
 
@@ -451,6 +452,17 @@ fn evaluate_decoded(
     table: Option<&super::influences::Table>,
     mut budget: Budget<'_>,
 ) -> Result<Evaluation> {
+    evaluate_decoded_with_budget(view, request, limits, selected, table, &mut budget)
+}
+
+fn evaluate_decoded_with_budget(
+    view: DecodedView<'_>,
+    request: Request,
+    limits: Limits,
+    selected: Option<SourcePoseOverride<'_>>,
+    table: Option<&super::influences::Table>,
+    budget: &mut Budget<'_>,
+) -> Result<Evaluation> {
     let DecodedView {
         hash,
         source,
@@ -620,12 +632,12 @@ fn evaluate_decoded(
                 return Err(budget.fail("ancestry depth budget exceeded"));
             }
             if id == sample.object.block {
-                root_world = finite(compose(sample.source_world, relative), &budget)?;
+                root_world = finite(compose(sample.source_world, relative), budget)?;
                 break;
             }
             let object = &scene.objects
                 [objects[id as usize].ok_or_else(|| budget.fail("undecoded root ancestor"))?];
-            relative = finite(compose(scene_affine(object.transform), relative), &budget)?;
+            relative = finite(compose(scene_affine(object.transform), relative), budget)?;
             cursor = world(id)?.parent;
         }
     } else if let Some(forest) = selected.as_ref().and_then(SourcePoseOverride::forest) {
@@ -635,7 +647,7 @@ fn evaluate_decoded(
             .ok_or_else(|| budget.fail("required skin root world unavailable"))?;
     }
     let skin = skin_affine(skin_transform);
-    let skin_to_source_world = finite(compose(root_world, inverse(skin, &budget)?), &budget)?;
+    let skin_to_source_world = finite(compose(root_world, inverse(skin, budget)?), budget)?;
     budget.reserve::<Evaluation>(1)?;
     budget.reserve::<u8>(64)?;
     budget.reserve::<BonePalette>(bones.len())?;
@@ -692,7 +704,7 @@ fn evaluate_decoded(
                 &objects,
                 &mut controller_seen,
                 &mut result,
-                &mut budget,
+                budget,
                 selected.as_ref(),
             )?;
             node = world(id)?.parent;
@@ -724,7 +736,7 @@ fn evaluate_decoded(
                 &objects,
                 &mut controller_seen,
                 &mut result,
-                &mut budget,
+                budget,
                 selected.as_ref(),
             )?;
             let object = &scene.objects
@@ -734,7 +746,7 @@ fn evaluate_decoded(
                     Some(sample) if cursor == sample.object.block => sample.local,
                     _ => scene_affine(object.transform),
                 };
-                relative = finite(compose(local, relative), &budget)?;
+                relative = finite(compose(local, relative), budget)?;
             }
             cursor = world(cursor)?
                 .parent
@@ -742,7 +754,7 @@ fn evaluate_decoded(
         }
         let matrix = finite(
             compose(skin, compose(relative, skin_affine(&bone.transform))),
-            &budget,
+            budget,
         )?;
         result.palette.push(BonePalette {
             ordinal,
@@ -757,7 +769,7 @@ fn evaluate_decoded(
                     usize::from(weight.vertex),
                     mesh,
                     &mut result,
-                    &mut budget,
+                    budget,
                 )?;
             }
         }
@@ -774,14 +786,7 @@ fn evaluate_decoded(
                     .get(entry.bone_ordinal)
                     .ok_or_else(|| budget.fail("influence table bone ordinal out of range"))?
                     .matrix;
-                accumulate_weight(
-                    matrix,
-                    entry.weight_bits,
-                    vertex,
-                    mesh,
-                    &mut result,
-                    &mut budget,
-                )?;
+                accumulate_weight(matrix, entry.weight_bits, vertex, mesh, &mut result, budget)?;
             }
         }
     }

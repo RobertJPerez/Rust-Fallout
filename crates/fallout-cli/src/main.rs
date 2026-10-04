@@ -329,6 +329,17 @@ enum Command {
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
     },
+    /// Author bounded source fixtures and trace shape without original expectations.
+    ScriptFixture {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        profile_receipt: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
+    },
     /// Compare imported semantic captures against exact prepared script sources.
     ScriptTrace {
         #[arg(long)]
@@ -1089,6 +1100,20 @@ fn run(args: Args) -> Result<()> {
             if report["prepared_frames"] != report["pending_events_checked"] {
                 return Err("Pending events retain unresolved source findings; see report".into());
             }
+        }
+        Command::ScriptFixture {
+            install,
+            request,
+            profile_receipt,
+            destination,
+        } => {
+            let report = script_trace::fixtures::generate(
+                &install,
+                &request,
+                &profile_receipt,
+                &destination,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::ScriptTrace {
             install,

@@ -14,3 +14,9 @@ original or replacement capture must remain an explicit blocked comparison.
 the existing runtime stage/commit APIs. See
 [vm-copy-probes.md](../../docs/vm-copy-probes.md). This producer writes no
 original expectation and never launches the original engine.
+
+`fallout script-fixture` authors bounded assignment/conversion source carriers,
+exact manifests and explicit inputs through `fixtures.rs`. Existing decoders and
+prepared plans round-trip the output. See [vm-probe-fixtures.md](../../docs/vm-probe-fixtures.md).
+It emits trace shape only; retail loading, activation and original output remain
+unverified.

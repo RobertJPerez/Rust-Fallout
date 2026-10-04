@@ -1245,3 +1245,29 @@ fields, link count, decoded bytes and compact projection have separate limits.
 The independent oracle composes existing native actor/association/RACE/CLAS and
 inventory producers after fresh source/header/body/field validation. Default
 actor and ACT09 reports keep their existing projections.
+## Effect declaration source inputs
+
+`actor-sources --effect-root PLUGIN:HEX --effect-field INDEX` requests one exact
+physical SPLO or EITM occurrence. The request joins the existing actor and
+association catalogues to the winning SPEL or ENCH record and explicit EFID
+groups. It retains every physical declaration field, byte span, digest and raw
+payload, including unsupported versions and layouts. The tested typed profile
+is record version 15: SPIT/ENIT are 16 bytes, EFID is four bytes and EFIT is 20
+bytes. EFIT magnitude, area and duration stay unsigned words; actor value stays
+signed. Metadata flags and unused bytes remain raw.
+
+Each EFID starts a separate ordered group. Repeated links remain distinct.
+Missing or repeated EFIT, out-of-order members, unknown effect types and malformed
+layouts remain explicit. CTDA fields retain their exact ordered bytes; this
+request does not evaluate conditions. MGEF requests contain winning headers and
+source receipts without reading or interpreting MGEF bodies. It does not apply
+xEdit's editor-time actor-value rewrite.
+
+SPLO and EITM use the ActorEffectList template bit (8). Missing or repeated ACBS,
+template inheritance and repeated singleton EITM preserve their source evidence
+while withholding binding admission. Null, missing, deleted and wrong-kind links
+retain their binding status. Exact source cohorts and root bytes are checked;
+source count, depth, selected records, record bytes, decoded bytes, field visits,
+retained fields, bindings, groups, raw bytes and projection bytes are bounded.
+Typed source admission does not establish an active effect, condition truth,
+stacking, timing or gameplay behavior. Execution remains unavailable.

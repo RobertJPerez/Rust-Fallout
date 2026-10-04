@@ -5,6 +5,7 @@ pub mod ai_inputs;
 pub mod associations;
 pub mod classes;
 pub mod dependencies;
+pub mod effect_inputs;
 pub mod factions;
 pub mod fields;
 pub mod initialization_inputs;

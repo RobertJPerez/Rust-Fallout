@@ -7,6 +7,357 @@ const ID: [[f32; 3]; 3] = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]];
 const R90: [[f32; 3]; 3] = [[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]];
 const RM90: [[f32; 3]; 3] = [[0., 1., 0.], [-1., 0., 0.], [0., 0., 1.]];
 
+fn bounds_request(
+    bytes: &[u8],
+    selected: fallout_data::nif_skin::bounds::Pose,
+) -> fallout_data::nif_skin::bounds::Request {
+    fallout_data::nif_skin::bounds::Request {
+        expected_source_sha256: source_digest(bytes),
+        skin: request(),
+        pose: selected,
+    }
+}
+
+#[test]
+fn stored_bounds_have_literal_noncommuting_coordinates_exact_identity_and_separate_placement() {
+    use fallout_data::nif_skin::bounds;
+    let bytes = container(&subset_fixture(), &[0]);
+    let selected = bounds_request(&bytes, bounds::Pose::Stored);
+    let result = bounds::evaluate(&bytes, "bounds", selected, Default::default()).unwrap();
+    assert_eq!(
+        (
+            result.geometry,
+            result.geometry_data,
+            result.instance,
+            result.skin_data,
+            result.skeleton_root,
+            result.vertices
+        ),
+        (3, 6, 4, 5, 0, 3)
+    );
+    assert_eq!(result.coordinates.min, [-9., -3., 6.]);
+    assert_eq!(result.coordinates.max, [0., 11., 10.]);
+    assert_eq!(
+        result.coordinates.min_f64_bits,
+        [-9., -3., 6.].map(f64::to_bits)
+    );
+    assert_eq!(
+        result.coordinates.max_f64_bits,
+        [0., 11., 10.].map(f64::to_bits)
+    );
+    assert_eq!(
+        result.skin_to_source_world,
+        [[1.5, 0., 0., 13.], [0., 1.5, 0., 15.5], [0., 0., 1.5, 24.]]
+    );
+    assert_eq!(result.frame, bounds::FRAME);
+    assert_eq!(
+        result.source_sha256,
+        format!("{:x}", sha2::Sha256::digest(&bytes))
+    );
+    assert_eq!(result.mode, "stored");
+    assert!(result.sample.is_none());
+    assert!(!result.retail_behavior_verified);
+    let existing = pose::evaluate(&bytes, "bounds", selected.skin, Default::default()).unwrap();
+    assert_eq!(
+        (result.pose_retained_bytes, result.pose_work_units),
+        (existing.retained_bytes, existing.work_units)
+    );
+    for point in existing.positions {
+        for (axis, coordinate) in point.into_iter().enumerate() {
+            assert!(
+                coordinate >= result.coordinates.min[axis]
+                    && coordinate <= result.coordinates.max[axis]
+            );
+        }
+    }
+}
+
+#[test]
+fn sampled_bounds_keep_complete_channel_provenance_and_root_motion_only_in_placement() {
+    use fallout_data::nif_skin::bounds;
+    for (object, minimum, maximum) in [
+        (2, [-4.75, -0.5, 1.], [0., 1.1875, 2.8125]),
+        (0, [-3.5, -0.5, 0.5], [0., 1., 1.5]),
+    ] {
+        let bytes = container(&sampled_fixture(object), &[0]);
+        let channel = animation_request(object, 1.);
+        let selected = bounds_request(
+            &bytes,
+            bounds::Pose::Sampled {
+                controller_policy: pose::ControllerPolicy::RefuseOtherRequired,
+                animation: channel,
+            },
+        );
+        let before = pose::evaluate_sampled(
+            &bytes,
+            "bounds",
+            sample_request(&bytes),
+            channel,
+            Default::default(),
+        )
+        .unwrap();
+        let result = bounds::evaluate(&bytes, "bounds", selected, Default::default()).unwrap();
+        assert_eq!(result.coordinates.min, minimum);
+        assert_eq!(result.coordinates.max, maximum);
+        assert_eq!(
+            result.skin_to_source_world,
+            before.skin.skin_to_source_world
+        );
+        assert_eq!(
+            (result.pose_retained_bytes, result.pose_work_units),
+            (before.retained_bytes, before.work_units)
+        );
+        assert_eq!(
+            serde_json::to_value(result.sample.as_ref().unwrap()).unwrap(),
+            serde_json::to_value(&before.sample).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&result.unapplied_controllers).unwrap(),
+            serde_json::to_value(&before.skin.unapplied_controllers).unwrap()
+        );
+        let after = pose::evaluate_sampled(
+            &bytes,
+            "bounds",
+            sample_request(&bytes),
+            channel,
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_vec(&before).unwrap(),
+            serde_json::to_vec(&after).unwrap()
+        );
+    }
+}
+
+#[test]
+fn bounds_keep_raw_duplicate_nonunit_zero_terms_and_refuse_zero_total_or_nonfinite_vertices() {
+    use fallout_data::nif_skin::bounds;
+    let mut blocks = fixture();
+    blocks[5].1 = skin(
+        &[
+            vec![(0, 0.25), (0, 0.5), (1, 1.), (2, 0.)],
+            vec![(0, 0.75), (2, 1.)],
+        ],
+        None,
+    );
+    let bytes = container(&blocks, &[0]);
+    let mut selected = bounds_request(&bytes, bounds::Pose::Stored);
+    assert!(bounds::evaluate(&bytes, "unit", selected, Default::default()).is_err());
+    selected.skin.weights = WeightPolicy::PreserveRawNonnegative;
+    let with_normals = bounds::evaluate(&bytes, "raw", selected, Default::default()).unwrap();
+    assert_eq!(with_normals.coordinates.min, [-3.5, -0.5, 0.5]);
+    assert_eq!(with_normals.coordinates.max, [0., 1.5, 2.25]);
+    let before = pose::evaluate(&bytes, "raw", selected.skin, Default::default()).unwrap();
+    assert_eq!(before.positions[0], [-2.25, 1.5, 2.25]);
+    assert_eq!(before.weight_sums, [1.5, 1., 1.]);
+    assert_eq!(before.normals[0], [0., 0.75, 0.]);
+    blocks[6].1[47] = 0;
+    blocks[6].1.drain(48..84);
+    let absent_bytes = container(&blocks, &[0]);
+    let absent = bounds::evaluate(
+        &absent_bytes,
+        "absent",
+        bounds::Request {
+            expected_source_sha256: source_digest(&absent_bytes),
+            ..selected
+        },
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        absent.coordinates.min_f64_bits,
+        with_normals.coordinates.min_f64_bits
+    );
+    assert_eq!(
+        absent.coordinates.max_f64_bits,
+        with_normals.coordinates.max_f64_bits
+    );
+    blocks[5].1 = skin(&[vec![(0, 1.), (1, 1.), (2, 0.)], vec![]], None);
+    let zero = container(&blocks, &[0]);
+    let error = bounds::evaluate(
+        &zero,
+        "zero total",
+        bounds::Request {
+            expected_source_sha256: source_digest(&zero),
+            ..selected
+        },
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("no positive finite weight sum"),
+        "{error}"
+    );
+    blocks = fixture();
+    blocks[6].1[9..13].copy_from_slice(&f32::INFINITY.to_le_bytes());
+    let nonfinite = container(&blocks, &[0]);
+    assert!(
+        bounds::evaluate(
+            &nonfinite,
+            "nonfinite",
+            bounds_request(&nonfinite, bounds::Pose::Stored),
+            Default::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn bounds_phase_aggregate_admission_vertex_input_and_full_scan_caps_have_exact_ceilings() {
+    use fallout_data::nif_skin::bounds;
+    for sampled in [false, true] {
+        let bytes = container(&sampled_fixture(2), &[0]);
+        let mode = if sampled {
+            bounds::Pose::Sampled {
+                controller_policy: pose::ControllerPolicy::RefuseOtherRequired,
+                animation: animation_request(2, 1.),
+            }
+        } else {
+            bounds::Pose::Stored
+        };
+        let selected = bounds_request(&bytes, mode);
+        let baseline = bounds::evaluate(&bytes, "budget", selected, Default::default()).unwrap();
+        assert_eq!(
+            baseline.retained_bytes,
+            baseline.extra_retained_bytes + baseline.pose_retained_bytes
+        );
+        assert_eq!(
+            baseline.work_units,
+            baseline.extra_work_units + baseline.pose_work_units
+        );
+        assert_eq!(
+            baseline.extra_work_units,
+            6 * bytes.len() + 9 * baseline.vertices
+        );
+        let mut exact = bounds::Limits {
+            input_bytes: bytes.len(),
+            vertices: 3,
+            extra_array_bytes: baseline.extra_retained_bytes,
+            extra_work_units: baseline.extra_work_units,
+            array_bytes: baseline.retained_bytes,
+            work_units: baseline.work_units,
+            decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+            decoder_check_admission_units: baseline.decoder_check_admission_units,
+            ..Default::default()
+        };
+        if sampled {
+            exact.sampled.array_bytes = baseline.pose_retained_bytes;
+            exact.sampled.work_units = baseline.pose_work_units;
+        } else {
+            exact.stored.array_bytes = baseline.pose_retained_bytes;
+            exact.stored.work_units = baseline.pose_work_units;
+        }
+        bounds::evaluate(&bytes, "exact", selected, exact).unwrap();
+        for ceiling in 0..10 {
+            let mut under = exact;
+            match ceiling {
+                0 => under.input_bytes -= 1,
+                1 => under.vertices -= 1,
+                2 => under.extra_array_bytes -= 1,
+                3 => under.extra_work_units -= 1,
+                4 => under.array_bytes -= 1,
+                5 => under.work_units -= 1,
+                6 => under.decoder_array_admission_bytes -= 1,
+                7 => under.decoder_check_admission_units -= 1,
+                8 if sampled => under.sampled.array_bytes -= 1,
+                9 if sampled => under.sampled.work_units -= 1,
+                8 => under.stored.array_bytes -= 1,
+                _ => under.stored.work_units -= 1,
+            }
+            assert!(
+                bounds::evaluate(&bytes, "one under", selected, under).is_err(),
+                "ceiling {ceiling}, sampled {sampled}"
+            );
+        }
+        let mut stale = selected;
+        stale.expected_source_sha256[0] ^= 1;
+        assert!(
+            bounds::evaluate(&bytes, "stale", stale, exact)
+                .unwrap_err()
+                .to_string()
+                .contains("SHA256 differs")
+        );
+        for phase in 0..if sampled { 3 } else { 1 } {
+            let mut limits = exact;
+            match phase {
+                0 if sampled => {
+                    limits.sampled.skin.source.partition.skin.scene.input_bytes = bytes.len() - 1
+                }
+                0 => limits.stored.source.partition.skin.scene.input_bytes = bytes.len() - 1,
+                1 => limits.sampled.animation.scene.input_bytes = bytes.len() - 1,
+                _ => limits.sampled.animation.keys.animation.input_bytes = bytes.len() - 1,
+            }
+            assert!(
+                bounds::evaluate(&bytes, "before SHA", stale, limits)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("source input byte budget exceeded")
+            );
+        }
+        let mut overflow = exact;
+        if sampled {
+            overflow.sampled.skin.source.array_bytes = usize::MAX;
+        } else {
+            overflow.stored.source.array_bytes = usize::MAX;
+        }
+        assert!(bounds::evaluate(&bytes, "overflow", selected, overflow).is_err());
+    }
+}
+
+#[test]
+fn compact_bounds_charge_the_complete_large_skin_deformation_even_after_vertex_arrays_are_dropped()
+{
+    use fallout_data::nif_skin::bounds;
+    let count = 4096u16;
+    let mut blocks = fixture();
+    let mut data = Vec::new();
+    words(&mut data, &[0]);
+    shorts(&mut data, &[count]);
+    data.extend([0, 0, 1]);
+    for _ in 0..count {
+        floats(&mut data, &[1., 2., 3.]);
+    }
+    shorts(&mut data, &[0]);
+    data.push(0);
+    floats(&mut data, &[0., 0., 0., 10.]);
+    data.push(0);
+    shorts(&mut data, &[0]);
+    words(&mut data, &[NULL]);
+    shorts(&mut data, &[0]);
+    words(&mut data, &[0]);
+    data.push(0);
+    shorts(&mut data, &[0]);
+    blocks[6].1 = data;
+    blocks[5].1 = skin(&[(0..count).map(|v| (v, 1.)).collect(), vec![]], None);
+    let bytes = container(&blocks, &[0]);
+    let selected = bounds_request(&bytes, bounds::Pose::Stored);
+    let result = bounds::evaluate(&bytes, "large", selected, Default::default()).unwrap();
+    assert_eq!(result.coordinates.min, [-1.5, 1., 1.5]);
+    assert_eq!(result.coordinates.max, result.coordinates.min);
+    assert_eq!(result.vertices, usize::from(count));
+    assert!(result.pose_retained_bytes >= usize::from(count) * 32);
+    assert_eq!(
+        result.extra_work_units,
+        6 * bytes.len() + usize::from(count) * 9
+    );
+    assert!(
+        bounds::evaluate(
+            &bytes,
+            "intermediates",
+            selected,
+            bounds::Limits {
+                array_bytes: result.extra_retained_bytes,
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+    let mut insufficient = bounds::Limits::default();
+    insufficient.stored.array_bytes = result.pose_retained_bytes - 1;
+    assert!(bounds::evaluate(&bytes, "phase", selected, insufficient).is_err());
+}
+
 fn words(out: &mut Vec<u8>, values: &[u32]) {
     for value in values {
         out.extend(value.to_le_bytes());

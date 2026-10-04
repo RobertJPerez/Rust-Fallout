@@ -555,6 +555,7 @@ fn drive_loading(
     actions: Res<input::Actions>,
     mut state: ResMut<Loading>,
     mut context: ResMut<input::Context>,
+    mut display: ResMut<input::NativeDisplay>,
     mut orbit: ResMut<Orbit>,
     mut navigation: ResMut<Navigation>,
     mut cameras: Query<(&mut Transform, &mut Projection), InspectionCameraFilter>,
@@ -579,6 +580,7 @@ fn drive_loading(
     let epoch = state.epoch;
     let mut phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
     if closing {
+        display.0 = None;
         state.epoch = state.epoch.saturating_add(1);
         match phase {
             Phase::Preparing(mut job) | Phase::Draining(mut job) => job.cancel(),
@@ -596,13 +598,18 @@ fn drive_loading(
     }
     if actions.cancel_loading && !options.headless {
         phase = match phase {
-            Phase::WaitingForWindow => Phase::Cancelled,
+            Phase::WaitingForWindow => {
+                display.0 = None;
+                Phase::Cancelled
+            }
             Phase::Preparing(mut job) => {
+                display.0 = None;
                 job.cancel();
                 state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
                 Phase::Draining(job)
             }
             Phase::Uploading(queue) => {
+                display.0 = None;
                 state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
                 Phase::Disposing(queue, None)
             }
@@ -683,6 +690,14 @@ fn drive_loading(
         Phase::Uploading(mut queue) => match queue.advance(&mut commands, &mut assets, epoch) {
             Ok(false) => Phase::Uploading(queue),
             Ok(true) => {
+                display.0 = queue
+                    .cell
+                    .as_ref()
+                    .and_then(|cell| cell.native.as_ref())
+                    .map(|host| input::DisplayIdentity {
+                        scene_epoch: epoch,
+                        revision: host.revision(),
+                    });
                 *context = if options.headless || options.material_fixture {
                     input::Context::Suspended
                 } else if navigation.fly {
@@ -744,6 +759,10 @@ fn drive_loading(
                                     "Continue source-bound revision {}",
                                     observation.report.revision
                                 );
+                                display.0 = Some(input::DisplayIdentity {
+                                    scene_epoch: epoch,
+                                    revision: observation.report.revision,
+                                });
                             } else {
                                 host.failure(
                                     "Continue does not bind every active source view".into(),
@@ -764,10 +783,12 @@ fn drive_loading(
                         }
                     }
                 }
-                if actions.continue_saved {
-                    host.request(native::Request::Continue);
-                } else if actions.save {
-                    host.request(native::Request::Save);
+                if let Some(intent) = actions.native {
+                    let admitted = *context == intent.context
+                        && windows
+                            .iter()
+                            .any(|(id, window)| id == intent.window && window.focused);
+                    host.intent(intent, epoch, admitted);
                 }
             }
             Phase::Ready(queue)
@@ -1109,6 +1130,7 @@ mod tests {
             )
             .insert_resource(input::Context::Loading)
             .insert_resource(input::Actions::default())
+            .init_resource::<input::NativeDisplay>()
             .insert_resource(Loading { epoch: 7, phase })
             .insert_resource(Orbit {
                 center: Vec3::ZERO,

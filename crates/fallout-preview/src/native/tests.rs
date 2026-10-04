@@ -327,6 +327,166 @@ fn actual_save_success_requires_publication_and_writer_failure_stays_failure() {
     stop(host);
 }
 
+fn intent(
+    revision: u64,
+    sequence: u64,
+    action: crate::input::NativeAction,
+) -> crate::input::NativeIntent {
+    crate::input::NativeIntent {
+        action,
+        display: crate::input::DisplayIdentity {
+            scene_epoch: 7,
+            revision,
+        },
+        sequence,
+        context: crate::input::Context::Orbit,
+        focused: true,
+        window: Entity::PLACEHOLDER,
+        device: crate::input::Device::Keyboard,
+    }
+}
+
+#[test]
+fn typed_native_intents_cannot_replay_or_act_on_another_display_boundary() {
+    let f = fixture();
+    let before_file = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let before_world = f.world.snapshot();
+    let (mut host, observation) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    let revision = observation.report.revision;
+    assert!(!host.intent(
+        intent(revision + 1, 1, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    assert!(!host.intent(
+        intent(revision, 2, crate::input::NativeAction::Save),
+        8,
+        true
+    ));
+    assert!(!host.intent(
+        intent(revision, 3, crate::input::NativeAction::Save),
+        7,
+        false
+    ));
+    let mut loading = intent(revision, 4, crate::input::NativeAction::Save);
+    loading.context = crate::input::Context::Loading;
+    assert!(!host.intent(loading, 7, true));
+    let mut unfocused = intent(revision, 5, crate::input::NativeAction::Save);
+    unfocused.focused = false;
+    assert!(!host.intent(unfocused, 7, true));
+    assert!(!host.pending);
+    assert!(host.poll().is_none());
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before_file
+    );
+    let current = intent(revision, 6, crate::input::NativeAction::Save);
+    assert!(host.intent(current, 7, true));
+    assert!(!host.intent(current, 7, true));
+    let busy = intent(revision, 7, crate::input::NativeAction::Save);
+    assert!(!host.intent(busy, 7, true));
+    let Event::Saved(receipt) = event(&mut host) else {
+        panic!("fresh typed save failed");
+    };
+    assert_eq!(receipt.metadata.generation, 2);
+    assert_eq!(receipt.metadata.state_revision, revision);
+    assert!(!host.intent(busy, 7, true));
+    assert!(host.poll().is_none());
+    let after_file = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    assert!(!host.intent(current, 7, true));
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        after_file
+    );
+    assert_eq!(f.world.snapshot(), before_world);
+    assert!(host.intent(
+        intent(revision, 8, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    let Event::Saved(receipt) = event(&mut host) else {
+        panic!("next fresh save failed");
+    };
+    assert_eq!(receipt.metadata.generation, 3);
+    stop(host);
+}
+
+#[test]
+fn continued_world_rejects_input_sampled_from_previous_revision() {
+    let mut f = fixture();
+    let (mut host, before) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    set(
+        &mut f.world,
+        &f.cell,
+        &f.keys[0],
+        [100., 20., 30.],
+        Some(1.),
+        true,
+    );
+    f.repository
+        .commit(&Captured::at_boundary(&f.world))
+        .unwrap();
+    assert!(host.intent(
+        intent(
+            before.report.revision,
+            1,
+            crate::input::NativeAction::Continue
+        ),
+        7,
+        true
+    ));
+    let Event::Continued(after) = event(&mut host) else {
+        panic!("typed Continue failed");
+    };
+    assert!(after.report.revision > before.report.revision);
+    let bytes = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    assert!(!host.intent(
+        intent(before.report.revision, 2, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    assert!(!host.pending);
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        bytes
+    );
+    assert!(host.intent(
+        intent(after.report.revision, 3, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    let Event::Saved(receipt) = event(&mut host) else {
+        panic!("fresh restored-boundary save failed");
+    };
+    assert_eq!(receipt.metadata.state_revision, after.report.revision);
+    stop(host);
+}
+
+#[test]
+fn actual_canonical_owner_refuses_bad_revision_before_any_publication() {
+    let f = fixture();
+    let before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let (mut host, observation) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    host.commands
+        .as_ref()
+        .unwrap()
+        .try_send(Command {
+            request: Request::Save,
+            expected_revision: observation.report.revision + 1,
+        })
+        .unwrap();
+    host.pending = true;
+    assert!(
+        matches!(event(&mut host), Event::Failed(error) if error.contains("command revision differs"))
+    );
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before
+    );
+    assert!(!host.published());
+    stop(host);
+}
+
 #[test]
 fn missing_scale_disabled_outside_cell_and_changed_sources_never_invent_live_values() {
     let mut f = fixture();

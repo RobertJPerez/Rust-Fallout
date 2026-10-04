@@ -361,13 +361,35 @@ fn actual_cell_draw_continue_and_cold_restore_keep_canonical_identity() {
     assert_eq!(*visible, Visibility::Inherited);
     state(&mut world, [0., 40., 0.], true);
     repository.commit(&Captured::at_boundary(&world)).unwrap();
+    let window = app
+        .world_mut()
+        .query_filtered::<Entity, With<bevy::window::PrimaryWindow>>()
+        .single(app.world())
+        .unwrap();
+    app.world_mut()
+        .get_mut::<bevy::window::Window>(window)
+        .unwrap()
+        .focused = true;
+    let display = app
+        .world()
+        .resource::<crate::input::NativeDisplay>()
+        .0
+        .unwrap();
     app.world_mut()
         .resource_mut::<crate::input::Actions>()
-        .continue_saved = true;
+        .native = Some(crate::input::NativeIntent {
+        action: crate::input::NativeAction::Continue,
+        display,
+        sequence: 1,
+        context: crate::input::Context::Orbit,
+        focused: true,
+        window,
+        device: crate::input::Device::Keyboard,
+    });
     app.update();
     app.world_mut()
         .resource_mut::<crate::input::Actions>()
-        .continue_saved = false;
+        .native = None;
     loop {
         app.update();
         if let crate::Phase::Ready(queue) = &app.world().resource::<crate::Loading>().phase
@@ -400,6 +422,81 @@ fn actual_cell_draw_continue_and_cold_restore_keep_canonical_identity() {
     );
     assert_eq!(transform.translation, Vec3::new(0., 0., -40.));
     assert_eq!(*visible, Visibility::Inherited);
+    let current = app
+        .world()
+        .resource::<crate::input::NativeDisplay>()
+        .0
+        .unwrap();
+    assert_eq!(current.scene_epoch, 7);
+    assert_eq!(current.revision, world.revision());
+    let file_before = fs::read(repository.path().join("current.frsv")).unwrap();
+    // A sampled action can still carry the previous display when a Continue
+    // result is delivered. The real adapter must not publish the newer world.
+    app.world_mut()
+        .resource_mut::<crate::input::Actions>()
+        .native = Some(crate::input::NativeIntent {
+        action: crate::input::NativeAction::Save,
+        display,
+        sequence: 2,
+        context: crate::input::Context::Orbit,
+        focused: true,
+        window,
+        device: crate::input::Device::Keyboard,
+    });
+    app.update();
+    if let crate::Phase::Ready(queue) = &app.world().resource::<crate::Loading>().phase {
+        let host = queue.cell.as_ref().unwrap().native.as_ref().unwrap();
+        assert!(!host.pending);
+        assert!(host.title().starts_with("Native failed:"));
+    } else {
+        panic!("stale input changed the scene phase");
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        file_before
+    );
+    let next = crate::input::NativeIntent {
+        action: crate::input::NativeAction::Save,
+        display: current,
+        sequence: 3,
+        context: crate::input::Context::Orbit,
+        focused: true,
+        window,
+        device: crate::input::Device::Keyboard,
+    };
+    app.world_mut()
+        .resource_mut::<crate::input::Actions>()
+        .native = Some(next);
+    app.world_mut()
+        .get_mut::<bevy::window::Window>(window)
+        .unwrap()
+        .focused = false;
+    app.update();
+    // Focus regain cannot replay the already consumed refused sequence.
+    app.world_mut()
+        .get_mut::<bevy::window::Window>(window)
+        .unwrap()
+        .focused = true;
+    app.update();
+    if let crate::Phase::Ready(queue) = &app.world().resource::<crate::Loading>().phase {
+        assert!(
+            !queue
+                .cell
+                .as_ref()
+                .unwrap()
+                .native
+                .as_ref()
+                .unwrap()
+                .pending
+        );
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        file_before
+    );
+    app.world_mut()
+        .resource_mut::<crate::input::Actions>()
+        .native = None;
     assert_ne!(world.snapshot(), original);
     let expected = world.snapshot();
     app.world_mut()

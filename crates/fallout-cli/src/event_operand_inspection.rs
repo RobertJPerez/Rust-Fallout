@@ -8,6 +8,7 @@ use fallout_runtime::{
     event_operands,
     execution::{
         attachment_boot, copy_probe, foreign_copy, local_copy, native, native_plan, pending_batch,
+        reference_copy,
     },
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
@@ -204,20 +205,85 @@ struct SavedForeignCopyRequest {
 
 #[derive(serde::Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
-enum SavedForeignOutcome<'a> {
+enum SavedCopyOutcome<'a, T> {
     Unsupported {
         reason: local_copy::Unsupported,
         detail: &'a str,
     },
     EngineeringCommitted {
-        committed: &'a foreign_copy::Committed,
+        committed: &'a T,
     },
 }
+type SavedForeignOutcome<'a> = SavedCopyOutcome<'a, foreign_copy::Committed>;
 #[derive(serde::Serialize)]
 struct SavedForeignReport<'a> {
     #[serde(flatten)]
     metadata: Value,
     snapshot_foreign_copy: SavedForeignOutcome<'a>,
+}
+
+fn admit_saved_copy_outputs(
+    install: &Path,
+    result: &Path,
+    report: Option<&Path>,
+    scope: &str,
+) -> Result<()> {
+    let protected = super::protected_tree(install)?;
+    let fresh = |path: &Path| -> Result<std::path::PathBuf> {
+        if path.try_exists()? {
+            return Err(format!("{scope} output must be a fresh artifact").into());
+        }
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .canonicalize()?;
+        if parent.starts_with(&protected) {
+            return Err(format!("{scope} output must be outside the installation").into());
+        }
+        Ok(parent.join(
+            path.file_name()
+                .ok_or_else(|| format!("{scope} output requires a filename"))?,
+        ))
+    };
+    let result = fresh(result)?;
+    if let Some(report) = report {
+        let report = fresh(report)?;
+        if report == result
+            || (cfg!(windows)
+                && report
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(&result.to_string_lossy()))
+        {
+            return Err(format!("{scope} report must differ from result snapshot").into());
+        }
+    }
+    Ok(())
+}
+fn admit_saved_copy_report(
+    report: &impl serde::Serialize,
+    maximum: usize,
+    scope: &str,
+) -> Result<Value> {
+    let mut admitted = BoundedJson {
+        bytes: Vec::new(),
+        maximum,
+    };
+    serde_json::to_writer_pretty(&mut admitted, report)
+        .map_err(|_| format!("{scope} report byte budget exceeded"))?;
+    admitted
+        .write_all(b"\n")
+        .map_err(|_| format!("{scope} report byte budget exceeded"))?;
+    Ok(serde_json::to_value(report)?)
+}
+fn write_saved_copy_result(path: &Path, bytes: Option<Vec<u8>>) -> Result<()> {
+    if let Some(bytes) = bytes {
+        let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        file.write_all(&bytes)?;
+        file.flush()?;
+        file.sync_all()?;
+    }
+    Ok(())
 }
 
 pub(super) fn copy_saved_foreign(
@@ -254,36 +320,7 @@ pub(super) fn copy_saved_foreign(
     {
         return Err("unsupported saved foreign copy schema/budget ceiling".into());
     }
-    let protected = super::protected_tree(install)?;
-    let fresh = |path: &Path| -> Result<std::path::PathBuf> {
-        if path.try_exists()? {
-            return Err("saved foreign copy output must be a fresh artifact".into());
-        }
-        let parent = path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."))
-            .canonicalize()?;
-        if parent.starts_with(&protected) {
-            return Err("saved foreign copy output must be outside the installation".into());
-        }
-        Ok(parent.join(
-            path.file_name()
-                .ok_or("saved foreign copy output requires a filename")?,
-        ))
-    };
-    let result_resolved = fresh(result_path)?;
-    if let Some(report) = report_path {
-        let resolved = fresh(report)?;
-        if resolved == result_resolved
-            || (cfg!(windows)
-                && resolved
-                    .to_string_lossy()
-                    .eq_ignore_ascii_case(&result_resolved.to_string_lossy()))
-        {
-            return Err("saved foreign copy report must differ from result snapshot".into());
-        }
-    }
+    admit_saved_copy_outputs(install, result_path, report_path, "saved foreign copy")?;
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
     let operators = script_profile::operators(&descriptors)?;
     let model = obscript::expression_plan::Model::vanilla(&operators)?;
@@ -388,25 +425,177 @@ pub(super) fn copy_saved_foreign(
     };
     // Borrow the complete trace until the exact pretty report plus newline fits.
     // No output exists for a strict identity/work/output capacity failure.
-    let mut admitted = BoundedJson {
-        bytes: Vec::new(),
-        maximum: request.maximum_report_bytes,
-    };
-    serde_json::to_writer_pretty(&mut admitted, &report)
-        .map_err(|_| "saved foreign copy report byte budget exceeded")?;
-    admitted
-        .write_all(b"\n")
-        .map_err(|_| "saved foreign copy report byte budget exceeded")?;
-    let report = serde_json::to_value(&report)?;
-    if let Some(bytes) = result_bytes {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(result_path)?;
-        file.write_all(&bytes)?;
-        file.flush()?;
-        file.sync_all()?;
+    let report =
+        admit_saved_copy_report(&report, request.maximum_report_bytes, "saved foreign copy")?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedReferenceCopyRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    owner: fallout_runtime::identity::Owner,
+    intent: SavedForeignIntent,
+    maximum_source_instructions: usize,
+    maximum_operand_uses: usize,
+    maximum_statement_bytes: usize,
+    maximum_trace_source_bytes: usize,
+    maximum_trace_rows: usize,
+    maximum_trace_variable_bytes: usize,
+    maximum_trace_binding_uses: usize,
+    maximum_probe_variable_bytes: usize,
+    maximum_trace_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+struct SavedReferenceReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    snapshot_reference_copy: SavedCopyOutcome<'a, reference_copy::Committed>,
+}
+pub(super) fn copy_saved_reference(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedReferenceCopyRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved reference copy request byte budget exceeded",
+    )?)?;
+    let defaults = reference_copy::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    if request.schema_version != 1
+        || request.maximum_source_instructions > defaults.maximum_event_instructions
+        || request.maximum_operand_uses > defaults.maximum_operand_uses
+        || request.maximum_statement_bytes > defaults.maximum_statement_bytes
+        || request.maximum_trace_source_bytes > defaults.observation.maximum_source_bytes
+        || request.maximum_trace_rows > defaults.observation.maximum_rows
+        || request.maximum_trace_variable_bytes > defaults.observation.maximum_variable_bytes
+        || request.maximum_trace_binding_uses > defaults.observation.maximum_binding_uses
+        || request.maximum_probe_variable_bytes > defaults.maximum_probe_variable_bytes
+        || request.maximum_trace_bytes > defaults.maximum_trace_bytes
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved reference copy schema/budget ceiling".into());
     }
+    admit_saved_copy_outputs(install, result_path, report_path, "saved reference copy")?;
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "saved reference copy snapshot byte budget exceeded",
+    )?;
+    let mut world = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|p| p.sequence == request.sequence.get())
+        .ok_or("saved reference copy must name the existing journal head")?;
+    let instance = world.instance(world.handle(pending.instance)?)?;
+    if instance.owner() != &request.owner {
+        return Err("saved reference copy explicit owner differs from journal head".into());
+    }
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &[instance.definition().clone()],
+        Default::default(),
+    )?;
+    let before_revision = world.revision();
+    let outcome = reference_copy::stage(
+        &world,
+        &sources,
+        &content,
+        reference_copy::Selection {
+            sequence: request.sequence.get(),
+            intent: match request.intent {
+                SavedForeignIntent::Faithful => local_copy::Intent::Faithful,
+                SavedForeignIntent::Engineering => local_copy::Intent::Engineering,
+            },
+        },
+        reference_copy::Limits {
+            maximum_event_instructions: request.maximum_source_instructions,
+            maximum_operand_uses: request.maximum_operand_uses,
+            maximum_statement_bytes: request.maximum_statement_bytes,
+            observation: preparation::ObservationLimits {
+                maximum_source_bytes: request.maximum_trace_source_bytes,
+                maximum_rows: request.maximum_trace_rows,
+                maximum_variable_bytes: request.maximum_trace_variable_bytes,
+                maximum_binding_uses: request.maximum_trace_binding_uses,
+            },
+            maximum_probe_variable_bytes: request.maximum_probe_variable_bytes,
+            maximum_trace_bytes: request.maximum_trace_bytes,
+        },
+    )?;
+    let (committed, unsupported) = match outcome {
+        reference_copy::Preparation::Unsupported { reason, detail } => {
+            (None, Some((reason, detail)))
+        }
+        reference_copy::Preparation::Staged(proposal) => (Some(proposal.commit(&mut world)?), None),
+    };
+    let mut artifact = Value::Null;
+    let result_bytes = if committed.is_some() {
+        let snapshot = world.snapshot();
+        let bytes = snapshot.encode(request.maximum_result_snapshot_bytes)?;
+        let cold = fallout_runtime::World::restore(
+            Arc::clone(&catalogue),
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+            world_limits,
+        )?;
+        if cold.snapshot() != snapshot {
+            return Err("saved reference copy complete cold result differs".into());
+        }
+        artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":snapshot.schema_version,"decode_restore_equal":true,"remaining_head":snapshot.pending_events.first()});
+        Some(bytes)
+    } else {
+        None
+    };
+    let outcome = match (&committed, &unsupported) {
+        (Some(committed), _) => SavedCopyOutcome::EngineeringCommitted { committed },
+        (_, Some((reason, detail))) => SavedCopyOutcome::Unsupported {
+            reason: *reason,
+            detail,
+        },
+        _ => unreachable!("complete preparation outcome"),
+    };
+    let report = SavedReferenceReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering own typed reference identity copy","campaign":world.campaign(),"owner":request.owner,"before_revision":before_revision,"after_revision":world.revision(),"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,
+            "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"private_result_discarded":committed.is_none(),"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        snapshot_reference_copy: outcome,
+    };
+    let report = admit_saved_copy_report(
+        &report,
+        request.maximum_report_bytes,
+        "saved reference copy",
+    )?;
+    write_saved_copy_result(result_path, result_bytes)?;
     Ok(report)
 }
 

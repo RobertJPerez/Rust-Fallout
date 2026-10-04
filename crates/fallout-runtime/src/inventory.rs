@@ -128,7 +128,104 @@ pub struct CountTrace {
     pub contributions: Vec<(ItemId, u32)>,
 }
 
+/// Logical owned-observation limits, independent of canonical item admission.
+/// Links include existing Facts::links; opaque bytes include their exact payload.
+/// These bounds do not claim a total allocator/process-memory ceiling.
+#[derive(Debug, Clone, Copy)]
+pub struct ViewLimits {
+    pub max_items: usize,
+    pub max_links: usize,
+    pub max_extra_bytes: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct ViewUsage {
+    pub items: usize,
+    pub links: usize,
+    pub extra_bytes: usize,
+}
+
+/// A read-only owned observation, never mutation authority or an item rule.
+/// None means uninitialized; Some(empty) is an explicit observed empty bank.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct InventoryView {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    state_revision: u64,
+    boundary: Clocks,
+    owner: ReferenceId,
+    authored: Option<FormKey>,
+    items: Option<Vec<Item>>,
+    usage: ViewUsage,
+}
+impl InventoryView {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn revision(&self) -> u64 {
+        self.state_revision
+    }
+    pub fn boundary(&self) -> Clocks {
+        self.boundary
+    }
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn authored(&self) -> Option<&FormKey> {
+        self.authored.as_ref()
+    }
+    pub fn items(&self) -> Option<&[Item]> {
+        self.items.as_deref()
+    }
+    pub fn usage(&self) -> ViewUsage {
+        self.usage
+    }
+}
+
 impl World<'_> {
+    /// Scan limits before cloning any source key, opaque payload or item vector.
+    /// The live bank remains the only authority; observations do not initialize it.
+    pub fn inventory_view(&self, owner: ReferenceId, limits: ViewLimits) -> Result<InventoryView> {
+        let authored = self.reference_origin(owner)?;
+        let bank = self.inventory_banks.get(&owner);
+        let mut usage = ViewUsage::default();
+        if let Some(ids) = bank {
+            if ids.len() > limits.max_items {
+                return Err(Error::Capacity("inventory view items"));
+            }
+            usage.items = ids.len();
+            for id in ids {
+                let facts = self.item(*id)?.facts();
+                usage.links = usage
+                    .links
+                    .checked_add(facts.links())
+                    .ok_or(Error::Capacity("inventory view links"))?;
+                if usage.links > limits.max_links {
+                    return Err(Error::Capacity("inventory view links"));
+                }
+                usage.extra_bytes = usage
+                    .extra_bytes
+                    .checked_add(facts.extra_bytes()?)
+                    .ok_or(Error::Capacity("inventory view extra bytes"))?;
+                if usage.extra_bytes > limits.max_extra_bytes {
+                    return Err(Error::Capacity("inventory view extra bytes"));
+                }
+            }
+        }
+        Ok(InventoryView {
+            campaign: self.campaign,
+            catalogue_sha256: self.cohort.clone(),
+            state_revision: self.revision,
+            boundary: self.clocks,
+            owner,
+            authored: authored.cloned(),
+            items: bank.map(|ids| ids.iter().map(|id| self.items[id].clone()).collect()),
+            usage,
+        })
+    }
     pub fn item_handle(&self, id: ItemId) -> Result<ItemHandle> {
         self.item(id)?;
         Ok(ItemHandle {

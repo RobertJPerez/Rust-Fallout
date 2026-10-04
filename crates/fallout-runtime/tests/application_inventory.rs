@@ -1,18 +1,12 @@
 mod common;
 use common::*;
-// Bootstrap consumer until coordinator publishes the shared module export.
-// These aliases compile the actual owned module against the existing runtime.
-pub use fallout_runtime::{Error, World, foreign, identity, inventory, source_items};
-#[allow(dead_code)]
-#[path = "../src/application/mod.rs"]
-mod application;
-use application::{Failure, Host, HostLimits};
 use fallout_data::{loaded_scripts::Catalogue, plugin, store::RecordStore};
+use fallout_runtime::application::{Failure, Host, HostLimits};
 use fallout_runtime::{
-    Limits,
+    Limits, World,
     foreign::Content,
     identity::ReferenceId,
-    inventory::{Condition, Facts, ItemId, OpaqueExtra, Ownership},
+    inventory::{self, Condition, Facts, ItemId, OpaqueExtra, Ownership},
     source_items::{Policy, Role},
 };
 use std::{num::NonZeroU64, sync::Arc};

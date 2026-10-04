@@ -12,6 +12,8 @@ use crate::{
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+pub mod path;
+
 pub const CONTRACT: &str = "engineering-linked-local-visibility-v1";
 #[derive(Clone, Copy, Debug)]
 pub struct Request {
@@ -105,7 +107,7 @@ pub fn evaluate(
     request: Request,
     limits: Limits,
 ) -> Result<Evaluation> {
-    let mut budget = Budget {
+    let budget = Budget {
         source,
         work: limits.work_units,
     };
@@ -114,6 +116,41 @@ pub fn evaluate(
     }
     let (index, decoded) = boolean::keyframes::decode_with_limits(bytes, source, limits.keys)?;
     let (_, scene) = nif_scene::decode_with_limits(bytes, source, limits.scene)?;
+    evaluate_loaded(
+        SourceView {
+            bytes,
+            index: &index,
+            decoded: &decoded,
+            scene: &scene,
+        },
+        request,
+        limits,
+        budget,
+    )
+}
+
+struct SourceView<'a> {
+    bytes: &'a [u8],
+    index: &'a crate::nif::NifIndex,
+    decoded: &'a boolean::keyframes::Source,
+    scene: &'a nif_scene::Scene,
+}
+fn evaluate_loaded(
+    view: SourceView<'_>,
+    request: Request,
+    limits: Limits,
+    mut budget: Budget<'_>,
+) -> Result<Evaluation> {
+    let SourceView {
+        bytes,
+        index,
+        decoded,
+        scene,
+    } = view;
+    let source = budget.source;
+    if !request.source_time.is_finite() {
+        return Err(budget.fail("requested source time must be finite"));
+    }
     if !scene.unsupported_scene_edges.is_empty() {
         return Err(budget.fail("unresolved scene ancestry"));
     }
@@ -156,7 +193,7 @@ pub fn evaluate(
         base: selected.offset,
         position: 0,
         source,
-        index: &index,
+        index,
         array_bytes_left: &mut remaining,
     };
     let controller = read::single_controller(reader, &mut budget.work)?;
@@ -227,7 +264,7 @@ pub fn evaluate(
         }
         let selected = left - 1;
         (
-            Some(span(bytes, &index, data_id)),
+            Some(span(bytes, index, data_id)),
             Selection::HeldKey {
                 index: selected,
                 time_bits: keys[selected].time_bits,
@@ -243,9 +280,9 @@ pub fn evaluate(
     Ok(Evaluation {
         contract: CONTRACT,
         source_sha256: format!("{:x}", Sha256::digest(bytes)),
-        object: span(bytes, &index, request.object),
-        controller: span(bytes, &index, request.controller),
-        interpolator: span(bytes, &index, interpolator_id),
+        object: span(bytes, index, request.object),
+        controller: span(bytes, index, request.controller),
+        interpolator: span(bytes, index, interpolator_id),
         data,
         requested_time_f64_bits: request.source_time.to_bits(),
         selection,

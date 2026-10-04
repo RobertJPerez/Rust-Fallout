@@ -117,6 +117,60 @@ struct PoseSetRequest {
     requests: Vec<PoseSetChannel>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VisibilityPathRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    object: u32,
+    channels: Vec<PoseSetChannel>,
+}
+pub fn inspect_visibility_path(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::visibility::path::Observation>> {
+    let request: VisibilityPathRequest =
+        serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.channels.len() > 256 {
+        return Err(
+            "visibility path requires schema1 and at most256 explicit local channels".into(),
+        );
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let channels = request
+        .channels
+        .iter()
+        .map(|channel| nif_animation::visibility::Request {
+            object: channel.object,
+            controller: channel.controller,
+            source_time: channel.source_time,
+        })
+        .collect::<Vec<_>>();
+    let evaluated = nif_animation::visibility::path::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        nif_animation::visibility::path::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            object: request.object,
+            channels: &channels,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: nif_animation::visibility::path::CONTRACT,
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 pub fn inspect_pose_set(
     input: &Path,
     request_path: &Path,

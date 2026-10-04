@@ -18,6 +18,12 @@ pub(crate) enum AssetsCommand {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Collect exact source-local visibility along one required ancestry path.
+    NifVisibilityPath {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Bind exact external source keys to one skeleton node; playback unverified.
     NifClipPose {
         skeleton: PathBuf,

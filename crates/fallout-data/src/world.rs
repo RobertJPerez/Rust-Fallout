@@ -1,5 +1,6 @@
 //! The first NV world schema: cell flags and placed-reference dependencies.
 //! Coordinates remain in source units. No renderer or simulation is implied.
+pub mod conversation;
 pub mod dependencies;
 pub mod preparation;
 pub mod residency;

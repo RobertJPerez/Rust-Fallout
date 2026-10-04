@@ -2,6 +2,7 @@
 mod fields;
 mod manifest;
 mod render;
+mod templates;
 use super::{Catalogue as Actors, associations, fields::Finding};
 use crate::{
     Error, Result,
@@ -20,6 +21,10 @@ pub use render::{
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+pub use templates::{
+    CategoryRequest, DeclarationSelection, TemplateCategory, TemplateIssue, TemplateLimits,
+    TemplateLink, TemplateManifest, TemplateSource,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {

@@ -121,6 +121,7 @@ pub(super) struct Options {
     pub(super) include_package_dependencies: bool,
     pub(super) include_dependencies: bool,
     pub(super) include_render_dependencies: bool,
+    pub(super) include_template_dependencies: bool,
     pub(super) dependency_roots: Vec<FormKey>,
 }
 
@@ -164,6 +165,11 @@ pub(super) fn inspect(
             "render dependencies require --include-dependencies and an explicit --dependency-root"
                 .into(),
         );
+    }
+    if options.include_template_dependencies
+        && (!options.include_dependencies || options.dependency_roots.is_empty())
+    {
+        return Err("template dependencies require --include-dependencies and an explicit --dependency-root".into());
     }
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -292,7 +298,20 @@ pub(super) fn inspect(
         let mut manifests = Vec::new();
         let mut render_manifests = Vec::new();
         let mut render_remaining = actors::dependencies::RenderLimits::default();
+        let mut template_remaining = actors::dependencies::TemplateLimits::default();
+        let mut template_manifests = Vec::new();
         for root in &options.dependency_roots {
+            if options.include_template_dependencies {
+                let template = dependencies.template_manifest(root, template_remaining)?;
+                template_remaining.closure.max_nodes -= template.structural_closure.nodes.len();
+                template_remaining.closure.max_edges -=
+                    template.structural_closure.edge_indices.len();
+                template_remaining.max_sources -= template.candidate_sources.len();
+                template_remaining.max_links -= template.links.len();
+                template_remaining.max_field_visits -= template.field_visits;
+                template_remaining.max_issues -= template.issues.len();
+                template_manifests.push(template);
+            }
             let render = if options.include_render_dependencies {
                 Some(dependencies.render_manifest(
                     root,
@@ -331,6 +350,13 @@ pub(super) fn inspect(
             report["actor_render_dependencies"] = json!({"manifests":render_manifests});
             report["scope"] = json!(format!(
                 "{}; selected authored actor render roles with explicit unsupported template/equipment selection",
+                report["scope"].as_str().unwrap_or_default()
+            ));
+        }
+        if options.include_template_dependencies {
+            report["actor_template_dependencies"] = json!({"manifests":template_manifests});
+            report["scope"] = json!(format!(
+                "{}; pinned template category declaration requests and exact candidate origins, no effective inheritance",
                 report["scope"].as_str().unwrap_or_default()
             ));
         }
@@ -409,6 +435,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err(
             "independent actor source comparison differs in actor_render_dependencies".into(),
+        );
+    }
+    if report.get("actor_template_dependencies").is_some()
+        && report.get("actor_template_dependencies") != oracle.get("actor_template_dependencies")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_template_dependencies".into(),
         );
     }
     if report.get("actor_package_dependencies").is_some()

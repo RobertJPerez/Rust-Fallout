@@ -669,6 +669,105 @@ def render_manifest(reader, root, definitions, manifest, remaining, content_dige
     return result
 
 
+def template_manifest(reader, root, definitions, graph, closure, remaining, content_digest):
+    """Classify original ACBS category words, preserving raw TPLT bindings.
+
+    The existing independently decoded graph supplies structural closure. No
+    runtime template value, leveled choice or inheritance rule is manufactured.
+    """
+    require(root in definitions and not definitions[root]['deleted'] and
+        reader.winners[root]['kind_name'] in {'NPC_', 'CREA'}, 'template root actor')
+    require(len(closure['nodes']) <= remaining['nodes'] and len(closure['edge_indices']) <= remaining['edges'], 'template closure budget')
+    outgoing = collections.defaultdict(list)
+    for index, edge in enumerate(graph['edges']):
+        outgoing[key_tuple(edge['source'])].append(index)
+    selected, queue, sources, links, issues, visits = {root}, collections.deque([root]), {}, [], [], 0
+
+    def issue(code, key, edge=None):
+        require(len(issues) < remaining['issues'], 'template issue budget')
+        issues.append(dict(code=code, source=key_json(key), graph_edge_index=edge))
+
+    while queue:
+        reader.guard()
+        key = queue.popleft()
+        entry, definition = reader.winners[key], definitions[key]
+        raw_fields = list(fields(reader.payload(key, 64 * MIB)))
+        source_edges = outgoing[key]
+        visits += 2 * len(raw_fields) + len(source_edges)
+        require(visits <= remaining['field_visits'], 'template field visit budget')
+        configurations, templates = [], []
+        for index, (tag, offset, data) in enumerate(raw_fields):
+            if tag == 'ACBS':
+                require(len(data) == 24, 'template ACBS source shape')
+                configurations.append(dict(inventory_field_index=index, field_decoded_offset=offset,
+                    flags=struct.unpack_from('<I', data)[0], template_flags=struct.unpack_from('<H', data, 22)[0]))
+            elif tag == 'TPLT':
+                require(len(data) == 4, 'template TPLT source shape')
+                templates.append((index, offset, data))
+        config = configurations[0] if len(configurations) == 1 else None
+        if config is None:
+            issue('missing_actor_configuration' if not configurations else 'ambiguous_actor_configuration', key)
+        else:
+            if config['template_flags'] & ~0x3ff:
+                issue('unknown_template_category_bits', key)
+            if config['template_flags'] & 0x3ff and not templates:
+                issue('missing_template_link', key)
+        by_offset = {graph['edges'][index]['field_decoded_offset']: index
+            for index in source_edges if graph['edges'][index]['role'] == 'actor-template'}
+        for index, offset, data in templates:
+            require(len(links) < remaining['links'], 'template link budget')
+            edge_index = by_offset[offset]
+            edge = graph['edges'][edge_index]
+            binding = reader.binding(entry['source'], struct.unpack('<I', data)[0])
+            field = dict(kind=list(b'TPLT'), decoded_offset=offset, bytes=4,
+                sha256=hashlib.sha256(data).hexdigest(), value=dict(kind='template', template=binding))
+            links.append(dict(graph_edge_index=edge_index, source=key_json(key), inventory_field_index=index,
+                field=field, binding=binding, ambiguous_source=len(templates) > 1))
+            if len(templates) > 1:
+                issue('ambiguous_template_link', key, edge_index)
+            elif binding['status'] != 'defined' or edge['schema_kind_allowed'] is not True:
+                issue('unavailable_template_link', key, edge_index)
+            elif bytes(binding['target']['kind']) in {b'LVLN', b'LVLC'}:
+                issue('leveled_template_selection_unsupported', key, edge_index)
+            else:
+                target = key_tuple(binding['key'])
+                if target not in selected:
+                    require(len(selected) < remaining['sources'], 'template source budget')
+                    selected.add(target)
+                    queue.append(target)
+        sources[key] = dict(key=definition['key'], source=definition['source'], header=definition['header'], configuration=config)
+    require(len(selected) <= remaining['sources'], 'template source budget')
+    candidate_sources = [sources[key] for key in sorted(sources)]
+    indices = {key: index for index, key in enumerate(sorted(sources))}
+    categories = []
+    config = sources[root]['configuration']
+    for index, category in enumerate(['traits', 'stats', 'factions', 'actor_effects', 'ai_data', 'ai_packages',
+        'model_animation', 'base_data', 'inventory', 'script']):
+        present = None if config is None else bool(config['template_flags'] & (1 << index))
+        selection = dict(status='authored_source', source_index=indices[root]) if present is False else dict(
+            status='unsupported', reason='actor_configuration_unavailable' if present is None else 'unverified_template_inheritance')
+        categories.append(dict(category=category, mask=1 << index, template_flag_present=present,
+            declaration=selection, runtime_value_evaluated=False))
+    children = [[] for _ in sources]
+    for link in links:
+        target = key_tuple(link['binding']['key'])
+        if (not link['ambiguous_source'] and link['binding']['status'] == 'defined' and
+            graph['edges'][link['graph_edge_index']]['schema_kind_allowed'] is True and target in indices):
+            children[indices[key_tuple(link['source'])]].append(indices[target])
+    components = cycles(children)
+    for component in components:
+        for index in component:
+            issue('cyclic_template_dependency', key_tuple(candidate_sources[index]['key']))
+    for name, count in dict(nodes=len(closure['nodes']), edges=len(closure['edge_indices']), sources=len(sources),
+        links=len(links), field_visits=visits, issues=len(issues)).items():
+        remaining[name] -= count
+    return dict(root=key_json(root), winning_content_sha256=content_digest, structural_closure=closure,
+        candidate_sources=candidate_sources, links=links, categories=categories, template_cycles=components,
+        issues=issues, field_visits=visits, template_inheritance_supported=False,
+        leveled_template_selection_supported=False,
+        scope='Pinned editor category masks over exact authored ACBS/TPLT origins and structural actor candidates; no effective inherited fields, leveled template selection, auto-calculated statistics or runtime values')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ["data", "load-order", "base-report", "output"]:
@@ -677,11 +776,13 @@ def main():
     parser.add_argument("--root-editor-id", action="append", default=[],
         help="independently resolve an NPC_/CREA winner from its original EDID")
     parser.add_argument("--include-render-dependencies", action="store_true")
+    parser.add_argument("--include-template-dependencies", action="store_true")
     parser.add_argument("--team-directory", type=pathlib.Path)
     parser.add_argument("--session-id")
     args = parser.parse_args()
     require(len(args.root) + len(args.root_editor_id) <= 64, "actor dependency root budget")
     require(not args.include_render_dependencies or args.root or args.root_editor_id, "render dependencies require explicit roots")
+    require(not args.include_template_dependencies or args.root or args.root_editor_id, "template dependencies require explicit roots")
 
     def guard():
         if args.team_directory is None:
@@ -735,6 +836,12 @@ def main():
             render_manifests = [render_manifest(reader, root, definitions, manifest, render_remaining,
                 native["winning_content_sha256"]) for root, manifest in zip(roots, manifests)]
             native["actor_render_dependencies"] = dict(manifests=render_manifests)
+        if args.include_template_dependencies:
+            template_remaining = dict(nodes=131072, edges=2_000_000, sources=4096, links=16_384,
+                field_visits=2_000_000, issues=16_384)
+            native['actor_template_dependencies'] = dict(manifests=[template_manifest(reader, root, definitions,
+                graph, manifest['inventory_closure'], template_remaining, native['winning_content_sha256'])
+                for root, manifest in zip(roots, manifests)])
         native["actor_dependencies"] = {"counts": counts, "definitions": list(definitions.values()), "inventory_graph": graph, "manifests": [] if args.include_render_dependencies else manifests}
         guard()
         with args.output.open("x", encoding="utf-8") as output:

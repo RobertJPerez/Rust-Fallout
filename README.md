@@ -61,12 +61,19 @@ keeping campaign banks independent; see [shared runtime sources](docs/shared-run
 Queued events can now prepare an exact source block against their live instance
 without consuming the journal or changing state; see
 [live event preparation](docs/live-event-preparation.md).
+Read-only operand probes now resolve selected uses against engineering state
+and retain source/storage findings; see [live operands](docs/live-event-operands.md).
 Actor source fields now preserve NPC_/CREA configuration, attributes and skills
-over the existing inventory provenance; see [actor sources](docs/actor-sources.md).
+over the existing inventory provenance. Ordered associations, class/faction
+fields and placed actor core/extras also retain exact source bindings; see
+[actor sources](docs/actor-sources.md).
 Skin sources now retain exact instance links, dismemberment words, bone transforms
-and weights with bounded owner validation; see [skin sources](docs/nif-skin.md).
+and weights with bounded owner validation, partition payloads and decoded
+source-forest bindings; see [skin sources](docs/nif-skin.md).
 Their [integrated verification](docs/source-lane-verification.md) binds both
 worker slices to a fixed source revision and independent native readers.
+[Checkpoint 45](reports/checkpoint-45.md) is published; the team is active
+under the current control file, with later work preserved separately.
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 

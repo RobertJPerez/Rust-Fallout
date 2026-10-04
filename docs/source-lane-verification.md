@@ -50,3 +50,24 @@ receipts contain counts, hashes, scope and remaining gaps. Actor initialization,
 inheritance, automatic statistics and AI are unimplemented. Decoded skin data does
 not establish evaluated poses, normalization rules, animation or dismemberment
 behavior. No gameplay scenario is accepted by this source proof.
+
+
+## Extended candidate proof for checkpoint 45
+
+Checkpoint 44 keeps its original helper and historical receipts. The separate
+`tools/build-integration-candidate.py` records clean committed source, checks,
+native builds and executable identities in the integration worktree.
+`tools/verify-integration-candidate.py` requires that build receipt, fresh private
+proof/regression directories and an unchanged candidate before and after the run.
+Its extended scope includes actor associations, classes, factions and placements;
+three skin schemas including partitions and decoded source-forest ancestry; and
+fresh live operand captures compared with independently exported native tuples
+and saved engineering storage. Intended diagnostics distinguish the negative
+cases from unrelated failures. The original deleted voice link remains explicit.
+
+The runtime selector remains 43 with `--no-publish`; it names the repeated
+regression surface. It does not relabel or overwrite the published checkpoint 43.
+The public checkpoint-45 receipts identify the integrated implementation revision,
+actual executed binaries, frozen inputs, raw receipt hash and limitations. Main
+promotion adds metadata without changing the implementation proved by that run.
+No original execution, evaluated skinning or gameplay scenario is accepted.

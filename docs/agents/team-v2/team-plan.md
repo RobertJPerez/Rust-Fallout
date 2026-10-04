@@ -162,8 +162,9 @@ implementation can continue while candidate source/binaries/inputs are frozen.
 
 Preserve historical reports and raw failed attempts. Code decoding, engine-state
 guarantees, retail comparisons and gameplay acceptance are separate claims.
-Checkpoint 44 is the latest verified checkpoint; M1 is still unmet and zero
-gameplay scenarios are accepted. A test count is not a completion percentage.
+Checkpoint 45 is the latest verified checkpoint at frozen candidate `494a718`.
+Later worker handoffs need separate integration proof. M1 is still unmet and
+zero gameplay scenarios are accepted. A test count is not a completion percentage.
 
 ## Long runs, later work and stopping
 

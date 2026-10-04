@@ -4,12 +4,8 @@ The next unmet gate is **M1: trustworthy, semantically useful content loading**.
 The current tools build and run; the original games have not been recreated yet.
 Keep the entire master brief in scope and progress through its dependency gates.
 
-Team setup now uses [one coordinator and five workers](docs/agents/team-v2/team-plan.md).
-Implementation is paused until the coordinator startup prompt is submitted.
-Checkpoint 44 is still the latest verified publication. Candidate 45 is preserved
-but incomplete after an operand cache-directory setup failure; its partial
-regression results do not authorize publication. Later cache/save, actor and
-animation handoffs and the unfinished asset draft remain in their original trees.
+The [six-agent team](docs/agents/team-v2/team-plan.md) is active. Workers advance owned task queues and claim the shared focused build slot automatically; the coordinator reviews, integrates and publishes.
+[Checkpoint 45](reports/checkpoint-45.md) is the latest verified implementation. Later worker handoffs stay outside its frozen proof until separately reviewed and integrated.
 
 Checkpoint 14 is ready for a direct visual/input comparison. Run the verified build
 with [these test instructions](docs/terrain-textured-preview.md). Windows UI
@@ -324,4 +320,14 @@ execution permission; original lifecycle, actor initialization and gameplay rema
 open. Parallel actor/skin source work uses the
 [team coordination plan](docs/agent-coordination.md) and isolated worktrees.
 
-Checkpoint 44 independently verifies the actor scalar and three-block skin source slices at frozen integrated source and actual binary hashes, with 359 Rust tests, five publication checks and the fresh full runtime/source regression. All 464 installation files match baseline. Associations, partition payloads and live operand probes are queued for the next integrated proof. The team-v2 coordinator now owns review/integration, with five implementation workers; the startup plan and preserved handoffs are linked above. See [source-lane verification](docs/source-lane-verification.md) and [integration instructions](docs/agents/integration.md).
+Checkpoint 44 verified actor scalar and three-block skin sources.
+
+Checkpoint 45 adds freshly compared actor associations, class/faction fields
+and placed actor core/extras, skin partitions and decoded source-forest
+bindings, and read-only live operand probes over explicit engineering state.
+The combined build passes 423 Rust tests, five publication checks, formatting,
+Clippy and the full runtime/source regression. All 464 original installation
+files match baseline. M1 and original gameplay acceptance remain open.
+See [source-lane verification](docs/source-lane-verification.md) and
+[integration instructions](docs/agents/integration.md). The six-agent team is active;
+workers advance their owned queues without waiting for a coordinator grant.

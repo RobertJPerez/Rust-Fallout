@@ -103,3 +103,21 @@ The caller selects a returned `Request` and passes it to the existing single
 `prepare`, which still validates the live full source cohort and winning physical
 parent. Paging alone establishes no eligibility, condition truth, original menu
 order, inferred actor, PNAM behavior, voice path or runtime readiness.
+
+
+The owned `conversation-pages-sources` command accepts `--install`,
+`--load-order`, optional `--index-cache`, `--topic`, optional `--info` and
+`--speaker`, `--page-size` (default 64, range 1–256) and `--max-pages` (default 1,
+range 1–16). It builds one existing source index and follows private cursors only
+within that invocation. The final page explicitly reports whether more canonical
+members exist; output metadata cannot continue another invocation.
+
+An explicit INFO must appear in the returned pages before the existing single
+preparer reads its body. The consumer emits the exact winning source closure and
+hashes its retained subtitle spans without exporting story text. Unrequested
+INFO bodies stay deferred, including malformed siblings. Without `--info`, the
+command returns structural pages only. An absent topic has explicit empty
+membership. A failed chosen member keeps separately labeled valid header pages,
+a null conversation and empty subtitle list, and exits nonzero. Limits reject
+before source access; no source cursor deserialization or original-menu/default
+speaker/runtime behavior is supplied.

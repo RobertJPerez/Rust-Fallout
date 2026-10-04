@@ -1142,6 +1142,114 @@ pub(super) fn conversation_batch(
     Ok(report)
 }
 
+pub(super) struct ConversationPagesInput {
+    pub topic: FormKey,
+    pub info: Option<FormKey>,
+    pub speaker: Option<FormKey>,
+    pub page_size: usize,
+    pub max_pages: usize,
+}
+/// One index, bounded in-process pages, then at most one caller-selected body.
+pub(super) fn conversation_pages(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    input: ConversationPagesInput,
+) -> Result<Value> {
+    use fallout_data::world::conversation::{MembershipPage, PageLimits};
+    if !(1..=256).contains(&input.page_size) || !(1..=16).contains(&input.max_pages) {
+        return Err("conversation pages require page-size1..=256 and max-pages1..=16".into());
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Canonical structural source pages and one explicitly selected returned conversation",
+        "topic":input.topic,"selected_info":input.info,"explicit_speaker":input.speaker,
+        "page_size":input.page_size,"max_pages":input.max_pages,"pages":[],
+        "pages_prepared":false,"membership_state":"unavailable","membership_metadata_bytes":null,
+        "conversation":null,"subtitle_payloads":[],"selected_request_prepared":false,
+        "selected_page":null,"selected_member":null,"source_error":null,
+        "original_menu_order_verified":false,"condition_truth_verified":false,
+        "speaker_assignment_verified":false,"voice_filename_verified":false,
+        "fragment_execution_admitted":false,"runtime_ready":false,"retail_parity_accepted":false});
+    let consumed = (|| -> Result<()> {
+        let sources = DialogueSources::build(&mut store, Limits::default())?;
+        report["membership_metadata_bytes"] = json!(sources.retained_bytes());
+        let mut pages: Vec<MembershipPage> = Vec::new();
+        for _ in 0..input.max_pages {
+            let page = sources.page(
+                &input.topic,
+                input.speaker.as_ref(),
+                pages.last().and_then(MembershipPage::cursor),
+                PageLimits {
+                    members: input.page_size,
+                    ..PageLimits::default()
+                },
+            )?;
+            let done = page.cursor().is_none();
+            pages.push(page);
+            if done {
+                break;
+            }
+        }
+        report["membership_state"] = json!(if pages[0].total_members() == 0 {
+            "empty_structural_membership"
+        } else {
+            "canonical_structural_members"
+        });
+        report["pages"] = serde_json::to_value(&pages)?;
+        report["pages_prepared"] = json!(true);
+        let Some(selected) = input.info.as_ref() else {
+            return Ok(());
+        };
+        let (page_index, member_index, request) = pages
+            .iter()
+            .enumerate()
+            .find_map(|(p, page)| {
+                page.requests()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, request)| request.info() == selected)
+                    .map(|(r, request)| (p, r, request))
+            })
+            .ok_or("explicit INFO was not returned in the bounded source pages")?;
+        let prepared =
+            sources.prepare(&mut store, request, &Signatures::new(), Limits::default())?;
+        let mut payloads = Vec::new();
+        for (response_index, response) in prepared.metadata().responses.iter().enumerate() {
+            let mut occurrence = 0;
+            for &field_index in &response.fields {
+                let field = &prepared.metadata().info_fields[field_index];
+                if field.kind != *b"NAM1" {
+                    continue;
+                }
+                let bytes = prepared
+                    .info_bytes(field_index)
+                    .ok_or("selected subtitle field has no retained source span")?;
+                let sha256 = format!("{:x}", Sha256::digest(bytes));
+                if sha256 != field.sha256 {
+                    return Err("selected subtitle bytes differ from source field".into());
+                }
+                payloads.push(json!({"response":response_index,"source_response_number":response.number,
+                    "occurrence":occurrence,"info_field":field_index,"bytes":bytes.len(),"sha256":sha256}));
+                occurrence += 1;
+            }
+        }
+        report["conversation"] = serde_json::to_value(prepared.metadata())?;
+        report["retained_conversation_bytes"] = json!(prepared.retained_bytes());
+        report["subtitle_payloads"] = json!(payloads);
+        report["selected_page"] = json!(page_index);
+        report["selected_member"] = json!(member_index);
+        report["selected_request_prepared"] = json!(true);
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
 pub(super) struct Input {
     pub topic: FormKey,
     pub info: FormKey,
@@ -1906,6 +2014,309 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    fn conversation_pages_fixture(root: &Path) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let group = |topic: u32, data: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(data.len() as u32 + 24).to_le_bytes(),
+                &topic.to_le_bytes(),
+                &7_i32.to_le_bytes(),
+                &[0; 8],
+                data,
+            ]
+            .concat()
+        };
+        let header = |master: bool| {
+            let mut body = field(
+                b"HEDR",
+                &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+            );
+            if master {
+                body.extend(field(b"MAST", b"Base.esm\0"));
+                body.extend(field(b"DATA", &[0; 8]));
+            }
+            record(b"TES4", 0, &body)
+        };
+        let info = |text: &[u8]| {
+            let mut trdt = [0; 24];
+            trdt[12] = 9;
+            [
+                field(b"DATA", &[0, 7, 0, 0]),
+                field(b"TPIC", &0x100_u32.to_le_bytes()),
+                field(b"TRDT", &trdt),
+                field(b"NAM1", text),
+            ]
+            .concat()
+        };
+        let mut deleted = record(b"INFO", 0x301, &[]);
+        deleted[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        fs::write(
+            root.join("Data/Base.esm"),
+            [
+                header(false),
+                record(b"DIAL", 0x100, &field(b"DATA", &[0])),
+                record(b"DIAL", 0x200, &[]),
+                record(b"NPC_", 0x400, &[]),
+                group(
+                    0x100,
+                    &[
+                        record(b"INFO", 0x303, b"NAM1\x05\0x"),
+                        record(b"INFO", 0x302, &info(b"moved\0")),
+                        record(b"INFO", 0x301, &info(b"deleted\0")),
+                        record(b"INFO", 0x300, &info(b"old\0")),
+                    ]
+                    .concat(),
+                ),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [
+                header(true),
+                group(
+                    0x100,
+                    &[
+                        record(b"INFO", 0x01000700, &info(b"own\0")),
+                        deleted,
+                        record(b"INFO", 0x300, &info(&[255, 128, 65, 0])),
+                    ]
+                    .concat(),
+                ),
+                group(0x200, &record(b"INFO", 0x302, &[])),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        fs::write(root.join("order.json"), r#"["Base.esm","Patch.esp"]"#).unwrap();
+        fs::write(
+            root.join("conversation-pages-case.json"),
+            b"{\"mode\":\"literal-pages\"}",
+        )
+        .unwrap();
+        eprintln!("WORLD_CONVERSATION_PAGES_FIXTURE {}", root.display());
+    }
+    fn pages_input(
+        topic: &str,
+        info: Option<&str>,
+        size: usize,
+        count: usize,
+    ) -> ConversationPagesInput {
+        ConversationPagesInput {
+            topic: crate::parse_cell_key(topic).unwrap(),
+            info: info.map(crate::parse_cell_key).transpose().unwrap(),
+            speaker: Some(crate::parse_cell_key("Base.esm:400").unwrap()),
+            page_size: size,
+            max_pages: count,
+        }
+    }
+    #[test]
+    fn pages_cli_consumes_one_literal_override_from_three_canonical_pages() {
+        let root = directory();
+        conversation_pages_fixture(&root);
+        let report = conversation_pages(
+            &root,
+            &root.join("order.json"),
+            None,
+            pages_input("Base.esm:100", Some("Base.esm:300"), 1, 3),
+        )
+        .unwrap();
+        assert_eq!(report["pages_prepared"], true);
+        assert_eq!(report["selected_request_prepared"], true);
+        assert_eq!(report["selected_page"], 0);
+        assert_eq!(report["selected_member"], 0);
+        assert!(report["source_error"].is_null());
+        let pages = report["pages"].as_array().unwrap();
+        assert_eq!(pages.len(), 3);
+        assert_eq!(
+            pages
+                .iter()
+                .map(|p| p["requests"][0]["info"]["local_id"].as_u64().unwrap())
+                .collect::<Vec<_>>(),
+            [0x300, 0x303, 0x700]
+        );
+        assert_eq!(
+            pages[2]["requests"][0]["info"]["origin_plugin"],
+            "patch.esp"
+        );
+        assert_eq!(pages[0]["usage"]["copied_bytes"], 270);
+        assert_eq!(pages[1]["usage"]["copied_bytes"], 270);
+        assert_eq!(pages[2]["usage"]["copied_bytes"], 168);
+        assert_eq!(report["conversation"]["info"]["source_plugin"], "Patch.esp");
+        assert_eq!(report["conversation"]["info"]["record_file_offset"], 203);
+        assert_eq!(report["subtitle_payloads"][0]["bytes"], 4);
+        assert_eq!(
+            report["subtitle_payloads"][0]["sha256"],
+            format!("{:x}", Sha256::digest([255, 128, 65, 0]))
+        );
+        assert_eq!(report["conversation"]["responses"][0]["number"], 9);
+        assert_eq!(
+            report["conversation"]["info_fields"][3]["header_decoded_offset"],
+            50
+        );
+        for page in pages {
+            assert!(page.get("cursor").is_none());
+            assert_eq!(page["payloads_prepared"], false);
+            assert_eq!(page["original_order_verified"], false);
+        }
+        for flag in [
+            "original_menu_order_verified",
+            "condition_truth_verified",
+            "speaker_assignment_verified",
+            "voice_filename_verified",
+            "fragment_execution_admitted",
+            "runtime_ready",
+            "retail_parity_accepted",
+        ] {
+            assert_eq!(report[flag], false, "{flag}");
+        }
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(!json.contains("moved\\u0000") && !json.contains("old\\u0000"));
+    }
+    #[test]
+    fn pages_cli_refuses_live_member_outside_returned_window_and_missing_member() {
+        let root = directory();
+        conversation_pages_fixture(&root);
+        for info in [
+            "Patch.esp:700",
+            "Base.esm:999",
+            "Base.esm:301",
+            "Base.esm:302",
+        ] {
+            let report = conversation_pages(
+                &root,
+                &root.join("order.json"),
+                None,
+                pages_input("Base.esm:100", Some(info), 1, 1),
+            )
+            .unwrap();
+            assert_eq!(report["pages_prepared"], true);
+            assert_eq!(report["pages"].as_array().unwrap().len(), 1);
+            assert_eq!(report["selected_request_prepared"], false);
+            assert!(report["conversation"].is_null());
+            assert!(report["subtitle_payloads"].as_array().unwrap().is_empty());
+            assert!(
+                report["source_error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("not returned")
+            );
+        }
+    }
+    #[test]
+    fn pages_cli_distinguishes_absent_structural_topic_from_failed_explicit_choice() {
+        let root = directory();
+        conversation_pages_fixture(&root);
+        let report = conversation_pages(
+            &root,
+            &root.join("order.json"),
+            None,
+            pages_input("Base.esm:999", None, 1, 16),
+        )
+        .unwrap();
+        assert_eq!(report["membership_state"], "empty_structural_membership");
+        assert_eq!(report["pages_prepared"], true);
+        assert!(
+            report["pages"][0]["requests"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(report["pages"].as_array().unwrap().len(), 1);
+        assert!(report["source_error"].is_null() && report["conversation"].is_null());
+        assert_eq!(report["selected_request_prepared"], false);
+        let failed = conversation_pages(
+            &root,
+            &root.join("order.json"),
+            None,
+            pages_input("Base.esm:999", Some("Base.esm:300"), 1, 1),
+        )
+        .unwrap();
+        assert_eq!(failed["pages_prepared"], true);
+        assert_eq!(failed["membership_state"], "empty_structural_membership");
+        assert!(failed["source_error"].is_string() && failed["conversation"].is_null());
+    }
+    #[test]
+    fn pages_cli_keeps_header_pages_and_refuses_selected_bad_body_or_actor() {
+        let root = directory();
+        conversation_pages_fixture(&root);
+        let mut bad_actor = pages_input("Base.esm:100", Some("Base.esm:300"), 1, 1);
+        bad_actor.speaker = Some(crate::parse_cell_key("Base.esm:999").unwrap());
+        for input in [
+            pages_input("Base.esm:100", Some("Base.esm:303"), 2, 1),
+            bad_actor,
+        ] {
+            let report = conversation_pages(&root, &root.join("order.json"), None, input).unwrap();
+            assert_eq!(report["pages_prepared"], true);
+            assert_eq!(report["selected_request_prepared"], false);
+            assert!(report["source_error"].is_string());
+            assert!(report["conversation"].is_null());
+            assert!(report["subtitle_payloads"].as_array().unwrap().is_empty());
+        }
+        let structural = conversation_pages(
+            &root,
+            &root.join("order.json"),
+            None,
+            pages_input("Base.esm:100", None, 3, 1),
+        )
+        .unwrap();
+        assert!(structural["source_error"].is_null());
+        assert_eq!(
+            structural["pages"][0]["requests"].as_array().unwrap().len(),
+            3
+        );
+        assert!(structural["conversation"].is_null());
+    }
+    #[test]
+    fn pages_cli_bounds_refuse_before_source_access() {
+        for (size, count) in [(0, 1), (257, 1), (1, 0), (1, 17), (usize::MAX, usize::MAX)] {
+            assert!(
+                conversation_pages(
+                    Path::new("absent"),
+                    Path::new("absent"),
+                    None,
+                    pages_input("Base.esm:100", None, size, count)
+                )
+                .is_err()
+            );
+        }
+    }
+    #[test]
+    fn pages_command_parses_explicit_member_and_no_serialized_cursor_authority() {
+        use clap::Parser;
+        let args = [
+            "fallout",
+            "conversation-pages-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--topic",
+            "Base.esm:100",
+            "--info",
+            "Base.esm:300",
+            "--page-size",
+            "1",
+            "--max-pages",
+            "3",
+        ];
+        let cli = crate::Args::try_parse_from(args).unwrap();
+        assert!(matches!(
+            cli.command,
+            crate::Command::ConversationPagesSources {
+                page_size: 1,
+                max_pages: 3,
+                info: Some(_),
+                ..
+            }
+        ));
+        assert!(
+            crate::Args::try_parse_from(args.into_iter().chain(["--cursor", "forged"])).is_err()
+        );
     }
 
     fn conversation_batch_fixture(root: &Path, mode: &str) {

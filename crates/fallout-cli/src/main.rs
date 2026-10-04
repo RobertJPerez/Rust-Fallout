@@ -614,6 +614,25 @@ enum Command {
         #[arg(long, default_value_t = 30_000)]
         source_timeout_ms: u64,
     },
+    /// Page canonical topic source members and prepare one explicitly returned INFO.
+    ConversationPagesSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        topic: String,
+        #[arg(long)]
+        info: Option<String>,
+        #[arg(long)]
+        speaker: Option<String>,
+        #[arg(long, default_value_t = 64)]
+        page_size: usize,
+        #[arg(long, default_value_t = 1)]
+        max_pages: usize,
+    },
     /// Consume an explicit bounded batch of original conversation source requests.
     ConversationBatchSources {
         #[arg(long)]
@@ -1765,6 +1784,39 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL terrain sources are unavailable; see report".into());
+            }
+        }
+        Command::ConversationPagesSources {
+            install,
+            load_order,
+            index_cache,
+            topic,
+            info,
+            speaker,
+            page_size,
+            max_pages,
+        } => {
+            let input = world_preparation_inspection::ConversationPagesInput {
+                topic: parse_cell_key(&topic)?,
+                info: info.as_deref().map(parse_cell_key).transpose()?,
+                speaker: speaker.as_deref().map(parse_cell_key).transpose()?,
+                page_size,
+                max_pages,
+            };
+            let report = world_preparation_inspection::conversation_pages(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                input,
+            )?;
+            let available = report["pages_prepared"].as_bool() == Some(true)
+                && report["source_error"].is_null();
+            emit(&report, output, &install)?;
+            if !available {
+                return Err(
+                    "explicit conversation source pages or selected INFO refused; see report"
+                        .into(),
+                );
             }
         }
         Command::ConversationBatchSources {

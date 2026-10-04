@@ -1099,6 +1099,245 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill09",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-VM-37",
+        "state": "ready",
+        "readiness": "Proposed independent ready task after root reviews and publishes this additive owned boundary. No new sibling or new task is a prerequisite.",
+        "depends_on": [],
+        "title": "Drain an existing journal prefix in cooperative private steps",
+        "existing_gap": "pending_batch::consume owns a private World but synchronously loops every explicitly selected existing prefix event. Total budgets bound work, yet the host cannot yield or cancel between already admitted canonical events without restarting the batch.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/pending_batch.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add pending_batch::Job consuming the source-restored private World and borrowing immutable sources/content/requests; advance(maximum_complete_events)->Progress and finish()->Outcome. Reuse the existing prefix identity validation, per-event projection/staging and cumulative counters. Progress exposes counters only, never a World/snapshot/commit token. A complete event remains indivisible under its existing source/operand caps; consume may delegate to the same machinery.",
+        "consumer": "Actual saved-batch CLI drains a literal three-event prefix over multiple advances; a responsive future host can drop the job before finish without publishing intermediate canonical state.",
+        "acceptance": [
+          "One-event and varied slice sizes produce exactly the synchronous complete snapshot, committed source spans, revisions, raw values, queue suffix and cumulative counts. Earlier completed events are not reparsed/recommitted after a yield; preserve an independent operation-count witness.",
+          "Dropping after one private event, an unsupported later source statement and a late aggregate source/statement/trace cap return no successful partial snapshot/artifact. Existing caller snapshot bytes remain unchanged; preserve late refusal evidence.",
+          "Wrong sequence/activation/cohort or incomplete prefix refuses through the same current guard. Zero progress budget cannot loop forever or manufacture completion. Faithful remains unsupported; no enqueue, clock advance, owner creation or persistent continuation token."
+        ],
+        "source_evidence": [
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/pending_batch.rs:96",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/pending_batch.rs:149",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/pending_batch.rs:147"
+        ],
+        "non_overlap": "VM23 is the completed synchronous journal-prefix producer. VM15/32 yield source preparation/graph admission; blocked measured VM06 concerns persistent retail continuation. This is an ephemeral existing engineering drain job, not any of those tasks.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use committed existing source preparation, sealed attachments, canonical storage and opaque event stages. No dependency/pin/schema change, other worker path, original launch, capture fallback, new parser or inferred retail behavior is required.",
+          "Mutations are explicit Engineering operations on a strict current-schema private restored World. Faithful refuses before effects. Read-only query jobs return observations without acknowledging events or changing state.",
+          "All source, contexts, identities, rows, variable strings, retained outputs and logical work are precharged globally before copies/allocations/effects. Slice budgets never reset aggregate budgets. Do not claim hard real-time deadlines, peak heap bounds or crash-atomic multi-file publication.",
+          "Actual CLI consumes protected authored raw source and literal requests. Independent whole before/after snapshot or complete observation expectations, fresh frozen binaries and cold restore/native inspection establish the scoped engineering acceptance, never retail parity.",
+          "At task selection inspect current handoffs; if the exact consumer gap is already closed, skip rather than repeat it. Keep one coding task and at most one parked validation slice; use central build admission and perform independent implementation work while checks are queued."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13"
+      },
+      {
+        "id": "V3-VM-38",
+        "state": "ready",
+        "readiness": "Proposed independent ready task after root reviews and publishes this additive owned boundary. No new sibling or new task is a prerequisite.",
+        "depends_on": [],
+        "title": "Consume a complete saved multi-copy event for an explicit named owner",
+        "existing_gap": "World::stage_source_multi_copy_with_sources already admits an owner-neutral complete event, while copy_probe::observe_multi_copy creates fresh Fragment worlds and enqueues fixture events. The strict saved host still lacks a whole-event multi-copy consumer for an already pending exact Quest or Placed instance.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/copy_probe.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add a separate commit_pending_multi_owned(world,sources,content,sequence,expected_owner,Engineering,MultiLimits) that names the exact existing HEAD and current owner, then reuses the unchanged stage_source_multi_copy_with_sources/opaque commit. Do not depend on the new single-copy VM36 helper; both can share a narrow private identity validator after reviewing their current implementations.",
+        "consumer": "Strict saved multi-copy CLI runs a preexisting named quest/placed event containing several source-supported numeric assignments, then emits one cold-restorable result and one whole-event receipt.",
+        "acceptance": [
+          "Raw authored A->B then B->C plus repeated B writes independently derive physical overlay reads/final bits and one revision/head acknowledgment. Existing Quest and Placed instances sharing the same definition and indices demonstrate exact owner separation; unrelated owners/inventory/reference/clock state remains identical.",
+          "Wrong owner key/reference/kind, wrong HEAD, missing current placed identity, source/cohort/epoch/revision mismatch, unsupported late statement and exhausted aggregate statement/observation/output caps refuse atomically with no result artifact.",
+          "Cold restore preserves the final canonical locals and remaining queue, and replay refuses. Keep existing Fragment fixture/single-copy defaults and opt-in host semantics; no owner boot, event enqueue, batch drain or original read-after-write claim."
+        ],
+        "source_evidence": [
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/local_copy.rs:136",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/copy_probe.rs:547",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/copy_probe.rs:415"
+        ],
+        "non_overlap": "VM22 implements the complete source multi-copy adapter and seeded runner; VM36 adds a named-owner single-copy host. This adds the missing existing-snapshot whole-event multi-copy host using the already committed adapter, independently of VM36.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use committed existing source preparation, sealed attachments, canonical storage and opaque event stages. No dependency/pin/schema change, other worker path, original launch, capture fallback, new parser or inferred retail behavior is required.",
+          "Mutations are explicit Engineering operations on a strict current-schema private restored World. Faithful refuses before effects. Read-only query jobs return observations without acknowledging events or changing state.",
+          "All source, contexts, identities, rows, variable strings, retained outputs and logical work are precharged globally before copies/allocations/effects. Slice budgets never reset aggregate budgets. Do not claim hard real-time deadlines, peak heap bounds or crash-atomic multi-file publication.",
+          "Actual CLI consumes protected authored raw source and literal requests. Independent whole before/after snapshot or complete observation expectations, fresh frozen binaries and cold restore/native inspection establish the scoped engineering acceptance, never retail parity.",
+          "At task selection inspect current handoffs; if the exact consumer gap is already closed, skip rather than repeat it. Keep one coding task and at most one parked validation slice; use central build admission and perform independent implementation work while checks are queued."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13"
+      },
+      {
+        "id": "V3-VM-39",
+        "state": "ready",
+        "readiness": "Proposed independent ready task after root reviews and publishes this additive owned boundary. No new sibling or new task is a prerequisite.",
+        "depends_on": [],
+        "title": "Copy one source-qualified foreign typed reference into an own reference slot",
+        "existing_gap": "foreign_copy::stage explicitly rejects every nonnumeric foreign declaration and accepts only Value::Number. The existing foreign resolver/read API and opaque event stage already carry Value::Reference, and reference_copy validates own reference declarations without inventing another raw type byte.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/foreign_reference_copy.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add a separate bounded single-assignment Engineering identity adapter over the existing exact context/local binding chain, foreign_target/read_foreign or current operand probe, and stage_event_changes. Require source-bound destination and foreign declaration Kind::Reference from their current schemas/first physical declarations. Pre-admit borrowed foreign local Content-string payload before any general probe/read clones it; charge resolver target names and whole trace too. Never widen the existing numeric adapter or accept caller-supplied Target as authority.",
+        "consumer": "Strict saved event CLI copies the existing foreign Quest/Placed owner's initialized typed reference into the named own reference destination and acknowledges exactly one existing HEAD.",
+        "acceptance": [
+          "Independent source-prefix/table/declaration offsets and literal typed Null, Content FormKey and Live IDs above2^53/u64 boundaries prove exact identity transport without a Number round-trip. Null is an initialized typed value; Uninitialized refuses. Foreign locals/owner and all unrelated inventory/references/events remain unchanged after cold restore.",
+          "Static and explicit current dynamic/player context resolution follows the existing canonical resolver. Missing/deleted/unsupported target, absent event list, ambiguous/wrong declaration or binding, foreign write, wrong destination class and extra statements remain explicit refusals.",
+          "An oversized foreign Content plugin name refuses before clone/stage; source/name/metadata/projection/trace caps are cumulative. A foreign-local mutation between preparation and opaque commit changes global revision and invalidates the stage. No reference registration, guessed raw reference type, owner fallback or original conversion truth."
+        ],
+        "source_evidence": [
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/foreign_copy.rs:409",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/foreign.rs:288",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/foreign.rs:323",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/reference_copy.rs:247",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/state/event_commit.rs:70"
+        ],
+        "non_overlap": "VM26 reads a foreign numeric local; VM27 copies an own typed reference; VM34 resolves a source reference literal. This combines the existing foreign read and typed-reference canonical value boundary without depending on any future task or adding a resolver.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use committed existing source preparation, sealed attachments, canonical storage and opaque event stages. No dependency/pin/schema change, other worker path, original launch, capture fallback, new parser or inferred retail behavior is required.",
+          "Mutations are explicit Engineering operations on a strict current-schema private restored World. Faithful refuses before effects. Read-only query jobs return observations without acknowledging events or changing state.",
+          "All source, contexts, identities, rows, variable strings, retained outputs and logical work are precharged globally before copies/allocations/effects. Slice budgets never reset aggregate budgets. Do not claim hard real-time deadlines, peak heap bounds or crash-atomic multi-file publication.",
+          "Actual CLI consumes protected authored raw source and literal requests. Independent whole before/after snapshot or complete observation expectations, fresh frozen binaries and cold restore/native inspection establish the scoped engineering acceptance, never retail parity.",
+          "At task selection inspect current handoffs; if the exact consumer gap is already closed, skip rather than repeat it. Keep one coding task and at most one parked validation slice; use central build admission and perform independent implementation work while checks are queued."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13"
+      },
+      {
+        "id": "V3-VM-40",
+        "state": "ready",
+        "readiness": "Proposed independent ready task after root reviews and publishes this additive owned boundary. No new sibling or new task is a prerequisite.",
+        "depends_on": [],
+        "title": "Prepare a bounded shared native-query plan for several exact call occurrences",
+        "existing_gap": "native_plan::prepare creates one persistent call/query plan and owns a complete EventObservation each time. Preparing several occurrences from one source event repeats frame/call admission and source projection, even though NativeCalls already enumerates that same frame once. VM18's direct batch observation does not provide reusable cold-current query authority.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/native_plan.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add private native_plan::BatchPlan preparation for an explicit ordered nonempty list of occurrence/native::Inputs selections on one current HEAD. Retain one source observation/decoder/cohort identity and bounded per-call proof/query rows; validate current frame/calls once during observe and execute existing query::Request semantics under one aggregate contribution/result budget. Current single Plan/default APIs remain compatible. No Serialize/Deserialize constructor can manufacture live authority.",
+        "consumer": "Actual saved native-query batch CLI prepares once on a source event with several calls, then observes the same sealed batch against an independently cold-restored current same-campaign/cohort snapshot without retaining the original World borrow.",
+        "acceptance": [
+          "Repeated/out-of-order requested occurrences preserve caller order and multiplicity, exact physical argument/calling-prefix spans and explicit subject/player roles. Independently literal source calls and current inventory lots derive every complete CountTrace, including wide u64 totals and changed bank contents.",
+          "Prove one retained source projection with source/count accounting and bounded per-call payload; aggregate strings/query rows/contributions/report caps refuse before excessive allocation. Unsupported late occurrence/function/FLST or changed source/decoder/owner/context/HEAD cannot publish a successful partial batch.",
+          "Same source after cold restore admits current inventory observation; foreign campaign/cohort/version/call argument or binding substitution refuses. No event acknowledgment, canonical state mutation, numeric return conversion or CTDA truth; original_numeric_return remains absent and Faithful stays unsupported."
+        ],
+        "source_evidence": [
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/native_plan.rs:221",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/native_plan.rs:95",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/native_plan.rs:132",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/native.rs:198"
+        ],
+        "non_overlap": "VM18 observes direct call batches and VM24 retains one reusable query plan. This is reusable multi-call authority with one source projection/current validation pass; it neither adds VM31 query effects nor repeats condition batch VM19/25.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use committed existing source preparation, sealed attachments, canonical storage and opaque event stages. No dependency/pin/schema change, other worker path, original launch, capture fallback, new parser or inferred retail behavior is required.",
+          "Mutations are explicit Engineering operations on a strict current-schema private restored World. Faithful refuses before effects. Read-only query jobs return observations without acknowledging events or changing state.",
+          "All source, contexts, identities, rows, variable strings, retained outputs and logical work are precharged globally before copies/allocations/effects. Slice budgets never reset aggregate budgets. Do not claim hard real-time deadlines, peak heap bounds or crash-atomic multi-file publication.",
+          "Actual CLI consumes protected authored raw source and literal requests. Independent whole before/after snapshot or complete observation expectations, fresh frozen binaries and cold restore/native inspection establish the scoped engineering acceptance, never retail parity.",
+          "At task selection inspect current handoffs; if the exact consumer gap is already closed, skip rather than repeat it. Keep one coding task and at most one parked validation slice; use central build admission and perform independent implementation work while checks are queued."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13"
+      },
+      {
+        "id": "V3-VM-41",
+        "state": "ready",
+        "readiness": "Proposed independent ready task after root reviews and publishes this additive owned boundary. No new sibling or new task is a prerequisite.",
+        "depends_on": [],
+        "title": "Observe an admitted current inventory query in cooperative bounded lot visits",
+        "existing_gap": "query::Request::evaluate synchronously calls inventory_count_trace_bounded, which scans every lot in the selected bank even when matching contribution count is small. Existing contribution bounds limit retained matches but provide no yield boundary for large banks of nonmatching lots.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/query.rs",
+          "crates/fallout-runtime/src/execution/native_plan.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add a scripts-owned ephemeral query job borrowing the immutable current World and prepared query identity. Use existing public inventory_items/Item accessors plus inventory_count for the exact indexed total; advance(maximum_lot_visits) retains only bounded matching (ItemId,count) contributions in current canonical order. finish publishes the complete CountTrace only when the iterator is exhausted. Route an opt-in current native-plan query consumer through the same source admission. No inventory.rs, state.rs or schema edits are authorized by this task.",
+        "consumer": "Actual saved current native-query CLI yields over an authored bank with many nonmatching lots and a few matching ones, then writes the exact existing query observation. Future interactive consumers can drop the read-only job between slices.",
+        "acceptance": [
+          "Independently enumerate all raw authored lots and their ItemIds/counts to match complete synchronous CountTrace for varied slice sizes, zero matches and totals greater thanu32. Source/caller/explicit-player identity remains bound to the actual selected native call.",
+          "A one-lot slice visits at most one lot, including nonmatches; progress is not a partial successful result. Repeated advances never rescan earlier lots. Zero slice, cancellation and exhausted retained contribution/variable/report budget produce no completed artifact and no state change.",
+          "Immutable borrowing prevents canonical mutation while the job exists; a different cold World requires a newly validated job. Missing bank/subject, stale source/campaign/cohort and FLST remain existing explicit refusals. No original numeric return, acknowledgment, cloned World/bank or hard CPU deadline promise."
+        ],
+        "source_evidence": [
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/query.rs:87",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/inventory.rs:213",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/inventory.rs:429",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/inventory.rs:107"
+        ],
+        "non_overlap": "VM15/32 cooperative jobs prepare source/graphs; VM37 mutates a private journal batch and VM24/40 prepare query authority. This is the already admitted current bank's read-only lot traversal and works with existing single VM24 plans, without VM40 dependency.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use committed existing source preparation, sealed attachments, canonical storage and opaque event stages. No dependency/pin/schema change, other worker path, original launch, capture fallback, new parser or inferred retail behavior is required.",
+          "Mutations are explicit Engineering operations on a strict current-schema private restored World. Faithful refuses before effects. Read-only query jobs return observations without acknowledging events or changing state.",
+          "All source, contexts, identities, rows, variable strings, retained outputs and logical work are precharged globally before copies/allocations/effects. Slice budgets never reset aggregate budgets. Do not claim hard real-time deadlines, peak heap bounds or crash-atomic multi-file publication.",
+          "Actual CLI consumes protected authored raw source and literal requests. Independent whole before/after snapshot or complete observation expectations, fresh frozen binaries and cold restore/native inspection establish the scoped engineering acceptance, never retail parity.",
+          "At task selection inspect current handoffs; if the exact consumer gap is already closed, skip rather than repeat it. Keep one coding task and at most one parked validation slice; use central build admission and perform independent implementation work while checks are queued."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13"
+      },
+      {
+        "id": "V3-VM-42",
+        "state": "ready",
+        "readiness": "Proposed independent ready task after root reviews and publishes this additive owned boundary. No new sibling or new task is a prerequisite.",
+        "depends_on": [],
+        "title": "Boot a bounded exact placed-owner set as one private cold-restorable result",
+        "existing_gap": "reference_attachment_boot::prepare/BootPlan::apply boots one sealed REFR->base->SCPT source attachment and restores one snapshot per call. A small scene with several already registered authored references has no atomic scripts-owned set boot; composing independent files can expose a partial set.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/reference_attachment_boot.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "tools/retail-script-probes/**",
+          "docs/vm-*.md"
+        ],
+        "proposed_additive_boundary": "Add bounded prepare_many over explicit existing sealed script_reference_attachment::Request values, exact reference/authored key selections and initializer/context requests. Reuse current placement/base/script source checks and attachment_boot::prepare_input/initialize. Apply to a single private restored World, require each origin and inverse mapping and absent owner, preflight aggregate request/owner/initializer/context/string/source/trace budgets, and publish only the complete set. No new data importer or attachment authority.",
+        "consumer": "Actual saved placed-script boot-set CLI initializes two or more existing selected authored reference owners for a scene using their sealed source attachments, without enqueuing or executing scripts.",
+        "acceptance": [
+          "Independent raw REFR NAME/base SCRI/SCPT SCHR/SLSD/SCRV facts and explicit local initializers derive exactly the requested instances/owners, untouched Uninitialized slots, allocator counters and revision changes. Several references sharing one definition stay separate; cold restore preserves complete owners/contexts.",
+          "Duplicate selection, conflicting reference/authored key or inverse mapping, existing owner, late wrong sealed cohort/version/script, unsupported base, invalid context/initializer and instance/revision/capacity exhaustion discard the private result and emit no successful subset snapshot.",
+          "Aggregate all source/input/initializer/context/metadata/trace/output counts across the set; do not reset per owner. Preserve caller order as explicit host policy and all prior references/inventory/events/clocks. No placement registration, automatic cell script activation, schedule inference, owner defaults or new schema."
+        ],
+        "source_evidence": [
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/reference_attachment_boot.rs:55",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/reference_attachment_boot.rs:154",
+          "38b325a81aba629608a7ec5353d3a82aff486bdf:crates/fallout-runtime/src/execution/attachment_boot.rs:266"
+        ],
+        "non_overlap": "VM28 is the reviewed single placed-owner boot; VM33 batches QUST owners using a distinct sealed source path. This is the missing REFR-origin/inverse-map set consumer and uses already reviewed VM28 helpers, with no dependence on VM33 or unreviewed VM29.",
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use committed existing source preparation, sealed attachments, canonical storage and opaque event stages. No dependency/pin/schema change, other worker path, original launch, capture fallback, new parser or inferred retail behavior is required.",
+          "Mutations are explicit Engineering operations on a strict current-schema private restored World. Faithful refuses before effects. Read-only query jobs return observations without acknowledging events or changing state.",
+          "All source, contexts, identities, rows, variable strings, retained outputs and logical work are precharged globally before copies/allocations/effects. Slice budgets never reset aggregate budgets. Do not claim hard real-time deadlines, peak heap bounds or crash-atomic multi-file publication.",
+          "Actual CLI consumes protected authored raw source and literal requests. Independent whole before/after snapshot or complete observation expectations, fresh frozen binaries and cold restore/native inspection establish the scoped engineering acceptance, never retail parity.",
+          "At task selection inspect current handoffs; if the exact consumer gap is already closed, skip rather than repeat it. Keep one coding task and at most one parked validation slice; use central build admission and perform independent implementation work while checks are queued."
+        ],
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately.",
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13"
       }
     ],
     "runtime": [
@@ -4845,6 +5084,300 @@
           "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
         ],
         "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-38",
+        "state": "ready",
+        "title": "Drive one explicit rigid attachment from an external KF packet",
+        "depends_on": [],
+        "gap": "attachment::SampledRequest requires a same-container pose::Request. The committed external clip producer returns source_world but there is no source-bound rigid attachment consumer of that packet; callers would otherwise join a public matrix by hand.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/attachment/sampled.rs:8",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/attachment/sampled.rs:94",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/clip/prepared.rs:364"
+        ],
+        "consumer": "Owned rigid-attachment inspector accepts exact skeleton, attachment and KF files plus explicit packet/node/time and emits the two existing frame mappings for a moving held object.",
+        "proposed_additive_boundary": "Add attachment::evaluate_clip(skeleton_bytes, attachment_bytes, clip_bytes, source, ClipAttachmentRequest{binding:attachment::Request, clip:clip::Request}, CombinedLimits). Internally invoke the existing single-packet clip evaluator and existing attachment validation/composition; compare both skeleton SHA and exact object/raw-name to the binding, and bind clip SHA/sequence/packet/time. Factor private loaded helpers only. Initially require no other controlled required ancestor or attachment descendant; preserve all existing strict refusals. No caller Evaluation/Pose matrix accepted as authority.",
+        "boundary_proposal": "Add attachment::evaluate_clip(skeleton_bytes, attachment_bytes, clip_bytes, source, ClipAttachmentRequest{binding:attachment::Request, clip:clip::Request}, CombinedLimits). Internally invoke the existing single-packet clip evaluator and existing attachment validation/composition; compare both skeleton SHA and exact object/raw-name to the binding, and bind clip SHA/sequence/packet/time. Factor private loaded helpers only. Initially require no other controlled required ancestor or attachment descendant; preserve all existing strict refusals. No caller Evaluation/Pose matrix accepted as authority.",
+        "acceptance": [
+          "Authored noncommuting static skeleton parent, KF translation/scale, explicit parent-to-socket matrix and nonidentity attachment root: derive both mapping matrices at endpoints and midpoint. Prove root local is included exactly once only in root_to_skeleton_source.",
+          "Three changed-source cases, wrong packet/raw name/node, unsupported ancestor/descendant controller and singular/nonfinite/overflowing applicable inputs refuse atomically under existing contracts; source policy must be explicit.",
+          "Aggregate three source preparations and sample/binding/output costs before effects. Exact CLI source receipts and old stored/same-container attachment reports remain unchanged."
+        ],
+        "non_overlap": "24 is same-container controller attachment;25 prepares a clip;28 deforms a skin using a clip. This is a new rigid-attachment consumer of the already reviewed single-packet API, without dependent multi-packet30 or actor slot/equip semantics.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
+      },
+      {
+        "id": "V3-ASSET-39",
+        "state": "ready",
+        "title": "Convert a sealed partition topology to an explicit bounded triangle packet",
+        "depends_on": [],
+        "gap": "partition::streams::Streams retains either authored triangle rows or strips, and partition pose preserves that distinction. A renderer cannot consume a certified triangle list with source primitive provenance without implementing its own partition conversion.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/partition/streams.rs:97",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/partition/streams.rs:151",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_scene/mesh.rs:103"
+        ],
+        "consumer": "Owned partition inspector adds a named engineering triangle-packet mode, exporting source-qualified local/source index triples ready for an existing triangle-list renderer.",
+        "proposed_additive_boundary": "Add Streams::triangle_packet(policy:AlternatingStripWindingSkipRepeatedIndexV1, Limits)->sealed TrianglePacket. Consume only sealed Streams; preserve source identity and per-triangle {source_topology_kind, strip_ordinal, primitive_step, local_vertices, source_vertices}. Even-step [a,b,c], odd-step [b,a,c]; advance parity across skipped repeated-index connector windows and reset per strip. Explicit triangle rows stay literal, including degenerates. Count raw windows, omitted connectors and declared source count separately; do not reinterpret declared_triangles as generated count or edit nif_scene.",
+        "boundary_proposal": "Add Streams::triangle_packet(policy:AlternatingStripWindingSkipRepeatedIndexV1, Limits)->sealed TrianglePacket. Consume only sealed Streams; preserve source identity and per-triangle {source_topology_kind, strip_ordinal, primitive_step, local_vertices, source_vertices}. Even-step [a,b,c], odd-step [b,a,c]; advance parity across skipped repeated-index connector windows and reset per strip. Explicit triangle rows stay literal, including degenerates. Count raw windows, omitted connectors and declared source count separately; do not reinterpret declared_triangles as generated count or edit nif_scene.",
+        "acceptance": [
+          "Literal strip [0,1,2,2,3,4] yields step0 [0,1,2] and step3 [3,2,4]; a second strip restarts parity. Nonidentity and repeated source vertex maps remain exact and no geometry-area degeneracy is guessed.",
+          "Source triangle mode preserves every authored row. Empty/short strips, declared-count observations, source/local index identity and missing arrays use the existing decoder gates; never invent faces.",
+          "Checked window/triangle/index/retention totals before output allocation; exact cap and one-under, late serialization/output guard refusal. Actual CLI compares complete indices/provenance with an independent literal enumerator."
+        ],
+        "non_overlap": "22 explicitly stopped at authored streams;23 projects deformation;37 covers whole-geometry rest attributes. This implements the separately named partition topology conversion, without source format changes, body-part activation or GPU upload.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
+      },
+      {
+        "id": "V3-ASSET-40",
+        "state": "ready",
+        "title": "Produce an explicit finite f32 skin palette transport packet",
+        "depends_on": [],
+        "gap": "BonePalette and skin_to_source_world expose f64 affine matrices. There is no source-bound producer for a complete ordered f32 palette transport with declared rounding and precision refusal, so upload consumers must invent conversion and frame handling.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose.rs:232",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose.rs:101",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose.rs:19"
+        ],
+        "consumer": "Owned skin inspector evaluates an exact source request and returns complete raw f32 palette words plus the separate skin-to-source-world matrix for a later renderer upload.",
+        "proposed_additive_boundary": "Add an owned pose::palette_packet source-input adapter, using existing evaluated palette/placement internally. Private Packet carries ordered bone ordinals/nodes, all source identities, row-major 3x4 f32 words and separately labelled placement. Explicit policy FiniteNearestF32{maximum_absolute_error:f64} uses Rust f64-to-f32 conversion, rejects nonfinite conversion and precision beyond a conservatively bounded roundtrip error; tolerance finite/nonnegative. Preserve signed-zero words. No normalization, truncation, transpose, source-axis/unit conversion, shader alignment or GPU contract is implicit. DTO output is not accepted back as authority.",
+        "boundary_proposal": "Add an owned pose::palette_packet source-input adapter, using existing evaluated palette/placement internally. Private Packet carries ordered bone ordinals/nodes, all source identities, row-major 3x4 f32 words and separately labelled placement. Explicit policy FiniteNearestF32{maximum_absolute_error:f64} uses Rust f64-to-f32 conversion, rejects nonfinite conversion and precision beyond a conservatively bounded roundtrip error; tolerance finite/nonnegative. Preserve signed-zero words. No normalization, truncation, transpose, source-axis/unit conversion, shader alignment or GPU contract is implicit. DTO output is not accepted back as authority.",
+        "acceptance": [
+          "Independent raw-word fixture covers exact matrices, tie-to-even halfway values, negative zero, subnormal underflow, large finite f64 composition outside finite f32 range, and tolerance exactly at/just below independently calculated error. If an error bound is numerically uncertain, refuse rather than understate it.",
+          "Analytic noncommuting two-bone matrices establish complete palette and separate placement, including a nonunit weight source. Bone ordering and all12 words per matrix are checked; nothing silently bakes geometry/placement into each palette row.",
+          "Count conversion of every scalar, charged existing deformation if reused, packet bytes and JSON aggregate bounds. Reject late bad matrix before complete packet publication; old f64 evaluator remains unchanged."
+        ],
+        "non_overlap": "18/22/37 preserve raw influence/rest streams, not f64-to-f32 palette conversion.29 bounds f64 deformation. This is an explicit engineering CPU transport boundary, not sampled GPU skinning or a new renderer.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
+      },
+      {
+        "id": "V3-ASSET-41",
+        "state": "ready",
+        "title": "Compute one source-frame bound for an explicit multi-geometry skin assembly",
+        "depends_on": [],
+        "gap": "PreparedSkinSource::evaluate_many returns independently framed geometries. Each Evaluation.positions requires its own skin_to_source_world; simply unioning skin-space extrema across body parts can produce an invalid character bound. No existing batch consumer composes each placement once and returns one common-source-frame bound.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose/batch.rs:149",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose.rs:256",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose/batch.rs:296"
+        ],
+        "consumer": "Owned shared-skin inspector accepts an explicit ordered geometry list and emits per-member source-frame AABBs plus one union, suitable for whole-character culling preparation.",
+        "proposed_additive_boundary": "Add PreparedSkinSource::evaluate_source_bounds(expected_sha, &[pose::Request], Limits)->AssemblyBounds. Use existing private decoded evaluator per geometry and existing affine math; apply each returned placement exactly once to every returned point, then select extrema over those finite computed f64 points. Define frame as the one exact NIF source coordinate frame, not common skin space or runtime world. Source/geometry/data/instance identities bind membership; no caller public GeometryBatch authority, mixed files, guessed frame equivalence or automatic equipped-part selection. Existing 29 single-geometry bounds may be privately reused after mapping but are not a prerequisite.",
+        "boundary_proposal": "Add PreparedSkinSource::evaluate_source_bounds(expected_sha, &[pose::Request], Limits)->AssemblyBounds. Use existing private decoded evaluator per geometry and existing affine math; apply each returned placement exactly once to every returned point, then select extrema over those finite computed f64 points. Define frame as the one exact NIF source coordinate frame, not common skin space or runtime world. Source/geometry/data/instance identities bind membership; no caller public GeometryBatch authority, mixed files, guessed frame equivalence or automatic equipped-part selection. Existing 29 single-geometry bounds may be privately reused after mapping but are not a prerequisite.",
+        "acceptance": [
+          "Two authored geometries sharing a root but distinct SkinTransforms and large opposing placements yield different skin-space extrema and a literal correct source-frame union. Noncommuting rotation and nonunit weights expose double application. Reversed request order changes only member order.",
+          "Every evaluated finite transformed vertex must lie within reported component extrema; signed zero endpoint order is explicit. Overflow in a late member refuses whole assembly; no mathematical-real or original culling guarantee beyond stated computed-coordinate contract.",
+          "Prevalidate all requested members and duplicate/source mismatch. Release per-member deformation after bound extraction, track peak live retention separately from cumulative work/output, and independently prove full intermediate costs at ceilings."
+        ],
+        "non_overlap": "29 is one geometry in its own declared frame.21 supplies batches without assembly culling. This adds a meaningful common-frame consumer using reviewed21 only;33 cancellation and31 external rigs are not dependencies.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
+      },
+      {
+        "id": "V3-ASSET-42",
+        "state": "ready",
+        "title": "Prepare a reusable exact required visibility path for time-only sampling",
+        "depends_on": [],
+        "gap": "visibility::path::evaluate hashes/decodes source, reconstructs maps/path, reads each controller and revalidates key groups on every request. A frame host changing explicit source times cannot reuse its already admitted path or keys.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/visibility/path.rs:88",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/visibility/path.rs:145",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/visibility.rs:239"
+        ],
+        "consumer": "Owned visibility-path inspector prepares a selected object/path once and accepts bounded explicit time vectors, returning existing per-node local observations without inventing effective parent visibility.",
+        "proposed_additive_boundary": "Add visibility::path::PreparedPath::prepare(bytes, source, expected_sha, object, &[ChannelBinding{object,controller}], PreparationLimits); sample(&self, &[ExplicitChannelTime], Limits) and bounded sample_many. Sealed plan owns admitted existing decoded data, exact raw controller fields/spans, required path and validated increasing Boolean keys. Factor existing read/held-key helpers; per-sample binary search preserves current held-key/source-range rules, with exact object/controller time binding. No deserialize/public catalogue constructor, no global cache, no source clocks/conjunction/default flags.",
+        "boundary_proposal": "Add visibility::path::PreparedPath::prepare(bytes, source, expected_sha, object, &[ChannelBinding{object,controller}], PreparationLimits); sample(&self, &[ExplicitChannelTime], Limits) and bounded sample_many. Sealed plan owns admitted existing decoded data, exact raw controller fields/spans, required path and validated increasing Boolean keys. Factor existing read/held-key helpers; per-sample binary search preserves current held-key/source-range rules, with exact object/controller time binding. No deserialize/public catalogue constructor, no global cache, no source clocks/conjunction/default flags.",
+        "acceptance": [
+          "Literal higher-ID-parent Boolean path at first/interior/last and decreasing request times preserves raw stored flags, held-key ordinal/time/value and None for uncontrolled nodes. Reverse time-row order must not retarget channels.",
+          "Preparation rejects invalid out-of-window keys, duplicates, unsupported/chained controller and incomplete required path. Samples reject missing/foreign time binding, changed SHA and nonfinite/extrapolated time; late failure leaves no complete batch.",
+          "Counters establish one source/Scene decode, one controller/key validation and path build across samples; no source rehash or key-scan on time-only samples. Bound all live plan/source memory, search work, retained outputs and aggregate serialization."
+        ],
+        "non_overlap": "26 is a one-shot required path;15/32 prepare transform channels rather than Boolean controllers;35 indexes marker strings. No new channel semantics or future prepared-pose dependency.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
+      },
+      {
+        "id": "V3-ASSET-43",
+        "state": "ready",
+        "title": "Evaluate a bounded sparse vertex selection without whole deformed arrays",
+        "depends_on": [],
+        "gap": "pose::evaluate_decoded allocates positions/normals/weight_sums for every source vertex; partition projection deforms the whole geometry before taking its subset. A small explicit vertex consumer cannot bound output retention to selected vertices.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose.rs:670",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose/partition.rs:312",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_skin/pose.rs:808"
+        ],
+        "consumer": "Owned skin inspector requests exact source vertex indices for attachment probes, deformed selection inspection or sparse geometry preparation and returns only those indexed outputs and palette/placement.",
+        "proposed_additive_boundary": "Add sealed PreparedSkinSource::evaluate_vertices(expected_sha, pose::Request, &[u32], SelectionLimits)->VertexSelection. Factor existing palette/admission and per-vertex accumulation, never create a second deformer or allocate full output then slice. Preserve input selection order, reject duplicates/out-of-domain indices. To retain existing whole-geometry refusal semantics, validate all source vertices/weights and weight sums/finite deformation using bounded scratch even when unselected; only selected results are retained. A scan of all influences is allowed and must be reported honestly. No dependence on queued34 CSR bridge or37 streams; optional existing CSR is not required.",
+        "boundary_proposal": "Add sealed PreparedSkinSource::evaluate_vertices(expected_sha, pose::Request, &[u32], SelectionLimits)->VertexSelection. Factor existing palette/admission and per-vertex accumulation, never create a second deformer or allocate full output then slice. Preserve input selection order, reject duplicates/out-of-domain indices. To retain existing whole-geometry refusal semantics, validate all source vertices/weights and weight sums/finite deformation using bounded scratch even when unselected; only selected results are retained. A scan of all influences is allowed and must be reported honestly. No dependence on queued34 CSR bridge or37 streams; optional existing CSR is not required.",
+        "acceptance": [
+          "Literal selection [last,0,middle] with repeated more-than-four raw influences, zero/unweighted vertex and absent/present normals yields complete independently calculated selected outputs in requested order and existing accumulation order.",
+          "Put invalid weight/unit sum or overflow exclusively at an unselected vertex: source qualification must still refuse. Wrong source, duplicate and one-past indices refuse before successful output. Existing full-pose result words and old contracts stay unchanged.",
+          "An authored large geometry/tiny selection proves output arrays scale with selection plus admitted palette/source/scratch, not full deformed geometry; counter proof separately charges unavoidable source validation and actual arithmetic. Limits0/one-under and late error leave no packet."
+        ],
+        "non_overlap": "23 deliberately holds a full deformation then projects a partition;37 supplies raw rest streams;34 reuses CSR but still returns full pose. This is bounded selective output execution, not paging a full allocation or changing source validity.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
+      },
+      {
+        "id": "V3-ASSET-44",
+        "state": "ready",
+        "title": "Reuse a sealed rigid source pair for an explicit multi-placement attachment assembly",
+        "depends_on": [],
+        "gap": "attachment::evaluate decodes both complete Scenes and reconstructs skeleton lookup maps for every node/root placement. A two-handed or repeated rigid-part assembly cannot reuse these source validations even when both exact immutable files are unchanged.",
+        "source_evidence": [
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/attachment.rs:135",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/attachment.rs:190",
+          "5aa1054dbb2c34c7296df3a70644a6ede546db2b:crates/fallout-data/src/nif_animation/attachment.rs:220"
+        ],
+        "consumer": "Owned rigid-attachment inspector prepares one skeleton/attachment source pair once, then evaluates an explicit batch of source node/root/frame requests for reusable assembly placement.",
+        "proposed_additive_boundary": "Add attachment::PreparedSources::prepare(skeleton_bytes, attachment_bytes, source, PreparationLimits)->Self and evaluate_many(&self, &[attachment::Request], BatchLimits)->AttachmentBatch. Private owned existing Scene/index/source spans and lookup maps; factor existing evaluate_loaded/math, including source-policy, root, raw-name and ancestry checks. No copy from public Evaluation authority. Requests are explicit placements, so repeated source node/root with different caller matrices is permitted and output order is stable; no implicit slot/equipment selection. Bind both expected source digests per row. Preparation retention charged once, every returned path/matrix charged cumulatively.",
+        "boundary_proposal": "Add attachment::PreparedSources::prepare(skeleton_bytes, attachment_bytes, source, PreparationLimits)->Self and evaluate_many(&self, &[attachment::Request], BatchLimits)->AttachmentBatch. Private owned existing Scene/index/source spans and lookup maps; factor existing evaluate_loaded/math, including source-policy, root, raw-name and ancestry checks. No copy from public Evaluation authority. Requests are explicit placements, so repeated source node/root with different caller matrices is permitted and output order is stable; no implicit slot/equipment selection. Bind both expected source digests per row. Preparation retention charged once, every returned path/matrix charged cumulatively.",
+        "acceptance": [
+          "Author two different skeleton nodes and two distinct footer roots, plus repeated node/root with a different explicit offset; independently derive each mapping/root transform and full raw source paths. Mutate/drop caller buffers after preparation and obtain identical results.",
+          "Usage proves one decode per source and one lookup-map construction across placements. Changed SHA, wrong raw name, non-footer attachment root, unresolved source edge, depth/overflow and late failing placement reject the complete batch.",
+          "Whole source/decoder/header/span memory plus batch paths/name copies/matrices and work/output caps are accounted for before publication. Existing stored and sampled attachment reports remain equivalent."
+        ],
+        "non_overlap": "10 is stored one-shot and24 sampled one-shot.38 uses an external clip for one moving attachment; this independent task amortizes stored source assembly preparation and never requires38,31 rig preparation or active32.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "common_conditions": [
+          "Coordinator-authorized independent task from reviewed committed APIs. No new sibling task, original capture, or active/unreviewed draft is a prerequisite.",
+          "Use existing source decoders and existing affine/skin/sampler helpers. No second importer, new crate dependency, source pin, save format, original controller clock, gameplay/equipment default, or renderer ownership.",
+          "CLI schemas are strict, including nested policy payloads. Bound source inputs, source validation, decoded retention, temporary/live output, arithmetic, work and aggregate serialization before allocation/publication. Late refusal produces no completed result or output artifact.",
+          "Existing source APIs and complete old receipts remain equivalent. Source SHA, selected geometry/object/link/domain and raw words remain attached to each result. Public DTOs/JSON are observations, not constructors of source authority.",
+          "Actual headless owned inspector is the immediate consumer, with independently authored literal raw bytes and complete expected matrices/indices/words, not a report compared with itself. No original process is required; unsupported original branches remain explicit.",
+          "Declare logical additive CLI mode and inspector call. Coordinator maps only narrow current AssetsCommand/NifSkinArgs/run_assets hunks; preserve Box<NifSkinArgs>, all unrelated families and RouteBoot. Workers do not replace historical main.",
+          "Skip/refine if the gap closed before selection. Publish small tested handoff then continue an independent ready task; fullvision Goal and STOP rules are unchanged."
+        ],
+        "boundary_status": "Coordinator approved this bounded existing owned-path engineering consumer. Declare exact additive signatures/minimal wiring before implementation; select independently without a new grant. Preserve existing source/API/default/save contracts and refine if the actual gap has already closed.",
+        "boundary_authorized_by": "Agent1; reviewed source-backed rolling refill13",
+        "delivery": "Small tested handoff, preserve evidence and take next ready owned task with full-vision Goal ACTIVE; STOP overrides immediately."
       }
     ],
     "world": [
@@ -8098,7 +8631,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T12:58:19.064715+00:00",
+  "updated_at": "2026-10-04T15:44:37.584059+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

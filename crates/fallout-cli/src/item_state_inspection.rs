@@ -4,7 +4,9 @@ use fallout_data::{inventory, loaded_scripts};
 use fallout_runtime::{
     Limits, World,
     identity::{CampaignId, ReferenceId},
-    inventory::{Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, ViewLimits},
+    inventory::{
+        Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, TransferLimits, ViewLimits,
+    },
     save::{Captured, Recovery, Repository},
 };
 use serde_json::{Value, json};
@@ -133,7 +135,60 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     }
     facts.base = keys[2].clone();
     engineering.world.replace_item_facts(original, facts)?;
+    let transfer_before = engineering.world.snapshot();
+    let transfers = [(original, b), (separate, b), (split, a)];
+    if engineering
+        .world
+        .stage_inventory_transfers(
+            &[(original, b), (separate, absent)],
+            TransferLimits::default(),
+        )
+        .is_ok()
+        || engineering.world.snapshot() != transfer_before
+    {
+        return Err("Invalid final batch destination partly transferred inventory".into());
+    }
+    let stage = engineering
+        .world
+        .stage_inventory_transfers(&transfers, TransferLimits::default())?;
+    if engineering.world.snapshot() != transfer_before {
+        return Err("Inventory staging changed state".into());
+    }
+    let atomic_transfer = engineering.world.commit_inventory_transfers(stage)?;
+    if atomic_transfer.before_revision() != transfer_before.state_revision
+        || atomic_transfer.after_revision()
+            != transfer_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Transfer revision exhausted")?
+        || atomic_transfer.usage().moved_rows != 3
+    {
+        return Err("Grouped inventory transfer did not publish exactly one revision".into());
+    }
+    for row in atomic_transfer.changes() {
+        let current = engineering.world.item(row.original().id())?;
+        if current.owner() != row.target()
+            || current.count() != row.original().count()
+            || current.facts() != row.original().facts()
+        {
+            return Err("Grouped transfer changed an original lot identity/quantity/fact".into());
+        }
+    }
     let expected = engineering.world.snapshot();
+    for key in &keys {
+        let total = |snapshot: &fallout_runtime::snapshot::Snapshot| {
+            snapshot
+                .inventory_banks
+                .iter()
+                .flat_map(|bank| &bank.items)
+                .filter(|item| item.facts().base == *key)
+                .map(|item| u64::from(item.count()))
+                .sum::<u64>()
+        };
+        if total(&transfer_before) != total(&expected) {
+            return Err("Grouped transfer changed a per-base total".into());
+        }
+    }
     let expected_traces = traces(&engineering.world, &[a, b], &keys)?;
     let expected_views = views(&engineering.world, &[a, b, absent])?;
     let restored = World::restore(&scripts, expected.clone(), Limits::default())?;
@@ -148,6 +203,9 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         &[install.into()],
         engineering.world.campaign(),
     )?;
+    let before_world = World::restore(&scripts, transfer_before.clone(), Limits::default())?;
+    let native_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
     let capture = Captured::at_boundary(&engineering.world);
     let worker_repository = repository.clone();
     let worker = std::thread::spawn(move || worker_repository.commit(&capture));
@@ -170,6 +228,8 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         "item_instances":expected.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":expected.inventory_banks.len(),"script_instances":expected.instances.len(),
         "query_traces":expected_traces,"snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"state_schema":expected.schema_version,
         "inventory_views":expected_views,"all_inventory_views_equal_after_restore":true,
+        "atomic_inventory_transfer":atomic_transfer,"atomic_inventory_transfer_invalid_last_preserved_state":true,
+        "atomic_inventory_transfer_totals_and_facts_conserved":true,"native_before_write":native_before_write,
         "canonical_state_round_trip_equal":true,"all_query_traces_equal_after_restore":true,"rejected_mutations_preserved_state":true,"uninitialized_inventory_rejected":true,"worker_capture_isolated":true,
         "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
     )

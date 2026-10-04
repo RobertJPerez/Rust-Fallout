@@ -2,11 +2,15 @@ mod common;
 use common::*;
 use fallout_runtime::{
     Limits, World,
-    events::Context,
-    identity::{InstanceId, Owner, ReferenceId},
-    inventory::{Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, ViewLimits, ViewUsage},
+    events::{Clocks, Context, Trigger},
+    identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value},
+    inventory::{
+        Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, TransferLimits, ViewLimits,
+        ViewUsage,
+    },
     save::{Captured, Recovery, Repository},
     snapshot::Snapshot,
+    state::initialization,
 };
 use std::num::NonZeroU32;
 fn quantity(n: u32) -> NonZeroU32 {
@@ -624,4 +628,506 @@ fn transient_item_handles_expire_after_removal_or_restoration_and_traces_are_bou
             .facts(),
         &facts()
     );
+}
+
+fn transfer_world(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, [ReferenceId; 3], [ItemId; 3]) {
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        CampaignId::from_bytes([0x22; 16]).unwrap(),
+    )
+    .unwrap();
+    let owners = [
+        world.register_reference(None).unwrap(),
+        world.register_reference(None).unwrap(),
+        world.register_reference(None).unwrap(),
+    ];
+    world.initialize_inventory(owners[0]).unwrap();
+    world.initialize_inventory(owners[1]).unwrap();
+    let context = Context {
+        calling_reference: Some(owners[0]),
+        containing_reference: Some(owners[1]),
+        target: Some(ReferenceValue::Live { id: owners[2] }),
+        arguments: vec![ReferenceValue::Null],
+    };
+    let stage = world
+        .stage_instance_initialization(
+            &definition(catalogue),
+            &Owner::Fragment {
+                activation: 7.try_into().unwrap(),
+            },
+            &context,
+            &[
+                (2, Value::Number { bits: 1 << 63 }),
+                (
+                    42,
+                    Value::Number {
+                        bits: 0x7ff8_1234_5678_9abc,
+                    },
+                ),
+                (
+                    90,
+                    Value::Reference {
+                        value: ReferenceValue::Live { id: owners[0] },
+                    },
+                ),
+            ],
+            initialization::Limits::default(),
+        )
+        .unwrap();
+    let (_, handle) = world.commit_instance_initialization(stage).unwrap();
+    world
+        .enqueue(handle, Trigger::ObjectEvent { mask: 0x8000_0001 }, context)
+        .unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 1,
+            game_nanoseconds: 3,
+            menu_nanoseconds: 5,
+            real_nanoseconds: 7,
+        })
+        .unwrap();
+    let mut first = facts();
+    first.script_instance = Some(world.instance(handle).unwrap().id());
+    let id1 = world
+        .add_item(owners[0], first.clone(), quantity(17))
+        .unwrap();
+    let mut second = first.clone();
+    second.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abd,
+    });
+    let id2 = world.add_item(owners[0], second, quantity(3)).unwrap();
+    let mut third = first;
+    third.base = form(0x200);
+    third.condition = Some(Condition::Float32 { bits: 0x8000_0000 });
+    let id3 = world.add_item(owners[1], third, quantity(5)).unwrap();
+    (world, owners, [id1, id2, id3])
+}
+fn assert_transfer_counts(world: &World<'_>) {
+    let snapshot = world.snapshot();
+    for bank in &snapshot.inventory_banks {
+        for base in [form(0x100), form(0x200)] {
+            let rows = bank
+                .items
+                .iter()
+                .filter(|item| item.facts().base == base)
+                .map(|item| (item.id(), item.count()))
+                .collect::<Vec<_>>();
+            let total = rows.iter().map(|(_, count)| u64::from(*count)).sum::<u64>();
+            let trace = world.inventory_count_trace(bank.owner, &base).unwrap();
+            assert_eq!(trace.result, total);
+            assert_eq!(trace.contributions, rows);
+            assert_eq!(world.inventory_count(bank.owner, &base).unwrap(), total);
+        }
+    }
+}
+
+#[test]
+fn explicit_multi_lot_transfer_publishes_once_with_exact_facts_and_counts_without_source_item_policy()
+ {
+    let (_directory, catalogue) = fixture();
+    let (mut world, [a, b, absent], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let original = ids.map(|id| world.item(id).unwrap().clone());
+    // The stored ACTI/deleted base keys would not constitute new source-item
+    // admission. Ownership changes retain already-admitted canonical facts.
+    let changes = [(ids[0], b), (ids[1], b), (ids[2], a)];
+    let stage = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap();
+    assert_eq!(stage.usage().rows, 3);
+    assert_eq!(stage.usage().moved_rows, 3);
+    assert_eq!(stage.usage().links, 21);
+    assert_eq!(world.snapshot(), before);
+    let receipt = world.commit_inventory_transfers(stage).unwrap();
+    assert_eq!(receipt.before_revision(), before.state_revision);
+    assert_eq!(receipt.after_revision(), before.state_revision + 1);
+    assert_eq!(receipt.campaign(), world.campaign());
+    assert_eq!(
+        receipt.catalogue_fingerprint(),
+        world.catalogue_fingerprint()
+    );
+    for (index, &(id, target)) in changes.iter().enumerate() {
+        assert_eq!(world.item(id).unwrap().owner(), target);
+        assert_eq!(world.item(id).unwrap().facts(), original[index].facts());
+        assert_eq!(world.item(id).unwrap().count(), original[index].count());
+        assert_eq!(receipt.changes()[index].original(), &original[index]);
+        assert_eq!(receipt.changes()[index].target(), target);
+    }
+    assert_eq!(world.inventory_count(a, &form(0x100)).unwrap(), 0);
+    assert_eq!(world.inventory_count(b, &form(0x100)).unwrap(), 20);
+    assert_eq!(world.inventory_count(a, &form(0x200)).unwrap(), 5);
+    assert_eq!(world.inventory_count(b, &form(0x200)).unwrap(), 0);
+    assert!(world.inventory_items(absent).is_err());
+    let after = world.snapshot();
+    assert_eq!(before.next_item, after.next_item);
+    assert_eq!(before.instances, after.instances);
+    assert_eq!(before.pending_events, after.pending_events);
+    assert_eq!(before.clocks, after.clocks);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn invalid_last_repeated_missing_and_uninitialized_batch_rows_leave_all_canonical_state_exact() {
+    let (_directory, catalogue) = fixture();
+    let (world, [a, b, absent], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    for changes in [
+        vec![],
+        vec![(ids[0], b), (ids[1], ReferenceId(999.try_into().unwrap()))],
+        vec![(ids[0], b), (ids[1], absent)],
+        vec![(ids[0], b), (ids[0], a)],
+        vec![(ids[0], b), (ItemId(999.try_into().unwrap()), a)],
+    ] {
+        assert!(
+            world
+                .stage_inventory_transfers(&changes, TransferLimits::default())
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        assert_transfer_counts(&world);
+    }
+    let stage = world
+        .stage_inventory_transfers(&[(ids[0], b), (ids[2], a)], TransferLimits::default())
+        .unwrap();
+    drop(stage);
+    assert_eq!(world.snapshot(), before);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn batch_copy_row_and_link_limits_accept_exact_and_refuse_one_under_before_effects() {
+    let (_directory, catalogue) = fixture();
+    let (world, [a, b, _], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let changes = [(ids[0], b), (ids[1], b), (ids[2], a)];
+    let usage = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap()
+        .usage();
+    let exact = TransferLimits {
+        max_rows: 3,
+        max_links: 21,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    assert_eq!(
+        world
+            .stage_inventory_transfers(&changes, exact)
+            .unwrap()
+            .usage(),
+        usage
+    );
+    for (limits, label) in [
+        (
+            TransferLimits {
+                max_rows: 2,
+                ..exact
+            },
+            "inventory transfer rows",
+        ),
+        (
+            TransferLimits {
+                max_links: 20,
+                ..exact
+            },
+            "inventory transfer links",
+        ),
+        (
+            TransferLimits {
+                max_copied_bytes: usage.copied_bytes - 1,
+                ..exact
+            },
+            "inventory transfer copied bytes",
+        ),
+        (
+            TransferLimits {
+                max_copied_bytes: 0,
+                ..exact
+            },
+            "inventory transfer copied bytes",
+        ),
+    ] {
+        assert!(
+            matches!(world.stage_inventory_transfers(&changes,limits),Err(fallout_runtime::Error::Capacity(actual)) if actual==label)
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn same_target_rows_keep_existing_noop_semantics_even_at_exhausted_revision() {
+    let (_directory, catalogue) = fixture();
+    let (world, [a, b, _], ids) = transfer_world(&catalogue);
+    let mut full = world.snapshot();
+    full.state_revision = u64::MAX;
+    let mut world = World::restore(&catalogue, full.clone(), Limits::default()).unwrap();
+    let stage = world
+        .stage_inventory_transfers(&[(ids[0], a), (ids[2], b)], TransferLimits::default())
+        .unwrap();
+    assert_eq!(stage.usage().moved_rows, 0);
+    assert!(stage.count_changes().is_empty());
+    let receipt = world.commit_inventory_transfers(stage).unwrap();
+    assert_eq!(receipt.before_revision(), u64::MAX);
+    assert_eq!(receipt.after_revision(), u64::MAX);
+    assert_eq!(world.snapshot(), full);
+    let stage = world
+        .stage_inventory_transfers(&[(ids[0], b), (ids[2], a)], TransferLimits::default())
+        .unwrap();
+    assert!(matches!(
+        world.commit_inventory_transfers(stage),
+        Err(fallout_runtime::Error::Capacity("state revisions"))
+    ));
+    assert_eq!(world.snapshot(), full);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn stale_restore_other_world_and_changed_last_lot_refuse_batch_without_partial_transfers() {
+    let (_directory, catalogue) = fixture();
+    let (mut world, [a, b, _], ids) = transfer_world(&catalogue);
+    let changes = [(ids[0], b), (ids[2], a)];
+    let stage = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap();
+    world.remove_item_quantity(ids[2], quantity(1)).unwrap();
+    let after = world.snapshot();
+    assert!(world.commit_inventory_transfers(stage).is_err());
+    assert_eq!(world.snapshot(), after);
+    assert_transfer_counts(&world);
+    let stage = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap();
+    world.replace_from_snapshot(after.clone()).unwrap();
+    assert!(matches!(
+        world.commit_inventory_transfers(stage),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), after);
+    let stage = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap();
+    let mut foreign = after.clone();
+    foreign.campaign = CampaignId::from_bytes([0x23; 16]).unwrap();
+    let mut other = World::restore(&catalogue, foreign.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.commit_inventory_transfers(stage),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(other.snapshot(), foreign);
+    assert_eq!(world.snapshot(), after);
+    let first = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap();
+    let loser = world
+        .stage_inventory_transfers(&changes, TransferLimits::default())
+        .unwrap();
+    world.commit_inventory_transfers(first).unwrap();
+    let winner = world.snapshot();
+    assert!(world.commit_inventory_transfers(loser).is_err());
+    assert_eq!(world.snapshot(), winner);
+    let stage = world
+        .stage_inventory_transfers(&[(ids[0], a), (ids[2], b)], TransferLimits::default())
+        .unwrap();
+    let mut facts = world.item(ids[2]).unwrap().facts().clone();
+    facts.condition = None;
+    world.replace_item_facts(ids[2], facts).unwrap();
+    let changed = world.snapshot();
+    assert!(world.commit_inventory_transfers(stage).is_err());
+    assert_eq!(world.snapshot(), changed);
+    let stage = world
+        .stage_inventory_transfers(&[(ids[0], a), (ids[2], b)], TransferLimits::default())
+        .unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 2,
+            game_nanoseconds: 3,
+            menu_nanoseconds: 5,
+            real_nanoseconds: 7,
+        })
+        .unwrap();
+    let unrelated = world.snapshot();
+    assert!(world.commit_inventory_transfers(stage).is_err());
+    assert_eq!(world.snapshot(), unrelated);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn opposing_same_base_lot_moves_and_mixed_noops_conserve_totals_independent_of_row_order() {
+    let (_directory, catalogue) = fixture();
+    let (world, [a, b, _], ids) = transfer_world(&catalogue);
+    let mut before = world.snapshot();
+    // Existing canonical syntax permits explicit facts replacement; no game
+    // rule or source admission is introduced by choosing a shared base here.
+    let mut working = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    let mut third = working.item(ids[2]).unwrap().facts().clone();
+    third.base = form(0x100);
+    working.replace_item_facts(ids[2], third).unwrap();
+    before = working.snapshot();
+    let rows = [(ids[0], b), (ids[2], a), (ids[1], a)];
+    let stage = working
+        .stage_inventory_transfers(&rows, TransferLimits::default())
+        .unwrap();
+    assert_eq!(stage.usage().moved_rows, 2);
+    working.commit_inventory_transfers(stage).unwrap();
+    let expected = working.snapshot();
+    let mut opposite = World::restore(&catalogue, before, Limits::default()).unwrap();
+    let stage = opposite
+        .stage_inventory_transfers(&[rows[2], rows[1], rows[0]], TransferLimits::default())
+        .unwrap();
+    opposite.commit_inventory_transfers(stage).unwrap();
+    assert_eq!(opposite.snapshot(), expected);
+    assert_eq!(working.inventory_count(a, &form(0x100)).unwrap(), 8);
+    assert_eq!(working.inventory_count(b, &form(0x100)).unwrap(), 17);
+    assert_transfer_counts(&working);
+    assert_transfer_counts(&opposite);
+}
+
+#[test]
+fn native_multi_lot_batch_cold_restores_complete_before_and_after_boundaries() {
+    use std::{fs, process::Command};
+    let temporary = tempfile::tempdir().unwrap();
+    let retained =
+        std::env::var_os("FALLOUT_INVENTORY_TRANSFER_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temporary.path());
+    fs::create_dir_all(root).unwrap();
+    write_fixture(root, false);
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (mut world, [a, b, _], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let mut worker = fallout_runtime::save::SaveWorker::start(repository.clone(), 2).unwrap();
+    let first = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    let stage = world
+        .stage_inventory_transfers(
+            &[(ids[0], b), (ids[1], b), (ids[2], a)],
+            TransferLimits::default(),
+        )
+        .unwrap();
+    let receipt = world.commit_inventory_transfers(stage).unwrap();
+    let after = world.snapshot();
+    let second = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    worker.finish().unwrap();
+    assert_eq!(first.wait().unwrap().metadata.generation, 1);
+    assert_eq!(second.wait().unwrap().metadata.generation, 2);
+    fs::write(
+        root.join("batch.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    let current = fs::read(repository.path().join("current.frsv")).unwrap();
+    let previous = fs::read(repository.path().join("previous.frsv")).unwrap();
+    fs::write(
+        root.join("expected.before.json"),
+        before.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("expected.after.json"),
+        after.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    drop(world);
+    drop(catalogue);
+    for (phase, snapshot, wire) in [("before", &before, &previous), ("after", &after, &current)] {
+        let phase_root = root.join(phase);
+        fs::create_dir(&phase_root).unwrap();
+        let cold_repo =
+            Repository::create(&phase_root.join("native"), &[], snapshot.campaign).unwrap();
+        fs::write(cold_repo.path().join("current.frsv"), wire).unwrap();
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_inventory_transfer_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_INVENTORY_TRANSFER_COLD_ROOT", root)
+            .env("FALLOUT_INVENTORY_TRANSFER_COLD_PHASE", phase)
+            .output()
+            .unwrap();
+        fs::write(phase_root.join("cold.stdout.txt"), &child.stdout).unwrap();
+        fs::write(phase_root.join("cold.stderr.txt"), &child.stderr).unwrap();
+        assert!(
+            child.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert_eq!(
+            fs::read(cold_repo.path().join("current.frsv")).unwrap(),
+            *wire
+        );
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        current
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        previous
+    );
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh before/after inventory consumer invoked by its parent"]
+fn cold_inventory_transfer_helper() {
+    use std::fs;
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_INVENTORY_TRANSFER_COLD_ROOT").unwrap());
+    let phase = std::env::var("FALLOUT_INVENTORY_TRANSFER_COLD_PHASE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let repository = Repository::open(&root.join(&phase).join("native"), &[]).unwrap();
+    let expected = Snapshot::decode(
+        &fs::read(root.join(format!("expected.{phase}.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let (world, receipt) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(world.pending_events().len(), 1);
+    assert_eq!(
+        receipt.metadata.generation,
+        if phase == "before" { 1 } else { 2 }
+    );
+    assert_transfer_counts(&world);
+    let observations = [
+        ReferenceId(1.try_into().unwrap()),
+        ReferenceId(2.try_into().unwrap()),
+        ReferenceId(3.try_into().unwrap()),
+    ]
+    .map(|owner| {
+        world
+            .inventory_view(
+                owner,
+                ViewLimits {
+                    max_items: 3,
+                    max_links: 21,
+                    max_extra_bytes: 9,
+                },
+            )
+            .unwrap()
+    });
+    assert!(observations[2].items().is_none());
+    fs::write(
+        root.join(&phase).join("cold.restored.json"),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.views.json"),
+        serde_json::to_vec_pretty(&observations).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
 }

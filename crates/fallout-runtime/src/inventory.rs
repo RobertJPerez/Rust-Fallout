@@ -8,6 +8,13 @@ use fallout_data::identity::FormKey;
 use serde::{Deserialize, Serialize};
 use std::num::{NonZeroU32, NonZeroU64};
 
+#[path = "state/inventory_transfers.rs"]
+mod transfers;
+pub use transfers::{
+    StagedInventoryTransfers, TransferCountChange, TransferLimits, TransferReceipt, TransferRow,
+    TransferUsage,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ItemId(pub NonZeroU64);

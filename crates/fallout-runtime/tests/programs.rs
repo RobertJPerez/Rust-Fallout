@@ -81,7 +81,12 @@ fn script(body: Option<&[u8]>, target: Option<u32>, bad_count: bool) -> Vec<u8> 
     declaration[16] = 1;
     let mut out = field(b"SCHR", &header);
     if let Some(body) = body {
-        out.extend(field(b"SCDA", body));
+        if body.len() > u16::MAX as usize {
+            out.extend(field(b"XXXX", &(body.len() as u32).to_le_bytes()));
+            out.extend([b"SCDA".as_slice(), &0_u16.to_le_bytes(), body].concat());
+        } else {
+            out.extend(field(b"SCDA", body));
+        }
     }
     out.extend(field(b"SLSD", &declaration));
     out.extend(field(b"SCVR", b"counter\0"));
@@ -1008,4 +1013,479 @@ fn cli_cooperative_preparation_helper() {
         .unwrap(),
     )
     .unwrap();
+}
+
+fn large_unrelated_script() -> Vec<u8> {
+    let mut middle = Vec::new();
+    for _ in 0..20_000 {
+        instruction(&mut middle, 0x7fff, &[]); // deliberately unavailable native signature
+    }
+    event(&middle)
+}
+
+#[test]
+fn selected_source_saves_work_without_disguising_absent_or_rejected_unselected_definitions() {
+    let body = event(&assignment(&[b's', 2, 0]));
+    let unrelated = large_unrelated_script();
+    let extra = [
+        record(b"SCPT", 0x301, 0, &script(Some(&unrelated), None, false)),
+        record(b"SCPT", 0x302, 0, &script(None, None, false)),
+    ]
+    .concat();
+    let (_directory, catalogue) = fixture(&body, &extra);
+    let handles: Vec<_> = catalogue
+        .iter()
+        .map(|(_, source)| source.handle().clone())
+        .collect();
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::new();
+    let eager = cache(&catalogue, Default::default()).unwrap();
+    assert_eq!(eager.counts().preparation_attempts, 2);
+    assert_eq!(eager.counts().rejected, 1);
+    let exact = programs::Limits {
+        maximum_attempted_bytes: body.len(),
+        maximum_attempted_record_bytes: catalogue
+            .get_handle(&handles[0])
+            .unwrap()
+            .decoded_record_bytes(),
+        maximum_instructions: 3,
+        ..Default::default()
+    };
+    let selected =
+        PreparedSources::load_selected(&catalogue, &model, &signatures, &handles[..1], exact)
+            .unwrap();
+    assert_eq!(selected.counts().definitions, 3); // full cohort admission unchanged
+    assert_eq!(selected.counts().preparation_attempts, 1);
+    assert_eq!(selected.counts().prepared, 1);
+    assert_eq!(selected.counts().rejected, 0);
+    assert_eq!(selected.counts().absent_compiled_fields, 0);
+    assert_eq!(selected.counts().attempted_source_bytes, body.len());
+    assert_eq!(
+        selected.source_cohort_sha256(),
+        eager.source_cohort_sha256()
+    );
+    assert_eq!(selected.decoder_sha256(), eager.decoder_sha256());
+    assert_eq!(
+        selected.get(&handles[0]).unwrap().binding_sha256(),
+        eager.get(&handles[0]).unwrap().binding_sha256()
+    );
+    assert_eq!(
+        selected
+            .get(&handles[0])
+            .unwrap()
+            .plan()
+            .control()
+            .instructions(),
+        eager
+            .get(&handles[0])
+            .unwrap()
+            .plan()
+            .control()
+            .instructions()
+    );
+    for handle in &handles[1..] {
+        assert!(matches!(
+            selected.get(handle),
+            Err(LookupError::NotSelected)
+        ));
+    }
+    assert!(matches!(
+        cache(&catalogue, exact),
+        Err(programs::Error::Capacity("attempted source bytes"))
+    ));
+    assert!(matches!(
+        PreparedSources::load_selected(&catalogue, &model, &signatures, &handles[..2], exact),
+        Err(programs::Error::Capacity("attempted source bytes"))
+    ));
+    let with_absent = PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &[handles[2].clone(), handles[0].clone()],
+        exact,
+    )
+    .unwrap();
+    assert!(
+        matches!(with_absent.get(&handles[2]), Err(LookupError::Source(error)) if matches!(*error, definition_plan::Error::MissingBody))
+    );
+    assert_eq!(with_absent.counts().absent_compiled_fields, 1);
+    let rejected = PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &handles[1..2],
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(rejected.counts().rejected, 1);
+    assert!(matches!(
+        rejected.get(&handles[1]),
+        Err(LookupError::Source(_))
+    ));
+    assert!(matches!(
+        rejected.get(&handles[0]),
+        Err(LookupError::NotSelected)
+    ));
+}
+
+#[test]
+fn exact_selection_validates_duplicates_and_stale_handles_before_any_source_preparation() {
+    let body = event(&[]);
+    let (_directory, catalogue) = fixture(&body, &[]);
+    let handle = definition(&catalogue);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::new();
+    let no_bytes = programs::Limits {
+        maximum_attempted_bytes: 0,
+        ..Default::default()
+    };
+    assert!(matches!(
+        PreparedSources::load_selected(
+            &catalogue,
+            &model,
+            &signatures,
+            &[handle.clone(), handle.clone()],
+            no_bytes
+        ),
+        Err(programs::Error::DuplicateSelection)
+    ));
+    let mut stale = handle.clone();
+    stale.version_sha256 = "0".repeat(64);
+    assert!(matches!(
+        PreparedSources::load_selected(
+            &catalogue,
+            &model,
+            &signatures,
+            &[handle.clone(), stale.clone()],
+            no_bytes
+        ),
+        Err(programs::Error::Lookup(LookupError::DefinitionChanged))
+    ));
+    let empty =
+        PreparedSources::load_selected(&catalogue, &model, &signatures, &[], no_bytes).unwrap();
+    assert_eq!(empty.counts().definitions, 1);
+    assert_eq!(empty.counts().preparation_attempts, 0);
+    assert_eq!(empty.counts().attempted_source_bytes, 0);
+    assert!(matches!(empty.get(&handle), Err(LookupError::NotSelected)));
+    assert!(matches!(
+        empty.get(&stale),
+        Err(LookupError::DefinitionChanged)
+    ));
+    let mut missing = handle;
+    missing.key.record.local_id += 1;
+    assert!(matches!(
+        empty.get(&missing),
+        Err(LookupError::DefinitionChanged)
+    ));
+    assert!(matches!(
+        PreparedSources::load_selected(
+            &catalogue,
+            &model,
+            &signatures,
+            &[],
+            programs::Limits {
+                maximum_definitions: 0,
+                ..no_bytes
+            }
+        ),
+        Err(programs::Error::Capacity("definitions"))
+    ));
+}
+
+#[test]
+fn a_selected_cache_keeps_the_complete_world_cohort_guard() {
+    let body = event(&[]);
+    let (directory, catalogue) = fixture(&body, &[]);
+    let original = definition(&catalogue);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let sources = PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &Signatures::new(),
+        std::slice::from_ref(&original),
+        Default::default(),
+    )
+    .unwrap();
+    let (world, _, sequence) = seed(Arc::clone(&catalogue));
+    assert!(
+        world
+            .prepare_event_with_sources(sequence, &sources, 2)
+            .is_ok()
+    );
+    fs::write(
+        directory.path().join("Other.esm"),
+        [header(&[]), record(b"ACTI", 0x400, 0, &[])].concat(),
+    )
+    .unwrap();
+    let changed = Arc::new(load(directory.path(), &["FalloutNV.esm", "Other.esm"]));
+    assert_eq!(changed.get_handle(&original).unwrap().handle(), &original);
+    let (world, _, sequence) = seed(changed);
+    let before = world.snapshot();
+    assert!(matches!(
+        world.prepare_event_with_sources(sequence, &sources, 2),
+        Err(preparation::Error::CachedSource(
+            LookupError::ContentChanged
+        ))
+    ));
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn an_existing_dependency_consumer_refuses_unselected_source_without_inferring_closure() {
+    use fallout_data::{quest_scripts::Attachments, store::RecordStore};
+    let mut native = Vec::new();
+    instruction(&mut native, 0x102f, &[1, 0, b'r', 1, 0]);
+    let extra = record(b"SCPT", 0x301, 0, &script(Some(&event(&[])), None, false));
+    let directory = tempfile::tempdir().unwrap();
+    let mut bytes = header(&[]);
+    bytes.extend(record(
+        b"SCPT",
+        0x300,
+        0,
+        &script(Some(&event(&native)), Some(0x301), false),
+    ));
+    bytes.extend(extra);
+    fs::write(directory.path().join("FalloutNV.esm"), bytes).unwrap();
+    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    let handle = definition(&catalogue);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let signatures = Signatures::from([(
+        0x102f,
+        CommandSignature {
+            convention: Convention::Default,
+            parameters: vec![Parameter {
+                type_id: 50,
+                optional_word: 0,
+            }],
+        },
+    )]);
+    let sources = PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        std::slice::from_ref(&handle),
+        Default::default(),
+    )
+    .unwrap();
+    let mut store = RecordStore::open_nv_headers(
+        directory.path(),
+        &["FalloutNV.esm".into()],
+        Default::default(),
+    )
+    .unwrap();
+    let attachments = Attachments::load(&mut store, &catalogue, 100, |_, _| Ok(())).unwrap();
+    assert!(matches!(
+        fallout_runtime::execution::admission::check(
+            &sources,
+            &attachments,
+            std::slice::from_ref(&handle),
+            Default::default()
+        ),
+        Err(fallout_runtime::execution::admission::Error::Source(
+            LookupError::NotSelected
+        ))
+    ));
+    let full = PreparedSources::load(&catalogue, &model, &signatures, Default::default()).unwrap();
+    let complete = fallout_runtime::execution::admission::check(
+        &full,
+        &attachments,
+        std::slice::from_ref(&handle),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(complete.dependencies.len(), 1);
+    assert_eq!(complete.definitions.len(), 2);
+    assert!(!complete.faithful_execution_admitted);
+}
+
+#[test]
+#[ignore = "built CLI and authored executable metadata; explicit source selection, no original launch"]
+fn cli_selected_preparation_helper() {
+    use serde_json::{Value as Json, json};
+    use std::{path::PathBuf, process::Command};
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("input"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_SELECTION_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let body = event(&assignment(&[b's', 2, 0]));
+    let unrelated = large_unrelated_script();
+    let extra = [
+        record(b"SCPT", 0x301, 0, &script(Some(&unrelated), None, false)),
+        record(b"SCPT", 0x302, 0, &script(None, None, false)),
+    ]
+    .concat();
+    let (temporary, catalogue) = fixture(&body, &extra);
+    let full = cache(&catalogue, Default::default()).unwrap();
+    let handles: Vec<_> = catalogue
+        .iter()
+        .map(|(_, source)| source.handle().clone())
+        .collect();
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let run = |name: &str, flag: &str, request: &Json| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let request_path = directory.join("request.json");
+        let report_path = directory.join("report.json");
+        fs::write(&request_path, serde_json::to_vec_pretty(request).unwrap()).unwrap();
+        let output = Command::new(&cli)
+            .args(["source-plans", "--install"])
+            .arg(&install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg(flag)
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        (output, report_path)
+    };
+    let whole_request = json!({"schema_version":1,"maximum_definitions_per_advance":100,
+        "maximum_source_bytes_per_advance":1024*1024,"maximum_advances":1,"cancel_after_advances":null});
+    let (output, path) = run("whole", "--cooperative-preparation", &whole_request);
+    assert!(!output.status.success()); // explicit unavailable unrelated native signature
+    let whole: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let whole_cache = &whole["cooperative_preparation"]["cache"];
+    assert_eq!(whole_cache["counts"]["preparation_attempts"], 2);
+    assert_eq!(whole_cache["counts"]["rejected"], 1);
+    assert_eq!(
+        whole_cache["counts"]["attempted_source_bytes"],
+        body.len() + unrelated.len()
+    );
+    let selected_request = json!({"schema_version":1,"source_cohort_sha256":full.source_cohort_sha256(),"definitions":[handles[0]]});
+    let (output, path) = run("selected", "--selected-source", &selected_request);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let selected: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let result = &selected["selected_source"];
+    let selected_cache = &result["cache"];
+    assert_eq!(selected_cache["counts"]["definitions"], 3);
+    assert_eq!(selected_cache["counts"]["preparation_attempts"], 1);
+    assert_eq!(
+        selected_cache["counts"]["attempted_source_bytes"],
+        body.len()
+    );
+    assert_eq!(selected_cache["counts"]["rejected"], 0);
+    assert_eq!(selected_cache["counts"]["absent_compiled_fields"], 0);
+    assert_eq!(
+        selected_cache["source_cohort_sha256"],
+        whole_cache["source_cohort_sha256"]
+    );
+    assert_eq!(
+        selected_cache["decoder_sha256"],
+        whole_cache["decoder_sha256"]
+    );
+    assert_eq!(
+        result["definitions"][0]["handle"],
+        selected_request["definitions"][0]
+    );
+    assert_eq!(
+        result["definitions"][0]["binding_sha256"],
+        full.get(&handles[0]).unwrap().binding_sha256()
+    );
+    assert_eq!(result["inferred_dependency_closure"], false);
+    assert_eq!(selected["execution_ready"], false);
+    assert_eq!(selected["retail_parity_accepted"], false);
+    for (name, index, status) in [
+        ("selected-rejected", 1, "source_finding"),
+        ("selected-absent", 2, "source_finding"),
+    ] {
+        let request = json!({"schema_version":1,"source_cohort_sha256":full.source_cohort_sha256(),"definitions":[handles[index]]});
+        let (output, path) = run(name, "--selected-source", &request);
+        assert!(!output.status.success());
+        let result: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(
+            result["selected_source"]["definitions"][0]["status"],
+            status
+        );
+        assert_eq!(result["execution_ready"], false);
+    }
+    let mut stale = handles[0].clone();
+    stale.version_sha256 = "0".repeat(64);
+    for (name, definitions, cohort, reason) in [
+        (
+            "duplicate",
+            vec![handles[0].clone(); 2],
+            full.source_cohort_sha256().to_owned(),
+            "duplicate",
+        ),
+        (
+            "stale",
+            vec![handles[0].clone(), stale],
+            full.source_cohort_sha256().to_owned(),
+            "missing or has changed",
+        ),
+        (
+            "wrong-cohort",
+            vec![handles[0].clone()],
+            "0".repeat(64),
+            "different source receipt cohort",
+        ),
+    ] {
+        let request =
+            json!({"schema_version":1,"source_cohort_sha256":cohort,"definitions":definitions});
+        let (output, path) = run(name, "--selected-source", &request);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains(reason));
+    }
+    for (name, field, value, reason) in [
+        (
+            "wrong-version",
+            "schema_version",
+            json!(2),
+            "invalid selected source request",
+        ),
+        (
+            "too-many-handles",
+            "definitions",
+            json!(vec![handles[0].clone(); 129]),
+            "invalid selected source request",
+        ),
+        ("unknown-field", "execute", json!(true), "unknown field"),
+        (
+            "request-byte-limit",
+            "notes",
+            json!("x".repeat(65_536)),
+            "request byte budget exceeded",
+        ),
+    ] {
+        let mut request = selected_request.clone();
+        request[field] = value;
+        let (output, path) = run(name, "--selected-source", &request);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains(reason));
+    }
+    fs::write(evidence.join("source-shape.json"), serde_json::to_vec_pretty(&json!({
+        "scope":"explicit_authored_source_selection_only","catalogue_definitions":3,
+        "selected_compiled_bytes":body.len(),"unrelated_compiled_bytes":unrelated.len(),
+        "whole_attempted_bytes":body.len()+unrelated.len(),"selected_attempted_bytes":body.len(),
+        "source_cohort_sha256":full.source_cohort_sha256(),"original_executed":false,
+        "normal_source_requests":4,"invalid_source_requests":7,
+    })).unwrap()).unwrap();
 }

@@ -641,6 +641,9 @@ enum Command {
         /// Bounded cooperative cache preparation; optional cancellation-by-drop.
         #[arg(long)]
         cooperative_preparation: Option<PathBuf>,
+        /// Prepare only explicit exact script handles; infers no dependencies.
+        #[arg(long)]
+        selected_source: Option<PathBuf>,
     },
     /// Match source delimiters and raw distances in an offline SCDA bundle.
     ControlFlow {
@@ -1731,6 +1734,7 @@ fn run(args: Args) -> Result<()> {
             comparison_bundle,
             execution_admission,
             cooperative_preparation,
+            selected_source,
         } => {
             let report = definition_plan_inspection::inspect(
                 &install,
@@ -1739,8 +1743,11 @@ fn run(args: Args) -> Result<()> {
                 comparison_bundle.as_deref(),
                 execution_admission.as_deref(),
                 cooperative_preparation.as_deref(),
+                selected_source.as_deref(),
             )?;
-            let failed = if cooperative_preparation.is_some() {
+            let failed = if selected_source.is_some() {
+                report["selected_source"]["unavailable_definitions"] != 0
+            } else if cooperative_preparation.is_some() {
                 report["cooperative_preparation"]["outcome"] != "complete"
                     || report["cooperative_preparation"]["cache"]["counts"]["rejected"] != 0
             } else if execution_admission.is_some() {

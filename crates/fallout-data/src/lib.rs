@@ -39,6 +39,7 @@ pub mod planning;
 pub mod plugin;
 pub mod quest_scripts;
 pub mod record_metadata;
+pub mod resource_jobs;
 pub mod script_bindings;
 pub mod script_inventory;
 pub mod script_units;

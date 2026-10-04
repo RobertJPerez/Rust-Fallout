@@ -89,14 +89,18 @@ pub fn read_verified(
     }
     let blob = root.join(format!("{key}.blob"));
     require_plain_file(&blob)?;
-    let file = open_source(&blob)?;
+    let mut file = open_source(&blob)?;
     if file.metadata().map_err(|e| io(&blob, e))?.len() != manifest.bytes {
         return Err(Error::Resolution("cache blob byte length mismatch".into()));
     }
-    bytes.clear();
-    file.take(manifest.bytes.saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(|e| io(&blob, e))?;
+    // Reserve the admitted size exactly instead of read_to_end's geometric
+    // growth, so resource-job output reservations cover warm-cache payloads too.
+    bytes = Vec::new();
+    bytes
+        .try_reserve_exact(manifest.bytes as usize)
+        .map_err(|e| Error::Resolution(format!("cache payload allocation: {e}")))?;
+    bytes.resize(manifest.bytes as usize, 0);
+    file.read_exact(&mut bytes).map_err(|e| io(&blob, e))?;
     if bytes.len() as u64 != manifest.bytes
         || format!("{:x}", Sha256::digest(&bytes)) != manifest.sha256
     {
@@ -143,6 +147,32 @@ fn publish_at(
     bytes: &[u8],
     stop_after_blob: bool,
 ) -> Result<CacheResult> {
+    publish_guarded(root, source_tree, identity, bytes, stop_after_blob, None)
+}
+
+pub(crate) fn publish_cancellable(
+    root: &Path,
+    source_tree: &Path,
+    identity: ArtifactIdentity,
+    bytes: &[u8],
+    token: &crate::resource_jobs::JobToken,
+) -> Result<CacheResult> {
+    publish_guarded(root, source_tree, identity, bytes, false, Some(token))
+}
+
+fn checkpoint(token: Option<&crate::resource_jobs::JobToken>) -> Result<()> {
+    token.map_or(Ok(()), |token| token.checkpoint())
+}
+
+fn publish_guarded(
+    root: &Path,
+    source_tree: &Path,
+    identity: ArtifactIdentity,
+    bytes: &[u8],
+    stop_after_blob: bool,
+    token: Option<&crate::resource_jobs::JobToken>,
+) -> Result<CacheResult> {
+    checkpoint(token)?;
     let root = validate_root(root, source_tree)?;
     let key = identity.key()?;
     let blob = root.join(format!("{key}.blob"));
@@ -175,6 +205,7 @@ fn publish_at(
             ));
         }
         verify_blob(&blob, &found)?;
+        checkpoint(token)?;
         return Ok(CacheResult {
             key,
             reused: true,
@@ -184,7 +215,7 @@ fn publish_at(
     if blob.try_exists().map_err(|e| io(&blob, e))? {
         verify_blob(&blob, &expected)?;
     } else {
-        publish_file(&root, &blob, bytes)?;
+        publish_file(&root, &blob, bytes, token)?;
         verify_blob(&blob, &expected)?;
     }
     if stop_after_blob {
@@ -194,9 +225,10 @@ fn publish_at(
     }
     #[cfg(test)]
     pause_publication_test(&root, "blob-published")?;
+    checkpoint(token)?;
     let manifest =
         serde_json::to_vec_pretty(&expected).map_err(|e| Error::Resolution(e.to_string()))?;
-    publish_file(&root, &marker, &manifest)?;
+    publish_file(&root, &marker, &manifest, token)?;
     Ok(CacheResult {
         key,
         reused: false,
@@ -233,9 +265,17 @@ fn verify_blob(path: &Path, manifest: &Manifest) -> Result<()> {
     Ok(())
 }
 
-fn publish_file(root: &Path, path: &Path, bytes: &[u8]) -> Result<()> {
+fn publish_file(
+    root: &Path,
+    path: &Path,
+    bytes: &[u8],
+    token: Option<&crate::resource_jobs::JobToken>,
+) -> Result<()> {
     let mut staged = tempfile::NamedTempFile::new_in(root).map_err(|e| io(root, e))?;
-    staged.write_all(bytes).map_err(|e| io(staged.path(), e))?;
+    for chunk in bytes.chunks(1024 * 1024) {
+        checkpoint(token)?;
+        staged.write_all(chunk).map_err(|e| io(staged.path(), e))?;
+    }
     staged
         .as_file()
         .sync_all()
@@ -249,6 +289,27 @@ fn publish_file(root: &Path, path: &Path, bytes: &[u8]) -> Result<()> {
             "marker-staged"
         },
     )?;
+    #[cfg(test)]
+    crate::resource_jobs::tests::pause_cache(root, path.extension().is_some_and(|v| v == "json"));
+    checkpoint(token)?;
+    // Generation/cancellation and the final rename share one critical section.
+    // Staging/sync/hash work stays outside it. A completed marker remains a valid
+    // source-addressed artifact even if a later residency generation no longer uses it.
+    if let Some(token) = token {
+        token
+            .commit(|| {
+                persist_file(staged, path, bytes).map_err(crate::resource_jobs::JobError::from)
+            })
+            .map_err(|error| match error {
+                crate::resource_jobs::JobError::Failed(error) => error,
+                error => Error::Resolution(error.to_string()),
+            })
+    } else {
+        persist_file(staged, path, bytes)
+    }
+}
+
+fn persist_file(staged: tempfile::NamedTempFile, path: &Path, bytes: &[u8]) -> Result<()> {
     match staged.persist_noclobber(path) {
         Ok(_) => Ok(()),
         // A concurrent builder can win, but its published bytes must still agree.

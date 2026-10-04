@@ -935,7 +935,63 @@ impl StaticScene {
         work.rows = results.len();
         Ok(FiniteQueryReport { results, work })
     }
-
+    /// Clipped closed-solid occupancy in original caller ray parameters. Every
+    /// selected kind/frame is admitted before geometry tests; no shell inflation.
+    pub fn ray_intervals(
+        &self,
+        ray: Ray,
+        limits: IntervalQueryLimits,
+    ) -> QueryResult<FiniteQueryReport<SolidOccupancy>> {
+        if !query_domain(ray.origin)
+            || !query_domain(ray.direction)
+            || !ray.max_distance.is_finite()
+            || !(0. ..=1e50).contains(&ray.max_distance)
+            || (dot(ray.direction, ray.direction) - 1.).abs() > self.units.transform_tolerance
+        {
+            return Err(QueryError::Invalid(
+                "finite unit ray and bounded distance required",
+            ));
+        }
+        let (mut results, mut work) = self.finite_prepare::<SolidOccupancy>(limits, true)?;
+        for leaf in &self.leaves {
+            let frame = leaf.finite_frame.expect("whole-query frame admission");
+            let origin = finite::local(frame, ray.origin, true)?;
+            let direction = finite::local(frame, ray.direction, false)?;
+            let Some(span) =
+                finite::span(&leaf.geometry.shape, origin, direction, ray.max_distance)?
+            else {
+                continue;
+            };
+            let (parameter, position) = Self::finite_witness(leaf, span, ray.max_distance, |t| {
+                finite::exact_point(ray.origin, ray.direction, t)
+            })?;
+            let initial_containment = finite::contains(&leaf.geometry.shape, origin)?;
+            if results.len() >= limits.rows {
+                return Err(QueryError::Budget("finite result rows"));
+            }
+            results.push(SolidOccupancy {
+                provenance: Self::hit(leaf, parameter, position),
+                witness_parameter: parameter,
+                entry_parameter_bounds: [
+                    span.entry.lower.clamp(0., ray.max_distance),
+                    span.entry.upper.clamp(0., ray.max_distance),
+                ],
+                exit_parameter_bounds: [
+                    span.exit.lower.clamp(0., ray.max_distance),
+                    span.exit.upper.clamp(0., ray.max_distance),
+                ],
+                initial_containment,
+                source_core: finite::core(&leaf.geometry.shape),
+            });
+        }
+        results.sort_unstable_by(|a, b| {
+            a.entry_parameter_bounds[0]
+                .total_cmp(&b.entry_parameter_bounds[0])
+                .then(a.provenance.source.cmp(&b.provenance.source))
+        });
+        work.rows = results.len();
+        Ok(FiniteQueryReport { results, work })
+    }
     /// Shell margins, runtime filters, activation and dynamics remain unavailable.
     pub fn faithful_ready(&self) -> bool {
         false

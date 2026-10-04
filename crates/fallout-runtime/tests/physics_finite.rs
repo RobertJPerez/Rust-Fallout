@@ -145,7 +145,13 @@ fn scene(name: &str, payload: Vec<u8>) -> StaticScene {
 fn segment(start: [f64; 3], end: [f64; 3]) -> Segment {
     Segment { start, end }
 }
-
+fn ray(origin: [f64; 3], direction: [f64; 3], max_distance: f64) -> Ray {
+    Ray {
+        origin,
+        direction,
+        max_distance,
+    }
+}
 fn exact(bounds: [f64; 2], value: f64) {
     assert_eq!(bounds, [value, value]);
 }
@@ -351,10 +357,126 @@ fn segment_exact_and_generic_source_transforms_are_not_renormalized() {
     assert_eq!(hit.results[0].parameter, 0.5);
 }
 
-
-
-
-
+#[test]
+fn intervals_entry_exit_inside_surface_directions_tangent_and_zero_range() {
+    let scene = scene("bhkSphereShape", sphere(1.));
+    for (input, entry, exit, inside) in [
+        (ray([-3., 0., 0.], [1., 0., 0.], 10.), 2., 4., false),
+        (ray([0.; 3], [1., 0., 0.], 0.5), 0., 0.5, true),
+        (ray([-1., 0., 0.], [1., 0., 0.], 10.), 0., 2., true),
+        (ray([-1., 0., 0.], [-1., 0., 0.], 10.), 0., 0., true),
+        (ray([-2., 1., 0.], [1., 0., 0.], 10.), 2., 2., false),
+        (ray([0.; 3], [1., 0., 0.], 0.), 0., 0., true),
+    ] {
+        let report = scene.ray_intervals(input, Default::default()).unwrap();
+        assert_eq!(report.results.len(), 1);
+        let row = &report.results[0];
+        exact(row.entry_parameter_bounds, entry);
+        exact(row.exit_parameter_bounds, exit);
+        assert_eq!(row.initial_containment, inside);
+        assert!(!scene.faithful_ready());
+    }
+    assert!(
+        scene
+            .ray_intervals(ray([2., 0., 0.], [1., 0., 0.], 0.), Default::default())
+            .unwrap()
+            .results
+            .is_empty()
+    );
+}
+#[test]
+fn intervals_slabs_convex_source_certificate_and_reflected_scale() {
+    for (name, payload, input, entry, exit) in [
+        (
+            "bhkBoxShape",
+            bx(),
+            ray([-3., 0., 0.], [1., 0., 0.], 10.),
+            2.,
+            4.,
+        ),
+        (
+            "bhkConvexVerticesShape",
+            convex(),
+            ray([0., 4., 0.], [1., 0., 0.], 10.),
+            1.,
+            3.,
+        ),
+    ] {
+        let scene = scene(name, payload);
+        let report = scene.ray_intervals(input, Default::default()).unwrap();
+        exact(report.results[0].entry_parameter_bounds, entry);
+        exact(report.results[0].exit_parameter_bounds, exit);
+        assert_eq!(report.results[0].provenance.authored_shell_radius, 0.25);
+    }
+    let mut p = placement(0);
+    p.attachment_to_source.rows = [[-2., 0., 0., 10.], [0., 2., 0., 0.], [0., 0., 2., 0.]];
+    let scene = prepared(
+        &[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))],
+        &[p],
+    );
+    let report = scene
+        .ray_intervals(ray([4., 0., 0.], [1., 0., 0.], 10.), Default::default())
+        .unwrap();
+    exact(report.results[0].entry_parameter_bounds, 4.);
+    exact(report.results[0].exit_parameter_bounds, 8.);
+}
+#[test]
+fn intervals_distant_original_axis_miss_and_unrepresentable_grazing_refuse_or_certify() {
+    let ball = scene("bhkSphereShape", sphere(1.));
+    assert!(
+        ball.ray_intervals(ray([1e20, 2., 0.], [-1., 0., 0.], 1e20), Default::default())
+            .unwrap()
+            .results
+            .is_empty()
+    );
+    let report = ball
+        .ray_intervals(ray([1e20, 0., 0.], [-1., 0., 0.], 1e20), Default::default())
+        .unwrap();
+    assert_eq!(report.results[0].provenance.position, [0.; 3]);
+    assert_eq!(report.results[0].witness_parameter, 1e20);
+    let point = scene("bhkSphereShape", sphere(0.));
+    assert!(
+        point
+            .ray_intervals(
+                ray([f64::from_bits(1), 0., 0.], [1., 0., 0.], 0.),
+                Default::default()
+            )
+            .unwrap()
+            .results
+            .is_empty()
+    );
+}
+#[test]
+fn intervals_every_selected_kind_and_frame_is_admitted_before_distance_culling() {
+    let blocks = [
+        ("bhkRigidBody", body(2)),
+        ("bhkRigidBody", body(3)),
+        ("bhkSphereShape", sphere(1.)),
+        (
+            "bhkCapsuleShape",
+            capsule([1e20, 0., 0.], [1e20, 1., 0.], 1.),
+        ),
+    ];
+    let scene = prepared(&blocks, &[placement(0), placement(1)]);
+    assert!(matches!(
+        scene.ray_intervals(ray([-3., 0., 0.], [1., 0., 0.], 10.), Default::default()),
+        Err(QueryError::Unsupported { .. })
+    ));
+    let mut p = placement(1);
+    p.attachment_to_source.rows = [[3., 0., 0., 1e20], [0., 3., 0., 0.], [0., 0., 3., 0.]];
+    let scene = prepared(
+        &[
+            ("bhkRigidBody", body(2)),
+            ("bhkRigidBody", body(2)),
+            ("bhkSphereShape", sphere(1.)),
+        ],
+        &[placement(0), p],
+    );
+    assert!(matches!(
+        scene.ray_intervals(ray([-3., 0., 0.], [1., 0., 0.], 10.), Default::default()),
+        Err(QueryError::Unsupported { .. })
+    ));
+}
 #[test]
 fn finite_global_exact_and_one_under_work_rows_and_retained_capacity() {
     let blocks = [
@@ -410,6 +532,32 @@ fn finite_global_exact_and_one_under_work_rows_and_retained_capacity() {
             Err(QueryError::Budget(_))
         ));
     }
+    let input = ray([-3., 0., 0.], [1., 0., 0.], 10.);
+    let report = scene.ray_intervals(input, Default::default()).unwrap();
+    assert_eq!(report.results.len(), 2);
+    let exact_limits = FiniteQueryLimits {
+        retained_bytes: report.work.retained_bytes,
+        ..exact_limits
+    };
+    assert_eq!(
+        scene
+            .ray_intervals(input, exact_limits)
+            .unwrap()
+            .results
+            .len(),
+        2
+    );
+    assert!(
+        scene
+            .ray_intervals(
+                input,
+                FiniteQueryLimits {
+                    rows: 1,
+                    ..exact_limits
+                }
+            )
+            .is_err()
+    );
 }
 #[test]
 fn finite_source_transform_arithmetic_refusal_and_ceilings_are_atomic() {
@@ -484,6 +632,11 @@ fn finite_geometry_work_covers_missed_triangles_and_numeric_domains() {
     ] {
         assert!(scene.segment_cast(input, Default::default()).is_err());
     }
+    assert!(
+        scene
+            .ray_intervals(ray([0.; 3], [2., 0., 0.], 1.), Default::default())
+            .is_err()
+    );
 }
 
 #[test]

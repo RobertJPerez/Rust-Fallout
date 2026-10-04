@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "revision": "c987149d20a12ef58d097af46c40a23dea22491a",
+  "source_archive_sha256": "ab9ecca5784c2355d38105d2b9f231c2628024a260286d4e02efef3ee7d610d6",
+  "producer_sha256": "cf0947d1fc552b051ff8fbd09b92cdc21a5fc31c20b24d44df87e1b6187da7ea",
+  "build_exit_code": 0,
+  "capture_scope": "Original source profile only; launch is blocked",
+  "capture_exit_code": 0,
+  "producer_unchanged": true,
+  "capture_receipt_sha256": "f5a55cbc034f910d237572dc49fab099080b0d75c850a70e80bafe82956ad5cd",
+  "capture_log_sha256": "90aa4191066f376f65ce1ebc51f2c702b240a0deb77322a5f427ff53418f3906",
+  "profile": "nv-original",
+  "source_and_save_content_unchanged": true,
+  "original_process_started": false,
+  "launch_admitted": false,
+  "runtime_ready": false,
+  "gameplay_accepted": false,
+  "isolation_blocker": {
+    "host_edition": "Windows11 Home",
+    "windows_sandbox_executable_present": false,
+    "optional_feature_query": "Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM",
+    "query_result": "Current token requires elevation; feature state unqueried. Windows Sandbox is not supported on Home. No separate demonstrated backend is available.",
+    "known_folder_resolution": "Actual Windows Known Folders; environment overrides alone do not prove process isolation."
+  },
+  "scope_note": "Fresh committed engineering source-profile capture. Config precedence and runtime-selected settings remain unmeasured; no original trace recorded."
+}

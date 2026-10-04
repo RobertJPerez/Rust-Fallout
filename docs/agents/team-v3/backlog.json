@@ -839,6 +839,15 @@
         "acceptance": "Reproduce one documented missing/absolute-exporter/ambiguous member with exact source digest; implement evidence-scoped admission or precise refusal, no blanket path rewrite.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-WORLD-15",
+        "state": "ready",
+        "title": "Enforce residency source-lease and publication bounds",
+        "depends_on": [],
+        "consumer": "Presentation async decode/upload and physics query admission",
+        "acceptance": "Narrow plan accessor so escaped clones cannot bypass retained-source quota; enforce worker ceiling1..2; make publication once per request epoch with failed-callback retry. Regression tests and exact standalone handoff; retain WORLD05 draft.",
+        "fallback_task_id": "V3-WORLD-05"
       }
     ],
     "presentation": [
@@ -1124,10 +1133,19 @@
         "acceptance": "Retained geometry/reference IDs and bytes release once after ticket cancellation/query completion; failed or stale builds cannot publish collision-ready cell.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-PHYS-15",
+        "state": "ready",
+        "title": "Reject or robustly solve ill-conditioned static sphere queries",
+        "depends_on": [],
+        "consumer": "StaticScene source query and nif-collision CLI",
+        "acceptance": "Reproduce origin[1e20,2,0], direction[-1,0,0], unit sphere false hit. Fix with independently checked near/far/grazing numerical expectations or explicit unsupported numerical-domain refusal; preserve authored source units and reject before bogus receipts. Ensure scene tolerance cannot mutate after validated construction. Small tested handoff separate from navigation draft.",
+        "fallback_task_id": "V3-PHYS-03"
       }
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T03:53:10.681422+00:00",
+  "updated_at": "2026-10-04T04:12:32.132527+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices."
 }

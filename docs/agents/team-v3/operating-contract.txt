@@ -85,8 +85,11 @@ Default acquisition is nonblocking: exit75 means resource busy and no child ran.
 Do another bounded task and retry at its boundary; do not poll a busy slot every
 few seconds. --wait is available when the result is genuinely the only next step;
 it checks STOP/authorization frequently and cannot count as productive coding.
-One focused operation and one heavy operation total. Increase only after observed
-memory/CPU measurements justify it, not because more agents are configured.
+At most two focused operations and one heavy operation total, as limited by
+current control.json. The second focused slot was enabled after measured resource
+headroom and Windows containment tests; use jobs1 during cold build waves.
+Reduce capacity when measured memory/CPU pressure requires it. Do not increase
+it merely because more agents are configured.
 The v3 wrapper requires exact run/session identity throughout the command and
 contains its own child process tree. See tool tests for demonstrated guarantees.
 

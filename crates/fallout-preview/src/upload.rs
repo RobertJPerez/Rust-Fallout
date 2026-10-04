@@ -34,6 +34,10 @@ pub struct Queue {
     total: usize,
     complete: bool,
     published: bool,
+    retiring: bool,
+    owned_entities: Vec<Entity>,
+    retiring_model: usize,
+    retiring_cpu_model: usize,
 }
 
 fn mesh_bytes(mesh: &Mesh) -> Result<usize, String> {
@@ -117,6 +121,10 @@ impl Queue {
             total,
             complete: false,
             published: false,
+            retiring: false,
+            owned_entities: Vec::new(),
+            retiring_model: 0,
+            retiring_cpu_model: 0,
         })
     }
 
@@ -133,7 +141,7 @@ impl Queue {
         resources: &mut Resources,
         expected_epoch: u64,
     ) -> Result<bool, String> {
-        if self.epoch != expected_epoch {
+        if self.retiring || self.epoch != expected_epoch {
             return Err("Discarded stale draw upload".into());
         }
         if self.complete {
@@ -150,6 +158,7 @@ impl Queue {
             );
             entities += 1;
             self.admitted += 1;
+            self.owned_entities.push(self.root.expect("new draw root"));
         }
         while let Some(image) = self.images.as_slice().first() {
             let amount = image.data.as_ref().map_or(0, Vec::len);
@@ -214,6 +223,7 @@ impl Queue {
                     parent.insert((Name::new(reference.label()), reference));
                 }
                 self.current = Some((parent.id(), instance.model, 0));
+                self.owned_entities.push(parent.id());
                 entities += 1;
                 self.admitted += 1;
             }
@@ -222,11 +232,14 @@ impl Queue {
                 if entities == FRAME_ENTITIES {
                     return Ok(false);
                 }
-                commands.spawn((
-                    Mesh3d(mesh.clone()),
-                    MeshMaterial3d(material.clone()),
-                    ChildOf(parent),
-                ));
+                let child = commands
+                    .spawn((
+                        Mesh3d(mesh.clone()),
+                        MeshMaterial3d(material.clone()),
+                        ChildOf(parent),
+                    ))
+                    .id();
+                self.owned_entities.push(child);
                 self.current = Some((parent, model, index + 1));
                 entities += 1;
                 self.admitted += 1;
@@ -239,7 +252,7 @@ impl Queue {
     /// Final visibility is a separate, once-only admission. CELL callers execute
     /// this short command enqueue inside CellResidency::publish_render.
     pub fn publish(&mut self, commands: &mut Commands, expected_epoch: u64) -> Result<(), String> {
-        if !self.complete || self.published || self.epoch != expected_epoch {
+        if self.retiring || !self.complete || self.published || self.epoch != expected_epoch {
             return Err("Draw publication needs a current, complete, unpublished scene".into());
         }
         commands
@@ -249,19 +262,101 @@ impl Queue {
         Ok(())
     }
 
-    /// Host cancellation removes only this queue's entities and asset handles.
-    /// Each scene is preflight bounded; incremental disposal follows in VIEW08.
-    pub fn dispose(&mut self, commands: &mut Commands, resources: &mut Resources) {
-        if let Some(root) = self.root.take() {
-            commands.entity(root).despawn();
+    pub fn retiring(&self) -> bool {
+        self.retiring
+    }
+
+    pub fn disposal_status(&self) -> String {
+        format!(
+            "Unloading owned draw resources: {} entities, {} templates, {} images",
+            self.owned_entities.len(),
+            self.templates.iter().map(Vec::len).sum::<usize>(),
+            self.textures.len()
+        )
+    }
+
+    /// Close upload/publication first. Keep all submitted and unsubmitted work
+    /// owned until bounded retirement completes. Root visibility closes in this
+    /// update; reverse creation order removes children before their parents so
+    /// relationship cascade cannot silently bypass the entity budget.
+    pub fn dispose(&mut self, commands: &mut Commands, resources: &mut Resources) -> bool {
+        if !self.retiring {
+            self.retiring = true;
+            self.current = None;
+            if let Some(root) = self.root {
+                commands.entity(root).insert(Visibility::Hidden);
+            }
         }
-        for template in self.templates.iter_mut().flat_map(|parts| parts.drain(..)) {
-            resources.meshes.remove(template.0.id());
-            resources.materials.remove(template.1.id());
+        let mut entities = 0;
+        while entities < FRAME_ENTITIES {
+            if let Some(entity) = self.owned_entities.pop() {
+                commands.entity(entity).despawn();
+            } else if self.instances.next().is_none() {
+                break;
+            }
+            entities += 1;
         }
-        for image in self.textures.drain(..) {
-            resources.images.remove(image.id());
+        let mut assets = 0;
+        let mut bytes = 0;
+        while self.retiring_model < self.templates.len() {
+            let templates = &mut self.templates[self.retiring_model];
+            while let Some(template) = templates.last() {
+                let amount = resources.meshes.get(&template.0).map_or(0, |mesh| {
+                    mesh_bytes(mesh).expect("preflight mesh byte count")
+                });
+                if assets + 2 > FRAME_ASSETS || bytes + amount > FRAME_BYTES {
+                    return false;
+                }
+                let template = templates.pop().expect("peeked owned template");
+                resources.meshes.remove(template.0.id());
+                resources.materials.remove(template.1.id());
+                assets += 2;
+                bytes += amount;
+            }
+            self.retiring_model += 1;
         }
+        while let Some(image) = self.textures.last() {
+            let amount = resources
+                .images
+                .get(image)
+                .and_then(|image| image.data.as_ref())
+                .map_or(0, Vec::len);
+            if assets == FRAME_ASSETS || bytes + amount > FRAME_BYTES {
+                return false;
+            }
+            resources
+                .images
+                .remove(self.textures.pop().expect("peeked owned image").id());
+            assets += 1;
+            bytes += amount;
+        }
+        while let Some(image) = self.images.as_slice().first() {
+            let amount = image.data.as_ref().map_or(0, Vec::len);
+            if assets == FRAME_ASSETS || bytes + amount > FRAME_BYTES {
+                return false;
+            }
+            self.images.next();
+            assets += 1;
+            bytes += amount;
+        }
+        while self.retiring_cpu_model < self.models.len() {
+            let parts = &mut self.models[self.retiring_cpu_model];
+            while let Some(part) = parts.as_slice().first() {
+                let amount = mesh_bytes(&part.mesh).expect("preflight mesh byte count");
+                if assets == FRAME_ASSETS || bytes + amount > FRAME_BYTES {
+                    return false;
+                }
+                parts.next();
+                assets += 1;
+                bytes += amount;
+            }
+            self.retiring_cpu_model += 1;
+        }
+        let complete = self.owned_entities.is_empty() && self.instances.len() == 0;
+        if complete {
+            self.root = None;
+        }
+        complete
     }
 }
 
@@ -284,7 +379,9 @@ mod tests {
             Ok(true) if !queue.0.published => {
                 queue.0.publish(&mut commands, epoch.0).unwrap();
             }
-            Err(_) => queue.0.dispose(&mut commands, &mut assets),
+            Err(_) => {
+                queue.0.dispose(&mut commands, &mut assets);
+            }
             _ => {}
         }
     }
@@ -349,6 +446,21 @@ mod tests {
         );
         app.world_mut().resource_mut::<Epoch>().0 = 8;
         app.update();
+        if let Some(visible) = app.world().get::<Visibility>(root) {
+            assert_eq!(*visible, Visibility::Hidden);
+        }
+        assert!(app.world().resource::<TestQueue>().0.retiring());
+        while !app.world().resource::<Assets<Mesh>>().is_empty()
+            || !app
+                .world()
+                .resource::<Assets<material::InspectionMaterial>>()
+                .is_empty()
+            || !app.world().resource::<Assets<Image>>().is_empty()
+        {
+            let before = app.world().resource::<Assets<Mesh>>().len();
+            app.update();
+            assert!(before - app.world().resource::<Assets<Mesh>>().len() <= FRAME_ASSETS / 2);
+        }
         assert!(app.world().get_entity(root).is_err());
         assert!(app.world().resource::<Assets<Mesh>>().is_empty());
         assert!(
@@ -357,6 +469,120 @@ mod tests {
                 .is_empty()
         );
         assert!(app.world().resource::<Assets<Image>>().is_empty());
+    }
+
+    #[test]
+    fn retirement_hides_immediately_bounds_each_frame_and_preserves_unrelated_resources() {
+        let (mut prepared, _) = crate::fixture::prepare().unwrap();
+        prepared.instances = (0..64)
+            .map(|_| scene::Instance {
+                model: 0,
+                transform: Transform::IDENTITY,
+                key: None,
+                visibility: Visibility::Inherited,
+                canonical: None,
+            })
+            .collect();
+        let mut app = app(prepared);
+        let unrelated = app
+            .world_mut()
+            .spawn((Transform::IDENTITY, Visibility::Inherited))
+            .id();
+        let mesh = app
+            .world_mut()
+            .resource_mut::<Assets<Mesh>>()
+            .add(Mesh::from(Cuboid::from_size(Vec3::ONE)));
+        for _ in 0..200 {
+            app.update();
+            if app.world().resource::<TestQueue>().0.published {
+                break;
+            }
+        }
+        assert!(app.world().resource::<TestQueue>().0.published);
+        let root = app.world().resource::<TestQueue>().0.root.unwrap();
+        let before = app.world().entities().count_spawned();
+        app.world_mut().resource_mut::<Epoch>().0 = 8;
+        app.update();
+        assert!(before - app.world().entities().count_spawned() <= FRAME_ENTITIES as u32);
+        assert_eq!(
+            *app.world().get::<Visibility>(root).unwrap(),
+            Visibility::Hidden
+        );
+        assert!(app.world().resource::<TestQueue>().0.retiring());
+        // Returning to the original epoch cannot revive disposal or publish it.
+        app.world_mut().resource_mut::<Epoch>().0 = 7;
+        for _ in 0..200 {
+            let before = app.world().entities().count_spawned();
+            let assets = app.world().resource::<Assets<Mesh>>().len();
+            app.update();
+            assert!(before - app.world().entities().count_spawned() <= FRAME_ENTITIES as u32);
+            assert!(assets - app.world().resource::<Assets<Mesh>>().len() <= FRAME_ASSETS / 2);
+            assert!(app.world().get_entity(unrelated).is_ok());
+            assert!(app.world().resource::<Assets<Mesh>>().get(&mesh).is_some());
+            if app.world().resource::<TestQueue>().0.root.is_none() {
+                break;
+            }
+        }
+        assert!(app.world().resource::<TestQueue>().0.root.is_none());
+        assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 1);
+        assert!(
+            app.world()
+                .resource::<Assets<material::InspectionMaterial>>()
+                .is_empty()
+        );
+        assert!(app.world().resource::<Assets<Image>>().is_empty());
+    }
+
+    #[test]
+    fn cancellation_before_upload_retires_valid_prepared_images_at_the_exact_byte_boundary() {
+        let (mut prepared, _) = crate::fixture::prepare().unwrap();
+        for model in &mut prepared.models {
+            for part in &mut model.parts {
+                part.texture = None;
+            }
+        }
+        prepared.images = (0..3)
+            .map(|_| {
+                Image::new_fill(
+                    bevy::render::render_resource::Extent3d {
+                        width: 2048,
+                        height: 2048,
+                        depth_or_array_layers: 1,
+                    },
+                    bevy::render::render_resource::TextureDimension::D2,
+                    &[0, 0, 0, 255],
+                    bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+                    bevy::asset::RenderAssetUsages::all(),
+                )
+            })
+            .collect();
+        assert_eq!(prepared.images[0].data.as_ref().unwrap().len(), FRAME_BYTES);
+        let mut app = app(prepared);
+        app.world_mut().resource_mut::<Epoch>().0 = 8;
+        for remaining in [2, 1, 0] {
+            app.update();
+            assert_eq!(
+                app.world().resource::<TestQueue>().0.images.len(),
+                remaining
+            );
+            assert!(app.world().resource::<TestQueue>().0.retiring());
+            assert!(app.world().resource::<Assets<Image>>().is_empty());
+            assert!(app.world().resource::<Assets<Mesh>>().is_empty());
+            assert!(app.world().resource::<TestQueue>().0.root.is_none());
+            let mut meshes = app.world_mut().query_filtered::<Entity, With<Mesh3d>>();
+            assert_eq!(meshes.iter(app.world()).count(), 0);
+        }
+        for _ in 0..100 {
+            app.update();
+            let queue = &app.world().resource::<TestQueue>().0;
+            if queue.retiring_cpu_model == queue.models.len() && queue.instances.len() == 0 {
+                break;
+            }
+        }
+        let queue = &app.world().resource::<TestQueue>().0;
+        assert_eq!(queue.retiring_cpu_model, queue.models.len());
+        assert_eq!(queue.instances.len(), 0);
+        assert!(!queue.published);
     }
 
     #[test]

@@ -16,9 +16,11 @@ the window cancels this host's request; opaque source operations finish their
 existing bounded work before dropping their result.
 
 CELL preparation consumes the sealed `CellModelPlan` and existing `CellResidency`
-jobs. It keeps the returned `Arc<ResidentSources>` through model adaptation,
-staging and render publication. The model adapter reads the retained exact bytes;
-it uses the existing scene/material decoder and texture lookup. The borrowed plan
+jobs. It keeps the returned `Arc<ResidentSources>` and `Arc<ResidentTextures>`
+through model adaptation, staging and render publication. A captured texture plan,
+including an explicit empty plan, closes dependency readiness. The model adapter
+uses existing scene/material and DDS decoders over those retained exact bytes;
+missing captured textures cannot trigger another archive lookup. The borrowed plan
 view supplies placement/request provenance without detaching a cloneable plan.
 The residency owner is retained behind a mutex for Bevy's shared-resource type
 requirement. Main-thread access uses exclusive `get_mut`, without waiting on a
@@ -33,10 +35,17 @@ limits, not measurements of driver memory or frame duration.
 
 Staged entities inherit a hidden root. Only a complete current scene reveals
 that root. CELL visibility publication runs inside the current residency ticket's
-once-per-epoch `publish_render` callback. Failures remove this host's partial
-entities and asset handles. Disposal currently traverses the preflight-bounded
-scene in one update; incremental disposal and retry are subsequent VIEW08/09
-work, and this slice does not claim those behaviors.
+once-per-epoch `publish_render` callback. Failure and cancellation close further
+upload/publication and hide the root immediately. Disposal retires at most 128
+owned entities and eight resources/16 MiB of declared payload per update. Reverse
+creation order removes children before their parents, keeping relationship
+cascades inside that entity bound. Submitted asset handles and unsubmitted
+image/mesh/instance payloads remain owned until their retirement completes. A
+returned original epoch cannot revive retirement. Unrelated entities/assets are
+preserved. The host retains a disposing phase until cleanup finishes; an actual
+app exit may release the remaining app resources outside the frame loop. Retry
+remains subsequent VIEW09 work. These limits do not measure driver reclamation or
+physical frame time.
 
 Captures begin their 64 settling frames only after admission. The source-worker
 timeout is separate from the subsequent GPU capture timeout. Failed source work

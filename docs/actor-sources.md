@@ -629,3 +629,126 @@ dirty source manifests and frozen executable hashes before and after execution.
 The handoff maps that tested code to the resulting commit; this documentation's
 validation results were filled after comparison. These worker source checks do
 not initialize actors, implement scheduling or accept gameplay parity.
+
+## Actor model dependency sources (ACT-07)
+
+Team-v2 decisions `ACT-07-source-manifest-v1` and
+`ACT-07-manifest-API-detail` approve
+`actors::dependencies::Catalogue::load(&mut RecordStore, &actors::Catalogue,
+&actors::associations::Catalogue, &leveled::Catalogue, Limits)` and
+`catalogue.manifest(&FormKey actor_root, &ArchiveAssets, ManifestLimits)`.
+`actor-sources --include-dependencies` exposes the complete source catalogue and
+existing inventory/list/template graph. Repeat `--dependency-root PLUGIN:LOCAL`
+for explicit nondeleted NPC_/CREA roots. Local IDs are hexadecimal and exclude
+load-order bits. Minimal CLI option/dispatch/finding wiring is declared for
+integration. World can consume this API after integration; runtime retains
+canonical actor state and saves, and assets retains animation decoding/playback.
+
+| Source | Exact selected fields |
+| --- | --- |
+| NPC_ | MODL single terminated byte string; KFFZ physical terminated string frames; repeated PNAM4 to HDPT; HNAM4 to HAIR; ENAM4 to EYES; RNAM from the existing association catalogue |
+| CREA | MODL single terminated byte string; NIFZ and KFFZ physical terminated string frames |
+| RACE | NAM0/NAM1/MNAM/FNAM zero-byte markers, INDX4 unsigned raw index; contextual MODL/ICON strings; HNAM/ENAM arrays of complete four-byte hair/eye links |
+| HDPT | MODL single terminated byte string; repeated HNAM4 extra-head-part links |
+| HAIR | MODL and ICON single terminated byte strings |
+| EYES | ICON single terminated byte string, with absence preserved |
+
+Every word is little-endian. NPC_ versions 14/15, CREA 9/11/13/14/15,
+RACE/HDPT/HAIR 15 and EYES 3/14/15 were observed in the installed winning cohort.
+Other nondeleted versions fail explicitly. Deleted winners preserve their exact
+header without version migration or body access. Physical list frames include
+empty values, including a final empty frame in a two-NUL ending; zero-byte list
+fields contain no frames. Single strings reject missing/embedded NUL bytes.
+No missing path, model list, animation list or part is synthesized.
+
+RACE marker occurrences carry their field index, decoded header offset and raw
+index. Region changes reset sex/part context; sex changes reset the part. Hair,
+eye and FaceGen declarations end the part context, so later FaceGen markers
+cannot inherit an earlier head/body part. Unscoped paths remain present with a
+finding. Duplicate singleton model/texture/hair/eye/list fields remain present
+with findings. Repeated head-part links and contextual RACE models are ordinary
+physical occurrences. Unknown fields keep their signature, extent, offset and
+SHA-256, with the complete body retained.
+
+The pinned xEdit FNV declarations are CREA4276-4423, NPC_6798-6955,
+EYES4710+, HDPT4840+, HAIR6346+ and RACE7351-7469. Common8834-8870
+defines the head-part model/texture fields; Interface5323's `wbIsFallout3`
+includes FNV. Therefore the separate later-game HEAD-link branch is not used.
+The Common and Interface hashes are respectively
+`e616b6546f6df74d88ec98bb870906db380c985963d011e4931c5726682b7d26`
+and `eae6a304e3f1f69cc030eca645d768e9f20fd2cb9c5ffe0f3a2a457c9e51e358`;
+the FNV revision/hash remain those cited above. A private original-byte matrix
+independently matches all 31 preserved RACE body hashes and records 556 contextual
+ICON and 682 MODL occurrences.
+
+Catalogue joins compare normalized source names, full source byte/hash receipts
+and canonical winning-content digests before joining bodies. Recovered checksum
+faults cannot supply typed dependency inputs, even when their receipt/header
+joins match. NPC_/CREA bodies are borrowed from the existing scalar/inventory
+catalogue. RNAM occurrences are
+borrowed semantically from the existing association decoder, while the new
+catalogue retains its own bounded binding projections. Source limits precede
+record keys, reads/inflation, aggregate decoded bytes, fields, string frames,
+raw path copies and bindings. The inventory/list graph and iterative SCC helper
+are reused rather than implementing an alternative production traversal.
+
+Each manifest retains every physical model link and the existing inventory
+closure edge indices, including null/missing/deleted/wrong-kind targets.
+Traversal visits each retained source identity once and expands only defined
+model links of the evidenced target kind. Inventory graph traversal retains
+its existing structural semantics. Combined SCCs index the sorted retained root
+nodes and do not claim whole-corpus analysis of untraversed wrong-kind targets.
+Manifest budgets precede node/edge/path/candidate copies and graph work.
+The CLI admits at most 64 roots before opening inputs and consumes one aggregate
+manifest budget across all roots, including repeated roots.
+
+MODL lookup follows the existing world's `meshes/` prefix convention. ICON
+lookup reuses `vfs::texture_path`. Authored raw bytes remain separate from safe
+normalized lookup keys. Empty, unsafe and paths longer than 4096 bytes receive explicit
+lookup states. Every matching physical archive candidate is retained; collisions
+do not select a winner. NIFZ/KFFZ relative bases remain explicitly unresolved,
+including bare filenames observed in the installed source. No directory is
+guessed, no archive payload is decoded, and no inheritance, equipment, gender,
+part/clip selection, scheduling, AI or gameplay acceptance is implemented.
+
+The independent projection retains the strict native actor reader and augments
+it with `tools/actor-oracle/dependencies.py`, a separate standard-library raw
+plugin and BSA metadata reader. It checks the native source cohort, retains
+write-denying source handles, bounds compressed lengths before inflation and
+uses iterative Tarjan SCCs independently of the production Kosaraju helper.
+The wrapper hashes the companion script and Python interpreter before and after
+comparison, polls owned processes for STOP, and retains native base outputs.
+Use absolute input paths, as the wrapper does, to compare exact container names.
+
+Final private gates pass all 56 actor tests, including the reachable forensic
+checksum recovery regression, affected data/CLI all-target Clippy with warnings
+denied, CLI build, Rust formatting, PowerShell/Python syntax and whitespace checks.
+Sealed tools in `local/act07-dependencies-frozen-tools-20261004-02` match complete
+independent original and authored projections in cold, warm and reordered runs.
+The final original catalogue contains 6,626 winners, 209,224 physical fields,
+15,255 string frames, 12,433 bindings and no dependency source findings. Its
+existing inventory graph contains 14,185 nodes and 56,193 edges. Explicit root
+`FalloutNV.esm:7` retains 128 single archive candidates; creature root
+`FalloutNV.esm:17A03` retains two single candidates, four empty paths and 50
+unresolved relative paths.
+
+The authored cohort contains 11 winners, including an unread version-99 HDPT
+tombstone, 52 fields, 17 string frames and three source findings. It exercises
+overrides, self selectors, cycles, wrong/missing/deleted/null links, empty and
+legacy strings, archive collisions and unsafe/overlong paths. Both readers reject
+13 malformed or unsupported cases for the intended diagnostic; the CLI rejects
+11 altered complete dependency projections. A 1,026-node root is admitted;
+64 repeats exceed the shared 65,536-node report budget in both readers, and the
+65th root is rejected before opening inputs. The default actor report is exactly
+byte-equal to the preserved PACK executable on the authored cohort.
+
+Final comparison receipts are under `local/act07-original-comparison-20261004-02`
+and `local/act07-authored-comparison-20261004-03`; negative, root-budget and default
+receipts are under `local/act07-negative-results-20261004-04`,
+`local/act07-root-budget-results-20261004-03` and
+`local/act07-default-results-20261004-01`. The handoff in
+`local/act07-dependencies-validation-20261004-01` binds the tested source/tool
+hashes to the two-commit range. Only this documentation's validation results were
+filled after the comparisons. Earlier prototypes and failed fixture setup or
+admission tests remain preserved separately. These receipts establish source
+decoding and engineering bounds; no gameplay scenario is accepted.

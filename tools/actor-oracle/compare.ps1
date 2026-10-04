@@ -11,11 +11,17 @@ param(
     [switch]$IncludePlacements,
     [switch]$IncludeRaces,
     [switch]$IncludePackages,
+    [switch]$IncludeDependencies,
+    [string[]]$DependencyRoots = @(),
+    [string]$DependencyOracle,
     [string]$TeamDirectory,
     [string]$SessionId,
     [switch]$SkipReordered
 )
 $ErrorActionPreference = 'Stop'
+if ($DependencyRoots.Count -gt 64 -or ($DependencyRoots.Count -gt 0 -and -not $IncludeDependencies)) {
+    throw 'Dependency roots require IncludeDependencies and at most 64 roots'
+}
 $actorInstall = (Resolve-Path -LiteralPath $Install).Path.TrimEnd('\')
 $actorRun = [IO.Path]::GetFullPath($RunDirectory).TrimEnd('\')
 if ($actorRun.Equals($actorInstall, [StringComparison]::OrdinalIgnoreCase) -or
@@ -32,6 +38,16 @@ $actorFallout = (Resolve-Path -LiteralPath $Fallout).Path
 $actorOracle = (Resolve-Path -LiteralPath $Oracle).Path
 $actorUtf8 = New-Object System.Text.UTF8Encoding($false)
 $actorCommands = New-Object 'System.Collections.Generic.List[object]'
+$actorDependencySha = $null
+$actorPythonSha = $null
+if ($IncludeDependencies) {
+    if (-not $DependencyOracle) { $DependencyOracle = Join-Path $PSScriptRoot 'dependencies.py' }
+    $actorDependencyOracle = (Resolve-Path -LiteralPath $DependencyOracle).Path
+    $actorDependencySha = (Get-FileHash -LiteralPath $actorDependencyOracle).Hash.ToLowerInvariant()
+    $actorPython = (& py -3 -c 'import sys; print(sys.executable)').Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Independent dependency reader requires Python 3' }
+    $actorPythonSha = (Get-FileHash -LiteralPath $actorPython).Hash.ToLowerInvariant()
+}
 
 # Optional current-team guard. Standalone comparisons do not require mailboxes.
 # Each child is polled, so STOP does not wait for an entire source comparison.
@@ -66,7 +82,7 @@ function Wait-ActorProcess([Diagnostics.Process]$Process) {
         while (-not $Process.WaitForExit(1000)) { Test-ActorTeam }
         Test-ActorTeam
     } catch {
-        if (-not $Process.HasExited) { $Process.Kill(); $Process.WaitForExit() }
+        if (-not $Process.HasExited) { & taskkill.exe /PID $Process.Id /T /F | Out-Null; $Process.WaitForExit() }
         throw
     }
 }
@@ -113,7 +129,38 @@ function Write-ActorOrder([string]$Path, [object[]]$Names) {
     [IO.File]::WriteAllBytes($Path, $actorBuffer.ToArray())
     $actorWriter.Dispose()
 }
-function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
+function Invoke-DependencyOracle([string]$OrderJson, [string]$Output, [string]$Log) {
+    $actorDependencyOutput = $Output + '.dependencies.json'
+    $actorDependencyArguments = @($actorDependencyOracle,'--data',(Join-Path $actorInstall 'Data'),
+        '--load-order',$OrderJson,'--base-report',$Output,'--output',$actorDependencyOutput)
+    foreach ($actorRoot in $DependencyRoots) { $actorDependencyArguments += @('--root',$actorRoot) }
+    if ($TeamDirectory) { $actorDependencyArguments += @('--team-directory',$TeamDirectory,'--session-id',$SessionId) }
+    Test-ActorTeam
+    $actorStart = New-Object Diagnostics.ProcessStartInfo
+    $actorStart.FileName = $actorPython
+    $actorStart.Arguments = (@(foreach ($actorArgument in $actorDependencyArguments) {
+        '"' + ([string]$actorArgument -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+    }) -join ' ')
+    $actorStart.UseShellExecute = $false
+    $actorStart.CreateNoWindow = $true
+    $actorStart.RedirectStandardOutput = $true
+    $actorStart.RedirectStandardError = $true
+    $actorProcess = New-Object Diagnostics.Process
+    $actorProcess.StartInfo = $actorStart
+    try {
+        $null = $actorProcess.Start()
+        $actorErrorTask = $actorProcess.StandardError.ReadToEndAsync()
+        $actorOutputTask = $actorProcess.StandardOutput.ReadToEndAsync()
+        Wait-ActorProcess $actorProcess
+        [IO.File]::WriteAllText($Log + '.dependencies.log', $actorErrorTask.GetAwaiter().GetResult(), $actorUtf8)
+        [IO.File]::WriteAllText($Log + '.dependencies.stdout', $actorOutputTask.GetAwaiter().GetResult(), $actorUtf8)
+        if ($actorProcess.ExitCode -ne 0) { throw 'Independent dependency reader failed; see its log' }
+    } finally { $actorProcess.Dispose() }
+    Move-Item -LiteralPath $Output -Destination ($Output + '.base.json')
+    Move-Item -LiteralPath $actorDependencyOutput -Destination $Output
+    $actorCommands.Add(@($actorPython) + $actorDependencyArguments)
+}
+function Invoke-ActorOracle([string]$Order, [string]$OrderJson, [string]$Output, [string]$Log) {
     $actorStart = New-Object Diagnostics.ProcessStartInfo
     $actorStart.FileName = $actorOracle
     $actorStart.Arguments = '"' + (Join-Path $actorInstall 'Data') + '" "' + $Order + '"'
@@ -147,13 +194,14 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     if ($IncludeRaces) { $actorOracleArguments += '--include-races' }
     if ($IncludePackages) { $actorOracleArguments += '--include-packages' }
     $actorCommands.Add($actorOracleArguments)
+    if ($IncludeDependencies) { Invoke-DependencyOracle $OrderJson $Output $Log }
 }
 $actorOrderJson = Join-Path $actorRun 'order.json'
 [IO.File]::WriteAllText($actorOrderJson, (ConvertTo-Json -InputObject $actorNames), $actorUtf8)
 $actorOrderBinary = Join-Path $actorRun 'order.bin'
 Write-ActorOrder $actorOrderBinary $actorNames
 $actorOracleJson = Join-Path $actorRun 'oracle.json'
-Invoke-ActorOracle $actorOrderBinary $actorOracleJson (Join-Path $actorRun 'oracle.log')
+Invoke-ActorOracle $actorOrderBinary $actorOrderJson $actorOracleJson (Join-Path $actorRun 'oracle.log')
 $actorPhases = New-Object 'System.Collections.Generic.List[object]'
 foreach ($actorPhase in @('cold','warm','reordered')) {
     if ($actorPhase -eq 'reordered') {
@@ -170,7 +218,7 @@ foreach ($actorPhase in @('cold','warm','reordered')) {
         $actorOrderBinary = Join-Path $actorRun 'reordered-order.bin'
         Write-ActorOrder $actorOrderBinary $actorSwapped
         $actorOracleJson = Join-Path $actorRun 'reordered-oracle.json'
-        Invoke-ActorOracle $actorOrderBinary $actorOracleJson (Join-Path $actorRun 'reordered-oracle.log')
+        Invoke-ActorOracle $actorOrderBinary $actorOrderJson $actorOracleJson (Join-Path $actorRun 'reordered-oracle.log')
     }
     $actorOutput = Join-Path $actorRun ($actorPhase + '.json')
     $actorArguments = @('actor-sources','--install',$actorInstall,'--load-order',$actorOrderJson,
@@ -181,6 +229,8 @@ foreach ($actorPhase in @('cold','warm','reordered')) {
     if ($IncludePlacements) { $actorArguments += '--include-placements' }
     if ($IncludeRaces) { $actorArguments += '--include-races' }
     if ($IncludePackages) { $actorArguments += '--include-packages' }
+    if ($IncludeDependencies) { $actorArguments += '--include-dependencies' }
+    foreach ($actorRoot in $DependencyRoots) { $actorArguments += @('--dependency-root',$actorRoot) }
     Test-ActorTeam
     $actorStart = New-Object Diagnostics.ProcessStartInfo
     $actorStart.FileName = $actorFallout
@@ -221,16 +271,22 @@ if ($actorInitialSource.head_revision -ne $actorFinalSource.head_revision -or
     $actorInitialEngineSha -ne $actorFinalEngineSha -or $actorInitialOracleSha -ne $actorFinalOracleSha) {
     throw 'Actor source, HEAD, dirty state or executable changed during comparison; no completed worker receipt published'
 }
+if ($IncludeDependencies -and ($actorDependencySha -ne (Get-FileHash -LiteralPath $actorDependencyOracle).Hash.ToLowerInvariant() -or
+    $actorPythonSha -ne (Get-FileHash -LiteralPath $actorPython).Hash.ToLowerInvariant())) {
+    throw 'Independent dependency script or Python binary changed during comparison'
+}
 [IO.File]::WriteAllText((Join-Path $actorRun 'source-finish.json'), (ConvertTo-Json -InputObject $actorFinalSource -Depth 8), $actorUtf8)
 $actorReceipt = [ordered]@{
     schema_version=1
-    task_id= $(if ($IncludePackages) { 'ACT-06-PACK' } elseif ($IncludeRaces) { 'ACT-05-RACE' } elseif ($IncludePlacements) { 'ACT-03-core-extras' } elseif ($IncludeFactions) { 'ACT-05-FACT' } elseif ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
+    task_id= $(if ($IncludeDependencies) { 'ACT-07-dependencies' } elseif ($IncludePackages) { 'ACT-06-PACK' } elseif ($IncludeRaces) { 'ACT-05-RACE' } elseif ($IncludePlacements) { 'ACT-03-core-extras' } elseif ($IncludeFactions) { 'ACT-05-FACT' } elseif ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
     scope='Private worker source-field comparisons; not an integrated checkpoint or retail acceptance receipt'
     started_source_revision=$actorInitialSource.head_revision
     source_snapshot_sha256=$actorInitialSource.manifest_sha256
     source_and_binaries_unchanged=$true
     engine_binary_sha256=$actorInitialEngineSha
     oracle_binary_sha256=$actorInitialOracleSha
+    dependency_script_sha256=$actorDependencySha
+    dependency_python_sha256=$actorPythonSha
     phases=$actorPhases.ToArray()
     commands=$actorCommands.ToArray()
     retail_parity_accepted=$false

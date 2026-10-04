@@ -1,6 +1,12 @@
 //! Immutable source scalars over the existing inventory production load path.
 use super::{Result, inspection_input::Order};
-use fallout_data::{actors, baseline, inventory, record_metadata};
+use fallout_data::{
+    actors,
+    assets::ArchiveAssets,
+    baseline,
+    identity::{self, FormKey, ProfileId},
+    inventory, leveled, record_metadata,
+};
 use serde_json::{Value, json};
 use std::{io::Read, path::Path};
 
@@ -12,6 +18,26 @@ pub(super) struct Options {
     pub(super) include_placements: bool,
     pub(super) include_races: bool,
     pub(super) include_packages: bool,
+    pub(super) include_dependencies: bool,
+    pub(super) dependency_roots: Vec<FormKey>,
+}
+
+pub(super) fn parse_root(raw: &str) -> std::result::Result<FormKey, String> {
+    let (origin, local) = raw
+        .split_once(':')
+        .ok_or("expected ORIGIN_PLUGIN:LOCAL_HEX_ID")?;
+    let local_id =
+        u32::from_str_radix(local.trim_start_matches("0x"), 16).map_err(|e| e.to_string())?;
+    if local_id == 0 || local_id > 0x00ff_ffff {
+        return Err(
+            "actor dependency root requires a nonzero local ID without load-order bits".into(),
+        );
+    }
+    Ok(FormKey {
+        profile: ProfileId::NvOriginal,
+        origin_plugin: identity::plugin_name(origin).map_err(|e| e.to_string())?,
+        local_id,
+    })
 }
 
 pub(super) fn inspect(
@@ -20,6 +46,12 @@ pub(super) fn inspect(
     cache: Option<&Path>,
     options: Options,
 ) -> Result<Value> {
+    if options.dependency_roots.len() > 64 {
+        return Err("actor dependency root budget exceeds 64".into());
+    }
+    if !options.include_dependencies && !options.dependency_roots.is_empty() {
+        return Err("actor dependency roots require --include-dependencies".into());
+    }
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
     let metadata = record_metadata::inspect(&store)?;
@@ -34,12 +66,19 @@ pub(super) fn inspect(
         "counts":catalogue.counts(),"definitions":definitions,"index_cache":store.index_cache_report(),
         "scope":"Exact authored NPC_/CREA scalar source fields joined to existing inventory provenance; no actor initialization, inheritance, automatic statistics or runtime conversion",
         "actors_initialized":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
-    if options.include_associations {
-        let associations = actors::associations::Catalogue::load(
+    let associations = if options.include_associations || options.include_dependencies {
+        Some(actors::associations::Catalogue::load(
             &mut store,
             &catalogue,
             actors::associations::Limits::default(),
-        )?;
+        )?)
+    } else {
+        None
+    };
+    if options.include_associations {
+        let associations = associations
+            .as_ref()
+            .expect("requested associations loaded");
         report["actor_associations"] = json!({"counts":associations.counts(),"definitions":associations.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
         report["scope"] = json!(
             "Exact authored NPC_/CREA scalar fields and ordered source associations; no inheritance, initialization, effect, faction or AI execution"
@@ -86,6 +125,41 @@ pub(super) fn inspect(
         report["actor_packages"] = json!({"counts":packages.counts(),"definitions":packages.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
         report["scope"] = json!(format!(
             "{}; authored PACK scalar inputs, no scheduling, conditions or AI execution",
+            report["scope"].as_str().unwrap_or_default()
+        ));
+    }
+    if options.include_dependencies {
+        let lists = leveled::Catalogue::load(&mut store, leveled::Limits::default())?;
+        let dependencies = actors::dependencies::Catalogue::load(
+            &mut store,
+            &catalogue,
+            associations
+                .as_ref()
+                .expect("dependency associations loaded"),
+            &lists,
+            Default::default(),
+        )?;
+        let assets = ArchiveAssets::open_nv(install)?;
+        // One aggregate admission budget covers every requested root report.
+        let mut remaining = actors::dependencies::ManifestLimits::default();
+        let mut manifests = Vec::new();
+        for root in &options.dependency_roots {
+            let manifest = dependencies.manifest(root, &assets, remaining)?;
+            let counts = &manifest.counts;
+            remaining.max_nodes -= counts.nodes;
+            remaining.max_edges -= counts.inventory_edges + counts.model_edges;
+            remaining.max_field_visits -= counts.field_visits;
+            remaining.max_paths -= counts.paths;
+            remaining.max_path_bytes -= counts.path_bytes;
+            remaining.max_candidates -= counts.candidates;
+            remaining.max_candidate_bytes -= counts.candidate_bytes;
+            manifests.push(manifest);
+        }
+        report["actor_dependencies"] = json!({"counts":dependencies.counts(),
+            "definitions":dependencies.iter().map(|(_, definition)|definition).collect::<Vec<_>>(),
+            "inventory_graph":dependencies.inventory_graph(), "manifests":manifests});
+        report["scope"] = json!(format!(
+            "{}; exact actor model/head-part/string inputs and bounded explicit-root archive candidates; no initialization, part/clip selection or resolved NIFZ/KFFZ relative base",
             report["scope"].as_str().unwrap_or_default()
         ));
     }
@@ -146,6 +220,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err("independent actor source comparison differs in actor_packages".into());
     }
+    if report.get("actor_dependencies").is_some()
+        && report.get("actor_dependencies") != oracle.get("actor_dependencies")
+    {
+        return Err("independent actor source comparison differs in actor_dependencies".into());
+    }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
@@ -174,6 +253,15 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     if report.get("actor_packages").is_some() {
         report["independent_comparison"]["packages_checked"] =
             report["actor_packages"]["counts"]["records"].clone();
+    }
+    if report.get("actor_dependencies").is_some() {
+        report["independent_comparison"]["dependency_records_checked"] =
+            report["actor_dependencies"]["counts"]["records"].clone();
+        report["independent_comparison"]["dependency_roots_checked"] = json!(
+            report["actor_dependencies"]["manifests"]
+                .as_array()
+                .map_or(0, Vec::len)
+        );
     }
     Ok(())
 }

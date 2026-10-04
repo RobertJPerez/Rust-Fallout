@@ -496,3 +496,66 @@ restore, with nonempty unrelated script/event state and full snapshot conservati
 The independent interactions oracle reuses existing source/placement/lot readers
 and derives complete expected candidates from caller input alone. Engineering
 proofs do not establish original gameplay parity.
+
+### Selected actor contexts and directed faction inputs (ACT34/33)
+
+`context_batch::observe_batch` accepts an ordered explicit list of existing
+canonical reference IDs. It admits the whole source cohort once, rejects repeated
+IDs and joins every ACHR/ACRE placement through the existing ACT15 checks before
+publishing output. Base declarations remain borrowed and appear once per exact
+canonical FormKey and bound winner, sorted by key. Per-reference placement and
+current state remain separate; absent or disabled components supply no defaults.
+An empty selection is valid. A nonactor, missing or inconsistent late join refuses
+the whole batch. The legacy single-context output and refusal order are retained.
+
+Aggregate bounds cover references, unique bases, placement plus unique base
+fields, join visits, current-view bytes and the full serialized projection. Every
+borrowed current row is charged before source joins, and the complete projection
+is counted before any canonical View clone. Structural usage counters count source
+receipt comparisons, selected rows, joined physical fields and seven fixed checks
+per placement. The 64-placement fixture retains one base and admits its source
+cohort once; these counters express the defined work charge, without timing claims.
+
+`faction_pair::observe_pair` derives both actor bases from fresh ACT15 contexts,
+then reuses ACT07 Requests to validate their physical SNAM/FACT declarations.
+It indexes the target actor's declared faction keys and emits only directed XNAM
+matches. Source occurrence, relationship field and target occurrence indices
+retain physical order and multiplicity. Signed ranks and modifiers and raw
+reaction words remain exact. Reverse requests are computed independently. Template
+ambiguity, unresolved memberships/relations and unsupported current membership
+remain explicit unavailable inputs. Same-faction defaults, symmetry, aggregation,
+disposition, reputation and effective reactions remain unavailable.
+
+Both endpoint occurrence/FACT extents and current bytes are admitted before their
+projection allocations. Pair multiplicity and visit charges are checked before
+allocating expanded rows; a streaming count checks the complete output first.
+The pair visit charge includes source/context preparation, borrowed preflight,
+target indexing, the full directed match count and all three projection/build
+passes. These serialize-only observations accept no retained Requests or handles
+and provide no mutation authority. Fresh calls after cold restore rejoin the
+canonical state; old canonical views remain invalid for staging.
+
+`actor-package-context --actor-context-batch selected.json` reads a bounded array
+of nonzero reference IDs. `--actor-faction-pair pair.json` requires explicit
+`from_reference`, `to_reference`, `expected_from_actor` and `expected_to_actor`;
+both FormKey claims must match the fresh placement joins. Unknown pair fields,
+incorrect claimed bases and late source failures refuse without emitting a report.
+Omitted flags preserve legacy inspector output. The independent decision-input
+oracle reuses the protected Reader, native declarations and existing context
+oracle, verifying physical SNAM/XNAM bytes and complete schema4 expectations.
+
+Focused validation on 2026-10-04 passed format, the eleven actor runtime targets
+(67 passed, 0 failed, 2 ignored), and warnings-denied Clippy for `fallout-runtime`
+and `fallout-cli`. The native actor oracle built and passed all six allocation-order
+checks. Thirteen base/override batch and directed-pair CLI reports matched the
+independent raw-source oracle, including mixed and 64-reference selections,
+permuted input order, forward/reverse/same endpoints and template references.
+Wrong-base, wrong-cohort and late-invalid batch/pair requests each refused without
+creating a report. The legacy default CLI report matched the preserved ACT15 output
+byte-for-byte (2,406 bytes; SHA-256
+`2753ac00a2e7c45f34f258cfd7d7057a4e0035bdfd838c09c9021a1a2448f7e8`). The proof
+summary is `local/v4-evidence/actors-01-team-v4-20261004-20261004T222612Z-0f8c3e22/proof-summary.json`
+(SHA-256 `0e40f33ccd2e5e74304e9c8d5eb782db67a0792bb94ffa12d7622e2b0d5f74ce`).
+These are authored-fixture/source-reader results only: retail parity remains
+unaccepted, current faction membership and reaction evaluation remain unsupported,
+and gameplay scenarios accepted remains zero.

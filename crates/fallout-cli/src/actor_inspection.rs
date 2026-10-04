@@ -55,6 +55,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) actor_inventory_transfer: Option<&'a Path>,
     pub(super) actor_equipment_intent: Option<&'a Path>,
     pub(super) actor_context_batch: Option<&'a Path>,
+    pub(super) actor_faction_pair: Option<&'a Path>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -86,6 +87,7 @@ pub(super) fn package_context(
         || options.actor_inventory_transfer.is_some()
         || options.actor_equipment_intent.is_some()
         || options.actor_context_batch.is_some()
+        || options.actor_faction_pair.is_some()
         || options.inventory_boot_request.is_some())
     .then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
@@ -434,8 +436,8 @@ pub(super) fn package_context(
             report["actor_equipment_intent"] = serde_json::to_value(candidate)?;
         }
     }
-    if options.actor_context_batch.is_some() {
-        use fallout_runtime::actor_rules::context_batch;
+    if options.actor_context_batch.is_some() || options.actor_faction_pair.is_some() {
+        use fallout_runtime::actor_rules::{context_batch, faction_pair};
         let placements = actors::placements::Catalogue::load(&mut store, Default::default())?;
         if let Some(path) = options.actor_context_batch {
             let selected: SelectedActorReferences = read_actor_intent(path, 1024 * 1024)?;
@@ -449,6 +451,30 @@ pub(super) fn package_context(
             )?;
             report["actor_context_batch"] = serde_json::to_value(batch)?;
         }
+        if let Some(path) = options.actor_faction_pair {
+            let choice: ActorFactionPairChoice = read_actor_intent(path, 1024 * 1024)?;
+            let factions = actors::factions::Catalogue::load(&mut store, Default::default())?;
+            let pair = faction_pair::observe_pair(
+                &world,
+                &content,
+                &placements,
+                &actors,
+                &associations,
+                &factions,
+                choice.from_reference,
+                choice.to_reference,
+                Default::default(),
+            )?;
+            if pair.from.context.actor.key != &choice.expected_from_actor
+                || pair.to.context.actor.key != &choice.expected_to_actor
+            {
+                return Err(
+                    "actor faction pair claimed bases differ from fresh canonical placement joins"
+                        .into(),
+                );
+            }
+            report["actor_faction_pair"] = serde_json::to_value(pair)?;
+        }
     }
     if before_observation
         .as_ref()
@@ -459,6 +485,14 @@ pub(super) fn package_context(
     Ok(report)
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActorFactionPairChoice {
+    from_reference: fallout_runtime::identity::ReferenceId,
+    to_reference: fallout_runtime::identity::ReferenceId,
+    expected_from_actor: FormKey,
+    expected_to_actor: FormKey,
+}
 struct SelectedActorReferences(Vec<fallout_runtime::identity::ReferenceId>);
 impl<'de> serde::Deserialize<'de> for SelectedActorReferences {
     fn deserialize<D: serde::Deserializer<'de>>(

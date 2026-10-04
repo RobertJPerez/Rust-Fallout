@@ -5,6 +5,7 @@ pub mod context_batch;
 pub mod equipment;
 pub mod equipment_intent;
 pub mod equipment_render;
+pub mod faction_pair;
 pub mod factions;
 pub mod initialization_inputs;
 pub mod inventory_boot;

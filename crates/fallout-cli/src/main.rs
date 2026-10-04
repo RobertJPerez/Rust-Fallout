@@ -303,6 +303,9 @@ enum Command {
         /// Observe an ordered explicit reference list with a shared base table.
         #[arg(long)]
         actor_context_batch: Option<PathBuf>,
+        /// Observe directed physical faction inputs for two explicit actors.
+        #[arg(long)]
+        actor_faction_pair: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1087,6 +1090,7 @@ fn run(args: Args) -> Result<()> {
             actor_inventory_transfer,
             actor_equipment_intent,
             actor_context_batch,
+            actor_faction_pair,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1112,6 +1116,7 @@ fn run(args: Args) -> Result<()> {
                     actor_inventory_transfer: actor_inventory_transfer.as_deref(),
                     actor_equipment_intent: actor_equipment_intent.as_deref(),
                     actor_context_batch: actor_context_batch.as_deref(),
+                    actor_faction_pair: actor_faction_pair.as_deref(),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

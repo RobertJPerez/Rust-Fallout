@@ -2,6 +2,234 @@ use super::*;
 use crate::{Limits as WorldLimits, events::Clocks, identity::ReferenceId, save::Captured};
 use fallout_data::{loaded_scripts::Catalogue, store::RecordStore};
 
+#[test]
+fn borrowed_group_bytes_refuse_malformed_final_quest_target_and_argument_before_name_validation() {
+    use crate::identity::ReferenceValue;
+    let dir = tempfile::tempdir().unwrap();
+    let (catalogue, handles) = fixture(dir.path());
+    let world = World::new(&catalogue, WorldLimits::default()).unwrap();
+    let owners = owners();
+    let context = Context::default();
+    let valid = [
+        Request {
+            definition: &handles[0],
+            owner: &owners[0],
+            context: &context,
+            assignments: &[],
+        },
+        Request {
+            definition: &handles[1],
+            owner: &owners[1],
+            context: &context,
+            assignments: &[],
+        },
+    ];
+    let admitted = world
+        .stage_instance_initialization_group(&valid, Limits::default())
+        .unwrap()
+        .usage()
+        .copied_bytes;
+    let before = unchanged(&world);
+    let mut key = handles[0].key.record.clone();
+    key.origin_plugin = "BAD/".to_string() + &"x".repeat(8192);
+    let quest = Owner::Quest { key: key.clone() };
+    let target = Context {
+        target: Some(ReferenceValue::Content { key: key.clone() }),
+        ..Default::default()
+    };
+    let arguments = Context {
+        arguments: vec![ReferenceValue::Content { key }],
+        ..Default::default()
+    };
+    for (owner, context) in [
+        (&quest, &context),
+        (&owners[1], &target),
+        (&owners[1], &arguments),
+    ] {
+        let requests = [
+            Request {
+                definition: &handles[0],
+                owner: &owners[0],
+                context: valid[0].context,
+                assignments: &[],
+            },
+            Request {
+                definition: &handles[1],
+                owner,
+                context,
+                assignments: &[],
+            },
+        ];
+        let error = world
+            .stage_instance_initialization_group(
+                &requests,
+                Limits {
+                    max_copied_bytes: admitted,
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            Error::Capacity("instance initialization copied bytes")
+        ));
+        assert_eq!(unchanged(&world), before);
+        // With complete admission, canonical validation still rejects the same
+        // supplied malformed name under the original identity rules.
+        assert!(matches!(
+            world.stage_instance_initialization_group(&requests, Limits::default()),
+            Err(Error::Invalid(_))
+        ));
+        assert_eq!(unchanged(&world), before);
+    }
+    assert!(world.definitions.is_empty());
+    assert!(world.slots.is_empty());
+    assert_eq!(world.next_instance, 1);
+}
+#[test]
+fn aggregate_group_assignment_and_argument_caps_precede_malformed_element_traversal() {
+    use crate::identity::ReferenceValue;
+    let dir = tempfile::tempdir().unwrap();
+    let (catalogue, handles) = fixture(dir.path());
+    let world = World::new(&catalogue, WorldLimits::default()).unwrap();
+    let owners = owners();
+    let mut key = handles[0].key.record.clone();
+    key.origin_plugin = "BAD/".to_string() + &"x".repeat(8192);
+    let malformed = ReferenceValue::Content { key };
+    let context = Context {
+        arguments: vec![malformed.clone()],
+        ..Default::default()
+    };
+    let empty = Context::default();
+    let values = [(42, Value::Reference { value: malformed })];
+    let first_values = [(
+        42,
+        Value::Number {
+            bits: 0x8000_0000_0000_0000,
+        },
+    )];
+    let requests = [
+        Request {
+            definition: &handles[0],
+            owner: &owners[0],
+            context: &empty,
+            assignments: &first_values,
+        },
+        Request {
+            definition: &handles[1],
+            owner: &owners[1],
+            context: &context,
+            assignments: &values,
+        },
+    ];
+    let before = unchanged(&world);
+    assert!(matches!(
+        world.stage_instance_initialization_group(
+            &requests,
+            Limits {
+                max_assignments: 1,
+                ..Default::default()
+            }
+        ),
+        Err(Error::Capacity("instance initialization group assignments"))
+    ));
+    assert_eq!(unchanged(&world), before);
+    assert!(matches!(
+        world.stage_instance_initialization_group(
+            &requests,
+            Limits {
+                max_context_arguments: 0,
+                ..Default::default()
+            }
+        ),
+        Err(Error::Capacity(
+            "instance initialization group context arguments"
+        ))
+    ));
+    assert_eq!(unchanged(&world), before);
+}
+#[test]
+fn admitted_quest_target_and_argument_names_keep_exact_charges_and_one_revision() {
+    use crate::identity::ReferenceValue;
+    let dir = tempfile::tempdir().unwrap();
+    let (catalogue, handles) = fixture(dir.path());
+    let mut world = World::new(&catalogue, WorldLimits::default()).unwrap();
+    let owners = [
+        owners()[0].clone(),
+        Owner::Quest {
+            key: handles[0].key.record.clone(),
+        },
+    ];
+    let context = Context {
+        target: Some(ReferenceValue::Content {
+            key: handles[1].key.record.clone(),
+        }),
+        arguments: vec![
+            ReferenceValue::Content {
+                key: handles[0].key.record.clone(),
+            },
+            ReferenceValue::Null,
+        ],
+        ..Default::default()
+    };
+    let values = [(
+        42,
+        Value::Number {
+            bits: 0x7ff8_1234_5678_9abc,
+        },
+    )];
+    let requests = [
+        Request {
+            definition: &handles[0],
+            owner: &owners[0],
+            context: &context,
+            assignments: &values,
+        },
+        Request {
+            definition: &handles[1],
+            owner: &owners[1],
+            context: &context,
+            assignments: &values,
+        },
+    ];
+    let usage = world
+        .stage_instance_initialization_group(&requests, Limits::default())
+        .unwrap()
+        .usage();
+    let before = unchanged(&world);
+    let exact = Limits {
+        max_copied_bytes: usage.copied_bytes,
+        ..Default::default()
+    };
+    assert!(matches!(
+        world.stage_instance_initialization_group(
+            &requests,
+            Limits {
+                max_copied_bytes: usage.copied_bytes - 1,
+                ..exact
+            }
+        ),
+        Err(Error::Capacity("instance initialization copied bytes"))
+    ));
+    assert_eq!(unchanged(&world), before);
+    let stage = world
+        .stage_instance_initialization_group(&requests, exact)
+        .unwrap();
+    assert_eq!(stage.usage(), usage);
+    let (receipt, handles) = world.commit_instance_initialization_group(stage).unwrap();
+    assert_eq!(receipt.after_revision, receipt.before_revision + 1);
+    assert_eq!(world.instance(handles[1]).unwrap().owner(), &owners[1]);
+    assert_eq!(world.instance(handles[1]).unwrap().context(), &context);
+    assert_eq!(
+        world.instance(handles[1]).unwrap().local(42).unwrap(),
+        &values[0].1
+    );
+    assert!(matches!(
+        world.instance(handles[1]).unwrap().local(43),
+        Err(Error::UninitializedLocal(43))
+    ));
+}
+
 fn fixture(root: &std::path::Path) -> (Catalogue, [Handle; 2]) {
     fn field(tag: &[u8; 4], bytes: &[u8]) -> Vec<u8> {
         [tag.as_slice(), &(bytes.len() as u16).to_le_bytes(), bytes].concat()

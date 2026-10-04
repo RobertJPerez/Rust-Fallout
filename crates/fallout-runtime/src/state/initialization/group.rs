@@ -195,25 +195,10 @@ impl World<'_> {
         ] {
             add_charge(&mut usage.copied_bytes, requests.len(), each)?;
         }
-        // Admit every borrowed request and aggregate storage before private
-        // schema preparation or caller-string copies. Equality includes source
-        // version, not merely the persistent script key.
-        for (position, request) in requests.iter().enumerate() {
-            let script = self
-                .catalogue
-                .get_handle(request.definition)
-                .ok_or(Error::DefinitionChanged)?;
-            self.validate_owner(request.owner)?;
-            self.validate_context(request.context)?;
-            if self.owners.contains_key(request.owner)
-                || requests[..position]
-                    .iter()
-                    .any(|old| old.owner == request.owner)
-            {
-                return Err(Error::Invalid(
-                    "owner already has a live or grouped script instance".into(),
-                ));
-            }
+        // Scalar aggregate caps precede traversal of any caller elements. Name
+        // validation can normalize into owned strings, so it follows complete
+        // borrowed admission across the entire request group.
+        for request in requests {
             bounded_add(
                 &mut usage.assignments,
                 request.assignments.len(),
@@ -226,6 +211,8 @@ impl World<'_> {
                 limits.max_context_arguments,
                 "instance initialization group context arguments",
             )?;
+        }
+        for request in requests {
             // Stage and receipt each retain the handle; cache keys retain one
             // further origin below. Instance/owner-index/receipt own the owner.
             for bytes in [
@@ -260,6 +247,17 @@ impl World<'_> {
                     add_charge(&mut usage.copied_bytes, 1, reference_bytes(value))?;
                 }
             }
+        }
+        if usage.copied_bytes > limits.max_copied_bytes {
+            return Err(Error::Capacity("instance initialization copied bytes"));
+        }
+        // Source extents and exact-handle deduplication remain borrowed. No
+        // schema preparation or canonical name normalization has run yet.
+        for (position, request) in requests.iter().enumerate() {
+            let script = self
+                .catalogue
+                .get_handle(request.definition)
+                .ok_or(Error::DefinitionChanged)?;
             // Physical declarations conservatively bound every staged local,
             // even if duplicate declarations collapse to one canonical entry.
             add_charge(
@@ -316,6 +314,19 @@ impl World<'_> {
         }
         if usage.copied_bytes > limits.max_copied_bytes {
             return Err(Error::Capacity("instance initialization copied bytes"));
+        }
+        for (position, request) in requests.iter().enumerate() {
+            self.validate_owner(request.owner)?;
+            self.validate_context(request.context)?;
+            if self.owners.contains_key(request.owner)
+                || requests[..position]
+                    .iter()
+                    .any(|old| old.owner == request.owner)
+            {
+                return Err(Error::Invalid(
+                    "owner already has a live or grouped script instance".into(),
+                ));
+            }
         }
         let mut schemas: Vec<(&Handle, Arc<DefinitionSchema>)> =
             Vec::with_capacity(usage.unique_definitions);

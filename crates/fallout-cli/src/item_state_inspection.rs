@@ -5,7 +5,8 @@ use fallout_runtime::{
     Limits, World,
     identity::{CampaignId, ReferenceId},
     inventory::{
-        Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, TransferLimits, ViewLimits,
+        Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, Page, PageLimits,
+        PageRequest, TransferLimits, ViewLimits,
     },
     save::{Captured, Recovery, Repository},
 };
@@ -44,6 +45,81 @@ fn views(world: &World<'_>, owners: &[ReferenceId]) -> Result<Vec<InventoryView>
         observations.push(view);
     }
     Ok(observations)
+}
+/// Actual bounded page consumer; the engineering view is only an independent
+/// equality check, not the implementation used to discover each next lot.
+fn pages(world: &World<'_>, owners: &[ReferenceId]) -> Result<Vec<Vec<Page>>> {
+    let mut remaining = PageLimits {
+        max_visited: 65_536,
+        max_rows: 1,
+        max_links: 1_000_000,
+        max_extra_bytes: 16 * 1024 * 1024,
+        max_copied_bytes: 32 * 1024 * 1024,
+    };
+    let mut page_count = 0_usize;
+    let mut observations = Vec::new();
+    for &owner in owners {
+        let mut owner_pages = Vec::new();
+        let mut after = None;
+        loop {
+            if page_count >= 65_536 {
+                return Err("Inventory page consumer page bound".into());
+            }
+            let page = world.inventory_page(
+                PageRequest {
+                    owner,
+                    after: after.as_ref(),
+                    rows: 1,
+                },
+                remaining,
+            )?;
+            page_count += 1;
+            let usage = page.usage();
+            remaining.max_visited -= usage.visited;
+            remaining.max_links -= usage.links;
+            remaining.max_extra_bytes -= usage.extra_bytes;
+            remaining.max_copied_bytes -= usage.copied_bytes;
+            after = page.next_cursor().cloned();
+            owner_pages.push(page);
+            if after.is_none() {
+                break;
+            }
+        }
+        observations.push(owner_pages);
+    }
+    Ok(observations)
+}
+fn verify_pages(pages: &[Vec<Page>], views: &[InventoryView]) -> Result<()> {
+    if pages.len() != views.len() {
+        return Err("Inventory page owners differ".into());
+    }
+    for (owner_pages, view) in pages.iter().zip(views) {
+        let mut items = Vec::new();
+        let mut initialized = None;
+        for page in owner_pages {
+            if page.campaign() != view.campaign()
+                || page.catalogue_fingerprint() != view.catalogue_fingerprint()
+                || page.revision() != view.revision()
+                || page.boundary() != view.boundary()
+                || page.owner() != view.owner()
+                || page.authored() != view.authored()
+            {
+                return Err("Inventory page binding differs".into());
+            }
+            let known = page.items().is_some();
+            if initialized.is_some_and(|prior| prior != known) {
+                return Err("Inventory page initialization changed".into());
+            }
+            initialized = Some(known);
+            items.extend(page.items().unwrap_or_default().iter());
+        }
+        if initialized != Some(view.items().is_some())
+            || items != view.items().unwrap_or_default().iter().collect::<Vec<_>>()
+        {
+            return Err("Inventory pages differ from exact canonical lots".into());
+        }
+    }
+    Ok(())
 }
 pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -> Result<Value> {
     eprintln!("Item state: reading original script and inventory identities...");
@@ -191,10 +267,14 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     }
     let expected_traces = traces(&engineering.world, &[a, b], &keys)?;
     let expected_views = views(&engineering.world, &[a, b, absent])?;
+    let expected_pages = pages(&engineering.world, &[a, b, absent])?;
+    verify_pages(&expected_pages, &expected_views)?;
     let restored = World::restore(&scripts, expected.clone(), Limits::default())?;
     if restored.snapshot() != expected
         || traces(&restored, &[a, b], &keys)? != expected_traces
         || views(&restored, &[a, b, absent])? != expected_views
+        || serde_json::to_value(pages(&restored, &[a, b, absent])?)?
+            != serde_json::to_value(&expected_pages)?
     {
         return Err("Canonical item restoration differs".into());
     }
@@ -217,6 +297,8 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     if loaded.snapshot() != expected
         || traces(&loaded, &[a, b], &keys)? != expected_traces
         || views(&loaded, &[a, b, absent])? != expected_views
+        || serde_json::to_value(pages(&loaded, &[a, b, absent])?)?
+            != serde_json::to_value(&expected_pages)?
     {
         return Err("Owned native item capture differs".into());
     }
@@ -228,6 +310,7 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         "item_instances":expected.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":expected.inventory_banks.len(),"script_instances":expected.instances.len(),
         "query_traces":expected_traces,"snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"state_schema":expected.schema_version,
         "inventory_views":expected_views,"all_inventory_views_equal_after_restore":true,
+        "inventory_pages":expected_pages,"all_inventory_pages_equal_after_restore":true,
         "atomic_inventory_transfer":atomic_transfer,"atomic_inventory_transfer_invalid_last_preserved_state":true,
         "atomic_inventory_transfer_totals_and_facts_conserved":true,"native_before_write":native_before_write,
         "canonical_state_round_trip_equal":true,"all_query_traces_equal_after_restore":true,"rejected_mutations_preserved_state":true,"uninitialized_inventory_rejected":true,"worker_capture_isolated":true,
@@ -252,9 +335,12 @@ pub(super) fn cold(
     let (world, receipt) = repository.load(&scripts, Limits::default(), Recovery::Strict)?;
     let snapshot = world.snapshot();
     let bytes = snapshot.encode(Limits::default().max_snapshot_bytes)?;
+    let observations = views(&world, owners)?;
+    let paged = pages(&world, owners)?;
+    verify_pages(&paged, &observations)?;
     Ok(
         json!({"schema_version":1,"receipt":receipt,"query_traces":traces(&world,owners,keys)?,"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),"snapshot_bytes":bytes.len(),
-        "inventory_views":views(&world,owners)?,
+        "inventory_views":observations,"inventory_pages":paged,"all_inventory_pages_equal":true,
         "item_instances":snapshot.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":snapshot.inventory_banks.len(),"state_schema":snapshot.schema_version,"source_bound_restore":true,"retail_parity_accepted":false}),
     )
 }

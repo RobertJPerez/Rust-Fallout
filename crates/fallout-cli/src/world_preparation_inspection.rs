@@ -759,11 +759,11 @@ mod tests {
         .unwrap();
         assert!(matches!(
             args.command,
-            crate::Command::GridResidencySources {
+            crate::Command::World(crate::WorldCommand::GridResidencySources {
                 grid_x: i32::MIN,
                 grid_y: i32::MAX,
                 ..
-            }
+            })
         ));
         assert!(
             crate::Args::try_parse_from([

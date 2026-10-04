@@ -1,3 +1,4 @@
+use crate::actor_inspection;
 use clap::Subcommand;
 use fallout_data::identity;
 use std::path::PathBuf;

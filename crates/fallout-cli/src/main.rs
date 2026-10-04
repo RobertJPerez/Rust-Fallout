@@ -1224,7 +1224,7 @@ fn run_scripts(command: ScriptsCommand, output: Option<&Path>) -> Result<()> {
                 engineering_query_input.as_deref(),
                 engineering_query_batch.as_deref(),
             )?;
-            emit(&report, args.output.as_deref(), &protected_tree(&install)?)?;
+            emit(&report, output, &protected_tree(&install)?)?;
             if engineering_query_batch.is_some()
                 && report["engineering_batch"]["engineering"]
                     .as_array()

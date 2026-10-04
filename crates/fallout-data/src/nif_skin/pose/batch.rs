@@ -1,4 +1,6 @@
 //! Sealed owned source preparation and atomic multi-geometry evaluation.
+mod table;
+
 use super::{Budget, DecodedView, Evaluation, Limits, Request, SourceHash, binding};
 use crate::{Result, nif, nif_scene};
 use serde::Serialize;

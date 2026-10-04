@@ -479,6 +479,167 @@ pub fn inspect_influences(input: &Path, request_path: &Path) -> Result<Influence
     })
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum PreparedInfluenceWeightPolicy {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl PreparedInfluenceWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedInfluencesRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    geometry: u32,
+    weight_policies: Vec<PreparedInfluenceWeightPolicy>,
+}
+#[derive(Serialize)]
+struct PreparedInfluencesReuse {
+    initial_binding_decodes: usize,
+    initial_scene_decodes: usize,
+    initial_source_hash_byte_visits: usize,
+    initial_csr_constructions: usize,
+    binding_decodes_per_evaluation: usize,
+    scene_decodes_per_evaluation: usize,
+    source_hash_byte_visits_per_evaluation: usize,
+    csr_constructions_per_evaluation: usize,
+}
+#[derive(Serialize)]
+struct PreparedInfluencesEvaluation {
+    preparation: nif_skin::pose::PreparationUsage,
+    table: nif_skin::influences::Table,
+    poses: Vec<nif_skin::pose::Evaluation>,
+    reuse: PreparedInfluencesReuse,
+    /// Conservative sum of each call's live-source/table/output admission.
+    retained_bytes: usize,
+    work_units: usize,
+    retail_behavior_verified: bool,
+}
+#[derive(Serialize)]
+pub struct PreparedInfluencesReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    request: PreparedInfluencesRequest,
+    evaluation: Option<PreparedInfluencesEvaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_prepared_influences(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PreparedInfluencesReport> {
+    let request: PreparedInfluencesRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("prepared influences request requires schema1".into());
+    }
+    if request.weight_policies.is_empty() || request.weight_policies.len() > 64 {
+        return Err("prepared influences requires 1..64 explicit weight policies".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let prepared = nif_skin::pose::PreparedSkinSource::prepare(&bytes, &source, Default::default());
+    let sha256 = match &prepared {
+        Ok(value) => value.source_sha256().to_owned(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    let evaluated = (|| -> fallout_data::Result<PreparedInfluencesEvaluation> {
+        let prepared = prepared?;
+        let table =
+            nif_skin::influences::prepare(&bytes, &source, request.geometry, Default::default())?;
+        let preparation = prepared.usage();
+        let table_source_hash_byte_visits = bytes.len();
+        // Both sealed producers own their data. Evaluations cannot see or hash
+        // the input buffer; two independent initial preparations remain explicit.
+        drop(bytes);
+        let mut retained_bytes = std::mem::size_of::<PreparedInfluencesEvaluation>()
+            + request.weight_policies.len() * std::mem::size_of::<nif_skin::pose::Evaluation>();
+        let mut work_units = preparation
+            .work_units
+            .checked_add(table.usage().work_units)
+            .and_then(|n| n.checked_add(table_source_hash_byte_visits))
+            .ok_or_else(|| {
+                fallout_data::Error::Unsupported("prepared influences work sum overflow".into())
+            })?;
+        let mut poses = Vec::with_capacity(request.weight_policies.len());
+        for weights in &request.weight_policies {
+            let remaining_bytes = (128usize * 1024 * 1024)
+                .checked_sub(retained_bytes)
+                .ok_or_else(|| {
+                    fallout_data::Error::Unsupported(
+                        "prepared influences aggregate storage exceeded".into(),
+                    )
+                })?;
+            let remaining_work = 128_000_000usize.checked_sub(work_units).ok_or_else(|| {
+                fallout_data::Error::Unsupported(
+                    "prepared influences aggregate work exceeded".into(),
+                )
+            })?;
+            let limits = nif_skin::pose::GeometryLimits::default();
+            let pose = prepared.evaluate_table(
+                request.expected_sha256,
+                nif_skin::pose::Request {
+                    geometry: request.geometry,
+                    weights: weights.policy(),
+                },
+                &table,
+                nif_skin::pose::GeometryLimits {
+                    array_bytes: limits.array_bytes.min(remaining_bytes),
+                    work_units: limits.work_units.min(remaining_work),
+                    ancestry_depth: limits.ancestry_depth,
+                },
+            )?;
+            retained_bytes += pose.retained_bytes;
+            work_units += pose.work_units;
+            poses.push(pose);
+        }
+        Ok(PreparedInfluencesEvaluation {
+            preparation,
+            table,
+            poses,
+            reuse: PreparedInfluencesReuse {
+                initial_binding_decodes: 2,
+                initial_scene_decodes: 2,
+                initial_source_hash_byte_visits: preparation.source_bytes * 2,
+                initial_csr_constructions: 1,
+                binding_decodes_per_evaluation: 0,
+                scene_decodes_per_evaluation: 0,
+                source_hash_byte_visits_per_evaluation: 0,
+                csr_constructions_per_evaluation: 0,
+            },
+            retained_bytes,
+            work_units,
+            retail_behavior_verified: false,
+        })
+    })();
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PreparedInfluencesReport {
+        schema_version: 1,
+        contract: "engineering-prepared-source-influence-skin-v1",
+        input: input.into(),
+        sha256,
+        request,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PartitionStreamsRequest {

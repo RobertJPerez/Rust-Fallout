@@ -86,6 +86,10 @@ impl Table {
         self.usage
     }
 
+    pub(super) fn matches_source(&self, digest: &[u8; 32]) -> bool {
+        &self.source_digest == digest
+    }
+
     /// Reuse only this source/geometry. Palette construction and source checks
     /// remain the existing private pose pipeline; CSR supplies its influences.
     pub fn evaluate(

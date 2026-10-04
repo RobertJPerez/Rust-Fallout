@@ -2298,6 +2298,360 @@ fn influence_fixture() -> Vec<(&'static str, Vec<u8>)> {
     blocks
 }
 
+#[test]
+fn prepared_influence_bridge_owns_source_and_preserves_all_raw_entries_and_observations() {
+    use fallout_data::nif_skin::influences;
+    let mut bytes = container(&influence_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let source = pose::PreparedSkinSource::prepare(&bytes, "sealed", Default::default()).unwrap();
+    let table = influences::prepare(&bytes, "sealed", 3, Default::default()).unwrap();
+    let raw = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let cold = table
+        .evaluate(&bytes, "sealed", raw, Default::default())
+        .unwrap();
+    let preparation_before = serde_json::to_value(source.usage()).unwrap();
+    let table_before = serde_json::to_value(&table).unwrap();
+    bytes.fill(0xff);
+    drop(bytes);
+    let prepared = source
+        .evaluate_table(digest, raw, &table, Default::default())
+        .unwrap();
+    assert_eq!(
+        prepared.positions,
+        [[-2.625, 2.5, 2.625], [0., -0.5, 1.], [-3.5, 0.75, 0.5]]
+    );
+    assert_eq!(
+        prepared.normals,
+        [[0., 0.875, 0.], [0., 0.5, 0.], [0., 0.5, 0.]]
+    );
+    assert_eq!(prepared.weight_sums, [1.75, 1., 1.]);
+    assert_eq!(
+        prepared
+            .positions
+            .iter()
+            .chain(&prepared.normals)
+            .flatten()
+            .map(|v| v.to_bits())
+            .collect::<Vec<_>>(),
+        cold.positions
+            .iter()
+            .chain(&cold.normals)
+            .flatten()
+            .map(|v| v.to_bits())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(table.vertex_offsets(), [0, 7, 8, 10]);
+    assert_eq!(table.entries()[2].weight_bits, 0x8000_0000);
+    assert_eq!(table.entries()[5].weight_bits, 0);
+    assert_eq!(table.entries()[6].bone_ordinal, 1);
+    assert_eq!(table.entries()[6].source_weight_ordinal, 0);
+    let mut cold_observations = serde_json::to_value(cold).unwrap();
+    let mut reused_observations = serde_json::to_value(&prepared).unwrap();
+    for field in ["retained_bytes", "work_units"] {
+        cold_observations.as_object_mut().unwrap().remove(field);
+        reused_observations.as_object_mut().unwrap().remove(field);
+    }
+    assert_eq!(cold_observations, reused_observations);
+    for _ in 0..3 {
+        let repeated = source
+            .evaluate_table(digest, raw, &table, Default::default())
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(repeated).unwrap(),
+            serde_json::to_value(&prepared).unwrap()
+        );
+    }
+    assert_eq!(
+        serde_json::to_value(source.usage()).unwrap(),
+        preparation_before
+    );
+    assert_eq!(serde_json::to_value(&table).unwrap(), table_before);
+    assert_eq!(source.usage().binding_decodes, 1);
+    assert_eq!(source.usage().scene_decodes, 1);
+    assert!(!prepared.retail_behavior_verified);
+}
+
+#[test]
+fn prepared_influence_bridge_refuses_foreign_source_geometry_and_policy_without_mutation() {
+    use fallout_data::nif_skin::influences;
+    let blocks = influence_fixture();
+    let bytes = container(&blocks, &[0]);
+    let digest = source_digest(&bytes);
+    let source = pose::PreparedSkinSource::prepare(&bytes, "sealed", Default::default()).unwrap();
+    let table = influences::prepare(&bytes, "sealed", 3, Default::default()).unwrap();
+    let raw = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let first = source
+        .evaluate_table(digest, raw, &table, Default::default())
+        .unwrap();
+    let mut changed = blocks;
+    changed[2].1 = node(R90, [0., 7., 0.], 2., &[]);
+    let foreign = influences::prepare(
+        &container(&changed, &[0]),
+        "same block IDs",
+        3,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(foreign.geometry(), table.geometry());
+    assert_eq!(foreign.instance(), table.instance());
+    assert!(
+        source
+            .evaluate_table(digest, raw, &foreign, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("table source SHA256 differs")
+    );
+    let mut altered_digest = digest;
+    altered_digest[31] ^= 1;
+    assert!(
+        source
+            .evaluate_table(altered_digest, raw, &table, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("prepared table source SHA256 differs")
+    );
+    assert!(
+        source
+            .evaluate_table(
+                digest,
+                Request { geometry: 2, ..raw },
+                &table,
+                Default::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("table geometry differs")
+    );
+    assert!(
+        source
+            .evaluate_table(digest, request(), &table, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("raw weight sum 1.75")
+    );
+    for absolute_tolerance in [-1., 1.01, f64::INFINITY, f64::NAN] {
+        assert!(
+            source
+                .evaluate_table(
+                    digest,
+                    Request {
+                        weights: WeightPolicy::RequireUnitSum { absolute_tolerance },
+                        ..raw
+                    },
+                    &table,
+                    Default::default()
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("tolerance must be finite")
+        );
+    }
+    let valid = source
+        .evaluate_table(
+            digest,
+            Request {
+                weights: WeightPolicy::RequireUnitSum {
+                    absolute_tolerance: 0.75,
+                },
+                ..raw
+            },
+            &table,
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(valid.positions, first.positions);
+    assert_eq!(valid.normals, first.normals);
+    assert_eq!(valid.weight_sums, first.weight_sums);
+    assert_eq!(
+        serde_json::to_value(
+            source
+                .evaluate_table(digest, raw, &table, Default::default())
+                .unwrap()
+        )
+        .unwrap(),
+        serde_json::to_value(first).unwrap()
+    );
+}
+
+#[test]
+fn prepared_influence_bridge_admits_concurrent_live_source_table_output_and_exact_work_depth() {
+    use fallout_data::nif_skin::influences;
+    let bytes = container(&influence_fixture(), &[0]);
+    let digest = source_digest(&bytes);
+    let source = pose::PreparedSkinSource::prepare(&bytes, "bounded", Default::default()).unwrap();
+    let table = influences::prepare(&bytes, "bounded", 3, Default::default()).unwrap();
+    let raw = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let evaluated = source
+        .evaluate_table(digest, raw, &table, Default::default())
+        .unwrap();
+    let cold = table
+        .evaluate(&bytes, "bounded", raw, Default::default())
+        .unwrap();
+    assert!(
+        evaluated.retained_bytes
+            > source.usage().retained_bytes
+                + source.usage().source_binding_retained_bytes
+                + table.usage().output_bytes
+                + cold.retained_bytes
+    );
+    let exact = pose::GeometryLimits {
+        array_bytes: evaluated.retained_bytes,
+        work_units: evaluated.work_units,
+        ancestry_depth: 2,
+    };
+    source.evaluate_table(digest, raw, &table, exact).unwrap();
+    for (short, reason) in [
+        (
+            pose::GeometryLimits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            pose::GeometryLimits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            pose::GeometryLimits {
+                ancestry_depth: 1,
+                ..exact
+            },
+            "ancestry depth budget",
+        ),
+        (
+            pose::GeometryLimits {
+                array_bytes: table.usage().output_bytes + cold.retained_bytes,
+                ..exact
+            },
+            "array storage budget",
+        ),
+    ] {
+        assert!(
+            source
+                .evaluate_table(digest, raw, &table, short)
+                .unwrap_err()
+                .to_string()
+                .contains(reason),
+            "{reason}"
+        );
+    }
+    assert_eq!(
+        serde_json::to_value(source.evaluate_table(digest, raw, &table, exact).unwrap()).unwrap(),
+        serde_json::to_value(evaluated).unwrap()
+    );
+}
+
+#[test]
+fn prepared_influence_bridge_counts_unused_index_strings_and_material_texture_payloads() {
+    use fallout_data::nif_skin::influences;
+    let blocks = influence_fixture();
+    let raw = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let evaluate = |bytes: &[u8], limits| {
+        let source =
+            pose::PreparedSkinSource::prepare(bytes, "large retained source", Default::default())
+                .unwrap();
+        let table =
+            influences::prepare(bytes, "large retained source", 3, Default::default()).unwrap();
+        source.evaluate_table(source_digest(bytes), raw, &table, limits)
+    };
+    let first = evaluate(&container(&blocks, &[0]), Default::default()).unwrap();
+    let unused_name = vec![b'x'; 65_536];
+    let named_bytes = named_container(&blocks, &[0], &[&unused_name]);
+    let named = evaluate(&named_bytes, Default::default()).unwrap();
+    assert_eq!(named.positions, first.positions);
+    assert_eq!(named.normals, first.normals);
+    assert_eq!(
+        named.retained_bytes - first.retained_bytes,
+        65_536 + std::mem::size_of::<Vec<u8>>()
+    );
+    assert_eq!(named.work_units - first.work_units, 1);
+    assert!(
+        evaluate(
+            &named_bytes,
+            pose::GeometryLimits {
+                array_bytes: named.retained_bytes - 1,
+                ..Default::default()
+            }
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("array storage budget")
+    );
+    let mut with_material = blocks;
+    let mut texture_set = Vec::new();
+    words(&mut texture_set, &[32]);
+    for _ in 0..32 {
+        words(&mut texture_set, &[4096]);
+        texture_set.extend(std::iter::repeat_n(b'x', 4096));
+    }
+    with_material.push(("BSShaderTextureSet", texture_set));
+    let textured_bytes = container(&with_material, &[0]);
+    let textured = evaluate(&textured_bytes, Default::default()).unwrap();
+    assert_eq!(textured.positions, first.positions);
+    assert_eq!(textured.normals, first.normals);
+    // Decoded texture-set bytes and resolved raw/asset paths coexist in Scene.
+    assert!(textured.retained_bytes - first.retained_bytes >= 3 * 131_072);
+    assert!(
+        evaluate(
+            &textured_bytes,
+            pose::GeometryLimits {
+                array_bytes: first.retained_bytes + 131_072,
+                ..Default::default()
+            }
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("array storage budget")
+    );
+    assert!(textured.work_units - first.work_units < 300);
+}
+
+#[test]
+fn prepared_influence_bridge_preserves_absent_normals_and_selected_controller_observations() {
+    use fallout_data::nif_skin::influences;
+    let mut blocks = influence_fixture();
+    blocks[6].1[47] = 0;
+    blocks[6].1.drain(48..84);
+    blocks[1].1[8..12].copy_from_slice(&7u32.to_le_bytes());
+    blocks.push(("UnimplementedController", vec![]));
+    let bytes = container(&blocks, &[0]);
+    let source =
+        pose::PreparedSkinSource::prepare(&bytes, "stored source", Default::default()).unwrap();
+    let table = influences::prepare(&bytes, "stored source", 3, Default::default()).unwrap();
+    let raw = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let first = source
+        .evaluate_table(source_digest(&bytes), raw, &table, Default::default())
+        .unwrap();
+    let cold = table
+        .evaluate(&bytes, "stored source", raw, Default::default())
+        .unwrap();
+    assert!(first.normals.is_empty());
+    assert_eq!(first.positions, cold.positions);
+    assert_eq!(
+        serde_json::to_value(first.unapplied_controllers).unwrap(),
+        serde_json::to_value(cold.unapplied_controllers).unwrap()
+    );
+}
+
 fn named_container(blocks: &[(&str, Vec<u8>)], roots: &[u32], strings: &[&[u8]]) -> Vec<u8> {
     // Same authored container layout, with an explicit physical string table.
     let mut out = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();

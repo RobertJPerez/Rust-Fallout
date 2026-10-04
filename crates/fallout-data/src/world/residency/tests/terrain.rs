@@ -438,3 +438,95 @@ fn owner_drop_closes_a_retained_terrain_lease() {
     assert!(lease.texture(0).is_err());
     assert!(lease.receipt().is_err());
 }
+
+#[test]
+fn cancellation_of_both_pending_texture_batches_drains_shared_sidecars_before_retry() {
+    for after_extract in [false, true] {
+        for replace in [false, true] {
+            let (fixture, models, terrain, mounts, nif_bytes) = setup(3, 2, false);
+            let mut owner = owner(&fixture, 1, nif_bytes + 70);
+            let old = owner.request(models.clone()).unwrap();
+            decoded(&mut owner);
+            let textures =
+                TexturePlan::load(owner.sources(&old).unwrap(), &mounts, Default::default())
+                    .unwrap();
+            owner.request_textures(&old, textures).unwrap();
+            owner.request_terrain(&old, terrain.clone()).unwrap();
+            let cached_models = fs::read_dir(fixture.cache.path()).unwrap().count();
+            let pause = Pause::new(after_extract);
+            owner.pause = Some(pause.clone());
+            let _release = Release(pause.clone());
+            assert_eq!(owner.poll().unwrap().outstanding, 4);
+            pause.reached();
+            let pending = owner.poll().unwrap();
+            assert_eq!(pending.outstanding, 6);
+            assert_eq!(pending.texture_state, TextureState::IoPending);
+            assert_eq!(pending.terrain_state, TerrainState::IoPending);
+            assert_eq!(pending.pinned_source_bytes, nif_bytes + 70);
+            let fresh = if replace {
+                Some(owner.request(models.clone()).unwrap())
+            } else {
+                owner.unload().unwrap();
+                None
+            };
+            assert!(old.check().is_err());
+            assert!(owner.texture_sources(&old).is_err());
+            assert!(owner.terrain_sources(&old).is_err());
+            assert!(owner.request_terrain(&old, terrain.clone()).is_err());
+            pause.release();
+            pause.completed();
+            owner.pause = None;
+            let fresh = match fresh {
+                Some(ticket) => {
+                    decoded(&mut owner);
+                    let deadline = Instant::now() + Duration::from_secs(10);
+                    while owner.poll().unwrap().retained_plans != 1
+                        || owner.snapshot().outstanding != 1
+                    {
+                        assert!(
+                            Instant::now() < deadline,
+                            "retired shared batches did not drain"
+                        );
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                    assert_eq!(owner.snapshot().pinned_source_bytes, nif_bytes);
+                    ticket
+                }
+                None => {
+                    drained(&mut owner);
+                    assert_eq!(owner.poll().unwrap().stage, Stage::Unrequested);
+                    assert_eq!(owner.snapshot().plan_metadata_bytes, 0);
+                    assert_eq!(owner.snapshot().mapped_source_bytes, 0);
+                    let ticket = owner.request(models).unwrap();
+                    decoded(&mut owner);
+                    ticket
+                }
+            };
+            assert_ne!(fresh.generation(), old.generation());
+            // Neither the running member nor either queued batch published a
+            // cache artifact after revocation; the fresh model reuses its pin.
+            assert_eq!(
+                fs::read_dir(fixture.cache.path()).unwrap().count(),
+                cached_models
+            );
+            let textures =
+                TexturePlan::load(owner.sources(&fresh).unwrap(), &mounts, Default::default())
+                    .unwrap();
+            owner.request_textures(&fresh, textures).unwrap();
+            owner.request_terrain(&fresh, terrain).unwrap();
+            terrain_decoded(&mut owner);
+            super::textures::textures_decoded(&mut owner);
+            assert_eq!(owner.snapshot().outstanding, 6);
+            assert_eq!(owner.snapshot().pinned_source_bytes, nif_bytes + 70);
+            assert_eq!(
+                owner.texture_sources(&fresh).unwrap().texture(0).unwrap(),
+                b"terrain source"
+            );
+            assert_eq!(
+                owner.terrain_sources(&fresh).unwrap().texture(0).unwrap(),
+                b"terrain source"
+            );
+            assert!(!owner.snapshot().simulation_ready);
+        }
+    }
+}

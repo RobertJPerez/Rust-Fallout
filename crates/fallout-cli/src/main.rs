@@ -98,6 +98,8 @@ enum Command {
         oracle_report: Option<PathBuf>,
         #[arg(long)]
         include_keyframes: bool,
+        #[arg(long)]
+        include_splines: bool,
     },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
     NifSkin {
@@ -1462,11 +1464,13 @@ fn run(args: Args) -> Result<()> {
             input,
             oracle_report,
             include_keyframes,
+            include_splines,
         } => {
             let report = nif_animation_inspection::inspect(
                 &input,
                 oracle_report.as_deref(),
                 include_keyframes,
+                include_splines,
             )?;
             emit(&report, output, &input)?;
             if report.failures != 0 {

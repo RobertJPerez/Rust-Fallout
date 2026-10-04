@@ -302,3 +302,75 @@ can run the independent comparison without rebuilding them:
 ```powershell
 py -3 tools/nif-animation-oracle/check_keyframes.py --output-dir local/new-key-source-comparison --binary local/asset-05a-teamv2-20261003-01/binaries/fallout-asset05a.exe --oracle local/asset-05a-teamv2-20261003-01/binaries/nif-animation-oracle-asset05a.exe
 ```
+
+## Compact-transform/B-spline source catalogue (ASSET-05B)
+
+The optional `nif_animation::spline` entrypoint reuses the keyframe decoder and
+one immutable container index. Its exact source scope for the admitted NV tuples
+is `NiBSplineCompTransformInterpolator`, `NiBSplineData` and `NiBSplineBasisData`.
+The first payload is 84 bytes under the pinned inherited layout: start/stop,
+data/basis links, translation, WXYZ quaternion, scale, three raw u32 handles,
+then six float offset/half-range fields. The data block retains ordered f32 bits
+and signed i16 compact values with both source counts. The basis count remains
+a raw u32 even for zero or extreme values.
+
+Finite sentinels, inverted time ranges, zero/nonunit quaternions, all handle bits
+and -32768 compact values are preserved. No valid channel range, sentinel
+interpretation, normalization, decompression or usable cubic basis is inferred.
+Null links remain absent; unknown target classes produce ordered dependencies.
+Known wrong data/basis classes and out-of-range references fail contextually.
+Only fully decoded compact-transform interpolator dependencies retire after all
+selected payloads and links validate. Compact float/point3 and uncompressed
+transform interpolators remain unadmitted payloads. Schema1/2 keep B-spline
+payloads opaque.
+
+Spline limits add 128 MiB logical storage and 16 million work units, with one
+unit per selected block and stored primitive, including both array counts.
+Block work precedes catalogue allocation; complete array count/span/storage/work
+admission precedes each control-point vector allocation. The embedded keyframe
+combined cap covers index, animation, keys and splines together, including the
+existing index scratch admission. Logical charges include retained vector
+capacity and owned type/hash strings; allocator overhead is count-bounded rather
+than measured. A returned `work_units` receipt describes successful source work.
+
+`fallout nif-animation INPUT --include-splines [--oracle-report REPORT]` selects
+schema3, includes keyframes and emits branch `nv-compact-transform-source`.
+The independent oracle accepts the same flag. Its raw scan checks counts,
+primitive words, links, spans, storage and work before pinned factory allocation.
+It uses the pinned XML class-name vocabulary to distinguish unknown targets from
+known wrong types. The inspector requires `raw_spline_counts_checked: true` and
+exact branch/schema/provenance, and compares each array element without cloning
+a complete second catalogue. Combined report retention and separate key/spline
+work budgets cover the entire batch; failed decoding exhausts the remaining
+work allowances conservatively. Every runtime-readiness flag remains false.
+
+Private development evidence belongs under
+`local/asset-05b-teamv2-20261003-01`, with a separate native build directory
+`local/nif-animation-oracle-build-05b-teamv2`. No earlier draft, input, frozen
+binary or verification directory is overwritten. Source matching remains
+distinct from evaluated poses and verified retail animation behavior.
+
+The frozen development comparison in `comparison-01/summary.json` verifies 96
+authored files across twelve admitted streams against both readers and the
+independent authored expectations. Twenty-two altered reports and fourteen
+malformed inputs fail for the intended reasons, including known wrong data/basis
+types. Malformed spline payloads remain opaque in both earlier schemas.
+The same 70 preserved original files contain 678 compact-transform interpolators,
+31 control-point blocks and 32 basis blocks, with 154,885 compact values and no
+float control values. Float arrays are verified in the authored scope. All 741
+admitted spline block identities/spans/hashes and source fields compare exactly;
+the 1,499 original key blocks still match. Original spline work is 169,958 units
+and logical retained storage is 475,754 bytes. Remaining dependencies total
+4,087, diagnostics zero and runtime readiness false.
+
+Nine new decoder tests and the existing 27 animation/key tests pass. All 17 CLI
+tests pass, including two new multi-file work/comparison tests. Data/CLI
+all-target Clippy with warnings denied, formatting, pinned class metadata and
+diff checks pass. Schema1/2 authored projections are unchanged, the original
+schema2 native report matches its frozen ASSET-05A oracle except actual executable
+digest, and the Rust schema1/2 original reports are byte-exact with identical
+arguments and their frozen oracles. The first decoder run retained one failed
+assertion caused
+by a misquoted existing tuple-error message; the corrected run passes without
+changing source behavior. None of this establishes B-spline evaluation, poses,
+rendering or retail animation playback.

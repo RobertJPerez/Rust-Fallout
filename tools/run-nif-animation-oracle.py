@@ -12,11 +12,14 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--binary", type=Path, default=Path("local/nif-animation-oracle-build/Release/nif-animation-oracle.exe"))
     parser.add_argument("--include-keyframes", action="store_true")
+    parser.add_argument("--include-splines", action="store_true")
     args = parser.parse_args()
     before = hashlib.sha256(args.binary.read_bytes()).hexdigest()
     with args.output.open("xb") as output:
         command = [str(args.binary.resolve()), str(args.input.resolve())]
-        if args.include_keyframes:
+        if args.include_splines:
+            command.append("--include-splines")
+        elif args.include_keyframes:
             command.append("--include-keyframes")
         result = subprocess.run(command, stdout=output, check=False)
     after = hashlib.sha256(args.binary.read_bytes()).hexdigest()

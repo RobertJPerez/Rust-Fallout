@@ -31,6 +31,11 @@ def main():
     actual_pairs = [(name, int(mask)) for name, mask in re.findall(r'\("([^"]+)", (\d+)\),', path.read_text())]
     if actual_pairs != sorted(expected.items()) or len(expected) != 555:
         raise AssertionError("Rust class names/order/inheritance masks differ from pinned metadata")
+    native = Path(__file__).resolve().parent / "spline_classes.hpp"
+    if native.exists():
+        names = re.findall(r'^    "([^"]+)",$', native.read_text(), re.MULTILINE)
+        if names != sorted(classes):
+            raise AssertionError("Native spline target class names/order differ from pinned metadata")
     print("555 exact metadata-only class facts; no payload parser/evaluation support inferred")
 
 

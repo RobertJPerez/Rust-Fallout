@@ -2,7 +2,7 @@
 use crate::Result;
 use fallout_data::{
     baseline,
-    nif_animation::{self, Animation, Limits, keyframe},
+    nif_animation::{self, Animation, Limits, keyframe, spline},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -24,6 +24,8 @@ pub struct FileReport {
     animation: Option<Animation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     keys: Option<keyframe::Catalogue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    splines: Option<spline::Catalogue>,
     error: Option<String>,
     comparison: Option<&'static str>,
 }
@@ -33,6 +35,8 @@ pub struct Report {
     animation_branch: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     keyframe_branch: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    spline_branch: Option<&'static str>,
     float_encoding: &'static str,
     string_encoding: &'static str,
     input: PathBuf,
@@ -92,6 +96,11 @@ fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
         && !compare_keys(&keys.blocks, &expected["keys"])?
     {
         return Err("oracle transform-key block identity/span/hash or source fields differ".into());
+    }
+    if let Some(splines) = &actual.splines
+        && !compare_splines(&splines.blocks, &expected["splines"])?
+    {
+        return Err("oracle spline-source block identity/span/hash or source fields differ".into());
     }
     Ok(())
 }
@@ -186,23 +195,93 @@ fn compare_keys(blocks: &[keyframe::Block], expected: &Value) -> Result<bool> {
     Ok(true)
 }
 
+fn compare_splines(blocks: &[spline::Block], expected: &Value) -> Result<bool> {
+    let Some(expected) = expected.as_array() else {
+        return Ok(false);
+    };
+    if blocks.len() != expected.len() {
+        return Ok(false);
+    }
+    for (block, row) in blocks.iter().zip(expected) {
+        if !exact_object(row, 6)
+            || row["block"].as_u64() != Some(u64::from(block.block))
+            || row["block_type"].as_str() != Some(block.block_type)
+            || row["offset"].as_u64() != Some(block.offset as u64)
+            || row["bytes"].as_u64() != Some(block.bytes as u64)
+            || row["sha256"].as_str() != Some(block.sha256.as_str())
+        {
+            return Ok(false);
+        }
+        let equal = match &block.data {
+            spline::Data::ControlPoints {
+                declared_float_count,
+                float_bits,
+                declared_compact_count,
+                compact,
+            } => {
+                exact_object(&row["data"], 5)
+                    && row["data"]["kind"] == "control_points"
+                    && row["data"]["declared_float_count"].as_u64()
+                        == Some(u64::from(*declared_float_count))
+                    && row["data"]["declared_compact_count"].as_u64()
+                        == Some(u64::from(*declared_compact_count))
+                    && compare_key_array(float_bits, &row["data"]["float_bits"])?
+                    && compare_key_array(compact, &row["data"]["compact"])?
+            }
+            // Both alternatives are bounded fixed-size scalar products.
+            _ => serde_json::to_value(&block.data)? == row["data"],
+        };
+        if !equal {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 pub fn inspect(
     input: &Path,
     oracle_path: Option<&Path>,
     include_keyframes: bool,
+    include_splines: bool,
 ) -> Result<Report> {
-    inspect_with_key_work(input, oracle_path, include_keyframes, 16_000_000)
+    inspect_with_work(
+        input,
+        oracle_path,
+        include_keyframes,
+        include_splines,
+        16_000_000,
+        16_000_000,
+    )
 }
+#[cfg(test)]
 fn inspect_with_key_work(
     input: &Path,
     oracle_path: Option<&Path>,
     include_keyframes: bool,
-    mut key_work: usize,
+    key_work: usize,
 ) -> Result<Report> {
+    inspect_with_work(input, oracle_path, include_keyframes, false, key_work, 0)
+}
+fn inspect_with_work(
+    input: &Path,
+    oracle_path: Option<&Path>,
+    include_keyframes: bool,
+    include_splines: bool,
+    mut key_work: usize,
+    mut spline_work: usize,
+) -> Result<Report> {
+    let include_keyframes = include_keyframes || include_splines;
     let mut report = Report {
-        schema_version: if include_keyframes { 2 } else { 1 },
+        schema_version: if include_splines {
+            3
+        } else if include_keyframes {
+            2
+        } else {
+            1
+        },
         animation_branch: "nv-four-source-classes",
         keyframe_branch: include_keyframes.then_some("nv-transform-data-source"),
+        spline_branch: include_splines.then_some("nv-compact-transform-source"),
         float_encoding: "ieee754-binary32-bits",
         string_encoding: "raw-byte-arrays",
         input: input.into(),
@@ -237,6 +316,12 @@ fn inspect_with_key_work(
                 || document["raw_keyframe_counts_checked"] != true)
         {
             return Err("oracle transform-key source/provenance contract is missing".into());
+        }
+        if include_splines
+            && (document["spline_branch"] != "nv-compact-transform-source"
+                || document["raw_spline_counts_checked"] != true)
+        {
+            return Err("oracle spline-source/provenance contract is missing".into());
         }
         let hash = document["oracle_binary_sha256"]
             .as_str()
@@ -317,6 +402,7 @@ fn inspect_with_key_work(
             container_block_counts: None,
             animation: None,
             keys: None,
+            splines: None,
             error: None,
             comparison: None,
         };
@@ -324,24 +410,39 @@ fn inspect_with_key_work(
             array_bytes: remaining.min(128 * 1024 * 1024),
             ..Default::default()
         };
-        let decoded = if include_keyframes {
-            keyframe::decode_with_limits(
+        let key_limits = keyframe::Limits {
+            animation: limits,
+            array_bytes: remaining.min(128 * 1024 * 1024),
+            max_combined_retained_bytes: remaining,
+            key_work,
+        };
+        let decoded = if include_splines {
+            spline::decode_with_limits(
                 &bytes,
                 &row.input.display().to_string(),
-                keyframe::Limits {
-                    animation: limits,
+                spline::Limits {
+                    keyframes: key_limits,
                     array_bytes: remaining.min(128 * 1024 * 1024),
-                    max_combined_retained_bytes: remaining,
-                    key_work,
+                    spline_work,
                 },
             )
-            .map(|(index, source)| (index, source.animation, Some(source.keys)))
+            .map(|(index, source)| {
+                (
+                    index,
+                    source.animation,
+                    Some(source.keys),
+                    Some(source.splines),
+                )
+            })
+        } else if include_keyframes {
+            keyframe::decode_with_limits(&bytes, &row.input.display().to_string(), key_limits)
+                .map(|(index, source)| (index, source.animation, Some(source.keys), None))
         } else {
             nif_animation::decode_with_limits(&bytes, &row.input.display().to_string(), limits)
-                .map(|(index, animation)| (index, animation, None))
+                .map(|(index, animation)| (index, animation, None, None))
         };
         match decoded {
-            Ok((index, animation, keys)) => {
+            Ok((index, animation, keys, splines)) => {
                 remaining = remaining
                     .checked_sub(animation.retained_bytes)
                     .ok_or("aggregate animation catalogue budget exceeded")?;
@@ -359,6 +460,21 @@ fn inspect_with_key_work(
                             .or_default() += 1;
                     }
                 }
+                if let Some(splines) = &splines {
+                    spline_work = spline_work
+                        .checked_sub(splines.work_units)
+                        .ok_or("aggregate spline-source work budget exceeded")?;
+                    remaining = remaining
+                        .checked_sub(splines.retained_bytes)
+                        .ok_or("aggregate spline-source catalogue budget exceeded")?;
+                    for block in &splines.blocks {
+                        *report
+                            .block_counts
+                            .entry(block.block_type.into())
+                            .or_default() += 1;
+                    }
+                    report.unresolved_dependencies += splines.dependencies.len();
+                }
                 row.tuple = Some([index.version, index.user_version, index.bethesda_version]);
                 row.strings = Some(index.strings);
                 row.container_block_counts = Some(index.block_counts);
@@ -372,6 +488,7 @@ fn inspect_with_key_work(
                 report.diagnostics += animation.diagnostics.len();
                 row.animation = Some(animation);
                 row.keys = keys;
+                row.splines = splines;
                 if let Some(document) = &oracle {
                     let result = row
                         .input
@@ -398,6 +515,9 @@ fn inspect_with_key_work(
                 if include_keyframes {
                     key_work = 0;
                 }
+                if include_splines {
+                    spline_work = 0;
+                }
                 row.error = Some(e.to_string());
                 report.failures += 1;
             }
@@ -423,14 +543,17 @@ mod tests {
         values.iter().flat_map(|v| v.to_le_bytes()).collect()
     }
     fn source(payload: &[u8]) -> Vec<u8> {
+        source_of(payload, "NiTransformData")
+    }
+    fn source_of(payload: &[u8], kind: &str) -> Vec<u8> {
         let mut bytes = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
         bytes.extend(words(&[0x1402_0007]));
         bytes.push(1);
         bytes.extend(words(&[11, 1, 34]));
         bytes.extend([0; 3]);
         bytes.extend(1u16.to_le_bytes());
-        bytes.extend(words(&[15]));
-        bytes.extend(b"NiTransformData");
+        bytes.extend(words(&[kind.len() as u32]));
+        bytes.extend(kind.as_bytes());
         bytes.extend(0u16.to_le_bytes());
         bytes.extend(words(&[payload.len() as u32, 0, 0, 0]));
         bytes.extend(payload);
@@ -520,5 +643,89 @@ mod tests {
         let mut missing = expected;
         missing[0].as_object_mut().unwrap().remove("sha256");
         assert!(!compare_keys(&decoded.keys.blocks, &missing).unwrap());
+    }
+    #[test]
+    fn spline_batch_work_exact_one_under_and_failed_admission() {
+        let inputs = inputs(&[]);
+        for id in 0..2 {
+            std::fs::write(
+                inputs.0.join(format!("{id}.kf")),
+                source_of(&words(&[0, 0]), "NiBSplineData"),
+            )
+            .unwrap();
+        }
+        let exact = inspect_with_work(&inputs.0, None, false, true, 0, 6).unwrap();
+        assert_eq!(exact.failures, 0);
+        assert_eq!(exact.schema_version, 3);
+        assert_eq!(
+            exact
+                .files
+                .iter()
+                .map(|f| f.splines.as_ref().unwrap().work_units)
+                .sum::<usize>(),
+            6
+        );
+        assert!(exact.files.iter().all(|f| f.keys.is_some()));
+        let under = inspect_with_work(&inputs.0, None, false, true, 0, 5).unwrap();
+        assert_eq!(under.failures, 1);
+        assert!(
+            under.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("spline-source work budget exceeded")
+        );
+        std::fs::write(
+            inputs.0.join("0.kf"),
+            source_of(&words(&[1, 0x7fc0_0001, 0]), "NiBSplineData"),
+        )
+        .unwrap();
+        let failed = inspect_with_work(&inputs.0, None, false, true, 0, 100).unwrap();
+        assert_eq!(failed.failures, 2);
+        assert!(
+            failed.files[0]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("nonfinite")
+        );
+        assert!(
+            failed.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("spline-source work budget exceeded")
+        );
+        let old = inspect_with_work(&inputs.0, None, true, false, 0, 0).unwrap();
+        assert_eq!(old.failures, 0);
+        let old = serde_json::to_value(old).unwrap();
+        assert_eq!(old["schema_version"], 2);
+        assert!(old.get("spline_branch").is_none() && old["files"][0].get("splines").is_none());
+    }
+    #[test]
+    fn exact_spline_array_comparison_rejects_sign_bits_order_and_extra_fields() {
+        let mut points = words(&[2, 0x8000_0000, 1, 3]);
+        for value in [i16::MIN, -1, 1] {
+            points.extend(value.to_le_bytes());
+        }
+        let (_, decoded) =
+            spline::decode(&source_of(&points, "NiBSplineData"), "points.kf").unwrap();
+        let expected = serde_json::to_value(&decoded.splines.blocks).unwrap();
+        assert!(compare_splines(&decoded.splines.blocks, &expected).unwrap());
+        let mut sign = expected.clone();
+        sign[0]["data"]["compact"][0] = json!(32768);
+        assert!(!compare_splines(&decoded.splines.blocks, &sign).unwrap());
+        let mut bits = expected.clone();
+        bits[0]["data"]["float_bits"][0] = json!(0);
+        assert!(!compare_splines(&decoded.splines.blocks, &bits).unwrap());
+        let mut order = expected.clone();
+        order[0]["data"]["compact"]
+            .as_array_mut()
+            .unwrap()
+            .reverse();
+        assert!(!compare_splines(&decoded.splines.blocks, &order).unwrap());
+        let mut extra = expected;
+        extra[0]["data"]["evaluated"] = json!(true);
+        assert!(!compare_splines(&decoded.splines.blocks, &extra).unwrap());
     }
 }

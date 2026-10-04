@@ -72,3 +72,34 @@ both kinds of stage. Restore, other campaigns and changed whole source cohorts
 also refuse old authority. Winner snapshots pass existing native publication and
 source-bound restoration. Original assignment conversion and callback behavior
 remain unverified; these are explicit engineering transactions.
+
+`World::reference_state_page(PageRequest { cell, after }, PageLimits)` supplies
+bounded immutable scene observations in stable `ReferenceId` order. `cell: None`
+includes the whole registered population, including unavailable components;
+`Some(cell)` matches only an explicitly stored component naming that exact key.
+The page exposes campaign, cohort, revision, filter, existing `View` rows,
+`PageUsage` and an optional opaque continuation. `into_parts()` transfers rows
+and cursor to the consumer. It traverses the registry directly without making a
+whole-world snapshot. Source cell membership and source defaults remain caller
+inputs, as in the single-reference API.
+
+`max_visited` bounds inspected registry entries independently of matches, and
+`max_rows` bounds returned rows. Both must be positive. A zero-match page can
+still advance its cursor. `max_copied_bytes` admits a conservative charge for
+fixed owned page/view values and their UTF-8 strings before copying them,
+including reserved continuation metadata when entries remain at page start.
+This charge excludes allocator overhead and spare vector capacity; it is not a
+process memory ceiling. A matching row that cannot fit remains unconsumed for
+the next page. If the first candidate cannot fit, the call refuses instead of
+returning a continuation without progress. Limits do not cause proportional
+preallocation; empty registries return a complete empty page.
+
+The cursor binds its producing World epoch, campaign, cohort, global revision,
+exact filter and last consumed reference. Mutation, equal-state restore, other
+Worlds and changed filters refuse before copy admission. Cursor fields are
+private and cannot deserialize; cursors are never saved or used as render IDs.
+`tests/reference_state_paging.rs` runs a real headless multi-cell reconciliation
+consumer, verifies zero-match progress and byte-limited coverage, then publishes
+changed pose/enable through the native worker and reconciles exact retained
+state in a fresh child process. This adds an immediately runnable producer
+consumer; completion of the presentation lane's preview remains separate.

@@ -197,6 +197,16 @@ publishes it again. The interruption observer exercises the existing repository
 publication path used by the save worker. It does not add a second journal or
 change the save format.
 
+The existing staged interruption test also compares complete current and previous
+container bytes at every observed stage, before restarting the save worker.
+Previous is absent until its publication; afterward, its bytes match the complete
+precommit capture. Separate cold children verify explicit previous-slot fallback
+after truncating a copied current slot, leaving both copied slots unchanged.
+Set `FALLOUT_STAGED_INTERRUPTION_EVIDENCE` to a fresh existing private directory
+to retain authored inputs, interrupted slot copies, restarted worker slots and
+per-stage metadata for independent native-reader and cold CLI comparisons.
+Normal test runs use an automatically removed temporary directory.
+
 File contents are synced using [Rust File::sync_all](https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all),
 and publication uses [same-directory rename](https://doc.rust-lang.org/std/fs/fn.rename.html).
 The [nonblocking file lock](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock)

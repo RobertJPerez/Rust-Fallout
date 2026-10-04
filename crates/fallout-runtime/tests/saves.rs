@@ -654,24 +654,58 @@ fn expected_staged_after(mut before: Snapshot) -> Snapshot {
     before
 }
 
+fn staged_publication_fixture() -> (Option<tempfile::TempDir>, PathBuf) {
+    match std::env::var_os("FALLOUT_STAGED_INTERRUPTION_EVIDENCE") {
+        Some(root) => {
+            let root = PathBuf::from(root).join("authored");
+            fs::create_dir(&root).unwrap();
+            (None, root)
+        }
+        None => {
+            let directory = tempfile::tempdir().unwrap();
+            let root = directory.path().to_path_buf();
+            (Some(directory), root)
+        }
+    }
+}
+
+fn copy_stage_repository(source: &Path, destination: &Path) {
+    fs::create_dir(destination).unwrap();
+    for entry in fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        assert!(entry.file_type().unwrap().is_file());
+        fs::copy(entry.path(), destination.join(entry.file_name())).unwrap();
+    }
+}
+
 #[test]
 fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage() {
-    let directory = tempfile::tempdir().unwrap();
-    write_fixture(directory.path(), false);
-    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    let (_temporary, root) = staged_publication_fixture();
+    write_fixture(&root, false);
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let mut rows = Vec::new();
     for (index, stage) in STAGED_SAVE_STAGES.into_iter().enumerate() {
         let world = staged_cold_seed(&catalogue);
         let before = world.snapshot();
-        let repository = repo(
-            &directory.path().join(format!("native-stage-kill-{index}")),
-            &world,
-        );
+        let repository = repo(&root.join(format!("native-stage-kill-{index}")), &world);
+        let before_bytes = format::encode(&Captured::at_boundary(&world), 1).unwrap();
+        let after_world = World::restore(
+            &catalogue,
+            expected_staged_after(before.clone()),
+            Limits::default(),
+        )
+        .unwrap();
+        let after_bytes = format::encode(&Captured::at_boundary(&after_world), 2).unwrap();
         let mut worker = SaveWorker::start(repository.clone(), 1).unwrap();
         let saved = worker.try_submit(Captured::at_boundary(&world)).unwrap();
         worker.finish().unwrap();
         assert_eq!(saved.wait().unwrap().metadata.generation, 1);
-        let ready = directory.path().join(format!("stage-kill-ready-{index}"));
-        let mut writer = child(directory.path(), &format!("kill-stage:{index}"), &ready);
+        assert_eq!(
+            fs::read(repository.path().join("current.frsv")).unwrap(),
+            before_bytes
+        );
+        let ready = root.join(format!("stage-kill-ready-{index}"));
+        let mut writer = child(&root, &format!("kill-stage:{index}"), &ready);
         await_ready(&ready, &mut writer);
         assert!(matches!(
             repository.load(&catalogue, Limits::default(), Recovery::Strict),
@@ -690,7 +724,21 @@ fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage(
         };
         assert_eq!(restored.snapshot(), expected);
         assert_eq!(receipt.metadata.generation, if published { 2 } else { 1 });
+        assert_eq!(
+            fs::read(repository.path().join("current.frsv")).unwrap(),
+            if published {
+                &after_bytes
+            } else {
+                &before_bytes
+            }
+            .as_slice()
+        );
+        assert_eq!(repository.path().join("previous.frsv").exists(), index >= 3);
         if index >= 3 {
+            assert_eq!(
+                fs::read(repository.path().join("previous.frsv")).unwrap(),
+                before_bytes
+            );
             assert_eq!(
                 format::decode(
                     &fs::read(repository.path().join("previous.frsv")).unwrap(),
@@ -701,9 +749,11 @@ fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage(
                 before
             );
         }
-        let cold_ready = directory.path().join(format!("stage-kill-cold-{index}"));
+        let observed = root.join(format!("observed-stage-{index}"));
+        copy_stage_repository(repository.path(), &observed);
+        let cold_ready = root.join(format!("stage-kill-cold-{index}"));
         let mut cold = child(
-            directory.path(),
+            &root,
             &format!(
                 "cold-killed-stage:{index}:{}",
                 if published { "after" } else { "before" }
@@ -712,6 +762,27 @@ fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage(
         );
         await_ready(&cold_ready, &mut cold);
         assert!(cold.0.wait().unwrap().success());
+        if index >= 3 {
+            let fallback = root.join(format!("fallback-stage-{index}"));
+            copy_stage_repository(repository.path(), &fallback);
+            fs::write(fallback.join("current.frsv"), b"truncated").unwrap();
+            let cold_ready = root.join(format!("stage-fallback-cold-{index}"));
+            let mut cold = child(
+                &root,
+                &format!("cold-killed-fallback:{index}:before"),
+                &cold_ready,
+            );
+            await_ready(&cold_ready, &mut cold);
+            assert!(cold.0.wait().unwrap().success());
+            assert_eq!(
+                fs::read(fallback.join("current.frsv")).unwrap(),
+                b"truncated"
+            );
+            assert_eq!(
+                fs::read(fallback.join("previous.frsv")).unwrap(),
+                before_bytes
+            );
+        }
         let mut resumed = SaveWorker::start(repository.clone(), 1).unwrap();
         let saved = resumed
             .try_submit(Captured::at_boundary(&restored))
@@ -729,7 +800,34 @@ fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage(
                 .snapshot(),
             expected
         );
+        let resumed = format::decode(
+            &fs::read(repository.path().join("current.frsv")).unwrap(),
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(repository.path().join("previous.frsv")).unwrap(),
+            if published {
+                &after_bytes
+            } else {
+                &before_bytes
+            }
+            .as_slice()
+        );
+        rows.push(serde_json::json!({
+            "stage":format!("{stage:?}"), "index":index,
+            "before":format::decode(&before_bytes, Limits::default()).unwrap().metadata,
+            "after":format::decode(&after_bytes, Limits::default()).unwrap().metadata,
+            "interrupted_current":receipt.metadata, "previous_published":index >= 3,
+            "resumed_current":resumed.metadata,
+            "cold_full_state_equal":true, "cold_fallback_verified":index >= 3
+        }));
     }
+    fs::write(
+        root.join("interruption-receipt.json"),
+        serde_json::to_vec_pretty(&rows).unwrap(),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -783,14 +881,50 @@ fn native_save_child() {
         fs::write(ready, b"verified staged boundary").unwrap();
         return;
     }
-    if let Some(parameters) = mode.strip_prefix("cold-killed-stage:") {
+    let cold_boundary = mode
+        .strip_prefix("cold-killed-stage:")
+        .map(|parameters| (parameters, false))
+        .or_else(|| {
+            mode.strip_prefix("cold-killed-fallback:")
+                .map(|parameters| (parameters, true))
+        });
+    if let Some((parameters, fallback)) = cold_boundary {
         let (index, boundary) = parameters.split_once(':').unwrap();
         let index: usize = index.parse().unwrap();
-        let repository =
-            Repository::open(&root.join(format!("native-stage-kill-{index}")), &[]).unwrap();
-        let (world, _) = repository
-            .load(&catalogue, Limits::default(), Recovery::Strict)
+        let name = if fallback {
+            "fallback-stage"
+        } else {
+            "native-stage-kill"
+        };
+        let repository = Repository::open(&root.join(format!("{name}-{index}")), &[]).unwrap();
+        if fallback {
+            assert!(
+                repository
+                    .load(&catalogue, Limits::default(), Recovery::Strict)
+                    .is_err()
+            );
+        }
+        let (world, receipt) = repository
+            .load(
+                &catalogue,
+                Limits::default(),
+                if fallback {
+                    Recovery::PreviousIfCurrentInvalid
+                } else {
+                    Recovery::Strict
+                },
+            )
             .unwrap();
+        assert_eq!(
+            receipt.slot,
+            if fallback {
+                Slot::Previous
+            } else {
+                Slot::Current
+            }
+        );
+        assert_eq!(receipt.current_failure.is_some(), fallback);
+        assert!(!receipt.current_repaired);
         let before = staged_cold_seed(&catalogue).snapshot();
         let expected = match boundary {
             "before" => before,

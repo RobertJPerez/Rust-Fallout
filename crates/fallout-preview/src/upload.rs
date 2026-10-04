@@ -203,11 +203,14 @@ impl Queue {
                 };
                 let mut parent = commands.spawn((
                     instance.transform,
-                    Visibility::Inherited,
+                    instance.visibility,
                     ChildOf(self.root.expect("draw root")),
                 ));
                 if let Some(key) = instance.key {
-                    let reference = scene::ReferenceView { key };
+                    let reference = scene::ReferenceView {
+                        key,
+                        canonical: instance.canonical,
+                    };
                     parent.insert((Name::new(reference.label()), reference));
                 }
                 self.current = Some((parent.id(), instance.model, 0));

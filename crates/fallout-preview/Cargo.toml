@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 fallout-data = { path = "../fallout-data" }
+fallout-runtime = { path = "../fallout-runtime" }
 bevy = { version = "=0.19.1", default-features = false, features = [
     "std", "async_executor", "multi_threaded", "bevy_asset", "bevy_log",
     "bevy_winit", "bevy_pbr", "bevy_core_pipeline", "bevy_gilrs", "png", "dds",

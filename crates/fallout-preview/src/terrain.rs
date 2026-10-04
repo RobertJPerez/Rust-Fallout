@@ -205,6 +205,8 @@ pub fn load(
             radius,
         }],
         instances: vec![Instance {
+            visibility: Visibility::Inherited,
+            canonical: None,
             model: 0,
             transform: Transform::IDENTITY,
             key: Some(entry.key.clone()),

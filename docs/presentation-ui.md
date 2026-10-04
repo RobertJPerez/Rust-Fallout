@@ -289,3 +289,57 @@ serialization is admitted before creating a fresh report; later I/O or cancellat
 diagnostic report without a capture. Source receipts are preparation snapshots,
 with identity checked again on retry. Original menus, fonts, focus/actions and
 gameplay remain unaccepted.
+
+## Explicit font dependency binding (VIEW22)
+
+`fallout-preview --install INSTALL --menu-font REQUEST.json --report REPORT.json`
+binds a selected source text tile's literal font trait to an exact caller-selected
+INI entry and immutable source payloads. It finishes as a source inspection,
+without opening a renderer. This closes dependency binding; font codec, glyph
+layout, texture-atlas relationships and original menu display remain unavailable.
+
+The strict schema-1 request supplies `policy: "explicit-font-slot-ini-entry"`,
+the XML `source` path/archive/payload hashes, `text: { node, span, name }` and
+an explicit integral `slot`. An optional supplied name must uniquely identify
+the selected text node. The existing literal converter must produce one finite
+font value exactly equal to the supplied slot. Other text traits remain source
+observations, including unsupported expressions and custom references.
+
+`ini` supplies explicit absolute `documents` and `local_appdata` roots, a logical
+`source` name from the existing profile reader, its `sha256`, exact `section` and
+`key` spellings, and `section_line`/`entry_line` half-open byte spans. These spans
+include the physical source line's original LF/CRLF terminator. The existing
+`vfs::profile::observe` preserves raw bytes, legacy bytes, BOMs, line topology and
+duplicate diagnostics; this consumer selects its existing Section/Setting rows.
+Repeated or ASCII-case-colliding sections/keys refuse. No INI parser, cross-file
+precedence or default slot-to-key mapping is added. Calling an input effective
+expresses the caller's selection; original runtime precedence remains unverified.
+
+`font` supplies a full `textures/fonts/... .fnt` member path that must normalize
+to the exact selected INI value, plus `archive_sha256` and `payload_sha256`.
+Both hashes may be null/absent for a missing-member observation. A present member
+requires both exact hashes before any usable lease. `textures` is an explicit
+list of up to four unique full DDS member/hash receipts. Their relation to the
+font is declared by the caller and remains unverified by an FNT decoder.
+
+All requested candidate counts are checked first through the existing archive
+reader. Missing members produce `missing-members`, zero retained payload bytes
+and no lease; present payload identities in that outcome remain unverified.
+Ambiguity, conflicting candidates, changed source hashes, unsafe paths and
+exhausted budgets refuse the complete request. When every member is verified,
+the lease retains exact font/texture byte Arcs, member receipts, XML text/font
+node/span/word identity and the shared profile snapshot. Existing Windows profile
+source pins last until the final snapshot/lease owner drops. Archive payloads are
+immutable preparation snapshots, without a continuously held archive-file lease.
+
+Limits are 128 KiB request, 8 MiB per font/texture payload, 16 MiB aggregate retained
+payload, four supplied textures, 4 KiB selected physical INI lines and 1 MiB
+consumer dependency metadata. Existing XML/literal/profile limits remain separate:
+the profile reader admits its fixed seven sources, 1 MiB per file, 2 MiB aggregate,
+16,384 lines, 8,192 keys and 2 MiB identifier copies. These are logical admission
+limits. Requests can lower supported limits. Complete bounded report serialization
+finishes in memory before creating a fresh file, with a 16 MiB report ceiling;
+memory prefixes on serialization failure are bounded and discarded. Reports must
+stay outside the installation and supplied profile roots. A later I/O failure can
+leave a fresh partial report. Original settings remain untouched, no substitute
+font is selected, and canonical/gameplay state is unaffected.

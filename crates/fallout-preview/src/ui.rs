@@ -373,6 +373,7 @@ fn read_json<T: DeserializeOwned>(path: &Path, limit: usize, kind: &str) -> Resu
 
 pub mod dependencies;
 pub mod entities;
+pub mod fonts;
 pub mod images;
 pub mod includes;
 pub mod rectangles;

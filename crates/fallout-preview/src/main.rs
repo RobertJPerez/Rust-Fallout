@@ -41,7 +41,7 @@ use std::{
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies", "menu_rectangles", "menu_image"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies", "menu_rectangles", "menu_image", "menu_font"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
     #[arg(skip)]
@@ -82,6 +82,9 @@ struct Options {
     /// Exact source image tile and DDS identities with explicit UV/sampling policy.
     #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["camera_position", "camera_look_at"])]
     menu_image: Option<PathBuf>,
+    /// Exact text-font trait, caller-selected profile entry and retained source dependencies.
+    #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["capture", "headless", "camera_position", "camera_look_at"])]
+    menu_font: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -351,6 +354,43 @@ fn run() -> model::Result<AppExit> {
     }
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
+    }
+    if let Some(path) = &options.menu_font {
+        let limits = ui::fonts::Limits::default();
+        let request = ui::fonts::read_request(path, limits)?;
+        let mut report_path = options.report.clone().expect("font requires report");
+        for root in [&request.ini.documents, &request.ini.local_appdata] {
+            report_path = output_path(&report_path, Some(root), None)?;
+        }
+        let (report, lease) = ui::fonts::bind(
+            options
+                .install
+                .as_deref()
+                .expect("font requires installation"),
+            &request,
+            limits,
+        )?;
+        let mut bytes = Vec::new();
+        ui::fonts::write_report(&mut bytes, &report, limits.literal.output_bytes)?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(report_path)?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        if let Some(lease) = &lease {
+            eprintln!(
+                "Menu font slot {}: {} retained bytes, {} texture dependencies, {} pinned profile sources; codec/layout unavailable",
+                lease.text.slot,
+                lease.font.bytes.len()
+                    + lease.textures.iter().map(|p| p.bytes.len()).sum::<usize>(),
+                lease.textures.len(),
+                lease.profile.sources.len()
+            );
+        } else {
+            eprintln!("Menu font dependencies unavailable; no font payload lease or substitute");
+        }
+        return Ok(AppExit::Success);
     }
     if let Some(path) = &options.menu_rectangles {
         options.rectangle_request = Some(Arc::new(ui::rectangles::read_request(
@@ -797,8 +837,8 @@ fn write_tile_report(
     write: impl FnOnce(&mut Vec<u8>) -> model::Result<()>,
 ) -> model::Result<()> {
     context.check()?;
-    // The existing writer counts the complete bounded JSON before retaining it.
-    // Semantic output admission finishes off-thread before create_new.
+    // Stream into bounded memory first. Semantic output admission finishes
+    // off-thread before create_new; an error can leave a bounded memory prefix.
     let mut bytes = Vec::new();
     write(&mut bytes)?;
     context.check()?;

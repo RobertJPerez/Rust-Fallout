@@ -31,6 +31,8 @@ struct Leaf {
     shell: f32,
     // Extra engineering sweep admission. No change to old query transforms.
     sweep_frame: Option<Affine>,
+    // Exact authored matrix arithmetic, independent of sweep tag/profile rules.
+    finite_frame: Option<Affine>,
 }
 
 /// Units are immutable after construction, including the validated tolerance.
@@ -413,9 +415,16 @@ impl StaticScene {
                 && sweep::profile(body)
                 && (!body.transform_active
                     || (body.rotation[..3] == [0.; 3] && body.rotation[3].abs() == 1.));
-            let mut stack = vec![(shape, frame, 0f32, exact)];
+            let finite_inner = compose(havok, pose);
+            let finite_attached = compose(placement.attachment_to_source, finite_inner);
+            let finite_exact = (!body.transform_active
+                || finite::quaternion_recipe_exact(body.rotation))
+                && finite::exact_compose(havok, pose)
+                && finite::exact_compose(placement.attachment_to_source, finite_inner)
+                && finite::exact_compose(output, finite_attached);
+            let mut stack = vec![(shape, frame, 0f32, exact, finite_exact)];
             let mut occurrence = 0;
-            while let Some((id, frame, shell, exact)) = stack.pop() {
+            while let Some((id, frame, shell, exact, finite_exact)) = stack.pop() {
                 charge(
                     &mut visits,
                     1,
@@ -449,6 +458,7 @@ impl StaticScene {
                             composed,
                             shell,
                             exact && local_exact && *radius == 0.,
+                            finite_exact && finite::exact_compose(frame, local),
                         ));
                     }
                     Data::List {
@@ -473,6 +483,7 @@ impl StaticScene {
                                 frame,
                                 shell,
                                 exact,
+                                finite_exact,
                             ));
                         }
                     }
@@ -490,6 +501,7 @@ impl StaticScene {
                             frame,
                             shell,
                             exact,
+                            finite_exact,
                         ));
                     }
                     Data::PackedShape {
@@ -513,6 +525,7 @@ impl StaticScene {
                             compose(frame, local),
                             *r,
                             false,
+                            finite_exact && finite::exact_compose(frame, local),
                         ));
                     }
                     data => {
@@ -540,6 +553,7 @@ impl StaticScene {
                                 body_filter: (&body.world.filter).into(),
                                 shell: if shell != 0. { shell } else { value.shell },
                                 sweep_frame: exact.then_some(frame),
+                                finite_frame: finite_exact.then_some(frame),
                             });
                         }
                         occurrence += 1;
@@ -762,6 +776,166 @@ impl StaticScene {
             work,
         })
     }
+    fn finite_prepare<T>(
+        &self,
+        limits: FiniteQueryLimits,
+        solids_only: bool,
+    ) -> QueryResult<(Vec<T>, FiniteQueryWork)> {
+        limits.validate()?;
+        let count = self.leaves.len();
+        let geometry = self.leaves.iter().try_fold(0usize, |sum, leaf| {
+            sum.checked_add(leaf.geometry.shape.cost())
+                .ok_or(QueryError::Budget("finite geometry tests"))
+        })?;
+        let predicates = count
+            .checked_mul(8192)
+            .ok_or(QueryError::Budget("finite predicate reservation"))?;
+        let capacity = count.min(limits.rows);
+        let bytes = capacity
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or(QueryError::Budget("finite retained bytes"))?;
+        for (used, limit, name) in [
+            (count, limits.admission_tests, "finite admission tests"),
+            (count, limits.primitive_tests, "finite primitive tests"),
+            (geometry, limits.geometry_tests, "finite geometry tests"),
+            (
+                predicates,
+                limits.predicate_tests,
+                "finite predicate reservation",
+            ),
+            (bytes, limits.retained_bytes, "finite retained bytes"),
+        ] {
+            if used > limit {
+                return Err(QueryError::Budget(name));
+            }
+        }
+        // Kind and original source-frame admission precede every narrow test.
+        // A far unsupported member cannot disappear behind bounds culling.
+        for leaf in &self.leaves {
+            if solids_only && !finite::solid_kind(&leaf.geometry.shape) {
+                return Err(unsupported(
+                    leaf.source.shape_block,
+                    "solid intervals support Sphere/Box/ConvexCuboid cores only",
+                ));
+            }
+            let frame = leaf.finite_frame.ok_or(unsupported(
+                leaf.source.body_block,
+                "finite queries require exact authored transform arithmetic",
+            ))?;
+            if solids_only && !finite::signed_axis_frame(frame) {
+                return Err(unsupported(
+                    leaf.source.body_block,
+                    "solid intervals require signed-axis power-of-two similarity frames",
+                ));
+            }
+            finite::inverse(frame)?;
+        }
+        Ok((
+            Vec::with_capacity(capacity),
+            FiniteQueryWork {
+                admission_tests: count,
+                primitive_tests: count,
+                geometry_tests: geometry,
+                predicate_tests: predicates,
+                rows: 0,
+                retained_bytes: bytes,
+            },
+        ))
+    }
+    fn finite_witness(
+        leaf: &Leaf,
+        span: finite::Span,
+        max: f64,
+        point: impl Fn(f64) -> QueryResult<V>,
+    ) -> QueryResult<(f64, V)> {
+        let frame = leaf.finite_frame.expect("whole-query frame admission");
+        for parameter in span.candidates(max) {
+            if parameter < span.entry.lower || parameter > span.exit.upper {
+                continue;
+            }
+            let Ok(position) = point(parameter) else {
+                continue;
+            };
+            if !finite(position) {
+                continue;
+            }
+            let Ok(local) = finite::local(frame, position, true) else {
+                continue;
+            };
+            if finite::contains(&leaf.geometry.shape, local).is_ok_and(|inside| inside) {
+                return Ok((parameter, position));
+            }
+        }
+        Err(QueryError::Invalid(
+            "original finite-line/source-core witness is numerically uncertain",
+        ))
+    }
+    /// One certified original-line point per intersected source core, accompanied
+    /// by occupied boundary enclosures. Witnesses need not equal scalar entry.
+    pub fn segment_cast(
+        &self,
+        segment: Segment,
+        limits: SegmentQueryLimits,
+    ) -> QueryResult<FiniteQueryReport<SegmentIntersection>> {
+        if !query_domain(segment.start) || !query_domain(segment.end) {
+            return Err(QueryError::Invalid(
+                "finite bounded original endpoints required",
+            ));
+        }
+        let (mut results, mut work) = self.finite_prepare::<SegmentIntersection>(limits, false)?;
+        let direction = finite::original_delta(segment)?;
+        for leaf in &self.leaves {
+            let frame = leaf.finite_frame.expect("whole-query frame admission");
+            let start = finite::local(frame, segment.start, true)?;
+            let end = finite::local(frame, segment.end, true)?;
+            let span = if finite::contains(&leaf.geometry.shape, start).is_ok_and(|v| v)
+                && finite::contains(&leaf.geometry.shape, end).is_ok_and(|v| v)
+            {
+                // All admitted cores, including closed/degenerate triangles,
+                // are convex. Both original endpoints prove complete occupancy.
+                Some(finite::Span::full(1.))
+            } else {
+                finite::span(
+                    &leaf.geometry.shape,
+                    start,
+                    finite::local_bounds(frame, direction, false)?,
+                    1.,
+                )?
+            };
+            let Some(span) = span else {
+                continue;
+            };
+            let (parameter, position) =
+                Self::finite_witness(leaf, span, 1., |t| finite::segment_point(segment, t))?;
+            if results.len() >= limits.rows {
+                return Err(QueryError::Budget("finite result rows"));
+            }
+            let distance = finite::distance_bounds(direction, parameter)?;
+            let estimate = 0.5 * distance.lower + 0.5 * distance.upper;
+            results.push(SegmentIntersection {
+                provenance: Self::hit(leaf, estimate, position),
+                parameter,
+                entry_parameter_bounds: [
+                    span.entry.lower.clamp(0., 1.),
+                    span.entry.upper.clamp(0., 1.),
+                ],
+                exit_parameter_bounds: [
+                    span.exit.lower.clamp(0., 1.),
+                    span.exit.upper.clamp(0., 1.),
+                ],
+                distance_bounds: [distance.lower, distance.upper],
+                source_core: finite::core(&leaf.geometry.shape),
+            });
+        }
+        results.sort_unstable_by(|a, b| {
+            a.entry_parameter_bounds[0]
+                .total_cmp(&b.entry_parameter_bounds[0])
+                .then(a.provenance.source.cmp(&b.provenance.source))
+        });
+        work.rows = results.len();
+        Ok(FiniteQueryReport { results, work })
+    }
+
     /// Shell margins, runtime filters, activation and dynamics remain unavailable.
     pub fn faithful_ready(&self) -> bool {
         false

@@ -46,7 +46,7 @@ fn cross_with_error(a: V, b: V) -> (V, V) {
     ];
     (components.map(|v| v.0), components.map(|v| v.1))
 }
-fn difference_error(a: f64, b: f64, difference: f64) -> f64 {
+pub(super) fn difference_error(a: f64, b: f64, difference: f64) -> f64 {
     let virtual_b = a - difference;
     let virtual_a = difference + virtual_b;
     (a - virtual_a) + (virtual_b - b)
@@ -340,7 +340,7 @@ fn triangle_parallel(e1: V, e2: V, direction: V) -> bool {
     }
     false
 }
-fn predicate_product(
+pub(super) fn predicate_product(
     a: super::enclosure::Interval,
     b: super::enclosure::Interval,
 ) -> Option<super::enclosure::Interval> {
@@ -357,7 +357,7 @@ fn predicate_product(
     }
     a.multiply(b)
 }
-fn predicate_sum(
+pub(super) fn predicate_sum(
     a: super::enclosure::Interval,
     b: super::enclosure::Interval,
 ) -> Option<super::enclosure::Interval> {
@@ -715,6 +715,32 @@ fn cuboid_interval(
         return Ok(None);
     }
     Ok(Some((enter, exit)))
+}
+
+/// Reuse the existing directed slabs, with a separate original-line/core
+/// witness required before finite-query results can leave the scene.
+pub(super) fn finite_cuboid_span(
+    o: V,
+    d: V,
+    minimum: V,
+    maximum: V,
+    max: f64,
+) -> QueryResult<Option<super::finite::Span>> {
+    let Some((entry, exit)) = cuboid_interval(o, d, minimum, maximum, max)? else {
+        return Ok(None);
+    };
+    Ok(super::finite::Span::clip(
+        super::enclosure::Interval {
+            lower: entry.lower,
+            upper: entry.upper,
+        },
+        super::enclosure::Interval {
+            lower: exit.lower,
+            upper: exit.upper,
+        },
+        max,
+        0.5 * entry.upper + 0.5 * exit.lower,
+    ))
 }
 
 /// Culling is permitted only for a certified miss. Uncertain or overflowing

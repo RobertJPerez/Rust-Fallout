@@ -3,6 +3,7 @@
 pub mod attachment;
 pub mod cell;
 mod enclosure;
+mod finite;
 mod index;
 mod math;
 pub mod multi;
@@ -120,6 +121,117 @@ pub struct Ray {
     /// Must be unit length within the scene's declared engineering tolerance.
     pub direction: [f64; 3],
     pub max_distance: f64,
+}
+/// Original finite endpoints; no normalized direction replaces their line.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Segment {
+    pub start: [f64; 3],
+    pub end: [f64; 3],
+}
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FiniteQueryLimits {
+    pub admission_tests: usize,
+    pub primitive_tests: usize,
+    pub geometry_tests: usize,
+    pub predicate_tests: usize,
+    pub rows: usize,
+    /// Logical retained result capacity, excluding the immutable source scene.
+    pub retained_bytes: usize,
+}
+impl Default for FiniteQueryLimits {
+    fn default() -> Self {
+        Self {
+            admission_tests: 100_000,
+            primitive_tests: 100_000,
+            geometry_tests: 1_000_000,
+            predicate_tests: 819_200_000,
+            rows: 10_000,
+            retained_bytes: 16 * 1024 * 1024,
+        }
+    }
+}
+impl FiniteQueryLimits {
+    fn validate(self) -> QueryResult<()> {
+        let max = Self::default();
+        if self.admission_tests > max.admission_tests
+            || self.primitive_tests > max.primitive_tests
+            || self.geometry_tests > max.geometry_tests
+            || self.predicate_tests > max.predicate_tests
+            || self.rows > max.rows
+            || self.retained_bytes > max.retained_bytes
+        {
+            return Err(QueryError::Invalid(
+                "finite query limits must only reduce ceilings",
+            ));
+        }
+        Ok(())
+    }
+}
+pub type SegmentQueryLimits = FiniteQueryLimits;
+pub type IntervalQueryLimits = FiniteQueryLimits;
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct FiniteQueryWork {
+    pub admission_tests: usize,
+    pub primitive_tests: usize,
+    pub geometry_tests: usize,
+    pub predicate_tests: usize,
+    pub rows: usize,
+    pub retained_bytes: usize,
+}
+#[derive(Debug, Serialize)]
+pub struct FiniteQueryReport<T> {
+    pub results: Vec<T>,
+    pub work: FiniteQueryWork,
+}
+/// Raw source words accompany results; this DTO is never preparation authority.
+// Inline source words let the query precharge the entire retained row capacity;
+// boxing the largest variant would introduce a second allocation per result.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CoreGeometry {
+    Sphere {
+        radius_binary32: u32,
+    },
+    Box {
+        half_extents_binary32: [u32; 3],
+    },
+    ConvexCuboid {
+        minimum_binary64: [u64; 3],
+        maximum_binary64: [u64; 3],
+        vertices_binary32: [[u32; 4]; 8],
+        planes_binary32: [[u32; 4]; 6],
+    },
+    Capsule {
+        first_binary32: [u32; 3],
+        second_binary32: [u32; 3],
+        radius_binary32: u32,
+    },
+    Triangle {
+        vertices_binary32: [[u32; 3]; 3],
+    },
+}
+#[derive(Debug, Serialize)]
+pub struct SegmentIntersection {
+    /// A certified point on the original line and source core, possibly after
+    /// entry. The entry enclosure carries the boundary information separately.
+    pub provenance: Hit,
+    pub parameter: f64,
+    pub entry_parameter_bounds: [f64; 2],
+    pub exit_parameter_bounds: [f64; 2],
+    pub distance_bounds: [f64; 2],
+    pub source_core: CoreGeometry,
+}
+#[derive(Debug, Serialize)]
+pub struct SolidOccupancy {
+    pub provenance: Hit,
+    pub witness_parameter: f64,
+    pub entry_parameter_bounds: [f64; 2],
+    pub exit_parameter_bounds: [f64; 2],
+    pub initial_containment: bool,
+    pub source_core: CoreGeometry,
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct SourceId {

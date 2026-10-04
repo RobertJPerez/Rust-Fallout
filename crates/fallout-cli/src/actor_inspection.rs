@@ -238,6 +238,7 @@ pub(super) struct Options {
     pub(super) include_races: bool,
     pub(super) include_packages: bool,
     pub(super) include_package_dependencies: bool,
+    pub(super) package_destination: Option<FormKey>,
     pub(super) include_dependencies: bool,
     pub(super) include_render_dependencies: bool,
     pub(super) include_template_dependencies: bool,
@@ -314,6 +315,9 @@ pub(super) fn inspect(
 ) -> Result<Value> {
     if options.include_package_dependencies && !options.include_packages {
         return Err("package dependencies require --include-packages".into());
+    }
+    if options.package_destination.is_some() && !options.include_packages {
+        return Err("package destination requires --include-packages".into());
     }
     if (options.equipment_source.is_some() || options.equipment_role.is_some())
         && (!options.include_dependencies
@@ -443,6 +447,15 @@ pub(super) fn inspect(
         let packages =
             actors::packages::Catalogue::load(&mut store, actors::packages::Limits::default())?;
         report["actor_packages"] = json!({"counts":packages.counts(),"definitions":packages.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
+        if let Some(root) = &options.package_destination {
+            let destination = actors::packages::destinations::request(
+                &mut store,
+                &packages,
+                root,
+                Default::default(),
+            )?;
+            report["actor_package_destination"] = json!({"manifest":destination});
+        }
         report["scope"] = json!(format!(
             "{}; authored PACK scalar inputs, no scheduling, conditions or AI execution",
             report["scope"].as_str().unwrap_or_default()
@@ -684,6 +697,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err(
             "independent actor source comparison differs in actor_package_dependencies".into(),
+        );
+    }
+    if report.get("actor_package_destination").is_some()
+        && report.get("actor_package_destination") != oracle.get("actor_package_destination")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_package_destination".into(),
         );
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;

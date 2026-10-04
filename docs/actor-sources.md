@@ -1175,3 +1175,29 @@ the full independent reader. It retains three winning VTYP sources (versions
 and no voice issues. All ten original plugin and seven private input hashes
 remain unchanged. Evidence and failed drafts remain under
 `local/v3-act12-voices-20261004-01`; no gameplay or audio behavior is accepted.
+# Selected authored package destination operands
+
+`actors::packages::destinations::request(&mut RecordStore, &packages::Catalogue,
+&FormKey, Limits)` borrows one winning physical PACK definition and returns every
+PLDT, PLD2, PTDT and PTD2 occurrence with its field index, decoded offset and raw
+payload. Signed discriminants and Radius/Count-Distance words stay exact; the
+optional target float is represented by its original bits. The complete pinned
+FNV PACK schema and common union decider establish the admitted layouts:
+locations have 12 bytes, targets have 12 or 16. Other layouts remain opaque.
+
+Only schema-confirmed reference, cell and object-ID alternatives use the existing
+store binder. Location and target object sets differ; target one permits IDLM,
+target two does not. Object-type words and unused/context alternatives never
+become FormIDs. Null, absent, deleted, wrong-kind, unknown and repeated operands
+remain visible; every repeated occurrence loses binding admission. A unique
+live permitted binding admits a source operand only. No path target is selected,
+no radius or count is interpreted, and no nearest-object search, conditions,
+schedule or AI execution occurs.
+
+The optional `actor-sources --include-packages --package-destination PLUGIN:HEX`
+consumer emits `actor_package_destination`. Existing package projections remain
+unchanged. Source receipts, winning identity and header must match the existing
+catalogue. Source count, selected physical field visits, operand count, aggregate
+raw bytes and compact projection bytes have independent bounds. The separate
+`tools/actor-oracle/package_destinations.py` reads union payloads directly from
+source bytes and compares the full request, including every physical occurrence.

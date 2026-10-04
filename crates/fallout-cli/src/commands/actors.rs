@@ -29,6 +29,8 @@ pub(crate) enum ActorsCommand {
         include_packages: bool,
         #[arg(long, requires = "include_packages")]
         include_package_dependencies: bool,
+        #[arg(long, requires = "include_packages", value_parser = actor_inspection::parse_root)]
+        package_destination: Option<identity::FormKey>,
         #[arg(long)]
         include_dependencies: bool,
         #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]

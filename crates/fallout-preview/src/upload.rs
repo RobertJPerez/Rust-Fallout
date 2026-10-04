@@ -1,6 +1,9 @@
 //! Bounded admission to Bevy assets/entities. Decoders have already completed;
 //! these budgets count submitted draw bytes, not exact driver VRAM usage.
-use crate::{material, model, scene, ui::rectangles::TileView};
+use crate::{
+    material, model, scene,
+    ui::{images::ImageView, rectangles::TileView},
+};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use std::vec::IntoIter;
 
@@ -27,6 +30,7 @@ pub struct Queue {
     instances: IntoIter<scene::Instance>,
     tile_views: IntoIter<TileView>,
     current_tile: Option<TileView>,
+    image_view: Option<ImageView>,
     textures: Vec<Handle<Image>>,
     templates: Vec<Vec<Template>>,
     model: usize,
@@ -117,6 +121,7 @@ impl Queue {
             instances: prepared.instances.into_iter(),
             tile_views: Vec::new().into_iter(),
             current_tile: None,
+            image_view: None,
             textures: Vec::new(),
             model: 0,
             current: None,
@@ -169,6 +174,25 @@ impl Queue {
             "Uploading draw resources: {}/{} operations",
             self.admitted, self.total
         )
+    }
+
+    pub fn new_image(
+        epoch: u64,
+        prepared: scene::Prepared,
+        view: ImageView,
+    ) -> Result<Self, String> {
+        if prepared.instances.len() != 1
+            || prepared.models.len() != 1
+            || prepared.images.len() != 1
+            || prepared.models[0].parts.len() != 1
+            || prepared.models[0].parts[0].texture != Some(0)
+        {
+            return Err("Image labels require one exact image/model/part/instance".into());
+        }
+        view.validate().map_err(|e| e.to_string())?;
+        let mut queue = Self::new_tiles(epoch, prepared, vec![view.tile.clone()])?;
+        queue.image_view = Some(view);
+        Ok(queue)
     }
 
     pub fn advance(
@@ -262,6 +286,9 @@ impl Queue {
                 if let Some(tile) = &self.current_tile {
                     parent.insert(tile.clone());
                 }
+                if let Some(image) = &self.image_view {
+                    parent.insert(image.clone());
+                }
                 self.current = Some((parent.id(), instance.model, 0));
                 self.owned_entities.push(parent.id());
                 entities += 1;
@@ -279,6 +306,9 @@ impl Queue {
                 ));
                 if let Some(tile) = &self.current_tile {
                     child.insert(tile.clone());
+                }
+                if let Some(image) = &self.image_view {
+                    child.insert(image.clone());
                 }
                 let child = child.id();
                 self.owned_entities.push(child);
@@ -327,6 +357,7 @@ impl Queue {
             self.retiring = true;
             self.current = None;
             self.current_tile = None;
+            self.image_view = None;
             if let Some(root) = self.root {
                 commands.entity(root).insert(Visibility::Hidden);
             }

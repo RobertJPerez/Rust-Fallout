@@ -12,10 +12,10 @@ use fallout_data::vfs::AssetPath;
 use serde::{Deserialize, Serialize};
 use std::{io::Write, mem::size_of, path::Path, sync::Arc};
 
-const NUMBERS: [&str; 9] = [
+pub(super) const NUMBERS: [&str; 9] = [
     "x", "y", "width", "height", "depth", "red", "green", "blue", "alpha",
 ];
-const POLICY: &str = "parent-relative-pixels-rgba255";
+pub(super) const POLICY: &str = "parent-relative-pixels-rgba255";
 const COORDINATE: f64 = 1_048_576.;
 const PIXELS: u64 = 4_194_304;
 
@@ -88,7 +88,9 @@ pub fn validate_request(request: &Request) -> model::Result<()> {
     if request.tile.name.is_empty() || request.tile.name.len() > 256 {
         return Err("Menu rectangle selected name requires 1..256 bytes".into());
     }
-    let viewport = &request.viewport;
+    validate_viewport(&request.viewport, &request.parent)
+}
+pub(super) fn validate_viewport(viewport: &Viewport, parent: &Parent) -> model::Result<()> {
     if !(1..=4096).contains(&viewport.width)
         || !(1..=4096).contains(&viewport.height)
         || u64::from(viewport.width) * u64::from(viewport.height) > PIXELS
@@ -106,24 +108,25 @@ pub fn validate_request(request: &Request) -> model::Result<()> {
         || f64::from(far) - f64::from(near) > COORDINATE
         || f64::from(near).abs() > COORDINATE
         || f64::from(far).abs() > COORDINATE
-        || request
-            .parent
+        || parent
             .origin
             .iter()
             .any(|v| !v.is_finite() || v.abs() > COORDINATE)
-        || !request.parent.opacity.is_finite()
-        || !(0. ..=1.).contains(&request.parent.opacity)
+        || !parent.opacity.is_finite()
+        || !(0. ..=1.).contains(&parent.opacity)
     {
         return Err("Menu rectangle parent/depth range must be finite and bounded".into());
     }
-    let (camera, _) = camera(request);
+    let (camera, _) = camera_for(viewport);
     if !camera.is_finite() || camera.translation.z <= far {
         return Err("Menu rectangle camera precision collapsed".into());
     }
     Ok(())
 }
 pub fn camera(request: &Request) -> (Transform, Projection) {
-    let viewport = &request.viewport;
+    camera_for(&request.viewport)
+}
+pub(super) fn camera_for(viewport: &Viewport) -> (Transform, Projection) {
     let center = Vec3::new(
         viewport.width as f32 / 2.,
         -(viewport.height as f32) / 2.,
@@ -285,7 +288,6 @@ fn project_checked(
         }])
         .collect();
     let mut usage = Usage::default();
-    let rangefinder = ViewRangefinder3d::from_world_from_view(&camera(request).0.compute_affine());
     let mut rectangles: Vec<Rectangle> = Vec::new();
     let mut stack = vec![(request.tile.node, None, 1usize)];
     while let Some((id, parent, depth)) = stack.pop() {
@@ -381,143 +383,35 @@ fn project_checked(
             limits.projection_metadata,
             "projection metadata",
         )?;
-        let numeric = NUMBERS
-            .into_iter()
-            .map(|name| number(&projection, name))
-            .collect::<model::Result<Vec<_>>>()?;
-        let row = projection
-            .rows
-            .iter()
-            .find(|row| row.name == "visible")
-            .expect("requested visible row");
-        let traits::Outcome::Value {
-            value: traits::Literal::Boolean01 { value },
-        } = &row.outcome
-        else {
-            return Err("Menu rectangle requires explicit literal visible (0 or 1)".into());
-        };
-        let visible = Boolean {
-            node: row.node.expect("boolean source"),
-            span: row.span.expect("boolean span"),
-            inner_span: row.inner_span.expect("boolean inner"),
-            value: *value,
-        };
-        let values: Vec<_> = numeric.iter().map(|n| f64::from(n.value)).collect();
-        let [x, y, width, height, z, r, g, b, alpha]: [f64; 9] =
-            values.try_into().expect("nine numeric fields");
-        if width <= 0. || height <= 0. || [r, g, b, alpha].iter().any(|v| !(0. ..=255.).contains(v))
-        {
-            return Err("Menu rectangle requires positive dimensions and RGBA in 0..255".into());
-        }
-        let (origin, opacity, shown) = parent.map_or(
-            (
-                request.parent.origin,
-                request.parent.opacity,
-                request.parent.visible,
-            ),
+        let parent_state = parent.map_or_else(
+            || Parent {
+                origin: request.parent.origin,
+                opacity: request.parent.opacity,
+                visible: request.parent.visible,
+            },
             |index: usize| {
                 let p = &rectangles[index];
-                (
-                    [p.bounds[0], p.bounds[1], p.depth],
-                    p.effective_opacity,
-                    p.effective_visible,
-                )
+                Parent {
+                    origin: [p.bounds[0], p.bounds[1], p.depth],
+                    opacity: p.effective_opacity,
+                    visible: p.effective_visible,
+                }
             },
         );
-        let x = x + origin[0];
-        let y = y + origin[1];
-        let z = z + origin[2];
-        let bounds = [x, y, x + width, y + height];
-        if bounds
-            .iter()
-            .chain([&z])
-            .any(|v| !v.is_finite() || v.abs() > COORDINATE)
-            || z < f64::from(request.viewport.depth_range[0])
-            || z > f64::from(request.viewport.depth_range[1])
-        {
-            return Err(
-                "Menu rectangle resolved coordinates/depth outside bounded viewport policy".into(),
-            );
-        }
-        let positions = [
-            [x as f32, -(y as f32), z as f32],
-            [(x + width) as f32, -(y as f32), z as f32],
-            [(x + width) as f32, -((y + height) as f32), z as f32],
-            [x as f32, -((y + height) as f32), z as f32],
-        ];
-        if positions[0][0] >= positions[1][0] || positions[0][1] <= positions[3][1] {
-            return Err("Menu rectangle f32 geometry precision collapsed".into());
-        }
-        let area = (positions[1][0] - positions[0][0]) * (positions[0][1] - positions[3][1]);
-        if !area.is_finite() || area <= 0. || area.is_subnormal() {
-            return Err("Menu rectangle draw area precision collapsed".into());
-        }
-        let effective_opacity = opacity * (alpha / 255.);
-        if (opacity > 0. && alpha > 0. && effective_opacity == 0.)
-            || (effective_opacity > 0. && effective_opacity as f32 == 0.)
-        {
-            return Err("Menu rectangle effective opacity precision collapsed".into());
-        }
-        let translation = [
-            ((x + (x + width)) / 2.) as f32,
-            -(((y + (y + height)) / 2.) as f32),
-            z as f32,
-        ];
-        let mesh_positions = positions.map(|p| {
-            [
-                p[0] - translation[0],
-                p[1] - translation[1],
-                p[2] - translation[2],
-            ]
-        });
-        if mesh_positions
-            .iter()
-            .zip(positions)
-            .any(|(p, expected)| (0..3).any(|i| p[i] + translation[i] != expected[i]))
-        {
-            return Err("Menu rectangle local mesh reconstruction precision differs".into());
-        }
-        if mesh_positions
-            .iter()
-            .flatten()
-            .chain(translation.iter())
-            .any(|v| v.is_subnormal())
-        {
-            return Err("Menu rectangle GPU coordinate precision is subnormal".into());
-        }
-        let rgba = [
-            (r / 255.) as f32,
-            (g / 255.) as f32,
-            (b / 255.) as f32,
-            effective_opacity as f32,
-        ];
-        if rgba.iter().any(|v| v.is_subnormal())
-            || [r, g, b, effective_opacity]
-                .iter()
-                .zip(rgba)
-                .any(|(source, draw)| *source > 0. && draw == 0.)
-        {
-            return Err("Menu rectangle GPU color/opacity precision collapsed".into());
-        }
-        let effective_visible = shown && visible.value;
-        // Local mesh z is exactly zero; the instance translation is the
-        // renderer's world AABB-center z. Use the same pinned Bevy calculator.
-        let sort_key = rangefinder.distance(&Vec3::from_array(translation));
-        if !sort_key.is_finite() {
-            return Err("Menu rectangle camera-space sort key must be finite".into());
-        }
+        let mut rectangle = quad(document, &projection, &parent_state, &request.viewport)?;
+        rectangle.parent_rectangle = parent;
         // Equal-depth overlapping translucent draws have no certified source
         // ordering policy here. Refuse them instead of inventing a tie breaker.
-        if effective_visible
-            && effective_opacity > 0.
+        if rectangle.effective_visible
+            && rectangle.effective_opacity > 0.
             && rectangles.iter().any(|p| {
                 p.effective_visible
                     && p.effective_opacity > 0.
-                    && p.positions[0][2] == z as f32
-                    && bounds[0] < p.bounds[2]
-                    && bounds[2] > p.bounds[0]
-                    && bounds[1] < p.bounds[3]
-                    && bounds[3] > p.bounds[1]
+                    && p.positions[0][2] == rectangle.positions[0][2]
+                    && rectangle.bounds[0] < p.bounds[2]
+                    && rectangle.bounds[2] > p.bounds[0]
+                    && rectangle.bounds[1] < p.bounds[3]
+                    && rectangle.bounds[3] > p.bounds[1]
             })
         {
             return Err(
@@ -525,16 +419,16 @@ fn project_checked(
                     .into(),
             );
         }
-        if effective_visible
-            && effective_opacity > 0.
+        if rectangle.effective_visible
+            && rectangle.effective_opacity > 0.
             && rectangles.iter().any(|p| {
                 p.effective_visible
                     && p.effective_opacity > 0.
-                    && p.sort_key == sort_key
-                    && bounds[0] < p.bounds[2]
-                    && bounds[2] > p.bounds[0]
-                    && bounds[1] < p.bounds[3]
-                    && bounds[3] > p.bounds[1]
+                    && p.sort_key == rectangle.sort_key
+                    && rectangle.bounds[0] < p.bounds[2]
+                    && rectangle.bounds[2] > p.bounds[0]
+                    && rectangle.bounds[1] < p.bounds[3]
+                    && rectangle.bounds[3] > p.bounds[1]
             })
         {
             return Err("Menu rectangle overlapping camera-space sort-key collision requires a supported order".into());
@@ -546,24 +440,7 @@ fn project_checked(
             "mesh byte",
         )?;
         let index = rectangles.len();
-        rectangles.push(Rectangle {
-            node: id,
-            span: node.span,
-            name_span: node.attributes.first().map(|a| a.raw_value),
-            parent_rectangle: parent,
-            numeric,
-            visible,
-            bounds,
-            depth: z,
-            effective_opacity,
-            effective_visible,
-            rgba,
-            positions,
-            translation,
-            mesh_positions,
-            sort_key,
-            sort_key_bits: sort_key.to_bits(),
-        });
+        rectangles.push(rectangle);
         stack.extend(
             node.children
                 .iter()
@@ -580,6 +457,180 @@ fn project_checked(
     check()?;
     Ok(Plan { rectangles, usage })
 }
+pub(super) fn quad(
+    document: &Document,
+    projection: &traits::Projection,
+    parent: &Parent,
+    viewport: &Viewport,
+) -> model::Result<Rectangle> {
+    let node = &document.nodes[projection.tile_node];
+    let numeric = NUMBERS
+        .into_iter()
+        .map(|name| number(projection, name))
+        .collect::<model::Result<Vec<_>>>()?;
+    let row = projection
+        .rows
+        .iter()
+        .find(|row| row.name == "visible")
+        .expect("requested visible row");
+    let traits::Outcome::Value {
+        value: traits::Literal::Boolean01 { value },
+    } = &row.outcome
+    else {
+        return Err("Menu rectangle requires explicit literal visible (0 or 1)".into());
+    };
+    let visible = Boolean {
+        node: row.node.expect("boolean source"),
+        span: row.span.expect("boolean span"),
+        inner_span: row.inner_span.expect("boolean inner"),
+        value: *value,
+    };
+    let values: Vec<_> = numeric.iter().map(|n| f64::from(n.value)).collect();
+    let [x, y, width, height, z, r, g, b, alpha]: [f64; 9] =
+        values.try_into().expect("nine numeric fields");
+    if width <= 0. || height <= 0. || [r, g, b, alpha].iter().any(|v| !(0. ..=255.).contains(v)) {
+        return Err("Menu rectangle requires positive dimensions and RGBA in 0..255".into());
+    }
+    let origin = parent.origin;
+    let opacity = parent.opacity;
+    let shown = parent.visible;
+    let x = x + origin[0];
+    let y = y + origin[1];
+    let z = z + origin[2];
+    let bounds = [x, y, x + width, y + height];
+    if bounds
+        .iter()
+        .chain([&z])
+        .any(|v| !v.is_finite() || v.abs() > COORDINATE)
+        || z < f64::from(viewport.depth_range[0])
+        || z > f64::from(viewport.depth_range[1])
+    {
+        return Err(
+            "Menu rectangle resolved coordinates/depth outside bounded viewport policy".into(),
+        );
+    }
+    let positions = [
+        [x as f32, -(y as f32), z as f32],
+        [(x + width) as f32, -(y as f32), z as f32],
+        [(x + width) as f32, -((y + height) as f32), z as f32],
+        [x as f32, -((y + height) as f32), z as f32],
+    ];
+    if positions[0][0] >= positions[1][0] || positions[0][1] <= positions[3][1] {
+        return Err("Menu rectangle f32 geometry precision collapsed".into());
+    }
+    let area = (positions[1][0] - positions[0][0]) * (positions[0][1] - positions[3][1]);
+    if !area.is_finite() || area <= 0. || area.is_subnormal() {
+        return Err("Menu rectangle draw area precision collapsed".into());
+    }
+    let effective_opacity = opacity * (alpha / 255.);
+    if (opacity > 0. && alpha > 0. && effective_opacity == 0.)
+        || (effective_opacity > 0. && effective_opacity as f32 == 0.)
+    {
+        return Err("Menu rectangle effective opacity precision collapsed".into());
+    }
+    let translation = [
+        ((x + (x + width)) / 2.) as f32,
+        -(((y + (y + height)) / 2.) as f32),
+        z as f32,
+    ];
+    let mesh_positions = positions.map(|p| {
+        [
+            p[0] - translation[0],
+            p[1] - translation[1],
+            p[2] - translation[2],
+        ]
+    });
+    if mesh_positions
+        .iter()
+        .zip(positions)
+        .any(|(p, expected)| (0..3).any(|i| p[i] + translation[i] != expected[i]))
+    {
+        return Err("Menu rectangle local mesh reconstruction precision differs".into());
+    }
+    if mesh_positions
+        .iter()
+        .flatten()
+        .chain(translation.iter())
+        .any(|v| v.is_subnormal())
+    {
+        return Err("Menu rectangle GPU coordinate precision is subnormal".into());
+    }
+    let rgba = [
+        (r / 255.) as f32,
+        (g / 255.) as f32,
+        (b / 255.) as f32,
+        effective_opacity as f32,
+    ];
+    if rgba.iter().any(|v| v.is_subnormal())
+        || [r, g, b, effective_opacity]
+            .iter()
+            .zip(rgba)
+            .any(|(source, draw)| *source > 0. && draw == 0.)
+    {
+        return Err("Menu rectangle GPU color/opacity precision collapsed".into());
+    }
+    let effective_visible = shown && visible.value;
+    // Local mesh z is zero; calculate the actual fixed camera-space sort key.
+    let rangefinder =
+        ViewRangefinder3d::from_world_from_view(&camera_for(viewport).0.compute_affine());
+    let sort_key = rangefinder.distance(&Vec3::from_array(translation));
+    if !sort_key.is_finite() {
+        return Err("Menu rectangle camera-space sort key must be finite".into());
+    }
+    Ok(Rectangle {
+        node: projection.tile_node,
+        span: node.span,
+        name_span: node.attributes.first().map(|a| a.raw_value),
+        parent_rectangle: None,
+        numeric,
+        visible,
+        bounds,
+        depth: z,
+        effective_opacity,
+        effective_visible,
+        rgba,
+        positions,
+        translation,
+        mesh_positions,
+        sort_key,
+        sort_key_bits: sort_key.to_bits(),
+    })
+}
+
+pub(super) fn draw_model(
+    rectangle: &Rectangle,
+    texture: Option<usize>,
+    uv: [[f32; 2]; 4],
+) -> model::Model {
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, rectangle.mesh_positions.to_vec());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0., 0., 1.]; 4]);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uv.to_vec());
+    mesh.insert_indices(Indices::U32(vec![0, 2, 1, 0, 3, 2]));
+    let [r, g, b, a] = rectangle.rgba;
+    model::Model {
+        parts: vec![model::Part {
+            mesh,
+            texture,
+            color: Color::srgba(r, g, b, a),
+            raster: material::Raster {
+                alpha_flags: 1 | (6 << 1) | (7 << 5),
+                alpha_threshold: 0,
+                draw_mode: 1,
+                depth_test: false,
+                depth_write: false,
+            },
+        }],
+        center: Vec3::ZERO,
+        radius: ((rectangle.bounds[2] - rectangle.bounds[0])
+            .hypot(rectangle.bounds[3] - rectangle.bounds[1])
+            / 2.) as f32,
+    }
+}
+
 pub fn load<'a>(
     install: &Path,
     request: &'a Request,
@@ -615,37 +666,12 @@ pub fn load<'a>(
     let mut views = Vec::with_capacity(plan.rectangles.len());
     for rectangle in &plan.rectangles {
         context.check()?;
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::RENDER_WORLD,
-        );
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, rectangle.mesh_positions.to_vec());
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0., 0., 1.]; 4]);
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_UV_0,
-            vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
-        );
-        mesh.insert_indices(Indices::U32(vec![0, 2, 1, 0, 3, 2]));
-        let [r, g, b, a] = rectangle.rgba;
         let index = models.len();
-        models.push(model::Model {
-            parts: vec![model::Part {
-                mesh,
-                texture: None,
-                color: Color::srgba(r, g, b, a),
-                raster: material::Raster {
-                    alpha_flags: 1 | (6 << 1) | (7 << 5),
-                    alpha_threshold: 0,
-                    draw_mode: 1,
-                    depth_test: false,
-                    depth_write: false,
-                },
-            }],
-            center: Vec3::ZERO,
-            radius: ((rectangle.bounds[2] - rectangle.bounds[0])
-                .hypot(rectangle.bounds[3] - rectangle.bounds[1])
-                / 2.) as f32,
-        });
+        models.push(draw_model(
+            rectangle,
+            None,
+            [[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
+        ));
         instances.push(scene::Instance {
             model: index,
             transform: Transform::from_translation(Vec3::from_array(rectangle.translation)),

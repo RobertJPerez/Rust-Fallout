@@ -1217,3 +1217,31 @@ A unique live SCPT link can select one existing standalone compiled definition w
 For the already observed actor header versions, a twenty-byte AIDT exposes raw aggression, confidence, energy, responsibility and mood, all three unused mood bytes, service flags, signed teaching/assistance bytes, training level, raw aggro-radius boolean and signed radius. Known enum membership is separate from the raw word. Every repeated occurrence remains visible. Unknown version/layout/enum, missing or repeated configuration, and the AI Data template bit (16) prevent admitting a unique authored AI input. Raw service flags and unused bytes remain uninterpreted; no service, training, hostility or radius behavior is evaluated.
 
 The independently gated Traits template bit (1) governs admission of a unique explicit ZNAM link to a live CSTY winner. The request exposes its existing FormID binding and full winning header without reading combat-style bodies or formulas. Null/missing/deleted/wrong-kind and repeated links stay visible and unavailable. A caller can request `actor-sources --ai-root PLUGIN:HEX`; the complete manifest is compared when an independent oracle is supplied, while default actor/stat/faction reports stay unchanged. Sources, physical visits, selected fields, retained raw bytes and full serialized output are bounded. No actor value, event, navigation request, mutable World or AI execution is created.
+
+## Selected race and class initialization inputs
+
+`actors::initialization_inputs::request(&mut RecordStore, &actors::Catalogue,
+&associations::Catalogue, &races::Catalogue, &classes::Catalogue, &FormKey, Limits)`
+joins the existing typed producers over one exact ordered source cohort. Its
+opaque manifest cannot be deserialized or constructed from an inspection report.
+Every physical NPC RNAM/CNAM occurrence retains its association, scalar field,
+raw bytes, index and offset. Live permitted targets borrow the complete existing
+RACE/CLAS definitions and full headers; deleted typed targets retain tombstones.
+Wrong-kind links never select a different producer. CREA RNAM/CNAM have different
+source roles and produce no race/class links.
+
+Repeated links, missing or repeated ACBS, and the Traits template bit leave direct
+binding unavailable. A unique direct link remains distinct from complete decoded
+target inputs: missing or repeated RACE DATA/PNAM/UNAM or CLAS DATA/ATTR prevents
+input completeness while preserving every declaration. Both sex height/weight
+arrays, signed skill/tag/training words, raw flags, unused bytes and float bits
+remain exactly as supplied by the existing decoders. No template is followed,
+effective race/class selected or actor value initialized.
+
+`actor-sources --initialization-root PLUGIN:HEX` emits the optional complete
+`actor_initialization_inputs.manifest`, with exact independent comparison.
+Sources, conservative physical visits, all retained actor/configuration/target
+fields, link count, decoded bytes and compact projection have separate limits.
+The independent oracle composes existing native actor/association/RACE/CLAS and
+inventory producers after fresh source/header/body/field validation. Default
+actor and ACT09 reports keep their existing projections.

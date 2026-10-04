@@ -7,6 +7,7 @@ pub mod classes;
 pub mod dependencies;
 pub mod factions;
 pub mod fields;
+pub mod initialization_inputs;
 pub mod package_dependencies;
 pub mod packages;
 pub mod placements;

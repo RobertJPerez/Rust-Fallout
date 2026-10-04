@@ -1345,6 +1345,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             voice_root,
             script_root,
             ai_root,
+            initialization_root,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -1369,6 +1370,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     voice_root,
                     script_root,
                     ai_root,
+                    initialization_root,
                     creature_model_directory,
                 },
             )?;
@@ -1424,6 +1426,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             condition_executable,
             include_faction_requests,
             include_stat_requests,
+            include_initialization_inputs,
             package_capability,
             include_actor_context,
             equipment_item,
@@ -1441,6 +1444,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     condition_executable: condition_executable.as_deref(),
                     include_faction_requests,
                     include_stat_requests,
+                    include_initialization_inputs,
                     package_capability,
                     include_actor_context,
                     equipment_item,

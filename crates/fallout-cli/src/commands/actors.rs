@@ -50,6 +50,8 @@ pub(crate) enum ActorsCommand {
         script_root: Option<identity::FormKey>,
         #[arg(long, value_parser = actor_inspection::parse_root)]
         ai_root: Option<identity::FormKey>,
+        #[arg(long, value_parser = actor_inspection::parse_root)]
+        initialization_root: Option<identity::FormKey>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
         creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },
@@ -78,6 +80,8 @@ pub(crate) enum ActorsCommand {
         /// Join raw actor scalars to source template categories; evaluated values remain unavailable.
         #[arg(long)]
         include_stat_requests: bool,
+        #[arg(long)]
+        include_initialization_inputs: bool,
         /// Report the exact refusal for a package operation; never execute AI.
         #[arg(long, value_parser = actor_inspection::parse_package_operation)]
         package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,

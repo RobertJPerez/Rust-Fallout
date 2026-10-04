@@ -10,6 +10,7 @@ pub mod package_dependencies;
 pub mod packages;
 pub mod placements;
 pub mod races;
+pub mod voices;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};
 use serde::Serialize;
 use std::collections::BTreeMap;

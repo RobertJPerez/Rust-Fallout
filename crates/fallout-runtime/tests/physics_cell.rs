@@ -8,7 +8,7 @@ use fallout_data::{
     vfs::MountIndex,
     world::{
         preparation::CellModelPlan,
-        residency::{self, CellResidency, Readiness, Stage},
+        residency::{self, CellResidency, Readiness, Stage, TexturePlan},
     },
 };
 use fallout_runtime::{
@@ -234,6 +234,26 @@ fn selected_query_cannot_activate_cell_and_unload_revokes_hits_and_releases_pins
         .unwrap();
     assert_eq!(scope.generation, ticket.generation());
     assert_eq!(scope.source_identity, ticket.identity());
+    assert!(
+        world
+            .report_dependencies(&ticket, Readiness::Ready)
+            .is_err()
+    );
+    assert_eq!(world.snapshot().dependencies, Readiness::Pending);
+    assert_eq!(world.snapshot().stage, Stage::Decoded);
+    // This collision-only NIF has no texture requests. Derive that closure from
+    // the source lease; its unsupported scene blocks still prevent activation.
+    let textures = TexturePlan::load(
+        world.sources(&ticket).unwrap(),
+        &MountIndex::default(),
+        Default::default(),
+    )
+    .unwrap();
+    assert!(textures.receipt().usages.is_empty());
+    assert!(textures.receipt().requests.is_empty());
+    assert_eq!(textures.receipt().missing_or_ambiguous, 0);
+    assert!(!textures.receipt().reference_coverage_verified);
+    world.request_textures(&ticket, textures).unwrap();
     world
         .report_dependencies(&ticket, Readiness::Ready)
         .unwrap();

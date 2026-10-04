@@ -36,6 +36,7 @@ mod query_inspection;
 mod quest_script_inspection;
 #[path = "../../../tools/retail-profile/capture.rs"]
 mod retail_profile;
+mod route_boot;
 mod script_profile;
 mod script_state_inspection;
 #[path = "../../../tools/retail-script-probes/runner.rs"]
@@ -809,6 +810,21 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
 
 fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        RuntimeCommand::RouteBoot {
+            install,
+            load_order,
+            save_root,
+            request,
+            destination,
+        } => {
+            if output.is_some() {
+                return Err(
+                    "route boot writes its publication report to stdout; --output is unavailable"
+                        .into(),
+                );
+            }
+            route_boot::run(&install, &load_order, &save_root, &request, &destination)?;
+        }
         RuntimeCommand::PrimitiveQueryState {
             install,
             load_order,

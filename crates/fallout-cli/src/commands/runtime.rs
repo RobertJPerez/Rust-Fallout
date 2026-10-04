@@ -3,6 +3,19 @@ use std::path::PathBuf;
 
 #[derive(Subcommand)]
 pub(crate) enum RuntimeCommand {
+    /// Compose explicit engineering inventory/quest boot into a new native save.
+    RouteBoot {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        save_root: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
+    },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
         #[arg(long)]

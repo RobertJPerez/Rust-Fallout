@@ -274,6 +274,431 @@ fn raw_duplicate_weights_are_added_without_sorting_pruning_or_normalizing() {
     refusal(&blocks, "raw weight sum 1.5");
 }
 
+fn influence_fixture() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = fixture();
+    blocks[2].1 = node(R90, [0., 5., 0.], 2., &[]);
+    blocks[5].1 = skin(
+        &[
+            vec![
+                (2, 0.25),
+                (0, 0.25),
+                (0, 0.5),
+                (1, 1.),
+                (0, -0.),
+                (0, 0.125),
+                (0, 0.125),
+                (0, 0.),
+            ],
+            vec![(0, 0.75), (2, 0.75)],
+        ],
+        None,
+    );
+    blocks
+}
+
+#[test]
+fn influence_csr_preserves_sparse_duplicate_zero_raw_bits_and_source_order() {
+    use fallout_data::nif_skin::influences;
+    let bytes = container(&influence_fixture(), &[0]);
+    let table = influences::prepare(&bytes, "independent sparse", 3, Default::default()).unwrap();
+    assert_eq!(table.vertex_offsets(), &[0, 7, 8, 10]);
+    assert_eq!(table.geometry(), 3);
+    assert_eq!(table.instance(), 4);
+    let actual = table
+        .entries()
+        .iter()
+        .map(|e| (e.bone_ordinal, e.source_weight_ordinal, e.weight_bits))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        actual,
+        vec![
+            (0, 1, 0.25f32.to_bits()),
+            (0, 2, 0.5f32.to_bits()),
+            (0, 4, (-0.0f32).to_bits()),
+            (0, 5, 0.125f32.to_bits()),
+            (0, 6, 0.125f32.to_bits()),
+            (0, 7, 0.0f32.to_bits()),
+            (1, 0, 0.75f32.to_bits()),
+            (0, 3, 1.0f32.to_bits()),
+            (0, 0, 0.25f32.to_bits()),
+            (1, 1, 0.75f32.to_bits())
+        ]
+    );
+    assert_eq!(table.usage().entries, 10);
+    assert!(table.usage().array_bytes > table.usage().output_bytes);
+}
+
+#[test]
+fn influence_count_storage_work_and_decoder_admissions_have_exact_ceilings() {
+    use fallout_data::nif_skin::influences::{self, Limits};
+    let bytes = container(&influence_fixture(), &[0]);
+    let usage = influences::prepare(&bytes, "bounded", 3, Default::default())
+        .unwrap()
+        .usage();
+    let exact = Limits {
+        entries: 10,
+        array_bytes: usage.array_bytes,
+        work_units: usage.work_units,
+        decoder_array_admission_bytes: usage.decoder_array_admission_bytes,
+        decoder_check_admission_units: usage.decoder_check_admission_units,
+        ..Default::default()
+    };
+    influences::prepare(&bytes, "bounded", 3, exact).unwrap();
+    for (limits, error) in [
+        (
+            Limits {
+                entries: 9,
+                ..exact
+            },
+            "entry budget",
+        ),
+        (
+            Limits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage",
+        ),
+        (
+            Limits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            Limits {
+                decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+                ..exact
+            },
+            "decoder array admission",
+        ),
+        (
+            Limits {
+                decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+                ..exact
+            },
+            "decoder check admission",
+        ),
+    ] {
+        assert!(
+            influences::prepare(&bytes, "bounded", 3, limits)
+                .unwrap_err()
+                .to_string()
+                .contains(error)
+        );
+    }
+    let mut overflow = Limits::default();
+    overflow.source.array_bytes = usize::MAX;
+    assert!(
+        influences::prepare(&bytes, "bounded", 3, overflow)
+            .unwrap_err()
+            .to_string()
+            .contains("decoder array admission")
+    );
+    let mut overflow = Limits::default();
+    overflow.source.graph_checks = usize::MAX;
+    assert!(
+        influences::prepare(&bytes, "bounded", 3, overflow)
+            .unwrap_err()
+            .to_string()
+            .contains("decoder check admission")
+    );
+    let mut short = Limits::default();
+    short.source.partition.skin.scene.input_bytes = bytes.len() - 1;
+    assert!(
+        influences::prepare(&bytes, "bounded", 3, short)
+            .unwrap_err()
+            .to_string()
+            .contains("input byte budget")
+    );
+}
+
+#[test]
+fn influence_csr_reconstruction_uses_every_raw_entry_and_matches_source_pose() {
+    use fallout_data::nif_skin::influences;
+    let bytes = container(&influence_fixture(), &[0]);
+    let table = influences::prepare(&bytes, "sparse", 3, Default::default()).unwrap();
+    let raw = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let rebuilt = table
+        .evaluate(&bytes, "sparse", raw, Default::default())
+        .unwrap();
+    let old = pose::evaluate(&bytes, "sparse", raw, Default::default()).unwrap();
+    assert_eq!(
+        rebuilt.positions,
+        [[-2.625, 2.5, 2.625], [0., -0.5, 1.], [-3.5, 0.75, 0.5]]
+    );
+    assert_eq!(
+        rebuilt.normals,
+        [[0., 0.875, 0.], [0., 0.5, 0.], [0., 0.5, 0.]]
+    );
+    assert_eq!(rebuilt.weight_sums, [1.75, 1., 1.]);
+    assert_eq!(rebuilt.positions, old.positions);
+    assert_eq!(rebuilt.normals, old.normals);
+    assert_eq!(rebuilt.weight_sums, old.weight_sums);
+    assert_eq!(rebuilt.skin_to_source_world, old.skin_to_source_world);
+    assert_eq!(
+        serde_json::to_value(&rebuilt.palette).unwrap(),
+        serde_json::to_value(&old.palette).unwrap()
+    );
+    assert_eq!(rebuilt.retained_bytes, old.retained_bytes);
+    assert_eq!(rebuilt.work_units, old.work_units + 3);
+    assert_eq!(
+        rebuilt.contract,
+        "engineering-exact-csr-source-local-skin-v1"
+    );
+    assert!(
+        table
+            .evaluate(&bytes, "sparse", request(), Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("raw weight sum 1.75")
+    );
+    let tolerance = Request {
+        weights: WeightPolicy::RequireUnitSum {
+            absolute_tolerance: 0.75,
+        },
+        ..request()
+    };
+    assert_eq!(
+        table
+            .evaluate(&bytes, "sparse", tolerance, Default::default())
+            .unwrap()
+            .positions,
+        old.positions
+    );
+}
+
+#[test]
+fn influence_table_cannot_be_reused_as_another_source_geometry_or_instance() {
+    use fallout_data::nif_skin::influences;
+    let blocks = influence_fixture();
+    let bytes = container(&blocks, &[0]);
+    let table = influences::prepare(&bytes, "identity", 3, Default::default()).unwrap();
+    let request = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    assert!(
+        table
+            .evaluate(
+                &bytes,
+                "identity",
+                Request {
+                    geometry: 2,
+                    ..request
+                },
+                Default::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("table geometry differs")
+    );
+    let mut changed = blocks.clone();
+    changed[4].1[16..20].copy_from_slice(&2u32.to_le_bytes());
+    assert!(
+        table
+            .evaluate(
+                &container(&changed, &[0]),
+                "changed instance",
+                request,
+                Default::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("table source SHA256 differs")
+    );
+    changed = blocks;
+    changed[2].1 = node(R90, [0., 7., 0.], 2., &[]);
+    assert!(
+        table
+            .evaluate(
+                &container(&changed, &[0]),
+                "changed local",
+                request,
+                Default::default()
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("table source SHA256 differs")
+    );
+    let mut copied = bytes.clone();
+    copied.fill(0);
+    drop(copied);
+    assert_eq!(
+        table
+            .evaluate(&bytes, "another source label", request, Default::default())
+            .unwrap()
+            .weight_sums,
+        [1.75, 1., 1.]
+    );
+    let mut input_limit = Limits::default();
+    input_limit.source.partition.skin.scene.input_bytes = bytes.len() - 1;
+    assert!(
+        table
+            .evaluate(&bytes, "identity", request, input_limit)
+            .unwrap_err()
+            .to_string()
+            .contains("input byte budget")
+    );
+}
+
+#[test]
+fn influence_reconstruction_admits_table_plus_pose_storage_and_preserves_missing_normals() {
+    use fallout_data::nif_skin::influences;
+    let bytes = container(&influence_fixture(), &[0]);
+    let table = influences::prepare(&bytes, "aggregate", 3, Default::default()).unwrap();
+    let request = Request {
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+    };
+    let result = table
+        .evaluate(&bytes, "aggregate", request, Default::default())
+        .unwrap();
+    let exact = Limits {
+        array_bytes: table.usage().output_bytes + result.retained_bytes,
+        work_units: result.work_units,
+        ..Default::default()
+    };
+    table.evaluate(&bytes, "aggregate", request, exact).unwrap();
+    assert!(
+        table
+            .evaluate(
+                &bytes,
+                "aggregate",
+                request,
+                Limits {
+                    array_bytes: exact.array_bytes - 1,
+                    ..exact
+                }
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("array storage budget")
+    );
+    assert!(
+        table
+            .evaluate(
+                &bytes,
+                "aggregate",
+                request,
+                Limits {
+                    work_units: exact.work_units - 1,
+                    ..exact
+                }
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("work budget")
+    );
+    assert!(
+        table
+            .evaluate(
+                &bytes,
+                "aggregate",
+                request,
+                Limits {
+                    array_bytes: table.usage().output_bytes - 1,
+                    ..exact
+                }
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("table plus pose")
+    );
+    let mut blocks = influence_fixture();
+    blocks[6].1[47] = 0;
+    blocks[6].1.drain(48..84);
+    let bytes = container(&blocks, &[0]);
+    let table = influences::prepare(&bytes, "no normals", 3, Default::default()).unwrap();
+    assert!(
+        table
+            .evaluate(&bytes, "no normals", request, Default::default())
+            .unwrap()
+            .normals
+            .is_empty()
+    );
+}
+
+#[test]
+fn influence_missing_vertices_invalid_raw_weights_and_bone_identity_refuse() {
+    use fallout_data::nif_skin::influences;
+    let mut blocks = fixture();
+    for (weights, error) in [
+        ([vec![(0, 1.)], vec![(2, 1.)]], "vertex 1 has no positive"),
+        (
+            [vec![(0, -0.25), (1, 1.)], vec![(0, 1.25), (2, 1.)]],
+            "negative or nonfinite",
+        ),
+        ([vec![(0, f32::NAN), (1, 1.)], vec![(2, 1.)]], "nonfinite"),
+        (
+            [vec![(3, 1.), (1, 1.)], vec![(2, 1.)]],
+            "skin vertex index exceeds",
+        ),
+    ] {
+        blocks[5].1 = skin(&weights, None);
+        let result = influences::prepare(
+            &container(&blocks, &[0]),
+            "invalid influences",
+            3,
+            Default::default(),
+        );
+        assert!(result.unwrap_err().to_string().contains(error));
+    }
+    blocks = fixture();
+    blocks[4].1[16..20].copy_from_slice(&NULL.to_le_bytes());
+    assert!(
+        influences::prepare(
+            &container(&blocks, &[0]),
+            "missing bone",
+            3,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("unresolved root, bone")
+    );
+    blocks = fixture();
+    blocks[4].1[16..20].copy_from_slice(&999u32.to_le_bytes());
+    assert!(
+        influences::prepare(
+            &container(&blocks, &[0]),
+            "outside bone",
+            3,
+            Default::default()
+        )
+        .is_err()
+    );
+    assert!(
+        influences::prepare(
+            &container(&fixture(), &[0]),
+            "wrong geometry",
+            2,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no decoded skin owner")
+    );
+    blocks = fixture();
+    blocks[6].1[8] = 0;
+    blocks[6].1.drain(9..45);
+    assert!(
+        influences::prepare(
+            &container(&blocks, &[0]),
+            "missing positions",
+            3,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("vertex positions unavailable")
+    );
+}
+
 #[test]
 fn missing_negative_and_nonunit_weights_refuse_for_the_intended_reason() {
     let mut blocks = fixture();

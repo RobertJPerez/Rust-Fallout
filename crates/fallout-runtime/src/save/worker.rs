@@ -3,9 +3,10 @@
 //! currently on disk. Each caller owns its result receiver; there is no growing
 //! shared completion queue.
 use super::{Captured, Repository, WriteReceipt};
+mod admission;
+use admission::{Admission, Permit};
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
     mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
 };
 use std::thread::{self, JoinHandle};
@@ -16,6 +17,8 @@ const MAX_IN_FLIGHT: usize = 64;
 pub enum WorkerError {
     #[error("save worker capacity must be between 1 and {MAX_IN_FLIGHT}, got {0}")]
     Capacity(usize),
+    #[error("save worker snapshot-byte budget must be positive, got {0}")]
+    ByteBudget(usize),
     #[error("could not start native save worker: {0}")]
     Spawn(#[source] std::io::Error),
     #[error("native save worker panicked; inspect outstanding tickets")]
@@ -91,12 +94,6 @@ impl SaveTicket {
     }
 }
 
-struct Permit(Arc<AtomicUsize>);
-impl Drop for Permit {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::AcqRel);
-    }
-}
 struct Job {
     capture: Captured,
     result: SyncSender<super::Result<WriteReceipt>>,
@@ -104,27 +101,50 @@ struct Job {
 }
 
 /// A bounded FIFO for one repository. Capacity includes the active write.
-/// Captures carry their existing runtime limits; this is a request-count bound,
-/// not a process memory ceiling. The worker never coalesces or retries saves.
+/// Count and declared snapshot byte reservations include active and queued jobs.
+/// These are logical serialized bounds, not a process memory ceiling. Admission
+/// does not encode a snapshot. The worker never coalesces or retries saves.
 pub struct SaveWorker {
     sender: Option<SyncSender<Job>>,
     thread: Option<JoinHandle<()>>,
-    outstanding: Arc<AtomicUsize>,
-    maximum: usize,
+    admission: Arc<Admission>,
 }
 impl SaveWorker {
+    pub const DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
+
     pub fn start(repository: Repository, max_in_flight: usize) -> Result<Self, WorkerError> {
-        Self::spawn_with(max_in_flight, move |capture| repository.commit(capture))
+        Self::start_with_budget(
+            repository,
+            max_in_flight,
+            Self::DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES,
+        )
+    }
+    /// Reserve each capture's max_snapshot_bytes until its storage is released.
+    /// Configure a positive aggregate limit; count and byte admission are atomic.
+    pub fn start_with_budget(
+        repository: Repository,
+        max_in_flight: usize,
+        maximum_reserved_snapshot_bytes: usize,
+    ) -> Result<Self, WorkerError> {
+        Self::spawn_with(
+            max_in_flight,
+            maximum_reserved_snapshot_bytes,
+            move |capture| repository.commit(capture),
+        )
     }
     fn spawn_with(
         maximum: usize,
+        maximum_bytes: usize,
         mut commit: impl FnMut(&Captured) -> super::Result<WriteReceipt> + Send + 'static,
     ) -> Result<Self, WorkerError> {
         if !(1..=MAX_IN_FLIGHT).contains(&maximum) {
             return Err(WorkerError::Capacity(maximum));
         }
+        if maximum_bytes == 0 {
+            return Err(WorkerError::ByteBudget(maximum_bytes));
+        }
         let (sender, receiver) = mpsc::sync_channel::<Job>(maximum);
-        let outstanding = Arc::new(AtomicUsize::new(0));
+        let admission = Arc::new(Admission::new(maximum, maximum_bytes));
         let thread = thread::Builder::new()
             .name("fallout-native-save".into())
             .spawn(move || {
@@ -150,8 +170,7 @@ impl SaveWorker {
         Ok(Self {
             sender: Some(sender),
             thread: Some(thread),
-            outstanding,
-            maximum,
+            admission,
         })
     }
     pub fn try_submit(&mut self, capture: Captured) -> Result<SaveTicket, Box<SubmitFailure>> {
@@ -161,19 +180,12 @@ impl SaveWorker {
                 capture,
             }));
         };
-        if self
-            .outstanding
-            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                (n < self.maximum).then_some(n + 1)
-            })
-            .is_err()
-        {
+        let Some(permit) = self.admission.reserve(capture.limits.max_snapshot_bytes) else {
             return Err(Box::new(SubmitFailure {
                 reason: Rejection::Capacity,
                 capture,
             }));
-        }
-        let permit = Permit(Arc::clone(&self.outstanding));
+        };
         let (result, receiver) = mpsc::sync_channel(1);
         match sender.try_send(Job {
             capture,
@@ -250,6 +262,11 @@ mod tests {
             limits: Limits::default(),
         }
     }
+    fn bounded_capture(revision: u64, maximum_bytes: usize) -> Captured {
+        let mut capture = capture(revision);
+        capture.limits.max_snapshot_bytes = maximum_bytes;
+        capture
+    }
     fn repository(path: &std::path::Path) -> Repository {
         Repository::create(path, &[], capture(1).snapshot.campaign).unwrap()
     }
@@ -263,9 +280,20 @@ mod tests {
     // Handshakes hold actual repository publication at a known point. These
     // tests do not assume that a thread or disk operation takes a minimum time.
     fn gated(repository: Repository, maximum: usize) -> (SaveWorker, Receiver<()>, SyncSender<()>) {
+        gated_with_budget(
+            repository,
+            maximum,
+            SaveWorker::DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES,
+        )
+    }
+    fn gated_with_budget(
+        repository: Repository,
+        maximum: usize,
+        maximum_bytes: usize,
+    ) -> (SaveWorker, Receiver<()>, SyncSender<()>) {
         let (entered, entries) = mpsc::sync_channel(1);
         let (release, releases) = mpsc::sync_channel(1);
-        let worker = SaveWorker::spawn_with(maximum, move |capture| {
+        let worker = SaveWorker::spawn_with(maximum, maximum_bytes, move |capture| {
             repository.commit_observing(capture, |stage| {
                 if stage == super::super::Stage::CurrentTempWritten {
                     entered.send(()).unwrap();
@@ -311,14 +339,20 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let repository = repository(&directory.path().join("native"));
         let (mut worker, entered, release) = gated(repository.clone(), 2);
+        let admission = Arc::clone(&worker.admission);
         drop(worker.try_submit(capture(1)).unwrap());
         entered.recv_timeout(Duration::from_secs(10)).unwrap();
         drop(worker.try_submit(capture(2)).unwrap());
+        assert_eq!(
+            admission.usage(),
+            (2, 2 * Limits::default().max_snapshot_bytes)
+        );
         let shutdown = thread::spawn(move || drop(worker));
         release.send(()).unwrap();
         entered.recv_timeout(Duration::from_secs(10)).unwrap();
         release.send(()).unwrap();
         shutdown.join().unwrap();
+        assert_eq!(admission.usage(), (0, 0));
         assert_eq!(slot(&repository, "current.frsv").snapshot.state_revision, 2);
         assert_eq!(
             slot(&repository, "previous.frsv").snapshot.state_revision,
@@ -329,12 +363,17 @@ mod tests {
     fn panic_is_reported_on_tickets_shutdown_and_later_submission() {
         let (entered, entries) = mpsc::sync_channel(1);
         let (release, releases) = mpsc::sync_channel(1);
-        let mut worker = SaveWorker::spawn_with(2, move |_| {
-            entered.send(()).unwrap();
-            releases.recv_timeout(Duration::from_secs(10)).unwrap();
-            panic!("injected worker failure")
-        })
+        let mut worker = SaveWorker::spawn_with(
+            2,
+            SaveWorker::DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES,
+            move |_| {
+                entered.send(()).unwrap();
+                releases.recv_timeout(Duration::from_secs(10)).unwrap();
+                panic!("injected worker failure")
+            },
+        )
         .unwrap();
+        let admission = Arc::clone(&worker.admission);
         let ticket = worker.try_submit(capture(1)).unwrap();
         entries.recv_timeout(Duration::from_secs(10)).unwrap();
         let queued = worker.try_submit(capture(2)).unwrap();
@@ -347,14 +386,153 @@ mod tests {
         assert_eq!(rejected.reason, Rejection::WorkerStopped);
         assert_eq!(rejected.capture.snapshot.state_revision, 3);
         assert!(matches!(worker.finish(), Err(WorkerError::Panicked)));
+        assert_eq!(admission.usage(), (0, 0));
     }
     #[test]
     fn invalid_capacity_is_rejected_before_starting_a_writer() {
         for capacity in [0, MAX_IN_FLIGHT + 1, usize::MAX] {
             assert!(
-                matches!(SaveWorker::spawn_with(capacity, |_| unreachable!()),
+                matches!(SaveWorker::spawn_with(capacity, SaveWorker::DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES, |_| unreachable!()),
                 Err(WorkerError::Capacity(actual)) if actual == capacity)
             );
         }
+        assert!(matches!(
+            SaveWorker::spawn_with(1, 0, |_| unreachable!()),
+            Err(WorkerError::ByteBudget(0))
+        ));
+    }
+
+    #[test]
+    fn mixed_declared_budgets_bound_active_and_queued_captures_and_retry_intact() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = repository(&directory.path().join("native"));
+        let (mut worker, entered, release) = gated_with_budget(repository.clone(), 8, 3000);
+        let admission = Arc::clone(&worker.admission);
+        let first = worker.try_submit(bounded_capture(1, 1000)).unwrap();
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+        let second = worker.try_submit(bounded_capture(2, 2000)).unwrap();
+        assert_eq!(admission.usage(), (2, 3000));
+        let third = bounded_capture(3, 1000);
+        let expected = third.snapshot.clone();
+        let original_pointer = third.snapshot.catalogue_sha256.as_ptr();
+        let rejected = worker.try_submit(third).unwrap_err();
+        assert_eq!(rejected.reason, Rejection::Capacity);
+        assert_eq!(rejected.capture.snapshot, expected);
+        assert_eq!(
+            rejected.capture.snapshot.catalogue_sha256.as_ptr(),
+            original_pointer
+        );
+        assert_eq!(rejected.capture.limits.max_snapshot_bytes, 1000);
+        assert_eq!(admission.usage(), (2, 3000));
+        release.send(()).unwrap();
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(first.wait().unwrap().metadata.generation, 1);
+        assert_eq!(admission.usage(), (1, 2000));
+        let third = worker.try_submit(rejected.capture).unwrap();
+        assert_eq!(admission.usage(), (2, 3000));
+        release.send(()).unwrap();
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(second.wait().unwrap().metadata.generation, 2);
+        assert_eq!(admission.usage(), (1, 1000));
+        release.send(()).unwrap();
+        assert_eq!(third.wait().unwrap().metadata.generation, 3);
+        worker.finish().unwrap();
+        assert_eq!(admission.usage(), (0, 0));
+        assert_eq!(slot(&repository, "current.frsv").snapshot, expected);
+        assert_eq!(
+            slot(&repository, "previous.frsv").snapshot.state_revision,
+            2
+        );
+    }
+
+    #[test]
+    fn oversized_declared_capture_rejects_before_publication_with_no_reservation() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = repository(&directory.path().join("native"));
+        let mut worker = SaveWorker::start_with_budget(repository.clone(), 8, 1000).unwrap();
+        for maximum in [1001, usize::MAX] {
+            let capture = bounded_capture(1, maximum);
+            let expected = capture.snapshot.clone();
+            let original_pointer = capture.snapshot.catalogue_sha256.as_ptr();
+            let rejected = worker.try_submit(capture).unwrap_err();
+            assert_eq!(rejected.reason, Rejection::Capacity);
+            assert_eq!(rejected.capture.snapshot, expected);
+            assert_eq!(
+                rejected.capture.snapshot.catalogue_sha256.as_ptr(),
+                original_pointer
+            );
+            assert_eq!(rejected.capture.limits.max_snapshot_bytes, maximum);
+            assert_eq!(worker.admission.usage(), (0, 0));
+        }
+        assert!(!repository.path().join("current.frsv").exists());
+        let retry = worker.try_submit(bounded_capture(1, 1000)).unwrap();
+        worker.finish().unwrap();
+        assert_eq!(retry.wait().unwrap().metadata.generation, 1);
+    }
+
+    #[test]
+    fn writer_errors_release_budget_before_results_and_do_not_stop_retry() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = repository(&directory.path().join("native"));
+        let mut worker = SaveWorker::start_with_budget(repository.clone(), 2, 1000).unwrap();
+        let admission = Arc::clone(&worker.admission);
+        let failed = worker.try_submit(bounded_capture(1, 1)).unwrap();
+        assert!(
+            matches!(failed.wait(), Err(CompletionError::Save(super::super::Error::State(crate::Error::Json(error)))) if error.to_string().contains("snapshot byte budget exceeded"))
+        );
+        assert_eq!(admission.usage(), (0, 0));
+        assert!(!repository.path().join("current.frsv").exists());
+        let lock = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(repository.path().join("writer.lock"))
+            .unwrap();
+        lock.try_lock().unwrap();
+        let busy = worker.try_submit(bounded_capture(1, 1000)).unwrap();
+        assert!(matches!(
+            busy.wait(),
+            Err(CompletionError::Save(super::super::Error::Busy))
+        ));
+        assert_eq!(admission.usage(), (0, 0));
+        drop(lock);
+        let retry = worker.try_submit(bounded_capture(1, 1000)).unwrap();
+        worker.finish().unwrap();
+        assert_eq!(retry.wait().unwrap().metadata.generation, 1);
+        assert_eq!(admission.usage(), (0, 0));
+    }
+
+    #[test]
+    fn mixed_budget_panic_and_disconnected_send_release_all_reservations() {
+        let (entered, entries) = mpsc::sync_channel(1);
+        let (release, releases) = mpsc::sync_channel(1);
+        let mut worker = SaveWorker::spawn_with(2, 3000, move |_| {
+            entered.send(()).unwrap();
+            releases.recv_timeout(Duration::from_secs(10)).unwrap();
+            panic!("injected mixed budget failure")
+        })
+        .unwrap();
+        let admission = Arc::clone(&worker.admission);
+        let active = worker.try_submit(bounded_capture(1, 1000)).unwrap();
+        entries.recv_timeout(Duration::from_secs(10)).unwrap();
+        let queued = worker.try_submit(bounded_capture(2, 2000)).unwrap();
+        assert_eq!(admission.usage(), (2, 3000));
+        release.send(()).unwrap();
+        assert!(matches!(active.wait(), Err(CompletionError::WorkerStopped)));
+        assert!(matches!(queued.wait(), Err(CompletionError::WorkerStopped)));
+        let capture = bounded_capture(3, 1000);
+        let expected = capture.snapshot.clone();
+        let original_pointer = capture.snapshot.catalogue_sha256.as_ptr();
+        let rejected = worker.try_submit(capture).unwrap_err();
+        assert_eq!(rejected.reason, Rejection::WorkerStopped);
+        assert_eq!(rejected.capture.snapshot, expected);
+        assert_eq!(
+            rejected.capture.snapshot.catalogue_sha256.as_ptr(),
+            original_pointer
+        );
+        assert!(matches!(worker.drain(), Err(WorkerError::Panicked)));
+        assert_eq!(admission.usage(), (0, 0));
+        let stopped = worker.try_submit(bounded_capture(4, 1000)).unwrap_err();
+        assert_eq!(stopped.reason, Rejection::WorkerStopped);
+        assert_eq!(admission.usage(), (0, 0));
     }
 }

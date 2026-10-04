@@ -47,9 +47,18 @@ publication across processes; contention returns a busy error.
 `SaveWorker` publishes accepted captures in submission order on one named thread.
 Its capacity includes the snapshot being written and every queued snapshot. Choose
 between one and 64 outstanding requests; two is a reasonable starting point for
-the host. This bounds request count, not total process memory. Each capture keeps
-its runtime limits, and encoding still enforces the snapshot byte limit on the
-worker. Capture itself copies canonical state at the host boundary.
+the host. `SaveWorker::start` also applies a 256 MiB aggregate snapshot reservation
+budget. `SaveWorker::start_with_budget(repository, count, bytes)` supplies an
+explicit positive budget. Admission reserves each capture's declared
+`max_snapshot_bytes`, with one synchronized count/byte decision. Default 64 MiB
+snapshot limits therefore permit at most four simultaneous captures even when
+the configured request count is larger. No admission serialization is required.
+
+The charge is a conservative serialized snapshot upper bound, not exact heap
+usage or a total process memory ceiling. Capture itself copies canonical state at
+the host boundary. Each capture keeps its runtime limits, and encoding still
+enforces that snapshot byte limit on the worker. Choose an aggregate budget that
+admits the snapshot limits used when creating or restoring the host world.
 
 ```rust,ignore
 let mut saves = SaveWorker::start(repository, 2)?;
@@ -72,7 +81,13 @@ if let Some(receipt) = ticket.try_wait()? {
 
 Keep each ticket until its terminal success or error has been handled. Results
 are delivered once; polling a consumed ticket reports `AlreadyCollected`.
-Saturation or a stopped worker returns the original capture to the caller.
+Count or byte saturation, or a stopped worker, returns the original capture to
+the caller. Oversized declared limits reject before publication. Active and
+queued jobs retain their reservations until their owned storage is released;
+completion, writer errors, panic, disconnect and draining shutdown release each
+reservation exactly once. Dropping a result ticket does not cancel an accepted
+save or release its reservation early. A short mutex protects only the admission
+counters; filesystem work and result delivery occur outside that critical section.
 Accepted requests are neither combined nor automatically retried. A busy
 repository, stale revision or disk failure is returned on that request's ticket;
 the writer continues to the next request. A stopped writer reports an explicit

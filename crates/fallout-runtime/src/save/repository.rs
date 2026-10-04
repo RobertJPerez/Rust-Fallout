@@ -470,6 +470,7 @@ mod publication_preflight_tests {
                 ..Default::default()
             },
             snapshot: Snapshot {
+                reference_states: Vec::new(),
                 schema_version: crate::snapshot::SCHEMA_VERSION,
                 campaign: CampaignId::from_bytes([0x4c; 16]).unwrap(),
                 state_revision: revision,

@@ -18,13 +18,20 @@ use std::{collections::BTreeMap, io::Write};
 mod admission;
 mod relationships;
 
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reference {
     pub id: ReferenceId,
     pub authored: Option<FormKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReferenceState {
+    pub id: ReferenceId,
+    pub state: crate::reference_state::State,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,6 +68,7 @@ pub struct Snapshot {
     pub references: Vec<Reference>,
     pub instances: Vec<ScriptInstance>,
     pub pending_events: Vec<Pending>,
+    pub reference_states: Vec<ReferenceState>,
 }
 
 /// Checkpoint 28's in-memory schema had no campaign namespace or state revision.
@@ -90,6 +98,27 @@ struct LegacyV2 {
     state_revision: u64,
     profile: ProfileId,
     catalogue_sha256: String,
+    next_instance: u64,
+    next_reference: u64,
+    next_event_sequence: u64,
+    clocks: Clocks,
+    references: Vec<Reference>,
+    instances: Vec<ScriptInstance>,
+    pending_events: Vec<Pending>,
+}
+
+/// Schema 3 has initialized inventory but no canonical pose/enable component.
+/// Keep the DTO exact: a forged legacy component must never migrate as live state.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyV3 {
+    schema_version: u32,
+    campaign: CampaignId,
+    state_revision: u64,
+    profile: ProfileId,
+    catalogue_sha256: String,
+    next_item: u64,
+    inventory_banks: Vec<crate::inventory::Bank>,
     next_instance: u64,
     next_reference: u64,
     next_event_sequence: u64,
@@ -186,6 +215,7 @@ impl Snapshot {
             references: old.references,
             instances: old.instances,
             pending_events: old.pending_events,
+            reference_states: Vec::new(),
         };
         snapshot.check_budgets(limits)?;
         Ok(snapshot)
@@ -219,6 +249,41 @@ impl Snapshot {
             pending_events: old.pending_events,
             next_item: 1,
             inventory_banks: Vec::new(),
+            reference_states: Vec::new(),
+        };
+        value.check_budgets(limits)?;
+        Ok(value)
+    }
+    /// Explicitly retain schema-3 state. Pose and enable remain unavailable;
+    /// source initialization belongs to the caller after source-bound restore.
+    pub fn migrate_v3(bytes: &[u8], limits: Limits) -> Result<Self> {
+        if bytes.len() > limits.max_snapshot_bytes {
+            return Err(Error::Capacity("legacy snapshot bytes"));
+        }
+        admission::check(bytes, limits, admission::Schema::V3)?;
+        let old: LegacyV3 = serde_json::from_slice(bytes)?;
+        if old.schema_version != 3 || old.profile != ProfileId::NvOriginal {
+            return Err(Error::Invalid(
+                "legacy schema/profile is unsupported".into(),
+            ));
+        }
+        CampaignId::from_bytes(old.campaign.bytes())?;
+        let value = Self {
+            schema_version: SCHEMA_VERSION,
+            campaign: old.campaign,
+            state_revision: old.state_revision,
+            profile: old.profile,
+            catalogue_sha256: old.catalogue_sha256,
+            next_item: old.next_item,
+            inventory_banks: old.inventory_banks,
+            next_instance: old.next_instance,
+            next_reference: old.next_reference,
+            next_event_sequence: old.next_event_sequence,
+            clocks: old.clocks,
+            references: old.references,
+            instances: old.instances,
+            pending_events: old.pending_events,
+            reference_states: Vec::new(),
         };
         value.check_budgets(limits)?;
         Ok(value)
@@ -272,6 +337,9 @@ impl Snapshot {
         }
         if self.references.len() > limits.max_references {
             return Err(Error::Capacity("saved references"));
+        }
+        if self.reference_states.len() > limits.max_references {
+            return Err(Error::Capacity("saved reference states"));
         }
         if self.instances.len() > limits.max_instances {
             return Err(Error::Capacity("saved instances"));
@@ -354,6 +422,14 @@ impl<'a> World<'a> {
                 })
                 .collect(),
             pending_events: self.pending.iter().cloned().collect(),
+            reference_states: self
+                .reference_states
+                .iter()
+                .map(|(&id, state)| ReferenceState {
+                    id,
+                    state: state.clone(),
+                })
+                .collect(),
         }
     }
     pub fn restore(
@@ -382,6 +458,9 @@ impl<'a> World<'a> {
                 world.authored_references.insert(key.clone(), reference.id);
             }
             world.references.insert(reference.id, reference.authored);
+        }
+        for saved in snapshot.reference_states {
+            world.reference_states.insert(saved.id, saved.state);
         }
         for saved in snapshot.instances {
             world

@@ -49,6 +49,14 @@ pub(super) fn check(snapshot: &Snapshot, limits: Limits) -> Result<()> {
             Err(Error::MissingReference)
         }
     };
+    let mut reference_states = BTreeSet::new();
+    for saved in &snapshot.reference_states {
+        reference_exists(saved.id)?;
+        if !reference_states.insert(saved.id) {
+            return Err(Error::Invalid("duplicate saved reference state".into()));
+        }
+        saved.state.validate()?;
+    }
     let mut instances = BTreeSet::new();
     let mut owners = BTreeSet::new();
     for instance in &snapshot.instances {

@@ -44,9 +44,10 @@ struct Reader {
 };
 int wmain(int argc,wchar_t** argv) {
     try {
-        const bool legacy=argc==3 && std::wstring(argv[2])==L"--schema-2";
-        if (argc!=2 && !legacy) throw std::runtime_error("usage: native-save-oracle native_container.frsv [--schema-2]");
-        const auto state_schema=legacy?2:3;
+        const bool legacy2=argc==3 && std::wstring(argv[2])==L"--schema-2";
+        const bool legacy3=argc==3 && std::wstring(argv[2])==L"--schema-3";
+        if (argc!=2 && !legacy2 && !legacy3) throw std::runtime_error("usage: native-save-oracle native_container.frsv [--schema-2|--schema-3]");
+        const auto state_schema=legacy2?2:(legacy3?3:4);
         NativeFile source(argv[1]); const auto& bytes=source.bytes;
         const Bytes unsigned_bytes(bytes.begin(),bytes.end()-32), checksum(bytes.end()-32,bytes.end());
         if (fallout_tables::hash(unsigned_bytes)!=hex(checksum)) throw std::runtime_error("native whole checksum");

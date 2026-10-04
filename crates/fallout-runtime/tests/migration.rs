@@ -65,6 +65,7 @@ fn legacy_json(w: &World<'_>) -> serde_json::Value {
     assert_eq!(v["next_item"], 1);
     let map = v.as_object_mut().unwrap();
     map.remove("inventory_banks");
+    map.remove("reference_states");
     map.remove("next_item");
     map.insert("schema_version".into(), 2.into());
     v

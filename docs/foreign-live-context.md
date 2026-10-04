@@ -90,6 +90,42 @@ native file and repeats every lookup, checking a digest of all full outcomes.
 The original C++ container reader also verifies this larger state file.
 None of those source comparisons measures original live behavior.
 
+## Explicit owner lifecycle regression
+
+`save_foreign_lifecycle` exercises the existing foreign resolver, canonical
+removal guards and native save worker with authored compiled static SCRO and
+dynamic SCRV reads of one placed owner's bank. No statements are executed.
+The host explicitly supplies the placed reference, bank, exact numeric bits,
+pending events and an inventory item linked to that script instance.
+
+Removing the bank with its event still pending fails without changing the
+snapshot. After an explicit FIFO head acknowledgment, the item script link still
+blocks removal. The host explicitly detaches that link before removal succeeds.
+The registered reference, source's live-reference local, inventory ownership and
+remaining source event survive unload. Both foreign reads then report a missing
+live event list; the authored base script does not supply a replacement bank.
+
+An explicit new instance for the same placed owner receives a new persistent
+instance ID and a different supplied definition/bank. Both reads select that
+current bank and preserve its supplied numeric bits. The retired instance ID and
+old slot handle cannot name the new bank. This describes explicit host actions,
+not original unload timing, automatic script attachment or numeric conversion.
+
+The bounded worker captures live, unloaded and reattached boundaries. Its current
+and previous slots retain complete snapshots despite later host mutation. Three
+fresh processes restore the entire expected state, rebuild the foreign index,
+repeat both reads and preserve container files. The existing `foreign-load-probe`
+can consume each retained phase repository with the explicit player identity;
+no new CLI option or save field is required.
+
+```powershell
+py -3 G:\Rust-Fallout\tools\team-v2-focused.py --lane runtime -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File G:\Rust-Fallout\tools\cargo.ps1 test --locked --jobs 2 -p fallout-runtime --test save_foreign_lifecycle --test foreign --test save_worker --test items
+```
+
+Set `FALLOUT_FOREIGN_LIFECYCLE_EVIDENCE` to a new private directory to retain the
+authored plugin/load order, phase snapshots, native containers and cold receipts
+under a fresh `authored` subdirectory. Existing evidence is never overwritten.
+
 The selected pinned references are
 [ResolveExternalVar and EventListFromForm/GetParentScript](https://github.com/xNVSE/NVSE/blob/0ccd23ad885ddae533c1790a3fc56cd073e38de3/nvse/nvse/GameAPI.cpp),
 lines 919-936 and 1964-2001,

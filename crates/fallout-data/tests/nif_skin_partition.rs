@@ -179,6 +179,204 @@ fn stream_prepare(blocks: &[(&str, Vec<u8>)], ordinal: usize) -> partition::stre
     .unwrap()
 }
 
+fn triangle_transport_fixture(
+    strips: Option<&[&[u16]]>,
+    triangles: &[[u16; 3]],
+    faces: bool,
+) -> Vec<(&'static str, Vec<u8>)> {
+    let mut part = Vec::new();
+    // Repeated/nonidentity source map is intentional: only LOCAL repeated
+    // indices omit strip connectors. The declared count is an observation.
+    shorts(
+        &mut part,
+        &[
+            5,
+            triangles.len() as u16,
+            2,
+            strips.map_or(0, |s| s.len() as u16),
+            4,
+            1,
+            0,
+        ],
+    );
+    part.push(1);
+    shorts(&mut part, &[4, 1, 1, 0, 2]);
+    part.push(1);
+    for _ in 0..5 {
+        words(&mut part, &[1f32.to_bits(), 0, 0, 0]);
+    }
+    if let Some(strips) = strips {
+        shorts(
+            &mut part,
+            &strips.iter().map(|s| s.len() as u16).collect::<Vec<_>>(),
+        );
+    }
+    part.push(u8::from(faces));
+    if faces {
+        if let Some(strips) = strips {
+            for strip in strips {
+                shorts(&mut part, strip);
+            }
+        } else {
+            for row in triangles {
+                shorts(&mut part, row);
+            }
+        }
+    }
+    part.push(1);
+    part.extend([0; 20]);
+    let mut blocks = stream_fixture(&[part]);
+    blocks[2].1 = geometry(5);
+    blocks
+}
+#[test]
+fn triangle_transport_preserves_connector_parity_restart_and_source_map_duplicates() {
+    use partition::streams::triangles::{Limits, Policy};
+    let blocks = triangle_transport_fixture(
+        Some(&[&[0, 1, 2, 2, 3, 4], &[4, 3, 1, 0], &[], &[1], &[0, 1]]),
+        &[[0, 0, 0]; 9],
+        true,
+    );
+    let streams = stream_prepare(&blocks, 0);
+    let original = serde_json::to_value(&streams).unwrap();
+    let packet = streams
+        .triangle_packet(
+            Policy::AlternatingStripWindingSkipRepeatedIndexV1,
+            Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        packet
+            .triangles()
+            .iter()
+            .map(|r| (
+                r.source_primitive_ordinal,
+                r.strip_ordinal,
+                r.primitive_step,
+                r.local_vertices,
+                r.source_vertices
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (0, Some(0), 0, [0, 1, 2], [4, 1, 1]),
+            (3, Some(0), 3, [3, 2, 4], [0, 1, 2]),
+            (4, Some(1), 0, [4, 3, 1], [2, 0, 1]),
+            (5, Some(1), 1, [1, 3, 0], [1, 0, 4])
+        ]
+    );
+    let u = packet.usage();
+    assert_eq!(
+        (
+            u.raw_primitives,
+            u.omitted_connectors,
+            u.generated_triangles,
+            u.draw_indices
+        ),
+        (6, 2, 4, 12)
+    );
+    assert_eq!(
+        serde_json::to_value(&packet).unwrap()["declared_source_triangles"],
+        9
+    );
+    assert_eq!(
+        serde_json::to_value(packet.identity()).unwrap(),
+        original["identity"]
+    );
+    assert_eq!((u.source_decodes, u.source_sha256_traversals), (0, 0));
+    assert_eq!(serde_json::to_value(&streams).unwrap(), original);
+    let exact = Limits {
+        raw_primitives: 6,
+        triangles: 4,
+        draw_indices: 12,
+        array_bytes: u.retained_bytes,
+        work_units: u.work_units,
+        max_combined_retained_bytes: u.combined_retained_bytes,
+    };
+    streams
+        .triangle_packet(Policy::AlternatingStripWindingSkipRepeatedIndexV1, exact)
+        .unwrap();
+    for under in [
+        Limits {
+            raw_primitives: 5,
+            ..exact
+        },
+        Limits {
+            triangles: 3,
+            ..exact
+        },
+        Limits {
+            draw_indices: 11,
+            ..exact
+        },
+        Limits {
+            array_bytes: u.retained_bytes - 1,
+            ..exact
+        },
+        Limits {
+            work_units: u.work_units - 1,
+            ..exact
+        },
+        Limits {
+            max_combined_retained_bytes: u.combined_retained_bytes - 1,
+            ..exact
+        },
+    ] {
+        assert!(
+            streams
+                .triangle_packet(Policy::AlternatingStripWindingSkipRepeatedIndexV1, under)
+                .is_err()
+        );
+        assert_eq!(serde_json::to_value(&streams).unwrap(), original);
+    }
+}
+#[test]
+fn triangle_transport_keeps_literal_degenerate_triangles_and_empty_source_strips() {
+    use partition::streams::triangles::Policy;
+    let policy = Policy::AlternatingStripWindingSkipRepeatedIndexV1;
+    let blocks = triangle_transport_fixture(None, &[[0, 0, 1], [4, 2, 3], [1, 2, 2]], true);
+    let packet = stream_prepare(&blocks, 0)
+        .triangle_packet(policy, Default::default())
+        .unwrap();
+    assert_eq!(
+        packet
+            .triangles()
+            .iter()
+            .map(|r| (
+                r.strip_ordinal,
+                r.primitive_step,
+                r.local_vertices,
+                r.source_vertices
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (None, 0, [0, 0, 1], [4, 4, 1]),
+            (None, 1, [4, 2, 3], [2, 1, 0]),
+            (None, 2, [1, 2, 2], [1, 1, 1])
+        ]
+    );
+    assert_eq!(packet.usage().omitted_connectors, 0);
+    for strips in [Some(&[&[][..], &[1][..], &[0, 1][..]][..]), None] {
+        let blocks = triangle_transport_fixture(strips, &[], true);
+        let packet = stream_prepare(&blocks, 0)
+            .triangle_packet(policy, Default::default())
+            .unwrap();
+        assert!(packet.triangles().is_empty());
+        assert_eq!(packet.usage().raw_primitives, 0);
+    }
+    // Source rows lacking faces are refused by the existing sealed producer.
+    let blocks = triangle_transport_fixture(Some(&[&[0, 1, 2]]), &[], false);
+    let bytes = container(&blocks, 34);
+    assert!(
+        partition::streams::prepare(
+            &bytes,
+            "absent",
+            stream_request(&bytes, 0),
+            Default::default()
+        )
+        .is_err()
+    );
+}
+
 #[test]
 fn source_streams_keep_every_raw_slot_nonidentity_map_palette_and_independent_span() {
     let blocks = stream_fixture(&[packet(false), packet(true)]);

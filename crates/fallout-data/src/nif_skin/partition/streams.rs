@@ -1,4 +1,5 @@
 //! Exact authored partition rows and topology, without draw/shader semantics.
+pub mod triangles;
 use super::{Dependency, decode_with_scene};
 use crate::{Error, Result, nif, nif_skin::Data};
 use serde::Serialize;

@@ -30,5 +30,11 @@
     "M1_met":  false,
     "gameplay_accepted":  false,
     "original_process_started":  false,
-    "new_checkpoint_claimed":  false
+    "new_checkpoint_claimed":  false,
+    "reconciliation_correction":  {
+                                      "private_derivative_sha256":  "2ed594a8b96530d3e50470dbde4e3db67d4790549e87365b75d0e6a0eee33d09",
+                                      "unique_stopped_handoff_pins_verified":  7,
+                                      "original_private_receipt_preserved":  true,
+                                      "reason":  "Initial derivative omitted assets message-only and world handoff_path pins, and repeated the presentation receipt. Corrected derivative includes all seven unique verified pins; original stopped manifest and drafts are unchanged."
+                                  }
 }

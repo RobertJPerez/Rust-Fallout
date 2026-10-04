@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 mod reference;
 pub use reference::ReferenceAdmission;
+mod continuation;
+pub use continuation::{ContinueDisplay, DisplayStamp};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub enum Phase {

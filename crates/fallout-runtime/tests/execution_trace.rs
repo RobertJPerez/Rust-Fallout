@@ -935,6 +935,62 @@ fn standalone_copy_producer_commits_real_ordered_bits_and_restores_the_canonical
 }
 
 #[test]
+fn standalone_copy_refuses_duplicate_skipped_and_reversed_event_ordinals_atomically() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    for ordinals in [[0, 0], [0, 2], [1, 0], [1, 2]] {
+        let mut case = own_case(plan, sources.source_cohort_sha256());
+        case.steps.push(case.steps[0].clone());
+        for (input, ordinal) in case.steps.iter_mut().zip(ordinals) {
+            input.event_ordinal = ordinal;
+        }
+        if ordinals == [0, 0] {
+            assert_eq!(
+                compare(
+                    &sources,
+                    &case,
+                    Some(&capture(&case, Producer::Original, output())),
+                    Some(&capture(&case, Producer::Replacement, output())),
+                    Default::default()
+                )
+                .unwrap()
+                .status,
+                Status::Matched
+            );
+        }
+        let result = copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default(),
+        );
+        // The general trace schema already refuses skipped/reversed events.
+        // A grouped same-event trace is valid to import, but cannot be replayed
+        // as multiple complete events by this narrower producer.
+        if ordinals != [0, 0] {
+            assert!(matches!(result, Err(copy_probe::Error::Trace(_))));
+            continue;
+        }
+        let observed = result.unwrap();
+        assert_eq!(observed.capture.finish, Finish::Unsupported, "{ordinals:?}");
+        let unsupported = observed.unsupported.unwrap();
+        assert_eq!(unsupported.step, Some(if ordinals[0] == 0 { 1 } else { 0 }));
+        assert!(
+            unsupported
+                .detail
+                .contains("consecutive distinct event ordinals")
+        );
+        assert!(observed.capture.steps.is_empty() && observed.committed.is_empty());
+        assert_eq!(observed.initial_snapshot, observed.final_snapshot);
+        assert!(observed.final_snapshot.pending_events.is_empty());
+    }
+}
+
+#[test]
 fn standalone_copy_producer_refuses_unknown_scopes_conversion_branches_and_wrong_operand_bits() {
     let (_directory, catalogue, content) = fixture(&event(&copy()));
     let sources = sources(&catalogue);
@@ -1244,6 +1300,77 @@ fn cli_copy_producer_helper() {
         serde_json::to_vec_pretty(&report["replacement_observation"]["final_snapshot"]).unwrap(),
     )
     .unwrap();
+    for (name, ordinals) in [
+        ("duplicate", [0, 0]),
+        ("skipped", [0, 2]),
+        ("reversed", [1, 0]),
+        ("ordered", [0, 1]),
+    ] {
+        let mut two_events = case.clone();
+        two_events.steps.push(two_events.steps[0].clone());
+        for (input, ordinal) in two_events.steps.iter_mut().zip(ordinals) {
+            input.event_ordinal = ordinal;
+        }
+        let manifest_path = evidence.join(format!("{name}-manifest.json"));
+        let report_path = evidence.join(format!("{name}-report.json"));
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&two_events).unwrap(),
+        )
+        .unwrap();
+        let output = std::process::Command::new(&cli)
+            .args(["script-trace", "--install"])
+            .arg(input.join("authored-source-copy"))
+            .arg("--load-order")
+            .arg(input.join("order.json"))
+            .arg("--manifest")
+            .arg(&manifest_path)
+            .arg("--profile-receipt")
+            .arg(input.join("profile-receipt.txt"))
+            .arg("--replacement-copy")
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(evidence.join(format!("{name}-stdout.txt")), &output.stdout).unwrap();
+        fs::write(evidence.join(format!("{name}-stderr.txt")), &output.stderr).unwrap();
+        assert!(!output.status.success()); // Original capture is always absent.
+        if name == "skipped" || name == "reversed" {
+            assert!(!report_path.exists()); // Invalid manifest, no execution.
+            assert!(String::from_utf8_lossy(&output.stderr).contains("event ordinals"));
+            continue;
+        }
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+        let observation = &report["replacement_observation"];
+        if name == "duplicate" {
+            assert_eq!(observation["capture"]["finish"], "unsupported");
+            assert_eq!(observation["unsupported"]["step"], 1);
+            assert!(observation["committed"].as_array().unwrap().is_empty());
+            assert!(
+                observation["capture"]["steps"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                observation["initial_snapshot"],
+                observation["final_snapshot"]
+            );
+        } else {
+            assert_eq!(observation["capture"]["finish"], "completed");
+            assert_eq!(observation["committed"].as_array().unwrap().len(), 2);
+            for (index, step) in observation["capture"]["steps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .enumerate()
+            {
+                assert_eq!(step["input"]["event_ordinal"], index);
+            }
+        }
+    }
 }
 
 #[test]

@@ -39,7 +39,11 @@ reported as save success. Continue failures keep the prior active boundary.
 Window close disconnects request admission. After `App::run` returns, an owned
 shutdown registry closes late loader admission and drains native owners outside
 render/input updates. This preserves accepted writes without holding a frame on
-filesystem work. The registry admits at most eight native owners per app.
+filesystem work. The registry admits at most eight outstanding native owners.
+Later source preparation joins only owners that have already returned, reclaiming
+their slots so sequential retries do not exhaust a lifetime counter. Active owners
+are never joined in render/input updates. A collected panic remains a sticky
+failure for later admission and final shutdown; collection is never a save receipt.
 
 `--native-save-after-ready` is an explicit headless engineering switch. It admits
 one save only after complete draw publication, waits for the real result before

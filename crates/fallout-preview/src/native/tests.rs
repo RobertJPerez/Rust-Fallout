@@ -168,6 +168,165 @@ fn stop(mut host: Host) {
     host.shutdown.finish().unwrap();
 }
 
+fn wait_finished(shutdown: &Shutdown) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if shutdown
+            .0
+            .tasks
+            .lock()
+            .unwrap()
+            .iter()
+            .all(JoinHandle::is_finished)
+        {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "disconnected native owner did not return"
+        );
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn nine_sequential_disconnected_hosts_reuse_completed_owner_slots() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    let before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    for index in 0..9 {
+        let (host, observation) = f
+            .session()
+            .start([0.; 3], shutdown.clone())
+            .unwrap_or_else(|error| panic!("sequential host {} refused: {error}", index + 1));
+        assert_eq!(observation.report.revision, f.world.revision());
+        drop(host);
+        wait_finished(&shutdown);
+    }
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 1);
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before
+    );
+    shutdown.finish().unwrap();
+    assert!(shutdown.0.tasks.lock().unwrap().is_empty());
+}
+
+#[test]
+fn eight_outstanding_hosts_refuse_ninth_then_reclaim_only_finished_owner() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    let before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let mut hosts = Vec::new();
+    for _ in 0..8 {
+        hosts.push(f.session().start([0.; 3], shutdown.clone()).unwrap().0);
+    }
+    assert!(
+        shutdown
+            .0
+            .tasks
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|task| !task.is_finished())
+    );
+    let Err(error) = f.session().start([0.; 3], shutdown.clone()) else {
+        panic!("ninth outstanding owner was admitted");
+    };
+    assert!(error.to_string().contains("eight-outstanding-owner"));
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 8);
+    drop(hosts.pop());
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !shutdown
+        .0
+        .tasks
+        .lock()
+        .unwrap()
+        .iter()
+        .any(JoinHandle::is_finished)
+    {
+        assert!(
+            Instant::now() < deadline,
+            "disconnected owner did not return"
+        );
+        thread::yield_now();
+    }
+    hosts.push(f.session().start([0.; 3], shutdown.clone()).unwrap().0);
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 8);
+    assert!(
+        shutdown
+            .0
+            .tasks
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|task| !task.is_finished())
+    );
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        before
+    );
+    drop(hosts);
+    shutdown.finish().unwrap();
+}
+
+#[test]
+fn reused_owner_slot_preserves_disconnected_accepted_write_and_real_receipt() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    let (mut host, before) = f.session().start([0.; 3], shutdown.clone()).unwrap();
+    assert!(host.request(Request::Save));
+    drop(host);
+    wait_finished(&shutdown); // no final shutdown: retry admission stays open
+    let (mut fresh, observation) = f.session().start([0.; 3], shutdown.clone()).unwrap();
+    assert_eq!(observation.report.load.metadata.generation, 2);
+    assert_eq!(observation.report.revision, before.report.revision);
+    assert_eq!(shutdown.0.tasks.lock().unwrap().len(), 1);
+    assert!(!fresh.published()); // reclaimed join is not this host's save result
+    assert!(fresh.request(Request::Save));
+    let Event::Saved(receipt) = event(&mut fresh) else {
+        panic!("retry did not return actual publication receipt");
+    };
+    assert_eq!(receipt.metadata.generation, 3);
+    assert_eq!(receipt.metadata.state_revision, before.report.revision);
+    assert!(fresh.published());
+    drop(fresh);
+    shutdown.finish().unwrap();
+    assert!(f.session().start([0.; 3], shutdown).is_err());
+}
+
+#[test]
+fn reaped_owner_panic_stays_failure_for_retry_and_repeated_shutdown() {
+    let f = fixture();
+    let shutdown = Shutdown::default();
+    shutdown
+        .0
+        .tasks
+        .lock()
+        .unwrap()
+        .push(thread::spawn(|| panic!("controlled native owner panic")));
+    wait_finished(&shutdown);
+    let Err(error) = f.session().start([0.; 3], shutdown.clone()) else {
+        panic!("collected owner panic was hidden by retry");
+    };
+    assert!(error.to_string().contains("panicked before retry"));
+    assert!(shutdown.0.tasks.lock().unwrap().is_empty());
+    assert!(
+        shutdown
+            .finish()
+            .unwrap_err()
+            .to_string()
+            .contains("panicked")
+    );
+    assert!(
+        shutdown
+            .finish()
+            .unwrap_err()
+            .to_string()
+            .contains("panicked")
+    );
+}
+
 #[test]
 fn shutdown_drains_an_admitted_request_without_claiming_join_as_success() {
     let f = fixture();

@@ -2,7 +2,7 @@
 //! pose. Controller playback, external rigs and retail normal rules are separate.
 
 use super::{Data, Transform, binding};
-use crate::{Error, Result, nif_scene};
+use crate::{Error, Result, nif_animation, nif_scene};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -44,6 +44,154 @@ impl Default for Limits {
             ancestry_depth: 1024,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ControllerPolicy {
+    /// Every required controlled object besides the selected sample refuses.
+    RefuseOtherRequired,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SampledRequest {
+    pub expected_source_sha256: [u8; 32],
+    pub skin: Request,
+    pub controller_policy: ControllerPolicy,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CombinedLimits {
+    pub skin: Limits,
+    pub animation: nif_animation::pose::Limits,
+    /// Sum of declared decoder array allowances, admitted before either decoder.
+    /// Existing input/block caps separately bound index and scene graph tables.
+    pub decoder_array_admission_bytes: usize,
+    /// Sum of declared decoder/index/sampler check allowances, before evaluation.
+    pub decoder_check_admission_units: usize,
+    /// Aggregate charged helper/output elements, including released scratch.
+    pub array_bytes: usize,
+    /// Aggregate skin and animation pose traversal units (checks are above).
+    pub work_units: usize,
+}
+
+impl Default for CombinedLimits {
+    fn default() -> Self {
+        Self {
+            skin: Default::default(),
+            animation: Default::default(),
+            decoder_array_admission_bytes: 640 * 1024 * 1024,
+            decoder_check_admission_units: 72_000_000,
+            array_bytes: 72 * 1024 * 1024,
+            work_units: 18_000_000,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct EvaluationWithSample {
+    pub contract: &'static str,
+    pub controller_policy: ControllerPolicy,
+    pub sample: nif_animation::pose::ObjectPose,
+    pub skin: Evaluation,
+    pub decoder_array_admission_bytes: usize,
+    pub decoder_check_admission_units: usize,
+    pub retained_bytes: usize,
+    pub work_units: usize,
+    pub retail_behavior_verified: bool,
+}
+
+struct SampleOverride<'a> {
+    sample: &'a nif_animation::pose::ObjectPose,
+}
+
+/// One explicit source-linked sample, never a public matrix or decoded catalogue
+/// accepted as authority. All other required controllers refuse atomically.
+pub fn evaluate_sampled(
+    bytes: &[u8],
+    source: &str,
+    request: SampledRequest,
+    animation_request: nif_animation::pose::Request,
+    limits: CombinedLimits,
+) -> Result<EvaluationWithSample> {
+    let mut budget = Budget {
+        source,
+        storage: limits.array_bytes,
+        work: limits.work_units,
+    };
+    if bytes.len() > limits.skin.source.partition.skin.scene.input_bytes
+        || bytes.len() > limits.animation.scene.input_bytes
+        || bytes.len() > limits.animation.keys.animation.input_bytes
+    {
+        return Err(budget.fail("sampled skin source input byte budget exceeded"));
+    }
+    if <[u8; 32]>::from(Sha256::digest(bytes)) != request.expected_source_sha256 {
+        return Err(budget.fail("sampled skin source SHA256 differs"));
+    }
+    // Admission reserves the complete independently bounded decoder allowances;
+    // it is deliberately conservative, not observed retained heap usage.
+    let decoder_arrays = [
+        limits.skin.source.partition.skin.scene.array_bytes,
+        limits.skin.source.partition.skin.skin_array_bytes,
+        limits.skin.source.partition.array_bytes,
+        limits.skin.source.array_bytes,
+        limits.animation.keys.max_combined_retained_bytes,
+        limits.animation.scene.array_bytes,
+    ]
+    .into_iter()
+    .try_fold(0usize, |sum, n| sum.checked_add(n))
+    .filter(|n| *n <= limits.decoder_array_admission_bytes)
+    .ok_or_else(|| budget.fail("combined decoder array admission exceeded"))?;
+    let decoder_checks = [
+        limits.skin.source.partition.skin.weight_index_checks,
+        limits.skin.source.partition.index_checks,
+        limits.skin.source.graph_checks,
+        limits.animation.keys.animation.reference_checks,
+        limits.animation.keys.key_work,
+        limits.animation.sampling.validation_work,
+        limits.animation.sampling.sampling_work,
+    ]
+    .into_iter()
+    .try_fold(0usize, |sum, n| sum.checked_add(n))
+    .filter(|n| *n <= limits.decoder_check_admission_units)
+    .ok_or_else(|| budget.fail("combined decoder check admission exceeded"))?;
+    budget.reserve::<EvaluationWithSample>(1)?;
+    let sample = nif_animation::pose::evaluate(
+        bytes,
+        source,
+        animation_request,
+        nif_animation::pose::Limits {
+            array_bytes: limits.animation.array_bytes.min(budget.storage),
+            work_units: limits.animation.work_units.min(budget.work),
+            ..limits.animation
+        },
+    )?;
+    budget.reserve::<u8>(sample.retained_bytes)?;
+    budget.charge(sample.work_units)?;
+    let skin = evaluate_inner(
+        bytes,
+        source,
+        request.skin,
+        Limits {
+            array_bytes: limits.skin.array_bytes.min(budget.storage),
+            work_units: limits.skin.work_units.min(budget.work),
+            ..limits.skin
+        },
+        Some(SampleOverride { sample: &sample }),
+    )?;
+    budget.reserve::<u8>(skin.retained_bytes)?;
+    budget.charge(skin.work_units)?;
+    Ok(EvaluationWithSample {
+        contract: "engineering-one-linked-sample-skin-v1",
+        controller_policy: request.controller_policy,
+        sample,
+        skin,
+        decoder_array_admission_bytes: decoder_arrays,
+        decoder_check_admission_units: decoder_checks,
+        retained_bytes: limits.array_bytes - budget.storage,
+        work_units: limits.work_units - budget.work,
+        retail_behavior_verified: false,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -193,6 +341,16 @@ pub fn evaluate(
     request: Request,
     limits: Limits,
 ) -> Result<Evaluation> {
+    evaluate_inner(bytes, source, request, limits, None)
+}
+
+fn evaluate_inner(
+    bytes: &[u8],
+    source: &str,
+    request: Request,
+    limits: Limits,
+    selected: Option<SampleOverride<'_>>,
+) -> Result<Evaluation> {
     let mut budget = Budget {
         source,
         storage: limits.array_bytes,
@@ -318,7 +476,52 @@ pub fn evaluate(
                 ))
             })
     };
-    let root_world = world(root)?.matrix;
+    let mut root_world = world(root)?.matrix;
+    if let Some(selected) = &selected {
+        // Verify membership before palette/output allocation. Owner locals are
+        // deliberately excluded: geometry transforms are not applied twice.
+        let mut affects_skin = false;
+        for start in std::iter::once(root).chain(instance.bones.iter().flatten().copied()) {
+            let mut cursor = Some(start);
+            let mut depth = 0;
+            while let Some(id) = cursor {
+                budget.charge(1)?;
+                depth += 1;
+                if depth > limits.ancestry_depth {
+                    return Err(budget.fail("ancestry depth budget exceeded"));
+                }
+                affects_skin |= id == selected.sample.object.block;
+                if start != root && id == root {
+                    break;
+                }
+                cursor = world(id)?.parent;
+            }
+        }
+        if !affects_skin {
+            return Err(budget.fail(&format!(
+                "sampled node {} is outside selected skin root/bone ancestry",
+                selected.sample.object.block
+            )));
+        }
+        let mut cursor = Some(root);
+        let mut relative = IDENTITY;
+        let mut depth = 0;
+        while let Some(id) = cursor {
+            budget.charge(1)?;
+            depth += 1;
+            if depth > limits.ancestry_depth {
+                return Err(budget.fail("ancestry depth budget exceeded"));
+            }
+            if id == selected.sample.object.block {
+                root_world = finite(compose(selected.sample.source_world, relative), &budget)?;
+                break;
+            }
+            let object = &scene.objects
+                [objects[id as usize].ok_or_else(|| budget.fail("undecoded root ancestor"))?];
+            relative = finite(compose(scene_affine(object.transform), relative), &budget)?;
+            cursor = world(id)?.parent;
+        }
+    }
     let skin = skin_affine(skin_transform);
     let skin_to_source_world = finite(compose(root_world, inverse(skin, &budget)?), &budget)?;
     budget.reserve::<Evaluation>(1)?;
@@ -327,7 +530,11 @@ pub fn evaluate(
     budget.reserve::<[f64; 3]>(mesh.vertices.len() + mesh.normals.len())?;
     budget.reserve::<f64>(mesh.vertices.len())?;
     let mut result = Evaluation {
-        contract: "engineering-source-local-skin-v1",
+        contract: if selected.is_some() {
+            "engineering-one-linked-sample-skin-v1"
+        } else {
+            "engineering-source-local-skin-v1"
+        },
         source_sha256: format!("{:x}", Sha256::digest(bytes)),
         geometry: request.geometry,
         geometry_data,
@@ -363,6 +570,7 @@ pub fn evaluate(
                 &mut controller_seen,
                 &mut result,
                 &mut budget,
+                selected.as_ref(),
             )?;
             node = world(id)?.parent;
         }
@@ -386,10 +594,15 @@ pub fn evaluate(
                 &mut controller_seen,
                 &mut result,
                 &mut budget,
+                selected.as_ref(),
             )?;
             let object = &scene.objects
                 [objects[cursor as usize].ok_or_else(|| budget.fail("undecoded bone node"))?];
-            relative = finite(compose(scene_affine(object.transform), relative), &budget)?;
+            let local = match &selected {
+                Some(selected) if cursor == selected.sample.object.block => selected.sample.local,
+                _ => scene_affine(object.transform),
+            };
+            relative = finite(compose(local, relative), &budget)?;
             cursor = world(cursor)?
                 .parent
                 .ok_or_else(|| budget.fail("bone chain does not reach root"))?;
@@ -457,12 +670,21 @@ fn record_controller(
     seen: &mut [bool],
     result: &mut Evaluation,
     budget: &mut Budget<'_>,
+    selected: Option<&SampleOverride<'_>>,
 ) -> Result<()> {
     if !seen[block as usize] {
         seen[block as usize] = true;
         let object = &scene.objects
             [objects[block as usize].ok_or_else(|| budget.fail("unresolved controlled object"))?];
         if let Some(controller) = object.controller {
+            if let Some(selected) = selected {
+                if block == selected.sample.object.block {
+                    return Ok(());
+                }
+                return Err(budget.fail(&format!(
+                    "required object {block} controller {controller} is unapplied"
+                )));
+            }
             budget.reserve::<UnappliedController>(1)?;
             result.unapplied_controllers.push(UnappliedController {
                 object: block,

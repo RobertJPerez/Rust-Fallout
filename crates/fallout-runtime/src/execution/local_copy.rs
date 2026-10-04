@@ -106,7 +106,7 @@ fn multi_unsupported(reason: Unsupported, detail: &'static str) -> MultiPreparat
         detail: detail.into(),
     }
 }
-fn own_binding(
+pub(crate) fn own_binding(
     binding: &fallout_data::obscript::operand_binding::Use,
     index: u32,
     offset: usize,

@@ -272,6 +272,9 @@ pub(crate) enum RuntimeCommand {
         /// Consume an explicit existing saved journal prefix with engineering copies.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_batch_request: Option<PathBuf>,
+        /// Copy one explicitly qualified foreign numeric local into the own saved head.
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_foreign_copy_request: Option<PathBuf>,
         /// Observe explicitly selected native occurrences from saved state.
         #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,

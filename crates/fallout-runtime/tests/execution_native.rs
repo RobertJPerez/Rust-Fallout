@@ -166,6 +166,433 @@ fn prepared_sources<'a>(catalogue: &'a Catalogue) -> PreparedSources<'a> {
     )
     .unwrap()
 }
+
+fn owned_plan(
+    result: fallout_runtime::execution::native_plan::Preparation,
+) -> Box<fallout_runtime::execution::native_plan::Plan> {
+    match result {
+        fallout_runtime::execution::native_plan::Preparation::Ready(plan) => plan,
+        fallout_runtime::execution::native_plan::Preparation::Unsupported { reason, detail } => {
+            panic!("{reason:?}: {detail}")
+        }
+    }
+}
+
+#[test]
+fn owned_native_plan_survives_world_drop_and_counts_current_cold_inventory_not_old_values() {
+    use fallout_runtime::execution::native_plan::{self, Selection};
+    let (_directory, catalogue, content) = fixture(&event(&get(None, 1)));
+    let sources = prepared_sources(&catalogue);
+    let (mut world, _, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    let before = world.snapshot();
+    let inputs = Inputs {
+        supplied_subject: Some(subject),
+        player: None,
+    };
+    let plan = owned_plan(
+        native_plan::prepare(
+            &world,
+            &sources,
+            &content,
+            Selection {
+                sequence,
+                occurrence: 0,
+                inputs,
+                intent: Intent::EngineeringObservation,
+            },
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    assert_eq!(plan.call().scda_bytes, 10..19);
+    assert_eq!(plan.call().argument_scda_bytes, 14..19);
+    assert_eq!(plan.subject(), subject);
+    assert_eq!(plan.item(), &form(0x100));
+    assert_eq!(plan.source().source_bytes, event(&get(None, 1)));
+    let old = plan.observe(&world, &sources, &content, 2).unwrap();
+    let Outcome::EngineeringObservation { trace } = old else {
+        panic!("old query unavailable")
+    };
+    assert_eq!(trace.query.result, 8589934590);
+    let item = before.inventory_banks[0].items[0].id();
+    world
+        .remove_item_quantity(item, 1.try_into().unwrap())
+        .unwrap();
+    let changed = world.snapshot();
+    drop(world);
+    let plan = std::thread::spawn(move || {
+        assert!(plan.source().historical);
+        plan
+    })
+    .join()
+    .unwrap();
+    for (snapshot, total) in [(&before, 8589934590), (&changed, 8589934589)] {
+        let current =
+            World::restore(Arc::clone(&catalogue), snapshot.clone(), Default::default()).unwrap();
+        let captured = current.snapshot();
+        let actual = plan.observe(&current, &sources, &content, 2).unwrap();
+        let Outcome::EngineeringObservation { trace } = actual else {
+            panic!("current query unavailable")
+        };
+        assert_eq!(trace.query.result, total);
+        assert_eq!(trace.query.contributions.len(), 2);
+        let current_calls = current
+            .prepare_native_calls_with_sources(sequence, &sources, Default::default())
+            .unwrap();
+        let legacy = current_calls
+            .observe(0, &content, inputs, Intent::EngineeringObservation, 2)
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&legacy.outcome).unwrap(),
+            serde_json::to_value(Outcome::EngineeringObservation { trace }).unwrap()
+        );
+        assert_eq!(current.snapshot(), captured);
+        assert!(matches!(
+            plan.observe(&current, &sources, &content, 1),
+            Err(native_plan::Error::Capacity("query contributions"))
+        ));
+        assert_eq!(current.snapshot(), captured);
+    }
+}
+
+#[test]
+fn owned_native_plan_revalidates_dynamic_caller_item_head_owner_and_full_source() {
+    use fallout_runtime::execution::native_plan::{self, Selection};
+    let (directory, catalogue, content) = fixture(&event(&get(Some(2), 1)));
+    let sources = prepared_sources(&catalogue);
+    let (mut world, handle, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: subject },
+                },
+            )],
+        )
+        .unwrap();
+    let before = world.snapshot();
+    let inputs = Inputs {
+        supplied_subject: None,
+        player: Some(subject),
+    };
+    let plan = owned_plan(
+        native_plan::prepare(
+            &world,
+            &sources,
+            &content,
+            Selection {
+                sequence,
+                occurrence: 0,
+                inputs,
+                intent: Intent::EngineeringObservation,
+            },
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    assert_eq!(plan.call().calling_reference_index, Some(2));
+    assert_eq!(plan.explicit_player(), Some(subject));
+    for variant in 0..5 {
+        let mut changed = before.clone();
+        match variant {
+            0 => {
+                changed.pending_events.remove(0);
+            }
+            1 => changed.pending_events[0].context.target = None,
+            2 => changed.instances[0].context.target = None,
+            3 => {
+                changed.instances[0].owner = Owner::Fragment {
+                    activation: 2.try_into().unwrap(),
+                }
+            }
+            _ => {
+                changed.instances[0]
+                    .locals
+                    .iter_mut()
+                    .find(|local| local.index == 90)
+                    .unwrap()
+                    .value = Value::Reference {
+                    value: ReferenceValue::Null,
+                }
+            }
+        };
+        let current =
+            World::restore(Arc::clone(&catalogue), changed.clone(), Default::default()).unwrap();
+        let result = plan.observe(&current, &sources, &content, 2);
+        assert!(result.is_err() || matches!(result, Ok(Outcome::Unsupported { .. })));
+        assert_eq!(current.snapshot(), changed);
+    }
+    let mut current =
+        World::restore(Arc::clone(&catalogue), before.clone(), Default::default()).unwrap();
+    let other = current.register_reference(None).unwrap();
+    current.initialize_inventory(other).unwrap();
+    let live = current.handle(before.instances[0].id).unwrap();
+    current
+        .assign(
+            live,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: other },
+                },
+            )],
+        )
+        .unwrap();
+    let captured = current.snapshot();
+    assert!(matches!(
+        plan.observe(&current, &sources, &content, 2),
+        Err(native_plan::Error::ContextChanged(
+            "fresh resolved caller or item"
+        ))
+    ));
+    assert_eq!(current.snapshot(), captured);
+    fs::write(directory.path().join("Other.esm"), header(&[])).unwrap();
+    let changed = Arc::new(load(directory.path(), &["FalloutNV.esm", "Other.esm"]));
+    assert_eq!(definition(&changed), definition(&catalogue));
+    let mut changed_snapshot = before.clone();
+    changed_snapshot.catalogue_sha256 = World::new(Arc::clone(&changed), Default::default())
+        .unwrap()
+        .catalogue_fingerprint()
+        .into();
+    let changed_world = World::restore(changed, changed_snapshot, Default::default()).unwrap();
+    assert_eq!(changed_world.campaign(), world.campaign());
+    assert!(matches!(
+        plan.observe(&changed_world, &sources, &content, 2),
+        Err(native_plan::Error::ContextChanged(_))
+    ));
+    let (_item_dir, item_catalogue, item_content) = fixture(&event(&get(None, 2)));
+    let item_sources = prepared_sources(&item_catalogue);
+    let (mut item_world, item_handle, item_sequence, item_subject) =
+        seed(Arc::clone(&item_catalogue), 0);
+    item_world
+        .assign(
+            item_handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: form(0x100) },
+                },
+            )],
+        )
+        .unwrap();
+    let item_plan = owned_plan(
+        native_plan::prepare(
+            &item_world,
+            &item_sources,
+            &item_content,
+            Selection {
+                sequence: item_sequence,
+                occurrence: 0,
+                inputs: Inputs {
+                    supplied_subject: Some(item_subject),
+                    player: None,
+                },
+                intent: Intent::EngineeringObservation,
+            },
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    item_world
+        .assign(
+            item_handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: form(0x400) },
+                },
+            )],
+        )
+        .unwrap();
+    let captured = item_world.snapshot();
+    assert!(matches!(
+        item_plan.observe(&item_world, &item_sources, &item_content, 2),
+        Err(native_plan::Error::ContextChanged(
+            "fresh resolved caller or item"
+        ))
+    ));
+    assert_eq!(item_world.snapshot(), captured);
+    for value in [
+        Value::Uninitialized,
+        Value::Reference {
+            value: ReferenceValue::Null,
+        },
+    ] {
+        item_world.assign(item_handle, &[(90, value)]).unwrap();
+        let before = item_world.snapshot();
+        assert!(matches!(
+            item_plan
+                .observe(&item_world, &item_sources, &item_content, 2)
+                .unwrap(),
+            Outcome::Unsupported {
+                reason: Unsupported::ArgumentResolution
+                    | Unsupported::ArgumentNeedsContentReference,
+                ..
+            }
+        ));
+        assert_eq!(item_world.snapshot(), before);
+    }
+}
+
+#[test]
+fn owned_native_plan_refuses_removed_explicit_caller_and_changed_decoder() {
+    use fallout_runtime::execution::native_plan::{self, Selection};
+    let (_directory, catalogue, content) = fixture(&event(&get(None, 1)));
+    let sources = prepared_sources(&catalogue);
+    let (world, _, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    let mut before = world.snapshot();
+    before.instances[0].context = Context::default();
+    before.pending_events[0].context = Context::default();
+    let world = World::restore(Arc::clone(&catalogue), before.clone(), Default::default()).unwrap();
+    let plan = owned_plan(
+        native_plan::prepare(
+            &world,
+            &sources,
+            &content,
+            Selection {
+                sequence,
+                occurrence: 0,
+                inputs: Inputs {
+                    supplied_subject: Some(subject),
+                    player: None,
+                },
+                intent: Intent::EngineeringObservation,
+            },
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    let mut removed = before.clone();
+    removed
+        .references
+        .retain(|reference| reference.id != subject);
+    removed.inventory_banks.retain(|bank| bank.owner != subject);
+    let current =
+        World::restore(Arc::clone(&catalogue), removed.clone(), Default::default()).unwrap();
+    assert!(matches!(
+        plan.observe(&current, &sources, &content, 2).unwrap(),
+        Outcome::Unsupported {
+            reason: Unsupported::HostQueryUnavailable,
+            ..
+        }
+    ));
+    assert_eq!(current.snapshot(), removed);
+    let mut other_signatures = signatures();
+    other_signatures.insert(
+        0x1050,
+        CommandSignature {
+            convention: Convention::Default,
+            parameters: vec![],
+        },
+    );
+    let operators = operators();
+    let changed_sources = PreparedSources::load(
+        &catalogue,
+        &Model::vanilla(&operators).unwrap(),
+        &other_signatures,
+        Default::default(),
+    )
+    .unwrap();
+    assert_ne!(sources.decoder_sha256(), changed_sources.decoder_sha256());
+    assert!(matches!(
+        plan.observe(&world, &changed_sources, &content, 2),
+        Err(native_plan::Error::ContextChanged(
+            "campaign, full source or decoder"
+        ))
+    ));
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn owned_native_plan_exact_creation_limits_and_unsupported_admission_preserve_world() {
+    use fallout_runtime::execution::native_plan::{self, Selection};
+    let (_directory, catalogue, content) = fixture(&event(&get(None, 1)));
+    let sources = prepared_sources(&catalogue);
+    let (world, _, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    let before = world.snapshot();
+    let selection = Selection {
+        sequence,
+        occurrence: 0,
+        inputs: Inputs {
+            supplied_subject: Some(subject),
+            player: None,
+        },
+        intent: Intent::EngineeringObservation,
+    };
+    let sample = owned_plan(
+        native_plan::prepare(&world, &sources, &content, selection, Default::default()).unwrap(),
+    );
+    let c = sample.counts();
+    let exact = native_plan::Limits {
+        native: native::Limits {
+            maximum_event_instructions: 3,
+            maximum_calls: 1,
+            maximum_argument_bytes: 5,
+        },
+        source_projection: fallout_runtime::preparation::ObservationLimits {
+            maximum_source_bytes: c.source.source_bytes,
+            maximum_rows: c.source.rows,
+            maximum_variable_bytes: c.source.variable_bytes,
+            maximum_binding_uses: c.source.binding_uses,
+        },
+        maximum_query_variable_bytes: c.query_variable_bytes,
+    };
+    assert!(matches!(
+        native_plan::prepare(&world, &sources, &content, selection, exact).unwrap(),
+        native_plan::Preparation::Ready(_)
+    ));
+    for field in 0..8 {
+        let mut limits = exact;
+        match field {
+            0 => limits.native.maximum_event_instructions -= 1,
+            1 => limits.native.maximum_calls -= 1,
+            2 => limits.native.maximum_argument_bytes -= 1,
+            3 => limits.source_projection.maximum_source_bytes -= 1,
+            4 => limits.source_projection.maximum_rows -= 1,
+            5 => limits.source_projection.maximum_variable_bytes -= 1,
+            6 => limits.source_projection.maximum_binding_uses -= 1,
+            _ => limits.maximum_query_variable_bytes -= 1,
+        };
+        assert!(
+            native_plan::prepare(&world, &sources, &content, selection, limits).is_err(),
+            "field {field}"
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let mut faithful = selection;
+    faithful.intent = Intent::Faithful;
+    assert!(matches!(
+        native_plan::prepare(
+            &world,
+            &sources,
+            &content,
+            faithful,
+            native_plan::Limits {
+                maximum_query_variable_bytes: 0,
+                ..exact
+            }
+        )
+        .unwrap(),
+        native_plan::Preparation::Unsupported {
+            reason: Unsupported::UnverifiedRetailSemantics,
+            ..
+        }
+    ));
+    let missing = Selection {
+        inputs: Inputs::default(),
+        ..selection
+    };
+    assert!(matches!(
+        native_plan::prepare(&world, &sources, &content, missing, exact).unwrap(),
+        native_plan::Preparation::Unsupported {
+            reason: Unsupported::MissingSubject,
+            ..
+        }
+    ));
+    assert_eq!(world.snapshot(), before);
+}
 fn seed(
     catalogue: Arc<Catalogue>,
     offset: u32,
@@ -1169,5 +1596,591 @@ fn cli_saved_native_helper() {
         "actual_cli_calls":30,"input_schema":before.schema_version,"input_snapshot":before,
         "requested_occurrences":[3,1,0,3],"aggregate_contributions":7,"exact_report_bytes":report_bytes.len(),
         "original_numeric_return":null,"retail_parity_accepted":false
+    })).unwrap()).unwrap();
+}
+
+#[test]
+#[ignore = "built CLI and authored executable metadata; owned cold native plan, no original launch"]
+fn cli_owned_native_plan_helper() {
+    use fallout_runtime::snapshot::Snapshot;
+    use serde_json::{Value as Json, json};
+    use std::{
+        cell::RefCell,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("metadata"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_NATIVE_PLAN_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let body = event(
+        &[
+            get(None, 1),
+            get(Some(2), 1),
+            call(None, 0x1001, &item(2)),
+            get(None, 2),
+        ]
+        .concat(),
+    );
+    let (temporary, catalogue, _content) = fixture(&body);
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let (mut world, handle, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: subject },
+                },
+            )],
+        )
+        .unwrap();
+    let second = world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let before = world.snapshot();
+    let first_item = before.inventory_banks[0].items[0].id();
+    world
+        .remove_item_quantity(first_item, 1.try_into().unwrap())
+        .unwrap();
+    let changed = world.snapshot();
+    let request = json!({"schema_version":1,"sequence":sequence,"occurrence":0,
+        "intent":"engineering_observation","supplied_subject":subject,"explicit_player":null,
+        "maximum_source_instructions":4096,"maximum_calls":128,"maximum_argument_bytes":65539,
+        "maximum_trace_source_bytes":1048576,"maximum_trace_rows":65536,
+        "maximum_trace_variable_bytes":1048576,"maximum_trace_binding_uses":262144,
+        "maximum_query_variable_bytes":1024,"maximum_contributions":2,"maximum_report_bytes":1048576});
+    let receipts = RefCell::new(Vec::new());
+    let run = |name: &str,
+               initial: &Snapshot,
+               current: &Snapshot,
+               request: &Json,
+               extra: &[&str],
+               report_target: Option<&Path>| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let initial_path = directory.join("initial.snapshot.json");
+        let current_path = directory.join("current.snapshot.json");
+        let request_path = directory.join("request.json");
+        let report = report_target
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| directory.join("report.json"));
+        let initial_bytes = initial.encode(64 * 1024 * 1024).unwrap();
+        let current_bytes = current.encode(64 * 1024 * 1024).unwrap();
+        fs::write(&initial_path, &initial_bytes).unwrap();
+        fs::write(&current_path, &current_bytes).unwrap();
+        fs::write(&request_path, serde_json::to_vec_pretty(request).unwrap()).unwrap();
+        let output = Command::new(&cli)
+            .args(["event-operands", "--install"])
+            .arg(&install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg("--snapshot-native-plan-request")
+            .arg(&request_path)
+            .arg("--snapshot-input")
+            .arg(&initial_path)
+            .arg("--snapshot-native-current")
+            .arg(&current_path)
+            .arg("--output")
+            .arg(&report)
+            .args(extra)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        assert_eq!(
+            fs::read(&initial_path).unwrap(),
+            initial_bytes,
+            "{name} changed initial"
+        );
+        assert_eq!(
+            fs::read(&current_path).unwrap(),
+            current_bytes,
+            "{name} changed current"
+        );
+        receipts
+            .borrow_mut()
+            .push(json!({"name":name,"exit_code":output.status.code(),
+            "initial_unchanged":true,"current_unchanged":true}));
+        (output, report)
+    };
+    let mut first_report = None;
+    for (name, current, total, first_count) in [
+        ("cold-initial", &before, 8_589_934_590_u64, u32::MAX),
+        ("cold-changed", &changed, 8_589_934_589, u32::MAX - 1),
+    ] {
+        let (output, path) = run(name, &before, current, &request, &[], None);
+        assert!(
+            output.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let bytes = fs::read(path).unwrap();
+        let report: Json = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(report["outcome"]["trace"]["query"]["result"], total);
+        assert_eq!(
+            report["outcome"]["trace"]["query"]["contributions"],
+            json!([
+                [first_item, first_count],
+                [before.inventory_banks[0].items[1].id(), u32::MAX]
+            ])
+        );
+        assert_eq!(
+            report["plan"]["call"]["scda_bytes"],
+            json!({"start":10,"end":19})
+        );
+        assert_eq!(
+            report["plan"]["call"]["argument_scda_bytes"],
+            json!({"start":14,"end":19})
+        );
+        assert_eq!(report["plan"]["source"]["source_bytes"], json!(body));
+        assert_eq!(report["plan"]["supplied_subject"], json!(subject));
+        assert_eq!(report["plan"]["explicit_player"], Json::Null);
+        assert_eq!(report["initial_world_dropped"], true);
+        assert_eq!(report["strict_current_restore"], true);
+        assert_eq!(report["canonical_state_unchanged"], true);
+        assert_eq!(report["event_acknowledged"], false);
+        assert_eq!(
+            report["outcome"]["trace"]["original_numeric_return"],
+            Json::Null
+        );
+        assert_eq!(
+            report["outcome"]["trace"]["original_behavior_verified"],
+            false
+        );
+        assert_eq!(report["state_revision"], current.state_revision);
+        if name == "cold-initial" {
+            first_report = Some((report, bytes));
+        }
+    }
+    let (report, report_bytes) = first_report.unwrap();
+    let mut prefixed = request.clone();
+    prefixed["occurrence"] = json!(1);
+    prefixed["supplied_subject"] = Json::Null;
+    prefixed["explicit_player"] = json!(subject);
+    let (output, path) = run("prefix", &before, &changed, &prefixed, &[], None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let prefix: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        prefix["outcome"]["trace"]["query"]["result"],
+        8_589_934_589_u64
+    );
+    assert_eq!(prefix["plan"]["call"]["calling_reference_index"], 2);
+    assert_eq!(
+        prefix["plan"]["call"]["scda_bytes"],
+        json!({"start":19,"end":32})
+    );
+    assert_eq!(
+        prefix["plan"]["call"]["argument_scda_bytes"],
+        json!({"start":27,"end":32})
+    );
+    assert_eq!(prefix["plan"]["explicit_player"], json!(subject));
+    assert_eq!(prefix["plan"]["supplied_subject"], Json::Null);
+    let mut empty_initial = before.clone();
+    empty_initial.inventory_banks.clear();
+    let (output, path) = run(
+        "late-inventory",
+        &empty_initial,
+        &changed,
+        &request,
+        &[],
+        None,
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let late: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        late["outcome"]["trace"]["query"]["result"],
+        8_589_934_589_u64
+    );
+    let source_counts = &report["plan"]["creation_counts"]["source"];
+    let mut exact = request.clone();
+    for (field, value) in [
+        ("maximum_source_instructions", json!(6)),
+        ("maximum_calls", json!(4)),
+        ("maximum_argument_bytes", json!(20)),
+        (
+            "maximum_trace_source_bytes",
+            source_counts["source_bytes"].clone(),
+        ),
+        ("maximum_trace_rows", source_counts["rows"].clone()),
+        (
+            "maximum_trace_variable_bytes",
+            source_counts["variable_bytes"].clone(),
+        ),
+        (
+            "maximum_trace_binding_uses",
+            source_counts["binding_uses"].clone(),
+        ),
+        (
+            "maximum_query_variable_bytes",
+            report["plan"]["creation_counts"]["query_variable_bytes"].clone(),
+        ),
+        ("maximum_report_bytes", json!(report_bytes.len())),
+    ] {
+        exact[field] = value;
+    }
+    let (output, path) = run("all-exact", &before, &before, &exact, &[], None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(path).unwrap(), report_bytes);
+    for field in [
+        "maximum_source_instructions",
+        "maximum_calls",
+        "maximum_argument_bytes",
+        "maximum_trace_source_bytes",
+        "maximum_trace_rows",
+        "maximum_trace_variable_bytes",
+        "maximum_trace_binding_uses",
+        "maximum_query_variable_bytes",
+        "maximum_contributions",
+        "maximum_report_bytes",
+    ] {
+        let mut short = exact.clone();
+        short[field] = json!(short[field].as_u64().unwrap() - 1);
+        let (output, path) = run(
+            &format!("short-{field}"),
+            &before,
+            &before,
+            &short,
+            &[],
+            None,
+        );
+        assert!(!output.status.success(), "{field}");
+        assert!(!path.exists(), "{field}");
+    }
+    for (name, field, value, reason) in [
+        (
+            "faithful",
+            "intent",
+            json!("faithful"),
+            "unverified_retail_semantics",
+        ),
+        (
+            "missing-subject",
+            "supplied_subject",
+            Json::Null,
+            "missing_subject",
+        ),
+        (
+            "unknown-subject",
+            "supplied_subject",
+            json!(999),
+            "host_query_unavailable",
+        ),
+        (
+            "unknown-command",
+            "occurrence",
+            json!(2),
+            "missing_implementation",
+        ),
+    ] {
+        let mut refused = request.clone();
+        refused[field] = value;
+        let (output, path) = run(name, &before, &changed, &refused, &[], None);
+        assert!(!output.status.success(), "{name}");
+        let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(report["outcome"]["reason"], reason, "{name}");
+        assert_eq!(report["plan"], Json::Null);
+    }
+    let (output, path) = run(
+        "missing-current-bank",
+        &before,
+        &empty_initial,
+        &request,
+        &[],
+        None,
+    );
+    assert!(!output.status.success());
+    let missing: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(missing["outcome"]["reason"], "host_query_unavailable");
+    assert!(missing["plan"].is_object());
+    let mut detached = before.clone();
+    detached.instances[0].context = Context::default();
+    for pending in &mut detached.pending_events {
+        pending.context = Context::default();
+    }
+    detached.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 90)
+        .unwrap()
+        .value = Value::Uninitialized;
+    let mut removed = detached.clone();
+    removed
+        .references
+        .retain(|reference| reference.id != subject);
+    removed.inventory_banks.retain(|bank| bank.owner != subject);
+    let (output, path) = run("removed-caller", &detached, &removed, &request, &[], None);
+    assert!(!output.status.success());
+    let missing: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(missing["outcome"]["reason"], "host_query_unavailable");
+    for variant in 0..7 {
+        let mut current = before.clone();
+        match variant {
+            0 => {
+                current.pending_events.remove(0);
+            }
+            1 => current.pending_events[0].context.target = None,
+            2 => current.instances[0].context.target = None,
+            3 => {
+                current.instances[0].owner = Owner::Fragment {
+                    activation: 2.try_into().unwrap(),
+                }
+            }
+            4 => current.catalogue_sha256 = "0".repeat(64),
+            5 => current.campaign = fallout_runtime::identity::CampaignId::generate().unwrap(),
+            _ => current.instances[0].definition.version_sha256 = "0".repeat(64),
+        }
+        let (output, path) = run(
+            &format!("changed-context-{variant}"),
+            &before,
+            &current,
+            &request,
+            &[],
+            None,
+        );
+        assert!(!output.status.success(), "variant{variant}");
+        assert!(!path.exists(), "variant{variant}");
+    }
+    let mut rebound =
+        World::restore(Arc::clone(&catalogue), before.clone(), Default::default()).unwrap();
+    let other = rebound.register_reference(None).unwrap();
+    rebound.initialize_inventory(other).unwrap();
+    let rebound_handle = rebound.handle(before.instances[0].id).unwrap();
+    rebound
+        .assign(
+            rebound_handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: other },
+                },
+            )],
+        )
+        .unwrap();
+    let (output, path) = run(
+        "changed-resolved-caller",
+        &before,
+        &rebound.snapshot(),
+        &prefixed,
+        &[],
+        None,
+    );
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("fresh resolved caller or item"));
+    let mut dynamic_world =
+        World::restore(Arc::clone(&catalogue), before.clone(), Default::default()).unwrap();
+    let dynamic_handle = dynamic_world.handle(before.instances[0].id).unwrap();
+    dynamic_world
+        .assign(
+            dynamic_handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: form(0x100) },
+                },
+            )],
+        )
+        .unwrap();
+    let dynamic_initial = dynamic_world.snapshot();
+    let mut dynamic_request = request.clone();
+    dynamic_request["occurrence"] = json!(3);
+    let (output, path) = run(
+        "dynamic-item",
+        &dynamic_initial,
+        &dynamic_initial,
+        &dynamic_request,
+        &[],
+        None,
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let dynamic: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        dynamic["outcome"]["trace"]["query"]["result"],
+        8_589_934_590_u64
+    );
+    assert_eq!(
+        dynamic["plan"]["call"]["argument_scda_bytes"],
+        json!({"start":45,"end":50})
+    );
+    for (name, value, reason) in [
+        (
+            "uninitialized-item",
+            Value::Uninitialized,
+            Some("argument_resolution"),
+        ),
+        (
+            "null-item",
+            Value::Reference {
+                value: ReferenceValue::Null,
+            },
+            Some("argument_needs_content_reference"),
+        ),
+        (
+            "changed-item",
+            Value::Reference {
+                value: ReferenceValue::Content { key: form(0x400) },
+            },
+            None,
+        ),
+    ] {
+        dynamic_world
+            .assign(dynamic_handle, &[(90, value)])
+            .unwrap();
+        let (output, path) = run(
+            name,
+            &dynamic_initial,
+            &dynamic_world.snapshot(),
+            &dynamic_request,
+            &[],
+            None,
+        );
+        assert!(!output.status.success(), "{name}");
+        if let Some(reason) = reason {
+            let refused: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+            assert_eq!(refused["outcome"]["reason"], reason);
+            assert!(refused["plan"].is_object());
+        } else {
+            assert!(!path.exists());
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("fresh resolved caller or item")
+            );
+        }
+    }
+    for (name, field, value) in [
+        ("wrong-schema", "schema_version", json!(2)),
+        ("non-head", "sequence", json!(second)),
+        ("missing-sequence", "sequence", json!(999)),
+        ("zero-sequence", "sequence", json!(0)),
+        ("out-of-range", "occurrence", json!(4)),
+        ("unknown-field", "enqueue", json!(true)),
+        ("query-ceiling", "maximum_query_variable_bytes", json!(1025)),
+        (
+            "report-ceiling",
+            "maximum_report_bytes",
+            json!(8 * 1024 * 1024 + 1),
+        ),
+        ("zero-report", "maximum_report_bytes", json!(0)),
+        (
+            "contribution-ceiling",
+            "maximum_contributions",
+            json!(65537),
+        ),
+        ("request-byte-limit", "extra", json!("x".repeat(16 * 1024))),
+    ] {
+        let mut invalid = request.clone();
+        invalid[field] = value;
+        let (output, path) = run(name, &before, &before, &invalid, &[], None);
+        assert!(!output.status.success(), "{name}");
+        assert!(!path.exists(), "{name}");
+    }
+    for field in ["supplied_subject", "explicit_player", "maximum_calls"] {
+        let mut invalid = request.clone();
+        invalid.as_object_mut().unwrap().remove(field);
+        let (output, path) = run(
+            &format!("omitted-{field}"),
+            &before,
+            &before,
+            &invalid,
+            &[],
+            None,
+        );
+        assert!(!output.status.success());
+        assert!(!path.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("missing field"));
+    }
+    for (name, extra) in [
+        ("conflict-native", vec!["--native-capabilities"]),
+        ("conflict-player", vec!["--player-id", "1"]),
+        (
+            "conflict-copy",
+            vec!["--snapshot-copy-request", "unused.json"],
+        ),
+    ] {
+        let (output, path) = run(name, &before, &before, &request, &extra, None);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    let protected = install.join("protected-report.json");
+    let (output, path) = run(
+        "protected-report",
+        &before,
+        &before,
+        &request,
+        &[],
+        Some(&protected),
+    );
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    let existing = evidence.join("existing-report.json");
+    fs::write(&existing, b"preserve").unwrap();
+    let (output, _) = run(
+        "existing-report",
+        &before,
+        &before,
+        &request,
+        &[],
+        Some(&existing),
+    );
+    assert!(!output.status.success());
+    assert_eq!(fs::read(&existing).unwrap(), b"preserve");
+    let alias = evidence.join("hardlink-report.json");
+    fs::hard_link(&existing, &alias).unwrap();
+    let (output, _) = run(
+        "hardlink-report",
+        &before,
+        &before,
+        &request,
+        &[],
+        Some(&alias),
+    );
+    assert!(!output.status.success());
+    assert_eq!(fs::read(&existing).unwrap(), b"preserve");
+    assert_eq!(world.snapshot(), changed);
+    let cases = receipts.into_inner();
+    fs::write(evidence.join("scope.json"),serde_json::to_vec_pretty(&json!({
+        "scope":"owned_source_native_plan_after_initial_world_drop_and_strict_current_restore",
+        "original_executed":false,"retail_parity_accepted":false,"actual_cli_calls":cases.len(),
+        "cases":cases,"initial_snapshot":before,"changed_snapshot":changed,
+        "exact_report_bytes":report_bytes.len(),"initial_count":8_589_934_590_u64,"changed_count":8_589_934_589_u64
     })).unwrap()).unwrap();
 }

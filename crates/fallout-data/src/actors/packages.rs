@@ -1,4 +1,5 @@
 //! Winning PACK scalar source fields. No schedule, condition or AI execution.
+pub mod destinations;
 use super::fields::Finding;
 use crate::{
     Result,

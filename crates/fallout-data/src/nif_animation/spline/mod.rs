@@ -1,7 +1,8 @@
-//! Exact compact-transform/B-spline source fields. Decompression, usable channel
-//! ranges, basis evaluation, poses and retail playback remain unverified.
+//! Exact compact-transform/B-spline source fields. Optional engineering component
+//! math is separate in `sampling`; poses and retail playback remain unverified.
 pub mod components;
 mod read;
+pub mod sampling;
 
 use super::{Animation, Dependency, LinkStatus, keyframe};
 use crate::{Error, Result, nif, nif_scene::cursor::Reader};

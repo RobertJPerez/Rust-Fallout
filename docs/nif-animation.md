@@ -674,3 +674,72 @@ the projection helper and a receipt byte-count field mismatch in the matrix.
 Corrected runs preserve all original source bytes and frozen binaries. This
 handoff changes only the owned matrix tool and documentation; existing Rust,
 native and default source-report interfaces stay unchanged.
+
+## Explicit engineering cubic components (ASSET-09)
+
+`nif_animation::spline::sampling` borrows a decoded compact component source.
+Its named contract is `engineering-open-uniform-cubic-components-v1`. It admits
+an exact same-container interpolator/data/basis window with 4 to 2,000,000 basis
+controls, checked array cardinality/span, and a finite strictly increasing source
+interval. Source array caps still apply, so wider channels can reach the window
+limit before reaching the basis-count limit. XML handle 65535 is absent; other
+uint values remain offsets and must fit the actual compact array. Unknown links,
+float-only controls, short windows and incompatible channels refuse explicitly.
+Static source values never supply a fallback.
+
+The engineering algebra is `offset + (signed_i16 / 32767.0) * half_range`, in
+binary64 after exact binary32 promotion. It preserves -32768 without clamping
+and permits finite negative or zero half ranges. Degree3 open uniform clamped
+knots are `[0,0,0,0,1,...,N-4,N-3,N-3,N-3,N-3]`. Caller time maps to
+`((time-start)/(stop-start))*(N-3)`, with direct exact-endpoint branches. Local
+de Boor uses four rows of four scalars and generated knots. It allocates no
+expanded control array, frame bake or knot vector. Time must be finite and
+inside the source interval; no extrapolation, cycle, clock or time repair applies.
+
+`prepare` returns a borrowed validated window that supports repeated explicit
+requests. Default validation and sampling budgets are 16 million units each.
+Validation charges 16 fixed metadata units, each visited source block, and each
+selected compact scalar before hashing the window. Every sample precharges
+`17 + 10*width` units before component arithmetic or allocating up to four
+results. Receipts retain source block IDs, spans/hashes, handle, basis count,
+window byte offset/hash, source parameter bits, caller time bits, local control
+indices, result bits and exact work usage. Readiness and retail verification
+remain false.
+
+The existing `nif-animation` request accepts `--sample-channel spline-translation`,
+`spline-scale`, `spline-float`, `spline-point3` or `spline-rotation-components`,
+paired with explicit `--sample-block` and `--sample-time`. This opts into schema4
+source decoding or preserves a higher source schema selected by its flags.
+The optional `engineering_spline_sample` and corresponding contract are separate
+from the earlier linear diagnostic. Source/comparison findings remain available
+when sampling refuses. Rotation results are four raw WXYZ scalar components;
+quaternion normalization, orientation interpolation and evaluated poses are open.
+World owns hierarchy/rendering and Runtime owns persistent clocks/state.
+
+`tools/nif-animation-oracle/check_spline_sampling.py` compares Rust requests with
+an independent exact-rational Cox basis using exact binary32 parameters and
+binary64 caller time. Four-control results also equal independent Bernstein
+cubic Bezier expressions. The conditioned component bound is
+`2^-42 * max(1,N-3) * (abs(offset) + (32768/32767)*abs(half_range) + abs(exact_result)) + 2^-1074`.
+The global source amplitude covers cancellation near a rounded internal knot:
+the cubic derivative is bounded by six times that amplitude, and normalized
+parameter error grows with N. This is an engineering arithmetic bound. It does
+not measure geometric error or verify retail knot, time, rotation or fallback
+policy. Authored source/refusal checks and unchanged original-source math checks
+remain separate from pose and retail acceptance.
+
+Private ASSET-09 evidence is frozen in `local/asset-09-teamv2-20261003-02`.
+Seven new sampler tests and 67 existing animation tests pass, along with all
+27 CLI tests, all-target Clippy with warnings denied and formatting. Actual
+Rust results match 1,908 independent rational requests containing 5,120 scalar
+values. These cover 63 additional authored sources, prepared source vectors
+across twelve streams, and 45 original windows spanning observed channel/count
+combinations. Tests include finite extremes, negative/zero ranges, subnormal
+intervals, -32768, exact endpoints, adjacent knot times, cancellation and a
+two-million-control source. All 473 sampling refusals, thirteen malformed-source
+refusals and eight altered receipt types in each comparison group behave as
+intended. Final original schemas1-6 remain byte-exact across all 70 files.
+The first frozen binary/proofs and initial Clippy loop-style failure remain
+preserved; a fixed-scratch iterator change passes fresh tests, Clippy and the
+full numerical comparisons on a separately frozen final binary. No native
+decoder, shared main dispatch, World, Runtime or persistent format changes.

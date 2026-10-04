@@ -31,6 +31,8 @@ pub struct FileReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     engineering_sample: Option<sampling::Diagnostic>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    engineering_spline_sample: Option<spline::sampling::Diagnostic>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     bool_interpolators: Option<boolean::Catalogue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bool_keys: Option<boolean::keyframes::Catalogue>,
@@ -49,6 +51,8 @@ pub struct Report {
     spline_component_branch: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     engineering_sampling_contract: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    engineering_spline_sampling_contract: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bool_interpolator_branch: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -70,7 +74,26 @@ pub struct Report {
 pub enum SampleChannel {
     Translation,
     Scale,
+    SplineTranslation,
+    SplineScale,
+    SplineFloat,
+    SplinePoint3,
+    SplineRotationComponents,
 }
+impl SampleChannel {
+    fn spline(self) -> Option<spline::sampling::Channel> {
+        use spline::sampling::Channel;
+        match self {
+            Self::SplineTranslation => Some(Channel::Translation),
+            Self::SplineScale => Some(Channel::Scale),
+            Self::SplineFloat => Some(Channel::Float),
+            Self::SplinePoint3 => Some(Channel::Point3),
+            Self::SplineRotationComponents => Some(Channel::RotationComponents),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy)]
 pub struct SampleRequest {
     pub block: u32,
     pub channel: SampleChannel,
@@ -338,6 +361,7 @@ struct Work {
     booleans: usize,
     boolean_keys: usize,
     diagnostic_bytes: usize,
+    spline_request: Option<SampleRequest>,
 }
 impl Default for Work {
     fn default() -> Self {
@@ -348,6 +372,7 @@ impl Default for Work {
             booleans: 16_000_000,
             boolean_keys: 16_000_000,
             diagnostic_bytes: 0,
+            spline_request: None,
         }
     }
 }
@@ -368,16 +393,25 @@ pub fn inspect(
         return Err("engineering sampling requires one explicit input file".into());
     }
     options.include_keyframes |= sample.is_some();
+    let spline_request = sample.filter(|request| request.channel.spline().is_some());
+    options.include_spline_components |= spline_request.is_some();
     let mut report = inspect_with_work(
         input,
         oracle_path,
         options,
         Work {
-            diagnostic_bytes: if sample.is_some() { 64 } else { 0 },
+            diagnostic_bytes: if spline_request.is_some() {
+                512
+            } else if sample.is_some() {
+                64
+            } else {
+                0
+            },
+            spline_request,
             ..Default::default()
         },
     )?;
-    if let Some(request) = sample {
+    if let Some(request) = sample.filter(|request| request.channel.spline().is_none()) {
         report.engineering_sampling_contract = Some(sampling::CONTRACT);
         let mut budget = sampling::Budget::new(sampling::Limits::default());
         for row in &mut report.files {
@@ -399,6 +433,7 @@ pub fn inspect(
                 let channel = match request.channel {
                     SampleChannel::Translation => sampling::Channel::Translation,
                     SampleChannel::Scale => sampling::Channel::Scale,
+                    _ => unreachable!("spline request is handled during source decoding"),
                 };
                 Ok(sampling::evaluate(
                     block,
@@ -445,6 +480,7 @@ fn inspect_with_key_work(
             booleans: 0,
             boolean_keys: 0,
             diagnostic_bytes: 0,
+            spline_request: None,
         },
     )
 }
@@ -466,6 +502,7 @@ fn inspect_with_work(
         booleans: mut boolean_work,
         boolean_keys: mut boolean_key_work,
         diagnostic_bytes: reserved_diagnostic_bytes,
+        spline_request,
     } = work;
     let mut report = Report {
         schema_version: if include_bool_keys {
@@ -486,6 +523,7 @@ fn inspect_with_work(
         spline_branch: include_splines.then_some("nv-compact-transform-source"),
         spline_component_branch: include_components.then_some("nv-compact-components-source"),
         engineering_sampling_contract: None,
+        engineering_spline_sampling_contract: spline_request.map(|_| spline::sampling::CONTRACT),
         bool_interpolator_branch: include_booleans.then_some("nv-bool-interpolator-source"),
         bool_key_branch: include_bool_keys.then_some("nv-bool-constant-key-source"),
         float_encoding: "ieee754-binary32-bits",
@@ -615,6 +653,7 @@ fn inspect_with_work(
         .checked_sub(row_charge)
         .ok_or("animation report storage budget exceeded")?;
     report.files = Vec::with_capacity(paths.len());
+    let mut spline_budget = spline::sampling::Budget::new(spline::sampling::Limits::default());
     for path in paths {
         remaining = remaining
             .checked_sub(path.as_os_str().len() * std::mem::size_of::<u16>())
@@ -632,6 +671,7 @@ fn inspect_with_work(
             splines: None,
             spline_components: None,
             engineering_sample: None,
+            engineering_spline_sample: None,
             bool_interpolators: None,
             bool_keys: None,
             error: None,
@@ -662,6 +702,18 @@ fn inspect_with_work(
             array_bytes: remaining.min(128 * 1024 * 1024),
             boolean_work,
         };
+        let mut spline_diagnostic = None;
+        let mut sample_source = |source: &spline::components::Source| {
+            if let Some(request) = spline_request {
+                spline_diagnostic = Some(spline::sampling::evaluate(
+                    source,
+                    request.block,
+                    request.channel.spline().expect("validated spline channel"),
+                    request.time,
+                    &mut spline_budget,
+                ));
+            }
+        };
         let decoded =
             if include_bool_keys {
                 boolean::keyframes::decode_with_limits(
@@ -674,6 +726,7 @@ fn inspect_with_work(
                     },
                 )
                 .map(|(index, decoded)| {
+                    sample_source(&decoded.source.source);
                     (
                         index,
                         decoded.source.source.source.animation,
@@ -695,6 +748,7 @@ fn inspect_with_work(
                     },
                 )
                 .map(|(index, decoded)| {
+                    sample_source(&decoded.source);
                     (
                         index,
                         decoded.source.source.animation,
@@ -716,6 +770,7 @@ fn inspect_with_work(
                     },
                 )
                 .map(|(index, decoded)| {
+                    sample_source(&decoded);
                     (
                         index,
                         decoded.source.animation,
@@ -893,6 +948,21 @@ fn inspect_with_work(
                 report.failures += 1;
             }
         }
+        if let Some(diagnostic) = spline_diagnostic {
+            match diagnostic {
+                Ok(diagnostic) => row.engineering_spline_sample = Some(diagnostic),
+                Err(error) => {
+                    if row.error.is_none() {
+                        report.failures += 1;
+                    }
+                    let reason = format!("engineering spline sampling diagnostic failed: {error}");
+                    row.error = Some(match row.error.take() {
+                        Some(source_error) => format!("{source_error}; {reason}"),
+                        None => reason,
+                    });
+                }
+            }
+        }
         report.files.push(row);
     }
     Ok(report)
@@ -903,6 +973,144 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn spline_input() -> Inputs {
+        let inputs = inputs(&[]);
+        let blocks = [
+            (
+                "NiBSplineCompFloatInterpolator",
+                words(&[0, 1f32.to_bits(), 1, 2, 0x8000_0000, 0, 0, 1f32.to_bits()]),
+            ),
+            (
+                "NiBSplineData",
+                [
+                    words(&[0, 4]),
+                    [-32768i16, -1, 1, 32767]
+                        .iter()
+                        .flat_map(|v| v.to_le_bytes())
+                        .collect(),
+                ]
+                .concat(),
+            ),
+            ("NiBSplineBasisData", words(&[4])),
+        ];
+        let mut bytes = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+        bytes.extend(words(&[0x1402_0007]));
+        bytes.push(1);
+        bytes.extend(words(&[11, 3, 34]));
+        bytes.extend([0; 3]);
+        bytes.extend(3u16.to_le_bytes());
+        for (kind, _) in &blocks {
+            bytes.extend(words(&[kind.len() as u32]));
+            bytes.extend(kind.as_bytes());
+        }
+        for id in 0..3u16 {
+            bytes.extend(id.to_le_bytes());
+        }
+        for (_, payload) in &blocks {
+            bytes.extend(words(&[payload.len() as u32]));
+        }
+        bytes.extend(words(&[0, 0, 0]));
+        for (_, payload) in &blocks {
+            bytes.extend(payload);
+        }
+        bytes.extend(words(&[1, 0]));
+        std::fs::write(inputs.0.join("compact.kf"), bytes).unwrap();
+        inputs
+    }
+    #[test]
+    fn separate_spline_diagnostic_consumes_same_decoded_source_and_keeps_schema_fields() {
+        let inputs = spline_input();
+        let path = inputs.0.join("compact.kf");
+        let options = SourceOptions {
+            include_bool_keys: true,
+            ..Default::default()
+        };
+        let baseline = serde_json::to_value(inspect(&path, None, options, None).unwrap()).unwrap();
+        let mut sampled = serde_json::to_value(
+            inspect(
+                &path,
+                None,
+                options,
+                Some(SampleRequest {
+                    block: 0,
+                    channel: SampleChannel::SplineFloat,
+                    time: 0.5,
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(sampled["failures"], 0);
+        assert_eq!(
+            sampled["engineering_spline_sampling_contract"],
+            spline::sampling::CONTRACT
+        );
+        assert_eq!(
+            sampled["files"][0]["engineering_spline_sample"]["basis_count"],
+            4
+        );
+        assert!(sampled.get("engineering_sampling_contract").is_none());
+        sampled
+            .as_object_mut()
+            .unwrap()
+            .remove("engineering_spline_sampling_contract");
+        sampled["files"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("engineering_spline_sample");
+        assert_eq!(sampled, baseline);
+        for (block, channel, time, reason) in [
+            (0, SampleChannel::SplineFloat, 2., "extrapolate"),
+            (
+                9,
+                SampleChannel::SplineFloat,
+                0.,
+                "selected block is not in",
+            ),
+            (0, SampleChannel::SplinePoint3, 0., "channel does not match"),
+        ] {
+            let report = inspect(
+                &path,
+                None,
+                options,
+                Some(SampleRequest {
+                    block,
+                    channel,
+                    time,
+                }),
+            )
+            .unwrap();
+            assert_eq!(report.failures, 1);
+            assert!(report.files[0].spline_components.is_some());
+            assert!(report.files[0].engineering_spline_sample.is_none());
+            assert!(report.files[0].error.as_ref().unwrap().contains(reason));
+        }
+    }
+    #[test]
+    fn spline_request_requires_one_file_and_finite_time() {
+        let inputs = spline_input();
+        let path = inputs.0.join("compact.kf");
+        for (input, time, reason) in [
+            (&path, f64::NAN, "finite explicit source time"),
+            (&inputs.0, 0., "one explicit input file"),
+        ] {
+            let error = inspect(
+                input,
+                None,
+                SourceOptions::default(),
+                Some(SampleRequest {
+                    block: 0,
+                    channel: SampleChannel::SplineFloat,
+                    time,
+                }),
+            )
+            .err()
+            .unwrap()
+            .to_string();
+            assert!(error.contains(reason));
+        }
+    }
 
     #[test]
     fn boolean_key_batch_work_and_failed_row_debit_keep_schema5_opaque() {
@@ -1397,6 +1605,7 @@ mod tests {
             booleans: 0,
             boolean_keys: 0,
             diagnostic_bytes: 0,
+            spline_request: None,
         };
         let exact = inspect_with_work(
             &inputs.0,

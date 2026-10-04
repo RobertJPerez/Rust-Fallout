@@ -96,6 +96,13 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Bind exact external source keys to one skeleton node; playback unverified.
+    NifClipPose {
+        skeleton: PathBuf,
+        clip: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
     NifRigidAttachment {
         skeleton: PathBuf,
@@ -1844,6 +1851,29 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifClipPose {
+            skeleton,
+            clip,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for input in [&skeleton, &clip, &request] {
+                    if parent.starts_with(protected_tree(input)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_clip(&skeleton, &clip, &request)?;
+            emit(&report, output, &skeleton)?;
+            if report.failures != 0 {
+                return Err("external source clip pose refused; see report".into());
             }
         }
         Command::NifRigidAttachment {

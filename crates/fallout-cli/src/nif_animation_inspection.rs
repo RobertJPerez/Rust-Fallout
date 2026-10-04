@@ -119,6 +119,105 @@ struct PoseSetRequest {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PreparedSetBinding {
+    object: u32,
+    controller: u32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedSetTime {
+    expected_source_sha256: [u8; 32],
+    object: u32,
+    controller: u32,
+    source_time: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedSetRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    bindings: Vec<PreparedSetBinding>,
+    time_vectors: Vec<Vec<PreparedSetTime>>,
+}
+
+pub fn inspect_prepared_pose_set(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::pose::PreparedSetBatch>> {
+    let request: PreparedSetRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1
+        || request.bindings.is_empty()
+        || request.bindings.len() > 256
+        || request.time_vectors.is_empty()
+        || request.time_vectors.len() > 64
+        || request.time_vectors.iter().any(|vector| vector.len() > 256)
+    {
+        return Err("prepared pose set requires schema1, 1..256 bindings and 1..64 explicit time vectors of at most256 rows".into());
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let prepared =
+        nif_animation::pose::PreparedSource::prepare(&bytes, &source, Default::default());
+    // A successful source preparation supplies its cached whole-source hash to
+    // the report too. Time vectors never hash/reparse the source or its blocks.
+    let sha256 = match &prepared {
+        Ok(value) => value.source_sha256().to_owned(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    let expected = request
+        .expected_sha256
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let evaluated = prepared.and_then(|prepared| {
+        if prepared.source_sha256() != expected {
+            return Err(fallout_data::Error::Unsupported(format!(
+                "{source}: prepared set source SHA256 differs"
+            )));
+        }
+        let bindings = request
+            .bindings
+            .iter()
+            .map(|binding| nif_animation::pose::ChannelBinding {
+                object: binding.object,
+                controller: binding.controller,
+            })
+            .collect::<Vec<_>>();
+        let plan = prepared.prepare_set(&bindings, Default::default())?;
+        let times = request
+            .time_vectors
+            .iter()
+            .map(|vector| {
+                vector
+                    .iter()
+                    .map(|time| nif_animation::pose::ExplicitChannelTime {
+                        expected_source_sha256: time.expected_source_sha256,
+                        object: time.object,
+                        controller: time.controller,
+                        source_time: time.source_time,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        plan.sample_many(&times, Default::default())
+    });
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: "engineering-prepared-source-pose-set-batch-v1",
+        input: input.into(),
+        sha256,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VisibilityPathRequest {
     schema_version: u32,
     expected_source_sha256: [u8; 32],

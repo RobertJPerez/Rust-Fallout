@@ -104,6 +104,8 @@ enum Command {
         input: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        #[arg(long)]
+        prepared: bool,
     },
     /// Prepare one exact source once and sample an explicit bounded time list.
     NifSourcePoseBatch {
@@ -1718,7 +1720,11 @@ fn run(args: Args) -> Result<()> {
             }
             return Ok(());
         }
-        Command::NifSourcePoseSet { input, request } => {
+        Command::NifSourcePoseSet {
+            input,
+            request,
+            prepared,
+        } => {
             if let Some(path) = output {
                 let parent = path
                     .parent()
@@ -1730,6 +1736,14 @@ fn run(args: Args) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if prepared {
+                let report = nif_animation_inspection::inspect_prepared_pose_set(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("prepared source pose set refused; see report".into());
+                }
+                return Ok(());
             }
             let report = nif_animation_inspection::inspect_pose_set(&input, &request)?;
             emit(&report, output, &input)?;

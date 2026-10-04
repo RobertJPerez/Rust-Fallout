@@ -1,6 +1,12 @@
 //! Explicit simultaneous channels; no priority, blending or playback clock.
 use super::*;
 
+mod prepared;
+pub use prepared::{
+    ChannelBinding, ExplicitChannelTime, PreparedPoseSet, PreparedSetBatch, SetBatchLimits,
+    SetPreparationLimits, SetPreparationUsage, SetSampleLimits,
+};
+
 #[derive(Clone, Copy, Debug)]
 pub struct SetLimits {
     pub source: Limits,
@@ -179,13 +185,7 @@ fn evaluate_prepared(
     mut budget: Budget<'_>,
     scope: Option<RequiredScope<'_>>,
 ) -> Result<EvaluatedForest> {
-    let view = SourceView {
-        source: &prepared.source,
-        index: &prepared.index,
-        decoded: &prepared.decoded,
-        scene: &prepared.scene,
-        storage: SourceStorage::Prepared(&prepared),
-    };
+    let view = SourceView::prepared(&prepared);
     let blocks = prepared.index.blocks.len();
     budget.reserve::<Option<usize>>(blocks)?;
     budget.reserve::<bool>(blocks)?;
@@ -218,13 +218,104 @@ fn evaluate_prepared(
         .filter(|_| scope.is_none())
         .map(|request| request.object);
     let required_seeds = explicit_seeds.iter().copied().chain(requested_seeds);
-    for seed in required_seeds {
+    required_closure(
+        &prepared,
+        &view,
+        &selected,
+        &mut required,
+        required_seeds,
+        limits.ancestry_depth,
+        &mut budget,
+    )?;
+    if scope.is_some() {
+        budget.charge(requests.len())?;
+        if requests.iter().any(|r| !required[r.object as usize]) {
+            return Err(budget.fail("pose set channel is outside required skin forest"));
+        }
+    }
+    let mut sampling_left = limits.sampling;
+    let mut objects = Vec::with_capacity(requests.len());
+    for &request in requests {
+        budget.charge(4)?;
+        let linked = admit_channels(&view, request, &budget)?;
+        budget.reserve::<u8>(6 * 64)?;
+        let mut sampling_budget = sampling::Budget::new(sampling_left);
+        let object = observe_sample(&view, &linked, request, &mut sampling_budget, &budget)?;
+        let used = sampling_budget.usage();
+        sampling_left.validation_work = sampling_left
+            .validation_work
+            .checked_sub(used.validation_units)
+            .ok_or_else(|| budget.fail("pose set validation work exceeded"))?;
+        sampling_left.sampling_work = sampling_left
+            .sampling_work
+            .checked_sub(used.sampling_units)
+            .ok_or_else(|| budget.fail("pose set sampling work exceeded"))?;
+        objects.push(object);
+    }
+    let propagated_objects = propagate_required(
+        ForestView {
+            scene: &prepared.scene,
+            object_slots: &prepared.objects,
+            world_slots: &prepared.worlds,
+            required: &required,
+        },
+        &mut worlds,
+        &mut relative,
+        scope.map(|s| s.anchor),
+        &mut budget,
+        |object| {
+            selected[object.block as usize]
+                .map(|i| objects[i].channel.local)
+                .unwrap_or_else(|| scene_affine(object.transform))
+        },
+    )?;
+    finish_objects(
+        &prepared,
+        &view,
+        &selected,
+        &worlds,
+        &mut objects,
+        &mut budget,
+    )?;
+    let observation = PoseSet {
+        contract: "engineering-explicit-linked-pose-set-v1",
+        source_sha256: prepared.source_sha256().into(),
+        preparation: prepared.usage(),
+        objects,
+        propagated_objects,
+        retained_bytes: limits.array_bytes - budget.bytes,
+        work_units: limits.work_units - budget.work,
+        sample_work: sampling::Usage {
+            validation_units: limits.sampling.validation_work - sampling_left.validation_work,
+            sampling_units: limits.sampling.sampling_work - sampling_left.sampling_work,
+        },
+        retail_behavior_verified: false,
+    };
+    Ok(EvaluatedForest {
+        prepared,
+        observation,
+        selected,
+        worlds,
+        relative,
+    })
+}
+
+fn required_closure(
+    prepared: &PreparedSource,
+    view: &SourceView<'_>,
+    selected: &[Option<usize>],
+    required: &mut [bool],
+    seeds: impl IntoIterator<Item = u32>,
+    ancestry_depth: usize,
+    budget: &mut Budget<'_>,
+) -> Result<()> {
+    for seed in seeds {
         let mut node = Some(seed);
         let mut depth = 0;
         while let Some(id) = node {
             budget.charge(1)?;
             depth += 1;
-            if depth > limits.ancestry_depth {
+            if depth > ancestry_depth {
                 return Err(budget.fail("ancestry depth budget exceeded"));
             }
             let object = view
@@ -251,69 +342,49 @@ fn evaluate_prepared(
             node = world.parent;
         }
     }
-    if scope.is_some() {
-        budget.charge(requests.len())?;
-        if requests.iter().any(|r| !required[r.object as usize]) {
-            return Err(budget.fail("pose set channel is outside required skin forest"));
-        }
+    Ok(())
+}
+
+fn observe_sample(
+    view: &SourceView<'_>,
+    linked: &LinkedChannels<'_>,
+    request: Request,
+    sampling_budget: &mut sampling::Budget,
+    budget: &Budget<'_>,
+) -> Result<SetObjectPose> {
+    let (translation, scale, local) =
+        sample_channels(linked, request.source_time, sampling_budget)?;
+    if !local.iter().flatten().all(|v| v.is_finite()) {
+        return Err(budget.fail("evaluated matrix overflow"));
     }
-    let mut sampling_left = limits.sampling;
-    let mut objects = Vec::with_capacity(requests.len());
-    for &request in requests {
-        budget.charge(4)?;
-        let linked = admit_channels(&view, request, &budget)?;
-        budget.reserve::<u8>(6 * 64)?;
-        let mut sampling_budget = sampling::Budget::new(sampling_left);
-        let (translation, scale, local) =
-            sample_channels(&linked, request.source_time, &mut sampling_budget)?;
-        let used = sampling_budget.usage();
-        sampling_left.validation_work = sampling_left
-            .validation_work
-            .checked_sub(used.validation_units)
-            .ok_or_else(|| budget.fail("pose set validation work exceeded"))?;
-        sampling_left.sampling_work = sampling_left
-            .sampling_work
-            .checked_sub(used.sampling_units)
-            .ok_or_else(|| budget.fail("pose set sampling work exceeded"))?;
-        if !local.iter().flatten().all(|v| v.is_finite()) {
-            return Err(budget.fail("evaluated matrix overflow"));
-        }
-        objects.push(SetObjectPose {
-            channel: LocalObservation {
-                object: view.source_span(request.object),
-                controller: view.source_span(request.controller),
-                interpolator: view.source_span(linked.interpolator_id),
-                data: view.source_span(linked.data_id),
-                requested_time_f64_bits: request.source_time.to_bits(),
-                source_local: linked.object.transform.into(),
-                object_flags: linked.object.flags,
-                unapplied_controller_fields: linked.controller.clone(),
-                unapplied_interpolator_fields: linked.interpolator.clone(),
-                translation,
-                scale,
-                local,
-            },
-            source_world: IDENTITY,
-            ancestors: Vec::new(),
-        });
-    }
-    let propagated_objects = propagate_required(
-        ForestView {
-            scene: &prepared.scene,
-            object_slots: &prepared.objects,
-            world_slots: &prepared.worlds,
-            required: &required,
+    Ok(SetObjectPose {
+        channel: LocalObservation {
+            object: view.source_span(request.object),
+            controller: view.source_span(request.controller),
+            interpolator: view.source_span(linked.interpolator_id),
+            data: view.source_span(linked.data_id),
+            requested_time_f64_bits: request.source_time.to_bits(),
+            source_local: linked.object.transform.into(),
+            object_flags: linked.object.flags,
+            unapplied_controller_fields: linked.controller.clone(),
+            unapplied_interpolator_fields: linked.interpolator.clone(),
+            translation,
+            scale,
+            local,
         },
-        &mut worlds,
-        &mut relative,
-        scope.map(|s| s.anchor),
-        &mut budget,
-        |object| {
-            selected[object.block as usize]
-                .map(|i| objects[i].channel.local)
-                .unwrap_or_else(|| scene_affine(object.transform))
-        },
-    )?;
+        source_world: IDENTITY,
+        ancestors: Vec::new(),
+    })
+}
+
+fn finish_objects(
+    prepared: &PreparedSource,
+    view: &SourceView<'_>,
+    selected: &[Option<usize>],
+    worlds: &[Option<Affine>],
+    objects: &mut [SetObjectPose],
+    budget: &mut Budget<'_>,
+) -> Result<()> {
     for ordinal in 0..objects.len() {
         let id = objects[ordinal].channel.object.block;
         objects[ordinal].source_world =
@@ -345,31 +416,12 @@ fn evaluate_prepared(
             parent = world.parent;
         }
     }
-    let observation = PoseSet {
-        contract: "engineering-explicit-linked-pose-set-v1",
-        source_sha256: prepared.source_sha256().into(),
-        preparation: prepared.usage(),
-        objects,
-        propagated_objects,
-        retained_bytes: limits.array_bytes - budget.bytes,
-        work_units: limits.work_units - budget.work,
-        sample_work: sampling::Usage {
-            validation_units: limits.sampling.validation_work - sampling_left.validation_work,
-            sampling_units: limits.sampling.sampling_work - sampling_left.sampling_work,
-        },
-        retail_behavior_verified: false,
-    };
-    Ok(EvaluatedForest {
-        prepared,
-        observation,
-        selected,
-        worlds,
-        relative,
-    })
+    Ok(())
 }
 
 /// Borrowed maps originate only in a freshly decoded/validated Scene. This is
 /// crate-private traversal data, never a public caller pose or matrix authority.
+#[derive(Clone, Copy)]
 pub(in crate::nif_animation) struct ForestView<'a> {
     pub(crate) scene: &'a nif_scene::Scene,
     pub(crate) object_slots: &'a [Option<usize>],
@@ -396,6 +448,33 @@ pub(in crate::nif_animation) fn propagate_required(
     budget: &mut Budget<'_>,
     mut local: impl FnMut(&nif_scene::Object) -> Affine,
 ) -> Result<usize> {
+    let RequiredTopology {
+        offsets,
+        children,
+        mut order,
+        required_count,
+    } = construct_required(forest, budget)?;
+    let mut propagated_objects = 0;
+    while propagated_objects < order.len() {
+        let id = order[propagated_objects] as usize;
+        propagate_node(forest, id, worlds, relative, anchor, budget, &mut local)?;
+        propagated_objects += 1;
+        append_children(id, &offsets, &children, &mut order, required_count, budget)?;
+    }
+    if propagated_objects != required_count {
+        return Err(budget.fail("required forest could not propagate all objects"));
+    }
+    Ok(propagated_objects)
+}
+
+struct RequiredTopology {
+    offsets: Vec<usize>,
+    children: Vec<u32>,
+    order: Vec<u32>,
+    required_count: usize,
+}
+
+fn construct_required(forest: ForestView<'_>, budget: &mut Budget<'_>) -> Result<RequiredTopology> {
     let blocks = forest.required.len();
     let required = forest.required;
     // Scene validates the forest, then sorts its public worlds by block ID.
@@ -461,59 +540,79 @@ pub(in crate::nif_animation) fn propagate_required(
             counts[parent] += 1;
         }
     }
-    let mut propagated_objects = 0;
-    while propagated_objects < queue.len() {
+    Ok(RequiredTopology {
+        offsets,
+        children,
+        order: queue,
+        required_count,
+    })
+}
+
+fn append_children(
+    id: usize,
+    offsets: &[usize],
+    children: &[u32],
+    order: &mut Vec<u32>,
+    required_count: usize,
+    budget: &mut Budget<'_>,
+) -> Result<()> {
+    let descendants = &children[offsets[id]..offsets[id + 1]];
+    budget.charge(descendants.len())?;
+    if order
+        .len()
+        .checked_add(descendants.len())
+        .is_none_or(|n| n > required_count)
+    {
+        return Err(budget.fail("required forest queue exceeds admitted objects"));
+    }
+    order.extend_from_slice(descendants);
+    Ok(())
+}
+
+fn propagate_node(
+    forest: ForestView<'_>,
+    id: usize,
+    worlds: &mut [Option<Affine>],
+    relative: &mut [Option<Affine>],
+    anchor: Option<u32>,
+    budget: &mut Budget<'_>,
+    local: &mut impl FnMut(&nif_scene::Object) -> Affine,
+) -> Result<()> {
+    budget.charge(1)?;
+    let world = &forest.scene.world_transforms
+        [forest.world_slots[id].expect("required reachable world validated")];
+    let object = forest
+        .object(world.block)
+        .ok_or_else(|| budget.fail("unresolved required object"))?;
+    let local = local(object);
+    let matrix = match world.parent {
+        Some(parent) => compose(
+            worlds[parent as usize]
+                .ok_or_else(|| budget.fail("required forest parent not propagated"))?,
+            local,
+        ),
+        None => local,
+    };
+    if !matrix.iter().flatten().all(|v| v.is_finite()) {
+        return Err(budget.fail("evaluated matrix overflow"));
+    }
+    worlds[id] = Some(matrix);
+    if let Some(anchor) = anchor {
         budget.charge(1)?;
-        let id = queue[propagated_objects] as usize;
-        let world = &forest.scene.world_transforms
-            [forest.world_slots[id].expect("required reachable world validated")];
-        let object = forest
-            .object(world.block)
-            .ok_or_else(|| budget.fail("unresolved required object"))?;
-        let local = local(object);
-        let matrix = match world.parent {
-            Some(parent) => compose(
-                worlds[parent as usize]
-                    .ok_or_else(|| budget.fail("required forest parent not propagated"))?,
-                local,
-            ),
-            None => local,
-        };
-        if !matrix.iter().flatten().all(|v| v.is_finite()) {
-            return Err(budget.fail("evaluated matrix overflow"));
-        }
-        worlds[id] = Some(matrix);
-        if let Some(anchor) = anchor {
-            budget.charge(1)?;
-            relative[id] = if world.block == anchor {
-                Some(IDENTITY)
-            } else {
-                match world.parent.and_then(|parent| relative[parent as usize]) {
-                    Some(parent) => {
-                        let value = compose(parent, local);
-                        if !value.iter().flatten().all(|v| v.is_finite()) {
-                            return Err(budget.fail("evaluated root-relative matrix overflow"));
-                        }
-                        Some(value)
+        relative[id] = if world.block == anchor {
+            Some(IDENTITY)
+        } else {
+            match world.parent.and_then(|parent| relative[parent as usize]) {
+                Some(parent) => {
+                    let value = compose(parent, local);
+                    if !value.iter().flatten().all(|v| v.is_finite()) {
+                        return Err(budget.fail("evaluated root-relative matrix overflow"));
                     }
-                    None => None,
+                    Some(value)
                 }
-            };
-        }
-        propagated_objects += 1;
-        let descendants = &children[offsets[id]..offsets[id + 1]];
-        budget.charge(descendants.len())?;
-        if queue
-            .len()
-            .checked_add(descendants.len())
-            .is_none_or(|n| n > required_count)
-        {
-            return Err(budget.fail("required forest queue exceeds admitted objects"));
-        }
-        queue.extend_from_slice(descendants);
+                None => None,
+            }
+        };
     }
-    if propagated_objects != required_count {
-        return Err(budget.fail("required forest could not propagate all objects"));
-    }
-    Ok(propagated_objects)
+    Ok(())
 }

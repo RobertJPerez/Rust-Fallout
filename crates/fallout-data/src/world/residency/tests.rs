@@ -410,3 +410,109 @@ fn empty_selected_batches_still_charge_retired_plan_metadata_and_pin_count() {
     assert_eq!(owner.snapshot().retained_plans, 0);
     assert_eq!(owner.snapshot().plan_metadata_bytes, 0);
 }
+
+#[test]
+fn worker_ceiling_is_enforced_before_pool_creation() {
+    let (fixture, _, _) = setup(0, false);
+    for workers in [0, 3, 4, usize::MAX] {
+        assert!(matches!(
+            CellResidency::new(
+                fixture.source.path(),
+                None,
+                Limits {
+                    workers,
+                    ..Limits::default()
+                }
+            ),
+            Err(JobError::Invalid(_))
+        ));
+    }
+    for workers in [1, 2] {
+        assert!(
+            CellResidency::new(
+                fixture.source.path(),
+                None,
+                Limits {
+                    workers,
+                    ..Limits::default()
+                }
+            )
+            .is_ok()
+        );
+    }
+}
+
+#[test]
+fn publication_is_once_per_epoch_even_after_dependency_downgrade() {
+    let (fixture, plan, nif) = setup(1, false);
+    let mut owner = owner(&fixture, 1, nif.len());
+    let ticket = owner.request(plan).unwrap();
+    decoded(&mut owner);
+    owner
+        .report_dependencies(&ticket, Readiness::Ready)
+        .unwrap();
+    let mut calls = 0;
+    assert!(
+        owner
+            .publish_render::<()>(&ticket, || {
+                calls += 1;
+                Err(JobError::Invalid("failed GPU admission".into()))
+            })
+            .is_err()
+    );
+    assert!(!owner.snapshot().render_published);
+    owner
+        .publish_render(&ticket, || {
+            calls += 1;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(calls, 2);
+    assert!(owner.snapshot().render_published);
+    assert!(
+        owner
+            .publish_render(&ticket, || {
+                calls += 1;
+                Ok(())
+            })
+            .is_err()
+    );
+    owner
+        .report_dependencies(&ticket, Readiness::Pending)
+        .unwrap();
+    owner
+        .report_dependencies(&ticket, Readiness::Ready)
+        .unwrap();
+    assert!(
+        owner
+            .publish_render(&ticket, || {
+                calls += 1;
+                Ok(())
+            })
+            .is_err()
+    );
+    assert_eq!(calls, 2);
+    assert!(owner.snapshot().render_published);
+    assert_eq!(owner.snapshot().stage, Stage::RenderResident);
+    let fresh = owner.retry().unwrap();
+    assert!(!owner.snapshot().render_published);
+    decoded(&mut owner);
+    owner.report_dependencies(&fresh, Readiness::Ready).unwrap();
+    assert!(
+        owner
+            .publish_render(&ticket, || {
+                calls += 1;
+                Ok(())
+            })
+            .is_err()
+    );
+    owner
+        .publish_render(&fresh, || {
+            calls += 1;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(calls, 3);
+    owner.unload().unwrap();
+    assert!(!owner.snapshot().render_published);
+}

@@ -7,7 +7,7 @@ use fallout_runtime::{
     identity::{CampaignId, ReferenceId},
     inventory::{
         Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, Page, PageLimits,
-        PageRequest, TransferLimits, ViewLimits,
+        PageRequest, RemovalLimits, TransferLimits, ViewLimits,
     },
     save::{Captured, Recovery, Repository},
     source_items::{Policy, Role, SourceFactsLimits, SourceInventoryLimits},
@@ -415,7 +415,80 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
             );
         }
     }
+    let removal_before = engineering.world.snapshot();
+    let removals = [
+        (engineering.world.item_handle(first_id)?, 2.try_into()?),
+        (engineering.world.item_handle(original)?, 12.try_into()?),
+    ];
+    let mut bad = removals;
+    bad[1].1 = 13.try_into()?;
+    if engineering
+        .world
+        .stage_inventory_removals(&bad, RemovalLimits::default())
+        .is_ok()
+        || engineering.world.snapshot() != removal_before
+    {
+        return Err("Invalid final removal partly consumed a lot".into());
+    }
+    let fully_removed = engineering.world.item(original)?.clone();
+    let partial_facts = engineering.world.item(first_id)?.facts().clone();
+    let stage = engineering
+        .world
+        .stage_inventory_removals(&removals, RemovalLimits::default())?;
+    if engineering.world.snapshot() != removal_before {
+        return Err("Removal staging changed state".into());
+    }
+    let atomic_removal = engineering.world.commit_inventory_removals(stage)?;
+    if atomic_removal.before_revision() != removal_before.state_revision
+        || atomic_removal.after_revision()
+            != removal_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Removal revision exhausted")?
+        || atomic_removal.usage().removed_lots != 1
+        || atomic_removal.usage().released_links != 7
+        || atomic_removal.usage().released_extra_bytes != 3
+        || engineering.world.item(original).is_ok()
+        || engineering.world.item(first_id)?.count() != 9
+        || engineering.world.item(first_id)?.facts() != &partial_facts
+    {
+        return Err("Atomic removal differs from explicit partial/complete input".into());
+    }
     let expected = engineering.world.snapshot();
+    // A real add at tight canonical capacity proves the released charges on
+    // separately restored proof worlds. The saved boundary stays the removal.
+    let capacity_limits = Limits {
+        max_item_instances: 5,
+        max_total_item_links: 23,
+        max_total_item_bytes: 13,
+        ..Limits::default()
+    };
+    let mut before_capacity = World::restore(&scripts, removal_before.clone(), capacity_limits)?;
+    if before_capacity
+        .add_item(
+            fully_removed.owner(),
+            fully_removed.facts().clone(),
+            1.try_into()?,
+        )
+        .is_ok()
+        || before_capacity.snapshot() != removal_before
+    {
+        return Err("Full canonical capacity unexpectedly admitted an extra lot".into());
+    }
+    let mut after_capacity = World::restore(&scripts, expected.clone(), capacity_limits)?;
+    let reclaimed_id = after_capacity.add_item(
+        fully_removed.owner(),
+        fully_removed.facts().clone(),
+        1.try_into()?,
+    )?;
+    if reclaimed_id.0.get() != expected.next_item
+        || after_capacity.item(reclaimed_id)?.facts() != fully_removed.facts()
+    {
+        return Err("Reclaimed capacity normalized or reidentified the supplied lot".into());
+    }
+    let capacity_proof = json!({"limits":{"max_item_instances":5,"max_total_item_links":23,"max_total_item_bytes":13},
+        "before_add_refused_without_effects":true,"after_removal_add_succeeded":true,"saved_world_unchanged":engineering.world.snapshot()==expected,
+        "added_id":reclaimed_id,"added_owner":fully_removed.owner(),"added_facts":fully_removed.facts(),"added_count":1,"after_add_snapshot":after_capacity.snapshot()});
     let expected_traces = traces(&engineering.world, &[a, b, source_owner], &keys)?;
     let expected_views = views(&engineering.world, &[a, b, source_owner, absent])?;
     let expected_pages = pages(&engineering.world, &[a, b, source_owner, absent])?;
@@ -443,12 +516,15 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     let before_world = World::restore(&scripts, facts_before.clone(), Limits::default())?;
     let source_facts_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
     drop(before_world);
+    let before_world = World::restore(&scripts, removal_before.clone(), Limits::default())?;
+    let removal_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
     let capture = Captured::at_boundary(&engineering.world);
     let worker_repository = repository.clone();
     let worker = std::thread::spawn(move || worker_repository.commit(&capture));
     engineering
         .world
-        .remove_item_quantity(original, 1.try_into()?)?;
+        .remove_item_quantity(split, 1.try_into()?)?;
     let write = worker.join().map_err(|_| "Item save worker panicked")??;
     let (loaded, receipt) = repository.load(&scripts, Limits::default(), Recovery::Strict)?;
     if loaded.snapshot() != expected
@@ -483,6 +559,11 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     report["source_facts_inputs"] = serde_json::to_value(facts_inputs)?;
     report["source_facts_invalid_last_preserved_state"] = true.into();
     report["source_facts_ids_counts_owners_and_one_revision_equal"] = true.into();
+    report["atomic_inventory_removal"] = serde_json::to_value(atomic_removal)?;
+    report["removal_before_write"] = serde_json::to_value(removal_before_write)?;
+    report["removal_inputs"] = json!([{"id":first_id,"quantity":2},{"id":original,"quantity":12}]);
+    report["removal_invalid_last_preserved_state"] = true.into();
+    report["removal_capacity_proof"] = capacity_proof;
     Ok(report)
 }
 pub(super) fn cold(

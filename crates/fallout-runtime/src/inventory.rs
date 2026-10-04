@@ -1656,6 +1656,395 @@ impl World<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct RemovalLimits {
+    pub max_rows: usize,
+    /// Logical metadata and described lookup/duplicate copies. Facts and opaque
+    /// payloads are never cloned; allocator overhead and process peak are excluded.
+    pub max_copied_bytes: usize,
+}
+impl Default for RemovalLimits {
+    fn default() -> Self {
+        Self {
+            max_rows: 256,
+            max_copied_bytes: 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct RemovalUsage {
+    pub rows: usize,
+    pub removed_lots: usize,
+    pub quantity: u64,
+    pub released_links: usize,
+    pub released_extra_bytes: usize,
+    pub copied_bytes: usize,
+}
+/// Observed metadata only. A later Facts mutation changes the global revision
+/// and expires the stage without retaining any condition/opaque payload copy.
+#[derive(Debug, Serialize)]
+pub struct RemovalRow {
+    id: ItemId,
+    owner: ReferenceId,
+    base: FormKey,
+    before: NonZeroU32,
+    requested: NonZeroU32,
+    remaining: u32,
+    links: usize,
+    extra_bytes: usize,
+}
+impl RemovalRow {
+    pub fn id(&self) -> ItemId {
+        self.id
+    }
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn base(&self) -> &FormKey {
+        &self.base
+    }
+    pub fn before(&self) -> u32 {
+        self.before.get()
+    }
+    pub fn requested(&self) -> u32 {
+        self.requested.get()
+    }
+    pub fn remaining(&self) -> u32 {
+        self.remaining
+    }
+    pub fn links(&self) -> usize {
+        self.links
+    }
+    pub fn extra_bytes(&self) -> usize {
+        self.extra_bytes
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct RemovalCountChange {
+    owner: ReferenceId,
+    base: FormKey,
+    before: u64,
+    after: u64,
+}
+impl RemovalCountChange {
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn base(&self) -> &FormKey {
+        &self.base
+    }
+    pub fn before(&self) -> u64 {
+        self.before
+    }
+    pub fn after(&self) -> u64 {
+        self.after
+    }
+}
+#[derive(Debug)]
+#[must_use = "staging removes nothing; commit the removals or drop them"]
+pub struct StagedInventoryRemovals {
+    epoch: u64,
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    revision: u64,
+    next_item: u64,
+    rows: Vec<RemovalRow>,
+    counts: Vec<RemovalCountChange>,
+    usage: RemovalUsage,
+}
+impl StagedInventoryRemovals {
+    pub fn rows(&self) -> &[RemovalRow] {
+        &self.rows
+    }
+    pub fn count_changes(&self) -> &[RemovalCountChange] {
+        &self.counts
+    }
+    pub fn usage(&self) -> RemovalUsage {
+        self.usage
+    }
+    fn check(
+        &self,
+        epoch: u64,
+        campaign: CampaignId,
+        cohort: &str,
+        revision: u64,
+        next_item: u64,
+    ) -> Result<()> {
+        if self.epoch != epoch {
+            return Err(Error::StaleHandle);
+        }
+        if self.campaign != campaign || self.catalogue_sha256 != cohort {
+            return Err(Error::DefinitionChanged);
+        }
+        if self.revision != revision || self.next_item != next_item {
+            return Err(Error::Invalid("inventory removal boundary changed".into()));
+        }
+        Ok(())
+    }
+}
+/// Publication observations, with no deserialization or mutation authority.
+#[derive(Debug, Serialize)]
+pub struct RemovalReceipt {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    before_revision: u64,
+    after_revision: u64,
+    rows: Vec<RemovalRow>,
+    counts: Vec<RemovalCountChange>,
+    usage: RemovalUsage,
+}
+impl RemovalReceipt {
+    pub fn campaign(&self) -> CampaignId {
+        self.campaign
+    }
+    pub fn catalogue_fingerprint(&self) -> &str {
+        &self.catalogue_sha256
+    }
+    pub fn before_revision(&self) -> u64 {
+        self.before_revision
+    }
+    pub fn after_revision(&self) -> u64 {
+        self.after_revision
+    }
+    pub fn rows(&self) -> &[RemovalRow] {
+        &self.rows
+    }
+    pub fn count_changes(&self) -> &[RemovalCountChange] {
+        &self.counts
+    }
+    pub fn usage(&self) -> RemovalUsage {
+        self.usage
+    }
+}
+struct RemovalDelta {
+    before: u64,
+    removed: u64,
+}
+fn removal_charge(usage: &mut RemovalUsage, bytes: usize, limits: RemovalLimits) -> Result<()> {
+    usage.copied_bytes = usage
+        .copied_bytes
+        .checked_add(bytes)
+        .ok_or(Error::Capacity("inventory removal copied bytes"))?;
+    if usage.copied_bytes > limits.max_copied_bytes {
+        return Err(Error::Capacity("inventory removal copied bytes"));
+    }
+    Ok(())
+}
+fn removal_sum(total: u64, added: u64) -> Result<u64> {
+    total
+        .checked_add(added)
+        .ok_or(Error::Capacity("inventory removal quantity"))
+}
+fn removal_count_after(before: u64, removed: u64) -> Result<u64> {
+    before
+        .checked_sub(removed)
+        .ok_or_else(|| Error::Invalid("inventory removal count index inconsistent".into()))
+}
+impl World<'_> {
+    fn removal_membership(&self, item: &Item) -> Result<()> {
+        self.inventory_owner(item.owner)?;
+        if !self.inventory_banks[&item.owner].contains(&item.id) {
+            return Err(Error::Invalid(
+                "inventory removal bank membership inconsistent".into(),
+            ));
+        }
+        Ok(())
+    }
+    /// Caller order selects the exact lots. Empty/duplicate requests refuse;
+    /// valid nonzero removals publish once and never choose or merge survivors.
+    pub fn stage_inventory_removals(
+        &self,
+        removals: &[(ItemHandle, NonZeroU32)],
+        limits: RemovalLimits,
+    ) -> Result<StagedInventoryRemovals> {
+        if removals.is_empty() {
+            return Err(Error::Invalid("empty inventory removals".into()));
+        }
+        if removals.len() > limits.max_rows {
+            return Err(Error::Capacity("inventory removal rows"));
+        }
+        let mut usage = RemovalUsage {
+            rows: removals.len(),
+            ..RemovalUsage::default()
+        };
+        for bytes in [
+            size_of::<StagedInventoryRemovals>(),
+            self.cohort.len(),
+            size_of::<BTreeSet<ItemId>>(),
+            size_of::<BTreeMap<(ReferenceId, &FormKey), RemovalDelta>>(),
+        ] {
+            removal_charge(&mut usage, bytes, limits)?;
+        }
+        // Admit metadata for every borrowed lot before cloning any source key.
+        // Checking exact quantity/link/byte observations needs no owned Facts.
+        for &(handle, requested) in removals {
+            let item = self.item_by_handle(handle)?;
+            self.removal_membership(item)?;
+            if requested.get() > item.count.get() {
+                return Err(Error::Invalid("removal exceeds item quantity".into()));
+            }
+            for bytes in [
+                size_of::<RemovalRow>(),
+                item.facts.base.origin_plugin.len(),
+                size_of::<ItemId>(),
+            ] {
+                removal_charge(&mut usage, bytes, limits)?;
+            }
+            usage.quantity = removal_sum(usage.quantity, u64::from(requested.get()))?;
+            if requested == item.count {
+                usage.removed_lots = usage
+                    .removed_lots
+                    .checked_add(1)
+                    .ok_or(Error::Capacity("inventory removal rows"))?;
+                usage.released_links = usage
+                    .released_links
+                    .checked_add(item.facts.links())
+                    .ok_or(Error::Capacity("inventory removal links"))?;
+                usage.released_extra_bytes = usage
+                    .released_extra_bytes
+                    .checked_add(item.facts.extra_bytes()?)
+                    .ok_or(Error::Capacity("inventory removal extra bytes"))?;
+            }
+        }
+        let mut unique = BTreeSet::new();
+        let mut deltas = BTreeMap::<(ReferenceId, &FormKey), RemovalDelta>::new();
+        for &(handle, requested) in removals {
+            let item = self.item_by_handle(handle)?;
+            if !unique.insert(item.id) {
+                return Err(Error::Invalid("duplicate inventory removal item".into()));
+            }
+            let delta = match deltas.entry((item.owner, &item.facts.base)) {
+                Entry::Vacant(entry) => {
+                    for bytes in [
+                        size_of::<((ReferenceId, &FormKey), RemovalDelta)>(),
+                        size_of::<RemovalCountChange>(),
+                        item.facts.base.origin_plugin.len(),
+                        size_of::<(ReferenceId, FormKey)>(),
+                        item.facts.base.origin_plugin.len(),
+                    ] {
+                        removal_charge(&mut usage, bytes, limits)?;
+                    }
+                    entry.insert(RemovalDelta {
+                        before: self.count_total(item.owner, &item.facts.base),
+                        removed: 0,
+                    })
+                }
+                Entry::Occupied(entry) => entry.into_mut(),
+            };
+            delta.removed = removal_sum(delta.removed, u64::from(requested.get()))?;
+        }
+        for delta in deltas.values() {
+            removal_count_after(delta.before, delta.removed)?;
+        }
+        self.item_capacity_changes(0, 0, usage.released_links, usage.released_extra_bytes)?;
+        self.next_revision()?;
+        let counts = deltas
+            .into_iter()
+            .map(|((owner, base), delta)| {
+                Ok(RemovalCountChange {
+                    owner,
+                    base: base.clone(),
+                    before: delta.before,
+                    after: removal_count_after(delta.before, delta.removed)?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let rows = removals
+            .iter()
+            .map(|&(handle, requested)| {
+                let item = &self.items[&handle.id];
+                Ok(RemovalRow {
+                    id: item.id,
+                    owner: item.owner,
+                    base: item.facts.base.clone(),
+                    before: item.count,
+                    requested,
+                    remaining: item.count.get() - requested.get(),
+                    links: item.facts.links(),
+                    extra_bytes: item.facts.extra_bytes()?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(StagedInventoryRemovals {
+            epoch: self.epoch,
+            campaign: self.campaign,
+            catalogue_sha256: self.cohort.clone(),
+            revision: self.revision,
+            next_item: self.next_item,
+            rows,
+            counts,
+            usage,
+        })
+    }
+    pub fn commit_inventory_removals(
+        &mut self,
+        stage: StagedInventoryRemovals,
+    ) -> Result<RemovalReceipt> {
+        stage.check(
+            self.epoch,
+            self.campaign,
+            &self.cohort,
+            self.revision,
+            self.next_item,
+        )?;
+        for row in &stage.rows {
+            let item = self.item(row.id)?;
+            if item.owner != row.owner
+                || item.count != row.before
+                || item.facts.base != row.base
+                || item.facts.links() != row.links
+                || item.facts.extra_bytes()? != row.extra_bytes
+            {
+                return Err(Error::Invalid("inventory removal lot changed".into()));
+            }
+            self.removal_membership(item)?;
+        }
+        for count in &stage.counts {
+            if self.count_total(count.owner, &count.base) != count.before {
+                return Err(Error::Invalid(
+                    "inventory removal count observation changed".into(),
+                ));
+            }
+        }
+        let (links, bytes) = self.item_capacity_changes(
+            0,
+            0,
+            stage.usage.released_links,
+            stage.usage.released_extra_bytes,
+        )?;
+        let revision = self.next_revision()?;
+        let before_revision = self.revision;
+        // All fallible admission is complete. Partial survivors retain their
+        // exact Facts; full removals release only their original lot charges.
+        for row in &stage.rows {
+            if let Some(remaining) = NonZeroU32::new(row.remaining) {
+                self.items.get_mut(&row.id).expect("observed lot").count = remaining;
+            } else {
+                self.items.remove(&row.id);
+                self.inventory_banks
+                    .get_mut(&row.owner)
+                    .expect("observed bank")
+                    .remove(&row.id);
+            }
+        }
+        for count in &stage.counts {
+            self.set_count_total(count.owner, count.base.clone(), count.after);
+        }
+        self.item_links = links;
+        self.item_bytes = bytes;
+        self.revision = revision;
+        Ok(RemovalReceipt {
+            campaign: stage.campaign,
+            catalogue_sha256: stage.catalogue_sha256,
+            before_revision,
+            after_revision: revision,
+            rows: stage.rows,
+            counts: stage.counts,
+            usage: stage.usage,
+        })
+    }
+}
+
 pub(crate) fn check_facts(
     f: &Facts,
     limits: crate::Limits,
@@ -1799,5 +2188,70 @@ mod source_inventory_tests {
         );
         assert!(source_facts_count_after(u64::MAX, 0, 1).is_err());
         assert!(source_facts_count_after(0, 1, 0).is_err());
+    }
+}
+
+#[cfg(test)]
+mod removal_tests {
+    use super::*;
+    #[test]
+    fn aggregate_quantity_and_count_subtraction_boundaries_never_wrap() {
+        assert_eq!(removal_sum(u64::MAX - 1, 1).unwrap(), u64::MAX);
+        assert!(removal_sum(u64::MAX, 1).is_err());
+        assert_eq!(removal_count_after(u64::MAX, u64::MAX).unwrap(), 0);
+        assert!(removal_count_after(0, 1).is_err());
+    }
+    #[test]
+    fn logical_removal_metadata_addition_refuses_overflow() {
+        let mut usage = RemovalUsage {
+            copied_bytes: 1,
+            ..RemovalUsage::default()
+        };
+        assert!(
+            removal_charge(
+                &mut usage,
+                usize::MAX,
+                RemovalLimits {
+                    max_rows: usize::MAX,
+                    max_copied_bytes: usize::MAX
+                }
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn every_private_removal_binding_is_checked_before_lot_admission() {
+        let campaign = CampaignId::from_bytes([1; 16]).unwrap();
+        let stage = StagedInventoryRemovals {
+            epoch: 7,
+            campaign,
+            catalogue_sha256: "a".repeat(64),
+            revision: 9,
+            next_item: 4,
+            rows: Vec::new(),
+            counts: Vec::new(),
+            usage: RemovalUsage::default(),
+        };
+        assert!(stage.check(7, campaign, &"a".repeat(64), 9, 4).is_ok());
+        assert!(matches!(
+            stage.check(8, campaign, &"a".repeat(64), 9, 4),
+            Err(Error::StaleHandle)
+        ));
+        assert!(matches!(
+            stage.check(
+                7,
+                CampaignId::from_bytes([2; 16]).unwrap(),
+                &"a".repeat(64),
+                9,
+                4
+            ),
+            Err(Error::DefinitionChanged)
+        ));
+        assert!(matches!(
+            stage.check(7, campaign, &"b".repeat(64), 9, 4),
+            Err(Error::DefinitionChanged)
+        ));
+        assert!(stage.check(7, campaign, &"a".repeat(64), 10, 4).is_err());
+        assert!(stage.check(7, campaign, &"a".repeat(64), 9, 5).is_err());
     }
 }

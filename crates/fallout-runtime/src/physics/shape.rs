@@ -304,28 +304,137 @@ fn capsule_segment_accepts(o: V, d: V, a: V, b: V, t: f64) -> QueryResult<bool> 
     Ok((0. ..=end).contains(&axial))
 }
 
-fn cuboid_distance2(p: V, minimum: V, maximum: V) -> f64 {
-    (0..3)
-        .map(|i| (p[i] - p[i].clamp(minimum[i], maximum[i])).powi(2))
-        .sum()
+fn cuboid_contains(p: V, minimum: V, maximum: V) -> bool {
+    (0..3).all(|i| minimum[i] <= p[i] && p[i] <= maximum[i])
 }
 
-fn cuboid_ray(o: V, d: V, minimum: V, maximum: V) -> Option<f64> {
-    let mut enter: f64 = 0.;
-    let mut exit = f64::INFINITY;
+fn cuboid_overlap(p: V, radius: f64, minimum: V, maximum: V) -> QueryResult<bool> {
+    // Squaring a minimum subnormal outside offset would erase it entirely.
+    if radius == 0. || cuboid_contains(p, minimum, maximum) {
+        return Ok(cuboid_contains(p, minimum, maximum));
+    }
+    let closest: V = std::array::from_fn(|i| p[i].clamp(minimum[i], maximum[i]));
+    let delta = sub(p, closest);
+    let error: V = std::array::from_fn(|i| difference_error(p[i], closest[i], delta[i]));
+    let distance = length(delta);
+    if error.iter().all(|v| *v == 0.) && delta.iter().filter(|v| **v != 0.).count() <= 1 {
+        return Ok(distance <= radius);
+    }
+    let uncertainty = length(error) + 8. * f64::EPSILON * distance + f64::from_bits(1);
+    if (distance - radius).abs() <= uncertainty {
+        return Err(QueryError::Invalid(
+            "cuboid overlap predicate is numerically uncertain",
+        ));
+    }
+    Ok(distance < radius)
+}
+
+#[derive(Clone, Copy)]
+struct Interval {
+    lower: f64,
+    upper: f64,
+}
+
+fn quotient_interval(numerator: f64, denominator: f64) -> QueryResult<Interval> {
+    let quotient = numerator / denominator;
+    if !quotient.is_finite() {
+        return Err(QueryError::Invalid("unrepresentable cuboid slab quotient"));
+    }
+    // Exact products retain ordinary closed face contacts. Otherwise the
+    // adjacent representable numbers enclose division, including underflow.
+    let exact = numerator == 0.
+        || denominator.abs() == 1.
+        || exact_products_equal(quotient, denominator, numerator, 1.);
+    Ok(Interval {
+        lower: if exact {
+            quotient
+        } else {
+            quotient.next_down()
+        },
+        upper: if exact { quotient } else { quotient.next_up() },
+    })
+}
+
+fn slab_bound(bound: f64, origin: f64, direction: f64) -> QueryResult<Interval> {
+    let difference = bound - origin;
+    let error = difference_error(bound, origin, difference);
+    if !difference.is_finite() || !error.is_finite() {
+        return Err(QueryError::Invalid(
+            "unrepresentable cuboid slab subtraction",
+        ));
+    }
+    let lower = if error < 0. {
+        difference.next_down()
+    } else {
+        difference
+    };
+    let upper = if error > 0. {
+        difference.next_up()
+    } else {
+        difference
+    };
+    let (near, far) = if direction > 0. {
+        (lower, upper)
+    } else {
+        (upper, lower)
+    };
+    Ok(Interval {
+        lower: quotient_interval(near, direction)?.lower,
+        upper: quotient_interval(far, direction)?.upper,
+    })
+}
+
+fn cuboid_ray(o: V, d: V, minimum: V, maximum: V, max: f64) -> QueryResult<Option<f64>> {
+    if cuboid_contains(o, minimum, maximum) {
+        return Ok(Some(0.));
+    }
+    let mut enter = Interval {
+        lower: 0.,
+        upper: 0.,
+    };
+    let mut exit = Interval {
+        lower: max,
+        upper: max,
+    };
     for i in 0..3 {
         if d[i] == 0. {
             if o[i] < minimum[i] || o[i] > maximum[i] {
-                return None;
+                return Ok(None);
             }
         } else {
-            let a = (minimum[i] - o[i]) / d[i];
-            let b = (maximum[i] - o[i]) / d[i];
-            enter = enter.max(a.min(b));
-            exit = exit.min(a.max(b));
+            if (o[i] < minimum[i] && d[i] < 0.) || (o[i] > maximum[i] && d[i] > 0.) {
+                return Ok(None);
+            }
+            let (near, far) = if d[i] > 0. {
+                (minimum[i], maximum[i])
+            } else {
+                (maximum[i], minimum[i])
+            };
+            let a = slab_bound(near, o[i], d[i])?;
+            let b = slab_bound(far, o[i], d[i])?;
+            enter.lower = enter.lower.max(a.lower);
+            enter.upper = enter.upper.max(a.upper);
+            exit.lower = exit.lower.min(b.lower);
+            exit.upper = exit.upper.min(b.upper);
         }
     }
-    (enter <= exit).then_some(enter)
+    if enter.lower > exit.upper {
+        return Ok(None);
+    }
+    if enter.upper > exit.lower {
+        return Err(QueryError::Invalid(
+            "cuboid slab predicate is numerically uncertain",
+        ));
+    }
+    // A possible intersection is insufficient. The upper entry bound lies
+    // inside every guaranteed slab and the caller's exact distance interval.
+    let witness: V = std::array::from_fn(|i| d[i].mul_add(enter.upper, o[i]));
+    if !cuboid_contains(witness, minimum, maximum) {
+        return Err(QueryError::Invalid(
+            "cuboid entry witness is numerically uncertain",
+        ));
+    }
+    Ok(Some(enter.upper))
 }
 
 /// Closest point lies either on a triangle edge or inside its perpendicular
@@ -361,29 +470,29 @@ impl Shape {
             0
         }
     }
-    pub fn overlap(&self, p: V, r: f64) -> bool {
-        match *self {
+    pub fn overlap(&self, p: V, r: f64) -> QueryResult<bool> {
+        Ok(match *self {
             Self::Sphere(radius) => dot(p, p) <= (r + radius) * (r + radius),
-            Self::Box(extents) => cuboid_distance2(p, extents.map(|v| -v), extents) <= r * r,
+            Self::Box(extents) => cuboid_overlap(p, r, extents.map(|v| -v), extents)?,
             Self::ConvexCuboid {
                 minimum, maximum, ..
-            } => cuboid_distance2(p, minimum, maximum) <= r * r,
+            } => cuboid_overlap(p, r, minimum, maximum)?,
             Self::Capsule { a, b, radius } => {
                 segment_distance2(p, a, b) <= (r + radius) * (r + radius)
             }
             Self::Triangle(vertices) => triangle_distance2(p, vertices) <= r * r,
-        }
+        })
     }
-    pub fn ray(&self, o: V, d: V) -> QueryResult<Option<f64>> {
+    pub fn ray(&self, o: V, d: V, max: f64) -> QueryResult<Option<f64>> {
         if !query_domain(o) || !query_domain(d) || dot(d, d) == 0. || !dot(d, d).is_finite() {
             return Err(QueryError::Invalid("overflowing local ray"));
         }
         Ok(match *self {
             Self::Sphere(radius) => sphere_ray(o, d, [0.; 3], radius)?,
-            Self::Box(extents) => cuboid_ray(o, d, extents.map(|v| -v), extents),
+            Self::Box(extents) => cuboid_ray(o, d, extents.map(|v| -v), extents, max)?,
             Self::ConvexCuboid {
                 minimum, maximum, ..
-            } => cuboid_ray(o, d, minimum, maximum),
+            } => cuboid_ray(o, d, minimum, maximum, max)?,
             Self::Capsule { a, b, radius } => {
                 // Axis projection loses source offsets for long/thin geometry.
                 if 128. * f64::EPSILON * (length(sub(o, a)) + length(sub(b, a))) > radius {

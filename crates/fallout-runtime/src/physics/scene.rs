@@ -555,13 +555,14 @@ impl StaticScene {
             )?;
             let o = leaf.transform.local_point(ray.origin);
             let d = leaf.transform.local_vector(ray.direction);
-            if let Some(distance) = leaf.geometry.shape.ray(o, d)? {
+            if let Some(distance) = leaf.geometry.shape.ray(o, d, ray.max_distance)? {
                 if !distance.is_finite() {
                     return Err(QueryError::Invalid("overflowing intersection"));
                 }
                 if distance <= ray.max_distance {
                     charge(&mut budget.hits, 1, "query hits")?;
-                    let position = add(ray.origin, mul(ray.direction, distance));
+                    let position =
+                        std::array::from_fn(|i| ray.direction[i].mul_add(distance, ray.origin[i]));
                     if !finite(position) {
                         return Err(QueryError::Invalid("overflowing hit position"));
                     }
@@ -602,7 +603,7 @@ impl StaticScene {
             if !query_domain(local) || !r.is_finite() || r > 1e50 {
                 return Err(QueryError::Invalid("overflowing local sphere"));
             }
-            if leaf.geometry.shape.overlap(local, r) {
+            if leaf.geometry.shape.overlap(local, r)? {
                 charge(&mut budget.hits, 1, "query hits")?;
                 hits.push(Self::hit(leaf, 0., center));
             }

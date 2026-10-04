@@ -2,9 +2,6 @@ use super::{QueryError, QueryResult};
 use fallout_data::coordinates::Affine;
 
 pub(super) type V = [f64; 3];
-pub(super) fn add(a: V, b: V) -> V {
-    std::array::from_fn(|i| a[i] + b[i])
-}
 pub(super) fn sub(a: V, b: V) -> V {
     std::array::from_fn(|i| a[i] - b[i])
 }

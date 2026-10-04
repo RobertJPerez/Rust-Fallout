@@ -83,6 +83,17 @@ normalized-axis double projection. Nonaxis comparisons include a conservative
 source-scale error interval and inverse-sine direction conditioning. Near-parallel
 or inconclusive side/segment-endpoint predicates refuse. Exact source-axis
 projection deletes a component and preserves ordinary axis/cap cases.
+Box and certified-cuboid slabs enclose subtraction and division with directed
+binary64 neighbors, retaining exact operations for ordinary closed contacts.
+The query's `[0,max_distance]` interval participates in the same predicate.
+Only a guaranteed nonempty interval produces a hit; an unresolved comparison
+refuses the whole query. The reported distance is a conservative representable
+entry witness inside that interval, which may be slightly beyond the exact
+surface entry. Hit positions use fused multiply-add. Zero-radius cuboid overlap
+compares components directly. Positive radii use scale-safe norms and recovered
+subtraction residuals, refusing uncertain contact comparisons. These local
+predicates retain the declared engineering transform scope; they do not certify
+retail units or arbitrary approximately similar transforms.
 
 ## Headless source consumer
 
@@ -107,6 +118,8 @@ semantics and keeps faithful readiness false.
 The `ray_numeric_input` field retains consumed binary64 words as hex strings,
 so independent predicates can bind the actual numeric inputs after JSON parsing.
 Ray refusals also include this numeric audit in stderr while producing no report.
+`overlap_numeric_input` similarly retains all center/radius words for successful
+queries and refusals.
 Unsupported bodies return the exact block/capability error. Retail reports/geometry
 stay under ignored `local/`.
 

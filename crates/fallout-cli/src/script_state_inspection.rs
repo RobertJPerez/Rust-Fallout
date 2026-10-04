@@ -792,6 +792,213 @@ fn enqueue_group_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
         "bytecode_executed":false,"retail_parity_accepted":false,
     })))
 }
+fn instance_initialization_group_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    use initialization::group;
+    let selected = catalogue
+        .iter()
+        .map(|(_, script)| script)
+        .filter(|script| {
+            schema::locals(script)
+                .values()
+                .filter(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+                .count()
+                >= 2
+        })
+        .take(2)
+        .collect::<Vec<_>>();
+    if selected.len() != 2 {
+        return Ok(None);
+    }
+    let scripts = [selected[0], selected[0], selected[1]];
+    let local_capacity = schema::locals(selected[0])
+        .len()
+        .checked_mul(2)
+        .and_then(|count| count.checked_add(schema::locals(selected[1]).len()))
+        .ok_or("Group local capacity overflow")?;
+    let mut block_capacity = 0usize;
+    for script in &selected {
+        block_capacity = block_capacity
+            .checked_add(
+                script
+                    .program()?
+                    .iter()
+                    .flat_map(|program| program.instructions.iter())
+                    .filter(|instruction| instruction.event.is_some())
+                    .count(),
+            )
+            .ok_or("Group block capacity overflow")?;
+    }
+    let limits = Limits {
+        max_instances: 3,
+        max_locals: local_capacity,
+        max_event_blocks: block_capacity,
+        ..Default::default()
+    };
+    let mut world = World::with_campaign(catalogue, limits, CampaignId::from_bytes([53; 16])?)?;
+    let reference = world.register_reference(None)?;
+    world.advance_clocks(Clocks {
+        tick: 12,
+        game_nanoseconds: 400,
+        menu_nanoseconds: 500,
+        real_nanoseconds: 600,
+    })?;
+    let owners = [1_u64, 2, 3].map(|activation| Owner::Fragment {
+        activation: activation.try_into().expect("positive explicit activation"),
+    });
+    let contexts = [
+        Context {
+            calling_reference: Some(reference),
+            containing_reference: None,
+            target: Some(ReferenceValue::Content {
+                key: scripts[0].handle().key.record.clone(),
+            }),
+            arguments: vec![ReferenceValue::Null, ReferenceValue::Live { id: reference }],
+        },
+        Context {
+            calling_reference: None,
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![ReferenceValue::Content {
+                key: scripts[1].handle().key.record.clone(),
+            }],
+        },
+        Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Null),
+            arguments: vec![
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content {
+                    key: scripts[2].handle().key.record.clone(),
+                },
+                ReferenceValue::Null,
+            ],
+        },
+    ];
+    let patterns = [
+        [0x8000000000000000, 0x7ff8123456789abc],
+        [0x7ff8123456789abd, u64::MAX],
+        [1, 0x7ff8123456789abc],
+    ];
+    let mut assignments = Vec::new();
+    for (position, script) in scripts.iter().enumerate() {
+        let locals = schema::locals(script)
+            .into_values()
+            .filter(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+            .collect::<Vec<_>>();
+        let mut numbers = 0;
+        let mut references = position;
+        let mut values = Vec::new();
+        // Omit the last supported declaration as an explicit uninitialized
+        // value, alongside every unsupported/zero-index source declaration.
+        for local in &locals[..locals.len() - 1] {
+            let value = match local.kind {
+                Kind::Float | Kind::Integer => {
+                    let bits = patterns[position][numbers % 2];
+                    numbers += 1;
+                    Value::Number { bits }
+                }
+                Kind::Reference => {
+                    let value = match references % 3 {
+                        0 => ReferenceValue::Null,
+                        1 => ReferenceValue::Content {
+                            key: script.handle().key.record.clone(),
+                        },
+                        _ => ReferenceValue::Live { id: reference },
+                    };
+                    references += 1;
+                    Value::Reference { value }
+                }
+                _ => unreachable!("selected supported declaration"),
+            };
+            values.push((local.index, value));
+        }
+        assignments.push(values);
+    }
+    let requests = (0..3)
+        .map(|position| group::Request {
+            definition: scripts[position].handle(),
+            owner: &owners[position],
+            context: &contexts[position],
+            assignments: &assignments[position],
+        })
+        .collect::<Vec<_>>();
+    let before = world.snapshot();
+    let stage = world.stage_instance_initialization_group(&requests, group::Limits::default())?;
+    if world.snapshot() != before {
+        return Err("Group initialization stage changed canonical state".into());
+    }
+    let inputs = requests.iter().map(|request| json!({"definition":request.definition,"owner":request.owner,"context":request.context,"assignments":request.assignments})).collect::<Vec<_>>();
+    let (receipt, handles) = world.commit_instance_initialization_group(stage)?;
+    let current = world.snapshot();
+    if receipt.after_revision != receipt.before_revision + 1
+        || receipt.next_instance_after != receipt.next_instance_before + 3
+    {
+        return Err("Group publication identity/revision differs".into());
+    }
+    let restored = World::restore(catalogue, current.clone(), limits)?;
+    if restored.snapshot() != current || handles.iter().any(|old| restored.instance(*old).is_ok()) {
+        return Err("Group cold state or handle epoch differs".into());
+    }
+    let fourth_owner = Owner::Fragment {
+        activation: 99.try_into()?,
+    };
+    let fourth = [group::Request {
+        definition: selected[0].handle(),
+        owner: &fourth_owner,
+        context: &contexts[0],
+        assignments: &[],
+    }];
+    if world
+        .stage_instance_initialization_group(&fourth, group::Limits::default())
+        .is_ok()
+        || world.snapshot() != current
+    {
+        return Err("Tight instance capacity consumed group state".into());
+    }
+    let local_world = World::restore(
+        catalogue,
+        current.clone(),
+        Limits {
+            max_instances: 4,
+            ..limits
+        },
+    )?;
+    if local_world
+        .stage_instance_initialization_group(&fourth, group::Limits::default())
+        .is_ok()
+        || local_world.snapshot() != current
+    {
+        return Err("Tight local capacity consumed group state".into());
+    }
+    if block_capacity != 0 {
+        // Restore the reference boundary so source/owner contexts remain exact
+        // while this independent witness has one fewer shared block slot.
+        let block_world = World::restore(
+            catalogue,
+            before.clone(),
+            Limits {
+                max_event_blocks: block_capacity - 1,
+                ..limits
+            },
+        )?;
+        if block_world
+            .stage_instance_initialization_group(&requests, group::Limits::default())
+            .is_ok()
+            || block_world.snapshot() != before
+        {
+            return Err("Combined block capacity consumed group state".into());
+        }
+    }
+    Ok(Some(
+        json!({"scope":"Three explicit isolated source attachments; two share an exact definition",
+        "inputs":inputs,"receipt":receipt,"before_snapshot":before,"current_snapshot":current,"restored_snapshot":restored.snapshot(),
+        "capacity":{"instances":3,"locals":local_capacity,"blocks":block_capacity,"next_instance":receipt.next_instance_after},
+        "stage_preserved_state":true,"one_revision":true,"caller_order_preserved":true,"tight_instance_refusal_unchanged":true,
+        "tight_local_refusal_unchanged":true,"combined_block_refusal_unchanged":block_capacity != 0,"old_handles_rejected":true,
+        "canonical_round_trip_equal":true,"bytecode_executed":false,"retail_parity_accepted":false}),
+    ))
+}
 fn probe(catalogue: &Catalogue) -> Result<Json> {
     let EngineeringWorld {
         world,
@@ -835,6 +1042,9 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
     }
     if let Some(group) = enqueue_group_probe(catalogue)? {
         report["enqueue_group_probe"] = group;
+    }
+    if let Some(group) = instance_initialization_group_probe(catalogue)? {
+        report["instance_initialization_group"] = group;
     }
     Ok(report)
 }

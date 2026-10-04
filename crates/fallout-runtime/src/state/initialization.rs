@@ -14,6 +14,8 @@ use std::{collections::BTreeMap, mem::size_of, num::NonZeroU64, sync::Arc};
 #[cfg(test)]
 mod tests;
 
+pub mod group;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     /// Physical declarations, including repeats, bound private schema work.

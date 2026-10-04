@@ -76,23 +76,26 @@ fn transform(shape: u32, columns: [[f32; 4]; 4]) -> Vec<u8> {
     b
 }
 fn convex_cuboid_fixture() -> Vec<u8> {
+    convex_bounds([1., 2., -1.], [3., 6., 1.])
+}
+fn convex_bounds(minimum: [f32; 3], maximum: [f32; 3]) -> Vec<u8> {
     let mut b = sphere(0.25);
     words(&mut b, &[0, 0, 0x8000_0000, 0, 0, 0x8000_0000, 8]);
-    for x in [1., 3.] {
-        for y in [2., 6.] {
-            for z in [-1., 1.] {
+    for x in [minimum[0], maximum[0]] {
+        for y in [minimum[1], maximum[1]] {
+            for z in [minimum[2], maximum[2]] {
                 floats(&mut b, &[x, y, z, 0.]);
             }
         }
     }
     words(&mut b, &[6]);
     for plane in [
-        [-1., 0., 0., 1.],
-        [1., 0., 0., -3.],
-        [0., -1., 0., 2.],
-        [0., 1., 0., -6.],
-        [0., 0., -1., -1.],
-        [0., 0., 1., -1.],
+        [-1., 0., 0., minimum[0]],
+        [1., 0., 0., -maximum[0]],
+        [0., -1., 0., minimum[1]],
+        [0., 1., 0., -maximum[1]],
+        [0., 0., -1., minimum[2]],
+        [0., 0., 1., -maximum[2]],
     ] {
         floats(&mut b, &plane);
     }
@@ -131,6 +134,228 @@ fn ray(o: [f64; 3], d: [f64; 3], max: f64) -> Ray {
 }
 fn close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-6, "{actual} != {expected}");
+}
+
+#[test]
+fn cuboid_slab_intervals_and_query_cutoff_never_admit_rounded_false_hits() {
+    let cube = scene(&[
+        ("bhkRigidBody", body(1)),
+        ("bhkConvexVerticesShape", convex_bounds([0.; 3], [1.; 3])),
+    ]);
+    // Fraction over the literal binary64 inputs gives disjoint slab intervals,
+    // although their nearest-rounded endpoints both equal1e15.
+    assert!(matches!(
+        cube.ray_cast(
+            ray(
+                [-600_000_000_000_000., -799_999_999_999_999., 0.5],
+                [0.6, 0.8, 0.],
+                1_000_000_000_000_002.
+            ),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "cuboid slab predicate is numerically uncertain"
+        ))
+    ));
+    let offset = scene(&[
+        ("bhkRigidBody", body(1)),
+        (
+            "bhkConvexVerticesShape",
+            convex_bounds([1., 0., 0.], [2., 1., 1.]),
+        ),
+    ]);
+    // The exact entrance is1+binary64(1e-16), strictly beyond the cutoff1.
+    assert!(
+        offset
+            .ray_cast(
+                ray([-1e-16, 0.5, 0.5], [1., 0., 0.], 1.),
+                QueryBudget::default()
+            )
+            .is_err()
+    );
+    let hit = offset
+        .ray_cast(
+            ray([-1e-16, 0.5, 0.5], [1., 0., 0.], 2.),
+            QueryBudget::default(),
+        )
+        .unwrap();
+    assert!(hit[0].distance > 1. && hit[0].position[0] >= 1.);
+    for (origin, direction, max, distance) in [
+        ([0., 0.5, 0.5], [1., 0., 0.], 1., 1.),
+        ([3., 0.5, 0.5], [-1., 0., 0.], 1., 1.),
+        ([1.5, 0.5, 0.5], [1., 0., 0.], 0., 0.),
+    ] {
+        assert_eq!(
+            offset
+                .ray_cast(ray(origin, direction, max), QueryBudget::default())
+                .unwrap()[0]
+                .distance,
+            distance
+        );
+    }
+    assert!(
+        offset
+            .ray_cast(
+                ray([0., 2., 0.5], [1., 0., 0.], 10.),
+                QueryBudget::default()
+            )
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        cube.ray_cast(
+            ray([-1., 0.5, 0.5], [f64::from_bits(1), 1., 0.], 10.),
+            QueryBudget::default()
+        )
+        .is_err()
+    );
+    let tiny = f64::from_bits(1);
+    assert_eq!(
+        cube.ray_cast(
+            ray([-tiny, 0.5, 0.5], [1., 0., 0.], tiny),
+            QueryBudget::default()
+        )
+        .unwrap()[0]
+            .distance,
+        tiny
+    );
+
+    let box_scene = scene(&[("bhkRigidBody", body(1)), ("bhkBoxShape", bx())]);
+    assert_eq!(
+        box_scene
+            .ray_cast(ray([-1., 0., 0.], [1., 0., 0.], 0.), QueryBudget::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        box_scene
+            .ray_cast(
+                ray([(-1f64).next_down(), 0., 0.], [1., 0., 0.], 0.),
+                QueryBudget::default()
+            )
+            .unwrap()
+            .is_empty()
+    );
+    let mut half_box = bx();
+    half_box[16..28].copy_from_slice(&[0.5f32.to_le_bytes(); 3].concat());
+    let half_box = scene(&[("bhkRigidBody", body(1)), ("bhkBoxShape", half_box)]);
+    assert!(
+        half_box
+            .ray_cast(
+                ray(
+                    [-600_000_000_000_000.5, -799_999_999_999_999.5, 0.],
+                    [0.6, 0.8, 0.],
+                    1_000_000_000_000_002.
+                ),
+                QueryBudget::default()
+            )
+            .is_err()
+    );
+    assert!(
+        cube.ray_cast(
+            ray([-tiny, 0.5, 0.5], [1. + f64::EPSILON, 0., 0.], tiny),
+            QueryBudget::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn cuboid_uncertainty_discards_earlier_leaf_hits_atomically() {
+    let (_, collision) = nif_collision::decode(
+        &container(&[
+            ("bhkRigidBody", body(1)),
+            (
+                "bhkConvexVerticesShape",
+                convex_bounds([1., 0., 0.], [2., 1., 1.]),
+            ),
+        ]),
+        "atomic cuboid queries",
+    )
+    .unwrap();
+    let mut first = placement();
+    first.attachment_to_source.rows[0][3] = -1.;
+    let mut second = placement();
+    second.reference = ReferenceId(NonZeroU64::new(2).unwrap());
+    let scene = StaticScene::build(
+        &collision,
+        &[first, second],
+        units(),
+        QueryLimits::default(),
+    )
+    .unwrap();
+    assert!(
+        scene
+            .ray_cast(
+                ray([-1e-16, 0.5, 0.5], [1., 0., 0.], 1.),
+                QueryBudget::default()
+            )
+            .is_err()
+    );
+    assert!(
+        scene
+            .overlap_sphere([-1e-16, 0.5, 0.5], 1., QueryBudget::default())
+            .is_err()
+    );
+}
+
+#[test]
+fn cuboid_overlap_preserves_subnormals_and_refuses_lost_subtraction() {
+    let cube = scene(&[
+        ("bhkRigidBody", body(1)),
+        ("bhkConvexVerticesShape", convex_bounds([0.; 3], [1.; 3])),
+    ]);
+    let tiny = f64::from_bits(1);
+    for face in [0., -0., 1.] {
+        assert_eq!(
+            cube.overlap_sphere([face, 0.5, 0.5], 0., QueryBudget::default())
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+    assert!(
+        cube.overlap_sphere([-tiny, 0.5, 0.5], 0., QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        cube.overlap_sphere([-tiny, 0.5, 0.5], tiny, QueryBudget::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        cube.overlap_sphere([-2. * tiny, 0.5, 0.5], tiny, QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    let offset = scene(&[
+        ("bhkRigidBody", body(1)),
+        (
+            "bhkConvexVerticesShape",
+            convex_bounds([1., 0., 0.], [2., 1., 1.]),
+        ),
+    ]);
+    assert!(
+        offset
+            .overlap_sphere([-1e-16, 0.5, 0.5], 1., QueryBudget::default())
+            .is_err()
+    );
+    assert!(
+        offset
+            .overlap_sphere([-1e-16, 0.5, 0.5], 0.5, QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        offset
+            .overlap_sphere([-1e-16, 0.5, 0.5], 2., QueryBudget::default())
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]

@@ -278,11 +278,17 @@ struct RayNumericInput {
     max_distance_binary64_hex: String,
 }
 #[derive(Serialize)]
+struct OverlapNumericInput {
+    center_binary64_hex: [String; 3],
+    radius_binary64_hex: String,
+}
+#[derive(Serialize)]
 pub struct QueryReport {
     source_sha256: String,
     request_sha256: String,
     units: fallout_runtime::physics::EngineeringUnits,
     ray_numeric_input: Option<RayNumericInput>,
+    overlap_numeric_input: Option<OverlapNumericInput>,
     primitive_count: usize,
     ray_hits: Vec<fallout_runtime::physics::Hit>,
     overlap_hits: Vec<fallout_runtime::physics::Hit>,
@@ -331,6 +337,10 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
         direction_binary64_hex: r.direction.map(|v| format!("{:016x}", v.to_bits())),
         max_distance_binary64_hex: format!("{:016x}", r.max_distance.to_bits()),
     });
+    let overlap_numeric_input = request.overlap.as_ref().map(|s| OverlapNumericInput {
+        center_binary64_hex: s.center.map(|v| format!("{:016x}", v.to_bits())),
+        radius_binary64_hex: format!("{:016x}", s.radius.to_bits()),
+    });
     let ray_hits = request
         .ray
         .map(|ray| scene.ray_cast(ray, QueryBudget::default()))
@@ -344,19 +354,27 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
             )
         })?
         .unwrap_or_default();
+    let overlap_hits = request
+        .overlap
+        .map(|s| scene.overlap_sphere(s.center, s.radius, QueryBudget::default()))
+        .transpose()
+        .map_err(|error| {
+            format!(
+                "collision overlap refused: {error}; overlap_numeric_input={}",
+                serde_json::to_string(&overlap_numeric_input).expect("string-only numeric audit")
+            )
+        })?
+        .unwrap_or_default();
     Ok(QueryReport {
         source_sha256: format!("{:x}", Sha256::digest(&bytes)),
         request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
         units: request.units,
         ray_numeric_input,
+        overlap_numeric_input,
         primitive_count: scene.primitive_count(),
         ray_hits,
-        overlap_hits: request
-            .overlap
-            .map(|s| scene.overlap_sphere(s.center, s.radius, QueryBudget::default()))
-            .transpose()?
-            .unwrap_or_default(),
-        query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; certified convex cuboids use exact eight-corner vertex hull with source-f32 supporting-plane certificate; convex/packed shell margins excluded; source axes retained",
+        overlap_hits,
+        query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; certified convex cuboids use exact eight-corner vertex hull with source-f32 supporting-plane certificate; box/cuboid slabs include query distance range and conservative representable entry witness; uncertain cuboid predicates refuse; convex/packed shell margins excluded; source axes retained",
         faithful_ready: scene.faithful_ready(),
     })
 }

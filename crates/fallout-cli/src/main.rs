@@ -1788,8 +1788,14 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
             grid_x,
             grid_y,
             source_timeout_ms,
+            include_terrain,
         } => {
-            let report = world_preparation_inspection::grid_residency(
+            let inspect = if include_terrain {
+                world_preparation_inspection::grid_cell_residency
+            } else {
+                world_preparation_inspection::grid_residency
+            };
+            let report = inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),

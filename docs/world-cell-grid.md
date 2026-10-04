@@ -82,3 +82,16 @@ completion remains separate from missing/ambiguous paths and unapplied default
 layers; either unresolved authored coverage or strict planning refusal exits 1.
 Duplicate LAND refuses before a job request. `surface_prepared`, runtime readiness
 and activation stay false; this command does not decode a DDS/material surface.
+
+`grid-residency-sources --include-terrain` explicitly declares the strict terrain
+texture plan in the same CELL epoch and shared job pool as its models and model
+textures. It consumes both borrowed texture leases and retains their hashes and
+CELL ticket binding in the report. Source availability requires every declared
+source batch's coverage; original model gaps still refuse even if terrain completes.
+
+The command retains model and both texture leases across `unload()`, reports stale
+access rejection and unchanged retained payload/metadata/mapping charges, then
+releases those leases and records the drained Unrequested state. These are source
+lifetime checks. Dependency, collision and behavior reports remain Pending;
+surface, render, simulation, current-cell change and activation remain unadmitted.
+Omitting the flag preserves the existing model/texture request scope.

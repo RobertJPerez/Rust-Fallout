@@ -8,6 +8,9 @@ use crate::{
 use fallout_data::{identity::FormKey, world::Transform};
 use serde::{Deserialize, Serialize};
 
+mod paging;
+pub use paging::{Cursor, Page, PageLimits, PageRequest, PageUsage};
+
 pub const COMPONENT_VERSION: u32 = 1;
 
 /// Exact source float bits keep signed zero and finite subnormal values intact.

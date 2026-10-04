@@ -339,6 +339,15 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+        /// Capture one historical owned frame for a consumer thread after World drop.
+        #[arg(
+            long,
+            requires = "snapshot_input",
+            conflicts_with = "comparison_bundle"
+        )]
+        owned_observation: Option<PathBuf>,
+        #[arg(long, requires = "owned_observation")]
+        snapshot_input: Option<PathBuf>,
     },
     /// Author bounded source fixtures and trace shape without original expectations.
     ScriptFixture {
@@ -1135,15 +1144,21 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             comparison_bundle,
+            owned_observation,
+            snapshot_input,
         } => {
             let report = event_frame_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 comparison_bundle.as_deref(),
+                owned_observation.as_deref(),
+                snapshot_input.as_deref(),
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
-            if report["prepared_frames"] != report["pending_events_checked"] {
+            if owned_observation.is_none()
+                && report["prepared_frames"] != report["pending_events_checked"]
+            {
                 return Err("Pending events retain unresolved source findings; see report".into());
             }
         }

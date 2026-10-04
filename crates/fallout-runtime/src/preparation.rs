@@ -3,13 +3,15 @@
 use crate::{
     World,
     events::{Pending, Trigger},
+    identity::{CampaignId, Owner, ReferenceValue, Value},
     programs::{self, PreparedDefinition, PreparedSources},
     state::Instance,
 };
 use fallout_data::obscript::{
     Instruction, argument_census::Signatures, control_flow::Event, definition_plan,
-    expression_plan::Model,
+    expression_plan::Model, operand_binding::Use,
 };
+use serde::Serialize;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy)]
@@ -61,6 +63,9 @@ impl<'a> Source<'a> {
 /// The frame borrows the world so its instance, context and source cannot change
 /// during inspection. No queue entry is removed and no local value is assigned.
 pub struct PreparedEvent<'a> {
+    campaign: CampaignId,
+    state_revision: u64,
+    catalogue_sha256: &'a str,
     pending: &'a Pending,
     instance: &'a Instance,
     source: Source<'a>,
@@ -94,7 +99,235 @@ impl<'a> PreparedEvent<'a> {
     }
 }
 
+/// Logical copied payload bounds, not a measurement of allocator peak memory.
+#[derive(Debug, Clone, Copy)]
+pub struct ObservationLimits {
+    pub maximum_source_bytes: usize,
+    /// Source operand rows, explicitly selected locals and both context argument lists.
+    pub maximum_rows: usize,
+    /// UTF-8 bytes of every copied string, including identity/hash strings.
+    pub maximum_variable_bytes: usize,
+    /// Complete definition binding table checked before selecting the event window.
+    pub maximum_binding_uses: usize,
+}
+impl Default for ObservationLimits {
+    fn default() -> Self {
+        Self {
+            maximum_source_bytes: 1024 * 1024,
+            maximum_rows: 65_536,
+            maximum_variable_bytes: 1024 * 1024,
+            maximum_binding_uses: 262_144,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ObservationCounts {
+    pub source_bytes: usize,
+    pub rows: usize,
+    pub variable_bytes: usize,
+    pub binding_uses: usize,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ObservationError {
+    #[error("owned event observation budget exceeded: {0}")]
+    Capacity(&'static str),
+    #[error(transparent)]
+    State(#[from] crate::Error),
+}
+
+#[derive(Debug, Serialize)]
+pub struct LocalObservation {
+    pub declaration: crate::schema::Local,
+    /// Captured storage, including Uninitialized, never an inferred initial value.
+    pub value: Value,
+}
+
+/// Historical read-only data suitable for another thread after the World dies.
+/// Source bindings do not resolve foreign/native semantics. This type has no
+/// deserialization or commit path and is never accepted as current authority.
+#[derive(Debug, Serialize)]
+pub struct EventObservation {
+    pub historical: bool,
+    pub campaign: CampaignId,
+    pub state_revision: u64,
+    pub catalogue_sha256: String,
+    pub pending: Pending,
+    pub instance_owner: Owner,
+    pub instance_context: crate::events::Context,
+    pub definition: fallout_data::loaded_scripts::Handle,
+    pub full_definition_binding_sha256: String,
+    pub selected: Event,
+    pub begin_scda_offset: usize,
+    pub end_scda_offset: usize,
+    pub source_bytes: Vec<u8>,
+    pub source_operands: Vec<Use>,
+    pub locals: Vec<LocalObservation>,
+    pub counts: ObservationCounts,
+}
+
+fn charge(
+    used: &mut usize,
+    amount: usize,
+    maximum: usize,
+    kind: &'static str,
+) -> Result<(), ObservationError> {
+    *used = used
+        .checked_add(amount)
+        .filter(|&total| total <= maximum)
+        .ok_or(ObservationError::Capacity(kind))?;
+    Ok(())
+}
+fn reference_string_bytes(value: &ReferenceValue) -> usize {
+    match value {
+        ReferenceValue::Content { key } => key.origin_plugin.len(),
+        _ => 0,
+    }
+}
+fn charge_context(
+    context: &crate::events::Context,
+    counts: &mut ObservationCounts,
+    limits: ObservationLimits,
+) -> Result<(), ObservationError> {
+    charge(
+        &mut counts.rows,
+        context.arguments.len(),
+        limits.maximum_rows,
+        "rows",
+    )?;
+    for value in context.target.iter().chain(context.arguments.iter()) {
+        charge(
+            &mut counts.variable_bytes,
+            reference_string_bytes(value),
+            limits.maximum_variable_bytes,
+            "variable bytes",
+        )?;
+    }
+    Ok(())
+}
+
+impl EventObservation {
+    pub fn capture(
+        frame: &PreparedEvent<'_>,
+        selected_locals: &[u32],
+        limits: ObservationLimits,
+    ) -> Result<Self, ObservationError> {
+        let begin = frame
+            .instructions()
+            .first()
+            .expect("checked begin")
+            .bytes
+            .start;
+        let end = frame.instructions().last().expect("checked end").bytes.end;
+        let bindings = &frame.source().bindings().uses;
+        let mut counts = ObservationCounts {
+            source_bytes: 0,
+            rows: 0,
+            variable_bytes: 0,
+            binding_uses: 0,
+        };
+        charge(
+            &mut counts.source_bytes,
+            end - begin,
+            limits.maximum_source_bytes,
+            "source bytes",
+        )?;
+        charge(
+            &mut counts.binding_uses,
+            bindings.len(),
+            limits.maximum_binding_uses,
+            "binding uses",
+        )?;
+        charge(
+            &mut counts.rows,
+            selected_locals.len(),
+            limits.maximum_rows,
+            "rows",
+        )?;
+        for binding in bindings {
+            if (begin..end).contains(&binding.scda_offset) {
+                charge(&mut counts.rows, 1, limits.maximum_rows, "rows")?;
+            }
+        }
+        let instance = frame.instance();
+        let definition = frame.source().handle();
+        for length in [
+            frame.catalogue_sha256.len(),
+            definition.version_sha256.len(),
+            definition.key.record.origin_plugin.len(),
+            64,
+        ] {
+            charge(
+                &mut counts.variable_bytes,
+                length,
+                limits.maximum_variable_bytes,
+                "variable bytes",
+            )?;
+        }
+        if let Owner::Quest { key } = instance.owner() {
+            charge(
+                &mut counts.variable_bytes,
+                key.origin_plugin.len(),
+                limits.maximum_variable_bytes,
+                "variable bytes",
+            )?;
+        }
+        charge_context(&frame.pending().context, &mut counts, limits)?;
+        charge_context(instance.context(), &mut counts, limits)?;
+        // Validate and charge every selected value before cloning any payload.
+        // Repeated local indices preserve the explicit requested order.
+        for index in selected_locals {
+            if !instance.definition_schema.locals.contains_key(index) {
+                return Err(crate::Error::MissingLocal(*index).into());
+            }
+            let value = instance
+                .locals()
+                .get(index)
+                .ok_or(crate::Error::MissingLocal(*index))?;
+            if let Value::Reference { value } = value {
+                charge(
+                    &mut counts.variable_bytes,
+                    reference_string_bytes(value),
+                    limits.maximum_variable_bytes,
+                    "variable bytes",
+                )?;
+            }
+        }
+        // Admission is complete. No snapshot or unrelated instance is copied.
+        Ok(Self {
+            historical: true,
+            campaign: frame.campaign,
+            state_revision: frame.state_revision,
+            catalogue_sha256: frame.catalogue_sha256.into(),
+            pending: frame.pending().clone(),
+            instance_owner: instance.owner().clone(),
+            instance_context: instance.context().clone(),
+            definition: definition.clone(),
+            full_definition_binding_sha256: frame.binding_sha256().into_owned(),
+            selected: frame.selected().clone(),
+            begin_scda_offset: begin,
+            end_scda_offset: end,
+            source_bytes: frame.source().control().bytes()[begin..end].to_vec(),
+            source_operands: bindings
+                .iter()
+                .filter(|binding| (begin..end).contains(&binding.scda_offset))
+                .cloned()
+                .collect(),
+            locals: selected_locals
+                .iter()
+                .map(|index| LocalObservation {
+                    declaration: instance.definition_schema.locals[index].clone(),
+                    value: instance.locals()[index].clone(),
+                })
+                .collect(),
+            counts,
+        })
+    }
+}
+
 fn select<'a>(
+    world: &'a World<'_>,
     pending: &'a Pending,
     instance: &'a Instance,
     source: Source<'a>,
@@ -113,6 +346,9 @@ fn select<'a>(
         return Err(Error::Capacity);
     }
     Ok(PreparedEvent {
+        campaign: world.campaign(),
+        state_revision: world.revision(),
+        catalogue_sha256: world.catalogue_fingerprint(),
         pending,
         instance,
         source,
@@ -156,6 +392,7 @@ impl World<'_> {
             limits.source,
         )?;
         select(
+            self,
             pending,
             instance,
             Source::Fresh(Box::new(source)),
@@ -176,6 +413,7 @@ impl World<'_> {
         let (pending, instance, event_id, begin_byte_offset) = self.pending_source(sequence)?;
         let source = sources.get(instance.definition())?;
         select(
+            self,
             pending,
             instance,
             Source::Prepared(source),

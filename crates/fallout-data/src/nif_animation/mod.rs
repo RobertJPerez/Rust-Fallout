@@ -8,6 +8,7 @@ mod preflight;
 mod read;
 pub mod sampling;
 pub mod spline;
+pub mod visibility;
 
 use crate::{Error, Result, malformed, nif, nif_scene::cursor::Reader};
 use serde::Serialize;

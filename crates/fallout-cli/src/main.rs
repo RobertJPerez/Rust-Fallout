@@ -144,6 +144,9 @@ enum Command {
         sample_block: Option<u32>,
         #[arg(long, value_enum, requires = "sample_time")]
         sample_channel: Option<nif_animation_inspection::SampleChannel>,
+        /// Observe exact physical text keys over an explicit source-time interval.
+        #[arg(long, conflicts_with_all = ["oracle_report", "include_keyframes", "include_splines", "include_spline_components", "include_bool_interpolators", "include_bool_keys", "sample_time", "sample_block", "sample_channel"])]
+        markers_request: Option<PathBuf>,
     },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
     NifSkin {
@@ -1957,7 +1960,30 @@ fn run(args: Args) -> Result<()> {
             sample_time,
             sample_block,
             sample_channel,
+            markers_request,
         } => {
+            if let Some(request) = markers_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_animation_inspection::inspect_markers(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source text-key interval refused; see report".into());
+                }
+                return Ok(());
+            }
             let sample = match (sample_time, sample_block, sample_channel) {
                 (Some(time), Some(block), Some(channel)) => {
                     Some(nif_animation_inspection::SampleRequest {

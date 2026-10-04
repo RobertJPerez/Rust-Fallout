@@ -84,6 +84,51 @@ pub struct PoseReport<E> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct MarkerRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    sequence: u32,
+    source_start: f64,
+    source_end: f64,
+}
+
+pub fn inspect_markers(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::markers::Observation>> {
+    let request: MarkerRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("unsupported source marker request schema".into());
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let result = nif_animation::markers::query(
+        &bytes,
+        &input.display().to_string(),
+        nif_animation::markers::Request {
+            expected_sha256: request.expected_sha256,
+            sequence: request.sequence,
+            source_start: request.source_start,
+            source_end: request.source_end,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match result {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: nif_animation::markers::CONTRACT,
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AttachmentRequest {
     schema_version: u32,
     expected_skeleton_sha256: [u8; 32],

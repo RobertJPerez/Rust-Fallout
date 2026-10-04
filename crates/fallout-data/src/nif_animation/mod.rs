@@ -5,6 +5,7 @@ pub mod boolean;
 pub mod clip;
 mod families;
 pub mod keyframe;
+pub mod markers;
 pub mod pose;
 mod preflight;
 mod read;

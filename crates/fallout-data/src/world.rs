@@ -2,6 +2,7 @@
 //! Coordinates remain in source units. No renderer or simulation is implied.
 pub mod conversation;
 pub mod dependencies;
+pub mod doors;
 pub mod preparation;
 pub mod residency;
 

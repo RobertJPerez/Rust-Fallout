@@ -22,6 +22,7 @@ mod loaded_script_inspection;
 mod narrative_inspection;
 mod native_migration_inspection;
 mod native_save_inspection;
+mod navigation_inspection;
 mod nif_animation_inspection;
 mod nif_skin_inspection;
 mod operand_inspection;
@@ -764,6 +765,19 @@ enum Command {
         /// Unnamed neighbor: origin plugin and local hexadecimal ID, e.g. FalloutNV.esm:DAEB9.
         #[arg(long, requires = "reconstruct_heights", value_parser = parse_cell_key)]
         neighbor_form: Option<identity::FormKey>,
+    },
+    /// Inspect source-authored selected-cell navigation; optionally request a bounded route.
+    NavigationRoute {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: Option<PathBuf>,
     },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
@@ -2266,6 +2280,22 @@ fn run(args: Args) -> Result<()> {
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());
             }
+        }
+        Command::NavigationRoute {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &editor_id,
+                request.as_deref(),
+            )?;
+            emit(&report, output, &install)?;
         }
         Command::NifCollision {
             input,

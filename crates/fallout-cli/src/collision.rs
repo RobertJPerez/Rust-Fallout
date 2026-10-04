@@ -326,21 +326,31 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
         request.units,
         QueryLimits::default(),
     )?;
+    let ray_numeric_input = request.ray.map(|r| RayNumericInput {
+        origin_binary64_hex: r.origin.map(|v| format!("{:016x}", v.to_bits())),
+        direction_binary64_hex: r.direction.map(|v| format!("{:016x}", v.to_bits())),
+        max_distance_binary64_hex: format!("{:016x}", r.max_distance.to_bits()),
+    });
+    let ray_hits = request
+        .ray
+        .map(|ray| scene.ray_cast(ray, QueryBudget::default()))
+        .transpose()
+        .map_err(|error| {
+            // Refusals still expose consumed words for an independent numeric
+            // audit, without creating a usable hit or partial output report.
+            format!(
+                "collision ray refused: {error}; ray_numeric_input={}",
+                serde_json::to_string(&ray_numeric_input).expect("string-only numeric audit")
+            )
+        })?
+        .unwrap_or_default();
     Ok(QueryReport {
         source_sha256: format!("{:x}", Sha256::digest(&bytes)),
         request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
         units: request.units,
-        ray_numeric_input: request.ray.map(|r| RayNumericInput {
-            origin_binary64_hex: r.origin.map(|v| format!("{:016x}", v.to_bits())),
-            direction_binary64_hex: r.direction.map(|v| format!("{:016x}", v.to_bits())),
-            max_distance_binary64_hex: format!("{:016x}", r.max_distance.to_bits()),
-        }),
+        ray_numeric_input,
         primitive_count: scene.primitive_count(),
-        ray_hits: request
-            .ray
-            .map(|ray| scene.ray_cast(ray, QueryBudget::default()))
-            .transpose()?
-            .unwrap_or_default(),
+        ray_hits,
         overlap_hits: request
             .overlap
             .map(|s| scene.overlap_sphere(s.center, s.radius, QueryBudget::default()))

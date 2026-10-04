@@ -577,6 +577,673 @@ pub fn source_camera(position: [f64; 3], target: [f64; 3], origin: [f64; 3]) -> 
     Ok(Transform::from_translation(position).looking_to(facing, Dir3::Y))
 }
 
+/// An inspection record retains the actual renderer words. Source coordinates
+/// are redundant evidence and must round-trip without losing a view component.
+pub mod camera {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    use sha2::{Digest, Sha256};
+    use std::io::{self, Write};
+
+    pub const RECORD_BYTES: usize = 4096;
+    const SOURCE_REPORT_BYTES: usize = 64 * 1024 * 1024;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Binding {
+        pub scene_epoch: u64,
+        pub source_scene_sha256: String,
+        pub source_origin_f64_bits: [u64; 3],
+        #[serde(deserialize_with = "required_option")]
+        pub canonical_revision: Option<u64>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Initial {
+        pub position_f64_bits: [u64; 3],
+        pub target_f64_bits: [u64; 3],
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Viewport {
+        pub physical_pixels: [u32; 2],
+        pub logical_f32_bits: [u32; 2],
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Perspective {
+        pub fov_f32_bits: u32,
+        pub aspect_f32_bits: u32,
+        pub near_f32_bits: u32,
+        pub far_f32_bits: u32,
+        pub near_clip_plane_f32_bits: [u32; 4],
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct Record {
+        pub schema_version: u32,
+        pub binding: Binding,
+        pub translation_f32_bits: [u32; 3],
+        pub rotation_f32_bits: [u32; 4],
+        pub source_position_f64_bits: [u64; 3],
+        pub source_direction_f64_bits: [u64; 3],
+        pub perspective: Perspective,
+        pub viewport: Viewport,
+        #[serde(deserialize_with = "required_option")]
+        pub initial_source: Option<Initial>,
+        pub original_gameplay_accepted: bool,
+    }
+
+    fn required_option<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Option<T>, D::Error> {
+        Option::deserialize(deserializer)
+    }
+
+    struct HashWriter {
+        hash: Sha256,
+        bytes: usize,
+    }
+
+    impl Write for HashWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let next = self
+                .bytes
+                .checked_add(bytes.len())
+                .filter(|n| *n <= SOURCE_REPORT_BYTES)
+                .ok_or_else(|| io::Error::other("Camera source report exceeds 64 MiB"))?;
+            self.hash.update(bytes);
+            self.bytes = next;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    pub fn bind(report: &Report, origin: [f64; 3], epoch: u64) -> Result<Binding> {
+        if epoch == 0 || origin.iter().any(|v| !v.is_finite()) {
+            return Err("Camera scene needs a nonzero epoch and finite source origin".into());
+        }
+        let mut writer = HashWriter {
+            hash: Sha256::new(),
+            bytes: 0,
+        };
+        // Save-slot generations and residency progress are transaction/status
+        // evidence. A new Save of an unchanged scene must not change its camera
+        // identity. Keep every source placement, omission and native view.
+        match report {
+            Report::Cell(cell) => serde_json::to_writer(
+                &mut writer,
+                &(
+                    "cell-source-camera-v1",
+                    &cell.cell,
+                    &cell.load_order,
+                    &cell.load_order_sha256,
+                    &cell.plugin_sha256,
+                    &cell.models,
+                    &cell.placements,
+                    cell.unique_render_models,
+                    cell.rendered_references,
+                    cell.rendered_mesh_instances,
+                    cell.shared_geometry_vertices,
+                    cell.shared_geometry_triangles,
+                    cell.unique_texture_samplers,
+                    cell.source_origin,
+                    cell.relative_view_bounds,
+                    cell.canonical_state.as_ref().map(|state| {
+                        (
+                            state.schema_version,
+                            state.campaign,
+                            &state.catalogue_sha256,
+                            state.revision,
+                            &state.cell,
+                            &state.bindings,
+                        )
+                    }),
+                ),
+            )?,
+            _ => serde_json::to_writer(&mut writer, report)?,
+        }
+        Ok(Binding {
+            scene_epoch: epoch,
+            source_scene_sha256: format!("{:x}", writer.hash.finalize()),
+            source_origin_f64_bits: origin.map(f64::to_bits),
+            canonical_revision: match report {
+                Report::Cell(cell) => cell.canonical_state.as_ref().map(|state| state.revision),
+                _ => None,
+            },
+        })
+    }
+
+    pub fn viewport(camera: &Camera) -> Result<Viewport> {
+        if !camera.is_active || camera.viewport.is_some() || camera.sub_camera_view.is_some() {
+            return Err("Camera record requires one active full inspection viewport".into());
+        }
+        let physical = camera
+            .physical_viewport_size()
+            .ok_or("Camera viewport not ready")?;
+        let logical = camera
+            .logical_viewport_size()
+            .ok_or("Camera logical viewport not ready")?;
+        let result = Viewport {
+            physical_pixels: physical.to_array(),
+            logical_f32_bits: logical.to_array().map(f32::to_bits),
+        };
+        result.validate()?;
+        Ok(result)
+    }
+
+    impl Viewport {
+        fn validate(&self) -> Result<()> {
+            let [width, height] = self.physical_pixels;
+            let logical = self.logical_f32_bits.map(f32::from_bits);
+            if width == 0
+                || height == 0
+                || width > 8192
+                || height > 8192
+                || u64::from(width) * u64::from(height) > 16 * 1024 * 1024
+                || logical
+                    .iter()
+                    .any(|v| !v.is_finite() || *v <= 0. || *v > 8192.)
+            {
+                return Err("Camera viewport exceeds finite dimension/pixel limits".into());
+            }
+            Ok(())
+        }
+    }
+
+    impl Perspective {
+        fn from_projection(projection: &Projection) -> Result<Self> {
+            let Projection::Perspective(p) = projection else {
+                return Err(
+                    "Camera record supports the existing perspective inspector only".into(),
+                );
+            };
+            Ok(Self {
+                fov_f32_bits: p.fov.to_bits(),
+                aspect_f32_bits: p.aspect_ratio.to_bits(),
+                near_f32_bits: p.near.to_bits(),
+                far_f32_bits: p.far.to_bits(),
+                near_clip_plane_f32_bits: p.near_clip_plane.to_array().map(f32::to_bits),
+            })
+        }
+
+        fn projection(&self, viewport: &Viewport) -> Result<Projection> {
+            viewport.validate()?;
+            let fov = f32::from_bits(self.fov_f32_bits);
+            let aspect_ratio = f32::from_bits(self.aspect_f32_bits);
+            let near = f32::from_bits(self.near_f32_bits);
+            let far = f32::from_bits(self.far_f32_bits);
+            let plane = self.near_clip_plane_f32_bits.map(f32::from_bits);
+            let [width, height] = viewport.logical_f32_bits.map(f32::from_bits);
+            if !fov.is_finite()
+                || !(0.001..3.13).contains(&fov)
+                || !aspect_ratio.is_finite()
+                || aspect_ratio <= 0.
+                || aspect_ratio.to_bits() != (width / height).to_bits()
+                || !near.is_finite()
+                || near <= 0.
+                || !far.is_finite()
+                || far <= near
+                || plane.iter().any(|v| !v.is_finite())
+                || plane[0] != 0.
+                || plane[1] != 0.
+                || plane[2] != -1.
+                || plane[3] >= 0.
+            {
+                return Err("Camera perspective/viewport words are invalid or oblique".into());
+            }
+            let projection = Projection::Perspective(PerspectiveProjection {
+                fov,
+                aspect_ratio,
+                near,
+                far,
+                near_clip_plane: Vec4::from_array(plane),
+            });
+            let matrix = projection.get_clip_from_view();
+            if !matrix.is_finite() || matrix.determinant() == 0. || !matrix.inverse().is_finite() {
+                return Err("Camera projection must have a finite nonsingular matrix".into());
+            }
+            Ok(projection)
+        }
+    }
+
+    fn source_position(transform: &Transform, origin: [f64; 3]) -> Result<[f64; 3]> {
+        let [x, y, z] = transform.translation.to_array().map(f64::from);
+        let result = [origin[0] + x, origin[1] - z, origin[2] + y];
+        let roundtrip = coordinates::source_to_view(result, origin).map(|v| v as f32);
+        if result.iter().any(|v| !v.is_finite())
+            || roundtrip
+                .iter()
+                .zip(transform.translation.to_array())
+                .any(|(a, b)| a.to_bits() != b.to_bits() && !(*a == 0. && b == 0.))
+        {
+            return Err("Camera source origin loses actual view position precision".into());
+        }
+        Ok(result)
+    }
+
+    fn source_direction(transform: &Transform) -> [f64; 3] {
+        let forward = transform.forward().to_array();
+        [
+            f64::from(forward[0]),
+            -f64::from(forward[2]),
+            f64::from(forward[1]),
+        ]
+    }
+
+    fn validate_view(transform: &Transform, origin: [f64; 3]) -> Result<()> {
+        let length = transform.rotation.length_squared();
+        if origin.iter().any(|v| !v.is_finite())
+            || !transform.translation.is_finite()
+            || transform.translation.abs().max_element() > 1e12
+            || !transform.rotation.is_finite()
+            || !length.is_finite()
+            || (length - 1.).abs() > 0.00002
+            || transform.scale != Vec3::ONE
+        {
+            return Err("Camera view words must be finite with unit rotation and scale".into());
+        }
+        // forward() constructs an unchecked Dir3. Check rotation before calling it.
+        let direction = Dir3::new(transform.forward().as_vec3())
+            .map_err(|_| "Camera look direction is singular")?;
+        if direction.cross(Vec3::Y).length() < 0.001 {
+            return Err("Camera look direction is vertical".into());
+        }
+        Ok(())
+    }
+
+    impl Record {
+        fn validate(&self) -> Result<(Transform, Projection)> {
+            if self.schema_version != 1
+                || self.original_gameplay_accepted
+                || self.binding.scene_epoch == 0
+                || self.binding.source_scene_sha256.len() != 64
+                || !self
+                    .binding
+                    .source_scene_sha256
+                    .bytes()
+                    .all(|b| b.is_ascii_hexdigit())
+            {
+                return Err("Camera record schema/source/epoch is invalid".into());
+            }
+            let origin = self.binding.source_origin_f64_bits.map(f64::from_bits);
+            let transform = Transform {
+                translation: Vec3::from_array(self.translation_f32_bits.map(f32::from_bits)),
+                rotation: Quat::from_array(self.rotation_f32_bits.map(f32::from_bits)),
+                scale: Vec3::ONE,
+            };
+            validate_view(&transform, origin)?;
+            if source_position(&transform, origin)?.map(f64::to_bits)
+                != self.source_position_f64_bits
+                || source_direction(&transform).map(f64::to_bits) != self.source_direction_f64_bits
+            {
+                return Err("Camera source and actual view words disagree".into());
+            }
+            if let Some(initial) = &self.initial_source {
+                super::source_camera(
+                    initial.position_f64_bits.map(f64::from_bits),
+                    initial.target_f64_bits.map(f64::from_bits),
+                    origin,
+                )?;
+            }
+            Ok((transform, self.perspective.projection(&self.viewport)?))
+        }
+    }
+
+    pub fn record(
+        binding: &Binding,
+        transform: &Transform,
+        projection: &Projection,
+        viewport: Viewport,
+        initial_source: Option<Initial>,
+        max_bytes: usize,
+    ) -> Result<Record> {
+        validate_view(
+            transform,
+            binding.source_origin_f64_bits.map(f64::from_bits),
+        )?;
+        let value = Record {
+            schema_version: 1,
+            binding: binding.clone(),
+            translation_f32_bits: transform.translation.to_array().map(f32::to_bits),
+            rotation_f32_bits: transform.rotation.to_array().map(f32::to_bits),
+            source_position_f64_bits: source_position(
+                transform,
+                binding.source_origin_f64_bits.map(f64::from_bits),
+            )?
+            .map(f64::to_bits),
+            source_direction_f64_bits: source_direction(transform).map(f64::to_bits),
+            perspective: Perspective::from_projection(projection)?,
+            viewport,
+            initial_source,
+            original_gameplay_accepted: false,
+        };
+        value.validate()?;
+        encode(&value, max_bytes)?;
+        Ok(value)
+    }
+
+    pub fn restore(
+        record: &Record,
+        current: &Binding,
+        viewport: &Viewport,
+    ) -> Result<(Transform, Projection)> {
+        if record.binding != *current || record.viewport != *viewport {
+            return Err("Camera restore source/origin/epoch/revision/viewport is stale".into());
+        }
+        record.validate()
+    }
+
+    struct BoundedWriter {
+        bytes: Vec<u8>,
+        max: usize,
+    }
+    impl Write for BoundedWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self
+                .bytes
+                .len()
+                .checked_add(bytes.len())
+                .is_none_or(|n| n > self.max)
+            {
+                return Err(io::Error::other(
+                    "Camera record exceeds admitted output bytes",
+                ));
+            }
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    pub fn encode(record: &Record, max_bytes: usize) -> Result<Vec<u8>> {
+        if max_bytes == 0 || max_bytes > RECORD_BYTES {
+            return Err("Camera record bound must be 1..4096 bytes".into());
+        }
+        let mut writer = BoundedWriter {
+            bytes: Vec::new(),
+            max: max_bytes,
+        };
+        serde_json::to_writer_pretty(&mut writer, record)?;
+        writer.write_all(b"\n")?;
+        Ok(writer.bytes)
+    }
+
+    pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<Record> {
+        if max_bytes == 0 || max_bytes > RECORD_BYTES || bytes.len() > max_bytes {
+            return Err("Camera request exceeds admitted 4 KiB input".into());
+        }
+        let record: Record = serde_json::from_slice(bytes)?;
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn read_request(path: &Path, max_bytes: usize) -> Result<Record> {
+        if max_bytes == 0 || max_bytes > RECORD_BYTES {
+            return Err("Camera request bound must be 1..4096 bytes".into());
+        }
+        let mut bytes = Vec::new();
+        baseline::open_source(path)?
+            .take(max_bytes as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        decode(&bytes, max_bytes)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn fixture() -> (Binding, Transform, Projection, Viewport) {
+            let binding = Binding {
+                scene_epoch: 7,
+                source_scene_sha256: "ab".repeat(32),
+                source_origin_f64_bits: [1000., 2000., 3000.].map(f64::to_bits),
+                canonical_revision: None,
+            };
+            let transform = Transform::from_xyz(1., 3., -2.);
+            let projection = Projection::Perspective(PerspectiveProjection {
+                fov: 0.8,
+                aspect_ratio: 1280. / 900.,
+                near: 0.25,
+                far: 5000.,
+                ..default()
+            });
+            let viewport = Viewport {
+                physical_pixels: [1280, 900],
+                logical_f32_bits: [1280., 900.].map(f32::to_bits),
+            };
+            (binding, transform, projection, viewport)
+        }
+
+        #[test]
+        fn literal_source_basis_exact_actual_words_and_camera_roundtrip() {
+            let (binding, transform, projection, viewport) = fixture();
+            let value = record(
+                &binding,
+                &transform,
+                &projection,
+                viewport.clone(),
+                None,
+                RECORD_BYTES,
+            )
+            .unwrap();
+            assert_eq!(
+                value.source_position_f64_bits,
+                [1001., 2002., 3003.].map(f64::to_bits)
+            );
+            assert_eq!(
+                value.source_direction_f64_bits.map(f64::from_bits),
+                [0., 1., 0.]
+            );
+            assert_eq!(value.translation_f32_bits, [1., 3., -2.].map(f32::to_bits));
+            assert_eq!(value.rotation_f32_bits, [0., 0., 0., 1.].map(f32::to_bits));
+            let encoded = encode(&value, RECORD_BYTES).unwrap();
+            assert_eq!(decode(&encoded, RECORD_BYTES).unwrap(), value);
+            let (restored, restored_projection) = restore(&value, &binding, &viewport).unwrap();
+            assert_eq!(restored, transform);
+            assert_eq!(
+                Perspective::from_projection(&restored_projection).unwrap(),
+                value.perspective
+            );
+            let exact = encoded.len();
+            assert_eq!(encode(&value, exact).unwrap(), encoded);
+            assert!(encode(&value, exact - 1).is_err());
+            assert!(decode(&encoded, exact - 1).is_err());
+            let mut padded = encoded.clone();
+            padded.resize(RECORD_BYTES, b' ');
+            assert_eq!(decode(&padded, RECORD_BYTES).unwrap(), value);
+            padded.push(b' ');
+            assert!(decode(&padded, RECORD_BYTES).is_err());
+
+            let mut shifted = binding.clone();
+            shifted.source_origin_f64_bits[0] = 1e20f64.to_bits();
+            assert!(
+                record(
+                    &shifted,
+                    &transform,
+                    &projection,
+                    viewport,
+                    None,
+                    RECORD_BYTES
+                )
+                .is_err()
+            );
+            assert_eq!(transform.translation, Vec3::new(1., 3., -2.));
+            let mut signed = binding;
+            signed.source_origin_f64_bits = [0.; 3].map(f64::to_bits);
+            let signed_view = Transform::from_xyz(-0., 1., -0.);
+            let signed_record = record(
+                &signed,
+                &signed_view,
+                &projection,
+                fixture().3,
+                None,
+                RECORD_BYTES,
+            )
+            .unwrap();
+            assert_eq!(
+                restore(&signed_record, &signed, &signed_record.viewport)
+                    .unwrap()
+                    .0
+                    .translation
+                    .to_array()
+                    .map(f32::to_bits),
+                [-0., 1., -0.].map(f32::to_bits)
+            );
+        }
+
+        #[test]
+        fn complete_strict_camera_input_refuses_unknown_missing_duplicate_and_invalid_words() {
+            let (binding, transform, projection, viewport) = fixture();
+            let valid = record(
+                &binding,
+                &transform,
+                &projection,
+                viewport,
+                None,
+                RECORD_BYTES,
+            )
+            .unwrap();
+            let json = serde_json::to_value(&valid).unwrap();
+            for field in [
+                "schema_version",
+                "binding",
+                "translation_f32_bits",
+                "rotation_f32_bits",
+                "source_position_f64_bits",
+                "source_direction_f64_bits",
+                "perspective",
+                "viewport",
+                "initial_source",
+                "original_gameplay_accepted",
+            ] {
+                let mut bad = json.clone();
+                bad.as_object_mut().unwrap().remove(field);
+                assert!(
+                    decode(&serde_json::to_vec(&bad).unwrap(), RECORD_BYTES).is_err(),
+                    "missing {field}"
+                );
+            }
+            for nested in ["binding", "perspective", "viewport"] {
+                let fields: Vec<_> = json[nested].as_object().unwrap().keys().cloned().collect();
+                for field in fields {
+                    let mut bad = json.clone();
+                    bad[nested].as_object_mut().unwrap().remove(&field);
+                    assert!(
+                        decode(&serde_json::to_vec(&bad).unwrap(), RECORD_BYTES).is_err(),
+                        "missing {nested}.{field}"
+                    );
+                }
+                let mut bad = json.clone();
+                bad[nested]["guessed"] = serde_json::json!(1);
+                assert!(decode(&serde_json::to_vec(&bad).unwrap(), RECORD_BYTES).is_err());
+            }
+            let mut bad = json.clone();
+            bad["extra"] = serde_json::json!(true);
+            assert!(decode(&serde_json::to_vec(&bad).unwrap(), RECORD_BYTES).is_err());
+            let duplicate = String::from_utf8(encode(&valid, RECORD_BYTES).unwrap())
+                .unwrap()
+                .replacen("{", "{\"schema_version\":1,", 1);
+            assert!(decode(duplicate.as_bytes(), RECORD_BYTES).is_err());
+            for index in 0..10 {
+                let mut bad = valid.clone();
+                match index {
+                    0 => bad.rotation_f32_bits = [0; 4],
+                    1 => bad.translation_f32_bits[0] = f32::INFINITY.to_bits(),
+                    2 => bad.perspective.fov_f32_bits = 0,
+                    3 => bad.perspective.aspect_f32_bits = 2f32.to_bits(),
+                    4 => bad.perspective.near_f32_bits = (-1f32).to_bits(),
+                    5 => bad.perspective.far_f32_bits = bad.perspective.near_f32_bits,
+                    6 => bad.source_position_f64_bits[0] = 1002f64.to_bits(),
+                    7 => bad.source_direction_f64_bits[1] = 0,
+                    8 => bad.original_gameplay_accepted = true,
+                    _ => bad.perspective.near_clip_plane_f32_bits[0] = 1f32.to_bits(),
+                }
+                assert!(
+                    decode(&encode(&bad, RECORD_BYTES).unwrap(), RECORD_BYTES).is_err(),
+                    "invalid {index}"
+                );
+            }
+        }
+
+        #[test]
+        fn stale_source_origin_epoch_revision_and_viewport_do_not_restore() {
+            let (binding, transform, projection, viewport) = fixture();
+            let value = record(
+                &binding,
+                &transform,
+                &projection,
+                viewport.clone(),
+                None,
+                RECORD_BYTES,
+            )
+            .unwrap();
+            for index in 0..4 {
+                let mut other = binding.clone();
+                match index {
+                    0 => other.scene_epoch += 1,
+                    1 => other.source_scene_sha256 = "cd".repeat(32),
+                    2 => other.source_origin_f64_bits[1] = 0,
+                    _ => other.canonical_revision = Some(1),
+                }
+                assert!(restore(&value, &other, &viewport).is_err());
+            }
+            let mut other = viewport;
+            other.physical_pixels = [640, 450];
+            assert!(restore(&value, &binding, &other).is_err());
+            for rotation in [
+                Quat::from_array([0.; 4]),
+                Quat::from_array([f32::NAN, 0., 0., 1.]),
+                Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+            ] {
+                let invalid = Transform {
+                    rotation,
+                    ..transform
+                };
+                assert!(
+                    record(
+                        &binding,
+                        &invalid,
+                        &projection,
+                        fixture().3,
+                        None,
+                        RECORD_BYTES
+                    )
+                    .is_err()
+                );
+            }
+            let orthographic = Projection::Orthographic(OrthographicProjection::default_3d());
+            assert!(
+                record(
+                    &binding,
+                    &transform,
+                    &orthographic,
+                    fixture().3,
+                    None,
+                    RECORD_BYTES
+                )
+                .is_err()
+            );
+            let mut writer = HashWriter {
+                hash: Sha256::new(),
+                bytes: SOURCE_REPORT_BYTES - 1,
+            };
+            writer.write_all(b"x").unwrap();
+            let prior = writer.hash.clone().finalize();
+            assert!(writer.write_all(b"y").is_err());
+            assert_eq!(writer.hash.finalize(), prior);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

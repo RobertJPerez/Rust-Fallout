@@ -1337,3 +1337,43 @@ header requests, raw bytes and serialized projection. Exact boundary fixtures
 exercise each. Requests establish source candidates only: no RNG, probability
 roll, level threshold, respawn, inherited selection, death event or item creation.
 The canonical runtime and direct inventory initialization remain unchanged.
+
+## Selected equipment alternate-texture declarations (ACT25)
+
+`actor-sources --include-material-overrides` extends an explicit equipment source,
+role and single dependency root with `actor_material_overrides`. The private,
+non-deserializable `actors::dependencies::material_overrides::Manifest` comes from
+`request(&mut RecordStore, &actors::Catalogue, &FormKey, equipment::Choice,
+&ArchiveAssets, Limits)`. It constructs the existing equipment producer internally
+and exposes only immutable `equipment()` and `arrays()` views. A caller-supplied
+mutable equipment report cannot select the source. Without the new flag, the
+existing equipment and default actor reports remain byte-identical.
+
+Pinned xEdit FNV generic model (1069-1086), alternate arrays (2911-2914), ARMO/ARMA
+(3934-4031), WEAP (8625-8892) and STAT (7990-8025), together with Common alternate
+texture (8457-8472), textured model (9508-9545) and Interface string/array prefix
+implementations, ground the layout. Each array has an unsigned 32-bit count;
+each entry has an unsigned 32-bit name length, exact raw name bytes, TXST FormID
+and signed 32-bit mesh index. Empty, embedded-NUL and non-UTF8 names remain exact
+frames. The index also retains its original unsigned word and every physical
+byte offset. Editor sorting, name decoding and string trimming are not applied.
+
+Unordered model structures associate alternate arrays by exact role tags:
+male biped MODL/MODS, female biped MOD3/MO3S, male world or weapon shell MOD2/MO2S,
+female world or weapon world MOD4/MO4S, and weapon scope MOD3/MO3S. A base weapon
+uses MODL/MODS. Modded MWD roles have no pinned alternate-array association and
+cannot borrow the base palette. A first-person role uses only the existing unique
+WNAM/WNM-selected STAT source and its MODL/MODS declarations.
+
+All selected field occurrences and array entries retain physical order. Missing
+or repeated model fields, repeated alternate arrays, and duplicate exact raw
+name/index pairs withhold declaration admission. Null, missing, deleted and
+wrong-kind texture bindings stay explicit. TXST requests retain complete winning
+source headers and source hashes; their bodies remain unread. Malformed count,
+name, word and trailing extents refuse atomically. Twelve independent limits
+bound source count, record/decoded bytes, fields/work visits, arrays, entries,
+name/raw bytes, bindings, headers and serialized projection.
+
+These requests preserve material source declarations. They do not choose a mesh,
+import texture sets, apply archive precedence or shaders, mutate materials,
+select equipped inventory or establish original rendering behavior.

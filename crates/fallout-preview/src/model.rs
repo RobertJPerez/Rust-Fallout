@@ -17,6 +17,7 @@ use fallout_data::{
         material::{MaterialData, texture_path},
     },
     vfs::AssetPath,
+    world::residency::ResidentTextures,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -107,11 +108,48 @@ impl Textures {
             path,
             (256 * 1024 * 1024usize).saturating_sub(self.bytes) as u64,
         )?;
-        let image = decode_diffuse(&data, clamp)?;
+        self.load_bytes(path, clamp, &data)
+    }
+
+    /// A cached sampler is usable only if this exact source lease still admits
+    /// the path. Check the receipt and payload before consulting the cache.
+    fn load_resident(
+        &mut self,
+        sources: &ResidentTextures,
+        path: &AssetPath,
+        clamp: u32,
+    ) -> Result<usize> {
+        let receipt = sources.receipt()?;
+        let index = receipt
+            .requests
+            .binary_search_by(|request| request.path.cmp(path))
+            .map_err(|_| {
+                format!(
+                    "Texture {} is absent from resident plan {}",
+                    String::from_utf8_lossy(path.bytes()),
+                    receipt.identity
+                )
+            })?;
+        let data = sources.texture(index)?;
+        self.load_bytes(path, clamp, data)
+    }
+
+    fn load_bytes(&mut self, path: &AssetPath, clamp: u32, data: &[u8]) -> Result<usize> {
+        let key = (path.clone(), clamp);
+        if let Some(id) = self.ids.get(&key) {
+            return Ok(*id);
+        }
+        if self.images.len() >= 4096 {
+            return Err("scene texture budget exceeded".into());
+        }
+        if data.len() > (256 * 1024 * 1024usize).saturating_sub(self.bytes) {
+            return Err("scene texture byte budget exceeded".into());
+        }
+        let image = decode_diffuse(data, clamp)?;
         let size = image.texture_descriptor.size;
         self.evidence.push(TextureEvidence {
             path: path.clone(),
-            sha256: format!("{:x}", Sha256::digest(&data)),
+            sha256: format!("{:x}", Sha256::digest(data)),
             width: size.width,
             height: size.height,
             mip_levels: image.texture_descriptor.mip_level_count,
@@ -146,7 +184,11 @@ pub fn load(
     pose: Option<crate::pose::Request>,
 ) -> Result<(Model, Report)> {
     let (_, bytes) = assets.read_unique(path)?;
-    from_bytes_with_pose(assets, path, &bytes, textures, pose)
+    if pose.is_none() {
+        from_bytes(assets, path, &bytes, textures)
+    } else {
+        from_bytes_with_pose(assets, path, &bytes, textures, pose)
+    }
 }
 
 /// Reuse the same source adapter for a retained world residency payload. The
@@ -162,6 +204,42 @@ pub fn from_bytes(
 
 pub fn from_bytes_with_pose(
     assets: &ArchiveAssets,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+    pose: Option<crate::pose::Request>,
+) -> Result<(Model, Report)> {
+    from_texture_source(TextureInput::Archive(assets), path, bytes, textures, pose)
+}
+
+/// CELL adaptation borrows both payloads from this generation's sealed leases.
+/// A missing resident texture is an error; it cannot trigger another archive read.
+pub fn from_resident_bytes(
+    sources: &ResidentTextures,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+) -> Result<(Model, Report)> {
+    sources.ticket().check()?;
+    from_texture_source(TextureInput::Resident(sources), path, bytes, textures, None)
+}
+
+#[derive(Clone, Copy)]
+enum TextureInput<'a> {
+    Archive(&'a ArchiveAssets),
+    Resident(&'a ResidentTextures),
+}
+impl TextureInput<'_> {
+    fn load(self, textures: &mut Textures, path: &AssetPath, clamp: u32) -> Result<usize> {
+        match self {
+            Self::Archive(assets) => textures.load(assets, path, clamp),
+            Self::Resident(sources) => textures.load_resident(sources, path, clamp),
+        }
+    }
+}
+
+fn from_texture_source(
+    input: TextureInput<'_>,
     path: &AssetPath,
     bytes: &[u8],
     textures: &mut Textures,
@@ -530,7 +608,7 @@ pub fn from_bytes_with_pose(
             if source.uv_sets.is_empty() {
                 return Err(format!("textured mesh {} has no UVs", object.block).into());
             }
-            let id = textures.load(assets, &path, clamp)?;
+            let id = input.load(textures, &path, clamp)?;
             used_textures.insert(id);
             Some(id)
         } else if untextured {
@@ -817,3 +895,6 @@ mod tests {
         assert_eq!(front, Vec3::Y);
     }
 }
+
+#[cfg(test)]
+mod resident_tests;

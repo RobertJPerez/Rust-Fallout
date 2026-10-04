@@ -28,6 +28,7 @@ pub struct CellSources {
     // Keep the complete resource-bearing plan/payload lease through decode,
     // GPU staging and admission. Never detach a clone of sources.plan().
     pub sources: Arc<world::residency::ResidentSources>,
+    pub textures: Arc<world::residency::ResidentTextures>,
 }
 
 #[derive(Component, Clone)]
@@ -258,6 +259,55 @@ pub fn load_cell(
         thread::sleep(Duration::from_millis(5));
     }
     let sources = owner.sources(&ticket)?;
+    context.stage("Sealing captured CELL texture requests")?;
+    let texture_plan =
+        world::residency::TexturePlan::load(sources.clone(), assets.mounts(), Default::default())?;
+    context.check()?;
+    owner.request_textures(&ticket, texture_plan)?;
+    let resident_textures = loop {
+        context.check()?;
+        ticket.check()?;
+        let snapshot = owner.poll()?;
+        context.stage(format!(
+            "Loading CELL textures: {}/{}",
+            snapshot.completed_textures, snapshot.requested_textures
+        ))?;
+        match snapshot.texture_state {
+            world::residency::TextureState::Decoded => {
+                break owner.texture_sources(&ticket)?;
+            }
+            world::residency::TextureState::Unsupported => {
+                let captured = owner.texture_sources(&ticket)?;
+                let receipt = captured.receipt()?;
+                let failures: Vec<_> = receipt
+                    .usages
+                    .iter()
+                    .filter(|usage| usage.error.is_some() || usage.candidates.len() != 1)
+                    .take(3)
+                    .map(|usage| {
+                        let path: String = String::from_utf8_lossy(&usage.raw_path)
+                            .chars()
+                            .take(160)
+                            .collect();
+                        format!(
+                            "{path}: {}",
+                            usage.error.clone().unwrap_or_else(|| {
+                                format!("{} source candidates", usage.candidates.len())
+                            })
+                        )
+                    })
+                    .collect();
+                return Err(format!(
+                    "Captured CELL texture dependencies are unresolved ({} usages; plan {}): {}",
+                    receipt.missing_or_ambiguous,
+                    receipt.identity,
+                    failures.join("; ")
+                )
+                .into());
+            }
+            _ => thread::sleep(Duration::from_millis(5)),
+        }
+    };
     let mut plugin_sha256 = BTreeMap::new();
     for name in &names {
         plugin_sha256.insert(
@@ -352,7 +402,12 @@ pub fn load_cell(
             .iter()
             .position(|request| request.path == path)
             .ok_or("Selected render model is absent from sealed residency requests")?;
-        match model::from_bytes(&assets, &path, sources.model(request)?, &mut textures) {
+        match model::from_resident_bytes(
+            &resident_textures,
+            &path,
+            sources.model(request)?,
+            &mut textures,
+        ) {
             Ok((model, report)) => {
                 let geometry_bytes =
                     (vertices + report.vertices) * 64 + (triangles + report.triangles) * 12;
@@ -434,8 +489,8 @@ pub fn load_cell(
     } else {
         (None, None)
     };
-    // Readiness covers the explicitly displayed static inspection subset and
-    // its adapted textures. The report retains every omission; actor models,
+    // Captured texture closure is complete; draw readiness still describes the
+    // displayed static subset. The report retains every omission; actor models,
     // original shaders, collision and behavior do not become simulation-ready.
     owner.report_dependencies(&ticket, world::residency::Readiness::Ready)?;
     owner.report_collision(&ticket, world::residency::Readiness::Unsupported)?;
@@ -489,6 +544,7 @@ pub fn load_cell(
             owner: Mutex::new(owner),
             ticket,
             sources,
+            textures: resident_textures,
         },
     ))
 }

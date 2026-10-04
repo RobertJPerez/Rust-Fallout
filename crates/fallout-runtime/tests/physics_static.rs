@@ -202,6 +202,19 @@ fn source_index_preserves_independent_exhaustive_hits_with_bounded_work() {
         )
         .unwrap();
     assert_eq!(all.len(), 64);
+    //2P capped by the127 retained nodes admits the complete tree atP64;
+    // reducingP to63 permits126 visits, exactly one below the required work.
+    assert!(matches!(
+        scene.ray_cast(
+            ray([-5., 0.5, 0.5], [1., 0., 0.], 300.),
+            QueryBudget {
+                primitive_tests: 63,
+                hits: 64,
+                ..small
+            }
+        ),
+        Err(QueryError::Budget("spatial index visits"))
+    ));
     for (i, hit) in all.iter().enumerate() {
         assert_eq!(hit.distance, 5. + 4. * i as f64);
         assert_eq!(hit.source.shape_block, 2 + i as u32);

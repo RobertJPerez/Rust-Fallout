@@ -203,6 +203,159 @@ fn exactly_parallel(a: V, b: V) -> bool {
         .all(|&(i, j)| exact_products_equal(a[i], b[j], a[j], b[i]))
 }
 
+// A rounded zero determinant alone cannot distinguish a parallel ray from a
+// nearly parallel crossing. Preserve source edges only when their subtraction
+// is exact, then accept the simple exact parallel/degenerate certificates.
+fn triangle_parallel(e1: V, e2: V, direction: V) -> bool {
+    if exactly_parallel(e1, e2)
+        || exactly_parallel(direction, e1)
+        || exactly_parallel(direction, e2)
+    {
+        return true;
+    }
+    if direction.iter().filter(|v| **v != 0.).count() == 1 {
+        let axis = direction
+            .iter()
+            .position(|v| *v != 0.)
+            .expect("one ray axis");
+        let i = (axis + 1) % 3;
+        let j = (axis + 2) % 3;
+        return exact_products_equal(e1[i], e2[j], e1[j], e2[i]);
+    }
+    false
+}
+fn triangle_product(
+    a: super::enclosure::Interval,
+    b: super::enclosure::Interval,
+) -> Option<super::enclosure::Interval> {
+    // An exact normal-range product can remain a point, preserving ordinary
+    // closed edge/vertex contacts. Underflowed FMA residuals prove nothing.
+    if a.lower == a.upper && b.lower == b.upper {
+        let product = a.lower * b.lower;
+        if product.is_finite()
+            && product.abs() >= 1e-270
+            && a.lower.mul_add(b.lower, -product) == 0.
+        {
+            return Some(super::enclosure::Interval::point(product));
+        }
+    }
+    a.multiply(b)
+}
+fn triangle_sum(
+    a: super::enclosure::Interval,
+    b: super::enclosure::Interval,
+) -> Option<super::enclosure::Interval> {
+    if a.lower == a.upper && b.lower == b.upper {
+        let sum = a.lower + b.lower;
+        let virtual_b = sum - a.lower;
+        let virtual_a = sum - virtual_b;
+        let residual = (a.lower - virtual_a) + (b.lower - virtual_b);
+        if sum.is_finite() && residual == 0. {
+            return Some(super::enclosure::Interval::point(sum));
+        }
+    }
+    a.add(b)
+}
+fn triangle_triple_bounds(e1: V, direction: V, e2: V) -> QueryResult<super::enclosure::Interval> {
+    use super::enclosure::Interval as I;
+    let uncertain = || QueryError::Invalid("triangle ray predicate is numerically uncertain");
+    let mut determinant = I::point(0.);
+    for (i, j, k) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)] {
+        let first =
+            triangle_product(I::point(direction[j]), I::point(e2[k])).ok_or_else(uncertain)?;
+        let second =
+            triangle_product(I::point(direction[k]), I::point(e2[j])).ok_or_else(uncertain)?;
+        let component = triangle_sum(first, second.negate()).ok_or_else(uncertain)?;
+        let term = triangle_product(I::point(e1[i]), component).ok_or_else(uncertain)?;
+        determinant = triangle_sum(determinant, term).ok_or_else(uncertain)?;
+    }
+    Ok(determinant)
+}
+
+fn triangle_ray(o: V, d: V, [a, b, c]: [V; 3], max: f64) -> QueryResult<Option<f64>> {
+    use super::enclosure::Interval as I;
+    let uncertain = || QueryError::Invalid("triangle ray predicate is numerically uncertain");
+    let e1 = sub(b, a);
+    let e2 = sub(c, a);
+    if (0..3).any(|i| {
+        difference_error(b[i], a[i], e1[i]) != 0. || difference_error(c[i], a[i], e2[i]) != 0.
+    }) {
+        return Err(QueryError::Invalid(
+            "triangle source edge subtraction is numerically uncertain",
+        ));
+    }
+    // Only a proven parallel/degenerate triangle has no unique crossing.
+    if triangle_parallel(e1, e2, d) {
+        return Ok(None);
+    }
+    let determinant_bounds = triangle_triple_bounds(e1, d, e2)?;
+    if determinant_bounds.lower <= 0. && determinant_bounds.upper >= 0. {
+        return Err(uncertain());
+    }
+    let h = cross(d, e2);
+    let determinant = dot(e1, h);
+    // The scalar evaluation can round to zero even when its mathematical
+    // enclosure excludes zero. Division must use a finite, consistent sign.
+    if !determinant.is_finite()
+        || determinant == 0.
+        || (determinant > 0.) != (determinant_bounds.lower > 0.)
+    {
+        return Err(uncertain());
+    }
+    let s = sub(o, a);
+    if (0..3).any(|i| difference_error(o[i], a[i], s[i]) != 0.) {
+        return Err(QueryError::Invalid(
+            "triangle ray origin subtraction is numerically uncertain",
+        ));
+    }
+    let positive = |bounds: I| {
+        if determinant > 0. {
+            bounds
+        } else {
+            bounds.negate()
+        }
+    };
+    let den = positive(determinant_bounds);
+    let u_bounds = positive(triangle_triple_bounds(s, d, e2)?);
+    let v_bounds = positive(triangle_triple_bounds(d, s, e1)?);
+    let t_bounds = positive(triangle_triple_bounds(e2, s, e1)?);
+    let w_bounds = triangle_sum(
+        triangle_sum(den, u_bounds.negate()).ok_or_else(uncertain)?,
+        v_bounds.negate(),
+    )
+    .ok_or_else(uncertain)?;
+    let range_bounds = triangle_sum(
+        triangle_product(den, I::point(max)).ok_or_else(uncertain)?,
+        t_bounds.negate(),
+    )
+    .ok_or_else(uncertain)?;
+    let predicates = [u_bounds, v_bounds, w_bounds, t_bounds, range_bounds];
+    if predicates.iter().any(|bounds| bounds.upper < 0.) {
+        return Ok(None);
+    }
+    if predicates.iter().any(|bounds| bounds.lower < 0.) {
+        return Err(uncertain());
+    }
+    let u = dot(s, h) / determinant;
+    let q = cross(s, e1);
+    let v = dot(d, q) / determinant;
+    let t = dot(e2, q) / determinant;
+    // Keep the original scalar entry, but never let disagreement with the
+    // admitted closed comparisons silently become an empty result.
+    if !u.is_finite()
+        || !v.is_finite()
+        || !t.is_finite()
+        || u < 0.
+        || v < 0.
+        || u + v > 1.
+        || t < 0.
+        || t > max
+    {
+        return Err(uncertain());
+    }
+    Ok(Some(t))
+}
+
 fn capsule_side_ray(o: V, d: V, a: V, b: V, radius: f64) -> QueryResult<Option<f64>> {
     let edge = sub(b, a);
     if (0..3).all(|i| difference_error(b[i], a[i], edge[i]) == 0.) && exactly_parallel(d, edge) {
@@ -562,23 +715,7 @@ impl Shape {
                 }
                 nearest
             }
-            Self::Triangle([a, b, c]) => {
-                let e1 = sub(b, a);
-                let e2 = sub(c, a);
-                let h = cross(d, e2);
-                let determinant = dot(e1, h);
-                // Two-sided authored triangles. Parallel/coplanar rays do not
-                // define a unique crossing; no arbitrary thickness is invented.
-                if determinant == 0. {
-                    return Ok(None);
-                }
-                let s = sub(o, a);
-                let u = dot(s, h) / determinant;
-                let q = cross(s, e1);
-                let v = dot(d, q) / determinant;
-                let t = dot(e2, q) / determinant;
-                (u >= 0. && v >= 0. && u + v <= 1. && t >= 0.).then_some(t)
-            }
+            Self::Triangle(vertices) => return triangle_ray(o, d, vertices, max),
         })
     }
 }

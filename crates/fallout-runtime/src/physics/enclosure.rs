@@ -1,4 +1,5 @@
-//! Directed finite intervals for culling transforms. These never decide contact.
+//! Directed finite intervals for transform culling and numerical admission.
+//! Culling enclosures never become contact geometry.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Interval {
     pub lower: f64,

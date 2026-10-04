@@ -10,6 +10,608 @@ use fallout_data::{
 };
 use std::{fs, io::Write, path::Path};
 
+fn render_fixture(path: &Path, flags: u32, template_flags: u16, extra: &[u8]) {
+    let mut config = [0u8; 24];
+    config[..4].copy_from_slice(&flags.to_le_bytes());
+    config[22..].copy_from_slice(&template_flags.to_le_bytes());
+    let npc = [
+        field(b"ACBS", &config),
+        field(b"MODL", b"Skeleton.NIF\0"),
+        word(b"RNAM", 0x140),
+        word(b"PNAM", 0x110),
+        word(b"HNAM", 0x121),
+        word(b"ENAM", 0x131),
+        word(b"TPLT", 0x102),
+        field(
+            b"CNTO",
+            &[0x101u32.to_le_bytes().as_slice(), &1i32.to_le_bytes()].concat(),
+        ),
+        extra.to_vec(),
+    ]
+    .concat();
+    let race = [
+        field(b"NAM1", &[]),
+        field(b"MNAM", &[]),
+        word(b"INDX", 0),
+        field(b"MODL", b"MaleBody.NIF\0"),
+        field(b"FNAM", &[]),
+        word(b"INDX", 0),
+        field(b"MODL", b"FemaleBody.NIF\0"),
+        word(b"INDX", 9),
+        field(b"MODL", b"UnknownPart.NIF\0"),
+        field(b"NAM0", &[]),
+        field(b"FNAM", &[]),
+        word(b"INDX", 7),
+        field(b"MODL", b"RightEye.NIF\0"),
+        word(b"HNAM", 0x120),
+        word(b"ENAM", 0x130),
+    ]
+    .concat();
+    fs::write(
+        path.join("FalloutNV.esm"),
+        [
+            header(&[]),
+            disk(b"NPC_", 0x100, 0, 15, &npc),
+            disk(
+                b"CREA",
+                0x101,
+                0,
+                15,
+                &field(b"MODL", b"InventoryActor.NIF\0"),
+            ),
+            disk(
+                b"NPC_",
+                0x102,
+                0,
+                15,
+                &field(b"MODL", b"TemplateActor.NIF\0"),
+            ),
+            disk(
+                b"HDPT",
+                0x110,
+                0,
+                15,
+                &[field(b"MODL", b"Head.NIF\0"), word(b"HNAM", 0x111)].concat(),
+            ),
+            disk(
+                b"HDPT",
+                0x111,
+                0,
+                15,
+                &[field(b"MODL", b"Extra.NIF\0"), word(b"HNAM", 0x110)].concat(),
+            ),
+            disk(
+                b"HAIR",
+                0x120,
+                0,
+                15,
+                &field(b"MODL", b"CatalogueHair.NIF\0"),
+            ),
+            disk(b"HAIR", 0x121, 0, 15, &field(b"MODL", b"ChosenHair.NIF\0")),
+            disk(
+                b"EYES",
+                0x130,
+                0,
+                15,
+                &field(b"ICON", b"CatalogueEyes.DDS\0"),
+            ),
+            disk(b"EYES", 0x131, 0, 15, &field(b"ICON", b"ChosenEyes.DDS\0")),
+            disk(b"RACE", 0x140, 0, 15, &race),
+        ]
+        .concat(),
+    )
+    .unwrap();
+}
+
+fn retain_render_fixture(path: &Path, render: &dependencies::RenderManifest<'_>) {
+    let Some(root) = std::env::var_os("FALLOUT_ACTOR_RENDER_EVIDENCE_DIR") else {
+        return;
+    };
+    let root = Path::new(&root);
+    assert!(root.is_absolute() && root.is_dir());
+    let case = root.join("authored-selection");
+    fs::create_dir(&case).unwrap();
+    let data = case.join("Data");
+    fs::create_dir(&data).unwrap();
+    fs::copy(path.join("FalloutNV.esm"), data.join("FalloutNV.esm")).unwrap();
+    fs::write(case.join("order.json"), b"[\"FalloutNV.esm\"]").unwrap();
+    fs::write(
+        case.join("expected.json"),
+        serde_json::to_vec_pretty(render).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn render_roles_follow_explicit_actor_links_and_sex_without_equipping_inventory_or_race_options() {
+    use dependencies::{RenderRole, Sex};
+    let directory = tempfile::tempdir().unwrap();
+    render_fixture(directory.path(), 1, 0, &[]);
+    let assets = empty_assets(directory.path());
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &assets, Default::default())
+            .unwrap();
+        assert_eq!(render.sex, Some(Sex::Female));
+        assert_eq!(
+            render.configuration.as_ref().unwrap().inventory_field_index,
+            0
+        );
+        assert_eq!(
+            render.configuration.as_ref().unwrap().field_decoded_offset,
+            0
+        );
+        assert_eq!(
+            render
+                .sources
+                .iter()
+                .map(|source| source.key.local_id)
+                .collect::<Vec<_>>(),
+            [0x100, 0x110, 0x111, 0x121, 0x131, 0x140]
+        );
+        let requested = render
+            .requests
+            .iter()
+            .map(|request| {
+                let path = &render.manifest.paths[request.manifest_path_index];
+                (path.source.local_id, path.raw.as_slice(), request.role)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            requested,
+            [
+                (0x100, b"Skeleton.NIF".as_slice(), RenderRole::ActorModel),
+                (
+                    0x140,
+                    b"FemaleBody.NIF",
+                    RenderRole::RaceBody { part_index: 0 }
+                ),
+                (
+                    0x140,
+                    b"RightEye.NIF",
+                    RenderRole::RaceHead { part_index: 7 }
+                ),
+                (0x110, b"Head.NIF", RenderRole::HeadPart),
+                (0x121, b"ChosenHair.NIF", RenderRole::Hair),
+                (0x131, b"ChosenEyes.DDS", RenderRole::Eyes),
+                (0x111, b"Extra.NIF", RenderRole::HeadPart),
+            ]
+        );
+        assert!(
+            render
+                .manifest
+                .paths
+                .iter()
+                .any(|path| path.raw == b"CatalogueHair.NIF")
+        );
+        assert!(
+            render
+                .manifest
+                .paths
+                .iter()
+                .any(|path| path.raw == b"InventoryActor.NIF")
+        );
+        assert!(
+            render
+                .issues
+                .iter()
+                .any(|issue| issue.code == "unsupported_race_part_index")
+        );
+        assert!(!render.equipment_selection_supported);
+        assert_eq!(render.manifest.cyclic_components.len(), 1);
+        assert!(
+            render
+                .requests
+                .iter()
+                .all(|request| !request.ambiguous_source)
+        );
+        for origin in &render.sources {
+            let definition = catalogue.get(origin.key).unwrap();
+            assert!(std::ptr::eq(origin.source, &definition.source));
+            assert!(std::ptr::eq(origin.header, &definition.header));
+        }
+        retain_render_fixture(directory.path(), &render);
+    });
+}
+
+#[test]
+fn render_templates_and_missing_or_duplicate_configuration_do_not_fabricate_selection() {
+    for (flags, code, sex, has_requests) in [
+        (
+            0x40,
+            "model_template_selection_unsupported",
+            Some(dependencies::Sex::Female),
+            false,
+        ),
+        (1, "traits_template_selection_unsupported", None, true),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        render_fixture(directory.path(), 1, flags, &[]);
+        let assets = empty_assets(directory.path());
+        let mut source = store(directory.path(), &["FalloutNV.esm"]);
+        with_catalogue(&mut source, Default::default(), |_, catalogue| {
+            let render = catalogue
+                .render_manifest(&key(0x100), &assets, Default::default())
+                .unwrap();
+            assert!(render.issues.iter().any(|issue| issue.code == code));
+            assert_eq!(render.sex, sex);
+            assert_eq!(!render.requests.is_empty(), has_requests);
+            assert!(
+                render
+                    .sources
+                    .iter()
+                    .all(|source| source.key.local_id != 0x140)
+            );
+        });
+    }
+    for duplicate in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        if duplicate {
+            render_fixture(directory.path(), 1, 0, &field(b"ACBS", &[0; 24]));
+        } else {
+            write_single(
+                directory.path(),
+                b"NPC_",
+                15,
+                &field(b"MODL", b"Unknown.NIF\0"),
+            );
+        }
+        let assets = empty_assets(directory.path());
+        let mut source = store(directory.path(), &["FalloutNV.esm"]);
+        with_catalogue(&mut source, Default::default(), |_, catalogue| {
+            let render = catalogue
+                .render_manifest(&key(0x100), &assets, Default::default())
+                .unwrap();
+            assert!(render.configuration.is_none() && render.requests.is_empty());
+            assert_eq!(
+                render.issues[0].code,
+                if duplicate {
+                    "ambiguous_actor_configuration"
+                } else {
+                    "missing_actor_configuration"
+                }
+            );
+        });
+    }
+}
+
+#[test]
+fn render_duplicates_and_unavailable_links_keep_exact_manifest_occurrences() {
+    let directory = tempfile::tempdir().unwrap();
+    render_fixture(
+        directory.path(),
+        1,
+        0,
+        &[
+            field(b"MODL", b"Other.NIF\0"),
+            word(b"HNAM", 0x120),
+            word(b"PNAM", 0x999),
+            word(b"PNAM", 0),
+            word(b"PNAM", 0x131),
+        ]
+        .concat(),
+    );
+    let assets = empty_assets(directory.path());
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &assets, Default::default())
+            .unwrap();
+        let root_requests = render
+            .requests
+            .iter()
+            .filter(|request| {
+                render.manifest.paths[request.manifest_path_index].source == key(0x100)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(root_requests.len(), 2);
+        assert!(root_requests.iter().all(|request| request.ambiguous_source));
+        assert!(
+            render
+                .sources
+                .iter()
+                .all(|source| !matches!(source.key.local_id, 0x120 | 0x121))
+        );
+        assert_eq!(
+            render
+                .issues
+                .iter()
+                .filter(|issue| issue.code == "ambiguous_actor_render_link")
+                .count(),
+            2
+        );
+        assert_eq!(
+            render
+                .issues
+                .iter()
+                .filter(|issue| issue.code == "unavailable_actor_render_link")
+                .count(),
+            3
+        );
+        for issue in render
+            .issues
+            .iter()
+            .filter(|issue| issue.manifest_edge_index.is_some())
+        {
+            assert!(
+                render
+                    .selected_edge_indices
+                    .contains(&issue.manifest_edge_index.unwrap())
+            );
+        }
+    });
+}
+
+#[test]
+fn render_limits_bound_selection_work_and_outputs_before_retention() {
+    let directory = tempfile::tempdir().unwrap();
+    render_fixture(directory.path(), 1, 0, &[]);
+    let assets = empty_assets(directory.path());
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &assets, Default::default())
+            .unwrap();
+        let exact = dependencies::RenderLimits {
+            max_sources: render.sources.len(),
+            max_requests: render.requests.len(),
+            max_issues: render.issues.len(),
+            max_visits: render.visits,
+            ..Default::default()
+        };
+        catalogue
+            .render_manifest(&key(0x100), &assets, exact)
+            .unwrap();
+        for (name, limits) in [
+            (
+                "source",
+                dependencies::RenderLimits {
+                    max_sources: exact.max_sources - 1,
+                    ..exact
+                },
+            ),
+            (
+                "request",
+                dependencies::RenderLimits {
+                    max_requests: exact.max_requests - 1,
+                    ..exact
+                },
+            ),
+            (
+                "issue",
+                dependencies::RenderLimits {
+                    max_issues: exact.max_issues - 1,
+                    ..exact
+                },
+            ),
+            (
+                "visit",
+                dependencies::RenderLimits {
+                    max_visits: exact.max_visits - 1,
+                    ..exact
+                },
+            ),
+        ] {
+            assert!(
+                catalogue
+                    .render_manifest(&key(0x100), &assets, limits)
+                    .unwrap_err()
+                    .to_string()
+                    .contains(&format!("render {name} budget"))
+            );
+        }
+    });
+}
+
+#[test]
+fn render_creature_flags_are_not_npc_sex_and_list_frames_never_gain_a_guessed_base() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = [0; 24];
+    config[0] = 1;
+    write_single(
+        directory.path(),
+        b"CREA",
+        15,
+        &[
+            field(b"ACBS", &config),
+            field(b"MODL", b"Creature.NIF\0"),
+            field(b"NIFZ", &[]),
+            field(b"NIFZ", b"body.nif\0\0"),
+            field(b"KFFZ", b"idle.kf\0"),
+        ]
+        .concat(),
+    );
+    let assets = empty_assets(directory.path());
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &assets, Default::default())
+            .unwrap();
+        assert_eq!(render.sex, None);
+        assert_eq!(render.requests.len(), 4);
+        assert_eq!(
+            render
+                .requests
+                .iter()
+                .filter(|request| request.ambiguous_source)
+                .count(),
+            2
+        );
+        assert_eq!(
+            render.manifest.paths[render.requests[1].manifest_path_index].lookup_status,
+            LookupStatus::RelativeBaseUnresolved
+        );
+        assert_eq!(
+            render.manifest.paths[render.requests[2].manifest_path_index].lookup_status,
+            LookupStatus::EmptySourcePath
+        );
+    });
+}
+
+#[test]
+#[ignore = "requires Robert's authorized local NV installation; raw reports stay local"]
+fn installed_doc_mitchell_render_requests_use_winning_source_identity() {
+    let install = Path::new("G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas");
+    let order: Vec<String> = serde_json::from_slice(
+        &fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../profiles/nv-inspection-order.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut source =
+        RecordStore::open_nv_headers(&install.join("Data"), &order, plugin::Limits::default())
+            .unwrap();
+    // Resolved independently from original EDID bytes, not guessed. The
+    // header-only store deliberately indexes EDID only for selected kinds,
+    // so confirm this fixture identity against the existing retained body.
+    let root = key(0x104c0c);
+    let assets = ArchiveAssets::open_nv(install).unwrap();
+    with_catalogue(&mut source, Default::default(), |actors, catalogue| {
+        let actor = actors
+            .get(&root)
+            .expect("independently resolved DocMitchell winner");
+        let mut editor_ids = 0;
+        plugin::visit_subrecords(actor.record().unwrap(), &actor.source.plugin, |field| {
+            if field.kind == *b"EDID" {
+                assert_eq!(field.data, b"DocMitchell\0");
+                editor_ids += 1;
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(editor_ids, 1);
+        let render = catalogue
+            .render_manifest(&root, &assets, Default::default())
+            .unwrap();
+        assert!(render.configuration.is_some());
+        assert!(
+            render
+                .requests
+                .iter()
+                .any(|request| request.role == dependencies::RenderRole::ActorModel)
+        );
+        assert!(
+            render
+                .requests
+                .iter()
+                .any(|request| matches!(request.role, dependencies::RenderRole::RaceBody { .. }))
+        );
+        assert!(
+            render
+                .sources
+                .iter()
+                .all(|source| source.source.decoded_record_sha256.is_some())
+        );
+        println!(
+            "Selected {:?}, sex {:?}, {} sources, {} requests, {} issues",
+            root,
+            render.sex,
+            render.sources.len(),
+            render.requests.len(),
+            render.issues.len()
+        );
+    });
+}
+
+#[test]
+fn render_requests_preserve_missing_unique_and_colliding_archive_candidates() {
+    let directory = tempfile::tempdir().unwrap();
+    render_fixture(directory.path(), 1, 0, &[]);
+    fs::create_dir(directory.path().join("Data")).unwrap();
+    for name in ["A.bsa", "B.bsa"] {
+        let mut builder = dream_archive::Tes4BsaBuilder::fallout_new_vegas();
+        builder
+            .add_bytes("meshes/skeleton.nif", b"authored candidate metadata")
+            .unwrap();
+        if name == "A.bsa" {
+            builder
+                .add_bytes("meshes/femalebody.nif", b"authored unique metadata")
+                .unwrap();
+        }
+        builder
+            .write_path(directory.path().join("Data").join(name))
+            .unwrap();
+    }
+    let assets = ArchiveAssets::open_nv(directory.path()).unwrap();
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &assets, Default::default())
+            .unwrap();
+        let paths = render
+            .requests
+            .iter()
+            .map(|request| &render.manifest.paths[request.manifest_path_index])
+            .collect::<Vec<_>>();
+        let skeleton = paths
+            .iter()
+            .find(|path| path.raw == b"Skeleton.NIF")
+            .unwrap();
+        assert_eq!(skeleton.lookup_status, LookupStatus::ArchiveCollision);
+        assert_eq!(skeleton.candidates.len(), 2);
+        let body = paths
+            .iter()
+            .find(|path| path.raw == b"FemaleBody.NIF")
+            .unwrap();
+        assert_eq!(body.lookup_status, LookupStatus::OneArchiveCandidate);
+        assert_eq!(body.candidates.len(), 1);
+        let eye = paths
+            .iter()
+            .find(|path| path.raw == b"RightEye.NIF")
+            .unwrap();
+        assert_eq!(eye.lookup_status, LookupStatus::MissingArchiveCandidate);
+        assert!(eye.candidates.is_empty());
+    });
+}
+
+#[test]
+fn render_requests_bind_overridden_heads_to_the_current_winning_body() {
+    let directory = tempfile::tempdir().unwrap();
+    render_fixture(directory.path(), 1, 0, &[]);
+    fs::write(
+        directory.path().join("A.esm"),
+        [
+            header(&["FalloutNV.esm"]),
+            disk(b"HDPT", 0x110, 0, 15, &field(b"MODL", b"WinningHead.NIF\0")),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let assets = empty_assets(directory.path());
+    let mut source = store(directory.path(), &["FalloutNV.esm", "A.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let render = catalogue
+            .render_manifest(&key(0x100), &assets, Default::default())
+            .unwrap();
+        let head = render
+            .sources
+            .iter()
+            .find(|source| source.key == &key(0x110))
+            .unwrap();
+        assert_eq!(head.source.plugin, "A.esm");
+        assert_eq!(head.header.offset, head.source.record_file_offset);
+        assert!(render.requests.iter().any(|request| {
+            render.manifest.paths[request.manifest_path_index].raw == b"WinningHead.NIF"
+        }));
+        assert!(
+            render
+                .requests
+                .iter()
+                .all(
+                    |request| render.manifest.paths[request.manifest_path_index].raw != b"Head.NIF"
+                )
+        );
+        assert!(
+            render
+                .sources
+                .iter()
+                .all(|source| source.key != &key(0x111))
+        );
+    });
+}
+
 fn field(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
     [kind.as_slice(), &(data.len() as u16).to_le_bytes(), data].concat()
 }

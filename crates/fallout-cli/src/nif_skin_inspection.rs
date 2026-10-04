@@ -168,6 +168,88 @@ fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum InfluenceWeightPolicy {
+    PreserveRawNonnegative,
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl InfluenceWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct InfluencesRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    geometry: u32,
+    weights: InfluenceWeightPolicy,
+}
+#[derive(Serialize)]
+struct InfluencesEvaluation {
+    table: nif_skin::influences::Table,
+    pose: nif_skin::pose::Evaluation,
+}
+#[derive(Serialize)]
+pub struct InfluencesReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<InfluencesEvaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+
+pub fn inspect_influences(input: &Path, request_path: &Path) -> Result<InfluencesReport> {
+    let request: InfluencesRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("influences request requires schema1".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let evaluated = (|| -> fallout_data::Result<InfluencesEvaluation> {
+        if <[u8; 32]>::from(Sha256::digest(&bytes)) != request.expected_sha256 {
+            return Err(fallout_data::Error::Unsupported(format!(
+                "{source}: influences source SHA256 differs"
+            )));
+        }
+        let table =
+            nif_skin::influences::prepare(&bytes, &source, request.geometry, Default::default())?;
+        let pose = table.evaluate(
+            &bytes,
+            &source,
+            nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: request.weights.policy(),
+            },
+            Default::default(),
+        )?;
+        Ok(InfluencesEvaluation { table, pose })
+    })();
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(InfluencesReport {
+        schema_version: 1,
+        contract: "engineering-exact-raw-influence-csr-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
     if expected["sha256"].as_str() != Some(actual.sha256.as_str())
         || expected["decoded_bytes"].as_u64() != Some(actual.decoded_bytes as u64)

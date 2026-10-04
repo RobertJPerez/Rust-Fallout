@@ -525,3 +525,80 @@ The selected preserved original geometry's stored-pose receipt and source schema
 root has no controller; an explicit sampled-root request refuses that missing
 link with no partial pose. No supported retail animated-skin playback is claimed.
 Immutable receipts and the frozen executable stay in `local/v3-asset-16`.
+
+## Exact compact raw influences
+
+`influences::prepare(bytes, source, geometry, Limits)` constructs a private
+source-bound `Table` through the existing binding/skin/scene decode. Its identity
+records whole-source SHA, selected geometry/data/instance/skin-data IDs and bone
+count. Read-only `vertex_offsets()` and `entries()` expose CSR ranges: vertex `v`
+uses entries `[offsets[v], offsets[v+1])`. Each entry retains exact bone ordinal,
+binary32 weight bits and the physical weight ordinal inside that bone's source
+array. Serialization is an observation; there is no deserialization or public
+authority constructor.
+
+Preparation validates and counts all influences before allocating entries, then
+builds checked prefix sums and fills each vertex in original bone/weight order.
+Duplicates, more than four influences, nonunit raw sums, +0 and -0 entries remain
+intact. No merging, magnitude sort, pruning or normalization occurs. Every vertex
+must have a positive finite raw sum. Missing positions/weights, negative/nonfinite
+weights, invalid vertex/bone links, unresolved source ancestry, mismatched bone
+arrays and count/prefix arithmetic overflow refuse.
+
+`Table::evaluate(bytes, source, pose::Request, pose::Limits)` requires the same
+source SHA and geometry before invoking the existing private palette/scene
+pipeline. Exact instance/data/bone/vertex identity is rechecked inside that
+pipeline. The table supplies its CSR influences directly to the shared existing
+weighted-point/direction accumulation and raw-sum policy checks. It does not run
+a second reference deformation or accept matrices from the caller. The source
+decoder and palette are still evaluated on each call; the table makes no playback
+or speed claim. Per-vertex order equals the previous bone-owned accumulation
+order, preserving binary64 arithmetic. Normals retain the existing weighted
+linear-direction contract, without inverse-transpose or normalization.
+
+Default preparation caps four million entries, 32 MiB charged helper/output
+elements and sixteen million traversal units. Before decoding it admits the sum
+of the declared existing source array/check allowances, capped at 512 MiB and
+64 million units; defaults declare 448 MiB and 48 million units. Independent
+source input/block/decoder caps remain active. `Usage` reports actual charged
+skin/partition/binding elements separately, the conservative full decoder
+allowances, table logical output bytes, charged arrays including temporary
+counts/sums, entry count and work. Allocator overhead, spare capacity and
+block-count-bounded scene/index tables are outside these counts. Preparation and
+evaluation are separately bounded phases; evaluation also admits retained table
+output plus its pose arrays together under `pose::Limits.array_bytes`. A failure
+returns no completed table/deformation.
+
+The strict headless consumer is:
+
+```text
+fallout nif-skin INPUT --influences-request REQUEST.json --output RECEIPT.json
+```
+
+Schema1 JSON requires `expected_sha256` as 32 byte integers, exact `geometry` and
+explicit `weights`: `{"kind":"preserve_raw_nonnegative"}` or
+`{"kind":"require_unit_sum","absolute_tolerance":0}`. The latter only validates
+the raw sum and never changes weights. Request/source caps are 64 KiB/64 MiB;
+output must be outside both input directories. This option conflicts with source
+reports and other pose requests. Reports contain the complete table, source-local
+reconstruction and usage; a later reconstruction failure emits `evaluation:
+null` and nonzero exit. GPU storage/upload choices, actor selection, animated
+playback and retail deformation remain separate.
+
+`tools/nif-skin-oracle/check_influences.py` constructs a second sparse source
+with noncommuting bone transforms and seven influences on one vertex, including
+duplicates and signed zero. Literal expected positions/normals/sums exercise raw
+order and nonunit accumulation through the real consumer. Preserved native skin
+weights provide an independent exact entry/offset projection for a selected
+installed source; decoded source weights do not prove gameplay skinning.
+
+Focused validation passes 55 pose/clip/skin integration tests (six new CSR
+cases), the checked-prefix overflow unit test, 38 CLI tests, affected all-target
+Clippy with warnings denied, formatting and the CLI build. The frozen second
+source passes its literal sparse reconstruction and nine intended refusals.
+For original source `618eb19e...`, all 3,552 entries and offsets match the
+preserved native decoder's 25 bone arrays over 1,706 vertices. Source-local
+positions, normals, palettes, source frame and sums agree with the existing
+evaluator on both sources. Earlier authored/original pose receipts and source
+schemas1/2/3 remain byte-identical. Final checks and frozen artifacts stay in
+ignored `local/v3-asset-18`; no measured retail or GPU skinning claim is made.

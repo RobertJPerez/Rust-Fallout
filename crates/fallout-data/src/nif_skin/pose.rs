@@ -178,6 +178,7 @@ pub fn evaluate_sampled(
             ..limits.skin
         },
         Some(SampleOverride { sample: &sample }),
+        None,
     )?;
     budget.reserve::<u8>(skin.retained_bytes)?;
     budget.charge(skin.work_units)?;
@@ -341,7 +342,17 @@ pub fn evaluate(
     request: Request,
     limits: Limits,
 ) -> Result<Evaluation> {
-    evaluate_inner(bytes, source, request, limits, None)
+    evaluate_inner(bytes, source, request, limits, None, None)
+}
+
+pub(super) fn evaluate_table(
+    bytes: &[u8],
+    source: &str,
+    request: Request,
+    limits: Limits,
+    table: &super::influences::Table,
+) -> Result<Evaluation> {
+    evaluate_inner(bytes, source, request, limits, None, Some(table))
 }
 
 fn evaluate_inner(
@@ -350,6 +361,7 @@ fn evaluate_inner(
     request: Request,
     limits: Limits,
     selected: Option<SampleOverride<'_>>,
+    table: Option<&super::influences::Table>,
 ) -> Result<Evaluation> {
     let mut budget = Budget {
         source,
@@ -453,6 +465,17 @@ fn evaluate_inner(
     if bones.is_empty() || bones.len() != instance.bones.len() {
         return Err(budget.fail("empty or mismatched bone palette"));
     }
+    if table.is_some_and(|t| {
+        !t.matches(
+            geometry_data,
+            owner.instance,
+            data_id,
+            bones.len(),
+            mesh.vertices.len(),
+        )
+    }) {
+        return Err(budget.fail("influence table selected source binding differs"));
+    }
     budget.reserve::<Option<usize>>(index.blocks.len() * 2)?;
     budget.reserve::<bool>(index.blocks.len())?;
     let mut objects = vec![None; index.blocks.len()];
@@ -532,6 +555,8 @@ fn evaluate_inner(
     let mut result = Evaluation {
         contract: if selected.is_some() {
             "engineering-one-linked-sample-skin-v1"
+        } else if table.is_some() {
+            "engineering-exact-csr-source-local-skin-v1"
         } else {
             "engineering-source-local-skin-v1"
         },
@@ -616,24 +641,40 @@ fn evaluate_inner(
             node,
             matrix,
         });
-        for weight in &bone.weights {
+        if table.is_none() {
+            for weight in &bone.weights {
+                accumulate_weight(
+                    matrix,
+                    weight.weight_bits,
+                    usize::from(weight.vertex),
+                    mesh,
+                    &mut result,
+                    &mut budget,
+                )?;
+            }
+        }
+    }
+    if let Some(table) = table {
+        for vertex in 0..mesh.vertices.len() {
             budget.charge(1)?;
-            let value = f64::from(f32::from_bits(weight.weight_bits));
-            if !value.is_finite() || value < 0. {
-                return Err(budget.fail("negative or nonfinite raw weight"));
+            let entries = table
+                .vertex(vertex)
+                .ok_or_else(|| budget.fail("influence table vertex range unavailable"))?;
+            for entry in entries {
+                let matrix = result
+                    .palette
+                    .get(entry.bone_ordinal)
+                    .ok_or_else(|| budget.fail("influence table bone ordinal out of range"))?
+                    .matrix;
+                accumulate_weight(
+                    matrix,
+                    entry.weight_bits,
+                    vertex,
+                    mesh,
+                    &mut result,
+                    &mut budget,
+                )?;
             }
-            let vertex = usize::from(weight.vertex);
-            let position = apply(matrix, mesh.vertices[vertex], true);
-            for (out, component) in result.positions[vertex].iter_mut().zip(position) {
-                *out += value * component;
-            }
-            if mesh.has_normals {
-                let normal = apply(matrix, mesh.normals[vertex], false);
-                for (out, component) in result.normals[vertex].iter_mut().zip(normal) {
-                    *out += value * component;
-                }
-            }
-            result.weight_sums[vertex] += value;
         }
     }
     budget.charge(result.positions.len() + result.normals.len())?;
@@ -647,20 +688,37 @@ fn evaluate_inner(
         return Err(budget.fail("deformed vertex or normal overflow"));
     }
     for (vertex, &sum) in result.weight_sums.iter().enumerate() {
-        if !sum.is_finite() || sum <= 0. {
-            return Err(budget.fail(&format!(
-                "vertex {vertex} has no positive finite weight sum"
-            )));
-        }
-        if let WeightPolicy::RequireUnitSum { absolute_tolerance } = request.weights
-            && (sum - 1.).abs() > absolute_tolerance
-        {
-            return Err(budget.fail(&format!("vertex {vertex} raw weight sum {sum} exceeds declared tolerance {absolute_tolerance}")));
+        if let Some(detail) = super::weight_sum_error(vertex, sum, request.weights) {
+            return Err(budget.fail(&detail));
         }
     }
     result.retained_bytes = limits.array_bytes - budget.storage;
     result.work_units = limits.work_units - budget.work;
     Ok(result)
+}
+
+fn accumulate_weight(
+    matrix: Affine,
+    bits: u32,
+    vertex: usize,
+    mesh: &nif_scene::MeshData,
+    result: &mut Evaluation,
+    budget: &mut Budget<'_>,
+) -> Result<()> {
+    budget.charge(1)?;
+    let value = super::raw_weight(bits).map_err(|detail| budget.fail(detail))?;
+    let position = apply(matrix, mesh.vertices[vertex], true);
+    for (out, component) in result.positions[vertex].iter_mut().zip(position) {
+        *out += value * component;
+    }
+    if mesh.has_normals {
+        let normal = apply(matrix, mesh.normals[vertex], false);
+        for (out, component) in result.normals[vertex].iter_mut().zip(normal) {
+            *out += value * component;
+        }
+    }
+    result.weight_sums[vertex] += value;
+    Ok(())
 }
 
 fn record_controller(

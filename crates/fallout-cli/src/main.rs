@@ -365,6 +365,8 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         include_source_owners: bool,
+        #[arg(long)]
+        include_source_runs: bool,
     },
     /// Hash original compressed record inputs and exact decoded outputs.
     CompressedRecords {
@@ -1099,17 +1101,19 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             include_source_owners,
+            include_source_runs,
         } => {
             let report = condition_dependency_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 include_source_owners,
+                include_source_runs,
             )?;
             emit(&report, args.output.as_deref(), &protected_tree(&install)?)?;
             if report["counts"]["source_findings"] != 0
                 || report["counts"]["unknown_parameters"] != 0
-                || (include_source_owners
+                || ((include_source_owners || include_source_runs)
                     && (report["source_owner_counts"]["source_findings"] != 0
                         || report["source_owner_counts"]["orphan_conditions"] != 0
                         || report["source_owner_counts"]["unmapped_conditions"] != 0))

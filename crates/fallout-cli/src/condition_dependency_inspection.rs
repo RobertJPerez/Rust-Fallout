@@ -78,6 +78,30 @@ fn attach_owners(row: &mut Value, owners: &impl serde::Serialize, maximum: usize
     Ok(())
 }
 
+fn attach_owners_and_runs(
+    row: &mut Value,
+    owners: &impl serde::Serialize,
+    runs: &impl serde::Serialize,
+    maximum: usize,
+) -> Result<()> {
+    let mut base = Admission { bytes: 0, maximum };
+    serde_json::to_writer(&mut base, &*row)?;
+    let overhead = b",\"source_owners\":".len() + b",\"source_runs\":".len();
+    let remaining = maximum
+        .checked_sub(base.bytes)
+        .and_then(|bytes| bytes.checked_sub(overhead))
+        .ok_or("condition retained-report byte budget exceeded")?;
+    let mut admission = Admission {
+        bytes: 0,
+        maximum: remaining,
+    };
+    serde_json::to_writer(&mut admission, owners)?;
+    serde_json::to_writer(&mut admission, runs)?;
+    row["source_owners"] = serde_json::to_value(owners)?;
+    row["source_runs"] = serde_json::to_value(runs)?;
+    Ok(())
+}
+
 enum Prepared {
     Conditions(condition_operands::PreparedRecord),
     Owners(condition_operands::PreparedOwnerRecord),
@@ -115,7 +139,9 @@ pub(super) fn inspect(
     order_path: &Path,
     cache: Option<&Path>,
     include_source_owners: bool,
+    include_source_runs: bool,
 ) -> Result<Value> {
+    let include_source_owners = include_source_owners || include_source_runs;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
     let metadata = record_metadata::inspect(&store)?;
@@ -157,6 +183,8 @@ pub(super) fn inspect(
     let mut retained = 0;
     let mut owner_counts = json!({"records":0,"mapped_records":0,"unmapped_records":0,"orphan_conditions":0,"unmapped_conditions":0,
         "sections":0,"source_lists":0,"source_findings":0,"owner_kinds":{}});
+    let mut run_counts = json!({"records":0,"runs":0,"conditions_in_runs":0,"orphan_conditions":0,
+        "unmapped_conditions":0,"true_tail_runs":0,"end_reasons":{}});
     for location in candidates {
         if store.definition(location).header.flags & plugin::DELETED != 0 {
             number(&mut counts, "deleted_candidate_records", 1);
@@ -253,7 +281,51 @@ pub(super) fn inspect(
                 "record_file_offset":identity.record_file_offset,"record_flags":identity.record_flags,"decoded_bytes":identity.decoded_bytes,
                 "decoded_sha256":identity.decoded_sha256,"binding_sha256":format!("{:x}",Sha256::digest(serde_json::to_vec(&rows)?)),"conditions":rows});
             if let Some(owners) = admission.owners() {
-                attach_owners(&mut row, owners, MAXIMUM_RETAINED_BYTES - retained)?;
+                if include_source_runs {
+                    let Prepared::Owners(prepared) = &admission else {
+                        unreachable!("owner preparation required")
+                    };
+                    let runs = condition_operands::prepare_source_runs(
+                        prepared,
+                        condition_operands::RunLimits {
+                            maximum_retained_bytes: MAXIMUM_RETAINED_BYTES - retained,
+                            ..condition_operands::RunLimits::default()
+                        },
+                    )?;
+                    attach_owners_and_runs(
+                        &mut row,
+                        owners,
+                        &runs,
+                        MAXIMUM_RETAINED_BYTES - retained,
+                    )?;
+                    number(&mut run_counts, "records", 1);
+                    number(&mut run_counts, "runs", runs.runs().len() as u64);
+                    number(
+                        &mut run_counts,
+                        "orphan_conditions",
+                        runs.orphan_sites() as u64,
+                    );
+                    number(
+                        &mut run_counts,
+                        "unmapped_conditions",
+                        runs.unmapped_sites() as u64,
+                    );
+                    for run in runs.runs() {
+                        number(
+                            &mut run_counts,
+                            "conditions_in_runs",
+                            (run.end_site_exclusive - run.first_site) as u64,
+                        );
+                        number(
+                            &mut run_counts,
+                            "true_tail_runs",
+                            u64::from(run.tail_or_flag),
+                        );
+                        increment(&mut run_counts, "end_reasons", &label(run.end_reason)?);
+                    }
+                } else {
+                    attach_owners(&mut row, owners, MAXIMUM_RETAINED_BYTES - retained)?;
+                }
                 number(&mut owner_counts, "records", 1);
                 let mapped =
                     owners.status() == condition_operands::OwnerStatus::MappedNarrativeSource;
@@ -313,6 +385,10 @@ pub(super) fn inspect(
         report["group_evaluation_verified"] = false.into();
         report["default_subjects_applied"] = false.into();
     }
+    if include_source_runs {
+        report["schema_version"] = 3.into();
+        report["source_run_counts"] = run_counts;
+    }
     Ok(report)
 }
 
@@ -371,6 +447,22 @@ mod tests {
         );
         assert_eq!(row, original);
         attach_owners(&mut row, &owners, exact).unwrap();
+        assert_eq!(row, expected);
+    }
+
+    #[test]
+    fn combined_owner_run_admission_checks_both_trees_before_mutating_the_row() {
+        let original = json!({"conditions":[{"bits":0xffffffff_u32}]});
+        let owners = json!({"name":"é\n\"\\"});
+        let runs = json!({"runs":[{"tail_or_flag":true,"name":"é\n\"\\"}]});
+        let mut expected = original.clone();
+        expected["source_owners"] = owners.clone();
+        expected["source_runs"] = runs.clone();
+        let bytes = serde_json::to_vec(&expected).unwrap().len();
+        let mut row = original.clone();
+        assert!(attach_owners_and_runs(&mut row, &owners, &runs, bytes - 1).is_err());
+        assert_eq!(row, original);
+        attach_owners_and_runs(&mut row, &owners, &runs, bytes).unwrap();
         assert_eq!(row, expected);
     }
 }

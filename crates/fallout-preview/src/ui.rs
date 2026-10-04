@@ -371,6 +371,7 @@ fn read_json<T: DeserializeOwned>(path: &Path, limit: usize, kind: &str) -> Resu
     Ok(serde_json::from_slice(&bytes)?)
 }
 
+pub mod dependencies;
 pub mod entities;
 pub mod includes;
 pub mod traits;

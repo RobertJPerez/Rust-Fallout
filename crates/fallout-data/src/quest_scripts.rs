@@ -338,7 +338,11 @@ fn quest_declaration(
         return row;
     };
     row.quest_attachment_status = Some(quest.status);
-    if target.source_plugin != quest.source.plugin
+    let source_matches = catalogue.sources.iter().any(|source| {
+        source.source_name == quest.source.plugin && source.source_sha256 == quest.source.sha256
+    });
+    if !source_matches
+        || target.source_plugin != quest.source.plugin
         || target.record_file_offset != quest.source.record_file_offset
         || target.record_flags != quest.source.record_flags
     {

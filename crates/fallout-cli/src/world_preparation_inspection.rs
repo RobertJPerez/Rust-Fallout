@@ -1213,11 +1213,11 @@ mod tests {
         .unwrap();
         assert!(matches!(
             args.command,
-            crate::Command::GridResidencySources {
+            crate::Command::World(crate::WorldCommand::GridResidencySources {
                 include_terrain: true,
                 grid_x: -18,
                 ..
-            }
+            })
         ));
     }
     #[test]
@@ -1305,11 +1305,11 @@ mod tests {
         .unwrap();
         assert!(matches!(
             args.command,
-            crate::Command::GridTerrainSources {
+            crate::Command::World(crate::WorldCommand::GridTerrainSources {
                 grid_x: i32::MIN,
                 grid_y: i32::MAX,
                 ..
-            }
+            })
         ));
     }
     #[test]

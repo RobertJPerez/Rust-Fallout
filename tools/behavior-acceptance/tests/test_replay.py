@@ -193,6 +193,35 @@ class ReplayTests(unittest.TestCase):
             "/timeline/3/quest_state/0/value",
         )
 
+    def test_boolean_or_float_quest_value_does_not_equal_integer(self):
+        for observed in (True, 1.0):
+            capture = fixture_capture()
+            expectation = fixture_expectation()
+            capture["timeline"][3]["quest_state"][0]["value"] = observed
+            expectation["expected_timeline"][3]["quest_state"][0]["value"] = 1
+            resign_timeline(capture)
+            expectation["oracle"]["sha256"] = replay._sha256(expectation["expected_timeline"])
+            result = replay.compare(capture, expectation)
+            self.assertEqual(result["status"], "failed")
+            self.assertTrue(
+                any(
+                    mismatch.get("path") == "/timeline/3/quest_state/0/value"
+                    for mismatch in result["mismatches"]
+                )
+            )
+
+    def test_schema_version_must_be_an_integer_not_boolean_or_float(self):
+        for invalid_version in (True, 1.0):
+            capture = fixture_capture()
+            capture["schema_version"] = invalid_version
+            result = replay.compare(capture, fixture_expectation())
+            self.assertEqual(result["classification"], "invalid_receipt")
+
+            expectation = fixture_expectation()
+            expectation["schema_version"] = invalid_version
+            result = replay.compare(fixture_capture(), expectation)
+            self.assertEqual(result["classification"], "invalid_receipt")
+
     def test_missing_or_wrong_acknowledgement_fails(self):
         capture = fixture_capture()
         capture["timeline"].pop(2)

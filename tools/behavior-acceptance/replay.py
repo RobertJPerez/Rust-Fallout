@@ -407,7 +407,11 @@ def validate_capture(value: Any) -> dict[str, Any]:
         set(),
         "capture",
     )
-    if capture["format"] != CAPTURE_FORMAT or capture["schema_version"] != SCHEMA_VERSION:
+    if (
+        capture["format"] != CAPTURE_FORMAT
+        or not _is_int(capture["schema_version"])
+        or capture["schema_version"] != SCHEMA_VERSION
+    ):
         _fail("capture format or schema_version is unsupported")
     _text(capture["scenario_id"], "capture.scenario_id")
     evidence_class = capture["evidence_class"]
@@ -437,7 +441,11 @@ def validate_expectation(value: Any) -> dict[str, Any]:
         set(),
         "expectation",
     )
-    if expectation["format"] != EXPECTATION_FORMAT or expectation["schema_version"] != SCHEMA_VERSION:
+    if (
+        expectation["format"] != EXPECTATION_FORMAT
+        or not _is_int(expectation["schema_version"])
+        or expectation["schema_version"] != SCHEMA_VERSION
+    ):
         _fail("expectation format or schema_version is unsupported")
     _text(expectation["scenario_id"], "expectation.scenario_id")
     evidence_class = expectation["evidence_class"]
@@ -507,6 +515,9 @@ def _short(value: Any) -> str:
 
 def _diff(expected: Any, actual: Any, path: str, out: list[dict[str, Any]]) -> None:
     if len(out) >= MAX_ISSUES:
+        return
+    if type(expected) is not type(actual):
+        out.append({"path": path, "expected": _short(expected), "actual": _short(actual)})
         return
     if isinstance(expected, dict) and isinstance(actual, dict):
         for key in sorted(expected.keys() | actual.keys()):

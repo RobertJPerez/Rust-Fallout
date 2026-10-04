@@ -1240,6 +1240,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             equipment_source,
             equipment_role,
             voice_root,
+            script_root,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -1262,6 +1263,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     equipment_source,
                     equipment_role,
                     voice_root,
+                    script_root,
                     creature_model_directory,
                 },
             )?;

@@ -276,6 +276,7 @@ pub(super) struct Options {
     pub(super) equipment_source: Option<FormKey>,
     pub(super) equipment_role: Option<actors::dependencies::equipment::Role>,
     pub(super) voice_root: Option<FormKey>,
+    pub(super) script_root: Option<FormKey>,
     pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
@@ -472,6 +473,18 @@ pub(super) fn inspect(
             Default::default(),
         )?;
         report["actor_voice_requests"] = json!({"manifest":voices});
+    }
+    if let Some(root) = &options.script_root {
+        let scripts =
+            loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
+        let request = actors::script_attachment::request(
+            &mut store,
+            &catalogue,
+            &scripts,
+            root,
+            Default::default(),
+        )?;
+        report["actor_script_attachment"] = json!({"request": request});
     }
     if options.include_packages {
         let packages =
@@ -734,6 +747,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err(
             "independent actor source comparison differs in actor_package_destination".into(),
+        );
+    }
+    if report.get("actor_script_attachment").is_some()
+        && report.get("actor_script_attachment") != oracle.get("actor_script_attachment")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_script_attachment".into(),
         );
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;

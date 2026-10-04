@@ -138,6 +138,21 @@ impl CellGridSetRequest {
         &self.requests
     }
 }
+/// A separately selected source group, with no spatial-grid authority.
+#[derive(Debug, Clone, Serialize)]
+pub struct CellPersistentRequest {
+    world: FormKey,
+    cell: FormKey,
+    source_cohort_sha256: String,
+}
+impl CellPersistentRequest {
+    pub fn world(&self) -> &FormKey {
+        &self.world
+    }
+    pub fn cell(&self) -> &FormKey {
+        &self.cell
+    }
+}
 fn failure(message: &str) -> Error {
     Error::Resolution(format!("CELL grid sources: {message}"))
 }
@@ -346,6 +361,50 @@ impl CellGridSources {
         Ok(plan)
     }
 
+    pub fn request_persistent(&self) -> Result<CellPersistentRequest> {
+        // The directory has already bounded and classified winning entries.
+        // No candidate/key vector or coordinate conversion is needed here.
+        let mut candidates = self
+            .metadata
+            .entries
+            .iter()
+            .filter(|entry| entry.role == Role::PersistentGroup);
+        let entry = candidates
+            .next()
+            .ok_or_else(|| failure("persistent group missing"))?;
+        if candidates.next().is_some() {
+            return Err(failure("persistent group has multiple winning CELLs"));
+        }
+        Ok(CellPersistentRequest {
+            world: self.metadata.world.clone(),
+            cell: entry.key.clone(),
+            source_cohort_sha256: self.metadata.source_cohort_sha256.clone(),
+        })
+    }
+
+    pub fn prepare_persistent(
+        &self,
+        store: &mut RecordStore,
+        request: &CellPersistentRequest,
+        mounts: &MountIndex,
+        limits: ModelLimits,
+    ) -> Result<CellModelPlan> {
+        if request.world != self.metadata.world
+            || request.source_cohort_sha256 != self.metadata.source_cohort_sha256
+            || self.request_persistent()?.cell != request.cell
+        {
+            return Err(failure(
+                "persistent request belongs to another source directory",
+            ));
+        }
+        self.validate_current_sources(store)?;
+        let plan = CellModelPlan::load(store, &request.cell, mounts, limits)?;
+        if plan.receipt().source_cohort_sha256 != request.source_cohort_sha256 {
+            return Err(failure("persistent plan has another source cohort"));
+        }
+        Ok(plan)
+    }
+
     pub fn request_set(&self, grids: &[[i32; 2]]) -> Result<CellGridSetRequest> {
         if grids.is_empty() || grids.len() > ModelSetLimits::default().grids {
             return Err(failure("explicit grid set count bound"));
@@ -439,6 +498,10 @@ impl CellGridSources {
         {
             return Err(failure("request belongs to another source directory"));
         }
+        self.validate_current_sources(store)
+    }
+
+    fn validate_current_sources(&self, store: &mut RecordStore) -> Result<()> {
         // Reject added sources before receipt allocation or hashing their bodies.
         if store.indices().len() != self.metadata.sources.len() {
             return Err(failure("source cohort count changed"));

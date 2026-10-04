@@ -32,7 +32,7 @@ it independently asserts stale/foreign refusal, failed-publication preservation,
 once-only visibility, and retained-pin draining. Its authored empty NIF has no
 visible geometry and is not a rendered scene or retail-parity proof.
 
-Required host wiring: coordinator adds pub mod engine_bridge to a preview library;
+The coordinator has published pub mod engine_bridge in the preview library;
 presentation transfers its existing scene.rs CellSources owner into SceneLifetime
 and joins main.rs DrawScene with actual renderer upload observation and disposal.
 The current CLI/native host has not yet been wired by this adapter slice. Visible
@@ -43,3 +43,25 @@ Continue must remain prepared in the canonical application until full active-sce
 membership admission passes. A late rejection must preserve both canonical and
 displayed revision; this adapter's resource readiness does not repair native.rs's
 existing eager World replacement by itself.
+
+admit_references(epoch, expected_prior_revision, current_revision, active, observed)
+preflights sorted unique key sets (at most 10000 each) against the retained
+protected CELL member edges. Every active key needs an explicit projected entry;
+an unavailable pose can remain hidden. A base record elsewhere in the graph is
+not a CELL member. Run this graph preflight outside render/input updates.
+
+The returned ReferenceAdmission borrows its SceneLifetime and key sets, so this
+owner cannot retire or change during the synchronous acknowledgement. publish
+consumes that admission, checks the current epoch/revision again, and invokes
+one callback with the admitted active keys. The callback has no failure result:
+the application and renderer must have completed every fallible candidate, pose,
+membership and resource check before publishing canonical/display state together.
+There is no post-publication validation step. Dropping admission has no effect.
+
+This is a scoped presentation gate, not a transferable off-thread restore token.
+The application still checks the real request identity, campaign, catalogue and
+prepared canonical candidate. Key equality alone does not authorize that candidate.
+The focused tests use injected upload acknowledgement and an unavailable projected
+pose to exercise this gate; they do not reproduce or repair the actual native
+host's late refusal. Presentation/acceptance must run that consumer regression and
+wire the prepared Continue protocol before reporting the feature accepted.

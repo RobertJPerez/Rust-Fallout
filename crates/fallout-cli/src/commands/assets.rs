@@ -24,6 +24,9 @@ pub(crate) enum AssetsCommand {
         clip: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        /// Prepare both exact sources once and sample an ordered source_times list.
+        #[arg(long)]
+        batch: bool,
     },
     /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
     NifRigidAttachment {

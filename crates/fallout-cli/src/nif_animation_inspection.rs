@@ -357,6 +357,88 @@ struct ClipRequest {
     controlled_ordinal: usize,
     source_time: f64,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipBatchRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_clip_sha256: [u8; 32],
+    object: u32,
+    node_name_bytes: Vec<u8>,
+    sequence: u32,
+    controlled_ordinal: usize,
+    source_times: Vec<f64>,
+}
+#[derive(Serialize)]
+pub struct ClipBatchReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    clip: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    clip_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::clip::ClipBatch>,
+    error: Option<String>,
+}
+pub fn inspect_clip_batch(
+    skeleton: &Path,
+    clip: &Path,
+    request_path: &Path,
+) -> Result<ClipBatchReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: ClipBatchRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 || request.source_times.len() > 64 {
+        return Err(
+            "prepared external clip batch requires schema1 and at most 64 explicit times".into(),
+        );
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let clip_bytes = attachment_input(clip, 64 * 1024 * 1024)?;
+    let source = skeleton.display().to_string();
+    let evaluated = nif_animation::clip::PreparedClipSource::prepare(
+        &skeleton_bytes,
+        &clip_bytes,
+        &source,
+        nif_animation::clip::BindingRequest {
+            expected_skeleton_sha256: request.expected_skeleton_sha256,
+            expected_clip_sha256: request.expected_clip_sha256,
+            object: request.object,
+            node_name_bytes: &request.node_name_bytes,
+            sequence: request.sequence,
+            controlled_ordinal: request.controlled_ordinal,
+        },
+        Default::default(),
+    )
+    .and_then(|prepared| {
+        prepared.sample_many(
+            &source,
+            request.expected_skeleton_sha256,
+            request.expected_clip_sha256,
+            &request.source_times,
+            Default::default(),
+        )
+    });
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ClipBatchReport {
+        schema_version: 1,
+        contract: "engineering-prepared-two-source-clip-batch-v1",
+        skeleton: skeleton.into(),
+        clip: clip.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        clip_sha256: format!("{:x}", Sha256::digest(&clip_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 #[derive(Serialize)]
 pub struct ClipReport {
     schema_version: u32,

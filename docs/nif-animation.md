@@ -1336,3 +1336,81 @@ transform interpolator through the new consumer, before a pose or socket-name
 binding can be accepted. This is an unchanged source capability finding, with
 no original socket/equip/animation acceptance. Frozen executable, exact commands,
 hashes and immutable receipts stay in ignored `local/v3-asset-24`.
+
+## Reusable exact two-file clip binding (V3-ASSET-25)
+
+`clip::PreparedClipSource::prepare(skeleton_bytes, clip_bytes, source,
+BindingRequest, PreparationLimits)` owns both existing decoded sources, exact
+whole-source identities, selected raw node name, sequence packet and cached source
+spans. One private binding helper serves this path and the existing one-shot
+evaluator. No public catalogue, matrix or deserialized receipt becomes source
+authority. Dropping or modifying caller buffers cannot alter later evaluations.
+Static required ancestors and their spans are cached once through the existing
+validated scene mapping and affine helpers; block IDs do not determine hierarchy.
+
+`sample_many(source, expected_skeleton_sha256, expected_clip_sha256, times,
+BatchLimits)` samples a nonempty ordered list of at most64 explicit binary64 times
+by default. Repeated, reversed and signed-zero times remain distinct requests;
+there is no mutable playback cursor. Both expected identities must still match.
+Each sample preserves all existing numeric/source observations, raw names,
+controller fields, quaternion constants, key ordinals and source spans. Its
+additional array/work counters cover evaluation only. The preparation receipt
+separately records one animation/key decode, one skeleton Scene decode, one target
+binding, two whole-source hashes and selected span hashes. Existing one-shot
+reports retain their complete original binding-inclusive counters and schema.
+
+Preparation defaults to8 MiB additional logical array elements and128 million
+work units, with existing per-source64 MiB and combined128 MiB input caps. Declared
+animation/key and Scene array allowances default to96 MiB, admitted under128 MiB;
+their17 million reference/key check units are admitted under32 million. Existing
+source decoders separately bound container indexes and Scene records.
+`clip_retained_bytes` counts existing animation/key catalogues only. Additional
+charges include retained plan headers, transient binding/maps, names, hashes and
+cached ancestry. Conservative source byte visits are charged before hashing and
+raw-name matching. These logical bounds are not a process-memory or speed claim.
+
+Batch defaults to64 MiB additional output elements and64 million work units, with
+existing per-sample4 MiB/1 million limits. Every sample receives both its own cap
+and the aggregate remainder; validation and sampling units also have separate
+per-sample and aggregate caps. All output headers and ancestry copies are
+precharged. Any late nonfinite time, extrapolation or exhausted cap discards the
+complete batch without changing its immutable preparation.
+
+The owned consumer is `fallout nif-clip-pose SKELETON CLIP --batch --request
+REQUEST.json --output RECEIPT.json`. Opt-in strict schema1 retains the exact binding
+fields and uses `source_times` in place of `source_time`; requests are bounded to
+64 KiB. Existing three-input output protection remains active. Semantic refusal
+emits a null evaluation with nonzero exit. Duplicate/absent names, unapplied packet
+bindings, active rotation keys and controlled required ancestors refuse through
+the existing rules. Raw sequence frequency/start/stop/cycle fields remain
+observations; no controller clock, repeat, transition or quaternion repair is added.
+
+`tools/nif-animation-oracle/check_prepared_clip.py` uses independently authored
+source packets, literal noncommuting first/interior/last, reflection and zero-scale
+matrices, signed-zero time words and independently calculated authored packet
+spans. It also compares complete old one-shot reports against a frozen prior
+binary. Engineering component sampling does not establish original playback,
+equipment alignment or gameplay acceptance.
+
+Validation passes120 focused data tests (six new preparation/reuse cases),38
+serial CLI tests, affected all-target Clippy with warnings denied, formatting and
+the CLI build. Exact and one-under preparation/source/admission/ancestry,
+per-sample/batch/sampler caps and late-failure reuse are verified. The initial
+Clippy failure for a large private enum remains preserved; borrowing the existing
+mapping resolves it without allocating or changing old counters.
+
+The frozen second authored source passes seven ordered literal poses, including
+first/interior/last, repeated/reversed times, signed zero, reflection and zero
+scale, with exact cached packet spans. Fourteen semantic refusals emit no partial
+batch. All seven complete prior one-shot reports remain byte-identical; prepared
+samples retain every source/numeric observation apart from their explicitly
+separate evaluation-only array/work charges. Five strict request refusals and
+three individually separated input-tree output guards also pass. Preparation
+reports one binding, one clip/key decode and one Scene decode across the batch.
+
+The reused pinned original pair `3fe5a3ef...` / `9fed7a15...`, selected object12,
+sequence0/controlled ordinal1, refuses active XYZ rotation at interpolator2/data3
+before a reusable binding or sample is published. Its complete prior one-shot
+negative receipt stays byte-identical. This is an unchanged unsupported capability,
+with no measured retail playback. Exact commands, frozen binaries, source hashes,
+failed/corrected checks and immutable receipts stay in ignored `local/v3-asset-25`.

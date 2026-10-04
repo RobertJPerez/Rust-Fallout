@@ -14,6 +14,7 @@ pub use prepared::{BatchLimits, PoseBatch, PreparationUsage, PreparedSource, Sam
 
 mod set;
 pub(crate) use set::{EvaluatedForest, evaluate_required};
+pub(super) use set::{ForestView, propagate_required};
 pub use set::{LocalObservation, PoseSet, SetAncestor, SetLimits, SetObjectPose, evaluate_set};
 
 pub const CONTRACT: &str = "engineering-linked-source-pose-v1";

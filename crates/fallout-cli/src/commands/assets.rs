@@ -41,6 +41,9 @@ pub(crate) enum AssetsCommand {
         /// Prepare both exact sources once and sample an ordered source_times list.
         #[arg(long)]
         batch: bool,
+        /// Compose explicitly selected external packets over one required forest.
+        #[arg(long, conflicts_with = "batch")]
+        set: bool,
     },
     /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
     NifRigidAttachment {

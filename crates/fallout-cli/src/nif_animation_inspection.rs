@@ -411,6 +411,89 @@ struct ClipRequest {
     controlled_ordinal: usize,
     source_time: f64,
 }
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipSetChannelRequest {
+    object: u32,
+    node_name_bytes: Vec<u8>,
+    sequence: u32,
+    controlled_ordinal: usize,
+    source_time: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipSetRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_clip_sha256: [u8; 32],
+    channels: Vec<ClipSetChannelRequest>,
+}
+#[derive(Serialize)]
+pub struct ClipSetReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    clip: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    clip_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::clip::ClipPoseSet>,
+    error: Option<String>,
+}
+
+pub fn inspect_clip_set(
+    skeleton: &Path,
+    clip: &Path,
+    request_path: &Path,
+) -> Result<ClipSetReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: ClipSetRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 || request.channels.is_empty() || request.channels.len() > 256 {
+        return Err("external clip pose set requires schema1 and 1..=256 explicit channels".into());
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let clip_bytes = attachment_input(clip, 64 * 1024 * 1024)?;
+    let channels: Vec<_> = request
+        .channels
+        .iter()
+        .map(|channel| nif_animation::clip::Request {
+            expected_skeleton_sha256: request.expected_skeleton_sha256,
+            expected_clip_sha256: request.expected_clip_sha256,
+            object: channel.object,
+            node_name_bytes: &channel.node_name_bytes,
+            sequence: channel.sequence,
+            controlled_ordinal: channel.controlled_ordinal,
+            source_time: channel.source_time,
+        })
+        .collect();
+    let evaluated = nif_animation::clip::evaluate_set(
+        &skeleton_bytes,
+        &clip_bytes,
+        &skeleton.display().to_string(),
+        &channels,
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(result) => (Some(result), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ClipSetReport {
+        schema_version: 1,
+        contract: "engineering-explicit-external-clip-pose-set-v1",
+        skeleton: skeleton.into(),
+        clip: clip.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        clip_sha256: format!("{:x}", Sha256::digest(&clip_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ClipBatchRequest {

@@ -457,6 +457,7 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
             clip,
             request,
             batch,
+            set,
         } => {
             if let Some(path) = output {
                 let parent = path
@@ -469,6 +470,15 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if set {
+                let report =
+                    nif_animation_inspection::inspect_clip_set(&skeleton, &clip, &request)?;
+                emit(&report, output, &skeleton)?;
+                if report.failures != 0 {
+                    return Err("explicit external clip pose set refused; see report".into());
+                }
+                return Ok(());
             }
             if batch {
                 let report =

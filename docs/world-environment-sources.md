@@ -61,3 +61,16 @@ duplicates, malformed/truncated framing, recovered tainted CELL bodies, source
 changes and exceeded budgets produce no partial request. Request identity binds
 the exact source declarations independently of the selected lower limits.
 `runtime_ready` remains false.
+
+`cell-environment-sources --install ... --load-order ... --cell Origin.esm:hex`
+is the owned headless consumer. Optional private `--index-cache` reuses existing
+protected metadata. The report includes the immutable source-ordered receipt,
+plugin/order fingerprints and five explicit per-field declaration, resolution,
+header availability and unknown-behavior statuses. It opens no archives or jobs.
+
+Successful parsing emits a prepared source request and exit0 even when individual
+declared headers are unavailable or fields are absent. That result means an exact
+source closure, never active environment behavior. Factory refusal emits null
+authority/source error then exit1. Earlier strict source-index framing failures
+return the original error without constructing a report/request. All selection,
+parent evaluation, target-body behavior and runtime flags remain false.

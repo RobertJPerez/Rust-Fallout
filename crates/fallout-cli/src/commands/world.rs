@@ -71,6 +71,17 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve explicit CELL environment links and winning target header inputs.
+    CellEnvironmentSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+    },
     /// Preserve explicit CELL water inputs and consume one declared noise member.
     CellWaterSources {
         #[arg(long)]

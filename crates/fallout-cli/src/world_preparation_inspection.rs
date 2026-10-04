@@ -12,6 +12,7 @@ use fallout_data::{
         cells::CellGridSources,
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
+        environment::CellEnvironmentSources,
         lighting::CellLightingSources,
         preparation::CellModelPlan,
         residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
@@ -172,6 +173,42 @@ pub(super) fn water(
     })();
     if let Err(error) = consumed {
         report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) fn environment(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    cell: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let prepared = CellEnvironmentSources::load(&mut store, &cell, Default::default());
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Explicit CELL environment declarations and winning target header inputs",
+        "requested_cell":cell,"environment_sources":null,"field_statuses":[],
+        "source_request_prepared":false,"source_error":null,
+        "target_behavior_decoded":false,"world_parent_evaluated":false,
+        "environment_selected":false,"runtime_ready":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(sources) => {
+            let mut statuses = Vec::new();
+            for kind in [b"XCCM", b"XCIM", b"XEZN", b"XCAS", b"XCMO"] {
+                let row = sources.receipt().links.iter().find(|row| &row.kind == kind);
+                statuses.push(json!({"kind":std::str::from_utf8(kind)?,
+                    "declared":row.is_some(),
+                    "header_source_available":row.is_some_and(|row|row.header_source_available),
+                    "resolution_status":row.map_or("absent",|row|row.target.status),
+                    "behavior_status":"unknown; target body and behavior not decoded"}));
+            }
+            report["field_statuses"] = json!(statuses);
+            report["environment_sources"] = serde_json::to_value(&sources)?;
+            report["source_request_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
     }
     provenance(&mut report, &order, &mut store)?;
     Ok(report)
@@ -2425,6 +2462,225 @@ mod tests {
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
         }
+    }
+
+    fn environment_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let mut cell = field(b"DATA", &[1]);
+        match mode {
+            "absent" => {}
+            "null" | "missing" => cell.extend(field(
+                b"XCCM",
+                &(if mode == "null" { 0_u32 } else { 0x999 }).to_le_bytes(),
+            )),
+            "unsupported" => cell.extend(field(b"XEZN", &[0; 3])),
+            "truncated" => cell.extend(b"XCCM\x04\0\0"),
+            _ => {
+                cell.extend(field(b"XCMO", &[4, 2, 0, 0]));
+                cell.extend(field(b"ZZZZ", &[91, 92]));
+                cell.extend(field(b"XCCM", &[0, 2, 0, 0]));
+                cell.extend(field(b"XEZN", &[2, 2, 0, 0]));
+                cell.extend(field(b"XCIM", &[1, 2, 0, 0]));
+                cell.extend(field(b"XCAS", &[3, 2, 0, 0]));
+            }
+        }
+        if mode == "duplicate" {
+            cell.extend(field(b"XCCM", &[0; 4]));
+        }
+        let hedr = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let mut base = [record(b"TES4", 0, &hedr), record(b"CELL", 0x100, &cell)].concat();
+        for (index, kind) in [b"CLMT", b"IMGS", b"ECZN", b"ASPC", b"MUSC"]
+            .into_iter()
+            .enumerate()
+        {
+            base.extend(record(
+                kind,
+                0x200 + index as u32,
+                &field(b"ZZZZ", &[index as u8]),
+            ));
+        }
+        fs::write(root.join("Data/Base.esm"), base).unwrap();
+        let patch_header = [hedr, field(b"MAST", b"Base.esm\0"), field(b"DATA", &[0; 8])].concat();
+        let mut target = record(
+            if mode == "wrong-record-kind" {
+                b"MUSC"
+            } else {
+                b"CLMT"
+            },
+            0x200,
+            &[1, 2, 3],
+        );
+        if mode == "deleted" {
+            target[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        }
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [record(b"TES4", 0, &patch_header), target].concat(),
+        )
+        .unwrap();
+        fs::write(root.join("order.json"), b"[\"Base.esm\",\"Patch.esp\"]").unwrap();
+        fs::write(
+            root.join("environment-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_ENVIRONMENT_FIXTURE={}", root.display());
+    }
+    fn environment_report(root: &Path) -> Value {
+        environment(
+            root,
+            &root.join("order.json"),
+            None,
+            crate::parse_cell_key("Base.esm:100").unwrap(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn cli_environment_preserves_exact_source_order_and_winning_header_inputs_per_field() {
+        let root = directory();
+        environment_fixture(&root, "valid");
+        let report = environment_report(&root);
+        assert_eq!(report["source_request_prepared"], true);
+        assert!(report["source_error"].is_null());
+        let sources = &report["environment_sources"];
+        assert_eq!(sources["cell"]["header"]["offset"], 42);
+        assert_eq!(sources["usage"]["read_bytes"], 65);
+        let rows = sources["links"].as_array().unwrap();
+        assert_eq!(rows.len(), 5);
+        for (row, (kind, raw, ordinal, offset)) in rows.iter().zip([
+            (b"XCMO", 0x204_u32, 1, 7),
+            (b"XCCM", 0x200, 3, 25),
+            (b"XEZN", 0x202, 4, 35),
+            (b"XCIM", 0x201, 5, 45),
+            (b"XCAS", 0x203, 6, 55),
+        ]) {
+            assert_eq!(row["kind"], json!(kind));
+            assert_eq!(row["raw"], raw);
+            assert_eq!(row["physical_field_ordinal"], ordinal);
+            assert_eq!(row["logical_field_ordinal"], ordinal);
+            assert_eq!(row["site"]["decoded_header_offset"], offset);
+            assert_eq!(row["physical_framing_offset"], 66 + offset);
+            assert_eq!(row["target"]["key"]["local_id"], raw);
+            assert_eq!(row["target"]["status"], "resolved");
+            assert_eq!(row["header_source_available"], true);
+            assert_eq!(
+                row["behavior_status"],
+                "unknown; target body and behavior not decoded"
+            );
+        }
+        assert_eq!(rows[1]["source"]["source_ordinal"], 1);
+        assert_eq!(rows[1]["source"]["header"]["offset"], 71);
+        let statuses = report["field_statuses"].as_array().unwrap();
+        assert_eq!(statuses.len(), 5);
+        for status in statuses {
+            assert_eq!(status["declared"], true);
+            assert_eq!(status["header_source_available"], true);
+        }
+        for flag in [
+            "target_behavior_decoded",
+            "world_parent_evaluated",
+            "environment_selected",
+            "runtime_ready",
+            "retail_parity_accepted",
+        ] {
+            assert_eq!(report[flag], false);
+        }
+    }
+    #[test]
+    fn cli_environment_absent_null_and_unavailable_rows_are_not_factory_successful_behavior() {
+        for mode in [
+            "absent",
+            "null",
+            "missing",
+            "deleted",
+            "wrong-record-kind",
+            "duplicate",
+            "unsupported",
+            "truncated",
+        ] {
+            let root = directory();
+            environment_fixture(&root, mode);
+            if mode == "truncated" {
+                assert!(
+                    environment(
+                        &root,
+                        &root.join("order.json"),
+                        None,
+                        crate::parse_cell_key("Base.esm:100").unwrap()
+                    )
+                    .is_err()
+                );
+                continue;
+            }
+            let report = environment_report(&root);
+            let refused = ["duplicate", "unsupported"].contains(&mode);
+            assert_eq!(report["source_request_prepared"], !refused);
+            assert_eq!(report["environment_sources"].is_null(), refused);
+            assert_eq!(report["source_error"].is_null(), !refused);
+            if !refused {
+                let climate = &report["field_statuses"][0];
+                assert_eq!(climate["kind"], "XCCM");
+                assert_eq!(climate["declared"], mode != "absent");
+                assert_eq!(climate["header_source_available"], false);
+                assert_eq!(climate["resolution_status"], mode);
+                if mode == "absent" {
+                    assert!(
+                        report["environment_sources"]["links"]
+                            .as_array()
+                            .unwrap()
+                            .is_empty()
+                    );
+                }
+            }
+            assert_eq!(report["environment_selected"], false);
+            assert_eq!(report["runtime_ready"], false);
+        }
+        let root = directory();
+        environment_fixture(&root, "valid");
+        for key in ["Base.esm:999", "Base.esm:200"] {
+            let report = environment(
+                &root,
+                &root.join("order.json"),
+                None,
+                crate::parse_cell_key(key).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(report["source_request_prepared"], false);
+            assert!(report["environment_sources"].is_null());
+        }
+    }
+    #[test]
+    fn cli_environment_requires_an_explicit_canonical_cell() {
+        use clap::Parser;
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "cell-environment-sources",
+                "--install",
+                "authored",
+                "--load-order",
+                "order.json"
+            ])
+            .is_err()
+        );
+        let parsed = crate::Args::try_parse_from([
+            "fallout",
+            "cell-environment-sources",
+            "--install",
+            "authored",
+            "--load-order",
+            "order.json",
+            "--cell",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::World(crate::WorldCommand::CellEnvironmentSources { .. })
+        ));
     }
 
     fn water_fixture(root: &Path, mode: &str) {

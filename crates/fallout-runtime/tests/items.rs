@@ -6,7 +6,7 @@ use fallout_runtime::{
     identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value},
     inventory::{
         Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, Page, PageLimits, PageRequest,
-        TransferLimits, ViewLimits, ViewUsage,
+        RemovalLimits, TransferLimits, ViewLimits, ViewUsage,
     },
     save::{Captured, Recovery, Repository},
     snapshot::Snapshot,
@@ -1694,6 +1694,548 @@ fn cold_inventory_page_helper() {
     .unwrap();
     fs::write(
         root.join("cold.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+}
+
+fn removal_inputs(
+    world: &World<'_>,
+    ids: [ItemId; 3],
+) -> [(fallout_runtime::inventory::ItemHandle, NonZeroU32); 2] {
+    [
+        (world.item_handle(ids[0]).unwrap(), quantity(2)),
+        (world.item_handle(ids[2]).unwrap(), quantity(5)),
+    ]
+}
+fn expected_removal_state(before: &Snapshot, removed: &[(ItemId, u32)]) -> Snapshot {
+    let mut value = serde_json::to_value(before).unwrap();
+    value["state_revision"] = (before.state_revision + 1).into();
+    for bank in value["inventory_banks"].as_array_mut().unwrap() {
+        let items = bank["items"].as_array_mut().unwrap();
+        for item in items.iter_mut() {
+            if let Some((_, quantity)) = removed.iter().find(|(id, _)| item["id"] == id.0.get()) {
+                let count = item["count"].as_u64().unwrap();
+                item["count"] = (count - u64::from(*quantity)).into();
+            }
+        }
+        items.retain(|item| item["count"] != 0);
+    }
+    serde_json::from_value(value).unwrap()
+}
+#[test]
+fn multi_lot_removal_reproduces_sequential_bad_last_gap_and_preserves_batch_state() {
+    let (_root, catalogue) = fixture();
+    let (mut world, _, ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let mut inputs = removal_inputs(&world, ids);
+    inputs[1].1 = quantity(6);
+    assert!(
+        world
+            .stage_inventory_removals(&inputs, RemovalLimits::default())
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    assert_transfer_counts(&world);
+    world.remove_item_quantity(ids[0], quantity(2)).unwrap();
+    assert!(world.remove_item_quantity(ids[2], quantity(6)).is_err());
+    assert_eq!(
+        world.snapshot(),
+        expected_removal_state(&before, &[(ids[0], 2)])
+    );
+    if let Some(root) = std::env::var_os("FALLOUT_INVENTORY_REMOVAL_EVIDENCE") {
+        let root = std::path::PathBuf::from(root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("legacy.before.json"),
+            before.encode(1 << 20).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("legacy.partial.json"),
+            world.snapshot().encode(1 << 20).unwrap(),
+        )
+        .unwrap();
+    }
+}
+#[test]
+fn explicit_partial_and_complete_removal_publish_once_and_keep_surviving_facts_exact() {
+    let (_root, catalogue) = fixture();
+    let (mut world, [a, b, unknown], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let original = world.item(ids[0]).unwrap().facts().clone();
+    let stage = world
+        .stage_inventory_removals(&removal_inputs(&world, ids), RemovalLimits::default())
+        .unwrap();
+    assert_eq!(world.snapshot(), before);
+    assert_eq!(
+        stage
+            .rows()
+            .iter()
+            .map(|row| (
+                row.id(),
+                row.owner(),
+                row.before(),
+                row.requested(),
+                row.remaining(),
+                row.links(),
+                row.extra_bytes()
+            ))
+            .collect::<Vec<_>>(),
+        [(ids[0], a, 17, 2, 15, 7, 3), (ids[2], b, 5, 5, 0, 7, 3)]
+    );
+    assert_eq!(stage.rows()[0].base(), &form(0x100));
+    assert_eq!(stage.rows()[1].base(), &form(0x200));
+    let receipt = world.commit_inventory_removals(stage).unwrap();
+    assert_eq!(receipt.before_revision(), 11);
+    assert_eq!(receipt.after_revision(), 12);
+    assert_eq!(receipt.campaign(), world.campaign());
+    assert_eq!(
+        receipt.catalogue_fingerprint(),
+        world.catalogue_fingerprint()
+    );
+    assert_eq!(receipt.usage().rows, 2);
+    assert_eq!(receipt.usage().removed_lots, 1);
+    assert_eq!(receipt.usage().quantity, 7);
+    assert_eq!(receipt.usage().released_links, 7);
+    assert_eq!(receipt.usage().released_extra_bytes, 3);
+    assert_eq!(
+        receipt
+            .count_changes()
+            .iter()
+            .map(|row| (row.owner(), row.base().local_id, row.before(), row.after()))
+            .collect::<Vec<_>>(),
+        [(a, 0x100, 20, 18), (b, 0x200, 5, 0)]
+    );
+    assert_eq!(
+        world.snapshot(),
+        expected_removal_state(&before, &[(ids[0], 2), (ids[2], 5)])
+    );
+    assert_eq!(world.item(ids[0]).unwrap().facts(), &original);
+    assert!(world.item(ids[2]).is_err());
+    assert_transfer_counts(&world);
+    let limits = ViewLimits {
+        max_items: 2,
+        max_links: 14,
+        max_extra_bytes: 6,
+    };
+    assert_eq!(
+        world.inventory_view(b, limits).unwrap().items(),
+        Some([].as_slice())
+    );
+    assert!(
+        world
+            .inventory_view(unknown, limits)
+            .unwrap()
+            .items()
+            .is_none()
+    );
+    assert!(world.inventory_count(unknown, &form(0x100)).is_err());
+}
+#[test]
+fn same_owner_removals_aggregate_counts_independent_of_row_order() {
+    let (_root, catalogue) = fixture();
+    let (mut world, [a, _, _], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let inputs = [
+        (world.item_handle(ids[0]).unwrap(), quantity(2)),
+        (world.item_handle(ids[1]).unwrap(), quantity(3)),
+    ];
+    let stage = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    assert_eq!(stage.count_changes().len(), 1);
+    world.commit_inventory_removals(stage).unwrap();
+    assert_eq!(world.inventory_count(a, &form(0x100)).unwrap(), 15);
+    assert_eq!(
+        world.snapshot(),
+        expected_removal_state(&before, &[(ids[0], 2), (ids[1], 3)])
+    );
+    let mut reversed = World::restore(&catalogue, before, Limits::default()).unwrap();
+    let inputs = [
+        (reversed.item_handle(ids[1]).unwrap(), quantity(3)),
+        (reversed.item_handle(ids[0]).unwrap(), quantity(2)),
+    ];
+    let stage = reversed
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    let receipt = reversed.commit_inventory_removals(stage).unwrap();
+    assert_eq!(receipt.rows()[0].id(), ids[1]);
+    assert_eq!(reversed.snapshot(), world.snapshot());
+    assert_transfer_counts(&reversed);
+}
+#[test]
+fn removal_exact_and_one_under_metadata_rows_precharge_without_copying_opaque_payloads() {
+    let (_root, catalogue) = fixture();
+    let (mut world, _, ids) = transfer_world(&catalogue);
+    let inputs = removal_inputs(&world, ids);
+    let before = world.snapshot();
+    let usage = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap()
+        .usage();
+    let exact = RemovalLimits {
+        max_rows: 2,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    assert_eq!(
+        world
+            .stage_inventory_removals(&inputs, exact)
+            .unwrap()
+            .usage(),
+        usage
+    );
+    for limits in [
+        RemovalLimits {
+            max_rows: 1,
+            ..exact
+        },
+        RemovalLimits {
+            max_rows: 0,
+            ..exact
+        },
+        RemovalLimits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..exact
+        },
+        RemovalLimits {
+            max_copied_bytes: 0,
+            ..exact
+        },
+    ] {
+        assert!(world.stage_inventory_removals(&inputs, limits).is_err());
+        assert_eq!(world.snapshot(), before);
+        assert_transfer_counts(&world);
+    }
+    let mut large = world.item(ids[0]).unwrap().facts().clone();
+    large.extra_fields[0].bytes = vec![255; 32 * 1024];
+    world.replace_item_facts(ids[0], large.clone()).unwrap();
+    let before = world.snapshot();
+    let stage = world.stage_inventory_removals(&inputs, exact).unwrap();
+    assert_eq!(stage.usage(), usage);
+    assert!(stage.usage().copied_bytes < large.extra_fields[0].bytes.len());
+    assert_eq!(world.snapshot(), before);
+    world.commit_inventory_removals(stage).unwrap();
+    assert_eq!(world.item(ids[0]).unwrap().facts(), &large);
+}
+#[test]
+fn empty_duplicate_overdraw_missing_stale_or_changed_removal_rows_never_partly_mutate() {
+    let (_root, catalogue) = fixture();
+    let (mut world, _, ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let inputs = removal_inputs(&world, ids);
+    for rows in [
+        Vec::new(),
+        vec![inputs[0], inputs[0]],
+        vec![inputs[0], (inputs[1].0, quantity(6))],
+    ] {
+        assert!(
+            world
+                .stage_inventory_removals(&rows, RemovalLimits::default())
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    drop(stage);
+    assert_eq!(world.snapshot(), before);
+    let stage = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    let mut foreign = before.clone();
+    foreign.campaign = CampaignId::from_bytes([0x23; 16]).unwrap();
+    let mut other = World::restore(&catalogue, foreign.clone(), Limits::default()).unwrap();
+    assert!(
+        other
+            .stage_inventory_removals(&inputs, RemovalLimits::default())
+            .is_err()
+    );
+    assert!(other.commit_inventory_removals(stage).is_err());
+    assert_eq!(other.snapshot(), foreign);
+    let stage = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(
+        world
+            .stage_inventory_removals(&inputs, RemovalLimits::default())
+            .is_err()
+    );
+    assert!(world.commit_inventory_removals(stage).is_err());
+    assert_eq!(world.snapshot(), before);
+    let inputs = removal_inputs(&world, ids);
+    let stage = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    world.remove_item_quantity(ids[2], quantity(5)).unwrap();
+    let after = world.snapshot();
+    assert!(
+        world
+            .stage_inventory_removals(&inputs, RemovalLimits::default())
+            .is_err()
+    );
+    assert!(world.commit_inventory_removals(stage).is_err());
+    assert_eq!(world.snapshot(), after);
+    for change in 0..4 {
+        let mut world = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+        let stage = world
+            .stage_inventory_removals(&removal_inputs(&world, ids), RemovalLimits::default())
+            .unwrap();
+        match change {
+            0 => world.remove_item_quantity(ids[0], quantity(1)).unwrap(),
+            1 => {
+                let mut facts = world.item(ids[0]).unwrap().facts().clone();
+                facts.condition = None;
+                world.replace_item_facts(ids[0], facts).unwrap();
+            }
+            2 => world
+                .transfer_item(ids[0], ReferenceId(2.try_into().unwrap()))
+                .unwrap(),
+            _ => {
+                world.register_reference(None).unwrap();
+            }
+        }
+        let after = world.snapshot();
+        assert!(world.commit_inventory_removals(stage).is_err());
+        assert_eq!(world.snapshot(), after);
+        assert_transfer_counts(&world);
+    }
+    let mut world = World::restore(&catalogue, before, Limits::default()).unwrap();
+    let inputs = removal_inputs(&world, ids);
+    let winner = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    let loser = world
+        .stage_inventory_removals(&inputs, RemovalLimits::default())
+        .unwrap();
+    world.commit_inventory_removals(winner).unwrap();
+    let after = world.snapshot();
+    assert!(world.commit_inventory_removals(loser).is_err());
+    assert_eq!(world.snapshot(), after);
+}
+#[test]
+fn removal_revision_exhaustion_refuses_but_exhausted_item_allocator_needs_no_new_id() {
+    let (_root, catalogue) = fixture();
+    let (world, _, ids) = transfer_world(&catalogue);
+    let mut exhausted = world.snapshot();
+    exhausted.state_revision = u64::MAX;
+    let world = World::restore(&catalogue, exhausted.clone(), Limits::default()).unwrap();
+    assert!(
+        world
+            .stage_inventory_removals(&removal_inputs(&world, ids), RemovalLimits::default())
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), exhausted);
+    exhausted.state_revision = 11;
+    exhausted.next_item = u64::MAX;
+    let mut world = World::restore(&catalogue, exhausted.clone(), Limits::default()).unwrap();
+    let stage = world
+        .stage_inventory_removals(&removal_inputs(&world, ids), RemovalLimits::default())
+        .unwrap();
+    world.commit_inventory_removals(stage).unwrap();
+    assert_eq!(
+        world.snapshot(),
+        expected_removal_state(&exhausted, &[(ids[0], 2), (ids[2], 5)])
+    );
+}
+#[test]
+fn only_complete_removal_reclaims_exact_item_link_and_opaque_capacity_for_a_real_add() {
+    let (_root, catalogue) = fixture();
+    let (world, [_, b, _], ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let replacement = world.item(ids[2]).unwrap().facts().clone();
+    for limits in [
+        Limits {
+            max_item_instances: 3,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_links: 21,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_bytes: 9,
+            ..Limits::default()
+        },
+        Limits {
+            max_item_instances: 3,
+            max_total_item_links: 21,
+            max_total_item_bytes: 9,
+            ..Limits::default()
+        },
+    ] {
+        let mut partial = World::restore(&catalogue, before.clone(), limits).unwrap();
+        let inputs = [(partial.item_handle(ids[0]).unwrap(), quantity(2))];
+        let stage = partial
+            .stage_inventory_removals(&inputs, RemovalLimits::default())
+            .unwrap();
+        let receipt = partial.commit_inventory_removals(stage).unwrap();
+        assert_eq!(receipt.usage().released_links, 0);
+        assert_eq!(receipt.usage().released_extra_bytes, 0);
+        assert!(
+            partial
+                .add_item(b, replacement.clone(), quantity(1))
+                .is_err()
+        );
+        let mut world = World::restore(&catalogue, before.clone(), limits).unwrap();
+        assert!(world.add_item(b, replacement.clone(), quantity(1)).is_err());
+        assert_eq!(world.snapshot(), before);
+        let stage = world
+            .stage_inventory_removals(&removal_inputs(&world, ids), RemovalLimits::default())
+            .unwrap();
+        world.commit_inventory_removals(stage).unwrap();
+        let boundary = world.snapshot();
+        assert_eq!(
+            boundary,
+            expected_removal_state(&before, &[(ids[0], 2), (ids[2], 5)])
+        );
+        let new = world.add_item(b, replacement.clone(), quantity(1)).unwrap();
+        assert_eq!(new.0.get(), 4);
+        assert_eq!(world.item(new).unwrap().facts(), &replacement);
+        assert_eq!(world.inventory_count(b, &form(0x200)).unwrap(), 1);
+        assert_eq!(world.snapshot().next_item, 5);
+        assert_eq!(world.revision(), 13);
+        assert_transfer_counts(&world);
+        let after = world.snapshot();
+        assert!(world.add_item(b, replacement.clone(), quantity(1)).is_err());
+        assert_eq!(world.snapshot(), after);
+    }
+}
+#[test]
+fn native_removal_before_current_and_two_fresh_cold_consumers_preserve_whole_state() {
+    use std::{fs, process::Command};
+    let temporary = tempfile::tempdir().unwrap();
+    let retained =
+        std::env::var_os("FALLOUT_INVENTORY_REMOVAL_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained
+        .as_deref()
+        .unwrap_or(temporary.path())
+        .join("native-boundary");
+    fs::create_dir_all(&root).unwrap();
+    write_fixture(&root, false);
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let (mut world, _, ids) = transfer_world(&catalogue);
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let mut worker = fallout_runtime::save::SaveWorker::start(repository.clone(), 2).unwrap();
+    let first = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    let stage = world
+        .stage_inventory_removals(&removal_inputs(&world, ids), RemovalLimits::default())
+        .unwrap();
+    let receipt = world.commit_inventory_removals(stage).unwrap();
+    let after = world.snapshot();
+    let second = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    worker.finish().unwrap();
+    assert_eq!(first.wait().unwrap().metadata.generation, 1);
+    assert_eq!(second.wait().unwrap().metadata.generation, 2);
+    fs::write(
+        root.join("expected.before.json"),
+        before.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("expected.after.json"),
+        after.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("removal.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    let current = fs::read(repository.path().join("current.frsv")).unwrap();
+    let previous = fs::read(repository.path().join("previous.frsv")).unwrap();
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    drop(world);
+    drop(catalogue);
+    for (phase, snapshot, wire) in [("before", &before, &previous), ("after", &after, &current)] {
+        let phase_root = root.join(phase);
+        fs::create_dir(&phase_root).unwrap();
+        let copy = Repository::create(&phase_root.join("native"), &[], snapshot.campaign).unwrap();
+        fs::write(copy.path().join("current.frsv"), wire).unwrap();
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_inventory_removal_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_INVENTORY_REMOVAL_COLD_ROOT", &root)
+            .env("FALLOUT_INVENTORY_REMOVAL_COLD_PHASE", phase)
+            .output()
+            .unwrap();
+        fs::write(phase_root.join("cold.stdout.txt"), &child.stdout).unwrap();
+        fs::write(phase_root.join("cold.stderr.txt"), &child.stderr).unwrap();
+        assert!(
+            child.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert_eq!(fs::read(copy.path().join("current.frsv")).unwrap(), *wire);
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        current
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        previous
+    );
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+#[test]
+#[ignore = "fresh inventory removal consumer invoked by parent"]
+fn cold_inventory_removal_helper() {
+    use std::fs;
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_INVENTORY_REMOVAL_COLD_ROOT").unwrap());
+    let phase = std::env::var("FALLOUT_INVENTORY_REMOVAL_COLD_PHASE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let repository = Repository::open(&root.join(&phase).join("native"), &[]).unwrap();
+    let (world, receipt) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    let expected = Snapshot::decode(
+        &fs::read(root.join(format!("expected.{phase}.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(world.snapshot(), expected);
+    assert_transfer_counts(&world);
+    let views = [1, 2, 3]
+        .iter()
+        .map(|id| {
+            world
+                .inventory_view(
+                    ReferenceId((*id).try_into().unwrap()),
+                    ViewLimits {
+                        max_items: 2,
+                        max_links: 14,
+                        max_extra_bytes: 6,
+                    },
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert!(views[2].items().is_none());
+    if phase == "after" {
+        assert_eq!(views[1].items(), Some([].as_slice()));
+    }
+    fs::write(
+        root.join(&phase).join("cold.restored.json"),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.views.json"),
+        serde_json::to_vec_pretty(&views).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.receipt.json"),
         serde_json::to_vec_pretty(&receipt).unwrap(),
     )
     .unwrap();

@@ -1232,6 +1232,7 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             reference_boot_request,
             snapshot_event_request,
             snapshot_literal_assignment_request,
+            snapshot_native_assignment_request,
             snapshot_native_request,
             snapshot_native_plan_request,
             snapshot_native_current,
@@ -1240,6 +1241,27 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_native_assignment_request {
+                let report = event_operand_inspection::assign_saved_native(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_native_assignment"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved native assignment remains unsupported; see engineering report"
+                            .into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_literal_assignment_request {
                 let report = event_operand_inspection::assign_saved_literal(
                     &install,

@@ -207,6 +207,15 @@ to retain authored inputs, interrupted slot copies, restarted worker slots and
 per-stage metadata for independent native-reader and cold CLI comparisons.
 Normal test runs use an automatically removed temporary directory.
 
+Repeated transaction tests retain proposals across actual native loads and an
+equal snapshot replacement. The earlier world epoch rejects those proposals even
+when every persisted field matches. Duplicate proposals and acknowledged-head
+requests also reject before changing the restored world or save slots. Two fresh
+head commits each advance revision once; explicit previous recovery can stage
+the remaining head again and reproduce identical current/previous bytes.
+Set `FALLOUT_STAGED_RESTORE_EVIDENCE` to a fresh existing private directory to
+retain the three exact captures and rejection receipts for cold native readers.
+
 File contents are synced using [Rust File::sync_all](https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all),
 and publication uses [same-directory rename](https://doc.rust-lang.org/std/fs/fn.rename.html).
 The [nonblocking file lock](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock)

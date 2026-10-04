@@ -98,6 +98,295 @@ fn fixture() -> (tempfile::TempDir, fallout_data::loaded_scripts::Catalogue) {
     (directory, catalogue)
 }
 
+fn transaction_phase(
+    root: &std::path::Path,
+    name: &str,
+    repository: &Repository,
+    world: &World<'_>,
+) -> format::Metadata {
+    let bytes = fs::read(repository.path().join("current.frsv")).unwrap();
+    let decoded = format::decode(&bytes, Limits::default()).unwrap();
+    assert_eq!(decoded.snapshot, world.snapshot());
+    fs::write(root.join(format!("{name}.frsv")), bytes).unwrap();
+    fs::write(
+        root.join(format!("{name}.snapshot.json")),
+        world.snapshot().encode(8192).unwrap(),
+    )
+    .unwrap();
+    decoded.metadata
+}
+
+fn transaction_limits() -> Limits {
+    Limits {
+        max_snapshot_bytes: 8192,
+        ..Limits::default()
+    }
+}
+
+#[test]
+fn repeated_stages_across_native_restores_reject_stale_proposals_and_preserve_slots() {
+    let (_temporary, root) = match std::env::var_os("FALLOUT_STAGED_RESTORE_EVIDENCE") {
+        Some(root) => {
+            let root = std::path::PathBuf::from(root).join("authored");
+            fs::create_dir(&root).unwrap();
+            (None, root)
+        }
+        None => {
+            let directory = tempfile::tempdir().unwrap();
+            let root = directory.path().to_path_buf();
+            (Some(directory), root)
+        }
+    };
+    write_fixture(&root, false);
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let mut world = World::restore(
+        &catalogue,
+        seed(&catalogue).snapshot(),
+        transaction_limits(),
+    )
+    .unwrap();
+    let handle = world.handle(world.snapshot().instances[0].id).unwrap();
+    let context = world.pending_events().next().unwrap().context.clone();
+    world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            context,
+        )
+        .unwrap();
+    let before = world.snapshot();
+    let changes = [(42, Value::Number { bits: u64::MAX })];
+    let for_restore = world.stage_event_changes(1, &changes, true).unwrap();
+    let first = world.stage_event_changes(1, &changes, true).unwrap();
+    let duplicate = world.stage_event_changes(1, &changes, true).unwrap();
+    assert_eq!(world.snapshot(), before);
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let mut worker = SaveWorker::start_with_budget(repository.clone(), 2, 16384).unwrap();
+    let prewrite = worker
+        .try_submit(Captured::at_boundary(&world))
+        .unwrap()
+        .wait()
+        .unwrap();
+    let prebytes = fs::read(repository.path().join("current.frsv")).unwrap();
+    let premeta = transaction_phase(&root, "before", &repository, &world);
+    let mut cold = repository
+        .load(&catalogue, transaction_limits(), Recovery::Strict)
+        .unwrap()
+        .0;
+    assert_eq!(cold.snapshot(), before);
+    assert!(matches!(
+        cold.commit_event_changes(for_restore),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(cold.snapshot(), before);
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        prebytes
+    );
+    let first_commit = world.commit_event_changes(first).unwrap();
+    let after_first = world.snapshot();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected.pending_events.remove(0);
+    expected.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = changes[0].1.clone();
+    assert_eq!(after_first, expected);
+    let duplicate_error = world
+        .commit_event_changes(duplicate)
+        .unwrap_err()
+        .to_string();
+    assert_eq!(
+        duplicate_error,
+        "runtime state is invalid: staged event revision changed"
+    );
+    assert_eq!(world.snapshot(), after_first);
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        prebytes
+    );
+    let first_write = worker
+        .try_submit(Captured::at_boundary(&world))
+        .unwrap()
+        .wait()
+        .unwrap();
+    let firstbytes = fs::read(repository.path().join("current.frsv")).unwrap();
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        prebytes
+    );
+    let firstmeta = transaction_phase(&root, "after-first", &repository, &world);
+    let mut current = repository
+        .load(&catalogue, transaction_limits(), Recovery::Strict)
+        .unwrap()
+        .0;
+    assert_eq!(current.snapshot(), after_first);
+    let replay_error = current
+        .stage_event_changes(1, &changes, true)
+        .unwrap_err()
+        .to_string();
+    assert_eq!(
+        replay_error,
+        "runtime state is invalid: staging must name the first pending event"
+    );
+    assert_eq!(current.snapshot(), after_first);
+    let across_epoch = current.stage_event_changes(2, &changes, true).unwrap();
+    current.replace_from_snapshot(after_first.clone()).unwrap();
+    assert!(matches!(
+        current.commit_event_changes(across_epoch),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(current.snapshot(), after_first);
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        firstbytes
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        prebytes
+    );
+    let mut changed = repository
+        .load(&catalogue, transaction_limits(), Recovery::Strict)
+        .unwrap()
+        .0;
+    let before_mutation = changed.stage_event_changes(2, &changes, true).unwrap();
+    change(&mut changed, 17);
+    let changed_snapshot = changed.snapshot();
+    assert_eq!(
+        changed
+            .commit_event_changes(before_mutation)
+            .unwrap_err()
+            .to_string(),
+        duplicate_error
+    );
+    assert_eq!(changed.snapshot(), changed_snapshot);
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        firstbytes
+    );
+    let second = current
+        .stage_event_changes(
+            2,
+            &[(
+                42,
+                Value::Number {
+                    bits: 0x8000_0000_0000_0000,
+                },
+            )],
+            true,
+        )
+        .unwrap();
+    let duplicate_second = current.stage_event_changes(2, &[], true).unwrap();
+    let second_commit = current.commit_event_changes(second).unwrap();
+    let after_second = current.snapshot();
+    expected.state_revision += 1;
+    expected.pending_events.remove(0);
+    expected.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number {
+        bits: 0x8000_0000_0000_0000,
+    };
+    assert_eq!(after_second, expected);
+    assert_eq!(
+        current
+            .commit_event_changes(duplicate_second)
+            .unwrap_err()
+            .to_string(),
+        duplicate_error
+    );
+    assert!(current.stage_event_changes(2, &changes, true).is_err());
+    assert_eq!(current.snapshot(), after_second);
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        firstbytes
+    );
+    let second_write = worker.try_submit(Captured::at_boundary(&current)).unwrap();
+    worker.finish().unwrap();
+    let second_write = second_write.wait().unwrap();
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        firstbytes
+    );
+    let secondmeta = transaction_phase(&root, "after-second", &repository, &current);
+    assert_eq!(
+        repository
+            .load(&catalogue, transaction_limits(), Recovery::Strict)
+            .unwrap()
+            .0
+            .snapshot(),
+        after_second
+    );
+    let fallback = Repository::create(&root.join("recovery"), &[], world.campaign()).unwrap();
+    fs::write(fallback.path().join("current.frsv"), b"truncated").unwrap();
+    fs::write(fallback.path().join("previous.frsv"), &firstbytes).unwrap();
+    let for_previous = world.stage_event_changes(2, &changes, true).unwrap();
+    let (mut previous, receipt) = fallback
+        .load(
+            &catalogue,
+            transaction_limits(),
+            Recovery::PreviousIfCurrentInvalid,
+        )
+        .unwrap();
+    assert_eq!(previous.snapshot(), after_first);
+    assert_eq!(receipt.slot, Slot::Previous);
+    assert!(matches!(
+        previous.commit_event_changes(for_previous),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(previous.snapshot(), after_first);
+    assert_eq!(
+        fs::read(fallback.path().join("current.frsv")).unwrap(),
+        b"truncated"
+    );
+    assert_eq!(
+        fs::read(fallback.path().join("previous.frsv")).unwrap(),
+        firstbytes
+    );
+    let (mut repaired, repair) = fallback
+        .recover_previous(&catalogue, transaction_limits())
+        .unwrap();
+    assert!(repair.current_repaired);
+    let second = repaired
+        .stage_event_changes(
+            2,
+            &[(
+                42,
+                Value::Number {
+                    bits: 0x8000_0000_0000_0000,
+                },
+            )],
+            true,
+        )
+        .unwrap();
+    repaired.commit_event_changes(second).unwrap();
+    assert_eq!(repaired.snapshot(), after_second);
+    let mut retry = SaveWorker::start_with_budget(fallback.clone(), 1, 8192).unwrap();
+    let saved = retry.try_submit(Captured::at_boundary(&repaired)).unwrap();
+    retry.finish().unwrap();
+    assert_eq!(saved.wait().unwrap().metadata, second_write.metadata);
+    for slot in ["current.frsv", "previous.frsv"] {
+        assert_eq!(
+            fs::read(fallback.path().join(slot)).unwrap(),
+            fs::read(repository.path().join(slot)).unwrap()
+        );
+    }
+    fs::write(root.join("transaction-receipt.json"),serde_json::to_vec_pretty(&serde_json::json!({
+        "before":premeta,"after_first":firstmeta,"after_second":secondmeta,"prewrite":prewrite,"first_write":first_write,"second_write":second_write,
+        "first_commit":first_commit,"second_commit":second_commit,"revision_rejection":duplicate_error,"head_rejection":replay_error,
+        "exact_native_load_epoch_rejected":true,"exact_previous_epoch_rejected":true,"rejected_world_and_slots_unchanged":true,
+        "previous_fresh_retry_equal":true,"engineering_only":true
+    })).unwrap()).unwrap();
+}
+
 #[test]
 fn queued_captures_outlive_the_world_and_restore_exact_script_item_and_event_state() {
     let (directory, catalogue) = fixture();

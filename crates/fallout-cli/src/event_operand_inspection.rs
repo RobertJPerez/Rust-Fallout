@@ -6,7 +6,7 @@ use super::{
 use fallout_data::{loaded_scripts, obscript, quest_scripts};
 use fallout_runtime::{
     event_operands,
-    execution::{attachment_boot, copy_probe, local_copy, native, pending_batch},
+    execution::{attachment_boot, copy_probe, local_copy, native, native_plan, pending_batch},
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
     preparation, programs,
@@ -425,6 +425,221 @@ struct SavedNativeRequest {
 struct SavedNativeRow<'a> {
     occurrence: usize,
     observation: native::Observation<'a>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedNativePlanRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    occurrence: usize,
+    intent: SavedNativeIntent,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    supplied_subject: Option<ReferenceId>,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    explicit_player: Option<ReferenceId>,
+    maximum_source_instructions: usize,
+    maximum_calls: usize,
+    maximum_argument_bytes: usize,
+    maximum_trace_source_bytes: usize,
+    maximum_trace_rows: usize,
+    maximum_trace_variable_bytes: usize,
+    maximum_trace_binding_uses: usize,
+    maximum_query_variable_bytes: usize,
+    maximum_contributions: usize,
+    maximum_report_bytes: usize,
+}
+
+#[derive(serde::Serialize)]
+struct SavedNativePlanProof<'a> {
+    source: &'a preparation::EventObservation,
+    call: &'a native_plan::CallProof,
+    occurrence: usize,
+    supplied_subject: Option<ReferenceId>,
+    explicit_player: Option<ReferenceId>,
+    resolved_subject: ReferenceId,
+    resolved_item: &'a fallout_data::identity::FormKey,
+    creation_counts: &'a native_plan::Counts,
+}
+
+#[derive(serde::Serialize)]
+struct SavedNativePlanReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    plan: Option<SavedNativePlanProof<'a>>,
+    outcome: native::Outcome,
+}
+
+pub(super) fn observe_saved_native_plan(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    initial_path: &Path,
+    current_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedNativePlanRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved native plan request byte budget exceeded",
+    )?)?;
+    let defaults = native_plan::Limits::default();
+    if request.schema_version != 1
+        || request.maximum_source_instructions > defaults.native.maximum_event_instructions
+        || request.maximum_calls > defaults.native.maximum_calls
+        || request.maximum_argument_bytes > defaults.native.maximum_argument_bytes
+        || request.maximum_trace_source_bytes > defaults.source_projection.maximum_source_bytes
+        || request.maximum_trace_rows > defaults.source_projection.maximum_rows
+        || request.maximum_trace_variable_bytes > defaults.source_projection.maximum_variable_bytes
+        || request.maximum_trace_binding_uses > defaults.source_projection.maximum_binding_uses
+        || request.maximum_query_variable_bytes > defaults.maximum_query_variable_bytes
+        || request.maximum_contributions > 65_536
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved native plan schema/budget ceiling".into());
+    }
+    if let Some(report) = report_path {
+        if report.try_exists()? {
+            return Err("saved native plan report must be a fresh artifact".into());
+        }
+        let parent = report
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .canonicalize()?;
+        if parent.starts_with(super::protected_tree(install)?) {
+            return Err("saved native plan report must be outside the installation".into());
+        }
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let world_limits = fallout_runtime::Limits::default();
+    let initial_bytes = read_bounded_named(
+        initial_path,
+        world_limits.max_snapshot_bytes,
+        "saved native plan initial snapshot byte budget exceeded",
+    )?;
+    let initial = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&initial_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let pending = initial
+        .pending_events()
+        .next()
+        .filter(|pending| pending.sequence == request.sequence.get())
+        .ok_or("Saved native plan sequence must be the existing journal head")?;
+    let definition = initial
+        .instance(initial.handle(pending.instance)?)?
+        .definition()
+        .clone();
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &[definition],
+        Default::default(),
+    )?;
+    let limits = native_plan::Limits {
+        native: native::Limits {
+            maximum_event_instructions: request.maximum_source_instructions,
+            maximum_calls: request.maximum_calls,
+            maximum_argument_bytes: request.maximum_argument_bytes,
+        },
+        source_projection: preparation::ObservationLimits {
+            maximum_source_bytes: request.maximum_trace_source_bytes,
+            maximum_rows: request.maximum_trace_rows,
+            maximum_variable_bytes: request.maximum_trace_variable_bytes,
+            maximum_binding_uses: request.maximum_trace_binding_uses,
+        },
+        maximum_query_variable_bytes: request.maximum_query_variable_bytes,
+    };
+    let selection = native_plan::Selection {
+        sequence: request.sequence.get(),
+        occurrence: request.occurrence,
+        inputs: native::Inputs {
+            supplied_subject: request.supplied_subject,
+            player: request.explicit_player,
+        },
+        intent: match request.intent {
+            SavedNativeIntent::Faithful => native::Intent::Faithful,
+            SavedNativeIntent::EngineeringObservation => native::Intent::EngineeringObservation,
+        },
+    };
+    let prepared = native_plan::prepare(&initial, &sources, &content, selection, limits)?;
+    // The plan is owned. The initial World is gone before reading/restoring the
+    // separately supplied current snapshot; no epoch handle or count is cached.
+    drop(initial);
+    let current_bytes = read_bounded_named(
+        current_path,
+        world_limits.max_snapshot_bytes,
+        "saved native plan current snapshot byte budget exceeded",
+    )?;
+    let current = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&current_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let before = current.snapshot();
+    let (plan, outcome) = match &prepared {
+        native_plan::Preparation::Unsupported { reason, detail } => (
+            None,
+            native::Outcome::Unsupported {
+                reason: *reason,
+                detail: detail.clone(),
+            },
+        ),
+        native_plan::Preparation::Ready(plan) => (
+            Some(SavedNativePlanProof {
+                source: plan.source(),
+                call: plan.call(),
+                occurrence: plan.occurrence(),
+                supplied_subject: plan.supplied_subject(),
+                explicit_player: plan.explicit_player(),
+                resolved_subject: plan.subject(),
+                resolved_item: plan.item(),
+                creation_counts: plan.counts(),
+            }),
+            plan.observe(&current, &sources, &content, request.maximum_contributions)?,
+        ),
+    };
+    if current.snapshot() != before {
+        return Err("saved native plan observation changed canonical state or journal".into());
+    }
+    let report = SavedNativePlanReport {
+        metadata: json!({"schema_version":1,"scope":"Owned source-native engineering query plan evaluated after dropping the initial World and strictly restoring current canonical state",
+            "initial_snapshot_sha256":format!("{:x}",Sha256::digest(&initial_bytes)),
+            "current_snapshot_sha256":format!("{:x}",Sha256::digest(&current_bytes)),
+            "campaign":current.campaign(),"state_revision":current.revision(),
+            "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),
+                "decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},
+            "executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),
+            "initial_world_dropped":true,"strict_current_restore":true,"canonical_state_unchanged":true,
+            "event_acknowledged":false,"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        plan,
+        outcome,
+    };
+    // Source proof and query contributions stay borrowed until the complete
+    // actual pretty report plus emitter newline fits. No partial report exists.
+    let mut admitted = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_report_bytes,
+    };
+    serde_json::to_writer_pretty(&mut admitted, &report)?;
+    admitted.write_all(b"\n")?;
+    Ok(serde_json::from_slice(&admitted.bytes)?)
 }
 
 pub(super) fn observe_saved_native(

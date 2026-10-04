@@ -116,6 +116,53 @@ fn unsupported(reason: Unsupported, detail: impl ToString) -> Outcome {
     }
 }
 
+// One source/caller/argument admission shared by immediate observation and the
+// owned native plan. No external constructor or deserialization grants access.
+pub(crate) struct ResolvedCall {
+    pub subject: ReferenceId,
+    pub argument: Value,
+}
+pub(crate) enum Admission {
+    Unsupported { reason: Unsupported, detail: String },
+    Resolved(ResolvedCall),
+}
+fn admission_unsupported(reason: Unsupported, detail: impl ToString) -> Result<Admission, Error> {
+    Ok(Admission::Unsupported {
+        reason,
+        detail: detail.to_string(),
+    })
+}
+
+/// Length metadata only; canonical resolution remains World-owned. Names have
+/// no canonical length maximum, so charge a borrowed dynamic/static content key
+/// before resolve_script_reference is allowed to clone it.
+pub(crate) fn reference_variable_bytes(
+    world: &World<'_>,
+    instance: &crate::state::Instance,
+    index: u16,
+) -> usize {
+    let Some(reference) = world
+        .catalogue()
+        .get_handle(instance.definition())
+        .and_then(|script| script.reference(u32::from(index)))
+    else {
+        return 0;
+    };
+    if reference.status == fallout_data::loaded_scripts::ReferenceStatus::DynamicVariable {
+        match instance.locals().get(&reference.value) {
+            Some(Value::Reference {
+                value: ReferenceValue::Content { key },
+            }) => key.origin_plugin.len(),
+            _ => 0,
+        }
+    } else {
+        reference
+            .form_key
+            .as_ref()
+            .map_or(0, |key| key.origin_plugin.len())
+    }
+}
+
 /// All context roles remain distinct. supplied_subject is an explicit host
 /// input for an unprefixed call, never a fallback from owner/player/target.
 #[derive(Debug, Clone, Copy, Default)]
@@ -227,6 +274,23 @@ impl NativeCalls<'_, '_> {
         &self.calls
     }
 
+    pub(crate) fn frame(&self) -> &PreparedEvent<'_> {
+        &self.frame
+    }
+    pub(crate) fn admit_occurrence(
+        &self,
+        occurrence: usize,
+        inputs: Inputs,
+        intent: Intent,
+        maximum_reference_variable_bytes: usize,
+    ) -> Result<Admission, Error> {
+        let call = self
+            .calls
+            .get(occurrence)
+            .ok_or(Error::MissingCall(occurrence))?;
+        self.admit(call, inputs, intent, maximum_reference_variable_bytes)
+    }
+
     pub fn observe(
         &self,
         occurrence: usize,
@@ -265,45 +329,89 @@ impl NativeCalls<'_, '_> {
         intent: Intent,
         maximum_contributions: usize,
     ) -> Result<Outcome, Error> {
+        let resolved = match self.admit(call, inputs, intent, usize::MAX)? {
+            Admission::Unsupported { reason, detail } => {
+                return Ok(Outcome::Unsupported { reason, detail });
+            }
+            Admission::Resolved(resolved) => resolved,
+        };
+        let query = query::Request::prepare(
+            self.world,
+            query::Entry::Native {
+                command_id: call.command_id,
+            },
+            Some(resolved.subject),
+            &[resolved.argument],
+        )
+        .and_then(|request| request.evaluate(self.world, content, maximum_contributions));
+        Ok(match query {
+            Ok(trace) => Outcome::EngineeringObservation {
+                trace: Box::new(trace),
+            },
+            Err(query::Failure::UnverifiedFormList) => unsupported(
+                Unsupported::UnverifiedFormList,
+                "Original GetItemCount form-list expansion is unverified",
+            ),
+            Err(query::Failure::State(crate::Error::Capacity(_))) => {
+                return Err(Error::Capacity("query contributions"));
+            }
+            Err(error) => unsupported(Unsupported::HostQueryUnavailable, error),
+        })
+    }
+
+    fn admit(
+        &self,
+        call: &Call<'_>,
+        inputs: Inputs,
+        intent: Intent,
+        maximum_reference_variable_bytes: usize,
+    ) -> Result<Admission, Error> {
         if !call.capability.engineering_host_read {
-            return Ok(unsupported(
+            return admission_unsupported(
                 Unsupported::MissingImplementation,
                 "Native command has no replacement handler",
-            ));
+            );
         }
         if intent == Intent::Faithful {
-            return Ok(unsupported(
+            return admission_unsupported(
                 Unsupported::UnverifiedRetailSemantics,
                 "Original GetItemCount admission, list and numeric return semantics are unverified",
-            ));
+            );
         }
         let handle = match self.world.handle(self.frame.instance().id()) {
             Ok(handle) => handle,
-            Err(error) => return Ok(unsupported(Unsupported::CallerResolution, error)),
+            Err(error) => return admission_unsupported(Unsupported::CallerResolution, error),
         };
         let subject = match call.calling_reference_index {
             Some(index) => {
+                if reference_variable_bytes(self.world, self.frame.instance(), index)
+                    > maximum_reference_variable_bytes
+                {
+                    return Err(Error::Capacity("reference variable bytes"));
+                }
                 match self
                     .world
                     .resolve_script_reference(handle, u32::from(index), inputs.player)
                 {
                     Ok(ReferenceValue::Live { id }) => id,
                     Ok(_) => {
-                        return Ok(unsupported(
+                        return admission_unsupported(
                             Unsupported::CallerNeedsLiveReference,
                             "Source caller is not an explicitly resolved live reference",
-                        ));
+                        );
                     }
-                    Err(error) => return Ok(unsupported(Unsupported::CallerResolution, error)),
+                    Err(error) => {
+                        return admission_unsupported(Unsupported::CallerResolution, error);
+                    }
                 }
             }
             None => match inputs.supplied_subject {
                 Some(id) => id,
                 None => {
-                    return Ok(unsupported(
+                    return admission_unsupported(
                         Unsupported::MissingSubject,
                         "Unprefixed call requires an explicit host subject",
-                    ));
+                    );
                 }
             },
         };
@@ -322,7 +430,7 @@ impl NativeCalls<'_, '_> {
             arguments::Limits::default(),
         ) {
             Ok(decoded) => decoded,
-            Err(error) => return Ok(unsupported(Unsupported::ArgumentEncoding, error)),
+            Err(error) => return admission_unsupported(Unsupported::ArgumentEncoding, error),
         };
         let [
             arguments::Argument {
@@ -331,16 +439,21 @@ impl NativeCalls<'_, '_> {
             },
         ] = decoded.arguments.as_slice()
         else {
-            return Ok(unsupported(
+            return admission_unsupported(
                 Unsupported::ArgumentSemantics,
                 "Only one source reference-table argument is admitted for engineering observation",
-            ));
+            );
         };
         if !decoded.trailing.is_empty() || !decoded.message_arguments.is_empty() {
-            return Ok(unsupported(
+            return admission_unsupported(
                 Unsupported::ArgumentSemantics,
                 "Uninterpreted native argument tail",
-            ));
+            );
+        }
+        if reference_variable_bytes(self.world, self.frame.instance(), *reference_index)
+            > maximum_reference_variable_bytes
+        {
+            return Err(Error::Capacity("reference variable bytes"));
         }
         let argument = match self.world.resolve_script_reference(
             handle,
@@ -349,34 +462,13 @@ impl NativeCalls<'_, '_> {
         ) {
             Ok(value @ ReferenceValue::Content { .. }) => Value::Reference { value },
             Ok(_) => {
-                return Ok(unsupported(
+                return admission_unsupported(
                     Unsupported::ArgumentNeedsContentReference,
                     "Engineering item query needs a content key, not null or live identity",
-                ));
+                );
             }
-            Err(error) => return Ok(unsupported(Unsupported::ArgumentResolution, error)),
+            Err(error) => return admission_unsupported(Unsupported::ArgumentResolution, error),
         };
-        let query = query::Request::prepare(
-            self.world,
-            query::Entry::Native {
-                command_id: call.command_id,
-            },
-            Some(subject),
-            &[argument],
-        )
-        .and_then(|request| request.evaluate(self.world, content, maximum_contributions));
-        Ok(match query {
-            Ok(trace) => Outcome::EngineeringObservation {
-                trace: Box::new(trace),
-            },
-            Err(query::Failure::UnverifiedFormList) => unsupported(
-                Unsupported::UnverifiedFormList,
-                "Original GetItemCount form-list expansion is unverified",
-            ),
-            Err(query::Failure::State(crate::Error::Capacity(_))) => {
-                return Err(Error::Capacity("query contributions"));
-            }
-            Err(error) => unsupported(Unsupported::HostQueryUnavailable, error),
-        })
+        Ok(Admission::Resolved(ResolvedCall { subject, argument }))
     }
 }

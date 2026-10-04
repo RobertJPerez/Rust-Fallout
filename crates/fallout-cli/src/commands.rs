@@ -2,7 +2,7 @@
 use clap::Subcommand;
 
 mod assets;
-pub(super) use assets::AssetsCommand;
+pub(super) use assets::{AssetsCommand, NifSkinArgs};
 mod runtime;
 pub(super) use runtime::RuntimeCommand;
 mod actors;

@@ -11,7 +11,7 @@ use fallout_data::condition_operands::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::io::Write;
+use std::{collections::BTreeSet, io::Write};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,6 +26,10 @@ pub enum Error {
     ContextChanged,
     #[error("condition site at decoded field offset {0} is absent")]
     MissingSite(usize),
+    #[error("condition source record index {0} is absent")]
+    MissingRecord(usize),
+    #[error("condition source record selection contains a duplicate identity")]
+    DuplicateRecord,
     #[error("condition source receipt encoding failed: {0}")]
     SourceEncoding(#[from] serde_json::Error),
     #[error(transparent)]
@@ -130,11 +134,7 @@ impl Write for ReceiptHash {
     }
 }
 
-fn validate_record_source(
-    world: &World<'_>,
-    record: &PreparedRecord,
-    maximum: usize,
-) -> Result<usize, Error> {
+fn source_cohort(world: &World<'_>, maximum: usize) -> Result<(String, usize), Error> {
     // Same existing CTDA receipt domain and ordered complete source list. Stream
     // once into the digest, bounding work before an owned serialization exists.
     let mut writer = ReceiptHash {
@@ -151,10 +151,45 @@ fn validate_record_source(
             Error::SourceEncoding(error)
         });
     }
-    if record.identity().source_cohort_sha256 != format!("{:x}", writer.hash.finalize()) {
+    Ok((format!("{:x}", writer.hash.finalize()), writer.bytes))
+}
+
+fn validate_record_source(
+    world: &World<'_>,
+    record: &PreparedRecord,
+    maximum: usize,
+) -> Result<usize, Error> {
+    let (digest, bytes) = source_cohort(world, maximum)?;
+    if record.identity().source_cohort_sha256 != digest {
         return Err(Error::ContextChanged);
     }
-    Ok(writer.bytes)
+    Ok(bytes)
+}
+
+fn find_site<'a>(
+    record: &'a PreparedRecord,
+    offset: usize,
+    comparisons: &mut usize,
+    maximum: usize,
+) -> Result<&'a ConditionSite, Error> {
+    // Strict source preparation supplies the ordered vector. Share this exact
+    // physical lookup between legacy and cross-record batches, without an index.
+    let mut lower = 0;
+    let mut upper = record.sites().len();
+    while lower < upper {
+        if *comparisons >= maximum {
+            return Err(Error::BatchCapacity("site comparisons"));
+        }
+        *comparisons += 1;
+        let middle = lower + (upper - lower) / 2;
+        let site = &record.sites()[middle];
+        match site.field_decoded_offset().cmp(&offset) {
+            std::cmp::Ordering::Less => lower = middle + 1,
+            std::cmp::Ordering::Greater => upper = middle,
+            std::cmp::Ordering::Equal => return Ok(site),
+        }
+    }
+    Err(Error::MissingSite(offset))
 }
 
 impl<'a> Requests<'a> {
@@ -178,29 +213,12 @@ impl<'a> Requests<'a> {
         };
         let mut requests = Vec::with_capacity(requested_offsets.len());
         for &offset in requested_offsets {
-            // Strict visit_subrecords appends sites in increasing physical
-            // decoded offsets; PreparedRecord is private and not deserializable.
-            // Its existing vector is the index, with no duplicate parser/index.
-            let mut lower = 0;
-            let mut upper = record.sites().len();
-            let mut selected = None;
-            while lower < upper {
-                if counts.site_comparisons >= limits.maximum_site_comparisons {
-                    return Err(Error::BatchCapacity("site comparisons"));
-                }
-                counts.site_comparisons += 1;
-                let middle = lower + (upper - lower) / 2;
-                let site = &record.sites()[middle];
-                match site.field_decoded_offset().cmp(&offset) {
-                    std::cmp::Ordering::Less => lower = middle + 1,
-                    std::cmp::Ordering::Greater => upper = middle,
-                    std::cmp::Ordering::Equal => {
-                        selected = Some(site);
-                        break;
-                    }
-                }
-            }
-            let site = selected.ok_or(Error::MissingSite(offset))?;
+            let site = find_site(
+                record,
+                offset,
+                &mut counts.site_comparisons,
+                limits.maximum_site_comparisons,
+            )?;
             requests.push(Request {
                 record,
                 site,
@@ -255,6 +273,297 @@ impl<'a> Requests<'a> {
                     .filter(|&used| used <= maximum_contributions)
                     .ok_or(Error::Capacity)?;
             }
+            observations.push(observation);
+        }
+        Ok(observations)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RecordSelection {
+    pub record_index: usize,
+    pub field_decoded_offset: usize,
+    pub explicit_subject: Option<ReferenceId>,
+}
+#[derive(Debug, Clone, Copy)]
+pub struct CrossLimits {
+    pub maximum_records: usize,
+    pub maximum_source_bytes: usize,
+    pub maximum_record_fields: usize,
+    pub maximum_record_sites: usize,
+    pub maximum_retained_source_bytes: usize,
+    pub maximum_requests: usize,
+    pub maximum_source_receipt_bytes: usize,
+    pub maximum_receipt_comparisons: usize,
+    pub maximum_site_comparisons: usize,
+    pub maximum_query_variable_bytes: usize,
+}
+impl Default for CrossLimits {
+    fn default() -> Self {
+        Self {
+            maximum_records: 64,
+            maximum_source_bytes: 8 * 1024 * 1024,
+            maximum_record_fields: 262_144,
+            maximum_record_sites: 65_536,
+            maximum_retained_source_bytes: 16 * 1024 * 1024,
+            maximum_requests: 4096,
+            maximum_source_receipt_bytes: 1024 * 1024,
+            maximum_receipt_comparisons: 262_144,
+            maximum_site_comparisons: 1_048_576,
+            maximum_query_variable_bytes: 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy)]
+pub struct CrossObservationLimits {
+    pub maximum_contributions: usize,
+    /// Entire compact ordered observation array, including brackets/separators.
+    pub maximum_observation_bytes: usize,
+}
+impl Default for CrossObservationLimits {
+    fn default() -> Self {
+        Self {
+            maximum_contributions: 65_536,
+            maximum_observation_bytes: 8 * 1024 * 1024,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct CrossCounts {
+    pub cohort_validations: usize,
+    pub source_receipt_bytes: usize,
+    pub records: usize,
+    pub source_bytes: usize,
+    pub record_fields: usize,
+    pub record_sites: usize,
+    pub retained_source_bytes: usize,
+    pub receipt_comparisons: usize,
+    pub requests: usize,
+    pub site_comparisons: usize,
+    pub query_variable_bytes: usize,
+}
+struct SelectedRequest<'a> {
+    request: Request<'a>,
+    subject: Option<ReferenceId>,
+}
+/// Borrowed immutable source authority with explicit per-site subjects. Every
+/// record is privately source-admitted; diagnostic JSON cannot construct this.
+pub struct CrossRequests<'a> {
+    requests: Vec<SelectedRequest<'a>>,
+    counts: CrossCounts,
+    campaign: CampaignId,
+    cohort: String,
+}
+
+fn charge(
+    used: &mut usize,
+    additional: usize,
+    maximum: usize,
+    reason: &'static str,
+) -> Result<(), Error> {
+    *used = used
+        .checked_add(additional)
+        .filter(|&total| total <= maximum)
+        .ok_or(Error::BatchCapacity(reason))?;
+    Ok(())
+}
+struct ObservationAdmission {
+    bytes: usize,
+    maximum: usize,
+    exceeded: bool,
+}
+impl Write for ObservationAdmission {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.maximum.saturating_sub(self.bytes) {
+            self.exceeded = true;
+            return Err(std::io::Error::other(
+                "condition observation byte budget exceeded",
+            ));
+        }
+        self.bytes += bytes.len();
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+impl<'a> CrossRequests<'a> {
+    pub fn prepare(
+        world: &World<'_>,
+        records: &[&'a PreparedRecord],
+        selections: &[RecordSelection],
+        limits: CrossLimits,
+    ) -> Result<Self, Error> {
+        if records.len() > limits.maximum_records {
+            return Err(Error::BatchCapacity("records"));
+        }
+        if selections.len() > limits.maximum_requests {
+            return Err(Error::BatchCapacity("requests"));
+        }
+        let query_variable_bytes = selections
+            .len()
+            .checked_add(1)
+            .and_then(|count| count.checked_mul(world.catalogue_fingerprint().len()))
+            .filter(|&bytes| bytes <= limits.maximum_query_variable_bytes)
+            .ok_or(Error::BatchCapacity("query variable bytes"))?;
+        let (digest, source_receipt_bytes) =
+            source_cohort(world, limits.maximum_source_receipt_bytes)?;
+        let mut counts = CrossCounts {
+            cohort_validations: 1,
+            source_receipt_bytes,
+            records: records.len(),
+            source_bytes: 0,
+            record_fields: 0,
+            record_sites: 0,
+            retained_source_bytes: 0,
+            receipt_comparisons: 0,
+            requests: selections.len(),
+            site_comparisons: 0,
+            query_variable_bytes,
+        };
+        let mut unique = BTreeSet::new();
+        for &record in records {
+            let identity = record.identity();
+            if !unique.insert(&identity.key) {
+                return Err(Error::DuplicateRecord);
+            }
+            if identity.source_cohort_sha256 != digest {
+                return Err(Error::ContextChanged);
+            }
+            charge(
+                &mut counts.source_bytes,
+                identity.decoded_bytes,
+                limits.maximum_source_bytes,
+                "source bytes",
+            )?;
+            charge(
+                &mut counts.record_fields,
+                record.fields(),
+                limits.maximum_record_fields,
+                "record fields",
+            )?;
+            charge(
+                &mut counts.record_sites,
+                record.sites().len(),
+                limits.maximum_record_sites,
+                "record sites",
+            )?;
+            charge(
+                &mut counts.retained_source_bytes,
+                record.retained_bytes(),
+                limits.maximum_retained_source_bytes,
+                "retained source bytes",
+            )?;
+            // The private producer already verified the exact winning header,
+            // decoded hash and site bytes. Check its own receipt in the shared
+            // complete current cohort as well, bounding every comparison.
+            let mut found = false;
+            for receipt in &world.catalogue().sources {
+                charge(
+                    &mut counts.receipt_comparisons,
+                    1,
+                    limits.maximum_receipt_comparisons,
+                    "receipt comparisons",
+                )?;
+                if receipt.source_name == identity.source_name {
+                    found = receipt.source_sha256 == identity.source_sha256;
+                    break;
+                }
+            }
+            if !found {
+                return Err(Error::ContextChanged);
+            }
+        }
+        let mut requests = Vec::with_capacity(selections.len());
+        for selection in selections {
+            let record = *records
+                .get(selection.record_index)
+                .ok_or(Error::MissingRecord(selection.record_index))?;
+            let site = find_site(
+                record,
+                selection.field_decoded_offset,
+                &mut counts.site_comparisons,
+                limits.maximum_site_comparisons,
+            )?;
+            requests.push(SelectedRequest {
+                request: Request {
+                    record,
+                    site,
+                    campaign: world.campaign(),
+                    cohort: world.catalogue_fingerprint().into(),
+                },
+                subject: selection.explicit_subject,
+            });
+        }
+        Ok(Self {
+            requests,
+            counts,
+            campaign: world.campaign(),
+            cohort: world.catalogue_fingerprint().into(),
+        })
+    }
+    pub fn counts(&self) -> CrossCounts {
+        self.counts
+    }
+    pub fn len(&self) -> usize {
+        self.requests.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.requests.is_empty()
+    }
+    pub fn observe<'b>(
+        &'b self,
+        world: &World<'_>,
+        content: &Content,
+        intent: Intent,
+        limits: CrossObservationLimits,
+    ) -> Result<Vec<Observation<'b>>, Error> {
+        if self.campaign != world.campaign() || self.cohort != world.catalogue_fingerprint() {
+            return Err(Error::ContextChanged);
+        }
+        content.validate_world(world)?;
+        let mut contributions = 0;
+        let mut retained = 0;
+        charge(
+            &mut retained,
+            2,
+            limits.maximum_observation_bytes,
+            "observation bytes",
+        )?;
+        let mut observations = Vec::with_capacity(self.requests.len());
+        for selected in &self.requests {
+            let observation = selected.request.observe(
+                world,
+                content,
+                selected.subject,
+                intent,
+                limits.maximum_contributions.saturating_sub(contributions),
+            )?;
+            if let Outcome::EngineeringObservation { trace } = &observation.outcome {
+                contributions = contributions
+                    .checked_add(trace.query.contributions.len())
+                    .filter(|&count| count <= limits.maximum_contributions)
+                    .ok_or(Error::Capacity)?;
+            }
+            charge(
+                &mut retained,
+                usize::from(!observations.is_empty()),
+                limits.maximum_observation_bytes,
+                "observation bytes",
+            )?;
+            let mut admission = ObservationAdmission {
+                bytes: 0,
+                maximum: limits.maximum_observation_bytes - retained,
+                exceeded: false,
+            };
+            if let Err(error) = serde_json::to_writer(&mut admission, &observation) {
+                return Err(if admission.exceeded {
+                    Error::BatchCapacity("observation bytes")
+                } else {
+                    Error::SourceEncoding(error)
+                });
+            }
+            retained += admission.bytes;
             observations.push(observation);
         }
         Ok(observations)

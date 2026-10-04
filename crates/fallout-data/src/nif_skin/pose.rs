@@ -8,10 +8,12 @@ use sha2::{Digest, Sha256};
 
 mod batch;
 pub mod partition;
+mod set;
 pub use batch::{
     BatchEvaluationLimits, BatchLimits, GeometryBatch, GeometryLimits, PreparationLimits,
     PreparationUsage, PreparedSkinSource, evaluate_many,
 };
+pub use set::{EvaluationWithSet, SetCombinedLimits, SetRequest, evaluate_set_sampled};
 
 /// Column-vector affine rows, in original NIF coordinates and units.
 pub type Affine = [[f64; 4]; 3];
@@ -110,6 +112,30 @@ pub struct EvaluationWithSample {
 
 struct SampleOverride<'a> {
     sample: &'a nif_animation::pose::ObjectPose,
+}
+enum SourcePoseOverride<'a> {
+    One(SampleOverride<'a>),
+    Forest(&'a nif_animation::pose::EvaluatedForest),
+}
+impl SourcePoseOverride<'_> {
+    fn sample(&self) -> Option<&nif_animation::pose::ObjectPose> {
+        match self {
+            Self::One(value) => Some(value.sample),
+            Self::Forest(_) => None,
+        }
+    }
+    fn forest(&self) -> Option<&nif_animation::pose::EvaluatedForest> {
+        match self {
+            Self::Forest(value) => Some(value),
+            Self::One(_) => None,
+        }
+    }
+    fn applies(&self, id: u32) -> bool {
+        match self {
+            Self::One(value) => value.sample.object.block == id,
+            Self::Forest(value) => value.applies(id),
+        }
+    }
 }
 
 /// One explicit source-linked sample, never a public matrix or decoded catalogue
@@ -387,7 +413,7 @@ fn evaluate_inner(
         },
         request,
         limits,
-        selected,
+        selected.map(SourcePoseOverride::One),
         table,
         budget,
     )
@@ -421,7 +447,7 @@ fn evaluate_decoded(
     view: DecodedView<'_>,
     request: Request,
     limits: Limits,
-    selected: Option<SampleOverride<'_>>,
+    selected: Option<SourcePoseOverride<'_>>,
     table: Option<&super::influences::Table>,
     mut budget: Budget<'_>,
 ) -> Result<Evaluation> {
@@ -558,7 +584,7 @@ fn evaluate_decoded(
             })
     };
     let mut root_world = world(root)?.matrix;
-    if let Some(selected) = &selected {
+    if let Some(sample) = selected.as_ref().and_then(SourcePoseOverride::sample) {
         // Verify membership before palette/output allocation. Owner locals are
         // deliberately excluded: geometry transforms are not applied twice.
         let mut affects_skin = false;
@@ -571,7 +597,7 @@ fn evaluate_decoded(
                 if depth > limits.ancestry_depth {
                     return Err(budget.fail("ancestry depth budget exceeded"));
                 }
-                affects_skin |= id == selected.sample.object.block;
+                affects_skin |= id == sample.object.block;
                 if start != root && id == root {
                     break;
                 }
@@ -581,7 +607,7 @@ fn evaluate_decoded(
         if !affects_skin {
             return Err(budget.fail(&format!(
                 "sampled node {} is outside selected skin root/bone ancestry",
-                selected.sample.object.block
+                sample.object.block
             )));
         }
         let mut cursor = Some(root);
@@ -593,8 +619,8 @@ fn evaluate_decoded(
             if depth > limits.ancestry_depth {
                 return Err(budget.fail("ancestry depth budget exceeded"));
             }
-            if id == selected.sample.object.block {
-                root_world = finite(compose(selected.sample.source_world, relative), &budget)?;
+            if id == sample.object.block {
+                root_world = finite(compose(sample.source_world, relative), &budget)?;
                 break;
             }
             let object = &scene.objects
@@ -602,6 +628,11 @@ fn evaluate_decoded(
             relative = finite(compose(scene_affine(object.transform), relative), &budget)?;
             cursor = world(id)?.parent;
         }
+    } else if let Some(forest) = selected.as_ref().and_then(SourcePoseOverride::forest) {
+        budget.charge(1)?;
+        root_world = forest
+            .world(root)
+            .ok_or_else(|| budget.fail("required skin root world unavailable"))?;
     }
     let skin = skin_affine(skin_transform);
     let skin_to_source_world = finite(compose(root_world, inverse(skin, &budget)?), &budget)?;
@@ -611,7 +642,13 @@ fn evaluate_decoded(
     budget.reserve::<[f64; 3]>(mesh.vertices.len() + mesh.normals.len())?;
     budget.reserve::<f64>(mesh.vertices.len())?;
     let mut result = Evaluation {
-        contract: if selected.is_some() {
+        contract: if selected
+            .as_ref()
+            .and_then(SourcePoseOverride::forest)
+            .is_some()
+        {
+            "engineering-complete-required-pose-set-skin-v1"
+        } else if selected.is_some() {
             "engineering-one-linked-sample-skin-v1"
         } else if table.is_some() {
             "engineering-exact-csr-source-local-skin-v1"
@@ -665,7 +702,15 @@ fn evaluate_decoded(
         budget.charge(1)?;
         let node = instance.bones[ordinal].ok_or_else(|| budget.fail("missing bone"))?;
         let mut cursor = node;
-        let mut relative = IDENTITY;
+        let forest = selected.as_ref().and_then(SourcePoseOverride::forest);
+        let mut relative = if let Some(forest) = forest {
+            budget.charge(1)?;
+            forest
+                .relative(node)
+                .ok_or_else(|| budget.fail("required root-relative bone world unavailable"))?
+        } else {
+            IDENTITY
+        };
         let mut depth = 0;
         while cursor != root {
             budget.charge(1)?;
@@ -684,11 +729,13 @@ fn evaluate_decoded(
             )?;
             let object = &scene.objects
                 [objects[cursor as usize].ok_or_else(|| budget.fail("undecoded bone node"))?];
-            let local = match &selected {
-                Some(selected) if cursor == selected.sample.object.block => selected.sample.local,
-                _ => scene_affine(object.transform),
-            };
-            relative = finite(compose(local, relative), &budget)?;
+            if forest.is_none() {
+                let local = match selected.as_ref().and_then(SourcePoseOverride::sample) {
+                    Some(sample) if cursor == sample.object.block => sample.local,
+                    _ => scene_affine(object.transform),
+                };
+                relative = finite(compose(local, relative), &budget)?;
+            }
             cursor = world(cursor)?
                 .parent
                 .ok_or_else(|| budget.fail("bone chain does not reach root"))?;
@@ -789,7 +836,7 @@ fn record_controller(
     seen: &mut [bool],
     result: &mut Evaluation,
     budget: &mut Budget<'_>,
-    selected: Option<&SampleOverride<'_>>,
+    selected: Option<&SourcePoseOverride<'_>>,
 ) -> Result<()> {
     if !seen[block as usize] {
         seen[block as usize] = true;
@@ -797,7 +844,7 @@ fn record_controller(
             [objects[block as usize].ok_or_else(|| budget.fail("unresolved controlled object"))?];
         if let Some(controller) = object.controller {
             if let Some(selected) = selected {
-                if block == selected.sample.object.block {
+                if selected.applies(block) {
                     return Ok(());
                 }
                 return Err(budget.fail(&format!(

@@ -1,6 +1,7 @@
 //! Immutable authored actor inputs. Scalars borrow their exact inventory
 //! catalogue; separate prerequisite catalogues retain complete source receipts
 //! and winning-content identity. No live actor state is initialized.
+pub mod ai_inputs;
 pub mod associations;
 pub mod classes;
 pub mod dependencies;
@@ -10,6 +11,7 @@ pub mod package_dependencies;
 pub mod packages;
 pub mod placements;
 pub mod races;
+pub mod script_attachment;
 pub mod voices;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};
 use serde::Serialize;

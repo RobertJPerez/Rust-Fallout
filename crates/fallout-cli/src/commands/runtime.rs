@@ -275,6 +275,12 @@ pub(crate) enum RuntimeCommand {
         /// Observe explicitly selected native occurrences from saved state.
         #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,
+        /// Reuse a source-native query plan after dropping and cold-restoring state.
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_native_current"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_native_plan_request: Option<PathBuf>,
+        /// Strict current state queried by the owned plan from snapshot-input.
+        #[arg(long, requires = "snapshot_native_plan_request")]
+        snapshot_native_current: Option<PathBuf>,
         /// Create one explicitly selected source-attached quest owner in a private result.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "quest_boot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         quest_boot_request: Option<PathBuf>,

@@ -13,6 +13,7 @@ mod prepared;
 pub use prepared::{BatchLimits, PoseBatch, PreparationUsage, PreparedSource, SampleLimits};
 
 mod set;
+pub(crate) use set::{EvaluatedForest, evaluate_required};
 pub use set::{LocalObservation, PoseSet, SetAncestor, SetLimits, SetObjectPose, evaluate_set};
 
 pub const CONTRACT: &str = "engineering-linked-source-pose-v1";

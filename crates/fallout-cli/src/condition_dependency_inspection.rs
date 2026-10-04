@@ -13,6 +13,7 @@ use fallout_runtime::{
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeMap,
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::Arc,
@@ -67,7 +68,7 @@ struct QueryContext {
 }
 
 struct SnapshotContext {
-    subject: ReferenceId,
+    subject: Option<ReferenceId>,
     world: fallout_runtime::World<'static>,
     content: Content,
     snapshot_sha256: String,
@@ -75,7 +76,7 @@ struct SnapshotContext {
 impl SnapshotContext {
     fn load(
         snapshot: &Path,
-        explicit_subject: u64,
+        explicit_subject: Option<u64>,
         store: &mut fallout_data::store::RecordStore,
     ) -> Result<Self> {
         let source_catalogue = Arc::new(loaded_scripts::Catalogue::load(
@@ -94,7 +95,9 @@ impl SnapshotContext {
             fallout_runtime::snapshot::Snapshot::decode(&bytes, limits)?,
             limits,
         )?;
-        let subject = ReferenceId(explicit_subject.try_into()?);
+        let subject = explicit_subject
+            .map(|id| std::num::NonZeroU64::try_from(id).map(ReferenceId))
+            .transpose()?;
         let snapshot_sha256 = format!(
             "{:x}",
             Sha256::digest(world.snapshot().encode(limits.max_snapshot_bytes)?)
@@ -118,7 +121,7 @@ impl SnapshotContext {
 
 impl QueryContext {
     fn load(input: QueryInput, store: &mut fallout_data::store::RecordStore) -> Result<Self> {
-        let state = SnapshotContext::load(&input.snapshot, input.explicit_subject, store)?;
+        let state = SnapshotContext::load(&input.snapshot, Some(input.explicit_subject), store)?;
         Ok(Self { input, state })
     }
 
@@ -143,14 +146,14 @@ impl QueryContext {
             faithful: request.observe(
                 &self.state.world,
                 &self.state.content,
-                Some(self.state.subject),
+                self.state.subject,
                 condition_query::Intent::Faithful,
                 MAXIMUM_QUERY_CONTRIBUTIONS,
             )?,
             engineering: request.observe(
                 &self.state.world,
                 &self.state.content,
-                Some(self.state.subject),
+                self.state.subject,
                 condition_query::Intent::EngineeringObservation,
                 MAXIMUM_QUERY_CONTRIBUTIONS,
             )?,
@@ -204,7 +207,7 @@ struct BatchContext {
 }
 impl BatchContext {
     fn load(input: BatchInput, store: &mut fallout_data::store::RecordStore) -> Result<Self> {
-        let state = SnapshotContext::load(&input.snapshot, input.explicit_subject, store)?;
+        let state = SnapshotContext::load(&input.snapshot, Some(input.explicit_subject), store)?;
         Ok(Self { input, state })
     }
     fn observe(
@@ -235,14 +238,14 @@ impl BatchContext {
             faithful: requests.observe(
                 &self.state.world,
                 &self.state.content,
-                Some(self.state.subject),
+                self.state.subject,
                 condition_query::Intent::Faithful,
                 0,
             )?,
             engineering: requests.observe(
                 &self.state.world,
                 &self.state.content,
-                Some(self.state.subject),
+                self.state.subject,
                 condition_query::Intent::EngineeringObservation,
                 self.input.maximum_contributions,
             )?,
@@ -375,6 +378,239 @@ fn label(value: impl serde::Serialize) -> Result<String> {
         .ok_or("Missing enum label")?
         .to_string())
 }
+
+fn query_signatures(catalogue: &command_catalogue::Catalogue) -> Signatures {
+    catalogue
+        .script_commands
+        .iter()
+        .filter(|row| row.condition_handler_present)
+        .map(|row| {
+            (
+                (row.id - 0x1000) as u16,
+                Signature {
+                    parameters: row
+                        .parameters
+                        .iter()
+                        .map(|parameter| Parameter {
+                            type_id: parameter.type_id,
+                            optional_word: parameter.optional_word,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect()
+}
+
+fn explicit_subject<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<ReferenceId>, D::Error> {
+    serde::Deserialize::deserialize(deserializer)
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordQuerySelection {
+    record: FormKey,
+    field_decoded_offset: usize,
+    #[serde(deserialize_with = "explicit_subject")]
+    explicit_subject: Option<ReferenceId>,
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RecordQueryIntent {
+    Faithful,
+    EngineeringObservation,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordQueryInput {
+    schema_version: u32,
+    intent: RecordQueryIntent,
+    selections: Vec<RecordQuerySelection>,
+    snapshot: PathBuf,
+    maximum_records: usize,
+    maximum_source_bytes: usize,
+    maximum_record_fields: usize,
+    maximum_record_sites: usize,
+    maximum_retained_source_bytes: usize,
+    maximum_requests: usize,
+    maximum_source_receipt_bytes: usize,
+    maximum_receipt_comparisons: usize,
+    maximum_site_comparisons: usize,
+    maximum_query_variable_bytes: usize,
+    maximum_contributions: usize,
+    maximum_observation_bytes: usize,
+    maximum_report_bytes: usize,
+}
+
+pub(super) fn inspect_records(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let mut input: RecordQueryInput =
+        serde_json::from_slice(&bounded_input(request_path, MAXIMUM_QUERY_INPUT_BYTES)?)?;
+    let defaults = condition_query::CrossLimits::default();
+    let observation_defaults = condition_query::CrossObservationLimits::default();
+    if input.schema_version != 1
+        || input.selections.is_empty()
+        || input.selections.len() > input.maximum_requests
+        || input.maximum_records > defaults.maximum_records
+        || input.maximum_source_bytes > defaults.maximum_source_bytes
+        || input.maximum_record_fields > defaults.maximum_record_fields
+        || input.maximum_record_sites > defaults.maximum_record_sites
+        || input.maximum_retained_source_bytes > defaults.maximum_retained_source_bytes
+        || input.maximum_requests > defaults.maximum_requests
+        || input.maximum_source_receipt_bytes > defaults.maximum_source_receipt_bytes
+        || input.maximum_receipt_comparisons > defaults.maximum_receipt_comparisons
+        || input.maximum_site_comparisons > defaults.maximum_site_comparisons
+        || input.maximum_query_variable_bytes > defaults.maximum_query_variable_bytes
+        || input.maximum_contributions > observation_defaults.maximum_contributions
+        || input.maximum_observation_bytes > observation_defaults.maximum_observation_bytes
+        || input.maximum_report_bytes == 0
+        || input.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("invalid condition record batch schema, selection or budget ceiling".into());
+    }
+    if let Some(report) = report_path {
+        if report.try_exists()? {
+            return Err("condition record batch report must be a fresh artifact".into());
+        }
+        let parent = report
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .canonicalize()?;
+        if parent.starts_with(super::protected_tree(install)?) {
+            return Err("condition record batch report must be outside the installation".into());
+        }
+    }
+    if !input.snapshot.is_absolute() {
+        input.snapshot = request_path
+            .parent()
+            .ok_or("Condition record batch request has no parent")?
+            .join(input.snapshot);
+    }
+    let mut unique = BTreeMap::new();
+    let mut keys = Vec::new();
+    let mut selections = Vec::with_capacity(input.selections.len());
+    for selection in &input.selections {
+        let index = if let Some(&index) = unique.get(&selection.record) {
+            index
+        } else {
+            if keys.len() >= input.maximum_records {
+                return Err("condition record count budget exceeded".into());
+            }
+            let index = keys.len();
+            keys.push(&selection.record);
+            unique.insert(&selection.record, index);
+            index
+        };
+        selections.push(condition_query::RecordSelection {
+            record_index: index,
+            field_decoded_offset: selection.field_decoded_offset,
+            explicit_subject: selection.explicit_subject,
+        });
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let signatures = query_signatures(&descriptors);
+    let state = SnapshotContext::load(&input.snapshot, None, &mut store)?;
+    let mut records = Vec::with_capacity(keys.len());
+    let mut decoded = 0;
+    let mut fields = 0;
+    let mut sites = 0;
+    let mut retained = 0;
+    for key in keys {
+        let location = store
+            .winner(key)
+            .ok_or("condition record selection has no winner")?;
+        if !condition_census::condition_record(store.definition(location).header.kind) {
+            return Err("condition record selection kind is unsupported".into());
+        }
+        let record = condition_operands::prepare_record(
+            &mut store,
+            location,
+            &signatures,
+            condition_operands::RecordLimits {
+                maximum_decoded_bytes: input.maximum_source_bytes - decoded,
+                maximum_fields: input.maximum_record_fields - fields,
+                maximum_conditions: input.maximum_record_sites - sites,
+                maximum_retained_bytes: input.maximum_retained_source_bytes - retained,
+            },
+        )?;
+        decoded += record.identity().decoded_bytes;
+        fields += record.fields();
+        sites += record.sites().len();
+        retained += record.retained_bytes();
+        records.push(record);
+    }
+    let records: Vec<_> = records.iter().collect();
+    let requests = condition_query::CrossRequests::prepare(
+        &state.world,
+        &records,
+        &selections,
+        condition_query::CrossLimits {
+            maximum_records: input.maximum_records,
+            maximum_source_bytes: input.maximum_source_bytes,
+            maximum_record_fields: input.maximum_record_fields,
+            maximum_record_sites: input.maximum_record_sites,
+            maximum_retained_source_bytes: input.maximum_retained_source_bytes,
+            maximum_requests: input.maximum_requests,
+            maximum_source_receipt_bytes: input.maximum_source_receipt_bytes,
+            maximum_receipt_comparisons: input.maximum_receipt_comparisons,
+            maximum_site_comparisons: input.maximum_site_comparisons,
+            maximum_query_variable_bytes: input.maximum_query_variable_bytes,
+        },
+    )?;
+    let intent = match input.intent {
+        RecordQueryIntent::Faithful => condition_query::Intent::Faithful,
+        RecordQueryIntent::EngineeringObservation => {
+            condition_query::Intent::EngineeringObservation
+        }
+    };
+    let observations = requests.observe(
+        &state.world,
+        &state.content,
+        intent,
+        condition_query::CrossObservationLimits {
+            maximum_contributions: input.maximum_contributions,
+            maximum_observation_bytes: input.maximum_observation_bytes,
+        },
+    )?;
+    state.verify_unchanged()?;
+    #[derive(serde::Serialize)]
+    struct Report<'a> {
+        #[serde(flatten)]
+        metadata: Value,
+        preparation: condition_query::CrossCounts,
+        observations: Vec<condition_query::Observation<'a>>,
+        sources: &'a [fallout_data::store::SourceReceipt],
+    }
+    let report = Report {
+        metadata: json!({"schema_version":1,"scope":"Explicit ordered engineering condition queries across exact source records; no truth or grouping",
+            "canonical_snapshot_sha256":state.snapshot_sha256,"canonical_state_unchanged":true,
+            "explicit_load_order":order.names,"load_order_sha256":order.sha256,
+            "executable_sha256":descriptors.source_sha256,"source_cohort_sha256":state.world.catalogue_fingerprint(),
+            "index_cache":store.index_cache_report(),"campaign":state.world.campaign(),"state_revision":state.world.revision(),
+            "event_acknowledged":false,"group_evaluation_verified":false,"condition_evaluation_ready":false,
+            "faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        preparation: requests.counts(),
+        observations,
+        sources: &state.world.catalogue().sources,
+    };
+    let mut admission = Admission {
+        bytes: 0,
+        maximum: input.maximum_report_bytes,
+    };
+    serde_json::to_writer_pretty(&mut admission, &report)?;
+    admission.write_all(b"\n")?;
+    Ok(serde_json::to_value(report)?)
+}
+
 pub(super) fn inspect(
     install: &Path,
     order_path: &Path,
@@ -390,26 +626,7 @@ pub(super) fn inspect(
     let metadata = record_metadata::inspect(&store)?;
     let sources = store.source_receipts()?;
     let catalogue = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
-    let signatures: Signatures = catalogue
-        .script_commands
-        .iter()
-        .filter(|row| row.condition_handler_present)
-        .map(|row| {
-            (
-                (row.id - 0x1000) as u16,
-                Signature {
-                    parameters: row
-                        .parameters
-                        .iter()
-                        .map(|p| Parameter {
-                            type_id: p.type_id,
-                            optional_word: p.optional_word,
-                        })
-                        .collect(),
-                },
-            )
-        })
-        .collect();
+    let signatures = query_signatures(&catalogue);
     let query = engineering_query_input
         .map(QueryInput::read)
         .transpose()?

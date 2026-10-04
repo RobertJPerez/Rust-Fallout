@@ -31,6 +31,21 @@ pub(crate) enum PhysicsCommand {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Query an explicit resident model subset under one collision budget.
+    CellCollisionSelection {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        source_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Query selected collision bound to existing canonical references in a strict saved World.
     ReferenceCollision {
         #[arg(long)]
@@ -45,6 +60,12 @@ pub(crate) enum PhysicsCommand {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         source_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
+    /// Derive one exact NIF collision attachment and query its source geometry.
+    CollisionAttachment {
+        input: PathBuf,
         #[arg(long)]
         request: PathBuf,
     },

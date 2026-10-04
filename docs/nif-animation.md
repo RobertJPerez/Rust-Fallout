@@ -1336,3 +1336,146 @@ transform interpolator through the new consumer, before a pose or socket-name
 binding can be accepted. This is an unchanged source capability finding, with
 no original socket/equip/animation acceptance. Frozen executable, exact commands,
 hashes and immutable receipts stay in ignored `local/v3-asset-24`.
+
+## Reusable exact two-file clip binding (V3-ASSET-25)
+
+`clip::PreparedClipSource::prepare(skeleton_bytes, clip_bytes, source,
+BindingRequest, PreparationLimits)` owns both existing decoded sources, exact
+whole-source identities, selected raw node name, sequence packet and cached source
+spans. One private binding helper serves this path and the existing one-shot
+evaluator. No public catalogue, matrix or deserialized receipt becomes source
+authority. Dropping or modifying caller buffers cannot alter later evaluations.
+Static required ancestors and their spans are cached once through the existing
+validated scene mapping and affine helpers; block IDs do not determine hierarchy.
+
+`sample_many(source, expected_skeleton_sha256, expected_clip_sha256, times,
+BatchLimits)` samples a nonempty ordered list of at most64 explicit binary64 times
+by default. Repeated, reversed and signed-zero times remain distinct requests;
+there is no mutable playback cursor. Both expected identities must still match.
+Each sample preserves all existing numeric/source observations, raw names,
+controller fields, quaternion constants, key ordinals and source spans. Its
+additional array/work counters cover evaluation only. The preparation receipt
+separately records one animation/key decode, one skeleton Scene decode, one target
+binding, two whole-source hashes and selected span hashes. Existing one-shot
+reports retain their complete original binding-inclusive counters and schema.
+
+Preparation defaults to8 MiB additional logical array elements and128 million
+work units, with existing per-source64 MiB and combined128 MiB input caps. Declared
+animation/key and Scene array allowances default to96 MiB, admitted under128 MiB;
+their17 million reference/key check units are admitted under32 million. Existing
+source decoders separately bound container indexes and Scene records.
+`clip_retained_bytes` counts existing animation/key catalogues only. Additional
+charges include retained plan headers, transient binding/maps, names, hashes and
+cached ancestry. Conservative source byte visits are charged before hashing and
+raw-name matching. These logical bounds are not a process-memory or speed claim.
+
+Batch defaults to64 MiB additional output elements and64 million work units, with
+existing per-sample4 MiB/1 million limits. Every sample receives both its own cap
+and the aggregate remainder; validation and sampling units also have separate
+per-sample and aggregate caps. All output headers and ancestry copies are
+precharged. Any late nonfinite time, extrapolation or exhausted cap discards the
+complete batch without changing its immutable preparation.
+
+The owned consumer is `fallout nif-clip-pose SKELETON CLIP --batch --request
+REQUEST.json --output RECEIPT.json`. Opt-in strict schema1 retains the exact binding
+fields and uses `source_times` in place of `source_time`; requests are bounded to
+64 KiB. Existing three-input output protection remains active. Semantic refusal
+emits a null evaluation with nonzero exit. Duplicate/absent names, unapplied packet
+bindings, active rotation keys and controlled required ancestors refuse through
+the existing rules. Raw sequence frequency/start/stop/cycle fields remain
+observations; no controller clock, repeat, transition or quaternion repair is added.
+
+`tools/nif-animation-oracle/check_prepared_clip.py` uses independently authored
+source packets, literal noncommuting first/interior/last, reflection and zero-scale
+matrices, signed-zero time words and independently calculated authored packet
+spans. It also compares complete old one-shot reports against a frozen prior
+binary. Engineering component sampling does not establish original playback,
+equipment alignment or gameplay acceptance.
+
+Validation passes120 focused data tests (six new preparation/reuse cases),38
+serial CLI tests, affected all-target Clippy with warnings denied, formatting and
+the CLI build. Exact and one-under preparation/source/admission/ancestry,
+per-sample/batch/sampler caps and late-failure reuse are verified. The initial
+Clippy failure for a large private enum remains preserved; borrowing the existing
+mapping resolves it without allocating or changing old counters.
+
+The frozen second authored source passes seven ordered literal poses, including
+first/interior/last, repeated/reversed times, signed zero, reflection and zero
+scale, with exact cached packet spans. Fourteen semantic refusals emit no partial
+batch. All seven complete prior one-shot reports remain byte-identical; prepared
+samples retain every source/numeric observation apart from their explicitly
+separate evaluation-only array/work charges. Five strict request refusals and
+three individually separated input-tree output guards also pass. Preparation
+reports one binding, one clip/key decode and one Scene decode across the batch.
+
+The reused pinned original pair `3fe5a3ef...` / `9fed7a15...`, selected object12,
+sequence0/controlled ordinal1, refuses active XYZ rotation at interpolator2/data3
+before a reusable binding or sample is published. Its complete prior one-shot
+negative receipt stays byte-identical. This is an unchanged unsupported capability,
+with no measured retail playback. Exact commands, frozen binaries, source hashes,
+failed/corrected checks and immutable receipts stay in ignored `local/v3-asset-25`.
+
+## Exact ancestry path local visibility (V3-ASSET-26)
+
+`visibility::path::evaluate(bytes, source, Request{expected_source_sha256, object,
+channels}, Limits)` observes the validated footer-root-to-selected-object path.
+Private maps follow existing Scene parent links independently of public block-ID
+order. One existing Boolean source decode and one Scene decode supply the complete
+path and every channel. A private source view reuses the unchanged local held-key
+evaluator; no second Boolean importer or sampler is added.
+
+Each path node retains its exact source span, parent, complete stored NiAV flags
+and controller link. Nodes with a required controller need exactly one explicit
+object/controller/time request for supported `NiVisController`. Chained, unknown,
+missing, duplicate, unrelated and wrong-link requests refuse. Existing finite-time,
+held-key, unavailable raw value, manager/flag and timeline rules stay active.
+Nodes without a controller retain a null local evaluation and their raw flags;
+no Boolean is synthesized. Unrelated sibling controllers do not become path
+authority. Output is parent-before-child regardless of caller request order.
+
+Per-node local evaluations preserve their complete original schema and counters,
+including raw0/1, held-key ordinal/time bits, signed-zero binary64 requests,
+interpolator constants, flags, source spans and unapplied clocks. Stored flags and
+local controller values remain distinct observations. No all-path conjunction,
+effective visibility, default rendering or object activation policy is supplied.
+
+Defaults admit256 explicit channels,4096 path nodes and1024 ancestry depth, with
+8 MiB additional logical elements and128 million work units. Existing individual
+source and per-local caps stay active, with each local evaluation also receiving
+the remaining aggregate. Declared Boolean-pipeline/Scene arrays default to96 MiB,
+admitted under128 MiB;81 million source check units are admitted under96 million.
+Container index/Scene object traversal and each source layer retain their own
+bounded limits. Source catalogue elements are reported separately from extra
+maps, path and outputs. Conservative source byte/hash visits, maps, path/reversal
+and complete outputs are precharged. A late channel failure publishes no partial
+path as a complete observation. Counters are logical bounds, not process-memory
+or timing measurements.
+
+The owned consumer is `fallout nif-visibility-path INPUT --request REQUEST.json
+--output RECEIPT.json`, using strict schema1 with `expected_source_sha256`, `object`
+and explicit `channels` entries. Request/input limits are64 KiB/64 MiB. Output
+must stay outside both source and request input trees. Semantic refusal emits a
+null evaluation with nonzero exit. `check_visibility_path.py` independently
+constructs a higher-ID-root ancestry with static and held channels, literal values,
+raw flags, boundary times and packet spans; it also compares complete old local
+reports against a frozen prior binary. This engineering observation does not
+establish original visibility propagation or measured retail playback.
+
+Validation passes86 focused visibility/Boolean/pose/attachment/clip tests,
+including six new path cases, plus38 serial CLI tests, affected all-target Clippy
+with warnings denied, formatting and the CLI build. Higher-ID-parent ordering,
+source identity, graph refusal, complete coverage, static flag-only nodes,
+late-channel failure and exact/one-under aggregate/local/source/admission/path
+limits have independent authored tests. Existing single-local observations retain
+all original fields and counters.
+
+The frozen second source passes six literal four-node paths, including binary64
+times immediately before/after the middle held key, and six reversed request
+permutations. Twenty-four output nodes preserve raw flags and ancestry; eighteen
+complete prior local-visibility reports remain byte-identical and equal to their
+corresponding nested local observations. Eighteen semantic refusals emit no
+partial path. Six strict request refusals, two independently separated input-tree
+output guards and the prior complete prepared-clip batch byte comparison also
+pass. No original process or inferred visibility/equipment/playback acceptance
+was used. Frozen executable, exact commands, inputs, source/evidence hashes and
+immutable receipts remain in ignored `local/v3-asset-26`.

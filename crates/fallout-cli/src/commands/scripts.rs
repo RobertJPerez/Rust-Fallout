@@ -21,6 +21,9 @@ pub(crate) enum ScriptsCommand {
         /// Observe an ordered batch of physical condition sites with shared budgets.
         #[arg(long, conflicts_with = "engineering_query_input")]
         engineering_query_batch: Option<PathBuf>,
+        /// Query explicit sites/subjects across several exact source records.
+        #[arg(long, conflicts_with_all = ["engineering_query_input", "engineering_query_batch", "include_source_owners", "include_source_runs"])]
+        engineering_query_records: Option<PathBuf>,
     },
     /// Hash original compressed record inputs and exact decoded outputs.
     CompressedRecords {

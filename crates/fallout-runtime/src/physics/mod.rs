@@ -1,9 +1,11 @@
 //! Immutable queries over authored collision core geometry in explicit engineering
 //! units. Frozen bodies are not Havok simulation, margins, filters or retail movement.
+pub mod attachment;
 pub mod cell;
 mod enclosure;
 mod index;
 mod math;
+pub mod multi;
 pub mod reference;
 mod scene;
 mod shape;

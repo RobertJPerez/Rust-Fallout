@@ -407,10 +407,30 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                 return Err("prepared source pose batch refused; see report".into());
             }
         }
+        AssetsCommand::NifVisibilityPath { input, request } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_visibility_path(&input, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("required path local visibility refused; see report".into());
+            }
+        }
         AssetsCommand::NifClipPose {
             skeleton,
             clip,
             request,
+            batch,
         } => {
             if let Some(path) = output {
                 let parent = path
@@ -423,6 +443,15 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if batch {
+                let report =
+                    nif_animation_inspection::inspect_clip_batch(&skeleton, &clip, &request)?;
+                emit(&report, output, &skeleton)?;
+                if report.failures != 0 {
+                    return Err("prepared external source clip batch refused; see report".into());
+                }
+                return Ok(());
             }
             let report = nif_animation_inspection::inspect_clip(&skeleton, &clip, &request)?;
             emit(&report, output, &skeleton)?;
@@ -571,21 +600,45 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                 );
             }
         }
-        AssetsCommand::NifSkin {
-            input,
-            oracle_report,
-            include_partitions,
-            include_bindings,
-            pose_geometry,
-            pose_weight_tolerance,
-            sampled_pose_request,
-            influences_request,
-            external_rig,
-            external_skin_request,
-            shared_skin_request,
-            partition_streams_request,
-            partition_pose_request,
-        } => {
+        AssetsCommand::NifSkin(options) => {
+            let commands::NifSkinArgs {
+                input,
+                oracle_report,
+                include_partitions,
+                include_bindings,
+                pose_geometry,
+                pose_weight_tolerance,
+                sampled_pose_request,
+                influences_request,
+                external_rig,
+                external_skin_request,
+                shared_skin_request,
+                partition_streams_request,
+                partition_pose_request,
+                pose_set_request,
+            } = *options;
+            if let Some(request) = pose_set_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_pose_set(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("complete required pose set skin refused; see report".into());
+                }
+                return Ok(());
+            }
             if let Some(request) = partition_pose_request {
                 if let Some(path) = output {
                     let parent = path
@@ -1099,11 +1152,35 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_copy_request,
             snapshot_copy_batch_request,
             snapshot_native_request,
+            snapshot_native_plan_request,
+            snapshot_native_current,
             quest_boot_request,
             quest_boot_output,
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_native_plan_request {
+                let report = event_operand_inspection::observe_saved_native_plan(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input
+                        .as_deref()
+                        .ok_or("Missing initial snapshot input")?,
+                    snapshot_native_current
+                        .as_deref()
+                        .ok_or("Missing current snapshot input")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["outcome"]["status"] != "engineering_observation" {
+                    return Err(
+                        "Saved native plan retains unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_copy_batch_request {
                 let report = event_operand_inspection::copy_saved_batch(
                     &install,
@@ -1240,6 +1317,8 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             equipment_source,
             equipment_role,
             voice_root,
+            script_root,
+            ai_root,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -1262,6 +1341,8 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     equipment_source,
                     equipment_role,
                     voice_root,
+                    script_root,
+                    ai_root,
                     creature_model_directory,
                 },
             )?;
@@ -1410,7 +1491,30 @@ fn run_scripts(command: ScriptsCommand, output: Option<&Path>) -> Result<()> {
             include_source_runs,
             engineering_query_input,
             engineering_query_batch,
+            engineering_query_records,
         } => {
+            if let Some(request) = engineering_query_records {
+                let report = condition_dependency_inspection::inspect_records(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["observations"]
+                    .as_array()
+                    .ok_or("Missing condition record observations")?
+                    .iter()
+                    .any(|row| row["outcome"]["status"] != "engineering_observation")
+                {
+                    return Err(
+                        "Condition record batch retains unsupported query outcomes; see report"
+                            .into(),
+                    );
+                }
+                return Ok(());
+            }
             let report = condition_dependency_inspection::inspect(
                 &install,
                 &load_order,
@@ -1932,6 +2036,48 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
             }
         }
+        WorldCommand::CellWaterSources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::water(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::ResidencyInput {
+                    cell: parse_cell_key(&cell)?,
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["source_inputs_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("CELL water source inputs unavailable; see report".into());
+            }
+        }
+        WorldCommand::CellLightingSources {
+            install,
+            load_order,
+            index_cache,
+            cell,
+        } => {
+            let report = world_preparation_inspection::lighting(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&cell)?,
+            )?;
+            let available = report["source_inputs_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("CELL lighting source inputs unavailable; see report".into());
+            }
+        }
         WorldCommand::PersistentCellSources {
             install,
             load_order,
@@ -2410,6 +2556,24 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
             )?;
             emit(&report, output, &install)?;
         }
+        PhysicsCommand::CellCollisionSelection {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::multi_query(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
         PhysicsCommand::ReferenceCollision {
             install,
             load_order,
@@ -2430,6 +2594,10 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
                 output,
             )?;
             emit(&report, output, &install)?;
+        }
+        PhysicsCommand::CollisionAttachment { input, request } => {
+            let report = collision::attachment_query(&input, &request)?;
+            emit(&report, output, &input)?;
         }
         PhysicsCommand::NifCollision {
             input,

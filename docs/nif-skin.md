@@ -956,3 +956,89 @@ byte-identical to frozen22. Full deformation charges99,834 element bytes/7,104 w
 units, and the additional subset charges40,648/198,751, both present in aggregate
 usage. Commands, hashes, frozen executable and immutable receipts stay in ignored
 `local/v3-asset-23`. Gameplay/playback acceptance remains unchanged.
+
+## Complete explicit pose set feeds the existing skin palette (V3-ASSET-27)
+
+`pose::evaluate_set_sampled(bytes, source, SetRequest{expected_source_sha256,
+skin: Request}, &[nif_animation::pose::Request], SetCombinedLimits)` connects the
+reviewed simultaneous source pose evaluator to the existing CPU skin palette and
+weighted position/normal evaluator. The skin instance supplies exact seeds for
+its skeleton root, geometry owner and every linked bone. Required ancestors come
+from validated Scene parent links. Every required controller needs one exact
+object/controller/explicit-time request. Missing, duplicate, wrong-link, chained,
+unsupported and unrelated channels refuse; no stored fallback fills a gap.
+
+One existing skin/binding/Scene decode transfers its private Scene into the
+existing animation preparation. The reviewed required-child CSR/root queue
+propagates parent before child even when parents have larger block IDs. That same
+pass privately records both global worlds and skeleton-root-relative matrices.
+The root-relative frame starts at identity and composes forward; zero or mirrored
+sampled root scale needs no inverse. The unchanged skin evaluator consumes this
+sealed authority and retains its established palette order:
+`SkinTransform * BoneToRoot * SkinToBone`. No caller-created PoseSet, matrix,
+Scene or catalogue is accepted as authority, and no second topology evaluator,
+key importer, sampler or deformation loop is introduced.
+
+Geometry local transforms remain source observations. Weighted output stays in
+the existing skin-root frame. Apply `skin_to_source_world` once, using the sampled
+skeleton-root world and the existing stored SkinTransform inverse. Raw duplicate
+influences, raw weighted normals and explicit weight policy retain their original
+behavior. Every selected channel includes its exact source packet spans, original
+flags, unapplied controller/interpolator fields and binary64 requested-time word.
+Requests retain caller order; palette and deformed geometry do not depend on that
+order. The original one-shot skin and public pose-set schemas and counters remain
+unchanged.
+
+Existing skin and pose-set caps remain separate, and both receive the remaining
+aggregate allowance before output allocation. Defaults allow96 MiB additional
+logical elements and128 million units; the skin phase retains64 MiB/16 million,
+the set phase16 MiB/two million, and preparation four MiB/one million. The entire
+declared preparation allowance is admitted into the aggregate before preparation;
+its actual extra elements/work remain separately visible in the pose-set
+preparation receipt. Source index/catalogue/Scene limits remain independently
+bounded. Declared decoder arrays/checks are admitted under640 MiB/72 million,
+including conservative allowances for both source pipelines. Scene limits use
+the minimum of the two callers even though Scene decodes only once. Hash/source
+visits, seed arrays, private maps, root-relative matrices, outputs and all existing
+phase charges are admitted before their corresponding work. A late channel or
+skin failure returns no complete deformation. These are conservative logical
+caps including temporaries, not process-memory or timing measurements.
+
+The owned consumer is `fallout nif-skin INPUT --pose-set-request REQUEST.json
+--output RECEIPT.json`. Strict schema1 requires the whole-source SHA256,
+`geometry`, `absolute_weight_tolerance`, the explicit
+`controller_policy: "require_exact_required_forest"` and ordered `channels`
+entries containing `object`, `controller` and `source_time`. Source/request
+limits are64 MiB/64 KiB, with at most256 channels. Other source/pose modes conflict.
+Output must stay outside both input directories. Semantic refusal emits a null
+evaluation with nonzero exit. All times are engineering source samples; raw
+clock/start/stop/frequency/phase fields are retained without playback scheduling,
+clip blending, events, quaternion repair or original retail claims.
+
+Validation passes126 focused skin/partition/pose/clip/attachment tests, including
+six complete-set cases, plus38 serial CLI tests, affected all-target Clippy with
+warnings denied, formatting and the CLI build. Exact and one-under checks cover
+aggregate, preparation, set, skin, sampler, decoder admission, request, ancestry
+and input caps. Missing later channels, raw duplicate/non-unit influences, absent
+normals and a fully static forest have independent tests. Two initial harness
+errors remain preserved: invalid new-test float literals and a misspelled test
+target. The corrected validation passes without changing old evaluator behavior.
+
+The frozen second source passes four literal complete palettes, weighted vertex
+and raw-normal sets, global worlds, root placement and independently calculated
+packet spans. Zero/reflected root scales and different explicit times are covered.
+Four reversed request permutations preserve skin output, signed-zero time words
+are retained, and sixteen semantic refusals publish no partial deformation. All
+four prior complete public pose-set reports remain byte-identical and match the
+corresponding nested channel observations. Seven strict request refusals, two
+independently separated input-tree output guards and five conflicting-mode
+refusals also pass.
+
+Pinned installed source `618eb19e...` retains byte-identical earlier source
+schemas1/2/3, stored skin and compact-influence receipts against frozen26. The
+earlier authored one-linked-sample skin and prepared two-source clip batch also
+stay byte-identical. These are source/engineering compatibility comparisons;
+no original process, original deformed coordinates or retail playback was used.
+Frozen executable, exact commands, source and evidence hashes, failed checks and
+immutable receipts remain in ignored `local/v3-asset-27`. Gameplay acceptance and
+checkpoint45 remain unchanged.

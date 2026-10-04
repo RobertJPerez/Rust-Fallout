@@ -1,5 +1,5 @@
 use crate::nif_animation_inspection;
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
 // Keep the established NIF command names together when Clap flattens this family.
@@ -18,12 +18,21 @@ pub(crate) enum AssetsCommand {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Collect exact source-local visibility along one required ancestry path.
+    NifVisibilityPath {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Bind exact external source keys to one skeleton node; playback unverified.
     NifClipPose {
         skeleton: PathBuf,
         clip: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        /// Prepare both exact sources once and sample an ordered source_times list.
+        #[arg(long)]
+        batch: bool,
     },
     /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
     NifRigidAttachment {
@@ -74,41 +83,7 @@ pub(crate) enum AssetsCommand {
         markers_request: Option<PathBuf>,
     },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
-    NifSkin {
-        input: PathBuf,
-        #[arg(long)]
-        oracle_report: Option<PathBuf>,
-        #[arg(long)]
-        include_partitions: bool,
-        #[arg(long)]
-        include_bindings: bool,
-        /// Evaluate one exact geometry block using stored source locals.
-        #[arg(long, requires = "pose_weight_tolerance", conflicts_with_all = ["oracle_report", "include_partitions", "include_bindings"])]
-        pose_geometry: Option<u32>,
-        /// Admit the raw weight sum within this absolute tolerance; never normalize.
-        #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
-        pose_weight_tolerance: Option<f64>,
-        /// Deform one skin with an exact same-container, explicit-time channel.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings"])]
-        sampled_pose_request: Option<PathBuf>,
-        /// Export every exact raw influence and reconstruct one source-local skin.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request"])]
-        influences_request: Option<PathBuf>,
-        /// Explicit external stored-local skeleton source; requires a complete map.
-        #[arg(long, requires = "external_skin_request")]
-        external_rig: Option<PathBuf>,
-        #[arg(long, requires = "external_rig", conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request"])]
-        external_skin_request: Option<PathBuf>,
-        /// Evaluate unique explicit geometries from one source decode.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request"])]
-        shared_skin_request: Option<PathBuf>,
-        /// Export exact authored partition influence and topology streams.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request"])]
-        partition_streams_request: Option<PathBuf>,
-        /// Select an authored partition from one existing geometry deformation.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request"])]
-        partition_pose_request: Option<PathBuf>,
-    },
+    NifSkin(Box<NifSkinArgs>),
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {
         input: PathBuf,
@@ -127,4 +102,45 @@ pub(crate) enum AssetsCommand {
         #[arg(long)]
         inspect_scenes: bool,
     },
+}
+
+// The path-heavy skin modes should not enlarge every asset command value.
+#[derive(Args)]
+pub(crate) struct NifSkinArgs {
+    pub(crate) input: PathBuf,
+    #[arg(long)]
+    pub(crate) oracle_report: Option<PathBuf>,
+    #[arg(long)]
+    pub(crate) include_partitions: bool,
+    #[arg(long)]
+    pub(crate) include_bindings: bool,
+    /// Evaluate one exact geometry block using stored source locals.
+    #[arg(long, requires = "pose_weight_tolerance", conflicts_with_all = ["oracle_report", "include_partitions", "include_bindings"])]
+    pub(crate) pose_geometry: Option<u32>,
+    /// Admit the raw weight sum within this absolute tolerance; never normalize.
+    #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
+    pub(crate) pose_weight_tolerance: Option<f64>,
+    /// Deform one skin with an exact same-container, explicit-time channel.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings"])]
+    pub(crate) sampled_pose_request: Option<PathBuf>,
+    /// Export every exact raw influence and reconstruct one source-local skin.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request"])]
+    pub(crate) influences_request: Option<PathBuf>,
+    /// Explicit external stored-local skeleton source; requires a complete map.
+    #[arg(long, requires = "external_skin_request")]
+    pub(crate) external_rig: Option<PathBuf>,
+    #[arg(long, requires = "external_rig", conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request"])]
+    pub(crate) external_skin_request: Option<PathBuf>,
+    /// Evaluate unique explicit geometries from one source decode.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request"])]
+    pub(crate) shared_skin_request: Option<PathBuf>,
+    /// Export exact authored partition influence and topology streams.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request"])]
+    pub(crate) partition_streams_request: Option<PathBuf>,
+    /// Select an authored partition from one existing geometry deformation.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request"])]
+    pub(crate) partition_pose_request: Option<PathBuf>,
+    /// Apply the complete explicitly sampled required skin forest.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request", "partition_pose_request"])]
+    pub(crate) pose_set_request: Option<PathBuf>,
 }

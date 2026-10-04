@@ -4,8 +4,10 @@ pub mod cells;
 pub mod conversation;
 pub mod dependencies;
 pub mod doors;
+pub mod lighting;
 pub mod preparation;
 pub mod residency;
+pub mod water;
 
 use crate::{
     Result,

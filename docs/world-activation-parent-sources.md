@@ -1,5 +1,15 @@
 # Placed activation-parent source inputs
 
+The owned `fallout placed-activation-sources --install ... --load-order ...`
+command requires an explicit canonical `--reference Origin.esm:hex`; it accepts
+an optional existing `--index-cache`. It emits raw prompt/hash, parent delay
+words, all terminal resolution statuses and actual source witnesses. Exit zero
+means the source closure was prepared, including truthful absent or unavailable
+fields. A factory/root refusal emits a null request and source error with exit
+one. Earlier strict index/master refusals return the existing error before a
+report. Timer, activation, condition, actor/item/current CELL, prompt decoding,
+default prompt and runtime/parity outputs stay false.
+
 `world::activation::PlacedActivationSources::load(&mut RecordStore, &FormKey, Limits)`
 prepares the winning live NV REFR/ACHR/ACRE requested by the caller. Its private
 immutable owner provides a borrowed receipt, root, identity and ordered source

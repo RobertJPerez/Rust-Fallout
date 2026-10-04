@@ -9,6 +9,7 @@ use fallout_data::{
     terrain::preparation::{Receipt as TerrainReceipt, TexturePreparation, TextureSourcePlan},
     vfs::MountIndex,
     world::{
+        activation::PlacedActivationSources,
         cells::CellGridSources,
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
@@ -176,6 +177,47 @@ pub(super) fn water(
     })();
     if let Err(error) = consumed {
         report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) fn activation(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    reference: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let prepared = PlacedActivationSources::load(&mut store, &reference, Default::default());
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact placed activation-parent, raw delay word and prompt source declarations",
+        "requested_reference":reference,"activation_sources":null,"source_request_prepared":false,"source_error":null,
+        "activation_flags_declared":false,"parent_count":0,"parent_resolution_statuses":[],
+        "parent_header_sources_available":false,"prompt_declared":false,
+        "target_bodies_decoded":false,"parent_graph_walked":false,"delay_interpreted":false,"timer_scheduled":false,
+        "native_activation_executed":false,"condition_truth_evaluated":false,"actor_item_state_mutated":false,
+        "current_cell_mutated":false,"prompt_decoded":false,"default_prompt_selected":false,
+        "runtime_ready":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(sources) => {
+            let r = sources.receipt();
+            report["activation_flags_declared"] = json!(r.activation_flags.is_some());
+            report["parent_count"] = json!(r.parents.len());
+            report["parent_resolution_statuses"] = json!(
+                r.parents
+                    .iter()
+                    .map(|p| p.target.status)
+                    .collect::<Vec<_>>()
+            );
+            report["parent_header_sources_available"] =
+                json!(!r.parents.is_empty() && r.parents.iter().all(|p| p.header_source_available));
+            report["prompt_declared"] = json!(r.prompt.is_some());
+            report["activation_sources"] = serde_json::to_value(&sources)?;
+            report["source_request_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
     }
     provenance(&mut report, &order, &mut store)?;
     Ok(report)
@@ -2573,6 +2615,345 @@ mod tests {
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
         }
+    }
+
+    fn activation_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let origin = if mode == "player" {
+            "FalloutNV.esm"
+        } else {
+            "Base.esm"
+        };
+        let has_parents = !["absent", "flags-only", "prompt-only"].contains(&mode);
+        let mut body = field(b"NAME", &[0, 5, 0, 0]);
+        if has_parents {
+            let raw = match mode {
+                "null" => 0_u32,
+                "missing" => 0x999,
+                "player" => 0x14,
+                _ => 0x201,
+            };
+            let parent = [raw.to_le_bytes(), 0x80000000_u32.to_le_bytes()].concat();
+            {
+                body.extend(field(
+                    b"XAPR",
+                    if mode == "bad-parent-width" {
+                        &parent[..7]
+                    } else {
+                        &parent
+                    },
+                ));
+            }
+        }
+        if !["absent", "prompt-only"].contains(&mode) {
+            body.extend(field(
+                b"XAPD",
+                if mode == "bad-flags-width" {
+                    &[254, 0]
+                } else {
+                    &[254]
+                },
+            ));
+        }
+        if has_parents {
+            body.extend(field(b"XAPR", &[0, 2, 0, 0, 1, 0, 0, 0]));
+        }
+        if !["absent", "flags-only"].contains(&mode) {
+            body.extend(field(
+                b"XATO",
+                if mode == "bad-prompt-nul" {
+                    &[255, 128, b'O']
+                } else {
+                    &[255, 128, b'O', 0]
+                },
+            ));
+        }
+        if has_parents {
+            body.extend(field(b"ZZZZ", &[91, 92]));
+            body.extend(field(b"XAPR", &[1, 2, 0, 0, 0, 0, 128, 191]));
+            body.extend(field(b"XAPR", &[2, 2, 0, 0, 69, 35, 193, 127]));
+        }
+        if mode != "bad-core" {
+            body.extend(field(b"DATA", &[0; 24]));
+        }
+        if mode == "duplicate-flags" {
+            body.extend(field(b"XAPD", &[1]));
+        }
+        if mode == "duplicate-prompt" {
+            body.extend(field(b"XATO", &[0]));
+        }
+        if mode == "truncated" {
+            // Terminal framing prevents another field from filling its payload.
+            body.extend(b"XAPR\x08\0\0");
+        }
+        let hedr = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let kind = match mode {
+            "root-achr" => b"ACHR",
+            "root-acre" => b"ACRE",
+            _ => b"REFR",
+        };
+        fs::write(
+            root.join("Data").join(origin),
+            [
+                record(b"TES4", 0, &hedr),
+                record(kind, 0x100, &body),
+                record(b"PGRE", 0x200, &field(b"ZZZZ", &[1])),
+                record(b"PMIS", 0x201, &field(b"ZZZZ", &[2])),
+                record(b"PBEA", 0x202, &field(b"ZZZZ", &[3])),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let master = if mode == "missing-master" {
+            "Missing.esm"
+        } else {
+            origin
+        };
+        let patch_header = [
+            hedr,
+            field(b"MAST", &[master.as_bytes(), &[0]].concat()),
+            field(b"DATA", &[0; 8]),
+        ]
+        .concat();
+        let mut target = record(
+            if mode == "wrong-record-kind" {
+                b"STAT"
+            } else {
+                b"PBEA"
+            },
+            0x201,
+            &[1, 2, 3],
+        );
+        if mode == "deleted" {
+            target[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        }
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [record(b"TES4", 0, &patch_header), target].concat(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("order.json"),
+            serde_json::to_vec(&json!([origin, "Patch.esp"])).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("activation-case.json"),
+            serde_json::to_vec(&json!({"mode":mode,"origin":origin})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_ACTIVATION_FIXTURE={}", root.display());
+    }
+    fn activation_report(root: &Path, mode: &str) -> Value {
+        activation(
+            root,
+            &root.join("order.json"),
+            None,
+            crate::parse_cell_key(if mode == "player" {
+                "FalloutNV.esm:100"
+            } else {
+                "Base.esm:100"
+            })
+            .unwrap(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn cli_activation_keeps_literal_unsorted_repeats_delay_words_prompt_and_actual_target_source() {
+        for mode in ["valid", "root-achr", "root-acre"] {
+            let root = directory();
+            activation_fixture(&root, mode);
+            let report = activation_report(&root, mode);
+            assert_eq!(report["source_request_prepared"], true);
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["activation_flags_declared"], true);
+            assert_eq!(report["parent_count"], 4);
+            assert_eq!(report["parent_header_sources_available"], true);
+            assert_eq!(report["prompt_declared"], true);
+            let s = &report["activation_sources"];
+            assert_eq!(s["placed"]["header"]["offset"], 42);
+            assert_eq!(s["placed"]["header"]["stored_size"], 121);
+            assert_eq!(s["placement"]["unhandled_fields"]["XAPR"], 4);
+            assert_eq!(s["activation_flags"]["raw"], 254);
+            assert_eq!(s["prompt"]["raw"], json!([255, 128, 79, 0]));
+            assert_eq!(s["prompt"]["field"]["site"]["decoded_header_offset"], 45);
+            assert_eq!(s["prompt"]["field"]["site"]["span"]["decoded_offset"], 51);
+            assert_eq!(s["prompt"]["field"]["physical_framing_offset"], 111);
+            let prompt_sha = format!("{:x}", Sha256::digest([255, 128, b'O', 0]));
+            assert_eq!(s["prompt"]["sha256"], prompt_sha);
+            for (index, (raw, bits, ordinal, offset)) in [
+                (0x201, 0x80000000_u32, 1, 10),
+                (0x200, 1, 3, 31),
+                (0x201, 0xbf800000, 6, 63),
+                (0x202, 0x7fc12345, 7, 77),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let p = &s["parents"][index];
+                assert_eq!(p["parent_raw"], raw);
+                assert_eq!(p["delay_bits"], bits);
+                assert_eq!(p["field"]["physical_field_ordinal"], ordinal);
+                assert_eq!(p["field"]["logical_field_ordinal"], ordinal);
+                assert_eq!(p["field"]["site"]["decoded_header_offset"], offset);
+                assert_eq!(p["field"]["site"]["span"]["decoded_offset"], offset + 6);
+                assert_eq!(p["field"]["physical_framing_offset"], 66 + offset);
+                assert_eq!(p["target"]["status"], "resolved");
+            }
+            assert_eq!(s["parents"][0]["target"]["key"]["local_id"], 0x201);
+            assert_eq!(s["parents"][0]["source"]["source_ordinal"], 1);
+            assert_eq!(s["parents"][0]["source"]["source_plugin"], "Patch.esp");
+            assert_eq!(s["parents"][0]["source"]["header"]["offset"], 71);
+            assert_eq!(
+                s["parents"][0]["source"]["header"]["kind"],
+                json!([80, 66, 69, 65])
+            );
+            assert_eq!(s["usage"]["read_bytes"], 121);
+            assert_eq!(s["usage"]["records"], 5);
+            assert_eq!(s["usage"]["raw_bytes"], 73);
+            for field in [
+                "target_bodies_decoded",
+                "parent_graph_walked",
+                "delay_interpreted",
+                "timer_scheduled",
+                "native_activation_executed",
+                "condition_truth_evaluated",
+                "actor_item_state_mutated",
+                "current_cell_mutated",
+                "prompt_decoded",
+                "default_prompt_selected",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[field], false, "{field}");
+            }
+        }
+    }
+    #[test]
+    fn cli_activation_absence_unavailable_and_strict_refusals_never_produce_a_timer_or_prompt_default()
+     {
+        for (mode, refused) in [
+            ("absent", false),
+            ("flags-only", false),
+            ("prompt-only", false),
+            ("null", false),
+            ("missing", false),
+            ("deleted", false),
+            ("wrong-record-kind", false),
+            ("player", false),
+            ("duplicate-flags", true),
+            ("duplicate-prompt", true),
+            ("bad-parent-width", true),
+            ("bad-flags-width", true),
+            ("bad-prompt-nul", true),
+            ("truncated", true),
+            ("bad-core", true),
+            ("missing-master", true),
+        ] {
+            let root = directory();
+            activation_fixture(&root, mode);
+            if mode == "missing-master" {
+                assert!(
+                    activation(
+                        &root,
+                        &root.join("order.json"),
+                        None,
+                        crate::parse_cell_key("Base.esm:100").unwrap()
+                    )
+                    .is_err()
+                );
+                continue;
+            }
+            let r = activation_report(&root, mode);
+            assert_eq!(r["source_request_prepared"], !refused, "{mode}");
+            assert_eq!(r["activation_sources"].is_null(), refused, "{mode}");
+            if refused {
+                assert!(!r["source_error"].is_null(), "{mode}");
+            } else {
+                assert!(r["source_error"].is_null());
+                assert_eq!(
+                    r["parent_count"],
+                    if ["absent", "flags-only", "prompt-only"].contains(&mode) {
+                        0
+                    } else {
+                        4
+                    }
+                );
+                let expected = match mode {
+                    "null" => Some("null"),
+                    "missing" => Some("missing"),
+                    "deleted" => Some("deleted"),
+                    "wrong-record-kind" => Some("wrong-record-kind"),
+                    "player" => Some("runtime-player-binding-unimplemented"),
+                    _ => None,
+                };
+                if let Some(status) = expected {
+                    assert_eq!(r["parent_resolution_statuses"][0], status);
+                    assert_eq!(
+                        r["activation_sources"]["parents"][0]["header_source_available"],
+                        false
+                    );
+                    assert_eq!(r["parent_header_sources_available"], false);
+                }
+            }
+            for field in [
+                "delay_interpreted",
+                "timer_scheduled",
+                "native_activation_executed",
+                "prompt_decoded",
+                "default_prompt_selected",
+                "runtime_ready",
+            ] {
+                assert_eq!(r[field], false, "{mode} {field}");
+            }
+        }
+        let root = directory();
+        activation_fixture(&root, "valid");
+        for key in ["Base.esm:999", "Base.esm:201"] {
+            let r = activation(
+                &root,
+                &root.join("order.json"),
+                None,
+                crate::parse_cell_key(key).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(r["source_request_prepared"], false);
+            assert!(r["activation_sources"].is_null());
+            assert!(!r["source_error"].is_null());
+        }
+    }
+    #[test]
+    fn cli_activation_requires_an_explicit_canonical_reference() {
+        use clap::Parser;
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "placed-activation-sources",
+                "--install",
+                "x",
+                "--load-order",
+                "o"
+            ])
+            .is_err()
+        );
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "placed-activation-sources",
+            "--install",
+            "x",
+            "--load-order",
+            "o",
+            "--reference",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::PlacedActivationSources { .. }
+        ));
     }
 
     fn linked_fixture(root: &Path, mode: &str) {

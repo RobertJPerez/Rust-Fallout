@@ -473,6 +473,17 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve exact placed activation parents, raw delay words and prompt bytes.
+    PlacedActivationSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        reference: String,
+    },
     /// Preserve exact placed linked-reference and raw source color inputs.
     PlacedLinkedSources {
         #[arg(long)]
@@ -1502,6 +1513,24 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::PlacedActivationSources {
+            install,
+            load_order,
+            index_cache,
+            reference,
+        } => {
+            let report = world_preparation_inspection::activation(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&reference)?,
+            )?;
+            let prepared = report["source_request_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("Placed activation source request refused; see report".into());
             }
         }
         Command::PlacedLinkedSources {

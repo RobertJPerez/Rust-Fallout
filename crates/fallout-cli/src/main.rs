@@ -376,6 +376,15 @@ enum Command {
         #[arg(long)]
         repository: PathBuf,
     },
+    /// Observe source-bound current/previous availability without selection or repair.
+    NativeSlotAvailability {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+    },
     /// Explicitly import our schema-2 native save into a new repository.
     NativeMigrateV2 {
         #[arg(long)]
@@ -1366,6 +1375,26 @@ fn run(args: Args) -> Result<()> {
             repository,
         } => {
             let report = native_save_inspection::load(&install, &load_order, &repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeSlotAvailability {
+            install,
+            load_order,
+            repository,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                if parent.starts_with(repository.canonicalize()?) {
+                    return Err(
+                        "availability report output must be outside the native repository".into(),
+                    );
+                }
+            }
+            let report = native_save_inspection::availability(&install, &load_order, &repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeMigrateV2 {

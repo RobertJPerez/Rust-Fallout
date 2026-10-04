@@ -593,6 +593,9 @@ enum Command {
         /// Decode unambiguous model candidates and inspect their NIF containers.
         #[arg(long)]
         inspect_models: bool,
+        /// Include a bounded source-only CELL/WRLD/placement dependency graph.
+        #[arg(long)]
+        include_dependencies: bool,
         /// Cache decoded model bytes outside the installation for independent tools.
         #[arg(long, requires = "inspect_models")]
         model_cache: Option<PathBuf>,
@@ -1797,6 +1800,7 @@ fn run(args: Args) -> Result<()> {
             defer_unread_payloads,
             index_cache,
             inspect_models,
+            include_dependencies,
             model_cache,
         } => {
             let names: Vec<String> = serde_json::from_reader(baseline::open_source(&load_order)?)?;
@@ -1820,6 +1824,16 @@ fn run(args: Args) -> Result<()> {
             } else {
                 fallout_data::store::RecordStore::open_nv(&install.join("Data"), &names, limits)?
             };
+            let dependency_report = if include_dependencies {
+                let (key, _) = store.cell_by_editor_id(editor_id.as_bytes())?;
+                Some(fallout_data::world::dependencies::inspect_cell_key(
+                    &mut store,
+                    &key,
+                    Default::default(),
+                )?)
+            } else {
+                None
+            };
             let mut mounts = MountIndex::default();
             for path in data_files(&install, &["bsa"])? {
                 NvArchive::open(&path)?.census(&mut mounts)?;
@@ -1836,7 +1850,24 @@ fn run(args: Args) -> Result<()> {
             let clean = report.integrity_failures == 0
                 && report.link_failures == 0
                 && report.model_probes.iter().all(|p| p.error.is_none());
-            emit(&report, output, &install)?;
+            if let Some(dependency_report) = &dependency_report {
+                #[derive(serde::Serialize)]
+                struct WithDependencies<'a> {
+                    #[serde(flatten)]
+                    cell: &'a fallout_data::world::CellReport,
+                    dependency_report: &'a fallout_data::world::dependencies::Report,
+                }
+                emit(
+                    &WithDependencies {
+                        cell: &report,
+                        dependency_report,
+                    },
+                    output,
+                    &install,
+                )?;
+            } else {
+                emit(&report, output, &install)?;
+            }
             if !clean {
                 return Err("cell inspection contains integrity, reference, or model failures; runtime acceptance remains blocked".into());
             }

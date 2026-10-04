@@ -4,7 +4,13 @@ use crate::{
     material, model, scene,
     ui::{images::ImageView, rectangles::TileView},
 };
-use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy::{
+    asset::RenderAssetUsages,
+    camera::primitives::MeshAabb,
+    ecs::system::SystemParam,
+    mesh::{Indices, VertexAttributeValues},
+    prelude::*,
+};
 use std::vec::IntoIter;
 
 const FRAME_BYTES: usize = 16 * 1024 * 1024;
@@ -15,10 +21,11 @@ const MAX_PARTS: usize = 16_384;
 const MAX_ENTITIES: usize = 65_536;
 
 #[derive(SystemParam)]
-pub struct Resources<'w> {
+pub struct Resources<'w, 's> {
     meshes: ResMut<'w, Assets<Mesh>>,
     materials: ResMut<'w, Assets<material::InspectionMaterial>>,
     images: ResMut<'w, Assets<Image>>,
+    draws: Query<'w, 's, &'static Mesh3d>,
 }
 
 type Template = (Handle<Mesh>, Handle<material::InspectionMaterial>);
@@ -44,12 +51,82 @@ pub struct Queue {
     owned_entities: Vec<Entity>,
     retiring_model: usize,
     retiring_cpu_model: usize,
+    object_binding: Option<model::ObjectBinding>,
+    object_sequence: u64,
+    mesh_entities: Vec<(Entity, usize, usize)>,
 }
 
 fn mesh_bytes(mesh: &Mesh) -> Result<usize, String> {
     mesh.get_vertex_buffer_size()
         .checked_add(mesh.get_index_buffer_bytes().map_or(0, <[u8]>::len))
         .ok_or_else(|| "Draw mesh byte count overflow".into())
+}
+
+fn validate_object_mesh(current: &Mesh, next: &Mesh) -> Result<(), String> {
+    let usage = RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD;
+    if current.asset_usage != usage
+        || next.asset_usage != usage
+        || current.primitive_topology() != next.primitive_topology()
+    {
+        return Err("Live object topology/CPU retention changed".into());
+    }
+    let mut old = current
+        .try_attributes()
+        .map_err(|_| "Owned live mesh was extracted")?;
+    let mut new = next
+        .try_attributes()
+        .map_err(|_| "Replacement live mesh was extracted")?;
+    loop {
+        match (old.next(), new.next()) {
+            (None, None) => break,
+            (Some((a, before)), Some((b, after))) if a == b => {
+                if std::mem::discriminant(before) != std::mem::discriminant(after)
+                    || before.len() != after.len()
+                {
+                    return Err("Live object vertex attribute layout/count changed".into());
+                }
+                if a.id == Mesh::ATTRIBUTE_POSITION.id || a.id == Mesh::ATTRIBUTE_NORMAL.id {
+                    let VertexAttributeValues::Float32x3(values) = after else {
+                        return Err("Live object position/normal format changed".into());
+                    };
+                    if values.is_empty() || values.iter().flatten().any(|v| !v.is_finite()) {
+                        return Err("Live object attributes are empty or nonfinite".into());
+                    }
+                } else if before.get_bytes() != after.get_bytes() {
+                    return Err("Live object static UV/color attributes changed".into());
+                }
+            }
+            _ => return Err("Live object vertex attribute set changed".into()),
+        }
+    }
+    let Indices::U32(before) = current
+        .try_indices()
+        .map_err(|_| "Owned indices were extracted")?
+    else {
+        return Err("Live object requires retained u32 triangle indices".into());
+    };
+    let Indices::U32(after) = next
+        .try_indices()
+        .map_err(|_| "Replacement indices were extracted")?
+    else {
+        return Err("Live object index format changed".into());
+    };
+    // Source connectivity is unchanged; a sampled negative scale may reverse
+    // every triangle's winding. A partial or differently connected edit fails.
+    if before.len() != after.len()
+        || before.is_empty()
+        || before.len() % 3 != 0
+        || !(before == after
+            || before
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(after.as_chunks::<3>().0.iter())
+                .all(|(a, b)| a[0] == b[0] && a[1] == b[2] && a[2] == b[1]))
+    {
+        return Err("Live object source triangle topology changed".into());
+    }
+    Ok(())
 }
 
 impl Queue {
@@ -134,6 +211,164 @@ impl Queue {
             owned_entities: Vec::new(),
             retiring_model: 0,
             retiring_cpu_model: 0,
+            object_binding: None,
+            object_sequence: 0,
+            mesh_entities: Vec::new(),
+        })
+    }
+
+    pub fn new_object(
+        epoch: u64,
+        prepared: scene::Prepared,
+        binding: model::ObjectBinding,
+    ) -> Result<Self, String> {
+        if prepared.models.len() != 1
+            || prepared.instances.len() != 1
+            || prepared.instances[0].model != 0
+            || prepared.instances[0].transform != Transform::IDENTITY
+            || prepared.instances[0].key.is_some()
+            || prepared.instances[0].canonical.is_some()
+            || binding.geometry.is_empty()
+            || binding.geometry.len() > model::OBJECT_PARTS
+            || prepared.models[0].parts.len() != binding.geometry.len()
+            || prepared.models[0].parts.iter().any(|part| {
+                part.mesh.asset_usage
+                    != (RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD)
+            })
+        {
+            return Err("Live object needs one exact retained source model/instance".into());
+        }
+        let mut bytes = 0usize;
+        for part in &prepared.models[0].parts {
+            bytes = bytes
+                .checked_add(mesh_bytes(&part.mesh)?)
+                .ok_or("Live mesh bytes overflow")?;
+        }
+        if bytes > model::OBJECT_DRAW_BYTES {
+            return Err("Live object exceeds the aggregate 16 MiB update limit".into());
+        }
+        let mut queue = Self::new(epoch, prepared)?;
+        queue.object_binding = Some(binding);
+        Ok(queue)
+    }
+
+    /// All fallible checks precede the first mutation. The exclusive mesh asset
+    /// borrow prevents handle removal between preflight and replacement.
+    pub fn update_object(
+        &mut self,
+        commands: &mut Commands,
+        resources: &mut Resources,
+        epoch: u64,
+        sequence: u64,
+        frame: model::ObjectFrame,
+    ) -> Result<model::ObjectReceipt, String> {
+        if self.retiring
+            || !self.complete
+            || !self.published
+            || self.epoch != epoch
+            || frame.sequence != sequence
+            || sequence <= self.object_sequence
+            || self.object_binding.as_ref() != Some(&frame.binding)
+            || self.templates.len() != 1
+            || frame.meshes.len() != self.templates[0].len()
+            || frame.meshes.len() != frame.binding.geometry.len()
+            || frame.meshes.is_empty()
+            || frame.meshes.len() > FRAME_ASSETS
+            || frame.summary.evaluation.source_sha256 != frame.binding.source_sha256
+            || frame.summary.evaluation.object.block != frame.binding.object
+            || frame.summary.evaluation.controller.block != frame.binding.controller
+            || frame.summary.draw_meshes.len() != frame.meshes.len()
+        {
+            return Err("Discarded stale or differently bound live object frame".into());
+        }
+        let mut bytes = 0usize;
+        let mut bounds = Vec::with_capacity(frame.meshes.len());
+        let mut min = Vec3::splat(f32::INFINITY);
+        let mut max = Vec3::splat(f32::NEG_INFINITY);
+        for (index, (next, (handle, _))) in frame.meshes.iter().zip(&self.templates[0]).enumerate()
+        {
+            let current = resources
+                .meshes
+                .get(handle)
+                .ok_or("Owned live mesh is unavailable")?;
+            validate_object_mesh(current, next)?;
+            let evidence = &frame.summary.draw_meshes[index];
+            if (evidence.geometry, evidence.geometry_data) != frame.binding.geometry[index] {
+                return Err("Live object geometry receipt differs".into());
+            }
+            let Some(VertexAttributeValues::Float32x3(positions)) =
+                next.attribute(Mesh::ATTRIBUTE_POSITION)
+            else {
+                return Err("Live object position layout changed".into());
+            };
+            let normals = match next.attribute(Mesh::ATTRIBUTE_NORMAL) {
+                Some(VertexAttributeValues::Float32x3(values)) => values.as_slice(),
+                None => &[],
+                _ => return Err("Live object normal layout changed".into()),
+            };
+            if crate::pose::draw_hash(positions) != evidence.positions_sha256
+                || crate::pose::draw_hash(normals) != evidence.normals_sha256
+            {
+                return Err("Live object attributes differ from their source receipt".into());
+            }
+            for &position in positions {
+                min = min.min(Vec3::from_array(position));
+                max = max.max(Vec3::from_array(position));
+            }
+            let aabb = next
+                .compute_aabb()
+                .ok_or("Live object bounds unavailable")?;
+            if !aabb.center.is_finite() || !aabb.half_extents.is_finite() {
+                return Err("Live object bounds overflow".into());
+            }
+            bounds.push(aabb);
+            bytes = bytes
+                .checked_add(mesh_bytes(next)?)
+                .ok_or("Live mesh bytes overflow")?;
+            if bytes > FRAME_BYTES {
+                return Err("Live object exceeds the aggregate 16 MiB update limit".into());
+            }
+        }
+        if bytes != frame.draw_bytes
+            || frame.bounds != [min.to_array(), max.to_array()]
+            || !f64::from_bits(frame.summary.evaluation.requested_time_f64_bits).is_finite()
+            || self.mesh_entities.len() != frame.meshes.len()
+        {
+            return Err("Live object byte receipt differs".into());
+        }
+        for &(entity, model, index) in &self.mesh_entities {
+            if model != 0
+                || index >= self.templates[0].len()
+                || resources.draws.get(entity).map(|draw| draw.0.id()).ok()
+                    != Some(self.templates[0][index].0.id())
+            {
+                return Err("Live object host mesh destination changed".into());
+            }
+        }
+        // The asset's generation, layout and complete destination set were
+        // checked above. No new handles/materials/textures/entities are created.
+        for (next, (handle, _)) in frame.meshes.into_iter().zip(&self.templates[0]) {
+            *resources
+                .meshes
+                .get_mut(handle)
+                .expect("exclusive validated live mesh") = next;
+        }
+        for &(entity, model, index) in &self.mesh_entities {
+            if model == 0 {
+                commands.entity(entity).insert(bounds[index]);
+            }
+        }
+        self.object_sequence = sequence;
+        Ok(model::ObjectReceipt {
+            schema_version: 1,
+            scene_epoch: epoch,
+            request_sequence: sequence,
+            binding: frame.binding,
+            pose: frame.summary,
+            bounds: frame.bounds,
+            uploaded_mesh_bytes: bytes,
+            handles_reused: self.templates[0].len(),
+            retail_parity_accepted: false,
         })
     }
 
@@ -312,6 +547,7 @@ impl Queue {
                 }
                 let child = child.id();
                 self.owned_entities.push(child);
+                self.mesh_entities.push((child, model, index));
                 self.current = Some((parent, model, index + 1));
                 entities += 1;
                 self.admitted += 1;
@@ -358,6 +594,7 @@ impl Queue {
             self.current = None;
             self.current_tile = None;
             self.image_view = None;
+            self.mesh_entities.clear();
             if let Some(root) = self.root {
                 commands.entity(root).insert(Visibility::Hidden);
             }
@@ -465,14 +702,286 @@ mod tests {
     }
 
     fn app(prepared: scene::Prepared) -> App {
+        app_queue(Queue::new(7, prepared).unwrap())
+    }
+
+    fn app_queue(queue: Queue) -> App {
         let mut app = App::new();
         app.init_resource::<Assets<Mesh>>()
             .init_resource::<Assets<material::InspectionMaterial>>()
             .init_resource::<Assets<Image>>()
-            .insert_resource(TestQueue(Queue::new(7, prepared).unwrap()))
+            .insert_resource(TestQueue(queue))
             .insert_resource(Epoch(7))
             .add_systems(Update, advance);
         app
+    }
+
+    fn live_app(two: bool) -> (App, model::ObjectSource, Vec<u8>) {
+        let (source, model, bytes) = model::tests::live_object_fixture(two);
+        let prepared = scene::Prepared {
+            center: model.center,
+            radius: model.radius,
+            origin: [0.; 3],
+            models: vec![model],
+            images: vec![],
+            instances: vec![scene::Instance {
+                model: 0,
+                transform: Transform::IDENTITY,
+                key: None,
+                visibility: Visibility::Inherited,
+                canonical: None,
+            }],
+        };
+        let mut app = app_queue(Queue::new_object(7, prepared, source.binding.clone()).unwrap());
+        for _ in 0..20 {
+            app.update();
+            if app.world().resource::<TestQueue>().0.published {
+                break;
+            }
+        }
+        assert!(app.world().resource::<TestQueue>().0.published);
+        (app, source, bytes)
+    }
+
+    fn apply_frame(
+        app: &mut App,
+        epoch: u64,
+        sequence: u64,
+        frame: model::ObjectFrame,
+    ) -> Result<model::ObjectReceipt, String> {
+        let mut queue = app.world_mut().remove_resource::<TestQueue>().unwrap();
+        let mut state =
+            bevy::ecs::system::SystemState::<(Commands, Resources)>::new(app.world_mut());
+        let result = {
+            let (mut commands, mut assets) = state.get_mut(app.world_mut()).unwrap();
+            queue
+                .0
+                .update_object(&mut commands, &mut assets, epoch, sequence, frame)
+        };
+        state.apply(app.world_mut());
+        app.world_mut().insert_resource(queue);
+        result
+    }
+
+    fn mesh_words(app: &App) -> Vec<Vec<u8>> {
+        let queue = &app.world().resource::<TestQueue>().0;
+        queue.templates[0]
+            .iter()
+            .map(|(handle, _)| {
+                let mesh = app.world().resource::<Assets<Mesh>>().get(handle).unwrap();
+                mesh.attributes()
+                    .flat_map(|(_, v)| v.get_bytes().iter().copied())
+                    .chain(mesh.get_index_buffer_bytes().unwrap().iter().copied())
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn actual_owned_pose_updates_reuse_handles_refresh_aabb_and_retire_without_orphans() {
+        let (mut app, source, bytes) = live_app(true);
+        let owned = app.world().resource::<TestQueue>().0.owned_entities.clone();
+        let handles: Vec<_> = app.world().resource::<TestQueue>().0.templates[0]
+            .iter()
+            .map(|(m, t)| (m.id(), t.id()))
+            .collect();
+        let entities = app.world().entities().count_spawned();
+        let receipt = apply_frame(&mut app, 7, 1, source.frame(&bytes, 3., 1).unwrap()).unwrap();
+        assert_eq!(receipt.request_sequence, 1);
+        assert_eq!(receipt.handles_reused, 2);
+        assert_eq!(receipt.uploaded_mesh_bytes, 312);
+        assert_eq!(
+            receipt.pose.evaluation.requested_time_f64_bits,
+            3f64.to_bits()
+        );
+        assert_eq!(receipt.binding.geometry, [(5, 6), (9, 6)]);
+        assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 2);
+        assert_eq!(
+            app.world()
+                .resource::<Assets<material::InspectionMaterial>>()
+                .len(),
+            2
+        );
+        assert!(app.world().resource::<Assets<Image>>().is_empty());
+        assert_eq!(app.world().entities().count_spawned(), entities);
+        assert_eq!(
+            app.world().resource::<TestQueue>().0.templates[0]
+                .iter()
+                .map(|(m, t)| (m.id(), t.id()))
+                .collect::<Vec<_>>(),
+            handles
+        );
+        for &(entity, _, _) in &app.world().resource::<TestQueue>().0.mesh_entities {
+            let aabb = app
+                .world()
+                .get::<bevy::camera::primitives::Aabb>(entity)
+                .unwrap();
+            assert_eq!(aabb.center.to_array(), [-6., 31., 9.]);
+            assert_eq!(aabb.half_extents.to_array(), [0., 2., 2.]);
+        }
+        let receipt = apply_frame(&mut app, 7, 2, source.frame(&bytes, 0., 2).unwrap()).unwrap();
+        assert_eq!(
+            receipt.pose.evaluation.requested_time_f64_bits,
+            0f64.to_bits()
+        );
+        for &(entity, _, _) in &app.world().resource::<TestQueue>().0.mesh_entities {
+            let aabb = app
+                .world()
+                .get::<bevy::camera::primitives::Aabb>(entity)
+                .unwrap();
+            assert_eq!(aabb.center.to_array(), [-6., -2., -6.]);
+            assert_eq!(aabb.half_extents.to_array(), [0., 1., 1.]);
+        }
+        app.world_mut().resource_mut::<Epoch>().0 = 8;
+        app.update();
+        assert!(apply_frame(&mut app, 7, 3, source.frame(&bytes, 3., 3).unwrap()).is_err());
+        for _ in 0..20 {
+            app.update();
+        }
+        assert!(app.world().resource::<Assets<Mesh>>().is_empty());
+        assert!(
+            app.world()
+                .resource::<Assets<material::InspectionMaterial>>()
+                .is_empty()
+        );
+        assert!(app.world().resource::<Assets<Image>>().is_empty());
+        assert!(
+            owned
+                .iter()
+                .all(|&entity| app.world().get_entity(entity).is_err())
+        );
+        let mut draws = app.world_mut().query::<&Mesh3d>();
+        assert_eq!(draws.iter(app.world()).count(), 0);
+    }
+
+    #[test]
+    fn last_part_refusals_are_atomic_for_source_topology_layout_receipt_and_stale_requests() {
+        let (mut app, source, bytes) = live_app(true);
+        let original = mesh_words(&app);
+        for case in 0..11 {
+            let mut frame = source.frame(&bytes, 3., 1).unwrap();
+            let mut epoch = 7;
+            let mut expected = 1;
+            match case {
+                0 => epoch = 8,
+                1 => expected = 2,
+                2 => frame.binding.source_sha256.push('x'),
+                3 => frame.binding.geometry[1].0 = 10,
+                4 => {
+                    frame.meshes[1].insert_indices(Indices::U32(vec![0, 0, 2]));
+                }
+                5 => {
+                    frame.meshes[1].insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[0f32; 4]; 3]);
+                }
+                6 => {
+                    frame.meshes[1]
+                        .insert_attribute(Mesh::ATTRIBUTE_POSITION, vec![[f32::NAN; 3]; 3]);
+                }
+                7 => {
+                    frame.meshes[1].insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[1f32; 3]; 2]);
+                }
+                8 => frame.draw_bytes += 1,
+                9 => frame.bounds[1][1] += 1.,
+                10 => frame.summary.draw_meshes[1].positions_sha256.push('x'),
+                _ => unreachable!(),
+            }
+            assert!(
+                apply_frame(&mut app, epoch, expected, frame).is_err(),
+                "case {case}"
+            );
+            assert_eq!(mesh_words(&app), original, "case {case}");
+            assert_eq!(app.world().resource::<TestQueue>().0.object_sequence, 0);
+            assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 2);
+        }
+        apply_frame(&mut app, 7, 1, source.frame(&bytes, 3., 1).unwrap()).unwrap();
+        let applied = mesh_words(&app);
+        assert!(apply_frame(&mut app, 7, 1, source.frame(&bytes, 0., 1).unwrap()).is_err());
+        assert_eq!(mesh_words(&app), applied);
+    }
+
+    #[test]
+    fn changed_host_destination_or_missing_last_handle_preserves_first_mesh() {
+        for missing in [false, true] {
+            let (mut app, source, bytes) = live_app(true);
+            let original = mesh_words(&app)[0].clone();
+            let queue = &app.world().resource::<TestQueue>().0;
+            let last = queue.templates[0][1].0.clone();
+            let entity = queue.mesh_entities[1].0;
+            if missing {
+                app.world_mut()
+                    .resource_mut::<Assets<Mesh>>()
+                    .remove(last.id());
+            } else {
+                let foreign = app
+                    .world_mut()
+                    .resource_mut::<Assets<Mesh>>()
+                    .add(Mesh::from(Cuboid::default()));
+                app.world_mut().entity_mut(entity).insert(Mesh3d(foreign));
+            }
+            assert!(apply_frame(&mut app, 7, 1, source.frame(&bytes, 3., 1).unwrap()).is_err());
+            let first = &app.world().resource::<TestQueue>().0.templates[0][0].0;
+            let mesh = app.world().resource::<Assets<Mesh>>().get(first).unwrap();
+            let words: Vec<_> = mesh
+                .attributes()
+                .flat_map(|(_, v)| v.get_bytes().iter().copied())
+                .chain(mesh.get_index_buffer_bytes().unwrap().iter().copied())
+                .collect();
+            assert_eq!(words, original);
+        }
+    }
+
+    #[test]
+    fn live_admission_enforces_aggregate_bytes_and_part_count_before_creating_handles() {
+        let (source, model, _) = model::tests::live_object_fixture(false);
+        let color = model.parts[0].color;
+        let raster = model.parts[0].raster;
+        for (vertices, accepted, expected_bytes) in [
+            (1_398_100, true, model::OBJECT_DRAW_BYTES - 4),
+            (1_398_101, false, model::OBJECT_DRAW_BYTES + 8),
+        ] {
+            let mesh = Mesh::new(
+                bevy::render::render_resource::PrimitiveTopology::TriangleList,
+                RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+            )
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vec![[0f32; 3]; vertices])
+            .with_inserted_indices(Indices::U32(vec![0, 1, 2]));
+            assert_eq!(mesh_bytes(&mesh).unwrap(), expected_bytes);
+            let prepared = scene::Prepared {
+                center: Vec3::ZERO,
+                radius: 1.,
+                origin: [0.; 3],
+                images: vec![],
+                models: vec![model::Model {
+                    parts: vec![model::Part {
+                        mesh,
+                        texture: None,
+                        color,
+                        raster,
+                    }],
+                    center: Vec3::ZERO,
+                    radius: 1.,
+                }],
+                instances: vec![scene::Instance {
+                    model: 0,
+                    transform: Transform::IDENTITY,
+                    key: None,
+                    visibility: Visibility::Inherited,
+                    canonical: None,
+                }],
+            };
+            assert_eq!(
+                Queue::new_object(7, prepared, source.binding.clone()).is_ok(),
+                accepted
+            );
+        }
+        let (mut app, source, bytes) = live_app(false);
+        let mut frame = source.frame(&bytes, 3., 1).unwrap();
+        frame.meshes = (0..9).map(|_| frame.meshes[0].clone()).collect();
+        frame.binding.geometry = vec![(5, 6); 9];
+        let before = mesh_words(&app);
+        assert!(apply_frame(&mut app, 7, 1, frame).is_err());
+        assert_eq!(mesh_words(&app), before);
+        assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 1);
     }
 
     #[test]

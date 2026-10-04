@@ -115,3 +115,66 @@ With no sample arguments, stored-pose schema 3 and default schema 2 reports reta
 their previous fields and behavior. The host applies no running animation clock,
 rotation-key mapping, original callback or playback policy. Original animated
 skin rendering and gameplay remain unaccepted.
+## Updating a resident selected object at explicit times
+
+`--pose-times 3,0,3` opts the existing selected object into live inspection. The
+initial `--pose-time` remains the startup pose and its ordinary `--report` stays
+immutable. In a window, the existing focus/context/device guarded R/Y action
+requests the next listed time; camera reset is replaced by this action only in
+this opt-in mode. Camera movement remains available while the request runs.
+There is one pending source worker; another step during that request is ignored.
+Each list entry is consumed once after successful admission. A failed request
+leaves the previous mesh visible and a subsequent R/Y retries that same entry.
+
+Headless capture applies the finite explicit list after the initial admitted
+scene has settled for 64 host frames, then waits 64 frames after each successful
+replacement. These frames allow extraction/rendering; they never supply a source
+animation time. All times come directly from the caller's list. No animation
+clock, repeat/interpolation policy, event delivery or original playback is added.
+
+For capture, supply a distinct fresh `--pose-receipt` path. Capture waits until
+the final requested time is admitted and settled. The receipt records its exact
+binary64 time, source SHA, object/controller, ordered geometry/data IDs, scene
+epoch, request sequence, complete attribute hashes, bounds, submitted mesh bytes
+and reused handle count, plus the actual PNG path/hash/encoded bytes/dimensions.
+The successful PNG and receipt use that same request;
+stale epoch/request readback is refused. The initial model report describes the
+initial pose rather than the final capture. A failed sequence can leave that
+initial report and truthful completed-prefix diagnostics, without a final PNG or
+receipt. A write failure remains a failed capture even if a completed PNG exists.
+
+```powershell
+fallout-preview --install <installation> --model-file <source> `
+  --pose-object 1 --pose-controller 2 --pose-time 0 --pose-times 3,0,3 `
+  --headless --capture <fresh-final.png> --report <fresh-initial.json> `
+  --pose-receipt <fresh-final-pose.json>
+```
+
+Live admission permits at most 32 finite listed times, a 4 MiB source, 16,384
+source blocks, eight selected mesh parts and 16 MiB of complete replacement mesh
+data per request. The retained snapshot uses the existing scene decoder with a
+16 MiB array allowance. Initial material/mesh preparation and each pose sample
+still use their existing separately bounded producers; the new allowance does
+not replace those producers' budgets. Source reads are bounded before initial
+decode and every later request. A changed file/archive payload SHA refuses the
+update. The initial snapshot and geometry selection are immutable.
+
+The existing mesh transport handles both startup and live frames: source world
+and presentation basis once, raw linear normal directions, authored UV/color
+words and determinant winding. Only opted-in meshes retain CPU data in addition
+to their render data. Replacement checks every owned handle and destination,
+exact source/request/geometry receipt, finite attributes and culling bounds,
+attribute layout/static words, complete topology and aggregate bytes before the
+first mutation. A complete winding reversal is allowed for a sampled scale sign
+change; changed connectivity is refused. The same mesh handles, material handles,
+textures and draw entities remain owned. Explicit AABB replacement keeps actual
+culling current. Close or scene-epoch change cancels and drains the single worker,
+and owned assets still retire through the existing bounded disposal queue.
+
+At most 16 MiB of live CPU mesh data, 16 MiB of replacement data and the pinned
+render extractor's additional 16 MiB clone are bounded separately. These are
+submitted/retained array ceilings, not exact process memory or driver VRAM.
+Capture receipt serialization including its newline is capped at 1 MiB, and
+encoded PNG hashing admits at most 8 MiB through a fixed 16 KiB stream buffer.
+Original lighting, gameplay,
+physical control feel and retail animation parity remain unproved.

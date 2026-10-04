@@ -82,6 +82,216 @@ pub struct Model {
     pub radius: f32,
 }
 
+pub const OBJECT_SOURCE_BYTES: usize = 4 * 1024 * 1024;
+pub const OBJECT_DRAW_BYTES: usize = 16 * 1024 * 1024;
+pub const OBJECT_PARTS: usize = 8;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ObjectBinding {
+    pub source_sha256: String,
+    pub object: u32,
+    pub controller: u32,
+    pub geometry: Vec<(u32, u32)>,
+}
+
+/// Immutable decoded source; every request rechecks the current source bytes.
+/// Textures and materials remain owned by the initial scene, never reloaded here.
+pub struct ObjectSource {
+    scene: nif_scene::Scene,
+    name: String,
+    request: crate::pose::ObjectRequest,
+    pub binding: ObjectBinding,
+}
+
+pub struct ObjectFrame {
+    pub binding: ObjectBinding,
+    pub sequence: u64,
+    pub meshes: Vec<Mesh>,
+    pub summary: Box<crate::pose::ObjectSummary>,
+    pub draw_bytes: usize,
+    pub bounds: [[f32; 3]; 2],
+}
+
+#[derive(Serialize)]
+pub struct ObjectReceipt {
+    pub schema_version: u32,
+    pub scene_epoch: u64,
+    pub request_sequence: u64,
+    pub binding: ObjectBinding,
+    pub pose: Box<crate::pose::ObjectSummary>,
+    pub bounds: [[f32; 3]; 2],
+    pub uploaded_mesh_bytes: usize,
+    pub handles_reused: usize,
+    pub retail_parity_accepted: bool,
+}
+
+impl ObjectSource {
+    pub fn new(
+        bytes: &[u8],
+        name: &str,
+        request: crate::pose::ObjectRequest,
+        report: &Report,
+        model: &mut Model,
+    ) -> Result<Self> {
+        if bytes.len() > OBJECT_SOURCE_BYTES
+            || format!("{:x}", Sha256::digest(bytes)) != report.model_sha256
+        {
+            return Err("Live object source changed or exceeds 4 MiB".into());
+        }
+        let summary = report
+            .source_object_pose
+            .as_ref()
+            .ok_or("Live updates require an exact selected object pose")?;
+        if summary.evaluation.source_sha256 != report.model_sha256
+            || summary.evaluation.object.block != request.object
+            || summary.evaluation.controller.block != request.controller
+            || summary.evaluation.requested_time_f64_bits != request.source_time.to_bits()
+            || summary.draw_meshes.len() != model.parts.len()
+            || model.parts.is_empty()
+            || model.parts.len() > OBJECT_PARTS
+        {
+            return Err("Live object initial source/request/geometry binding differs".into());
+        }
+        let (_, scene) = nif_scene::decode_with_limits(
+            bytes,
+            name,
+            nif_scene::Limits {
+                input_bytes: OBJECT_SOURCE_BYTES,
+                blocks: 16_384,
+                array_bytes: OBJECT_DRAW_BYTES,
+            },
+        )?;
+        let mut draw_bytes = 0usize;
+        for part in &model.parts {
+            draw_bytes = draw_bytes
+                .checked_add(object_mesh_bytes(&part.mesh)?)
+                .ok_or("Live object draw byte overflow")?;
+            if draw_bytes > OBJECT_DRAW_BYTES {
+                return Err("Live object exceeds the aggregate 16 MiB update limit".into());
+            }
+        }
+        // Opt-in CPU retention is necessary: RENDER_WORLD alone takes vertex data
+        // out of the main-world Mesh during extraction in pinned Bevy 0.19.1.
+        for part in &mut model.parts {
+            part.mesh.asset_usage = RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD;
+        }
+        Ok(Self {
+            scene,
+            name: name.into(),
+            request,
+            binding: ObjectBinding {
+                source_sha256: report.model_sha256.clone(),
+                object: request.object,
+                controller: request.controller,
+                geometry: summary
+                    .draw_meshes
+                    .iter()
+                    .map(|mesh| (mesh.geometry, mesh.geometry_data))
+                    .collect(),
+            },
+        })
+    }
+
+    pub fn frame(
+        &self,
+        current_source: &[u8],
+        source_time: f64,
+        sequence: u64,
+    ) -> Result<ObjectFrame> {
+        if sequence == 0 || !source_time.is_finite() {
+            return Err("Live object requires a finite explicit time and nonzero request".into());
+        }
+        if current_source.len() > OBJECT_SOURCE_BYTES
+            || format!("{:x}", Sha256::digest(current_source)) != self.binding.source_sha256
+        {
+            return Err("Live object source changed or exceeds 4 MiB".into());
+        }
+        let mut evaluated = crate::pose::object(
+            current_source,
+            &self.name,
+            crate::pose::ObjectRequest {
+                source_time,
+                ..self.request
+            },
+            &self.scene,
+        )?;
+        let mut meshes = Vec::with_capacity(self.binding.geometry.len());
+        let mut draw_bytes = 0usize;
+        let mut min = Vec3::splat(f32::INFINITY);
+        let mut max = Vec3::splat(f32::NEG_INFINITY);
+        for &(geometry, data) in &self.binding.geometry {
+            let world = *evaluated
+                .worlds
+                .get(&geometry)
+                .ok_or("Live object geometry is outside the selected pose")?;
+            let source = self
+                .scene
+                .meshes
+                .iter()
+                .find(|mesh| mesh.block == data)
+                .ok_or("Live object geometry data is unavailable")?;
+            // Charge the complete replacement before copying any attribute.
+            let bytes = source.vertices.len() * 12
+                + source.normals.len() * 12
+                + source.uv_sets.first().map_or(0, |uvs| uvs.len() * 8)
+                + source.colors.len() * 16
+                + source.triangles.len() * 12;
+            draw_bytes = draw_bytes
+                .checked_add(bytes)
+                .ok_or("Live draw bytes overflow")?;
+            if draw_bytes > OBJECT_DRAW_BYTES {
+                return Err("Live object exceeds the aggregate 16 MiB update limit".into());
+            }
+            let mut mesh = draw_geometry(source, affine(world), Some(world), None)?;
+            mesh.asset_usage = RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD;
+            let Some(VertexAttributeValues::Float32x3(positions)) =
+                mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            else {
+                return Err("Live object draw positions are unavailable".into());
+            };
+            for &position in positions {
+                min = min.min(Vec3::from_array(position));
+                max = max.max(Vec3::from_array(position));
+            }
+            let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL) {
+                Some(VertexAttributeValues::Float32x3(values)) => values.as_slice(),
+                None => &[],
+                _ => return Err("Live object draw normals have changed layout".into()),
+            };
+            evaluated.summary.draw_meshes.push(crate::pose::ObjectMesh {
+                geometry,
+                geometry_data: data,
+                source_world: world,
+                positions_sha256: crate::pose::draw_hash(positions),
+                normals_sha256: crate::pose::draw_hash(normals),
+            });
+            meshes.push(mesh);
+        }
+        if !min.is_finite()
+            || !max.is_finite()
+            || !(min + (max - min) * 0.5).is_finite()
+            || !(max - min).is_finite()
+        {
+            return Err("Live object bounds are unrepresentable".into());
+        }
+        Ok(ObjectFrame {
+            binding: self.binding.clone(),
+            sequence,
+            meshes,
+            summary: Box::new(evaluated.summary),
+            draw_bytes,
+            bounds: [min.to_array(), max.to_array()],
+        })
+    }
+}
+
+pub fn object_mesh_bytes(mesh: &Mesh) -> Result<usize> {
+    Ok(mesh
+        .get_vertex_buffer_size()
+        .checked_add(mesh.get_index_buffer_bytes().map_or(0, <[u8]>::len))
+        .ok_or("Live object mesh byte overflow")?)
+}
+
 /// A texture is shared across every model using the same path and sampler.
 /// The scene has an aggregate budget in addition to each decoder's input limits.
 #[derive(Default)]
@@ -419,67 +629,15 @@ fn from_texture_source(
             )
             .into());
         }
-        let positions: Vec<[f32; 3]> = if let Some(posed_world) = object_world {
-            crate::pose::object_vectors(posed_world, &source.vertices, false)?
-        } else if let Some(skin) = &selected_skin {
-            skin.positions.clone()
-        } else {
-            source
-                .vertices
-                .iter()
-                .map(|v| {
-                    let p = basis(matrix.transform_point3(Vec3::from_array(*v)));
-                    p.to_array()
-                })
-                .collect()
+        let mesh = draw_geometry(source, matrix, object_world, selected_skin.as_ref())?;
+        let Some(VertexAttributeValues::Float32x3(positions)) =
+            mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+        else {
+            return Err("Draw positions are unavailable".into());
         };
-        if positions.iter().flatten().any(|v| !v.is_finite()) {
-            return Err("preview positions overflowed f32".into());
-        }
-        for &point in &positions {
+        for &point in positions {
             min = min.min(Vec3::from_array(point));
             max = max.max(Vec3::from_array(point));
-        }
-        let mut indices = Vec::with_capacity(source.triangles.len() * 3);
-        for triangle in &source.triangles {
-            let [a, b, c] = triangle.map(u32::from);
-            indices.extend(if determinant < 0. {
-                [a, c, b]
-            } else {
-                [a, b, c]
-            });
-        }
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::RENDER_WORLD,
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
-        .with_inserted_indices(Indices::U32(indices));
-        if let Some(posed_world) = object_world {
-            if !source.normals.is_empty() {
-                mesh.insert_attribute(
-                    Mesh::ATTRIBUTE_NORMAL,
-                    crate::pose::object_vectors(posed_world, &source.normals, true)?,
-                );
-            }
-        } else if let Some(skin) = &selected_skin {
-            if !skin.normals.is_empty() {
-                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, skin.normals.clone());
-            }
-        } else if !source.normals.is_empty() {
-            let normal_matrix = matrix.inverse().transpose();
-            let normals: Vec<[f32; 3]> = source
-                .normals
-                .iter()
-                .map(|v| {
-                    basis(normal_matrix.transform_vector3(Vec3::from_array(*v)))
-                        .normalize_or_zero()
-                        .to_array()
-                })
-                .collect();
-            mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        } else {
-            mesh.compute_smooth_normals();
         }
         if let Some(skin) = &selected_skin {
             let Some(VertexAttributeValues::Float32x3(positions)) =
@@ -521,12 +679,6 @@ fn from_texture_source(
                     positions_sha256: crate::pose::draw_hash(positions),
                     normals_sha256: crate::pose::draw_hash(normals),
                 });
-        }
-        if let Some(uvs) = source.uv_sets.first() {
-            mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs.clone());
-        }
-        if !source.colors.is_empty() {
-            mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, source.colors.clone());
         }
         let mut diffuse = None;
         let mut clamp = 3;
@@ -695,6 +847,84 @@ fn from_texture_source(
         },
         report,
     ))
+}
+
+/// Shared startup/live draw transport; source interpretation stays in the producer.
+fn draw_geometry(
+    source: &nif_scene::MeshData,
+    matrix: Mat4,
+    object_world: Option<fallout_data::nif_skin::pose::Affine>,
+    skin: Option<&crate::pose::Skin>,
+) -> Result<Mesh> {
+    let determinant = matrix.determinant();
+    if !matrix.is_finite() || !determinant.is_finite() || determinant.abs() < 1e-12 {
+        return Err("Draw geometry has a singular or unrepresentable transform".into());
+    }
+    let positions: Vec<[f32; 3]> = if let Some(posed_world) = object_world {
+        crate::pose::object_vectors(posed_world, &source.vertices, false)?
+    } else if let Some(skin) = skin {
+        skin.positions.clone()
+    } else {
+        source
+            .vertices
+            .iter()
+            .map(|v| {
+                let p = basis(matrix.transform_point3(Vec3::from_array(*v)));
+                p.to_array()
+            })
+            .collect()
+    };
+    if positions.iter().flatten().any(|v| !v.is_finite()) {
+        return Err("preview positions overflowed f32".into());
+    }
+    let mut indices = Vec::with_capacity(source.triangles.len() * 3);
+    for triangle in &source.triangles {
+        let [a, b, c] = triangle.map(u32::from);
+        indices.extend(if determinant < 0. {
+            [a, c, b]
+        } else {
+            [a, b, c]
+        });
+    }
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_indices(Indices::U32(indices));
+    if let Some(posed_world) = object_world {
+        if !source.normals.is_empty() {
+            mesh.insert_attribute(
+                Mesh::ATTRIBUTE_NORMAL,
+                crate::pose::object_vectors(posed_world, &source.normals, true)?,
+            );
+        }
+    } else if let Some(skin) = skin {
+        if !skin.normals.is_empty() {
+            mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, skin.normals.clone());
+        }
+    } else if !source.normals.is_empty() {
+        let normal_matrix = matrix.inverse().transpose();
+        let normals: Vec<[f32; 3]> = source
+            .normals
+            .iter()
+            .map(|v| {
+                basis(normal_matrix.transform_vector3(Vec3::from_array(*v)))
+                    .normalize_or_zero()
+                    .to_array()
+            })
+            .collect();
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    } else {
+        mesh.compute_smooth_normals();
+    }
+    if let Some(uvs) = source.uv_sets.first() {
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs.clone());
+    }
+    if !source.colors.is_empty() {
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, source.colors.clone());
+    }
+    Ok(mesh)
 }
 
 pub fn decode_diffuse(bytes: &[u8], clamp: u32) -> Result<Image> {
@@ -868,7 +1098,7 @@ pub fn decode_diffuse_bounded(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn authored_sources() -> ArchiveAssets {
@@ -876,6 +1106,157 @@ mod tests {
             .join("../../target/preview-pose-test-install");
         std::fs::create_dir_all(install.join("Data")).unwrap();
         ArchiveAssets::open_nv(&install).unwrap()
+    }
+
+    pub(crate) fn live_object_fixture(two: bool) -> (ObjectSource, Model, Vec<u8>) {
+        let original = include_bytes!("testdata/source-pose-triangle.packet");
+        let index = fallout_data::nif::inspect(original, "authored-live").unwrap();
+        let mut blocks: Vec<_> = index
+            .blocks
+            .iter()
+            .map(|block| {
+                (
+                    index.block_types[block.type_index as usize].clone(),
+                    original[block.offset..block.offset + block.bytes].to_vec(),
+                )
+            })
+            .collect();
+        // Add independently authored UV words to the existing colored triangle.
+        blocks[6].1[45..47].copy_from_slice(&1u16.to_le_bytes());
+        let uv: Vec<_> = [0f32, 0.25, 0.75, 0.5, 1., -0.]
+            .into_iter()
+            .flat_map(f32::to_le_bytes)
+            .collect();
+        blocks[6].1.splice(149..149, uv);
+        if two {
+            blocks[1].1[76..80].copy_from_slice(&2u32.to_le_bytes());
+            blocks[1].1.splice(84..84, 9u32.to_le_bytes());
+            blocks.push(blocks[5].clone());
+        }
+        let borrowed: Vec<_> = blocks
+            .iter()
+            .map(|(name, bytes)| (name.as_str(), bytes.clone()))
+            .collect();
+        let bytes = crate::pose::tests::packet(&borrowed);
+        let request = crate::pose::ObjectRequest {
+            object: 1,
+            controller: 2,
+            source_time: 0.,
+        };
+        let path = AssetPath::new(b"authored/live-object.packet").unwrap();
+        let (mut model, report) = from_bytes_with_pose(
+            &authored_sources(),
+            &path,
+            &bytes,
+            &mut Textures::default(),
+            Some(crate::pose::Request::Object(request)),
+        )
+        .unwrap();
+        let source =
+            ObjectSource::new(&bytes, "authored-live", request, &report, &mut model).unwrap();
+        (source, model, bytes)
+    }
+
+    #[test]
+    fn live_object_frames_reuse_source_transport_with_complete_literal_attributes() {
+        let (source, model, bytes) = live_object_fixture(false);
+        assert_eq!(
+            model.parts[0].mesh.asset_usage,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD
+        );
+        for (sequence, time, positions, normals, indices, bounds) in [
+            (
+                1,
+                0.,
+                [[-6., -1., -5.], [-6., -1., -7.], [-6., -3., -5.]],
+                [[2., 0., 0.]; 3],
+                [0, 2, 1],
+                [[-6., -3., -7.], [-6., -1., -5.]],
+            ),
+            (
+                2,
+                3.,
+                [[-6., 29., 7.], [-6., 29., 11.], [-6., 33., 7.]],
+                [[-4., 0., 0.]; 3],
+                [0, 1, 2],
+                [[-6., 29., 7.], [-6., 33., 11.]],
+            ),
+        ] {
+            let frame = source.frame(&bytes, time, sequence).unwrap();
+            assert_eq!(frame.binding.geometry, [(5, 6)]);
+            assert_eq!(
+                frame.summary.evaluation.requested_time_f64_bits,
+                time.to_bits()
+            );
+            assert_eq!(frame.bounds, bounds);
+            assert_eq!(frame.draw_bytes, 156);
+            let mesh = &frame.meshes[0];
+            assert!(
+                matches!(mesh.attribute(Mesh::ATTRIBUTE_POSITION), Some(VertexAttributeValues::Float32x3(v)) if v == &positions)
+            );
+            assert!(
+                matches!(mesh.attribute(Mesh::ATTRIBUTE_NORMAL), Some(VertexAttributeValues::Float32x3(v)) if v == &normals)
+            );
+            assert!(matches!(mesh.indices(), Some(Indices::U32(v)) if v == &indices));
+            assert!(
+                matches!(mesh.attribute(Mesh::ATTRIBUTE_COLOR), Some(VertexAttributeValues::Float32x4(v)) if v == &[[1.,0.,0.,1.],[0.,1.,0.,1.],[0.,0.,1.,1.]])
+            );
+            let Some(VertexAttributeValues::Float32x2(uv)) = mesh.attribute(Mesh::ATTRIBUTE_UV_0)
+            else {
+                panic!("UV missing")
+            };
+            assert_eq!(
+                uv.iter().map(|v| v.map(f32::to_bits)).collect::<Vec<_>>(),
+                [[0f32, 0.25], [0.75, 0.5], [1., -0.]].map(|v| v.map(f32::to_bits))
+            );
+            assert_eq!(
+                frame.summary.draw_meshes[0].positions_sha256,
+                crate::pose::draw_hash(&positions)
+            );
+            assert_eq!(
+                frame.summary.draw_meshes[0].normals_sha256,
+                crate::pose::draw_hash(&normals)
+            );
+        }
+    }
+
+    #[test]
+    fn live_object_source_and_explicit_request_refusals_preserve_the_initial_mesh() {
+        let (source, model, bytes) = live_object_fixture(false);
+        let before = model.parts[0]
+            .mesh
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let mut changed = bytes.clone();
+        *changed.last_mut().unwrap() ^= 1;
+        assert!(
+            source
+                .frame(&changed, 3., 1)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("source changed")
+        );
+        for time in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -2., 4., 1.] {
+            assert!(source.frame(&bytes, time, 1).is_err(), "{time}");
+        }
+        assert!(source.frame(&bytes, 0., 0).is_err());
+        assert!(
+            source
+                .frame(&vec![0; OBJECT_SOURCE_BYTES + 1], 0., 1)
+                .is_err()
+        );
+        assert_eq!(
+            model.parts[0]
+                .mesh
+                .attribute(Mesh::ATTRIBUTE_POSITION)
+                .unwrap()
+                .get_bytes(),
+            before
+        );
+        assert!(source.frame(&bytes, 3., 1).is_ok());
     }
 
     #[test]

@@ -20,6 +20,7 @@ use bevy::{
     asset::RenderAssetUsages,
     camera::{RenderTarget, ScalingMode},
     core_pipeline::tonemapping::Tonemapping,
+    ecs::system::SystemParam,
     prelude::*,
     render::{
         RenderPlugin,
@@ -30,10 +31,11 @@ use bevy::{
     winit::WinitPlugin,
 };
 use clap::{ArgGroup, Parser};
-use fallout_data::vfs::AssetPath;
+use fallout_data::{assets::ArchiveAssets, baseline, vfs::AssetPath};
+use sha2::{Digest, Sha256};
 use std::{
     fs::OpenOptions,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
@@ -111,6 +113,17 @@ struct Options {
     /// Direct source key time; authored clock flags/frequency remain unapplied.
     #[arg(long, requires = "pose_object", allow_hyphen_values = true)]
     pose_time: Option<f64>,
+    /// Explicit inspection times: R/Y steps; headless capture applies the finite list.
+    #[arg(
+        long,
+        requires = "pose_object",
+        value_delimiter = ',',
+        allow_hyphen_values = true
+    )]
+    pose_times: Vec<f64>,
+    /// Fresh final-time receipt written with the successful pose capture.
+    #[arg(long, requires_all = ["pose_times", "capture"])]
+    pose_receipt: Option<PathBuf>,
     /// Interior CELL editor ID, for example GSDocMitchellHouse.
     #[arg(long, requires_all = ["load_order", "install"])]
     cell: Option<String>,
@@ -274,6 +287,47 @@ struct ReadyScene {
     navigation: Navigation,
     fixture: Option<fixture::Report>,
     projection: Option<Projection>,
+    pose: Option<LivePose>,
+}
+
+#[derive(Resource)]
+struct LivePose {
+    source: Arc<model::ObjectSource>,
+    epoch: u64,
+    next: usize,
+    sequence: u64,
+    expected_time: u64,
+    pending: Option<loading::Job<model::ObjectFrame>>,
+    receipt: Option<model::ObjectReceipt>,
+    settled: usize,
+    error: Option<String>,
+}
+
+fn read_object_source(options: &Options) -> model::Result<Vec<u8>> {
+    if let Some(path) = &options.model_file {
+        let mut bytes = Vec::new();
+        baseline::open_source(path)?
+            .take(model::OBJECT_SOURCE_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > model::OBJECT_SOURCE_BYTES {
+            return Err("Live object source exceeds 4 MiB".into());
+        }
+        Ok(bytes)
+    } else {
+        let assets =
+            ArchiveAssets::open_nv(options.install.as_deref().ok_or("Missing installation")?)?;
+        let (_, bytes) = assets.read_unique_bounded(
+            &AssetPath::new(
+                options
+                    .model
+                    .as_deref()
+                    .ok_or("Missing model source")?
+                    .as_bytes(),
+            )?,
+            model::OBJECT_SOURCE_BYTES as u64,
+        )?;
+        Ok(bytes)
+    }
 }
 
 struct DrawScene {
@@ -368,9 +422,13 @@ fn start_preparation(options: &Options, epoch: u64) -> Result<loading::Job<Ready
 }
 
 fn retry_outputs(options: &Options) -> Result<(), String> {
-    for path in [options.report.as_ref(), options.capture.as_ref()]
-        .into_iter()
-        .flatten()
+    for path in [
+        options.report.as_ref(),
+        options.capture.as_ref(),
+        options.pose_receipt.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
     {
         if path
             .try_exists()
@@ -416,8 +474,27 @@ fn output_path(
     Ok(result)
 }
 
+fn validate_pose_times(options: &Options) -> model::Result<()> {
+    if options.pose_times.len() > 32 || options.pose_times.iter().any(|time| !time.is_finite()) {
+        return Err("Explicit live pose times require 1..32 finite requested values".into());
+    }
+    if !options.pose_times.is_empty() && options.capture.is_some() && options.pose_receipt.is_none()
+    {
+        return Err("Live pose capture requires a fresh --pose-receipt path".into());
+    }
+    Ok(())
+}
+
 fn run() -> model::Result<AppExit> {
     let mut options = Options::parse();
+    validate_pose_times(&options)?;
+    if let Some(path) = &options.pose_receipt {
+        options.pose_receipt = Some(output_path(
+            path,
+            options.install.as_deref(),
+            options.model_file.as_deref(),
+        )?);
+    }
     if let Some(path) = &options.capture {
         options.capture = Some(output_path(
             path,
@@ -434,6 +511,11 @@ fn run() -> model::Result<AppExit> {
     }
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
+    }
+    if options.pose_receipt.is_some()
+        && (options.pose_receipt == options.report || options.pose_receipt == options.capture)
+    {
+        return Err("pose receipt, capture and report require different fresh paths".into());
     }
     if let Some(path) = &options.menu_font {
         let limits = ui::fonts::Limits::default();
@@ -671,7 +753,10 @@ fn run() -> model::Result<AppExit> {
         })
         .insert_resource(ClearColor(background))
         .add_systems(Startup, setup)
-        .add_systems(Update, (controls, drive_loading, capture).chain());
+        .add_systems(
+            Update,
+            (controls, drive_loading, drive_pose, capture).chain(),
+        );
     if headless {
         app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)));
     }
@@ -723,6 +808,7 @@ fn prepare_scene(
             navigation: Navigation { fly: false, home },
             fixture: None,
             projection: Some(projection),
+            pose: None,
         });
     }
     if let Some(request) = &options.rectangle_request {
@@ -766,13 +852,56 @@ fn prepare_scene(
             navigation: Navigation { fly: false, home },
             fixture: None,
             projection: Some(projection),
+            pose: None,
         });
     }
     let pose = selected_pose(options);
     let mut cell_sources = None;
-    let (prepared, report) = if options.material_fixture {
+    let (mut prepared, report) = if options.material_fixture {
         let (prepared, report) = fixture::prepare()?;
         (prepared, scene::Report::Fixture(report))
+    } else if !options.pose_times.is_empty() {
+        // Bound the opted-in source before its initial decode and mesh copy.
+        let bytes = read_object_source(options)?;
+        let label = if let Some(path) = &options.model_file {
+            let filename = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or("Explicit model source requires a Unicode filename")?;
+            AssetPath::new(format!("local-source/{filename}").as_bytes())?
+        } else {
+            AssetPath::new(
+                options
+                    .model
+                    .as_deref()
+                    .ok_or("Missing source model")?
+                    .as_bytes(),
+            )?
+        };
+        let assets =
+            ArchiveAssets::open_nv(options.install.as_deref().ok_or("Missing installation")?)?;
+        let mut textures = model::Textures::default();
+        let (model, mut report) =
+            model::from_bytes_with_pose(&assets, &label, &bytes, &mut textures, pose)?;
+        if let Some(path) = &options.model_file {
+            report.schema_version = 3;
+            report.source_file = Some(Box::new(path.clone()));
+        }
+        let prepared = scene::Prepared {
+            center: model.center,
+            radius: model.radius,
+            origin: [0.; 3],
+            models: vec![model],
+            images: textures.images,
+            instances: vec![scene::Instance {
+                model: 0,
+                transform: Transform::IDENTITY,
+                key: None,
+                visibility: Visibility::Inherited,
+                canonical: None,
+            }],
+        };
+        (prepared, scene::Report::Model(report))
     } else if let Some(name) = &options.model {
         scene::load_model(
             options.install.as_deref().expect("clap requires install"),
@@ -847,6 +976,40 @@ fn prepare_scene(
         "Tab/Select: orbit/fly; WASD/left stick: move; Q/E or shoulders: vertical/zoom; arrows/right stick or right-drag: look; wheel: orbit zoom; Shift/left stick click: faster; R/Y: reset; Esc/Start: close"
     );
     context.check()?;
+    let live_pose = if options.pose_times.is_empty() {
+        None
+    } else {
+        context.stage("Sealing retained source object for explicit live times")?;
+        let scene::Report::Model(report) = &report else {
+            return Err("Live object updates require one selected source model".into());
+        };
+        let Some(pose::Request::Object(request)) = selected_pose(options) else {
+            return Err("Live object updates require the exact selected object request".into());
+        };
+        if prepared.models.len() != 1 || prepared.instances.len() != 1 {
+            return Err("Live object updates require one source model/instance".into());
+        }
+        let bytes = read_object_source(options)?;
+        let source = model::ObjectSource::new(
+            &bytes,
+            &String::from_utf8_lossy(report.model.bytes()),
+            request,
+            report,
+            &mut prepared.models[0],
+        )?;
+        Some(LivePose {
+            source: Arc::new(source),
+            epoch,
+            next: 0,
+            sequence: 0,
+            expected_time: request.source_time.to_bits(),
+            pending: None,
+            receipt: None,
+            settled: 0,
+            error: None,
+        })
+    };
+    context.check()?;
     if let Some(path) = &options.report
         && !options.material_fixture
     {
@@ -887,12 +1050,17 @@ fn prepare_scene(
     context.stage("Preparing bounded draw uploads")?;
     Ok(ReadyScene {
         upload: DrawScene {
-            queue: upload::Queue::new(epoch, prepared)?,
+            queue: if let Some(live) = &live_pose {
+                upload::Queue::new_object(epoch, prepared, live.source.binding.clone())?
+            } else {
+                upload::Queue::new(epoch, prepared)?
+            },
             cell: cell_sources,
         },
         orbit,
         navigation,
         projection: None,
+        pose: live_pose,
         fixture: if let scene::Report::Fixture(report) = report {
             Some(report)
         } else {
@@ -919,13 +1087,19 @@ fn write_tile_report(
     Ok(())
 }
 
+#[derive(SystemParam)]
+struct LoadingOptions<'w> {
+    options: Res<'w, Options>,
+    live: Option<Res<'w, LivePose>>,
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "Loading coordinates separate host resource owners"
 )]
 fn drive_loading(
     mut commands: Commands,
-    options: Res<Options>,
+    request: LoadingOptions,
     actions: Res<input::Actions>,
     mut state: ResMut<Loading>,
     mut context: ResMut<input::Context>,
@@ -944,6 +1118,8 @@ fn drive_loading(
     mut capture: ResMut<Capture>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    let options = &*request.options;
+    let live = &request.live;
     let window_ready = created
         .read()
         .any(|event| windows.iter().any(|(id, _)| id == event.window));
@@ -1005,7 +1181,7 @@ fn drive_loading(
     };
     state.phase = match phase {
         Phase::WaitingForWindow if options.headless || window_ready => {
-            match start_preparation(&options, epoch) {
+            match start_preparation(options, epoch) {
                 Ok(job) => Phase::Preparing(job),
                 Err(error) => failure(error, &mut exit),
             }
@@ -1022,15 +1198,18 @@ fn drive_loading(
             loading::Retirement::Done(None) => Phase::Cancelled,
         },
         Phase::Failed(_) | Phase::Cancelled
-            if actions.retry_loading && !actions.cancel_loading && !options.headless =>
+            if actions.retry_loading
+                && !actions.cancel_loading
+                && !options.headless
+                && live.as_ref().is_none_or(|live| live.pending.is_none()) =>
         {
-            let request = retry_outputs(&options).and_then(|()| {
+            let request = retry_outputs(options).and_then(|()| {
                 let next = state
                     .epoch
                     .checked_add(1)
                     .ok_or("Source retry epoch exhausted")?;
                 state.epoch = next;
-                start_preparation(&options, next)
+                start_preparation(options, next)
             });
             match request {
                 Ok(job) => Phase::Preparing(job),
@@ -1045,6 +1224,11 @@ fn drive_loading(
                 match job.poll(epoch) {
                     loading::Poll::Pending => Phase::Preparing(job),
                     loading::Poll::Ready(ready) => {
+                        if let Some(live) = ready.pose {
+                            commands.insert_resource(live);
+                        } else {
+                            commands.remove_resource::<LivePose>();
+                        }
                         *orbit = ready.orbit;
                         *navigation = ready.navigation;
                         for (mut transform, mut projection) in &mut cameras {
@@ -1314,7 +1498,7 @@ fn controls(
     }
     if navigation.fly {
         for mut transform in &mut cameras {
-            if actions.reset {
+            if actions.reset && options.pose_times.is_empty() {
                 *transform = navigation.home;
                 continue;
             }
@@ -1338,7 +1522,7 @@ fn controls(
         .clamp(-1.4, 1.4);
     orbit.distance = (orbit.distance * (actions.movement.z * delta - actions.scroll * 0.1).exp())
         .clamp(orbit.radius * 0.1, orbit.radius * 20.);
-    if actions.reset {
+    if actions.reset && options.pose_times.is_empty() {
         orbit.yaw = 2.5;
         orbit.pitch = 0.3;
         orbit.distance = orbit.radius * 3.;
@@ -1348,14 +1532,214 @@ fn controls(
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Live pose coordinates existing scene, assets and input owners"
+)]
+fn drive_pose(
+    mut commands: Commands,
+    options: Res<Options>,
+    actions: Res<input::Actions>,
+    context: Res<input::Context>,
+    mut loading: ResMut<Loading>,
+    live: Option<ResMut<LivePose>>,
+    mut assets: upload::Resources,
+    mut capture: ResMut<Capture>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let Some(mut live) = live else {
+        return;
+    };
+    let epoch = loading.epoch;
+    if epoch != live.epoch || !matches!(loading.phase, Phase::Ready(_)) {
+        if let Some(job) = &mut live.pending
+            && matches!(job.retire(), loading::Retirement::Done(_))
+        {
+            live.pending = None;
+        }
+        return;
+    }
+    let mut applied = false;
+    if let Some(job) = &mut live.pending {
+        match job.poll(epoch) {
+            loading::Poll::Pending => {}
+            loading::Poll::Ready(frame) => {
+                live.pending = None;
+                let result =
+                    if frame.summary.evaluation.requested_time_f64_bits != live.expected_time {
+                        Err("Live pose completion differs from the explicit requested time".into())
+                    } else if let Phase::Ready(draw) = &mut loading.phase {
+                        draw.queue.update_object(
+                            &mut commands,
+                            &mut assets,
+                            epoch,
+                            live.sequence,
+                            frame,
+                        )
+                    } else {
+                        Err("Live pose lost its current visible scene".into())
+                    };
+                match result {
+                    Ok(receipt) => {
+                        eprintln!(
+                            "Live object pose receipt: {}",
+                            serde_json::to_string(&receipt).expect("serializable pose receipt")
+                        );
+                        live.receipt = Some(receipt);
+                        live.next += 1;
+                        live.settled = 0;
+                        live.error = None;
+                        capture.frame = 0;
+                        capture.started = Instant::now();
+                        applied = true;
+                    }
+                    Err(error) => live.error = Some(error),
+                }
+            }
+            loading::Poll::Failed(error) => {
+                live.pending = None;
+                live.error = Some(error);
+            }
+            loading::Poll::Cancelled | loading::Poll::Finished => {
+                live.pending = None;
+                live.error = Some("Live pose request cancelled; visible geometry preserved".into());
+            }
+        }
+    }
+    if live.pending.is_none() && !applied {
+        live.settled = live.settled.saturating_add(1);
+        let explicit_step =
+            actions.reset && matches!(*context, input::Context::Orbit | input::Context::Fly);
+        let capture_step = options.headless && live.settled >= 64 && live.error.is_none();
+        if live.next < options.pose_times.len() && (explicit_step || capture_step) {
+            let time = options.pose_times[live.next];
+            if let Some(sequence) = live.sequence.checked_add(1) {
+                let source = Arc::clone(&live.source);
+                let request = options.clone();
+                match loading::Job::start(epoch, move |context| {
+                    context.stage("Checking current pose source")?;
+                    let bytes = read_object_source(&request).map_err(|error| error.to_string())?;
+                    context.stage("Evaluating explicit selected object time")?;
+                    let frame = source
+                        .frame(&bytes, time, sequence)
+                        .map_err(|error| error.to_string())?;
+                    context.check()?;
+                    Ok(frame)
+                }) {
+                    Ok(job) => {
+                        live.sequence = sequence;
+                        live.expected_time = time.to_bits();
+                        live.pending = Some(job);
+                        live.error = None;
+                    }
+                    Err(error) => live.error = Some(error.to_string()),
+                }
+            } else {
+                live.error = Some("Live pose request sequence exhausted".into());
+            }
+        }
+    }
+    if let Some(error) = &live.error
+        && options.headless
+    {
+        error!("Live object update failed; visible pose preserved: {error}");
+        exit.write(AppExit::error());
+    }
+    let status = if let Some(error) = &live.error {
+        format!(
+            "Pose update failed: {} - previous pose retained",
+            error.chars().take(160).collect::<String>()
+        )
+    } else if let Some(job) = &live.pending {
+        format!(
+            "Pose pending: {} - camera remains available",
+            job.status().0
+        )
+    } else if let Some(receipt) = &live.receipt {
+        format!(
+            "Ready - source pose time {} - R/Y requests next explicit time",
+            f64::from_bits(receipt.pose.evaluation.requested_time_f64_bits)
+        )
+    } else {
+        "Ready - R/Y requests next explicit pose time".into()
+    };
+    for mut window in &mut windows {
+        window.title = format!("Fallout Rust - {status}");
+    }
+}
+
+fn pose_capture_receipt(bytes: &[u8], path: &Path, dimensions: [u32; 2]) -> model::Result<Vec<u8>> {
+    const MAX_PNG: usize = 8 * 1024 * 1024;
+    const MAX_JSON: usize = 1024 * 1024;
+    if bytes.len().saturating_add(1) > MAX_JSON {
+        return Err("Live pose capture receipt exceeds 1 MiB".into());
+    }
+    let mut file = std::fs::File::open(path)?.take(MAX_PNG as u64 + 1);
+    let mut header = [0u8; 24];
+    file.read_exact(&mut header)?;
+    if &header[..8] != b"\x89PNG\r\n\x1a\n"
+        || &header[12..16] != b"IHDR"
+        || u32::from_be_bytes(header[16..20].try_into()?) != dimensions[0]
+        || u32::from_be_bytes(header[20..24].try_into()?) != dimensions[1]
+    {
+        return Err("Live pose capture PNG dimensions/header differ".into());
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(header);
+    let mut total = header.len();
+    let mut buffer = [0u8; 16 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(count)
+            .ok_or("Capture PNG byte overflow")?;
+        if total > MAX_PNG {
+            return Err("Live pose capture PNG exceeds 8 MiB".into());
+        }
+        hasher.update(&buffer[..count]);
+    }
+    let mut receipt: serde_json::Value = serde_json::from_slice(bytes)?;
+    receipt
+        .as_object_mut()
+        .ok_or("Live pose capture receipt must be an object")?
+        .insert(
+            "capture".into(),
+            serde_json::json!({
+                "path": path, "sha256": format!("{:x}", hasher.finalize()),
+                "encoded_bytes": total, "width": dimensions[0], "height": dimensions[1],
+            }),
+        );
+    let encoded = serde_json::to_vec_pretty(&receipt)?;
+    if encoded.len().saturating_add(1) > MAX_JSON {
+        return Err("Live pose capture receipt exceeds 1 MiB".into());
+    }
+    Ok(encoded)
+}
+
 fn capture(
     mut commands: Commands,
     options: Res<Options>,
     loading: Res<Loading>,
     mut state: ResMut<Capture>,
     mut exit: MessageWriter<AppExit>,
+    live: Option<Res<LivePose>>,
 ) {
     if !matches!(loading.phase, Phase::Ready(_)) {
+        return;
+    }
+    if !options.pose_times.is_empty()
+        && live.as_ref().is_none_or(|live| {
+            live.epoch != loading.epoch
+                || live.pending.is_some()
+                || live.error.is_some()
+                || live.next != options.pose_times.len()
+                || live.receipt.is_none()
+        })
+    {
         return;
     }
     let Some(path) = options.capture.clone() else {
@@ -1388,11 +1772,53 @@ fn capture(
         .map(Screenshot::image)
         .unwrap_or_else(Screenshot::primary_window);
     let report_path = options.report.clone();
+    let pose_receipt = options.pose_receipt.clone();
+    let pose_identity = live
+        .as_ref()
+        .and_then(|live| live.receipt.as_ref())
+        .map(|receipt| {
+            (
+                receipt.scene_epoch,
+                receipt.request_sequence,
+                receipt.pose.evaluation.requested_time_f64_bits,
+            )
+        });
+    let pose_bytes = live
+        .as_ref()
+        .and_then(|live| live.receipt.as_ref())
+        .map(|receipt| {
+            serde_json::to_vec_pretty(receipt).expect("serializable current pose receipt")
+        });
+    if pose_bytes
+        .as_ref()
+        .is_some_and(|bytes| bytes.len().saturating_add(1) > 1024 * 1024)
+    {
+        error!("Live pose capture receipt exceeds 1 MiB");
+        exit.write(AppExit::error());
+        return;
+    }
     commands.spawn(screenshot).observe(
         move |event: On<ScreenshotCaptured>,
               mut exit: MessageWriter<AppExit>,
-              mut fixture: Option<ResMut<fixture::Report>>| {
+              mut fixture: Option<ResMut<fixture::Report>>,
+              loading: Res<Loading>,
+              live: Option<Res<LivePose>>| {
             let mut save = || -> model::Result<()> {
+                if let Some((epoch, sequence, time)) = pose_identity {
+                    let current = live.as_ref().and_then(|live| live.receipt.as_ref());
+                    if loading.epoch != epoch
+                        || !matches!(loading.phase, Phase::Ready(_))
+                        || live
+                            .as_ref()
+                            .is_none_or(|live| live.pending.is_some() || live.error.is_some())
+                        || current.is_none_or(|receipt| {
+                            receipt.request_sequence != sequence
+                                || receipt.pose.evaluation.requested_time_f64_bits != time
+                        })
+                    {
+                        return Err("Discarded stale live pose capture readback".into());
+                    }
+                }
                 let mut file = OpenOptions::new()
                     .write(true)
                     .create_new(true)
@@ -1400,6 +1826,20 @@ fn capture(
                 let image = event.image.clone().try_into_dynamic()?.to_rgb8();
                 image.write_to(&mut file, image::ImageFormat::Png)?;
                 file.sync_all()?;
+                if let Some(receipt_path) = &pose_receipt {
+                    let bytes = pose_bytes
+                        .as_ref()
+                        .ok_or("Current pose capture receipt unavailable")?;
+                    let bytes =
+                        pose_capture_receipt(bytes, &path, [image.width(), image.height()])?;
+                    let mut receipt_file = OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(receipt_path)?;
+                    receipt_file.write_all(&bytes)?;
+                    receipt_file.write_all(b"\n")?;
+                    receipt_file.sync_all()?;
+                }
                 if let Some(report) = fixture.as_mut() {
                     let verification = report.verify(&image);
                     // Keep failed measurements too, so a shader failure is reviewable.
@@ -1744,7 +2184,7 @@ mod tests {
                 started: Instant::now(),
             })
             .add_message::<AppExit>()
-            .add_systems(Update, (drive_loading, capture).chain());
+            .add_systems(Update, (drive_loading, drive_pose, capture).chain());
         app.world_mut().spawn((
             Camera3d::default(),
             Transform::IDENTITY,
@@ -1773,7 +2213,307 @@ mod tests {
             },
             fixture: None,
             projection: None,
+            pose: None,
         }
+    }
+
+    fn live_pose_app() -> App {
+        let (source, model, bytes) = model::tests::live_object_fixture(false);
+        let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../local")
+            .join(format!(
+                "v3-view-24-unit-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("source.packet");
+        std::fs::write(&path, bytes).unwrap();
+        let prepared = scene::Prepared {
+            center: model.center,
+            radius: model.radius,
+            origin: [0.; 3],
+            models: vec![model],
+            images: vec![],
+            instances: vec![scene::Instance {
+                model: 0,
+                transform: Transform::IDENTITY,
+                key: None,
+                visibility: Visibility::Inherited,
+                canonical: None,
+            }],
+        };
+        let queue = upload::Queue::new_object(7, prepared, source.binding.clone()).unwrap();
+        let mut app = loading_app(Phase::Uploading(DrawScene { queue, cell: None }));
+        app.world_mut().insert_resource(LivePose {
+            source: Arc::new(source),
+            epoch: 7,
+            next: 0,
+            sequence: 0,
+            expected_time: 0f64.to_bits(),
+            pending: None,
+            receipt: None,
+            settled: 0,
+            error: None,
+        });
+        {
+            let mut options = app.world_mut().resource_mut::<Options>();
+            options.model = None;
+            options.model_file = Some(path);
+            options.pose_times = vec![3., 0.];
+            options.capture = Some(directory.join("forbidden-pending-capture.png"));
+            options.pose_receipt = Some(directory.join("forbidden-pending-receipt.json"));
+        }
+        for _ in 0..20 {
+            app.update();
+            if matches!(app.world().resource::<Loading>().phase, Phase::Ready(_)) {
+                break;
+            }
+        }
+        assert!(matches!(
+            app.world().resource::<Loading>().phase,
+            Phase::Ready(_)
+        ));
+        app.world_mut().resource_mut::<Capture>().frame = 63;
+        app
+    }
+
+    fn live_positions(app: &mut App) -> Vec<Vec<[f32; 3]>> {
+        let mut draws = app.world_mut().query::<&Mesh3d>();
+        let assets = app.world().resource::<Assets<Mesh>>();
+        draws
+            .iter(app.world())
+            .map(|draw| {
+                let Some(bevy::mesh::VertexAttributeValues::Float32x3(values)) = assets
+                    .get(&draw.0)
+                    .unwrap()
+                    .attribute(Mesh::ATTRIBUTE_POSITION)
+                else {
+                    panic!("Missing actual draw positions")
+                };
+                values.clone()
+            })
+            .collect()
+    }
+
+    fn until_pose(app: &mut App, done: impl Fn(&LivePose) -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !done(app.world().resource::<LivePose>()) {
+            assert!(
+                Instant::now() < deadline,
+                "Controlled live pose worker did not complete"
+            );
+            app.update();
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn actual_live_host_uses_one_explicit_request_and_blocks_capture_until_final_applied_time() {
+        let mut app = live_pose_app();
+        *app.world_mut().resource_mut::<input::Context>() = input::Context::Suspended;
+        app.world_mut().resource_mut::<input::Actions>().reset = true;
+        app.update();
+        assert!(app.world().resource::<LivePose>().pending.is_none());
+        assert_eq!(app.world().resource::<LivePose>().sequence, 0);
+        *app.world_mut().resource_mut::<input::Context>() = input::Context::Orbit;
+        app.update();
+        assert!(app.world().resource::<LivePose>().pending.is_some());
+        assert_eq!(app.world().resource::<LivePose>().sequence, 1);
+        assert_eq!(app.world().resource::<LivePose>().next, 0);
+        assert_eq!(app.world().resource::<Capture>().frame, 63);
+        app.world_mut().resource_mut::<input::Actions>().reset = false;
+        until_pose(&mut app, |live| live.receipt.is_some());
+        let live = app.world().resource::<LivePose>();
+        assert!(live.pending.is_none());
+        assert_eq!(live.next, 1);
+        assert_eq!(live.sequence, 1);
+        assert_eq!(
+            live.receipt
+                .as_ref()
+                .unwrap()
+                .pose
+                .evaluation
+                .requested_time_f64_bits,
+            3f64.to_bits()
+        );
+        assert_eq!(app.world().resource::<Capture>().frame, 0);
+        assert_eq!(
+            live_positions(&mut app),
+            [vec![[-6., 29., 7.], [-6., 29., 11.], [-6., 33., 7.]]]
+        );
+        let options = app.world().resource::<Options>();
+        assert!(!options.capture.as_ref().unwrap().exists());
+        assert!(!options.pose_receipt.as_ref().unwrap().exists());
+    }
+
+    #[test]
+    fn changed_current_source_fails_live_host_without_replacing_its_visible_mesh() {
+        let mut app = live_pose_app();
+        let original = live_positions(&mut app);
+        let path = app
+            .world()
+            .resource::<Options>()
+            .model_file
+            .clone()
+            .unwrap();
+        let mut changed = std::fs::read(&path).unwrap();
+        *changed.last_mut().unwrap() ^= 1;
+        std::fs::write(path, changed).unwrap();
+        *app.world_mut().resource_mut::<input::Context>() = input::Context::Orbit;
+        app.world_mut().resource_mut::<input::Actions>().reset = true;
+        app.update();
+        app.world_mut().resource_mut::<input::Actions>().reset = false;
+        until_pose(&mut app, |live| live.error.is_some());
+        assert!(
+            app.world()
+                .resource::<LivePose>()
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("source changed")
+        );
+        assert!(app.world().resource::<LivePose>().receipt.is_none());
+        assert_eq!(app.world().resource::<LivePose>().next, 0);
+        assert_eq!(live_positions(&mut app), original);
+        assert_eq!(app.world().resource::<Capture>().frame, 63);
+    }
+
+    #[test]
+    fn completed_old_pose_worker_is_drained_after_scene_epoch_changes_and_cannot_publish() {
+        let mut app = live_pose_app();
+        let original = live_positions(&mut app);
+        let source = Arc::clone(&app.world().resource::<LivePose>().source);
+        let bytes = read_object_source(app.world().resource::<Options>()).unwrap();
+        let (entered, observer) = std::sync::mpsc::channel();
+        let (release, wait) = std::sync::mpsc::channel();
+        let job = loading::Job::start(7, move |_| {
+            let frame = source
+                .frame(&bytes, 3., 1)
+                .map_err(|error| error.to_string())?;
+            entered.send(()).unwrap();
+            wait.recv_timeout(Duration::from_secs(5)).unwrap();
+            Ok(frame)
+        })
+        .unwrap();
+        observer.recv_timeout(Duration::from_secs(5)).unwrap();
+        {
+            let mut live = app.world_mut().resource_mut::<LivePose>();
+            live.sequence = 1;
+            live.expected_time = 3f64.to_bits();
+            live.pending = Some(job);
+        }
+        *app.world_mut().resource_mut::<input::Context>() = input::Context::Orbit;
+        app.world_mut().resource_mut::<input::Actions>().reset = true;
+        for _ in 0..10 {
+            app.update();
+            assert_eq!(app.world().resource::<LivePose>().sequence, 1);
+            assert_eq!(app.world().resource::<LivePose>().next, 0);
+            assert_eq!(app.world().resource::<Capture>().frame, 63);
+            assert_eq!(live_positions(&mut app), original);
+        }
+        app.world_mut().resource_mut::<input::Actions>().reset = false;
+        app.world_mut().resource_mut::<Loading>().epoch = 8;
+        app.update();
+        assert!(app.world().resource::<LivePose>().pending.is_some());
+        assert_eq!(live_positions(&mut app), original);
+        release.send(()).unwrap();
+        until_pose(&mut app, |live| live.pending.is_none());
+        assert!(app.world().resource::<LivePose>().receipt.is_none());
+        assert_eq!(app.world().resource::<LivePose>().next, 0);
+        assert_eq!(live_positions(&mut app), original);
+        assert_eq!(app.world().resource::<Capture>().frame, 63);
+    }
+
+    #[test]
+    fn explicit_time_count_nonfinite_values_and_current_source_read_caps_are_exact() {
+        let mut app = live_pose_app();
+        {
+            let mut options = app.world_mut().resource_mut::<Options>();
+            options.pose_times = vec![-0.; 32];
+            assert!(validate_pose_times(&options).is_ok());
+            assert_eq!(options.pose_times[0].to_bits(), (-0f64).to_bits());
+            options.pose_times.push(0.);
+            assert!(validate_pose_times(&options).is_err());
+            for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                options.pose_times = vec![0., value];
+                assert!(validate_pose_times(&options).is_err());
+            }
+            options.pose_times = vec![0.];
+            options.pose_receipt = None;
+            assert!(validate_pose_times(&options).is_err());
+        }
+        let options = app.world().resource::<Options>();
+        let path = options.model_file.as_ref().unwrap();
+        std::fs::write(path, vec![0u8; model::OBJECT_SOURCE_BYTES]).unwrap();
+        assert_eq!(
+            read_object_source(options).unwrap().len(),
+            model::OBJECT_SOURCE_BYTES
+        );
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(path)
+            .unwrap()
+            .write_all(&[0])
+            .unwrap();
+        assert!(
+            read_object_source(options)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("exceeds 4 MiB")
+        );
+    }
+
+    #[test]
+    fn final_pose_receipt_binds_actual_png_hash_dimensions_and_exact_output_caps() {
+        let app = live_pose_app();
+        let path = app.world().resource::<Options>().capture.as_ref().unwrap();
+        image::RgbImage::from_pixel(3, 2, image::Rgb([7, 19, 201]))
+            .save(path)
+            .unwrap();
+        let png = std::fs::read(path).unwrap();
+        let encoded = pose_capture_receipt(br#"{"request_sequence":7}"#, path, [3, 2]).unwrap();
+        let receipt: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(receipt["request_sequence"], 7);
+        assert_eq!(
+            receipt["capture"]["path"],
+            serde_json::to_value(path).unwrap()
+        );
+        assert_eq!(
+            receipt["capture"]["sha256"],
+            format!("{:x}", Sha256::digest(&png))
+        );
+        assert_eq!(receipt["capture"]["width"], 3);
+        assert_eq!(receipt["capture"]["height"], 2);
+        assert_eq!(receipt["capture"]["encoded_bytes"], png.len());
+        assert!(pose_capture_receipt(b"{}", path, [4, 2]).is_err());
+        assert!(pose_capture_receipt(b"[]", path, [3, 2]).is_err());
+        assert!(pose_capture_receipt(&vec![b' '; 1024 * 1024], path, [3, 2]).is_err());
+        let huge =
+            serde_json::to_vec(&serde_json::json!({"pad":"x".repeat(1024*1024-32)})).unwrap();
+        assert!(huge.len() < 1024 * 1024);
+        assert!(pose_capture_receipt(&huge, path, [3, 2]).is_err());
+        let file = OpenOptions::new().write(true).open(path).unwrap();
+        file.set_len(8 * 1024 * 1024).unwrap();
+        let exact = pose_capture_receipt(b"{}", path, [3, 2]).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&exact).unwrap();
+        assert_eq!(value["capture"]["encoded_bytes"], 8 * 1024 * 1024);
+        assert_eq!(
+            value["capture"]["sha256"],
+            format!("{:x}", Sha256::digest(std::fs::read(path).unwrap()))
+        );
+        file.set_len(8 * 1024 * 1024 + 1).unwrap();
+        assert!(
+            pose_capture_receipt(b"{}", path, [3, 2])
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("exceeds 8 MiB")
+        );
     }
 
     #[test]

@@ -158,6 +158,89 @@ pub fn inspect_sampled_pose(input: &Path, request_path: &Path) -> Result<Sampled
     })
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PoseSetChannelRequest {
+    object: u32,
+    controller: u32,
+    source_time: f64,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PoseSetRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    absolute_weight_tolerance: f64,
+    controller_policy: String,
+    channels: Vec<PoseSetChannelRequest>,
+}
+
+#[derive(Serialize)]
+pub struct PoseSetReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    request: PoseSetRequest,
+    evaluation: Option<nif_skin::pose::EvaluationWithSet>,
+    error: Option<String>,
+    pub failures: usize,
+}
+
+pub fn inspect_pose_set(input: &Path, request_path: &Path) -> Result<PoseSetReport> {
+    let request: PoseSetRequest = serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1
+        || request.controller_policy != "require_exact_required_forest"
+        || request.channels.len() > 256
+    {
+        return Err(
+            "pose set skin requires schema1, exact required forest policy and at most256 channels"
+                .into(),
+        );
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let channels: Vec<_> = request
+        .channels
+        .iter()
+        .map(|channel| fallout_data::nif_animation::pose::Request {
+            object: channel.object,
+            controller: channel.controller,
+            source_time: channel.source_time,
+        })
+        .collect();
+    let evaluated = nif_skin::pose::evaluate_set_sampled(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::pose::SetRequest {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: nif_skin::pose::WeightPolicy::RequireUnitSum {
+                    absolute_tolerance: request.absolute_weight_tolerance,
+                },
+            },
+        },
+        &channels,
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseSetReport {
+        schema_version: 1,
+        contract: "engineering-complete-required-pose-set-skin-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
     let mut source = baseline::open_source(path)?.take(limit + 1);
     let mut bytes = Vec::new();

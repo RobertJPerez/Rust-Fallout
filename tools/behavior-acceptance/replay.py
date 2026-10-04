@@ -59,13 +59,23 @@ def _decode_json(data: bytes, label: str) -> Any:
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         _fail(f"{label} is not valid UTF-8 JSON: {error}")
+    except RecursionError:
+        _fail(f"{label} exceeds the JSON nesting limit")
+
+
+def _read_bounded(path: Path, label: str) -> bytes:
+    try:
+        with path.open("rb") as source:
+            data = source.read(MAX_ARTIFACT_BYTES + 1)
+    except OSError as error:
+        _fail(f"cannot read {label}: {error}")
+    if len(data) > MAX_ARTIFACT_BYTES:
+        _fail(f"{label} exceeds the {MAX_ARTIFACT_BYTES}-byte limit")
+    return data
 
 
 def load_json(path: Path) -> Any:
-    try:
-        return _decode_json(path.read_bytes(), str(path))
-    except OSError as error:
-        _fail(f"cannot read {path}: {error}")
+    return _decode_json(_read_bounded(path, str(path)), str(path))
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -263,7 +273,8 @@ def _validate_timeline(timeline: Any) -> list[dict[str, Any]]:
                 set(),
                 f"{path}.source",
             )
-            if source["kind"] not in {"physical", "host", "cli", "synthetic"}:
+            source_kind = _text(source["kind"], f"{path}.source.kind")
+            if source_kind not in {"physical", "host", "cli", "synthetic"}:
                 _fail(f"{path}.source.kind is unsupported")
             for field in ("device", "control", "device_id"):
                 if source[field] is not None and not isinstance(source[field], str):
@@ -281,7 +292,8 @@ def _validate_timeline(timeline: Any) -> list[dict[str, Any]]:
             _integer(context["expected_revision"], f"{path}.context.expected_revision")
             if row["request_id"] is not None:
                 _text(row["request_id"], f"{path}.request_id")
-            if row["outcome"] not in {"accepted", "refused", "ignored"}:
+            outcome = _text(row["outcome"], f"{path}.outcome")
+            if outcome not in {"accepted", "refused", "ignored"}:
                 _fail(f"{path}.outcome is unsupported")
         elif kind == "state":
             observation_id = _text(row["observation_id"], f"{path}.observation_id")
@@ -320,7 +332,8 @@ def _validate_timeline(timeline: Any) -> list[dict[str, Any]]:
                 _fail(f"{path}.owner must retain its typed owner identity")
             _form_key(row["definition"], f"{path}.definition")
             _text(row["event_id"], f"{path}.event_id")
-            if row["status"] not in {"dispatched", "refused", "unsupported"}:
+            status = _text(row["status"], f"{path}.status")
+            if status not in {"dispatched", "refused", "unsupported"}:
                 _fail(f"{path}.status is unsupported")
             if not isinstance(row["effects"], list) or any(
                 not isinstance(effect, dict) for effect in row["effects"]
@@ -334,15 +347,18 @@ def _validate_timeline(timeline: Any) -> list[dict[str, Any]]:
             _form_key(row["definition"], f"{path}.definition")
             _integer(row["before_revision"], f"{path}.before_revision")
             _integer(row["after_revision"], f"{path}.after_revision")
-            if row["status"] not in {"acknowledged", "refused"}:
+            status = _text(row["status"], f"{path}.status")
+            if status not in {"acknowledged", "refused"}:
                 _fail(f"{path}.status is unsupported")
             if row["receipt_sha256"] is not None:
                 _digest(row["receipt_sha256"], f"{path}.receipt_sha256")
         else:
-            if row["operation"] not in {"save", "continue"}:
+            operation = _text(row["operation"], f"{path}.operation")
+            if operation not in {"save", "continue"}:
                 _fail(f"{path}.operation is unsupported")
             _text(row["request_id"], f"{path}.request_id")
-            if row["status"] not in {"saved", "restored", "failed"}:
+            status = _text(row["status"], f"{path}.status")
+            if status not in {"saved", "restored", "failed"}:
                 _fail(f"{path}.status is unsupported")
             if row["generation"] is not None:
                 _integer(row["generation"], f"{path}.generation", minimum=1)
@@ -414,7 +430,7 @@ def validate_capture(value: Any) -> dict[str, Any]:
     ):
         _fail("capture format or schema_version is unsupported")
     _text(capture["scenario_id"], "capture.scenario_id")
-    evidence_class = capture["evidence_class"]
+    evidence_class = _text(capture["evidence_class"], "capture.evidence_class")
     if evidence_class not in {"synthetic_fixture", "engineering_capture"}:
         _fail("capture evidence_class must be synthetic_fixture or engineering_capture")
     if capture["complete"] is not True:
@@ -448,7 +464,7 @@ def validate_expectation(value: Any) -> dict[str, Any]:
     ):
         _fail("expectation format or schema_version is unsupported")
     _text(expectation["scenario_id"], "expectation.scenario_id")
-    evidence_class = expectation["evidence_class"]
+    evidence_class = _text(expectation["evidence_class"], "expectation.evidence_class")
     if evidence_class not in {"synthetic_fixture", "engineering_capture"}:
         _fail("expectation evidence_class must be synthetic_fixture or engineering_capture")
     oracle = _keys(expectation["oracle"], {"kind", "id", "sha256"}, set(), "expectation.oracle")
@@ -607,23 +623,19 @@ def _manifest(value: Any) -> dict[str, Any]:
         "manifest",
     )
     _text(manifest["scenario_id"], "manifest.scenario_id")
-    if manifest["evidence_class"] not in {"synthetic_fixture", "engineering_capture"}:
+    evidence_class = _text(manifest["evidence_class"], "manifest.evidence_class")
+    if evidence_class not in {"synthetic_fixture", "engineering_capture"}:
         _fail("manifest evidence_class must be synthetic_fixture or engineering_capture")
     if not isinstance(manifest["complete"], bool):
         _fail("manifest.complete must be boolean")
     _integer(manifest["skipped_steps"], "manifest.skipped_steps")
     _integer(manifest["dropped_records"], "manifest.dropped_records")
-    _validate_provenance(manifest["provenance"], manifest["evidence_class"], "manifest.provenance")
+    _validate_provenance(manifest["provenance"], evidence_class, "manifest.provenance")
     return manifest
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    try:
-        data = path.read_bytes()
-    except OSError as error:
-        _fail(f"cannot read {path}: {error}")
-    if len(data) > MAX_ARTIFACT_BYTES:
-        _fail(f"{path} exceeds the {MAX_ARTIFACT_BYTES}-byte limit")
+    data = _read_bounded(path, str(path))
     try:
         lines = data.decode("utf-8-sig").splitlines()
     except UnicodeDecodeError as error:
@@ -687,7 +699,10 @@ def _cli() -> int:
             code = 0
         else:
             result = compare(load_json(args.capture), load_json(args.expectation))
-            code = 0 if result["status"] == "passed" else 1
+            if result["classification"] == "invalid_receipt":
+                code = 2
+            else:
+                code = 0 if result["status"] == "passed" else 1
     except ReceiptError as error:
         result = {
             "schema_version": SCHEMA_VERSION,

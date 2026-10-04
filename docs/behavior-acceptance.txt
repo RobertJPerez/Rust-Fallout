@@ -18,7 +18,9 @@ The run manifest follows `tools/behavior-acceptance/schemas/capture-v1.schema.js
 The expectation follows `tools/behavior-acceptance/schemas/expectations-v1.schema.json`.
 The Python reader applies the same v1 contract with the standard library, rejects
 duplicate JSON keys, non-finite numbers, unknown fields, incomplete timelines,
-sequence gaps, stale source/profile pins, and oversized receipts.
+sequence gaps, stale source/profile pins, wrong-typed enum fields, and oversized
+receipts. Capture and JSONL readers stop after 8 MiB plus one byte to reject an
+oversized artifact before loading its full contents.
 
 Pack a host-produced manifest and JSONL records without overwriting old evidence:
 

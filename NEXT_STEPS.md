@@ -4,11 +4,16 @@ The next unmet gate is **M1: trustworthy, semantically useful content loading**.
 The current tools build and run; the original games have not been recreated yet.
 Keep the entire master brief in scope and progress through its dependency gates.
 
-The [eight-agent workflow](docs/agents/team-v3/team-plan.md) has separate owned
-worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
+The [thirteen-role workflow](docs/agents/team-v4/team-plan.txt) has separate owned
+worktrees and [rolling lane backlogs](docs/agents/team-v4/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
+Robert submitted the v4 coordinator startup prompt on October 4, 2026. Its
+[activation receipt](docs/integration/team-v4-bootstrap-01.json) records fresh
+admission and preservation checks. Source51 is the preserved development seed;
+source40 alone carries the last combined proof. Leads adopt held legacy slices
+once, while workers finish their exact stopped drafts and missing validations.
 Development batch 12 proves source `d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc`:
 1,636 Rust passing results, 63 ignored helpers, Clippy, formatting and actual CLI/
 preview builds. Fresh frozen consumers passed 24 headless cases and 4 GPU cases:

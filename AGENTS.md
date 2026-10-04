@@ -39,7 +39,8 @@ and adapters. Ten workers own production capabilities and independent acceptance
   repeat completed audits. One coding task plus at most one parked validation slice.
 - Use tools/team-build.py for focused builds and heavy/GPU/proof work. Admission
   is automatic; default busy exit75 launches nothing, so do other useful work.
-  One focused plus one heavy operation initially. Do not bypass limits or rebuild
+  Two focused plus one heavy operation globally, with Cargo jobs 1 initially.
+  Do not bypass limits or rebuild
   frozen proof binaries. Keep installation, saves, settings and research read-only.
 - Send small tested handoffs with exact commits, dependency mapping, commands,
   results, evidence hashes, shared wiring and next action. Review corrections take

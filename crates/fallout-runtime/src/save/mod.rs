@@ -11,7 +11,7 @@ mod worker;
 
 #[cfg(test)]
 #[path = "../../tests/common/mod.rs"]
-mod test_source;
+pub(crate) mod test_source;
 
 use crate::{Limits, World, snapshot::Snapshot};
 pub use availability_task::{

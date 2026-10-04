@@ -26,6 +26,7 @@ pub mod initialization;
 pub mod journal;
 pub mod observation;
 mod readiness;
+pub mod retirement;
 pub use readiness::{
     ComponentUnavailable, HostLimits, HostReadiness, HostRequirements, HostUnavailable,
     InstanceRequirement, InstanceUnavailable, JournalHead,
@@ -396,28 +397,11 @@ impl<'a> World<'a> {
     pub fn remove_instance(&mut self, handle: InstanceHandle) -> Result<()> {
         let slot = self.slot(handle)?;
         let instance = self.instance(handle)?;
-        if self
-            .pending
-            .iter()
-            .any(|event| event.instance == instance.id)
-        {
-            return Err(Error::Invalid(
-                "instance has pending events; acknowledge them explicitly before removal".into(),
-            ));
-        }
-        if self
-            .items
-            .values()
-            .any(|item| item.facts.script_instance == Some(instance.id))
-        {
-            return Err(Error::Invalid(
-                "script instance is still linked by an inventory item".into(),
-            ));
-        }
-        let generation = self.slots[slot]
-            .generation
-            .checked_add(1)
-            .ok_or(Error::Capacity("slot generations"))?;
+        let id = instance.id;
+        // Keep the original unbounded single-removal scans and journal-first
+        // refusal while sharing the group operation's admission rules.
+        self.admit_instance_retirement_links(|selected| selected == id, usize::MAX, usize::MAX)?;
+        let generation = retirement::next_generation(self.slots[slot].generation)?;
         let revision = self.next_revision()?;
         let instance = self.slots[slot]
             .value

@@ -9,6 +9,114 @@ use fallout_runtime::{
     state::initialization,
 };
 
+#[test]
+fn retirement_group_invalid_final_handle_and_pending_instance_preserve_initialized_source_values() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let mut world = World::new(&catalogue, Limits::default()).unwrap();
+    let reference = world.register_reference(None).unwrap();
+    let definition = definition(&catalogue);
+    let context = Context {
+        calling_reference: Some(reference),
+        containing_reference: None,
+        target: Some(ReferenceValue::Null),
+        arguments: vec![ReferenceValue::Live { id: reference }],
+    };
+    let mut handles = Vec::new();
+    for index in 1..=3 {
+        let assignments = [
+            (2, Value::Number { bits: 1 << 63 }),
+            (
+                42,
+                Value::Number {
+                    bits: 0x7ff8_1234_5678_9abc + index,
+                },
+            ),
+            (
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: reference },
+                },
+            ),
+        ];
+        let stage = world
+            .stage_instance_initialization(
+                &definition,
+                &owner(index),
+                &context,
+                &assignments,
+                initialization::Limits::default(),
+            )
+            .unwrap();
+        handles.push(world.commit_instance_initialization(stage).unwrap().1);
+    }
+    world
+        .enqueue(
+            handles[0],
+            Trigger::ObjectEvent { mask: 0x8000_0001 },
+            context,
+        )
+        .unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 1,
+            game_nanoseconds: 3,
+            menu_nanoseconds: 5,
+            real_nanoseconds: 7,
+        })
+        .unwrap();
+    let before = world.snapshot();
+    let restored = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    let foreign = restored.handle(before.instances[2].id).unwrap();
+    assert!(
+        world
+            .stage_instance_retirement_group(
+                &[handles[1], foreign],
+                fallout_runtime::state::retirement::Limits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    assert!(
+        world
+            .stage_instance_retirement_group(
+                &[handles[1], handles[0]],
+                fallout_runtime::state::retirement::Limits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    let stage = world
+        .stage_instance_retirement_group(
+            &[handles[2], handles[1]],
+            fallout_runtime::state::retirement::Limits::default(),
+        )
+        .unwrap();
+    let receipt = world.commit_instance_retirement_group(stage).unwrap();
+    assert_eq!(
+        receipt
+            .rows()
+            .iter()
+            .map(|row| row.instance().0.get())
+            .collect::<Vec<_>>(),
+        [3, 2]
+    );
+    let mut expected = before;
+    expected.instances.truncate(1);
+    expected.state_revision += 1;
+    assert_eq!(world.snapshot(), expected);
+    let restored = World::restore(
+        &catalogue,
+        Snapshot::decode(&expected.encode(1 << 20).unwrap(), Limits::default()).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(restored.snapshot(), expected);
+    assert!(world.instance(handles[1]).is_err());
+    assert!(world.instance(handles[2]).is_err());
+}
+
 fn owner(n: u64) -> Owner {
     Owner::Fragment {
         activation: n.try_into().unwrap(),

@@ -1046,7 +1046,157 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
     if let Some(group) = instance_initialization_group_probe(catalogue)? {
         report["instance_initialization_group"] = group;
     }
+    report["instance_retirement_group"] = instance_retirement_group_probe(catalogue)?;
     Ok(report)
+}
+
+fn instance_retirement_group_probe(catalogue: &Catalogue) -> Result<Json> {
+    use fallout_runtime::{inventory::Facts, state::retirement};
+    let Some(script) = catalogue.iter().map(|(_, script)| script).find(|script| {
+        schema::locals(script)
+            .values()
+            .any(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+    }) else {
+        return Ok(
+            json!({"status":"unavailable","reason":"No supported explicit local declaration","retail_parity_accepted":false}),
+        );
+    };
+    let definition = script.handle();
+    let declarations = schema::locals(script);
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        CampaignId::from_bytes([56; 16])?,
+    )?;
+    let reference = world.register_reference(None)?;
+    let context = Context {
+        calling_reference: Some(reference),
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Live { id: reference }),
+        arguments: vec![ReferenceValue::Null],
+    };
+    let mut handles = Vec::new();
+    let mut inputs = Vec::new();
+    for index in 0..3 {
+        let owner = Owner::Fragment {
+            activation: (index + 1).try_into()?,
+        };
+        let assignments = declarations
+            .iter()
+            .filter_map(|(&slot, local)| {
+                let value = match local.kind {
+                    Kind::Float | Kind::Integer => Value::Number {
+                        bits: [0x8000_0000_0000_0000, 0x7ff8_1234_5678_9abc, 1][index as usize],
+                    },
+                    Kind::Reference => Value::Reference {
+                        value: match index {
+                            0 => ReferenceValue::Live { id: reference },
+                            1 => ReferenceValue::Null,
+                            _ => ReferenceValue::Content {
+                                key: definition.key.record.clone(),
+                            },
+                        },
+                    },
+                    _ => return None,
+                };
+                Some((slot, value))
+            })
+            .collect::<Vec<_>>();
+        let stage = world.stage_instance_initialization(
+            definition,
+            &owner,
+            &context,
+            &assignments,
+            initialization::Limits::default(),
+        )?;
+        let (receipt, handle) = world.commit_instance_initialization(stage)?;
+        handles.push(handle);
+        inputs.push(
+            json!({"owner":owner,"context":context,"assignments":assignments,"receipt":receipt}),
+        );
+    }
+    world.enqueue(
+        handles[0],
+        Trigger::ObjectEvent { mask: 0x8000_0001 },
+        context,
+    )?;
+    world.initialize_inventory(reference)?;
+    let mut facts = Facts::unknown(definition.key.record.clone());
+    facts.script_instance = Some(world.instance(handles[0])?.id());
+    world.add_item(reference, facts, 8.try_into()?)?;
+    world.advance_clocks(Clocks {
+        tick: 1,
+        game_nanoseconds: 3,
+        menu_nanoseconds: 5,
+        real_nanoseconds: 7,
+    })?;
+    let before = world.snapshot();
+    if world
+        .stage_instance_retirement_group(&[handles[1], handles[0]], retirement::Limits::default())
+        .is_ok()
+        || world
+            .stage_instance_retirement_group(
+                &[handles[1], handles[1]],
+                retirement::Limits::default(),
+            )
+            .is_ok()
+        || world.snapshot() != before
+    {
+        return Err("Retirement last linked instance/duplicate refusal changed state".into());
+    }
+    let stage = world.stage_instance_retirement_group(
+        &[handles[2], handles[1]],
+        retirement::Limits::default(),
+    )?;
+    let usage = stage.usage();
+    if world.snapshot() != before {
+        return Err("Retirement staging changed state".into());
+    }
+    let receipt = world.commit_instance_retirement_group(stage)?;
+    let after = world.snapshot();
+    if after.state_revision != before.state_revision + 1
+        || after.next_instance != before.next_instance
+        || after.instances != before.instances[..1]
+        || after.references != before.references
+        || after.inventory_banks != before.inventory_banks
+        || after.pending_events != before.pending_events
+        || after.clocks != before.clocks
+        || world.instance(handles[1]).is_ok()
+        || world.instance(handles[2]).is_ok()
+    {
+        return Err("Retirement full canonical boundary differs".into());
+    }
+    let restored = World::restore(
+        catalogue,
+        Snapshot::decode(&after.encode(1 << 20)?, Limits::default())?,
+        Limits::default(),
+    )?;
+    if restored.snapshot() != after {
+        return Err("Retirement canonical restore differs".into());
+    }
+    for index in 1..3 {
+        let owner = Owner::Fragment {
+            activation: (index + 1).try_into()?,
+        };
+        let stage = world.stage_instance_initialization(
+            definition,
+            &owner,
+            &Context::default(),
+            &[],
+            initialization::Limits::default(),
+        )?;
+        let (_, new) = world.commit_instance_initialization(stage)?;
+        if world.instance(handles[index as usize]).is_ok()
+            || world.instance(new)?.id().0.get() != before.next_instance + index - 1
+        {
+            return Err("Retirement reuse identity differs".into());
+        }
+    }
+    Ok(
+        json!({"status":"available","scope":"Explicit engineering source instances; no retail lifecycle policy","definition":definition,"inputs":inputs,
+        "before_snapshot":before,"current_snapshot":after,"receipt":receipt,"usage":usage,"selected_order":[3,2],
+        "invalid_final_link_and_duplicate_refused":true,"freed_slot_reinitialization_proved":true,"bytecode_executed":false,"retail_parity_accepted":false}),
+    )
 }
 
 pub(super) fn event_commit_probe(

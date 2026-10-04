@@ -72,19 +72,42 @@ pub struct PoseSet {
 
 const IDENTITY: Affine = [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]];
 
-/// One request per controlled selected object; every controlled ancestor needed
-/// by a selected result must also have an exact admitted request. No fallback.
-pub fn evaluate_set(
-    bytes: &[u8],
-    source: &str,
-    requests: &[Request],
-    limits: SetLimits,
-) -> Result<PoseSet> {
-    let mut budget = Budget {
-        source,
-        bytes: limits.array_bytes,
-        work: limits.work_units,
-    };
+/// Internal source authority. Only the existing evaluated CSR forest constructs
+/// these maps; no public PoseSet, Scene or caller matrix can substitute them.
+pub(crate) struct EvaluatedForest {
+    prepared: PreparedSource,
+    observation: PoseSet,
+    selected: Vec<Option<usize>>,
+    worlds: Vec<Option<Affine>>,
+    relative: Vec<Option<Affine>>,
+}
+impl EvaluatedForest {
+    pub(crate) fn observation(&self) -> &PoseSet {
+        &self.observation
+    }
+    pub(crate) fn scene(&self) -> &nif_scene::Scene {
+        &self.prepared.scene
+    }
+    pub(crate) fn world(&self, id: u32) -> Option<Affine> {
+        self.worlds.get(id as usize).copied().flatten()
+    }
+    pub(crate) fn relative(&self, id: u32) -> Option<Affine> {
+        self.relative.get(id as usize).copied().flatten()
+    }
+    pub(crate) fn applies(&self, id: u32) -> bool {
+        self.selected.get(id as usize).is_some_and(Option::is_some)
+    }
+    pub(crate) fn into_observation(self) -> PoseSet {
+        self.observation
+    }
+}
+#[derive(Clone, Copy)]
+struct RequiredScope<'a> {
+    seeds: &'a [u32],
+    anchor: u32,
+}
+
+fn validate_requests(requests: &[Request], limits: SetLimits, budget: &Budget<'_>) -> Result<()> {
     if requests.len() > limits.requests {
         return Err(budget.fail("pose set request count budget exceeded"));
     }
@@ -96,7 +119,66 @@ pub fn evaluate_set(
             return Err(budget.fail("requested source time must be finite"));
         }
     }
+    Ok(())
+}
+
+/// One request per controlled selected object; every controlled ancestor needed
+/// by a selected result must also have an exact admitted request. No fallback.
+pub fn evaluate_set(
+    bytes: &[u8],
+    source: &str,
+    requests: &[Request],
+    limits: SetLimits,
+) -> Result<PoseSet> {
+    let budget = Budget {
+        source,
+        bytes: limits.array_bytes,
+        work: limits.work_units,
+    };
+    validate_requests(requests, limits, &budget)?;
     let prepared = PreparedSource::prepare(bytes, source, limits.source)?;
+    evaluate_prepared(prepared, requests, limits, budget, None)
+        .map(EvaluatedForest::into_observation)
+}
+
+/// The skin decoder transfers one already bounded same-source Scene. Seed IDs
+/// and anchor come from its exact decoded instance, never a public pose receipt.
+pub(crate) fn evaluate_required(
+    bytes: &[u8],
+    source: &str,
+    requests: &[Request],
+    scene: nif_scene::Scene,
+    seeds: &[u32],
+    anchor: u32,
+    limits: SetLimits,
+) -> Result<EvaluatedForest> {
+    let mut budget = Budget {
+        source,
+        bytes: limits.array_bytes,
+        work: limits.work_units,
+    };
+    validate_requests(requests, limits, &budget)?;
+    if seeds.is_empty() {
+        return Err(budget.fail("required skin forest has no exact seeds"));
+    }
+    budget.reserve::<EvaluatedForest>(1)?;
+    let prepared = PreparedSource::prepare_with_scene(bytes, source, limits.source, scene)?;
+    evaluate_prepared(
+        prepared,
+        requests,
+        limits,
+        budget,
+        Some(RequiredScope { seeds, anchor }),
+    )
+}
+
+fn evaluate_prepared(
+    prepared: PreparedSource,
+    requests: &[Request],
+    limits: SetLimits,
+    mut budget: Budget<'_>,
+    scope: Option<RequiredScope<'_>>,
+) -> Result<EvaluatedForest> {
     let view = SourceView {
         source: &prepared.source,
         index: &prepared.index,
@@ -114,6 +196,12 @@ pub fn evaluate_set(
     let mut selected = vec![None; blocks];
     let mut required = vec![false; blocks];
     let mut worlds = vec![None; blocks];
+    let mut relative = if scope.is_some() {
+        budget.reserve::<Option<Affine>>(blocks)?;
+        vec![None; blocks]
+    } else {
+        Vec::new()
+    };
     for (ordinal, request) in requests.iter().enumerate() {
         budget.charge(1)?;
         let slot = selected
@@ -124,8 +212,14 @@ pub fn evaluate_set(
         }
     }
     // All required controlling ancestors are checked before channel admission.
-    for request in requests {
-        let mut node = Some(request.object);
+    let explicit_seeds = scope.map(|scope| scope.seeds).unwrap_or(&[]);
+    let requested_seeds = requests
+        .iter()
+        .filter(|_| scope.is_none())
+        .map(|request| request.object);
+    let required_seeds = explicit_seeds.iter().copied().chain(requested_seeds);
+    for seed in required_seeds {
+        let mut node = Some(seed);
         let mut depth = 0;
         while let Some(id) = node {
             budget.charge(1)?;
@@ -155,6 +249,12 @@ pub fn evaluate_set(
             }
             required[id as usize] = true;
             node = world.parent;
+        }
+    }
+    if scope.is_some() {
+        budget.charge(requests.len())?;
+        if requests.iter().any(|r| !required[r.object as usize]) {
+            return Err(budget.fail("pose set channel is outside required skin forest"));
         }
     }
     let mut sampling_left = limits.sampling;
@@ -284,6 +384,23 @@ pub fn evaluate_set(
             return Err(budget.fail("evaluated matrix overflow"));
         }
         worlds[id] = Some(matrix);
+        if let Some(scope) = scope {
+            budget.charge(1)?;
+            relative[id] = if world.block == scope.anchor {
+                Some(IDENTITY)
+            } else {
+                match world.parent.and_then(|parent| relative[parent as usize]) {
+                    Some(parent) => {
+                        let value = compose(parent, local);
+                        if !value.iter().flatten().all(|v| v.is_finite()) {
+                            return Err(budget.fail("evaluated root-relative matrix overflow"));
+                        }
+                        Some(value)
+                    }
+                    None => None,
+                }
+            };
+        }
         propagated_objects += 1;
         let descendants = &children[offsets[id]..offsets[id + 1]];
         budget.charge(descendants.len())?;
@@ -330,7 +447,7 @@ pub fn evaluate_set(
             parent = world.parent;
         }
     }
-    Ok(PoseSet {
+    let observation = PoseSet {
         contract: "engineering-explicit-linked-pose-set-v1",
         source_sha256: prepared.source_sha256().into(),
         preparation: prepared.usage(),
@@ -343,5 +460,12 @@ pub fn evaluate_set(
             sampling_units: limits.sampling.sampling_work - sampling_left.sampling_work,
         },
         retail_behavior_verified: false,
+    };
+    Ok(EvaluatedForest {
+        prepared,
+        observation,
+        selected,
+        worlds,
+        relative,
     })
 }

@@ -88,13 +88,35 @@ pub struct PreparedSource {
 
 impl PreparedSource {
     pub fn prepare(bytes: &[u8], source: &str, limits: Limits) -> Result<Self> {
+        Self::prepare_inner(bytes, source, limits, None)
+    }
+    /// Scene ownership comes only from the same-source skin decoder inside this
+    /// crate. Its upstream decoder receives the minimum Scene limits first.
+    pub(super) fn prepare_with_scene(
+        bytes: &[u8],
+        source: &str,
+        limits: Limits,
+        scene: nif_scene::Scene,
+    ) -> Result<Self> {
+        Self::prepare_inner(bytes, source, limits, Some(scene))
+    }
+    fn prepare_inner(
+        bytes: &[u8],
+        source: &str,
+        limits: Limits,
+        scene: Option<nif_scene::Scene>,
+    ) -> Result<Self> {
         let mut budget = Budget {
             source,
             bytes: limits.array_bytes,
             work: limits.work_units,
         };
         let (index, decoded) = keyframe::decode_with_limits(bytes, source, limits.keys)?;
-        let (_, scene) = nif_scene::decode_with_limits(bytes, source, limits.scene)?;
+        let scene_decodes = usize::from(scene.is_none());
+        let scene = match scene {
+            Some(scene) => scene,
+            None => nif_scene::decode_with_limits(bytes, source, limits.scene)?.1,
+        };
         if !scene.unsupported_scene_edges.is_empty() {
             return Err(budget.fail("unresolved scene ancestry"));
         }
@@ -135,7 +157,7 @@ impl PreparedSource {
             .collect();
         let usage = PreparationUsage {
             animation_key_decodes: 1,
-            scene_decodes: 1,
+            scene_decodes,
             map_constructions: 1,
             source_sha256_computations: 1,
             block_sha256_computations: index.blocks.len(),

@@ -2577,6 +2577,475 @@ fn sample_request(bytes: &[u8]) -> pose::SampledRequest {
     }
 }
 
+fn set_keys(a: [f32; 3], b: [f32; 3], scales: [f32; 2]) -> Vec<u8> {
+    let mut out = Vec::new();
+    words(&mut out, &[0, 2, 1]);
+    floats(&mut out, &[0.]);
+    floats(&mut out, &a);
+    floats(&mut out, &[1.]);
+    floats(&mut out, &b);
+    words(&mut out, &[2, 1]);
+    floats(&mut out, &[0., scales[0], 1., scales[1]]);
+    out
+}
+fn set_controller(target: u32, interpolator: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    words(&mut out, &[NULL]);
+    shorts(&mut out, &[0x004C]);
+    floats(&mut out, &[17., -9., 100., 101.]);
+    words(&mut out, &[target, interpolator]);
+    out
+}
+fn set_interpolator(data: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    floats(&mut out, &[1000., 2000., 3000., 2., -3., 4., -5., 12.]);
+    words(&mut out, &[data]);
+    out
+}
+fn controlled_node(
+    r: [[f32; 3]; 3],
+    t: [f32; 3],
+    scale: f32,
+    children: &[u32],
+    controller: u32,
+) -> Vec<u8> {
+    let mut out = node(r, t, scale, children);
+    out[8..12].copy_from_slice(&controller.to_le_bytes());
+    out
+}
+fn set_skin_fixture(root_scale: f32) -> Vec<(&'static str, Vec<u8>)> {
+    let mut shape = av(ID, [999., 999., 999.], 7.);
+    words(&mut shape, &[1, 4, 0, NULL]);
+    shape.push(0);
+    let mut instance = Vec::new();
+    words(&mut instance, &[2, NULL, 11, 2, 7, 0]);
+    vec![
+        ("NiNode", controlled_node(R90, [0., 3., 0.], 2., &[], 8)),
+        ("NiTriShapeData", mesh()),
+        (
+            "NiSkinData",
+            skin(&[vec![(0, 0.25), (1, 1.)], vec![(0, 0.75), (2, 1.)]], None),
+        ),
+        ("NiTriShape", shape),
+        ("NiSkinInstance", instance),
+        (
+            "NiTransformData",
+            set_keys([-3., 2., 0.], [1., 6., 4.], [2., 4.]),
+        ),
+        ("NiTransformInterpolator", set_interpolator(5)),
+        ("NiNode", controlled_node(RM90, [4., 0., 0.], 1., &[0], 9)),
+        ("NiTransformController", set_controller(0, 6)),
+        ("NiTransformController", set_controller(7, 10)),
+        ("NiTransformInterpolator", set_interpolator(12)),
+        (
+            "NiNode",
+            controlled_node(R90, [10., 20., 30.], 3., &[7, 3], 13),
+        ),
+        (
+            "NiTransformData",
+            set_keys([1., -4., 0.], [5., 0., 2.], [1., 3.]),
+        ),
+        ("NiTransformController", set_controller(11, 15)),
+        ("NiNode", node(RM90, [-8., 9., 10.], 0.5, &[11])),
+        ("NiTransformInterpolator", set_interpolator(16)),
+        (
+            "NiTransformData",
+            set_keys([5., -7., 3.], [5., -7., 3.], [root_scale, root_scale]),
+        ),
+    ]
+}
+fn set_channels() -> [fallout_data::nif_animation::pose::Request; 3] {
+    [
+        fallout_data::nif_animation::pose::Request {
+            object: 0,
+            controller: 8,
+            source_time: 0.5,
+        },
+        fallout_data::nif_animation::pose::Request {
+            object: 11,
+            controller: 13,
+            source_time: 0.5,
+        },
+        fallout_data::nif_animation::pose::Request {
+            object: 7,
+            controller: 9,
+            source_time: 0.5,
+        },
+    ]
+}
+fn set_skin(
+    bytes: &[u8],
+    channels: &[fallout_data::nif_animation::pose::Request],
+    limits: pose::SetCombinedLimits,
+) -> fallout_data::Result<pose::EvaluationWithSet> {
+    pose::evaluate_set_sampled(
+        bytes,
+        "literal complete skin set",
+        pose::SetRequest {
+            expected_source_sha256: source_digest(bytes),
+            skin: request(),
+        },
+        channels,
+        limits,
+    )
+}
+#[test]
+fn complete_pose_set_skin_has_literal_noncommuting_parent_child_palette_and_vertices() {
+    let blocks = set_skin_fixture(2.);
+    let bytes = container(&blocks, &[14]);
+    let result = set_skin(&bytes, &set_channels(), Default::default()).unwrap();
+    assert_eq!(
+        result.skin.palette[0].matrix,
+        [[0., 1., 0., -0.5], [-1., 0., 0., 3.], [0., 0., 1., 0.5]]
+    );
+    assert_eq!(
+        result.skin.palette[1].matrix,
+        [[0., 1.5, 0., -1.], [-1.5, 0., 0., 6.], [0., 0., 1.5, 2.5]]
+    );
+    assert_eq!(
+        result.skin.positions,
+        [[1.875, 3.875, 6.125], [-1.5, -1., 2.5], [-1., 10.5, 4.]]
+    );
+    assert_eq!(
+        result.skin.normals,
+        [[1.375, 0., 0.], [1., 0., 0.], [1.5, 0., 0.]]
+    );
+    assert_eq!(result.skin.weight_sums, [1., 1., 1.]);
+    assert_eq!(
+        result.skin.skin_to_source_world,
+        [[2., 0., 0., -7.5], [0., 2., 0., 6.5], [0., 0., 2., 11.5]]
+    );
+    assert_eq!(
+        (
+            result.skin.geometry,
+            result.skin.geometry_data,
+            result.skin.instance,
+            result.skin.skin_data,
+            result.skin.skeleton_root
+        ),
+        (3, 1, 4, 2, 11)
+    );
+    assert_eq!(
+        result
+            .skin
+            .palette
+            .iter()
+            .map(|p| p.node)
+            .collect::<Vec<_>>(),
+        [7, 0]
+    );
+    assert_eq!(
+        result.pose_set.objects[0].source_world,
+        [[6., 0., 0., -0.5], [0., 6., 0., 6.5], [0., 0., 6., 16.5]]
+    );
+    assert_eq!(
+        result.pose_set.objects[1].source_world,
+        [[1., 0., 0., -11.5], [0., 1., 0., 6.5], [0., 0., 1., 11.5]]
+    );
+    assert_eq!(
+        result.pose_set.objects[2].source_world,
+        [[0., 2., 0., -8.5], [-2., 0., 0., 4.5], [0., 0., 2., 12.5]]
+    );
+    assert_eq!(result.pose_set.propagated_objects, 5);
+    assert_eq!(result.skin_scene_decodes, 1);
+    assert_eq!(result.pose_set.preparation.scene_decodes, 0);
+    assert_eq!(result.pose_set.preparation.animation_key_decodes, 1);
+    assert!(result.skin.unapplied_controllers.is_empty());
+    for object in &result.pose_set.objects {
+        for span in [
+            &object.channel.object,
+            &object.channel.controller,
+            &object.channel.interpolator,
+            &object.channel.data,
+        ] {
+            assert_eq!(
+                &bytes[span.offset..span.offset + span.bytes],
+                blocks[span.block as usize].1
+            );
+        }
+    }
+    assert!(!result.retail_behavior_verified);
+}
+#[test]
+fn complete_skin_set_permutation_preserves_skin_and_existing_channel_observations() {
+    let bytes = container(&set_skin_fixture(2.), &[14]);
+    let channels = set_channels();
+    let result = set_skin(&bytes, &channels, Default::default()).unwrap();
+    let reverse = [channels[2], channels[1], channels[0]];
+    let reversed = set_skin(&bytes, &reverse, Default::default()).unwrap();
+    assert_eq!(
+        serde_json::to_vec(&result.skin).unwrap(),
+        serde_json::to_vec(&reversed.skin).unwrap()
+    );
+    assert_eq!(result.retained_bytes, reversed.retained_bytes);
+    assert_eq!(result.work_units, reversed.work_units);
+    let old = fallout_data::nif_animation::pose::evaluate_set(
+        &bytes,
+        "literal",
+        &channels,
+        Default::default(),
+    )
+    .unwrap();
+    for selected in &result.pose_set.objects {
+        let matching = old
+            .objects
+            .iter()
+            .find(|o| o.channel.object.block == selected.channel.object.block)
+            .unwrap();
+        assert_eq!(
+            serde_json::to_vec(selected).unwrap(),
+            serde_json::to_vec(matching).unwrap()
+        );
+    }
+    assert_eq!(old.propagated_objects, 4);
+    let mut static_blocks = set_skin_fixture(2.);
+    for id in [0, 7, 11] {
+        static_blocks[id].1[8..12].copy_from_slice(&NULL.to_le_bytes());
+    }
+    let static_bytes = container(&static_blocks, &[14]);
+    let static_set = set_skin(&static_bytes, &[], Default::default()).unwrap();
+    let stored = pose::evaluate(&static_bytes, "static", request(), Default::default()).unwrap();
+    assert!(static_set.pose_set.objects.is_empty());
+    assert_eq!(static_set.pose_set.propagated_objects, 5);
+    assert_eq!(
+        serde_json::to_vec(&static_set.skin.palette).unwrap(),
+        serde_json::to_vec(&stored.palette).unwrap()
+    );
+    assert_eq!(static_set.skin.positions, stored.positions);
+    assert_eq!(static_set.skin.normals, stored.normals);
+    assert_eq!(
+        static_set.skin.skin_to_source_world,
+        stored.skin_to_source_world
+    );
+}
+#[test]
+fn complete_skin_set_coverage_wrong_links_and_late_failures_never_return_a_deformation() {
+    let blocks = set_skin_fixture(2.);
+    let bytes = container(&blocks, &[14]);
+    let channels = set_channels();
+    for selected in [
+        vec![channels[0], channels[1]],
+        vec![channels[0], channels[2]],
+        vec![channels[1], channels[2]],
+        vec![channels[0], channels[0]],
+    ] {
+        assert!(set_skin(&bytes, &selected, Default::default()).is_err());
+    }
+    for time in [f64::NAN, 2.] {
+        let mut late = channels;
+        late[0].source_time = time;
+        let ordered = [late[1], late[2], late[0]];
+        assert!(set_skin(&bytes, &ordered, Default::default()).is_err());
+    }
+    let mut wrong = channels;
+    wrong[0].controller = 9;
+    assert!(
+        set_skin(&bytes, &wrong, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("object.controller differs")
+    );
+    let mut chained = blocks.clone();
+    chained[8].1[..4].copy_from_slice(&9u32.to_le_bytes());
+    assert!(
+        set_skin(&container(&chained, &[14]), &channels, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("controller chain")
+    );
+    let mut outside = blocks;
+    outside.extend([
+        ("NiNode", controlled_node(ID, [0.; 3], 1., &[], 18)),
+        ("NiTransformController", set_controller(17, 6)),
+    ]);
+    let bytes = container(&outside, &[14, 17]);
+    let mut more = channels.to_vec();
+    more.push(fallout_data::nif_animation::pose::Request {
+        object: 17,
+        controller: 18,
+        source_time: 0.5,
+    });
+    assert!(
+        set_skin(&bytes, &more, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("outside required skin forest")
+    );
+    assert!(set_skin(&bytes, &channels, Default::default()).is_ok());
+}
+#[test]
+fn complete_skin_set_zero_and_reflected_root_preserve_relative_palette_without_root_inverse() {
+    for (scale, frame) in [
+        (
+            0.,
+            [[0., 0., 0., -11.5], [0., 0., 0., 6.5], [0., 0., 0., 11.5]],
+        ),
+        (
+            -2.,
+            [
+                [-2., 0., 0., -15.5],
+                [0., -2., 0., 6.5],
+                [0., 0., -2., 11.5],
+            ],
+        ),
+    ] {
+        let bytes = container(&set_skin_fixture(scale), &[14]);
+        let result = set_skin(&bytes, &set_channels(), Default::default()).unwrap();
+        assert_eq!(result.skin.skin_to_source_world, frame);
+        assert_eq!(
+            result.skin.palette[0].matrix,
+            [[0., 1., 0., -0.5], [-1., 0., 0., 3.], [0., 0., 1., 0.5]]
+        );
+        assert_eq!(
+            result.skin.palette[1].matrix,
+            [[0., 1.5, 0., -1.], [-1.5, 0., 0., 6.], [0., 0., 1.5, 2.5]]
+        );
+        assert_eq!(
+            result.skin.positions,
+            [[1.875, 3.875, 6.125], [-1.5, -1., 2.5], [-1., 10.5, 4.]]
+        );
+    }
+}
+#[test]
+fn complete_skin_set_phase_aggregate_source_sampler_and_depth_caps_are_exact() {
+    let bytes = container(&set_skin_fixture(2.), &[14]);
+    let channels = set_channels();
+    let baseline = set_skin(&bytes, &channels, Default::default()).unwrap();
+    let mut exact = pose::SetCombinedLimits {
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+        decoder_check_admission_units: baseline.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.skin.array_bytes = baseline.skin.retained_bytes;
+    exact.skin.work_units = baseline.skin.work_units;
+    exact.animation.array_bytes = baseline.pose_set.retained_bytes;
+    exact.animation.work_units = baseline.pose_set.work_units;
+    exact.animation.requests = 3;
+    exact.animation.ancestry_depth = 4;
+    exact.skin.ancestry_depth = 3;
+    exact.animation.sampling.validation_work = baseline.pose_set.sample_work.validation_units;
+    exact.animation.sampling.sampling_work = baseline.pose_set.sample_work.sampling_units;
+    let admitted = set_skin(&bytes, &channels, exact).unwrap();
+    let mut under = exact;
+    under.array_bytes -= 1;
+    let mut cases = vec![under];
+    under = exact;
+    under.work_units -= 1;
+    cases.push(under);
+    under = exact;
+    under.skin.array_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.skin.work_units -= 1;
+    cases.push(under);
+    under = exact;
+    under.animation.array_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.animation.work_units -= 1;
+    cases.push(under);
+    under = exact;
+    under.animation.requests -= 1;
+    cases.push(under);
+    under = exact;
+    under.animation.ancestry_depth -= 1;
+    cases.push(under);
+    under = exact;
+    under.skin.ancestry_depth -= 1;
+    cases.push(under);
+    under = exact;
+    under.decoder_array_admission_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.decoder_check_admission_units = admitted.decoder_check_admission_units - 1;
+    cases.push(under);
+    under = exact;
+    under.animation.sampling.validation_work -= 1;
+    cases.push(under);
+    under = exact;
+    under.animation.sampling.sampling_work -= 1;
+    cases.push(under);
+    under = exact;
+    under.animation.source.array_bytes = baseline.pose_set.preparation.extra_retained_bytes - 1;
+    cases.push(under);
+    under = exact;
+    under.animation.source.work_units = baseline.pose_set.preparation.work_units - 1;
+    cases.push(under);
+    under = exact;
+    under.skin.source.partition.skin.scene.input_bytes = bytes.len() - 1;
+    cases.push(under);
+    under = exact;
+    under.animation.source.scene.input_bytes = bytes.len() - 1;
+    cases.push(under);
+    for limits in cases {
+        assert!(set_skin(&bytes, &channels, limits).is_err());
+    }
+    let wrong = pose::SetRequest {
+        expected_source_sha256: [0; 32],
+        skin: request(),
+    };
+    assert!(
+        pose::evaluate_set_sampled(
+            &bytes,
+            "stale",
+            wrong,
+            &channels,
+            pose::SetCombinedLimits {
+                array_bytes: 0,
+                ..Default::default()
+            }
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("source SHA256 differs")
+    );
+}
+#[test]
+fn complete_skin_set_preserves_nonunit_raw_weights_and_absent_normals() {
+    let mut blocks = set_skin_fixture(2.);
+    blocks[2].1 = skin(
+        &[vec![(0, 0.25), (0, 0.5), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        None,
+    );
+    let bytes = container(&blocks, &[14]);
+    let request = pose::SetRequest {
+        expected_source_sha256: source_digest(&bytes),
+        skin: Request {
+            weights: WeightPolicy::PreserveRawNonnegative,
+            ..request()
+        },
+    };
+    let result = pose::evaluate_set_sampled(
+        &bytes,
+        "raw set",
+        request,
+        &set_channels(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.skin.positions[0], [2.625, 4.875, 7.875]);
+    assert_eq!(result.skin.normals[0], [1.875, 0., 0.]);
+    assert_eq!(result.skin.weight_sums, [1.5, 1., 1.]);
+    assert!(
+        set_skin(&bytes, &set_channels(), Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("raw weight sum 1.5")
+    );
+    blocks = set_skin_fixture(2.);
+    blocks[1].1[47] = 0;
+    blocks[1].1.drain(48..84);
+    let result = set_skin(
+        &container(&blocks, &[14]),
+        &set_channels(),
+        Default::default(),
+    )
+    .unwrap();
+    assert!(result.skin.normals.is_empty());
+}
+
 fn animation_request(object: u32, time: f64) -> fallout_data::nif_animation::pose::Request {
     fallout_data::nif_animation::pose::Request {
         object,

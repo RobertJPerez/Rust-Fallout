@@ -117,6 +117,9 @@ pub(crate) enum AssetsCommand {
         /// Select an authored partition from one existing geometry deformation.
         #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request"])]
         partition_pose_request: Option<PathBuf>,
+        /// Apply the complete explicitly sampled required skin forest.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request", "partition_pose_request"])]
+        pose_set_request: Option<PathBuf>,
     },
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {

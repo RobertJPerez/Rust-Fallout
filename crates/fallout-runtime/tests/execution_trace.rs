@@ -12,7 +12,7 @@ use fallout_data::{
 use fallout_runtime::{
     World,
     events::{Context, Trigger},
-    execution::{local_copy, native, trace::*},
+    execution::{copy_probe, local_copy, native, trace::*},
     foreign::Content,
     identity::{CampaignId, Owner, Value},
     programs::PreparedSources,
@@ -830,6 +830,420 @@ fn engineering_count_without_original_numeric_return_is_not_a_completed_native_o
         result.first_difference.unwrap().field,
         "missing_observation"
     );
+}
+
+fn copy_request() -> copy_probe::Request {
+    copy_probe::Request {
+        schema_version: 1,
+        campaign: CampaignId::from_bytes([0x31; 16]).unwrap(),
+        activation: 1.try_into().unwrap(),
+        initializers: vec![
+            copy_probe::Initializer {
+                index: 1,
+                value: Value::Number {
+                    bits: 0x8000000000000000,
+                },
+            },
+            copy_probe::Initializer {
+                index: 2,
+                value: Value::Number {
+                    bits: 0xc010000000000000,
+                },
+            },
+        ],
+    }
+}
+fn own_case(plan: &fallout_data::obscript::definition_plan::Plan<'_>, cohort: &str) -> Manifest {
+    let mut case = manifest(plan, cohort, Operation::Assignment, 10);
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    case.steps[0].operands = vec![Word::binary64(0x8000000000000000)];
+    case
+}
+
+#[test]
+fn standalone_copy_producer_commits_real_ordered_bits_and_restores_the_canonical_snapshot() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = own_case(plan, sources.source_cohort_sha256());
+    let mut repeated = case.steps[0].clone();
+    repeated.event_ordinal = 1;
+    case.steps.push(repeated);
+    let observed = copy_probe::observe(
+        &sources,
+        &content,
+        &case,
+        &copy_request(),
+        &"c".repeat(64),
+        &"d".repeat(64),
+        copy_probe::Limits {
+            maximum_steps: 2,
+            maximum_initializers: 2,
+        },
+    )
+    .unwrap();
+    assert!(observed.unsupported.is_none());
+    assert_eq!(observed.capture.finish, Finish::Completed);
+    assert_eq!(observed.capture.producer, Producer::Replacement);
+    assert_eq!(observed.committed.len(), 2);
+    assert_eq!(observed.capture.steps.len(), 2);
+    assert!(observed.canonical_restore_verified);
+    assert!(!observed.faithful_execution_admitted);
+    for (ordinal, step) in observed.capture.steps.iter().enumerate() {
+        assert_eq!(step.input.event_ordinal, ordinal as u32);
+        assert_eq!(
+            step.output.writes,
+            vec![LocalWrite {
+                index: 2,
+                value: Word::binary64(0x8000000000000000)
+            }]
+        );
+        assert_eq!(step.output.successor_scda_offset, Some(22));
+        assert!(!observed.committed[ordinal].trace.original_behavior_verified);
+    }
+    assert!(observed.final_snapshot.pending_events.is_empty());
+    assert_eq!(observed.final_snapshot.instances.len(), 1);
+    assert_eq!(
+        observed.final_snapshot.instances[0]
+            .locals
+            .iter()
+            .find(|local| local.index == 2)
+            .unwrap()
+            .value,
+        Value::Number {
+            bits: 0x8000000000000000
+        }
+    );
+    assert_ne!(observed.initial_snapshot, observed.final_snapshot);
+    assert_eq!(
+        compare(
+            &sources,
+            &case,
+            None,
+            Some(&observed.capture),
+            Default::default()
+        )
+        .unwrap()
+        .status,
+        Status::Blocked
+    );
+}
+
+#[test]
+fn standalone_copy_producer_refuses_unknown_scopes_conversion_branches_and_wrong_operand_bits() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let case = own_case(plan, sources.source_cohort_sha256());
+    let mut cases = Vec::new();
+    let mut wrong = case.clone();
+    wrong.steps[0].caller.calling_reference = Some(form(0x14));
+    cases.push(wrong);
+    let mut wrong = case.clone();
+    wrong.steps[0].caller.activation = 2;
+    cases.push(wrong);
+    let mut wrong = case.clone();
+    wrong.steps[0].operands[0] = Word::binary64(0);
+    cases.push(wrong);
+    let mut wrong = case;
+    wrong.purpose = Operation::Conversion;
+    wrong.steps[0].operation = Operation::Conversion;
+    cases.push(wrong);
+    for case in cases {
+        let result = copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default(),
+        )
+        .unwrap();
+        assert!(result.unsupported.is_some());
+        assert_eq!(result.capture.finish, Finish::Unsupported);
+        assert!(result.capture.steps.is_empty() && result.committed.is_empty());
+        assert_eq!(result.initial_snapshot, result.final_snapshot);
+    }
+    let branch = [
+        instruction(0x16, &[0, 0, 3, 0, b'f', 1, 0]),
+        instruction(0x19, &[]),
+    ]
+    .concat();
+    let (_directory, catalogue, content) = fixture(&event(&branch));
+    let sources = crate::sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = manifest(plan, sources.source_cohort_sha256(), Operation::Branch, 10);
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    let result = copy_probe::observe(
+        &sources,
+        &content,
+        &case,
+        &copy_request(),
+        &"c".repeat(64),
+        &"d".repeat(64),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.capture.finish, Finish::Unsupported);
+    assert_eq!(result.initial_snapshot, result.final_snapshot);
+}
+
+#[test]
+fn standalone_copy_inputs_have_exact_limits_and_finite_explicit_numeric_slots() {
+    let (_directory, catalogue, content) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let case = own_case(plan, sources.source_cohort_sha256());
+    for limits in [
+        copy_probe::Limits {
+            maximum_steps: 0,
+            maximum_initializers: 2,
+        },
+        copy_probe::Limits {
+            maximum_steps: 1,
+            maximum_initializers: 1,
+        },
+    ] {
+        assert!(matches!(
+            copy_probe::observe(
+                &sources,
+                &content,
+                &case,
+                &copy_request(),
+                &"c".repeat(64),
+                &"d".repeat(64),
+                limits
+            ),
+            Err(copy_probe::Error::Capacity(_))
+        ));
+    }
+    for bits in [0x7ff8000000000001, 0x7ff0000000000000, 0xfff0000000000000] {
+        let mut request = copy_request();
+        request.initializers[0].value = Value::Number { bits };
+        assert!(matches!(
+            copy_probe::observe(
+                &sources,
+                &content,
+                &case,
+                &request,
+                &"c".repeat(64),
+                &"d".repeat(64),
+                Default::default()
+            ),
+            Err(copy_probe::Error::Input("initializer must be finite"))
+        ));
+    }
+    let mut request = copy_request();
+    request.initializers[1].index = 1;
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &request,
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Input("duplicate local initializer"))
+    ));
+    let mut request = copy_request();
+    request.initializers[0].value = Value::Uninitialized;
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &request,
+            &"c".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Input(_))
+    ));
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"a".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Input(
+            "replacement producer cannot be the original executable"
+        ))
+    ));
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"C".repeat(64),
+            &"d".repeat(64),
+            Default::default()
+        ),
+        Err(copy_probe::Error::Trace(_))
+    ));
+    assert!(matches!(
+        copy_probe::observe(
+            &sources,
+            &content,
+            &case,
+            &copy_request(),
+            &"c".repeat(64),
+            "missing",
+            Default::default()
+        ),
+        Err(copy_probe::Error::Trace(_))
+    ));
+}
+
+#[test]
+fn standalone_copy_discards_an_earlier_preview_effect_when_a_later_source_operation_is_unmeasured()
+{
+    let body = [
+        event(&copy()),
+        event(&instruction(0x15, &[b's', 2, 0, 1, 0, b'1'])),
+    ]
+    .concat();
+    let (_directory, catalogue, content) = fixture(&body);
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = own_case(plan, sources.source_cohort_sha256());
+    let mut later = case.steps[0].clone();
+    later.event_ordinal = 1;
+    later.begin_scda_offset = 26;
+    later.scda_offset = 36;
+    later.operands = vec![Word::binary64(0x3ff0000000000000)];
+    case.steps.push(later);
+    let result = copy_probe::observe(
+        &sources,
+        &content,
+        &case,
+        &copy_request(),
+        &"c".repeat(64),
+        &"d".repeat(64),
+        Default::default(),
+    )
+    .unwrap();
+    let unsupported = result.unsupported.unwrap();
+    assert_eq!(unsupported.step, Some(1));
+    assert!(unsupported.detail.contains("ExpressionShape"));
+    assert_eq!(result.capture.finish, Finish::Unsupported);
+    assert!(result.capture.steps.is_empty() && result.committed.is_empty());
+    assert_eq!(result.initial_snapshot, result.final_snapshot);
+    assert!(result.final_snapshot.pending_events.is_empty());
+    assert_eq!(
+        result.final_snapshot.instances[0]
+            .locals
+            .iter()
+            .find(|local| local.index == 2)
+            .unwrap()
+            .value,
+        Value::Number {
+            bits: 0xc010000000000000
+        }
+    );
+}
+
+#[test]
+#[ignore = "requires a built standalone CLI and prior authored source evidence, no retail launch"]
+fn cli_copy_producer_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_INPUT").expect("input"));
+    let evidence =
+        std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let mut case: Manifest =
+        serde_json::from_slice(&fs::read(input.join("manifest.json")).unwrap()).unwrap();
+    case.steps[0].caller = Caller {
+        calling_reference: None,
+        containing_reference: None,
+        target: None,
+        activation: 1,
+    };
+    case.steps[0].operands = vec![Word::binary64(0x8000000000000000)];
+    let case_path = evidence.join("manifest.json");
+    fs::write(&case_path, serde_json::to_vec_pretty(&case).unwrap()).unwrap();
+    let request = serde_json::json!({"schema_version":1,"campaign":([49_u8;16]),"activation":1,"initializers":[
+        {"index":1,"value":{"kind":"number","bits":0x8000000000000000_u64}},
+        {"index":2,"value":{"kind":"number","bits":0xc010000000000000_u64}}]});
+    let request_path = evidence.join("copy-request.json");
+    fs::write(&request_path, serde_json::to_vec_pretty(&request).unwrap()).unwrap();
+    let report_path = evidence.join("report.json");
+    let output = std::process::Command::new(&cli)
+        .args(["script-trace", "--install"])
+        .arg(input.join("authored-source-copy"))
+        .arg("--load-order")
+        .arg(input.join("order.json"))
+        .arg("--manifest")
+        .arg(&case_path)
+        .arg("--profile-receipt")
+        .arg(input.join("profile-receipt.txt"))
+        .arg("--replacement-copy")
+        .arg(&request_path)
+        .arg("--output")
+        .arg(&report_path)
+        .output()
+        .unwrap();
+    fs::write(evidence.join("stdout.txt"), &output.stdout).unwrap();
+    fs::write(evidence.join("stderr.txt"), &output.stderr).unwrap();
+    assert!(!output.status.success()); // Original is absent even though the copy ran.
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+    assert_eq!(report["comparison"]["status"], "blocked");
+    assert_eq!(
+        report["replacement_observation"]["capture"]["finish"],
+        "completed"
+    );
+    assert_eq!(
+        report["replacement_observation"]["committed"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        report["replacement_observation"]["capture"]["steps"][0]["output"]["writes"][0]["value"]["bits"],
+        "8000000000000000"
+    );
+    assert_eq!(
+        report["replacement_observation"]["canonical_restore_verified"],
+        true
+    );
+    assert_eq!(report["retail_execution_performed"], false);
+    assert_eq!(report["faithful_execution_admitted"], false);
+    let producer: &str = report["replacement_observation"]["capture"]["producer_executable_sha256"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        producer,
+        format!("{:x}", Sha256::digest(fs::read(&cli).unwrap()))
+    );
+    fs::write(
+        evidence.join("replacement-capture.json"),
+        serde_json::to_vec_pretty(&report["replacement_observation"]["capture"]).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        evidence.join("canonical-snapshot.json"),
+        serde_json::to_vec_pretty(&report["replacement_observation"]["final_snapshot"]).unwrap(),
+    )
+    .unwrap();
 }
 
 #[test]

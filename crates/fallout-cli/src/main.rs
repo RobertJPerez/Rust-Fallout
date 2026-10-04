@@ -402,6 +402,9 @@ enum Command {
         original_trace: Option<PathBuf>,
         #[arg(long)]
         replacement_trace: Option<PathBuf>,
+        /// Produce engineering own-local copies through canonical commit APIs.
+        #[arg(long, conflicts_with = "replacement_trace")]
+        replacement_copy: Option<PathBuf>,
     },
     /// Inspect source operands against explicit live engineering storage.
     EventOperands {
@@ -1226,6 +1229,7 @@ fn run(args: Args) -> Result<()> {
             profile_receipt,
             original_trace,
             replacement_trace,
+            replacement_copy,
         } => {
             let report = script_trace::inspect(script_trace::Inputs {
                 install: &install,
@@ -1235,6 +1239,7 @@ fn run(args: Args) -> Result<()> {
                 profile_receipt: &profile_receipt,
                 original: original_trace.as_deref(),
                 replacement: replacement_trace.as_deref(),
+                replacement_copy: replacement_copy.as_deref(),
             })?;
             emit(&report, output, &protected_tree(&install)?)?;
             if report["comparison"]["status"] != "matched" {

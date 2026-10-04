@@ -60,6 +60,43 @@ fn admit_record(
     Ok(())
 }
 
+fn attach_owners(row: &mut Value, owners: &impl serde::Serialize, maximum: usize) -> Result<()> {
+    let mut base = Admission { bytes: 0, maximum };
+    serde_json::to_writer(&mut base, &*row)?;
+    let overhead = b",\"source_owners\":".len();
+    let remaining = maximum
+        .checked_sub(base.bytes)
+        .and_then(|bytes| bytes.checked_sub(overhead))
+        .ok_or("condition retained-report byte budget exceeded")?;
+    let mut admission = Admission {
+        bytes: 0,
+        maximum: remaining,
+    };
+    serde_json::to_writer(&mut admission, owners)?;
+    // Validate complete aggregate capacity before materializing another JSON tree.
+    row["source_owners"] = serde_json::to_value(owners)?;
+    Ok(())
+}
+
+enum Prepared {
+    Conditions(condition_operands::PreparedRecord),
+    Owners(condition_operands::PreparedOwnerRecord),
+}
+impl Prepared {
+    fn conditions(&self) -> &condition_operands::PreparedRecord {
+        match self {
+            Self::Conditions(value) => value,
+            Self::Owners(value) => value.conditions(),
+        }
+    }
+    fn owners(&self) -> Option<&condition_operands::SourceOwners> {
+        match self {
+            Self::Conditions(_) => None,
+            Self::Owners(value) => Some(value.ownership()),
+        }
+    }
+}
+
 fn increment(counts: &mut Value, map: &str, key: &str) {
     let count = counts[map][key].as_u64().unwrap_or(0);
     counts[map][key] = (count + 1).into();
@@ -73,7 +110,12 @@ fn label(value: impl serde::Serialize) -> Result<String> {
         .ok_or("Missing enum label")?
         .to_string())
 }
-pub(super) fn inspect(install: &Path, order_path: &Path, cache: Option<&Path>) -> Result<Value> {
+pub(super) fn inspect(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    include_source_owners: bool,
+) -> Result<Value> {
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
     let metadata = record_metadata::inspect(&store)?;
@@ -113,27 +155,44 @@ pub(super) fn inspect(install: &Path, order_path: &Path, cache: Option<&Path>) -
         "variable_indices_need_live_state":0,"signature_statuses":{},"parameter_kinds":{},"parameter_domains":{},"subjects":{},"form_statuses":{}});
     let mut records = Vec::new();
     let mut retained = 0;
+    let mut owner_counts = json!({"records":0,"mapped_records":0,"unmapped_records":0,"orphan_conditions":0,"unmapped_conditions":0,
+        "sections":0,"source_lists":0,"source_findings":0,"owner_kinds":{}});
     for location in candidates {
         if store.definition(location).header.flags & plugin::DELETED != 0 {
             number(&mut counts, "deleted_candidate_records", 1);
             continue;
         }
-        let prepared = condition_operands::prepare_record(
-            &mut store,
-            location,
-            &signatures,
-            condition_operands::RecordLimits {
-                maximum_decoded_bytes: (MAXIMUM_DECODED_BYTES
-                    - counts["decoded_candidate_bytes"]
-                        .as_u64()
-                        .expect("byte count") as usize)
-                    .min(64 * 1024 * 1024),
-                maximum_conditions: MAXIMUM_CONDITIONS
-                    - counts["conditions"].as_u64().expect("condition count") as usize,
-                maximum_retained_bytes: MAXIMUM_RETAINED_BYTES - retained,
-                ..condition_operands::RecordLimits::default()
-            },
-        )?;
+        let limits = condition_operands::RecordLimits {
+            maximum_decoded_bytes: (MAXIMUM_DECODED_BYTES
+                - counts["decoded_candidate_bytes"]
+                    .as_u64()
+                    .expect("byte count") as usize)
+                .min(64 * 1024 * 1024),
+            maximum_conditions: MAXIMUM_CONDITIONS
+                - counts["conditions"].as_u64().expect("condition count") as usize,
+            maximum_retained_bytes: MAXIMUM_RETAINED_BYTES - retained,
+            ..condition_operands::RecordLimits::default()
+        };
+        let admission = if include_source_owners {
+            Prepared::Owners(condition_operands::prepare_record_with_owners(
+                &mut store,
+                location,
+                &signatures,
+                limits,
+                condition_operands::OwnerLimits {
+                    maximum_retained_bytes: MAXIMUM_RETAINED_BYTES - retained,
+                    ..condition_operands::OwnerLimits::default()
+                },
+            )?)
+        } else {
+            Prepared::Conditions(condition_operands::prepare_record(
+                &mut store,
+                location,
+                &signatures,
+                limits,
+            )?)
+        };
+        let prepared = admission.conditions();
         let identity = prepared.identity();
         number(
             &mut counts,
@@ -190,17 +249,71 @@ pub(super) fn inspect(install: &Path, order_path: &Path, cache: Option<&Path>) -
         }
         if !rows.is_empty() {
             number(&mut counts, "records_with_conditions", 1);
-            let row = json!({"key":identity.key,"source_name":identity.source_name,"record_kind":identity.record_kind,
+            let mut row = json!({"key":identity.key,"source_name":identity.source_name,"record_kind":identity.record_kind,
                 "record_file_offset":identity.record_file_offset,"record_flags":identity.record_flags,"decoded_bytes":identity.decoded_bytes,
                 "decoded_sha256":identity.decoded_sha256,"binding_sha256":format!("{:x}",Sha256::digest(serde_json::to_vec(&rows)?)),"conditions":rows});
+            if let Some(owners) = admission.owners() {
+                attach_owners(&mut row, owners, MAXIMUM_RETAINED_BYTES - retained)?;
+                number(&mut owner_counts, "records", 1);
+                let mapped =
+                    owners.status() == condition_operands::OwnerStatus::MappedNarrativeSource;
+                number(
+                    &mut owner_counts,
+                    if mapped {
+                        "mapped_records"
+                    } else {
+                        "unmapped_records"
+                    },
+                    1,
+                );
+                number(
+                    &mut owner_counts,
+                    "sections",
+                    owners.sections().len() as u64,
+                );
+                number(
+                    &mut owner_counts,
+                    "source_lists",
+                    owners.source_lists().len() as u64,
+                );
+                number(
+                    &mut owner_counts,
+                    "source_findings",
+                    owners.findings().len() as u64,
+                );
+                for site in owners.sites() {
+                    if let Some(section) = site.owner_section {
+                        increment(
+                            &mut owner_counts,
+                            "owner_kinds",
+                            &label(owners.sections()[section].kind)?,
+                        );
+                    } else {
+                        number(
+                            &mut owner_counts,
+                            if mapped {
+                                "orphan_conditions"
+                            } else {
+                                "unmapped_conditions"
+                            },
+                            1,
+                        );
+                    }
+                }
+            }
             admit_record(&mut records, row, &mut retained, MAXIMUM_RETAINED_BYTES)?;
         }
     }
-    Ok(
-        json!({"schema_version":1,"profile":"nv-original","explicit_load_order":order.names,"load_order_sha256":order.sha256,
+    let mut report = json!({"schema_version":1,"profile":"nv-original","explicit_load_order":order.names,"load_order_sha256":order.sha256,
         "metadata":metadata,"sources":sources,"executable_sha256":catalogue.source_sha256,"counts":counts,"records":records,
-        "index_cache":store.index_cache_report(),"target_kind_acceptance_checked":false,"live_values_resolved":false,"evaluation_ready":false,"retail_parity_accepted":false}),
-    )
+        "index_cache":store.index_cache_report(),"target_kind_acceptance_checked":false,"live_values_resolved":false,"evaluation_ready":false,"retail_parity_accepted":false});
+    if include_source_owners {
+        report["schema_version"] = 2.into();
+        report["source_owner_counts"] = owner_counts;
+        report["group_evaluation_verified"] = false.into();
+        report["default_subjects_applied"] = false.into();
+    }
+    Ok(report)
 }
 
 #[cfg(test)]
@@ -240,5 +353,24 @@ mod tests {
         assert!(admit_record(&mut records, row, &mut retained, bytes * 2 - 1).is_err());
         assert_eq!(records.len(), 1);
         assert_eq!(retained, bytes);
+    }
+
+    #[test]
+    fn owner_tree_is_not_materialized_until_the_complete_record_fits() {
+        let original = json!({"conditions":[{"bits":0xffffffff_u32}]});
+        let owners = json!({"sections":[{"name":"é\n\"\\"}],"owner_section":null});
+        let mut expected = original.clone();
+        expected["source_owners"] = owners.clone();
+        let exact = serde_json::to_vec(&expected).unwrap().len();
+        let mut row = original.clone();
+        assert!(
+            attach_owners(&mut row, &owners, exact - 1)
+                .unwrap_err()
+                .to_string()
+                .contains("retained-report byte budget")
+        );
+        assert_eq!(row, original);
+        attach_owners(&mut row, &owners, exact).unwrap();
+        assert_eq!(row, expected);
     }
 }

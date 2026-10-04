@@ -149,13 +149,12 @@ impl PreparedRecord {
 struct Admission {
     bytes: usize,
     maximum: usize,
+    message: &'static str,
 }
 impl Write for Admission {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         if bytes.len() > self.maximum.saturating_sub(self.bytes) {
-            return Err(std::io::Error::other(
-                "condition retained-site byte budget exceeded",
-            ));
+            return Err(std::io::Error::other(self.message));
         }
         self.bytes += bytes.len();
         Ok(bytes.len())
@@ -165,12 +164,36 @@ impl Write for Admission {
     }
 }
 
+pub(super) fn admitted_json_bytes(
+    value: &impl Serialize,
+    maximum: usize,
+    message: &'static str,
+) -> Result<usize> {
+    let mut admission = Admission {
+        bytes: 0,
+        maximum,
+        message,
+    };
+    serde_json::to_writer(&mut admission, value)
+        .map_err(|error| Error::Unsupported(error.to_string()))?;
+    Ok(admission.bytes)
+}
+
 pub fn prepare_record(
     store: &mut RecordStore,
     location: Location,
     signatures: &Signatures,
     limits: RecordLimits,
 ) -> Result<PreparedRecord> {
+    Ok(prepare_record_body(store, location, signatures, limits)?.0)
+}
+
+pub(super) fn prepare_record_body(
+    store: &mut RecordStore,
+    location: Location,
+    signatures: &Signatures,
+    limits: RecordLimits,
+) -> Result<(PreparedRecord, plugin::Record)> {
     let header = store
         .indices()
         .get(location.plugin)
@@ -282,22 +305,22 @@ pub fn prepare_record(
                     "condition retained-site byte budget exceeded".into(),
                 ));
             }
-            let mut admission = Admission {
-                bytes: 0,
-                maximum: remaining - site.raw_bytes.len(),
-            };
-            serde_json::to_writer(&mut admission, &site.legacy_row())
-                .map_err(|error| Error::Unsupported(error.to_string()))?;
-            retained_bytes += site.raw_bytes.len() + admission.bytes;
+            let admitted = admitted_json_bytes(
+                &site.legacy_row(),
+                remaining - site.raw_bytes.len(),
+                "condition retained-site byte budget exceeded",
+            )?;
+            retained_bytes += site.raw_bytes.len() + admitted;
             sites.push(site);
         }
         previous = Some((field.kind, field.payload_offset));
         Ok(())
     })?;
-    Ok(PreparedRecord {
+    let prepared = PreparedRecord {
         identity,
         fields,
         sites,
         retained_bytes,
-    })
+    };
+    Ok((prepared, record))
 }

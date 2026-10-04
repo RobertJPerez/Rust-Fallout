@@ -16,6 +16,13 @@ use std::collections::BTreeMap;
 mod record;
 pub use record::{ConditionSite, PreparedRecord, RecordIdentity, RecordLimits, prepare_record};
 
+#[path = "condition_owner.rs"]
+mod owner;
+pub use owner::{
+    OwnerLimits, OwnerSite, OwnerStatus, PreparedOwnerRecord, SourceList, SourceOwners,
+    prepare_record_with_owners,
+};
+
 #[derive(Debug, Clone, Copy)]
 pub struct Parameter {
     pub type_id: u32,

@@ -5,7 +5,7 @@ mod prefetch;
 mod set;
 mod terrain;
 #[cfg(test)]
-mod test_sources;
+pub(in crate::world) mod test_sources;
 mod textures;
 use super::{
     dependencies,
@@ -156,6 +156,9 @@ impl<'a> ResidentPlan<'a> {
     }
     pub fn identity(&self) -> &'a str {
         self.plan.identity()
+    }
+    pub fn selection(&self) -> Option<&'a super::preparation::SelectionReceipt> {
+        self.plan.selection()
     }
 }
 impl ResidentSources {
@@ -540,6 +543,16 @@ impl CellResidency {
     pub fn report_dependencies(&mut self, ticket: &Ticket, readiness: Readiness) -> JobResult<()> {
         self.validate(ticket)?;
         if readiness == Readiness::Ready
+            && self
+                .plan
+                .as_ref()
+                .is_some_and(|plan| plan.selection().is_some())
+        {
+            return Err(JobError::Invalid(
+                "selected reference sources cannot establish full CELL readiness".into(),
+            ));
+        }
+        if readiness == Readiness::Ready
             && !self.textures.as_ref().is_some_and(textures::Batch::ready)
         {
             return Err(JobError::Invalid(
@@ -635,10 +648,12 @@ impl CellResidency {
         let usage = self.jobs.usage();
         let plan_usage = self.plan_usage.lock().expect("private plan accounting");
         let complete_model_coverage = self.plan.as_ref().is_some_and(|plan| {
-            plan.receipt()
-                .coverage
-                .iter()
-                .all(|model| model.asset_path.is_some() && model.candidates.len() == 1)
+            plan.selection().is_none()
+                && plan
+                    .receipt()
+                    .coverage
+                    .iter()
+                    .all(|model| model.asset_path.is_some() && model.candidates.len() == 1)
                 && plan.graph().integrity_failures == 0
                 && plan
                     .graph()

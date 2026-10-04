@@ -169,6 +169,7 @@ pub(super) struct Inner {
     pub graph: dependencies::Report,
     pub receipt: PlanReceipt,
     pub requests: Vec<Planned>,
+    pub selection: Option<super::selection::SelectionReceipt>,
 }
 
 /// Construction derives every selection from protected source records. Public
@@ -240,6 +241,10 @@ impl CellModelPlan {
         &self.0.receipt.identity
     }
 
+    pub fn selection(&self) -> Option<&super::selection::SelectionReceipt> {
+        self.0.selection.as_ref()
+    }
+
     /// The residency consumer uses the same sealed selections and importer as
     /// diagnostic preparation; receipts alone cannot manufacture an input.
     pub(crate) fn member(&self, index: usize) -> Result<Member> {
@@ -277,17 +282,30 @@ impl CellModelPlan {
         archives: &mut ArchivePool,
     ) -> Result<Self> {
         let limits = limits.validate()?;
-        let mut graph_limits = limits.dependencies;
-        graph_limits.max_record_bytes = graph_limits.max_record_bytes.min(limits.max_record_bytes);
-        graph_limits.max_decoded_bytes = graph_limits
-            .max_decoded_bytes
-            .min(limits.max_record_decoded_bytes);
-        graph_limits.max_metadata_bytes = graph_limits
-            .max_metadata_bytes
-            .min(limits.max_metadata_bytes);
-        graph_limits.max_field_sites = graph_limits.max_field_sites.min(limits.max_field_sites);
-        let graph =
-            dependencies::inspect_cell_key_read_bounded(store, root, graph_limits, max_read_bytes)?;
+        let graph = model_graph(store, root, limits, max_read_bytes)?;
+        Self::prepare_graph(
+            store,
+            root,
+            mounts,
+            limits,
+            max_read_bytes,
+            archives,
+            graph,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn prepare_graph(
+        store: &mut RecordStore,
+        root: &FormKey,
+        mounts: &MountIndex,
+        limits: Limits,
+        max_read_bytes: usize,
+        archives: &mut ArchivePool,
+        graph: dependencies::Report,
+        selection: Option<super::selection::SelectionReceipt>,
+    ) -> Result<Self> {
         let source_read_bytes = graph
             .nodes
             .iter()
@@ -307,6 +325,14 @@ impl CellModelPlan {
             metadata_bytes: graph.usage.metadata_bytes,
             ..Default::default()
         };
+        if let Some(selected) = &selection {
+            charge(
+                &mut usage.metadata_bytes,
+                selected.metadata_bytes,
+                limits.max_metadata_bytes,
+                "selected metadata bytes",
+            )?;
+        }
         // Borrow graph keys while selecting; each new retained key is admitted first.
         charge(
             &mut usage.metadata_bytes,
@@ -320,7 +346,16 @@ impl CellModelPlan {
         let members: BTreeSet<_> = graph
             .edges
             .iter()
-            .filter(|edge| edge.role == "member" && edge.target.status == "resolved")
+            .filter(|edge| {
+                edge.role == "member"
+                    && edge.target.status == "resolved"
+                    && selection.as_ref().is_none_or(|selection| {
+                        selection.references.iter().any(|reference| {
+                            reference.state == super::selection::SelectionState::Selected
+                                && edge.target.key.as_ref() == Some(&reference.key)
+                        })
+                    })
+            })
             .filter_map(|edge| edge.target.key.as_ref())
             .collect();
         let mut bases = BTreeSet::new();
@@ -432,6 +467,11 @@ impl CellModelPlan {
                     "metadata bytes",
                 )?;
             }
+            if selection.is_some() && (asset_path.is_none() || candidates.len() != 1) {
+                return Err(Error::Resolution(
+                    "selected model base has no unique safe archive source".into(),
+                ));
+            }
             let status = match (&asset_path, candidates) {
                 (None, _) => "no-modl-field; model-selection-deferred",
                 (Some(_), []) => "missing-archive-source; lookup-policy-deferred",
@@ -535,7 +575,12 @@ impl CellModelPlan {
             runtime_ready: false,
         };
         let mut hash = HashWriter(Sha256::new());
-        hash.0.update(b"nv-cell-model-plan-v1\0");
+        if let Some(selected) = &selection {
+            hash.0.update(b"nv-selected-cell-model-plan-v1\0");
+            hash.0.update(selected.identity.as_bytes());
+        } else {
+            hash.0.update(b"nv-cell-model-plan-v1\0");
+        }
         serde_json::to_writer(
             &mut hash,
             &(
@@ -552,8 +597,27 @@ impl CellModelPlan {
             graph,
             receipt,
             requests: planned,
+            selection,
         })))
     }
+}
+
+pub(super) fn model_graph(
+    store: &mut RecordStore,
+    root: &FormKey,
+    limits: Limits,
+    max_read_bytes: usize,
+) -> Result<dependencies::Report> {
+    let mut graph_limits = limits.dependencies;
+    graph_limits.max_record_bytes = graph_limits.max_record_bytes.min(limits.max_record_bytes);
+    graph_limits.max_decoded_bytes = graph_limits
+        .max_decoded_bytes
+        .min(limits.max_record_decoded_bytes);
+    graph_limits.max_metadata_bytes = graph_limits
+        .max_metadata_bytes
+        .min(limits.max_metadata_bytes);
+    graph_limits.max_field_sites = graph_limits.max_field_sites.min(limits.max_field_sites);
+    dependencies::inspect_cell_key_read_bounded(store, root, graph_limits, max_read_bytes)
 }
 
 struct HashWriter(Sha256);

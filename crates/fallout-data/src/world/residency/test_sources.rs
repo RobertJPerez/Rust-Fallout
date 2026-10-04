@@ -10,17 +10,38 @@ use std::{
 pub(super) const POSE: [u32; 6] = [
     0x80000000, 0x41480000, 0xc1c80000, 0x3f800000, 0x40000000, 0x40400000,
 ];
-pub(super) fn key(id: u32) -> FormKey {
+pub(super) const LIGHT_WORDS: [u32; 10] = [
+    0x04030201, 0x1713110d, 0x44332211, 0x80000000, 0x7fc00001, 0xfffffff9, 0x80000000, 0x3e800000,
+    0x3f800000, 0x40000000,
+];
+pub(super) fn scene_fields() -> Vec<u8> {
+    [
+        field(
+            b"XCLL",
+            &LIGHT_WORDS
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>(),
+        ),
+        field(b"LTMP", &0x500u32.to_le_bytes()),
+        field(b"LNAM", &0x2cu32.to_le_bytes()),
+        field(b"XCLW", &0x7fc00001u32.to_le_bytes()),
+        field(b"XCWT", &0x501u32.to_le_bytes()),
+        field(b"XNAM", b"n.dds\0"),
+    ]
+    .concat()
+}
+pub(in crate::world) fn key(id: u32) -> FormKey {
     FormKey {
         profile: ProfileId::NvOriginal,
         origin_plugin: "base.esm".into(),
         local_id: id,
     }
 }
-pub(super) fn field(tag: &[u8; 4], bytes: &[u8]) -> Vec<u8> {
+pub(in crate::world) fn field(tag: &[u8; 4], bytes: &[u8]) -> Vec<u8> {
     [tag.as_slice(), &(bytes.len() as u16).to_le_bytes(), bytes].concat()
 }
-pub(super) fn record(tag: &[u8; 4], id: u32, flags: u32, bytes: &[u8]) -> Vec<u8> {
+pub(in crate::world) fn record(tag: &[u8; 4], id: u32, flags: u32, bytes: &[u8]) -> Vec<u8> {
     [
         tag.as_slice(),
         &(bytes.len() as u32).to_le_bytes(),
@@ -42,7 +63,7 @@ pub(super) fn group(label: u32, kind: i32, bytes: &[u8]) -> Vec<u8> {
     ]
     .concat()
 }
-pub(super) fn reference(id: u32, base: u32, flags: u32, extra: &[u8]) -> Vec<u8> {
+pub(in crate::world) fn reference(id: u32, base: u32, flags: u32, extra: &[u8]) -> Vec<u8> {
     let target_data: Vec<u8> = [99.0f32, 88.0, 77.0, -7.0, -8.0, -9.0]
         .into_iter()
         .flat_map(|v| v.to_bits().to_le_bytes())
@@ -143,16 +164,26 @@ fn archive(path: &Path, folder: &[u8], names: &[&[u8]], payloads: &[Vec<u8>]) {
     }
     fs::write(path, out).unwrap();
 }
-pub(super) struct Fixture {
+pub(in crate::world) struct Fixture {
     pub root: tempfile::TempDir,
     pub cache: tempfile::TempDir,
     pub models: Vec<Vec<u8>>,
     pub textures: Vec<Vec<u8>>,
+    pub noise: Vec<u8>,
     pub mounts: MountIndex,
     names: Vec<String>,
 }
 impl Fixture {
     pub fn new() -> Self {
+        Self::with_scene(false, false)
+    }
+    pub fn scene() -> Self {
+        Self::with_scene(true, false)
+    }
+    pub fn selected_scene() -> Self {
+        Self::with_scene(true, true)
+    }
+    fn with_scene(scene: bool, selection: bool) -> Self {
         let root = tempfile::tempdir().unwrap();
         let cache = tempfile::tempdir().unwrap();
         let data = root.path().join("Data");
@@ -172,11 +203,18 @@ impl Fixture {
             &[b"p.nif", b"w.nif", b"e.nif"],
             &models,
         );
+        let noise = b"authored noise source".to_vec();
+        let mut texture_names: Vec<&[u8]> = vec![b"a.dds", b"b.dds", b"c.dds"];
+        let mut texture_payloads = textures.clone();
+        if scene {
+            texture_names.push(b"n.dds");
+            texture_payloads.push(noise.clone());
+        }
         archive(
             &data.join("textures.bsa"),
             b"textures",
-            &[b"a.dds", b"b.dds", b"c.dds"],
-            &textures,
+            &texture_names,
+            &texture_payloads,
         );
         let mut mounts = MountIndex::default();
         for label in ["models", "textures"] {
@@ -201,6 +239,35 @@ impl Fixture {
             esm.extend(record(b"STAT", 0x400 + i as u32, 0, &field(b"MODL", path)));
         }
         esm.extend(record(b"DOOR", 0x450, 0, &field(b"MODL", b"p.nif\0")));
+        if scene {
+            esm.extend(record(
+                b"LGTM",
+                0x500,
+                0,
+                &field(
+                    b"DATA",
+                    &LIGHT_WORDS
+                        .into_iter()
+                        .map(|w| w ^ 0x01010101)
+                        .flat_map(u32::to_le_bytes)
+                        .collect::<Vec<_>>(),
+                ),
+            ));
+            esm.extend(record(
+                b"WATR",
+                0x501,
+                0,
+                &field(b"EDID", b"AuthoredWater\0"),
+            ));
+        }
+        if selection {
+            esm.extend(record(
+                b"STAT",
+                0x499,
+                0,
+                &field(b"MODL", b"C:\\export\\unsafe.nif\0"),
+            ));
+        }
         esm.extend(record(b"WRLD", 0x100, 0, &field(b"DATA", &[0])));
         let mut cells = Vec::new();
         for i in 0..3u32 {
@@ -221,11 +288,25 @@ impl Fixture {
                 b"CELL",
                 0x200 + i,
                 if i == 0 { 0x400 } else { 0 },
-                &[field(b"DATA", &[0]), grid].concat(),
+                &[
+                    field(b"DATA", &[0]),
+                    grid,
+                    if scene && i == 0 {
+                        scene_fields()
+                    } else {
+                        Vec::new()
+                    },
+                ]
+                .concat(),
             ));
             let mut refs = reference(0x300 + i, 0x400 + i, 0, &[]);
             if i == 0 {
                 refs.extend(reference(0x311, 0x450, 0, &[]));
+                if selection {
+                    refs.extend(reference(0x312, 0x400, 0, &[]));
+                    refs.extend(reference(0x313, 0x401, 0, &[]));
+                    refs.extend(reference(0x314, 0x499, 0, &[]));
+                }
             }
             if i == 1 {
                 refs.extend(reference(0x310, 0x450, 0, &teleport(0x311)));
@@ -240,6 +321,7 @@ impl Fixture {
             cache,
             models,
             textures,
+            noise,
             mounts,
             names: vec!["Base.esm".into()],
         }
@@ -297,7 +379,7 @@ impl Fixture {
         self.names.push("Patch.esp".into());
     }
 }
-pub(super) fn until(mut complete: impl FnMut() -> bool) {
+pub(in crate::world) fn until(mut complete: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !complete() {
         assert!(

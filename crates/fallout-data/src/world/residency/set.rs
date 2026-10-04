@@ -363,6 +363,72 @@ impl CellResidencySet {
             .expect("active private host")
             .sources(ticket)
     }
+    #[cfg(test)]
+    pub(super) fn pause_test_work(
+        &mut self,
+        ticket: &Ticket,
+        pause: Arc<crate::resource_jobs::tests::Pause>,
+    ) -> JobResult<()> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_mut()
+            .expect("active private host")
+            .pause = Some(pause);
+        Ok(())
+    }
+    pub fn request_textures(&mut self, ticket: &Ticket, plan: TexturePlan) -> JobResult<()> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_mut()
+            .expect("active private host")
+            .request_textures(ticket, plan)
+    }
+    pub fn texture_sources(&self, ticket: &Ticket) -> JobResult<Arc<ResidentTextures>> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_ref()
+            .expect("active private host")
+            .texture_sources(ticket)
+    }
+    pub fn report_dependencies(&mut self, ticket: &Ticket, readiness: Readiness) -> JobResult<()> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_mut()
+            .expect("active private host")
+            .report_dependencies(ticket, readiness)
+    }
+    pub fn report_collision(&mut self, ticket: &Ticket, readiness: Readiness) -> JobResult<()> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_mut()
+            .expect("active private host")
+            .report_collision(ticket, readiness)
+    }
+    pub fn report_behavior(&mut self, ticket: &Ticket, readiness: Readiness) -> JobResult<()> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_mut()
+            .expect("active private host")
+            .report_behavior(ticket, readiness)
+    }
+    pub fn publish_render<T>(
+        &mut self,
+        ticket: &Ticket,
+        publish: impl FnOnce() -> JobResult<T>,
+    ) -> JobResult<T> {
+        let index = self.current_slot(ticket)?;
+        self.slots[index]
+            .host
+            .as_mut()
+            .expect("active private host")
+            .publish_render(ticket, publish)
+    }
     /// Owned current failures are removable too; stale/foreign tickets cannot remove a host.
     pub fn remove(&mut self, ticket: &Ticket) -> JobResult<()> {
         let index = self.current_slot(ticket)?;
@@ -377,13 +443,39 @@ impl CellResidencySet {
     /// Visits bounded slots in round-robin order, including free slots.
     /// Each existing IO poll has up to eight inspections and eight submissions.
     pub fn poll(&mut self, slot_budget: usize) -> JobResult<SetSnapshot> {
+        self.poll_ordered(&[], slot_budget)
+    }
+    /// Visits preferred current hosts first, then remaining slots from the
+    /// round-robin cursor. All selected hosts still use their existing bounded
+    /// poll and ResourceJobs queues.
+    pub fn poll_ordered(
+        &mut self,
+        preferred: &[Ticket],
+        slot_budget: usize,
+    ) -> JobResult<SetSnapshot> {
         if slot_budget == 0 || slot_budget > self.limits.slots {
             return Err(invalid("residency set poll slot bound"));
         }
+        let mut order = Vec::with_capacity(self.slots.len());
+        for ticket in preferred {
+            let index = self.current_slot(ticket)?;
+            if !order.contains(&index) {
+                order.push(index);
+            }
+        }
+        let mut fallback = self.cursor;
+        for _ in 0..self.slots.len() {
+            if !order.contains(&fallback) {
+                order.push(fallback);
+            }
+            fallback = (fallback + 1) % self.slots.len();
+        }
+        let order: Vec<_> = order.into_iter().take(slot_budget).collect();
         self.last_polled.clear();
-        for _ in 0..slot_budget {
-            let index = self.cursor;
-            self.cursor = (self.cursor + 1) % self.slots.len();
+        if let Some(last) = order.last() {
+            self.cursor = (last + 1) % self.slots.len();
+        }
+        for index in order {
             self.last_polled.push(index);
             let slot = &mut self.slots[index];
             if let Some(host) = &mut slot.host {

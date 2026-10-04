@@ -1,6 +1,7 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
+mod adjacent;
 mod environment;
 mod prefetch;
 mod set;
@@ -18,6 +19,10 @@ use crate::{
     resource_jobs::{
         self, Artifact, Generation, JobError, JobHandle, JobResult, JobToken, ResourceJobs,
     },
+};
+pub use adjacent::{
+    AdjacentRegionResidency, RegionIdentity, RegionPolicy, RegionRequest, RegionTicket,
+    RegionUpdate,
 };
 pub use environment::{
     EnvironmentLimits, EnvironmentPlan, EnvironmentSnapshot, EnvironmentState, ResidentEnvironment,

@@ -224,6 +224,26 @@ enum Command {
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
         include_render_dependencies: bool,
     },
+    /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
+    ActorPackageContext {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long, value_parser = actor_inspection::parse_root)]
+        actor_root: identity::FormKey,
+        #[arg(long)]
+        native_snapshot: PathBuf,
+        #[arg(long)]
+        explicit_subject: Option<std::num::NonZeroU64>,
+        #[arg(long)]
+        engineering_observation: bool,
+        /// Exact pinned descriptor image, also usable with authored plugin fixtures.
+        #[arg(long)]
+        condition_executable: Option<PathBuf>,
+    },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
         #[arg(long)]
@@ -983,6 +1003,30 @@ fn run(args: Args) -> Result<()> {
             {
                 return Err("actor source inspection retains source findings; see report".into());
             }
+        }
+        Command::ActorPackageContext {
+            install,
+            load_order,
+            index_cache,
+            actor_root,
+            native_snapshot,
+            explicit_subject,
+            engineering_observation,
+            condition_executable,
+        } => {
+            let report = actor_inspection::package_context(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                actor_inspection::ContextOptions {
+                    actor_root: &actor_root,
+                    snapshot: &native_snapshot,
+                    explicit_subject,
+                    engineering_observation,
+                    condition_executable: condition_executable.as_deref(),
+                },
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::BaseInventory {
             install,

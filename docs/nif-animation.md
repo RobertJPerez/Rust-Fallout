@@ -374,3 +374,64 @@ assertion caused
 by a misquoted existing tuple-error message; the corrected run passes without
 changing source behavior. None of this establishes B-spline evaluation, poses,
 rendering or retail animation playback.
+
+## Explicit-time engineering component sampling (ASSET-06)
+
+`nif_animation::sampling` validates a borrowed, immutable scalar or vector source
+group before performing engineering linear (tag1) or constant (tag5) math. The
+declared count must equal the retained count, every time/value must be finite,
+and source times must be strictly increasing. Duplicate/unsorted keys and
+unsupported interpolation fields remain visible in the source catalogue but
+cannot be evaluated. No sorting, filtering, normalization or key repair occurs.
+An absent group returns absence, rather than a substituted value.
+
+Requests use an explicit finite binary64 source time within the source key
+range. Singleton groups admit only their exact key time. Exact endpoints and
+held constant values retain the original binary32 value bits, including signed
+zero. Interior linear results use binary64 weighted interpolation and report
+their binary64 bits, both source key indices and alpha bits. This engineering
+contract does not assert the retail engine's arithmetic or interpolation policy.
+
+The existing inspector is the immediate consumer:
+
+```powershell
+fallout nif-animation INPUT --sample-time 0.25 --sample-block 7 --sample-channel translation
+```
+
+All three selection flags are required together; the request accepts one file
+and either `translation` or `scale`. It implies keyframe decoding and adds a
+separate engineering diagnostic with the exact source block/span/hash and work
+receipt. Default source schemas1/2/3 omit those fields. A sampling refusal leaves
+the decoded source fields available and reports the failure. Raw native source
+comparison and numerical comparison remain separate operations.
+
+Validation and request work each have a 16-million-unit allowance. Validation
+admits the complete time/value walk before visiting words; catalogue lookup
+shares that allowance. Every request admits search/arithmetic work before doing
+it. The view borrows source arrays; the inspector reserves the diagnostic's
+64-byte source digest within the existing report cap before source decoding.
+Quaternion, quadratic/TBC, extrapolation, B-spline evaluation, pose assembly,
+clocks, cycle/event/root-motion policy and rendering remain unadmitted.
+
+Private evidence is frozen in `local/asset-06-teamv2-20261003-01`. Eight sampling
+tests, 36 animation/key/spline regression tests and all 19 CLI tests pass, as do
+affected all-target Clippy with warnings denied, formatting and diff checks.
+The frozen source oracle is the unchanged ASSET-05B executable. A separate
+Python reference decodes binary32 words to exact rationals, scans brackets
+linearly and evaluates `a + (b - a) * alpha`; it does not repeat Rust's binary
+search or weighted expression. Source identities/fields and exact/held bits
+match exactly before numerical tolerance is considered.
+
+The comparison checks 213 requests and 497 values: 138 requests/272 values from
+nine authored positive files, plus 75 requests/225 values from 16 unmodified
+original groups across 14 files. The bounded selection found 246 eligible groups
+in the preserved 70-file sample. The justified roundoff bound is
+`2^-49 * (abs(left) + abs(right) + abs(exact_result)) + 2^-1074`.
+Largest conditioned error is `8.540177112501205e-17`; the original subset's
+largest absolute error is `2.3684757858670005e-15`. Authored finite binary32
+extremes deliberately yield large absolute rounding errors, so this conditioned
+bound is not a universal geometric accuracy claim. Fourteen malformed/unsupported
+source or altered numerical/identity reports and five direct CLI boundary probes
+fail for their intended reasons. All 70 original default reports remain byte-exact
+in schemas1/2/3. These are source and engineering math checks; evaluated poses
+and verified retail animation remain separate gates.

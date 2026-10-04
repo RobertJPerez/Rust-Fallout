@@ -2,7 +2,7 @@
 use crate::Result;
 use fallout_data::{
     baseline,
-    nif_animation::{self, Animation, Limits, keyframe, spline},
+    nif_animation::{self, Animation, Limits, keyframe, sampling, spline},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -26,6 +26,8 @@ pub struct FileReport {
     keys: Option<keyframe::Catalogue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     splines: Option<spline::Catalogue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    engineering_sample: Option<sampling::Diagnostic>,
     error: Option<String>,
     comparison: Option<&'static str>,
 }
@@ -37,6 +39,8 @@ pub struct Report {
     keyframe_branch: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     spline_branch: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    engineering_sampling_contract: Option<&'static str>,
     float_encoding: &'static str,
     string_encoding: &'static str,
     input: PathBuf,
@@ -49,6 +53,16 @@ pub struct Report {
     diagnostics: usize,
     comparison: &'static str,
     runtime_ready: bool,
+}
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum SampleChannel {
+    Translation,
+    Scale,
+}
+pub struct SampleRequest {
+    pub block: u32,
+    pub channel: SampleChannel,
+    pub time: f64,
 }
 fn bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
     let mut file = baseline::open_source(path)?.take(limit + 1);
@@ -243,15 +257,72 @@ pub fn inspect(
     oracle_path: Option<&Path>,
     include_keyframes: bool,
     include_splines: bool,
+    sample: Option<SampleRequest>,
 ) -> Result<Report> {
-    inspect_with_work(
+    if sample
+        .as_ref()
+        .is_some_and(|request| !request.time.is_finite())
+    {
+        return Err("engineering sampling requires a finite explicit source time".into());
+    }
+    if sample.is_some() && input.is_dir() {
+        return Err("engineering sampling requires one explicit input file".into());
+    }
+    let mut report = inspect_with_work(
         input,
         oracle_path,
-        include_keyframes,
+        include_keyframes || sample.is_some(),
         include_splines,
         16_000_000,
         16_000_000,
-    )
+        if sample.is_some() { 64 } else { 0 },
+    )?;
+    if let Some(request) = sample {
+        report.engineering_sampling_contract = Some(sampling::CONTRACT);
+        let mut budget = sampling::Budget::new(sampling::Limits::default());
+        for row in &mut report.files {
+            // Source decoding/comparison findings stay separate; only a
+            // successfully decoded source can be a sampling diagnostic input.
+            let Some(keys) = &row.keys else { continue };
+            let result = (|| -> Result<_> {
+                let mut selected = None;
+                for block in &keys.blocks {
+                    budget.source_block_visit()?;
+                    if block.block == request.block {
+                        selected = Some(block);
+                        break;
+                    }
+                }
+                let block = selected.ok_or(
+                    "selected block is not in the decoded NiTransformData source catalogue",
+                )?;
+                let channel = match request.channel {
+                    SampleChannel::Translation => sampling::Channel::Translation,
+                    SampleChannel::Scale => sampling::Channel::Scale,
+                };
+                Ok(sampling::evaluate(
+                    block,
+                    channel,
+                    request.time,
+                    &mut budget,
+                )?)
+            })();
+            match result {
+                Ok(sample) => row.engineering_sample = Some(sample),
+                Err(error) => {
+                    if row.error.is_none() {
+                        report.failures += 1;
+                    }
+                    let reason = format!("engineering sampling diagnostic failed: {error}");
+                    row.error = Some(match row.error.take() {
+                        Some(source_error) => format!("{source_error}; {reason}"),
+                        None => reason,
+                    });
+                }
+            }
+        }
+    }
+    Ok(report)
 }
 #[cfg(test)]
 fn inspect_with_key_work(
@@ -260,7 +331,7 @@ fn inspect_with_key_work(
     include_keyframes: bool,
     key_work: usize,
 ) -> Result<Report> {
-    inspect_with_work(input, oracle_path, include_keyframes, false, key_work, 0)
+    inspect_with_work(input, oracle_path, include_keyframes, false, key_work, 0, 0)
 }
 fn inspect_with_work(
     input: &Path,
@@ -269,6 +340,7 @@ fn inspect_with_work(
     include_splines: bool,
     mut key_work: usize,
     mut spline_work: usize,
+    reserved_diagnostic_bytes: usize,
 ) -> Result<Report> {
     let include_keyframes = include_keyframes || include_splines;
     let mut report = Report {
@@ -282,6 +354,7 @@ fn inspect_with_work(
         animation_branch: "nv-four-source-classes",
         keyframe_branch: include_keyframes.then_some("nv-transform-data-source"),
         spline_branch: include_splines.then_some("nv-compact-transform-source"),
+        engineering_sampling_contract: None,
         float_encoding: "ieee754-binary32-bits",
         string_encoding: "raw-byte-arrays",
         input: input.into(),
@@ -380,6 +453,9 @@ fn inspect_with_work(
         return Err("oracle animation file count differs".into());
     }
     let mut remaining: usize = 256 * 1024 * 1024;
+    remaining = remaining
+        .checked_sub(reserved_diagnostic_bytes)
+        .ok_or("engineering diagnostic storage budget exceeded")?;
     let row_charge = paths
         .len()
         .checked_mul(std::mem::size_of::<FileReport>() + 64)
@@ -403,6 +479,7 @@ fn inspect_with_work(
             animation: None,
             keys: None,
             splines: None,
+            engineering_sample: None,
             error: None,
             comparison: None,
         };
@@ -654,7 +731,7 @@ mod tests {
             )
             .unwrap();
         }
-        let exact = inspect_with_work(&inputs.0, None, false, true, 0, 6).unwrap();
+        let exact = inspect_with_work(&inputs.0, None, false, true, 0, 6, 0).unwrap();
         assert_eq!(exact.failures, 0);
         assert_eq!(exact.schema_version, 3);
         assert_eq!(
@@ -666,7 +743,7 @@ mod tests {
             6
         );
         assert!(exact.files.iter().all(|f| f.keys.is_some()));
-        let under = inspect_with_work(&inputs.0, None, false, true, 0, 5).unwrap();
+        let under = inspect_with_work(&inputs.0, None, false, true, 0, 5, 0).unwrap();
         assert_eq!(under.failures, 1);
         assert!(
             under.files[1]
@@ -680,7 +757,7 @@ mod tests {
             source_of(&words(&[1, 0x7fc0_0001, 0]), "NiBSplineData"),
         )
         .unwrap();
-        let failed = inspect_with_work(&inputs.0, None, false, true, 0, 100).unwrap();
+        let failed = inspect_with_work(&inputs.0, None, false, true, 0, 100, 0).unwrap();
         assert_eq!(failed.failures, 2);
         assert!(
             failed.files[0]
@@ -696,7 +773,7 @@ mod tests {
                 .unwrap()
                 .contains("spline-source work budget exceeded")
         );
-        let old = inspect_with_work(&inputs.0, None, true, false, 0, 0).unwrap();
+        let old = inspect_with_work(&inputs.0, None, true, false, 0, 0, 0).unwrap();
         assert_eq!(old.failures, 0);
         let old = serde_json::to_value(old).unwrap();
         assert_eq!(old["schema_version"], 2);
@@ -727,5 +804,130 @@ mod tests {
         let mut extra = expected;
         extra[0]["data"]["evaluated"] = json!(true);
         assert!(!compare_splines(&decoded.splines.blocks, &extra).unwrap());
+    }
+    #[test]
+    fn explicit_engineering_sample_is_consumed_without_changing_source_catalogue() {
+        let inputs = inputs(&[words(&[
+            0,
+            2,
+            1,
+            0,
+            0x8000_0000,
+            0x4000_0000,
+            0xc080_0000,
+            0x4000_0000,
+            0x4080_0000,
+            0xc000_0000,
+            0x4100_0000,
+            0,
+        ])]);
+        let path = inputs.0.join("0.kf");
+        let source = inspect(&path, None, true, false, None).unwrap();
+        let sampled = inspect(
+            &path,
+            None,
+            false,
+            false,
+            Some(SampleRequest {
+                block: 0,
+                channel: SampleChannel::Translation,
+                time: 1.,
+            }),
+        )
+        .unwrap();
+        assert_eq!(sampled.failures, 0);
+        assert_eq!(sampled.schema_version, 2);
+        let diagnostic = sampled.files[0].engineering_sample.as_ref().unwrap();
+        assert_eq!(diagnostic.source_block, 0);
+        assert_eq!(diagnostic.work.validation_units, 10);
+        assert_eq!(diagnostic.work.sampling_units, 8);
+        let sampling::Evaluated::Translation {
+            sample: Some(sample),
+        } = &diagnostic.evaluation
+        else {
+            panic!("requested translation missing")
+        };
+        assert_eq!(sample.evaluated_f64_bits.map(f64::from_bits), [2., 0., 2.]);
+        assert_eq!(sample.source_key_indices, [0, 1]);
+        assert!(sample.source_value_bits.is_none());
+        assert_eq!(
+            serde_json::to_value(&source.files[0].keys).unwrap(),
+            serde_json::to_value(&sampled.files[0].keys).unwrap()
+        );
+        let source = serde_json::to_value(source).unwrap();
+        assert!(source.get("engineering_sampling_contract").is_none());
+        assert!(source["files"][0].get("engineering_sample").is_none());
+        let absent = inspect(
+            &path,
+            None,
+            false,
+            false,
+            Some(SampleRequest {
+                block: 0,
+                channel: SampleChannel::Scale,
+                time: 10.,
+            }),
+        )
+        .unwrap();
+        assert_eq!(absent.failures, 0);
+        let absent = serde_json::to_value(absent).unwrap();
+        assert_eq!(
+            absent["files"][0]["engineering_sample"]["evaluation"],
+            json!({"channel":"scale","sample":null})
+        );
+    }
+    #[test]
+    fn sampling_request_refusals_are_contextual_and_source_stays_available() {
+        let inputs = inputs(&[words(&[0, 1, 1, 0, 0x3f80_0000, 0, 0, 0])]);
+        let path = inputs.0.join("0.kf");
+        for (block, time, reason) in [(0, 1., "extrapolate"), (9, 0., "selected block is not in")] {
+            let report = inspect(
+                &path,
+                None,
+                false,
+                false,
+                Some(SampleRequest {
+                    block,
+                    channel: SampleChannel::Translation,
+                    time,
+                }),
+            )
+            .unwrap();
+            assert_eq!(report.failures, 1);
+            assert!(report.files[0].keys.is_some());
+            assert!(report.files[0].engineering_sample.is_none());
+            assert!(report.files[0].error.as_ref().unwrap().contains(reason));
+        }
+        let request = || {
+            Some(SampleRequest {
+                block: 0,
+                channel: SampleChannel::Translation,
+                time: f64::NAN,
+            })
+        };
+        assert!(
+            inspect(&path, None, false, false, request())
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("finite explicit source time")
+        );
+        assert!(
+            inspect(
+                &inputs.0,
+                None,
+                false,
+                false,
+                Some(SampleRequest {
+                    block: 0,
+                    channel: SampleChannel::Translation,
+                    time: 0.
+                })
+            )
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("one explicit input file")
+        );
     }
 }

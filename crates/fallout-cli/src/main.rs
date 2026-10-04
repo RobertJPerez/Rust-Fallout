@@ -100,6 +100,12 @@ enum Command {
         include_keyframes: bool,
         #[arg(long)]
         include_splines: bool,
+        #[arg(long, requires_all = ["sample_block", "sample_channel"], allow_hyphen_values = true)]
+        sample_time: Option<f64>,
+        #[arg(long, requires = "sample_time")]
+        sample_block: Option<u32>,
+        #[arg(long, value_enum, requires = "sample_time")]
+        sample_channel: Option<nif_animation_inspection::SampleChannel>,
     },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
     NifSkin {
@@ -1483,12 +1489,31 @@ fn run(args: Args) -> Result<()> {
             oracle_report,
             include_keyframes,
             include_splines,
+            sample_time,
+            sample_block,
+            sample_channel,
         } => {
+            let sample = match (sample_time, sample_block, sample_channel) {
+                (Some(time), Some(block), Some(channel)) => {
+                    Some(nif_animation_inspection::SampleRequest {
+                        time,
+                        block,
+                        channel,
+                    })
+                }
+                (None, None, None) => None,
+                _ => {
+                    return Err(
+                        "sample time, source block and channel are required together".into(),
+                    );
+                }
+            };
             let report = nif_animation_inspection::inspect(
                 &input,
                 oracle_report.as_deref(),
                 include_keyframes,
                 include_splines,
+                sample,
             )?;
             emit(&report, output, &input)?;
             if report.failures != 0 {

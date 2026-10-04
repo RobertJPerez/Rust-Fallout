@@ -4,6 +4,7 @@ mod families;
 pub mod keyframe;
 mod preflight;
 mod read;
+pub mod sampling;
 pub mod spline;
 
 use crate::{Error, Result, malformed, nif, nif_scene::cursor::Reader};

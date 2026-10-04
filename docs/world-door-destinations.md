@@ -38,3 +38,31 @@ This is an engineering source request. It does not apply a pose, unload a curren
 cell, activate a destination, execute an object script, evaluate locks/enablement
 or mutate canonical state. `runtime_ready` stays false. Original activation,
 orientation conventions, unit measurements and faithful traversal remain open.
+
+The executable consumer uses the same model/texture polling path as
+`cell-residency-sources`, with one protected ordered store retained through source
+selection and destination planning:
+
+```powershell
+fallout --output NEW_LOCAL_REPORT.json door-residency-sources --install INSTALL --load-order ORDER.json --cell SOURCE_PLUGIN:SOURCE_CELL_HEX --door SOURCE_PLUGIN:DOOR_REF_HEX
+```
+
+Optional index/resource caches and the per-stage source polling deadline retain
+the existing cell consumer's bounds. The report adds `door_destination` and
+`door_source_graph` to the target source receipts and residency snapshot.
+Unresolved selection/planning produces its source diagnostics and a nonzero exit;
+there is no residency request when the destination plan cannot be constructed.
+`destination_applied` and `current_cell_changed` remain false. Successful payload
+extraction still leaves collision, behavior and dependency readiness Pending.
+
+The frozen consumer resolved the original house door `FalloutNV.esm:103e61` to
+the authored target `FalloutNV.esm:103e69`. Its indexed parent is
+`FalloutNV.esm:846ea`, with header flag `0x400` (persistent) and world context
+`FalloutNV.esm:da726`. Destination model planning correctly refused at the
+existing 4,096-node bound before creating residency. All ten captured original
+plugin fingerprints remained unchanged; no original game process was launched.
+
+The current request addresses the indexed parent CELL. This persistent world
+group needs a separate spatial residency scope; the source parent alone does not
+establish the destination's spatial CELL. Neither the source pose nor this
+refusal authorizes an inferred grid, a raised quota or a live transition.

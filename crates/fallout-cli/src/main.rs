@@ -433,6 +433,24 @@ enum Command {
         #[arg(long, default_value_t = 30_000)]
         source_timeout_ms: u64,
     },
+    /// Inspect source-selected door destination CELL model/texture residency.
+    DoorResidencySources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        /// Explicit source CELL, not a changed runtime current cell.
+        #[arg(long)]
+        cell: String,
+        #[arg(long)]
+        door: String,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Prepare an explicitly requested winning topic/INFO for source consumers.
     ConversationSources {
         #[arg(long)]
@@ -1285,6 +1303,36 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("cell source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::DoorResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            door,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::door_residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::DoorInput {
+                    source: world_preparation_inspection::ResidencyInput {
+                        cell: parse_cell_key(&cell)?,
+                        source_timeout_ms,
+                    },
+                    door: parse_cell_key(&door)?,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err(
+                    "door destination source dependencies are unavailable; see report".into(),
+                );
             }
         }
         Command::ConversationSources {

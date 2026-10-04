@@ -767,6 +767,68 @@ fn emit(value: &impl Serialize, output: Option<&Path>, source: &Path) -> Result<
     Ok(())
 }
 
+#[cfg(test)]
+mod numeric_transport_tests {
+    #[test]
+    fn json_ray_coordinates_keep_the_requested_binary64_words() {
+        // These words come from a near-tangent analytic ray. Moving either
+        // value by one ULP changes the intersection, before physics even runs.
+        let text = "[-229.11445911534562,610.4858273951352,-758.1652980544283,0.23005015640173943,-0.6101330235002654,0.7581652980544282]";
+        let expected = [
+            0xc06ca3a9a629a46f,
+            0x408313e2f9792cda,
+            0xc087b15287c94ee5,
+            0x3fcd72489517b330,
+            0xbfe38635b0c4956b,
+            0x3fe842e3df036338,
+        ];
+        let typed: Vec<f64> = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            typed
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        let report: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            report
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_f64().unwrap().to_bits())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    #[test]
+    fn json_round_trips_finite_words_across_the_binary64_range() {
+        let mut words = vec![
+            0,
+            1 << 63,
+            1,
+            (1 << 63) | 1,
+            f64::MAX.to_bits(),
+            (-f64::MAX).to_bits(),
+        ];
+        let mut seed = 0x8a5cd789635d2dff_u64;
+        for _ in 0..1024 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            if f64::from_bits(seed).is_finite() {
+                words.push(seed);
+            }
+        }
+        for word in words {
+            let text = serde_json::to_string(&f64::from_bits(word)).unwrap();
+            let restored: f64 = serde_json::from_str(&text).unwrap();
+            assert_eq!(restored.to_bits(), word, "JSON changed {word:016x}: {text}");
+        }
+    }
+}
+
 fn protected_tree(source: &Path) -> Result<PathBuf> {
     let source = source.canonicalize()?;
     let directory = if source.is_file() {

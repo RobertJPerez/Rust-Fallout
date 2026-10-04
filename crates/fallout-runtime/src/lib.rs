@@ -5,10 +5,12 @@
 pub mod catalogue;
 pub mod event_operands;
 pub mod events;
+pub mod execution;
 pub mod foreign;
 pub mod identity;
 pub mod inventory;
 pub mod preparation;
+pub mod programs;
 pub mod query;
 pub mod save;
 pub mod schema;

@@ -1,6 +1,10 @@
 //! Resolve the authored LAND -> LTEX -> TXST chain without inventing defaults.
 //! Archive bytes are verified separately from image, blend and shader semantics.
-use super::{Fields, RecordEntry, TerrainReport, inspect::entry_bounded};
+use super::{
+    Fields, RecordEntry, TerrainReport,
+    inspect::entry_admitted,
+    preparation::budget::{Budget, charge, failure},
+};
 use crate::{
     Error, Result,
     assets::ArchiveAssets,
@@ -111,6 +115,7 @@ fn load_record(
     key: &FormKey,
     bodies: Option<(&Path, &Path)>,
     maximum: usize,
+    budget: Option<&mut Budget>,
 ) -> Result<()> {
     if records.contains_key(key) {
         return Ok(());
@@ -126,12 +131,13 @@ fn load_record(
         .ok_or_else(|| Error::Resolution("resolved texture record disappeared".into()))?;
     records.insert(
         key.clone(),
-        entry_bounded(
+        entry_admitted(
             store,
             key.clone(),
             location,
             bodies,
             MAX_TEXTURE_RECORD_BYTES,
+            budget,
         )?,
     );
     Ok(())
@@ -152,6 +158,75 @@ pub fn inspect(
     let asset_cache = asset_cache
         .map(|root| cache::validate_root(root, assets.source_tree()))
         .transpose()?;
+    let mut report = collect_sources(
+        store,
+        terrain,
+        |path| assets.candidates(path),
+        bodies,
+        limits,
+        None,
+    )?;
+    let mut decoded = 0;
+    for probe in &mut report.assets {
+        let result = (|| -> Result<()> {
+            // Candidate multiplicity is a policy failure, even if bytes happen to match.
+            if probe.candidates.len() != 1 {
+                return Err(Error::Resolution(format!(
+                    "texture has {} archive candidates; no verified precedence",
+                    probe.candidates.len()
+                )));
+            }
+            let remaining = limits.decoded_asset_bytes.saturating_sub(decoded);
+            let data = assets.read(&probe.path, remaining)?;
+            if data.bytes.len() > remaining {
+                return Err(Error::Unsupported(
+                    "terrain texture byte budget exceeded".into(),
+                ));
+            }
+            if data.source.container != probe.candidates[0].container
+                || data.source.entry_index != probe.candidates[0].entry_index
+                || data.source.original_path != probe.candidates[0].original_path
+            {
+                return Err(Error::Resolution(
+                    "texture source differs from candidate".into(),
+                ));
+            }
+            decoded += data.bytes.len();
+            probe.decoded_bytes = Some(data.bytes.len());
+            probe.sha256 = Some(format!("{:x}", Sha256::digest(&data.bytes)));
+            if let Some(root) = &asset_cache {
+                probe.cache = Some(cache::publish(
+                    root,
+                    assets.source_tree(),
+                    cache::ArtifactIdentity {
+                        profile: ProfileId::NvOriginal,
+                        source_sha256: data.archive_sha256.clone(),
+                        path_bytes: probe.path.bytes().to_vec(),
+                        transform_version: "nv-bsa104-decode-v1".into(),
+                    },
+                    &data.bytes,
+                )?);
+            }
+            probe.archive_sha256 = Some(data.archive_sha256);
+            Ok(())
+        })();
+        if let Err(error) = result {
+            report.failures += 1;
+            probe.error = Some(error.to_string());
+        }
+    }
+    report.decoded_asset_bytes = decoded;
+    Ok(report)
+}
+
+pub(super) fn collect_sources<'a>(
+    store: &mut RecordStore,
+    terrain: &TerrainReport,
+    candidates: impl Fn(&AssetPath) -> Result<&'a [AssetSource]>,
+    bodies: Option<(&Path, &Path)>,
+    limits: Limits,
+    mut budget: Option<&mut Budget>,
+) -> Result<Report> {
     let mut records = BTreeMap::new();
     let mut bindings = Vec::new();
     let mut failures = 0;
@@ -188,13 +263,27 @@ pub fn inspect(
                     .key
                     .as_ref()
                     .expect("resolved LTEX key");
-                load_record(store, &mut records, key, bodies, limits.records)?;
+                load_record(
+                    store,
+                    &mut records,
+                    key,
+                    bodies,
+                    limits.records,
+                    budget.as_deref_mut(),
+                )?;
                 let texture_set = records[key].links.get("TNAM").cloned();
                 if let Some(link) = &texture_set {
                     binding.status = "unresolved-TXST";
                     if link.status == "resolved" {
                         let key = link.key.as_ref().expect("resolved TXST key");
-                        load_record(store, &mut records, key, bodies, limits.records)?;
+                        load_record(
+                            store,
+                            &mut records,
+                            key,
+                            bodies,
+                            limits.records,
+                            budget.as_deref_mut(),
+                        )?;
                         let Some(Fields::TextureSet(fields)) = &records[key].fields else {
                             unreachable!("TXST decoder");
                         };
@@ -246,6 +335,12 @@ pub fn inspect(
             if !field.value.is_empty() {
                 match texture_path(&field.value) {
                     Ok(path) => {
+                        if !paths.contains_key(&path)
+                            && paths.len() >= limits.assets
+                            && budget.is_some()
+                        {
+                            return Err(failure("assets", "exceeded"));
+                        }
                         paths.entry(path.clone()).or_default().push(usages.len());
                         usage.path = Some(path);
                     }
@@ -263,16 +358,31 @@ pub fn inspect(
             "terrain texture asset budget exceeded".into(),
         ));
     }
-    let mut decoded = 0;
     let mut probes = Vec::new();
     for (path, usages) in paths {
-        let candidates = assets.candidates(&path)?;
+        let candidates = candidates(&path)?;
         if candidates.len() > 64 {
             return Err(Error::Unsupported(
                 "terrain texture candidate budget exceeded".into(),
             ));
         }
-        let mut probe = Asset {
+        if let Some(budget) = &mut budget {
+            charge(
+                &mut budget.usage.candidates,
+                candidates.len(),
+                budget.limits.candidates,
+                "candidates",
+            )?;
+            budget.metadata(1024 + 8 * path.bytes().len() + 8 * usages.len())?;
+            for source in candidates {
+                if source.original_path.len() > budget.limits.path_bytes {
+                    return Err(failure("path bytes", "candidate exceeded"));
+                }
+                budget
+                    .metadata(1024 + 4 * source.container.len() + 4 * source.original_path.len())?;
+            }
+        }
+        let probe = Asset {
             path,
             usages,
             candidates: candidates.to_vec(),
@@ -282,52 +392,6 @@ pub fn inspect(
             cache: None,
             error: None,
         };
-        let result = (|| -> Result<()> {
-            // Candidate multiplicity is a policy failure, even if bytes happen to match.
-            if probe.candidates.len() != 1 {
-                return Err(Error::Resolution(format!(
-                    "texture has {} archive candidates; no verified precedence",
-                    probe.candidates.len()
-                )));
-            }
-            let remaining = limits.decoded_asset_bytes.saturating_sub(decoded);
-            let data = assets.read(&probe.path, remaining)?;
-            if data.bytes.len() > remaining {
-                return Err(Error::Unsupported(
-                    "terrain texture byte budget exceeded".into(),
-                ));
-            }
-            if data.source.container != probe.candidates[0].container
-                || data.source.entry_index != probe.candidates[0].entry_index
-                || data.source.original_path != probe.candidates[0].original_path
-            {
-                return Err(Error::Resolution(
-                    "texture source differs from candidate".into(),
-                ));
-            }
-            decoded += data.bytes.len();
-            probe.decoded_bytes = Some(data.bytes.len());
-            probe.sha256 = Some(format!("{:x}", Sha256::digest(&data.bytes)));
-            if let Some(root) = &asset_cache {
-                probe.cache = Some(cache::publish(
-                    root,
-                    assets.source_tree(),
-                    cache::ArtifactIdentity {
-                        profile: ProfileId::NvOriginal,
-                        source_sha256: data.archive_sha256.clone(),
-                        path_bytes: probe.path.bytes().to_vec(),
-                        transform_version: "nv-bsa104-decode-v1".into(),
-                    },
-                    &data.bytes,
-                )?);
-            }
-            probe.archive_sha256 = Some(data.archive_sha256);
-            Ok(())
-        })();
-        if let Err(error) = result {
-            failures += 1;
-            probe.error = Some(error.to_string());
-        }
         probes.push(probe);
     }
     let unapplied_default_layers = bindings
@@ -341,7 +405,7 @@ pub fn inspect(
         assets: probes,
         failures,
         unapplied_default_layers,
-        decoded_asset_bytes: decoded,
+        decoded_asset_bytes: 0,
         runtime_ready: false,
         scope: "Authored nonnull LAND layers -> winning LTEX/TXST records -> nonempty TX00..TX05 archive bytes; NULL default layers remain explicit and unapplied; unique candidates only, no loose/retail precedence, image interpretation, shader/blend behavior or grass asset closure",
     })

@@ -4,6 +4,7 @@ pub mod blends;
 pub mod heights;
 mod inspect;
 pub mod mesh;
+pub mod preparation;
 mod schema;
 mod surface;
 pub mod textures;

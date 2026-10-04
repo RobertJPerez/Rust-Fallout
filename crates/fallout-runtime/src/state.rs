@@ -19,6 +19,8 @@ use std::{
 
 static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
 
+pub mod event_commit;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_instances: usize,
@@ -259,33 +261,15 @@ impl<'a> World<'a> {
             .ok_or(Error::MissingReference)
     }
     pub(crate) fn validate_reference(&self, value: &ReferenceValue) -> Result<()> {
-        match value {
-            ReferenceValue::Null => Ok(()),
-            ReferenceValue::Content { key } => valid_form(key),
-            ReferenceValue::Live { id } => self.reference_origin(*id).map(|_| ()),
-        }
+        crate::identity::check_reference(value, &|id| self.reference_origin(id).map(|_| ()))
     }
     pub(crate) fn validate_context(&self, context: &Context) -> Result<()> {
-        if context.arguments.len() > self.limits.max_event_arguments {
-            return Err(Error::Capacity("event arguments"));
-        }
-        for id in [context.calling_reference, context.containing_reference]
-            .into_iter()
-            .flatten()
-        {
-            self.reference_origin(id)?;
-        }
-        for value in context.target.iter().chain(context.arguments.iter()) {
-            self.validate_reference(value)?;
-        }
-        Ok(())
+        crate::identity::check_context(context, self.limits.max_event_arguments, &|id| {
+            self.reference_origin(id).map(|_| ())
+        })
     }
     pub(crate) fn validate_owner(&self, owner: &Owner) -> Result<()> {
-        match owner {
-            Owner::Quest { key } => valid_form(key),
-            Owner::Placed { reference } => self.reference_origin(*reference).map(|_| ()),
-            Owner::Fragment { .. } => Ok(()),
-        }
+        crate::identity::check_owner(owner, &|id| self.reference_origin(id).map(|_| ()))
     }
     pub fn create_instance(
         &mut self,
@@ -425,19 +409,17 @@ impl<'a> World<'a> {
         Ok(())
     }
     pub(crate) fn validate_value(&self, local: &Local, value: &Value) -> Result<()> {
-        match (local.kind, value) {
-            (_, Value::Uninitialized) => Ok(()),
-            (Kind::Float | Kind::Integer, Value::Number { .. }) => Ok(()),
-            (Kind::Reference, Value::Reference { value }) => self.validate_reference(value),
-            (Kind::Unsupported { .. } | Kind::UnverifiedZeroIndex { .. }, _) => {
-                Err(Error::UnsupportedLocal(local.index))
-            }
-            _ => Err(Error::IncompatibleLocal(local.index)),
+        schema::check_value(local, value)?;
+        if let Value::Reference { value } = value {
+            self.validate_reference(value)?;
         }
+        Ok(())
     }
-    /// Validate the entire batch before touching state. Duplicate assignments
-    /// are rejected instead of introducing an undocumented last-write rule.
-    pub fn assign(&mut self, handle: InstanceHandle, assignments: &[(u32, Value)]) -> Result<()> {
+    fn validate_assignments(
+        &self,
+        handle: InstanceHandle,
+        assignments: &[(u32, Value)],
+    ) -> Result<()> {
         let instance = self.instance(handle)?;
         if assignments.len() > instance.locals.len() {
             return Err(Error::Capacity("assignment batch"));
@@ -456,6 +438,12 @@ impl<'a> World<'a> {
                 value,
             )?;
         }
+        Ok(())
+    }
+    /// Validate the entire batch before touching state. Duplicate assignments
+    /// are rejected instead of introducing an undocumented last-write rule.
+    pub fn assign(&mut self, handle: InstanceHandle, assignments: &[(u32, Value)]) -> Result<()> {
+        self.validate_assignments(handle, assignments)?;
         if assignments.is_empty() {
             return Ok(());
         }

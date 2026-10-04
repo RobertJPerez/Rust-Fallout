@@ -516,6 +516,118 @@ fn foreign_destinations_and_reads_use_the_current_live_definition_not_an_attachm
 }
 
 #[test]
+fn prepared_sources_observe_player_rebinding_and_foreign_list_replacement() {
+    let body = event(
+        &[
+            assignment(&local(42), &reference(4)),
+            assignment(&local(42), &reference(5)),
+            assignment(&local(42), &foreign(1, 42)),
+        ]
+        .concat(),
+    );
+    let (_directory, catalogue, content) = fixture(&body);
+    let operators = operators();
+    let model = Model::vanilla(&operators).unwrap();
+    let sources = fallout_runtime::programs::PreparedSources::load(
+        &catalogue,
+        &model,
+        &Signatures::new(),
+        Default::default(),
+    )
+    .unwrap();
+    let (mut world, instance, sequence) = seed(Arc::clone(&catalogue), 0);
+    let compare = |world: &World<'_>, player| {
+        let before = world.snapshot();
+        let cached = world
+            .probe_event_operands_with_sources(
+                sequence,
+                &sources,
+                &content,
+                player,
+                Default::default(),
+            )
+            .unwrap();
+        let fresh = probe(world, sequence, &content, player, Default::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&cached).unwrap(),
+            serde_json::to_value(fresh).unwrap()
+        );
+        assert_eq!(world.snapshot(), before);
+        cached
+    };
+    let initial = compare(&world, None);
+    assert!(unresolved(
+        &initial.operands[3].outcome,
+        "uninitialized_local"
+    ));
+    assert!(unresolved(
+        &initial.operands.last().unwrap().outcome,
+        "missing_live_event_list"
+    ));
+    let a = world.register_reference(None).unwrap();
+    let b = world.register_reference(None).unwrap();
+    world
+        .assign(
+            instance,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: a },
+                },
+            )],
+        )
+        .unwrap();
+    let quest = world
+        .create_instance(
+            &definition(&catalogue, 0x301),
+            Owner::Quest { key: form(0x100) },
+            Context::default(),
+        )
+        .unwrap();
+    world
+        .assign(quest, &[(42, Value::Number { bits: 123 })])
+        .unwrap();
+    let first = compare(&world, Some(a));
+    assert!(
+        matches!(first.operands[1].outcome, Outcome::Resolved { resolution: Resolution::Reference { value: ReferenceValue::Live { id } }, .. } if id == a)
+    );
+    world.remove_instance(quest).unwrap();
+    assert!(unresolved(
+        &compare(&world, Some(b)).operands.last().unwrap().outcome,
+        "missing_live_event_list"
+    ));
+    let quest = world
+        .create_instance(
+            &definition(&catalogue, 0x302),
+            Owner::Quest { key: form(0x100) },
+            Context::default(),
+        )
+        .unwrap();
+    world
+        .assign(quest, &[(42, Value::Number { bits: u64::MAX })])
+        .unwrap();
+    world
+        .assign(
+            instance,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: b },
+                },
+            )],
+        )
+        .unwrap();
+    let second = compare(&world, Some(b));
+    assert!(
+        matches!(second.operands[1].outcome, Outcome::Resolved { resolution: Resolution::Reference { value: ReferenceValue::Live { id } }, .. } if id == b)
+    );
+    assert!(
+        matches!(&second.operands.last().unwrap().outcome, Outcome::Resolved { resolution: Resolution::Foreign { target, value: Some(Value::Number { bits: u64::MAX }) }, .. } if target.target_definition == definition(&catalogue, 0x302))
+    );
+    assert_eq!(sources.counts().preparation_attempts, 3);
+}
+
+#[test]
 fn authored_placed_context_requires_registration_and_an_explicit_live_list() {
     let (_directory, catalogue, content) =
         fixture(&event(&assignment(&local(42), &foreign(2, 42))));

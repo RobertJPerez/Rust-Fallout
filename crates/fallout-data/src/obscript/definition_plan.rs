@@ -155,8 +155,21 @@ pub fn prepare<'a>(
     let mut tokens = 0;
     let mut nodes = 0;
     for (index, instruction) in control.instructions().iter().enumerate() {
+        if matches!(instruction.opcode, 0x15 | 0x16 | 0x18)
+            && statements.len() >= limits.maximum_expressions
+        {
+            return Err(Error::Capacity("expression statements"));
+        }
+        let mut expression_limits = limits.expression;
+        expression_limits.decoding.max_tokens = expression_limits
+            .decoding
+            .max_tokens
+            .min(limits.maximum_tokens.saturating_sub(tokens));
+        expression_limits.max_nodes = expression_limits
+            .max_nodes
+            .min(limits.maximum_nodes.saturating_sub(nodes));
         let statement =
-            expression::statement(instruction, model.operators(), limits.expression.decoding)
+            expression::statement(instruction, model.operators(), expression_limits.decoding)
                 .map_err(|source| Error::ExpressionEnvelope {
                     instruction_offset: instruction.bytes.start,
                     source,
@@ -170,11 +183,14 @@ pub fn prepare<'a>(
         if !statement.trailing.is_empty() {
             return Err(Error::ExpressionTail(instruction.bytes.start));
         }
-        let plan = expression_plan::decode(statement.expression.bytes, model, limits.expression)
-            .map_err(|source| Error::ExpressionPlan {
+        // The envelope already decoded this exact token stream. Reusing that
+        // private view avoids reparsing it merely to construct its arena.
+        let plan = expression_plan::from_decoded(statement.expression, expression_limits).map_err(
+            |source| Error::ExpressionPlan {
                 instruction_offset: instruction.bytes.start,
                 source,
-            })?;
+            },
+        )?;
         if plan.tokens().len() > limits.maximum_tokens.saturating_sub(tokens) {
             return Err(Error::Capacity("expression tokens"));
         }

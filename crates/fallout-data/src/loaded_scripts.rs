@@ -14,6 +14,11 @@ use std::{collections::BTreeMap, ops::Range, sync::Arc};
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_candidate_records: usize,
+    /// Sum of max(stored bytes, decoded bytes) for every read candidate,
+    /// including records with no script units. Both representations must fit.
+    pub max_candidate_read_bytes: usize,
+    /// Stored and decoded body bound, tightened further by remaining read bytes.
+    pub max_candidate_record_bytes: usize,
     pub max_scripts: usize,
     pub max_retained_bytes: usize,
     pub max_variables: usize,
@@ -23,6 +28,8 @@ impl Default for Limits {
     fn default() -> Self {
         Self {
             max_candidate_records: 1_000_000,
+            max_candidate_read_bytes: 512 * 1024 * 1024,
+            max_candidate_record_bytes: 64 * 1024 * 1024,
             max_scripts: 262_144,
             max_retained_bytes: 256 * 1024 * 1024,
             max_variables: 262_144,
@@ -163,6 +170,11 @@ impl LoadedScript {
             .as_ref()
             .map(|range| &self.record.payload[range.clone()])
     }
+    /// Charge work that reconstructs an owning unit's metadata view. Embedded
+    /// units share the payload, but preparing each one can revisit that payload.
+    pub fn decoded_record_bytes(&self) -> usize {
+        self.record.payload.len()
+    }
     pub fn program(
         &self,
     ) -> std::result::Result<Option<obscript::Program<'_>>, obscript::DecodeError> {
@@ -300,12 +312,29 @@ impl Catalogue {
             counts: Counts::default(),
             sources,
         };
+        let mut candidate_read_bytes = 0;
         for (key, location) in candidates {
             if store.definition(location).header.flags & plugin::DELETED != 0 {
                 catalogue.counts.deleted_candidates_skipped += 1;
                 continue;
             }
-            let record = Arc::new(store.read(location)?);
+            let maximum = limits.max_candidate_record_bytes.min(
+                limits
+                    .max_candidate_read_bytes
+                    .saturating_sub(candidate_read_bytes),
+            );
+            let record = store.read_bounded(location, maximum)?;
+            if record.integrity_issue.is_some() {
+                return Err(crate::malformed(
+                    store.source_name(location),
+                    record.header.offset,
+                    "loaded script source is untrusted checksum recovery",
+                ));
+            }
+            // Both representations passed the same bound before allocation.
+            // Empty candidates consume read work even though no body is retained.
+            candidate_read_bytes += (record.header.stored_size as usize).max(record.payload.len());
+            let record = Arc::new(record);
             catalogue.counts.candidate_records_read += 1;
             catalogue.counts.payload_bytes_scanned += record.payload.len() as u64;
             let units = script_units::decode(

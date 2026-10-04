@@ -33,8 +33,10 @@ An ordered owner index enumerates only that bank. A derived count index answers
 an exact host quantity sum in `O(log N)`, using checked `u64` arithmetic. Count
 traces include campaign, revision, clocks, subject, base key and each contributing
 item ID/quantity. Trace allocation has an explicit contribution budget. This is
-an engineering query; original `GetItemCount`, condition adapters and numeric
-return coercion remain unimplemented.
+an engineering query; original `GetItemCount` and condition semantics and numeric
+return coercion remain unverified. The shared native and condition adapters query
+explicit host state using the existing source entry IDs; they return count traces
+without claiming an original numeric return or argument coercion.
 
 Snapshot schema 3 saves canonical banks, item identities, facts and allocator.
 Restore validates every link and budget in a separate world, then rebuilds both
@@ -66,6 +68,21 @@ handles, migration and native restoration. The independent C++ save reader
 checks container metadata and integrity; it does not validate JSON semantics.
 Source identity agreement is independently checked against original plugin
 fields. Neither comparison accepts original inventory behavior.
+
+`save_item_mutations` checks each explicit add, split, transfer, partial/full
+removal and fact replacement boundary through SaveWorker and fresh-process
+current/previous restoration. Counts and ordered contribution IDs are compared
+with canonical snapshot rows and both shared query adapters. The fixture retains
+distinct NaN payloads, live ownership, script links and opaque bytes; replacement
+keeps its item ID, while splitting allocates an ID and removal retires it.
+Two separate maximum `u32` stacks verify an exact `u64` total. Unknown inventories
+remain errors after schema-2 migration; explicitly initialized empty banks return
+zero. Rejected quantities, exhausted allocators/revisions and a failed locked
+publication preserve state or slots, followed by an explicit successful retry.
+Set `FALLOUT_ITEM_MUTATION_EVIDENCE` to a fresh existing directory to retain the
+bounded engineering fixture, snapshots, slots and child receipts. This test uses
+authored source headers and caller policy, without establishing retail inventory
+initialization, stacking, source admission or query coercion.
 
 Selected pinned [xNVSE extra-data declarations](https://github.com/xNVSE/NVSE/blob/0ccd23ad885ddae533c1790a3fc56cd073e38de3/nvse/nvse/GameExtraData.h)
 were read at lines 303–318, 546–574, 599–610 and 681–735. They expose script,

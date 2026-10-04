@@ -401,7 +401,7 @@ Investigation and fixtures stay in `local\act03-placement-investigation-20261003
 `local\act03-placement-authored-inputs-20261003`. The pre-implementation framing
 check at `local\act03-placement-fixture-framing-20261003` checked the established
 header/scalar path only, and is not placed-actor semantic evidence.
-Health/count/linked/patrol extras remain separate future source slices. This
+Health/count/patrol extras remain separate future source slices. This
 catalogue does not infer a cell/world encounter-zone fallback, effective level,
 merchant inventory, live placement or actor initialization.
 
@@ -439,3 +439,421 @@ Evidence is in `local\act08-body-bounds-comparison-20261003-01`,
 `local\act08-faction-authored-comparison-20261003` and
 `local\act08-placement-authored-comparison-20261003`. This tooling fix does not
 alter the Rust catalogues or establish gameplay parity.
+
+## Placed linked references (ACT-03 second slice)
+
+Pinned xEdit FNV lines 3157 and 3239 declare ACHR/ACRE `XLKR` as a four-byte
+linked reference with seven allowed target kinds: REFR, ACRE, ACHR, PGRE, PMIS,
+PBEA and PLYR. The existing placement catalogue now retains each occurrence as
+`Value::LinkedReference`, using unchanged inventory binding in the winning
+source's master/self namespace. Physical order, offsets, body/field hashes,
+target provenance and null/missing/deleted/wrong-kind facts remain explicit.
+Repeated singleton occurrences produce
+`multiple_placed_linked_reference_fields`; none is selected or discarded.
+Absence remains absence. There is no link traversal or activation/AI inference,
+and declared cycles are retained as ordinary source bindings.
+
+The existing kind/version admission, unchanged world placement decoder, source
+receipts and record/field/body/binding bounds remain in force. The inspector uses
+the existing `--include-placements` flag. No other catalogue, runtime, save,
+dependency, store, inventory or shared-file contract changes are required.
+The independent native reader adds its own field/domain projection while
+retaining the ACT-08 preallocation guard. Original byte investigation observed
+1,361 ACHR and 491 ACRE XLKR4 fields without duplicates. Full original comparisons
+agree in cold, warm and reordered phases across every requested projection:
+7,681 placements, 22,665 fields, 2,259 selected extras, 9,635 bindings and
+681,344 decoded bytes with zero placement findings. All 1,852 linked targets are
+defined: 1,372 REFR, 438 ACHR and 42 ACRE. The association section still retains
+the previously measured deleted voice finding; no fallback clears it.
+
+Focused tests cover all seven allowed domains, self-links, null/missing/wrong
+kind/deleted targets, ordered duplicate findings, exact binding-limit admission,
+XLKR3/5 rejection, master/self namespaces and cycles across cold/warm/reordered
+header caches. Authored comparison inputs include all seven domains and are at
+`local\act03-linked-authored-inputs-20261003-02`.
+The native authored comparison agrees in all phases on eight winners including a
+tombstone, 29 fields, 15 XLKR occurrences, 22 bindings and 12 findings. Its targets
+include all seven declared kinds plus an explicit wrong-kind PACK, null, missing
+and deleted references. Both readers reject XLKR3/5. Deliberately altered raw
+binding words and target file offsets fail the complete placement comparison.
+All 35 actor tests (including eight placement tests), formatting,
+fallout-data/CLI all-target Clippy and the
+private native build's six allocation-order checks pass.
+
+Comparisons are at `local\act03-linked-comparison-20261003-01` and
+`local\act03-linked-authored-comparison-20261003-01`; negative results are under
+`local\act03-linked-authored-inputs-20261003-02\negative-results`. Completed runs
+verify actual source/head/dirty manifests and executable hashes unchanged. These
+are worker source checks; they do not accept gameplay or constitute an integrated
+checkpoint.
+
+## Remaining source investigation
+
+Read-only byte investigation for the next RACE slice is retained at
+`local\act05-race-investigation-20261003`. The supplied original order has 31
+physical and winning RACE definitions, all version 15, without deleted winners:
+22 from FalloutNV, six from HonestHearts and one each from DeadMoney,
+LonesomeRoad and OldWorldBlues. Their 3,518 physical fields occupy 144,223 decoded
+bytes. DATA36, PNAM4 and UNAM4 occur once in every winner (93 selected fields).
+Pinned FNV lines 7369-7397 define seven ordered signed skill/boost byte pairs,
+two unused bytes, four height/weight float words and flags in DATA. Lines
+7420-7421 define the main/face clamp floats. Source bits do not establish applied
+race statistics or FaceGen behavior. These measurements bound the separately
+approved scalar catalogue below; they do not constitute its comparison receipt.
+
+Independent package investigation is retained at
+`local\act06-package-investigation-20261003`. It found 4,888 physical PACK records
+and 4,885 winners across versions 1/2/3/9/10/11/13/14/15, with 88,491 fields and
+1,455,709 decoded bytes. The observed PKDT layouts are 4,872 twelve-byte fields
+and 13 eight-byte fields; all winners have one PSDT8. PLD2 has 472 twelve-byte
+occurrences across 236 winners, so repeated occurrences must be preserved rather
+than silently collapsed. There are 3,777 CTDA28 and 24 CTDA20 fields. These facts
+prepare an independently bounded package task; this investigation does not decode
+package unions, migrate editor defaults, group conditions or execute AI/scripts.
+
+## Race scalar sources (ACT-05 first RACE slice)
+
+`actors::races::Catalogue::load(&mut RecordStore, Limits)` owns winning RACE
+headers, source identity, decoded bodies, ordered field metadata and findings,
+with complete source receipts and the exact winning-content digest. The first
+scope admits observed version 15 and DATA36/PNAM4/UNAM4 only. Other fields retain
+opaque hashes/offsets and full body bytes; no model, voice, age, relation or hair
+bindings are decoded yet. Deleted winners retain header/provenance without
+reading their body or applying a version/default migration.
+
+DATA retains seven ordered `SkillBoost { skill: i8, boost: i8 }` pairs, two unused
+bytes, male/female height and weight raw words, and every flag bit. PNAM/UNAM
+retain main/face clamp words, including exact signed zero, subnormal and
+non-finite bit patterns. Fields do not apply clamps or infer effective race or
+FaceGen state. All three pinned required declarations produce missing-field
+findings when absent; duplicate singletons retain each physical occurrence and
+its finding. No default is manufactured to satisfy an absent declaration.
+
+Limits precede matching candidate clones, body reads/inflation and field vector
+growth. Per-record stored/declared/decoded bodies use the smaller of 64 MiB and
+the remaining 256 MiB catalogue budget. The independent native projection uses
+the ACT-08 body guard and directly reads the original fields. The additive
+`--include-races` flag emits `actor_races` and compares its complete projection;
+the private inspector options struct preserves the existing optional sections.
+Minimal CLI main flag/dispatch/finding wiring is declared for integration.
+
+All 40 actor tests (including five RACE tests), formatting and fallout-data/CLI
+all-target Clippy pass. The private native build passes its six allocation-order
+checks. Original comparisons agree in cold, warm and reordered phases on every
+requested source section, including 31 RACE winners, 3,518 fields, 93 scalar
+fields and 144,223 decoded bytes with zero race findings. The known association
+voice finding remains explicit. The inspector options refactor retains all
+existing complete projections.
+
+Authored comparisons agree in all phases on seven winners including an unread
+tombstone, 18 fields, 16 scalar fields, 396 bytes and six source findings. They
+retain exact non-finite/zero/subnormal words, signed skill order, unused bytes,
+duplicates/absence, extended opaque fields and master/self winner identities.
+Both readers reject DATA35/37, PNAM3, UNAM5, versions14/16 and a hostile declared
+compressed prefix. Changed height bits and winning-header trailing bytes fail
+the complete race comparison; the scalar-only default still compares equally.
+
+Evidence is at `local\act05-race-comparison-20261003-01`,
+`local\act05-race-authored-comparison-20261003-01` and
+`local\act05-race-authored-inputs-20261003\negative-results`. Completed runs verify
+their actual source/head/dirty manifests and executable hashes unchanged. This
+is an immutable source slice; race application, actor/player initialization and
+gameplay remain separate.
+
+## Package scalar sources (ACT-06 first PACK slice)
+
+The team-v2 coordinator approved `ACT-06-PACK-source-contract` on October 3,
+2026. `actors::packages::Catalogue::load(&mut RecordStore, Limits)` owns each
+winning PACK header, source receipt, body and ordered physical fields. The
+optional `actor-sources --include-packages` inspector section and independent
+direct-source reader expose `actor_packages`. Minimal CLI flag, dispatch and
+finding wiring in `main.rs` is declared for integration.
+
+| Field | Exact source layout |
+| --- | --- |
+| PKDT8 | General flags u32 at 0, raw type u8 at 4, unused byte at 5, behavior flags u16 at 6 |
+| PKDT12 | PKDT8 prefix plus type-specific flags u16 at 8 and two unused bytes at 10 |
+| PSDT8 | Signed i8 month/weekday/date/hour at 0/1/2/3, unsigned duration u32 at 4 |
+
+All multibyte words are little-endian. PKDT8 has an explicitly absent tail;
+unknown raw types, flags and negative schedule bytes remain intact. No masks,
+enum coercion, editor defaults, date conversion or calendar rules are applied.
+The pinned xEdit FNV declaration is lines 6990-7074 and 7124-7135, with deciders
+at 2813-2826; its revision and file hash remain those listed above. Width selection
+follows physical size independently of the admitted record version.
+
+Observed PACK versions 1/2/3/9/10/11/13/14/15 are admitted. Other nondeleted
+versions and other PKDT/PSDT widths fail with source context. Tombstones retain
+their winning header without reading or migrating their bodies. Candidate,
+stored/inflated-body, cumulative decoded-byte and field limits apply before the
+corresponding allocation. Every selected physical occurrence remains ordered;
+missing required fields and each later duplicate receive explicit findings.
+Other fields, including CTDA and embedded scripts, remain opaque and body-retained;
+later slices must use the scripts lane's decoders.
+
+The comparison wrapper optionally checks team authorization and all current-run
+STOP mailboxes while polling its own native/Rust child processes. A cancellation
+stops those owned children and leaves the attempt incomplete. Standalone use
+does not require team files. Earlier completed evidence and frozen tools remain
+unchanged. A private guard test verifies current-run cancellation of the launched
+child, rejection of a changed lease, and preservation of old-run STOP rows.
+
+All 46 actor tests, including six PACK tests, pass. Formatting and affected-package
+all-target Clippy with warnings denied pass. The private native build passes six
+allocation-order checks. Builds used the team-v2 automatic focused mutex and the
+actor worktree's private target. Frozen executables are retained under
+`local\act06-pack-frozen-tools-20261004-01` for subsequent coordinator review.
+
+Original comparisons agree in cold, warm and reordered phases on 4,885 winning
+packages, 88,491 fields, 9,770 scalar occurrences and 1,455,709 decoded bytes with
+zero package findings. These include 13 PKDT8, 4,872 PKDT12 and 4,885 PSDT8 fields.
+An additional complete-projection audit checks every earlier source section against
+the preserved committed RACE comparison; the XLKR/RACE projections and known
+deleted voice finding remain unchanged.
+
+Independently authored comparisons agree in all phases on 14 winners, including
+an unread version-99 tombstone, 27 fields, 24 scalars, 438 decoded bytes and six
+findings. They exercise both layouts, signed extremes, raw unknown types/flags,
+unused bytes, absent tails, physical order, duplicates/missing fields, extended
+opaque fields and master/self winner identity. Both readers reject 17 malformed,
+unsupported-version or hostile compressed inputs for their intended diagnostics.
+Five altered reports (schedule byte, fabricated legacy tail, unused tail byte,
+winning header and field offset) fail the complete comparison. The default
+scalar-only projection remains equal without the optional package section.
+
+Evidence is at `local\act06-pack-comparison-20261003-01`,
+`local\act06-pack-authored-comparison-20261003-01`,
+`local\act06-pack-authored-inputs-20261003\negative-results` and
+`local\act06-pack-validation-20261003-01`. Completed comparisons bind the actual
+dirty source manifests and frozen executable hashes before and after execution.
+The handoff maps that tested code to the resulting commit; this documentation's
+validation results were filled after comparison. These worker source checks do
+not initialize actors, implement scheduling or accept gameplay parity.
+
+## Actor model dependency sources (ACT-07)
+
+Team-v2 decisions `ACT-07-source-manifest-v1` and
+`ACT-07-manifest-API-detail` approve
+`actors::dependencies::Catalogue::load(&mut RecordStore, &actors::Catalogue,
+&actors::associations::Catalogue, &leveled::Catalogue, Limits)` and
+`catalogue.manifest(&FormKey actor_root, &ArchiveAssets, ManifestLimits)`.
+`actor-sources --include-dependencies` exposes the complete source catalogue and
+existing inventory/list/template graph. Repeat `--dependency-root PLUGIN:LOCAL`
+for explicit nondeleted NPC_/CREA roots. Local IDs are hexadecimal and exclude
+load-order bits. Minimal CLI option/dispatch/finding wiring is declared for
+integration. World can consume this API after integration; runtime retains
+canonical actor state and saves, and assets retains animation decoding/playback.
+
+| Source | Exact selected fields |
+| --- | --- |
+| NPC_ | MODL single terminated byte string; KFFZ physical terminated string frames; repeated PNAM4 to HDPT; HNAM4 to HAIR; ENAM4 to EYES; RNAM from the existing association catalogue |
+| CREA | MODL single terminated byte string; NIFZ and KFFZ physical terminated string frames |
+| RACE | NAM0/NAM1/MNAM/FNAM zero-byte markers, INDX4 unsigned raw index; contextual MODL/ICON strings; HNAM/ENAM arrays of complete four-byte hair/eye links |
+| HDPT | MODL single terminated byte string; repeated HNAM4 extra-head-part links |
+| HAIR | MODL and ICON single terminated byte strings |
+| EYES | ICON single terminated byte string, with absence preserved |
+
+Every word is little-endian. NPC_ versions 14/15, CREA 9/11/13/14/15,
+RACE/HDPT/HAIR 15 and EYES 3/14/15 were observed in the installed winning cohort.
+Other nondeleted versions fail explicitly. Deleted winners preserve their exact
+header without version migration or body access. Physical list frames include
+empty values, including a final empty frame in a two-NUL ending; zero-byte list
+fields contain no frames. Single strings reject missing/embedded NUL bytes.
+No missing path, model list, animation list or part is synthesized.
+
+RACE marker occurrences carry their field index, decoded header offset and raw
+index. Region changes reset sex/part context; sex changes reset the part. Hair,
+eye and FaceGen declarations end the part context, so later FaceGen markers
+cannot inherit an earlier head/body part. Unscoped paths remain present with a
+finding. Duplicate singleton model/texture/hair/eye/list fields remain present
+with findings. Repeated head-part links and contextual RACE models are ordinary
+physical occurrences. Unknown fields keep their signature, extent, offset and
+SHA-256, with the complete body retained.
+
+The pinned xEdit FNV declarations are CREA4276-4423, NPC_6798-6955,
+EYES4710+, HDPT4840+, HAIR6346+ and RACE7351-7469. Common8834-8870
+defines the head-part model/texture fields; Interface5323's `wbIsFallout3`
+includes FNV. Therefore the separate later-game HEAD-link branch is not used.
+The Common and Interface hashes are respectively
+`e616b6546f6df74d88ec98bb870906db380c985963d011e4931c5726682b7d26`
+and `eae6a304e3f1f69cc030eca645d768e9f20fd2cb9c5ffe0f3a2a457c9e51e358`;
+the FNV revision/hash remain those cited above. A private original-byte matrix
+independently matches all 31 preserved RACE body hashes and records 556 contextual
+ICON and 682 MODL occurrences.
+
+Catalogue joins compare normalized source names, full source byte/hash receipts
+and canonical winning-content digests before joining bodies. Recovered checksum
+faults cannot supply typed dependency inputs, even when their receipt/header
+joins match. NPC_/CREA bodies are borrowed from the existing scalar/inventory
+catalogue. RNAM occurrences are
+borrowed semantically from the existing association decoder, while the new
+catalogue retains its own bounded binding projections. Source limits precede
+record keys, reads/inflation, aggregate decoded bytes, fields, string frames,
+raw path copies and bindings. The inventory/list graph and iterative SCC helper
+are reused rather than implementing an alternative production traversal.
+
+Each manifest retains every physical model link and the existing inventory
+closure edge indices, including null/missing/deleted/wrong-kind targets.
+Traversal visits each retained source identity once and expands only defined
+model links of the evidenced target kind. Inventory graph traversal retains
+its existing structural semantics. Combined SCCs index the sorted retained root
+nodes and do not claim whole-corpus analysis of untraversed wrong-kind targets.
+Manifest budgets precede node/edge/path/candidate copies and graph work.
+The CLI admits at most 64 roots before opening inputs and consumes one aggregate
+manifest budget across all roots, including repeated roots.
+
+MODL lookup follows the existing world's `meshes/` prefix convention. ICON
+lookup reuses `vfs::texture_path`. Authored raw bytes remain separate from safe
+normalized lookup keys. Empty, unsafe and paths longer than 4096 bytes receive explicit
+lookup states. Every matching physical archive candidate is retained; collisions
+do not select a winner. NIFZ/KFFZ relative bases remain explicitly unresolved,
+including bare filenames observed in the installed source. No directory is
+guessed, no archive payload is decoded, and no inheritance, equipment, gender,
+part/clip selection, scheduling, AI or gameplay acceptance is implemented.
+
+The independent projection retains the strict native actor reader and augments
+it with `tools/actor-oracle/dependencies.py`, a separate standard-library raw
+plugin and BSA metadata reader. It checks the native source cohort, retains
+write-denying source handles, bounds compressed lengths before inflation and
+uses iterative Tarjan SCCs independently of the production Kosaraju helper.
+The wrapper hashes the companion script and Python interpreter before and after
+comparison, polls owned processes for STOP, and retains native base outputs.
+Use absolute input paths, as the wrapper does, to compare exact container names.
+
+Final private gates pass all 56 actor tests, including the reachable forensic
+checksum recovery regression, affected data/CLI all-target Clippy with warnings
+denied, CLI build, Rust formatting, PowerShell/Python syntax and whitespace checks.
+Sealed tools in `local/act07-dependencies-frozen-tools-20261004-02` match complete
+independent original and authored projections in cold, warm and reordered runs.
+The final original catalogue contains 6,626 winners, 209,224 physical fields,
+15,255 string frames, 12,433 bindings and no dependency source findings. Its
+existing inventory graph contains 14,185 nodes and 56,193 edges. Explicit root
+`FalloutNV.esm:7` retains 128 single archive candidates; creature root
+`FalloutNV.esm:17A03` retains two single candidates, four empty paths and 50
+unresolved relative paths.
+
+The authored cohort contains 11 winners, including an unread version-99 HDPT
+tombstone, 52 fields, 17 string frames and three source findings. It exercises
+overrides, self selectors, cycles, wrong/missing/deleted/null links, empty and
+legacy strings, archive collisions and unsafe/overlong paths. Both readers reject
+13 malformed or unsupported cases for the intended diagnostic; the CLI rejects
+11 altered complete dependency projections. A 1,026-node root is admitted;
+64 repeats exceed the shared 65,536-node report budget in both readers, and the
+65th root is rejected before opening inputs. The default actor report is exactly
+byte-equal to the preserved PACK executable on the authored cohort.
+
+Final comparison receipts are under `local/act07-original-comparison-20261004-02`
+and `local/act07-authored-comparison-20261004-03`; negative, root-budget and default
+receipts are under `local/act07-negative-results-20261004-04`,
+`local/act07-root-budget-results-20261004-03` and
+`local/act07-default-results-20261004-01`. The handoff in
+`local/act07-dependencies-validation-20261004-01` binds the tested source/tool
+hashes to the two-commit range. Only this documentation's validation results were
+filled after the comparisons. Earlier prototypes and failed fixture setup or
+admission tests remain preserved separately. These receipts establish source
+decoding and engineering bounds; no gameplay scenario is accepted.
+
+## Forensic source admission repair (ACT-07D)
+
+Reachable `RecordStore::open_nv` checksum recovery originally allowed the RACE
+and PACK scalar catalogues to accept typed fields from a recovered body marked
+with `integrity_issue`. Authored compressed records reproduce both gaps while
+preserving the exact recovered payload. The existing strict mode rejects the
+same corrupted inputs. Each scalar decoder now rejects the integrity marker
+before visiting any fields and reports the source filename, record offset and
+specific race/package source-admission reason. Recovery remains diagnostic;
+it does not repair or authorize source data.
+
+All 58 actor tests pass, including both captured admission regressions and exact
+valid-source projections across strict and forensic modes. Affected all-target
+Clippy with warnings denied, CLI build, formatting and whitespace checks pass.
+The sealed repaired binary produces the same complete 318,736,895-byte installed
+source report and 14,913-byte default authored report as the preserved ACT-07
+binary. The installed report also matches the preserved independent complete
+source oracle. Receipts remain under `local/act07d-trust-validation-20261004-01`
+and `local/act07d-good-source-results-20261004-01`; the binary is sealed under
+`local/act07d-trust-frozen-tools-20261004-01`. No source schema, runtime state,
+save format, scheduling or verified gameplay behavior changes.
+
+## Physical package dependencies (ACT-07B)
+
+`actors::package_dependencies::Catalogue::load` joins the existing PACK scalar
+catalogue and loaded script catalogue to the current winning store. It checks
+complete source cohorts, winning-content identity, each header/body digest and
+every borrowed script version. Deleted winners retain their headers without
+reading bodies. Recovered bodies cannot supply dependency inputs.
+
+Physical CTDA occurrences use the scripting lane's `prepare_record` decoder,
+including exact 20/24/28-byte layouts, preceding field offsets, preserved raw
+words and explicit unknown dependencies. No owning condition group or truth
+value is inferred. SCHR units borrow the existing script handles, version,
+declarations, ordered references and issues. PACK script ownership remains
+`unverified_embedded`; nearest POBA/POEA/POCA markers are recorded separately.
+Pinned xEdit declares these event markers as empty, INAM as an IDLE/NULL FormID
+and TNAM as a DIAL/NULL FormID, each exactly four bytes. Missing markers and
+wrong target kinds receive source findings. Link resolution reuses the existing
+inventory binder; null, missing, deleted and wrong-kind targets stay distinct.
+
+The exact raw installed-source matrix contains 4,885 PACK records, 88,491 fields,
+3,801 CTDA occurrences (24 width-20 and 3,777 width-28), 14,616 SCHR units,
+558 SCDA bodies, 595 SCTX fields, 875 SCRO and 10 SCRV references, and 13
+SLSD/SCVR declarations. Each marker occurs 4,872 times; INAM and TNAM each
+occur 14,616 times. All decoded body hashes match the preserved native oracle.
+The matrix is retained under `local/act07b-pack-matrix-20261004-01`.
+
+Admission limits cover 65,536 package records, 64 MiB per record, 256 MiB total
+decoded bytes, two million physical fields, four million visits over two passes,
+one million condition sites, 128 MiB of condition retained rows, one million
+event fields and links, 262,144 script units and declarations, one million
+references, and 128 MiB of compact serialized definitions. Counts are charged
+across records before retaining further views. Compact projection bytes cover
+definitions rather than total process heap, prior catalogues, descriptor
+receipts or pretty report bytes; borrowed script metadata is not cloned.
+
+`actor-sources --include-packages --include-package-dependencies` is the optional
+consumer. It reuses the fingerprinted command catalogue and reports descriptor
+provenance separately: plugin source receipts do not certify caller-supplied
+signatures. The independent raw Python reader in
+`tools/actor-oracle/package_dependencies.py` reads locked plugin bytes and the
+same exact executable's descriptor bytes. It augments the existing native
+oracle without invoking production decoders or executable handlers. Default
+actor reports keep their existing schema and bytes.
+
+Exact approved scripting prerequisites are VM-03 `5a505ccb` mapped as `de5fb78`
+and VM-03B `0a16e72` mapped as `b1a8d5e`. The latter preserves the exact patch
+while excluding the unrelated earlier `decoded_record_bytes` getter. No other
+script changes were adopted. This slice does not initialize actor state, infer
+event ownership, execute conditions/scripts, choose schedules, or establish AI
+or gameplay parity.
+
+All 65 actor tests pass, including seven new source-join, exact/one-less bound,
+deleted-body, aggregate-record, warm-reload and dependency-only binding cases.
+Affected data/CLI all-target Clippy with warnings denied, CLI build, formatting,
+PowerShell/Python syntax and whitespace checks pass. Complete installed and
+authored projections match the independent reader in cold, warm and reordered
+runs. Installed dependencies retain 3,801 conditions, 14,616 scripts, 558
+compiled bodies, 13 declarations and 885 references, with no new source findings.
+The authored four-package cohort includes an unread deleted winner, four
+conditions, four scripts, seven references and eleven explicit source findings.
+
+Both readers reject fourteen malformed source cases for their specific field
+diagnostic. The CLI rejects fifteen altered complete projections, refuses an
+unsupported executable fingerprint, and requires the package scalar flag before
+opening inputs. The default authored report is byte-equal to the preserved
+ACT-07D binary. An extra raw tag containing space, NUL and `0xFF` exposed display
+label escaping in the independent reader; the corrected reader matches the full
+crafted projection. Corrected installed oracle bytes are equal to the sealed
+original oracles for both load orders. No Rust decoder changed for that fix.
+
+Original comparison receipts are in `local/act07b-original-comparison-20261004-01`;
+final authored receipts are in `local/act07b-authored-comparison-20261004-02`.
+Corrected-reader equality, tag-label and negative/default receipts are in
+`local/act07b-reader-equality-20261004-01`,
+`local/act07b-tag-label-reports-20261004-01` and
+`local/act07b-negative-results-20261004-01`. Final tools are sealed in
+`local/act07b-package-frozen-tools-20261004-02`. The installed comparison used the
+preceding reader, and the equality receipts bind its complete oracle bytes to
+the corrected reader; final authored runs use the corrected reader directly.
+Earlier pilots, fixture setup failures and intermediate private helper drafts
+remain separate. These are source-decoding and engineering-bound receipts,
+with no actor initialization, scheduling, AI, save or gameplay acceptance.

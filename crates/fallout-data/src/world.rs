@@ -1,5 +1,9 @@
 //! The first NV world schema: cell flags and placed-reference dependencies.
 //! Coordinates remain in source units. No renderer or simulation is implied.
+pub mod dependencies;
+pub mod preparation;
+pub mod residency;
+
 use crate::{
     Result,
     identity::FormKey,
@@ -318,6 +322,9 @@ const REFERENCE_BASE_KINDS: &[[u8; 4]] = &[
 ];
 const NPC_BASE_KIND: &[[u8; 4]] = &[*b"NPC_"];
 const CREATURE_BASE_KIND: &[[u8; 4]] = &[*b"CREA"];
+const ENABLE_PARENT_KINDS: &[[u8; 4]] = &[
+    *b"PLYR", *b"REFR", *b"ACRE", *b"ACHR", *b"PGRE", *b"PMIS", *b"PBEA",
+];
 
 fn base_kinds(kind: [u8; 4]) -> &'static [[u8; 4]] {
     // NAME target kinds from the pinned FNV schema. Base-form runtime behavior
@@ -436,16 +443,7 @@ pub fn inspect_cell(
             entry.enable_parent = placement
                 .enable_parent
                 .as_ref()
-                .map(|v| {
-                    dependency(
-                        store,
-                        location,
-                        v.value.target_raw,
-                        &[
-                            *b"PLYR", *b"REFR", *b"ACRE", *b"ACHR", *b"PGRE", *b"PMIS", *b"PBEA",
-                        ],
-                    )
-                })
+                .map(|v| dependency(store, location, v.value.target_raw, ENABLE_PARENT_KINDS))
                 .transpose()?;
             entry.teleport_door = placement
                 .teleport

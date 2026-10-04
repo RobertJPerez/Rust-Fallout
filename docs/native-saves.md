@@ -36,11 +36,97 @@ failures propagate. Imports and deterministic tests can provide an explicit
 identity. Every successful canonical mutation increments a checked 64-bit state
 revision. Revision exhaustion rejects the operation before changing state.
 
-`Captured::at_boundary` owns a complete snapshot. Publication never reads later
-world mutations. A repository rejects other campaigns, changed content cohorts,
+`Captured::at_boundary` owns a complete snapshot and a bounded immutable schema
+context. Publication never reads later world mutations. A repository rejects
+other campaigns, changed content cohorts,
 older revisions, backward clocks/allocators and different states at the same
 revision. Identical repeated captures are allowed. A writer lock serializes
 publication across processes; contention returns a busy error.
+
+## Background writer
+
+`SaveWorker` publishes accepted captures in submission order on one named thread.
+Its capacity includes the snapshot being written and every queued snapshot. Choose
+between one and 64 outstanding requests; two is a reasonable starting point for
+the host. `SaveWorker::start` also applies a 256 MiB aggregate snapshot reservation
+budget. `SaveWorker::start_with_budget(repository, count, bytes)` supplies an
+explicit positive budget. Admission reserves each capture's declared
+`max_snapshot_bytes`, with one synchronized count/byte decision. Default 64 MiB
+snapshot limits therefore permit at most four simultaneous captures even when
+the configured request count is larger. No admission serialization is required.
+
+The charge is a conservative serialized snapshot upper bound, not exact heap
+usage or a total process memory ceiling. Capture itself copies canonical state at
+the host boundary. Each capture keeps its runtime limits, and encoding still
+enforces that snapshot byte limit on the worker. Choose an aggregate budget that
+admits the snapshot limits used when creating or restoring the host world.
+
+```rust,ignore
+let mut saves = SaveWorker::start(repository, 2)?;
+let capture = Captured::at_boundary(&world);
+let mut ticket = match saves.try_submit(capture) {
+    Ok(ticket) => ticket,
+    Err(rejected) => {
+        // Keep rejected.capture if this exact boundary should be retried.
+        // Admission is not a write receipt; report the rejection to the host.
+        return Err(rejected.into());
+    }
+};
+
+// Poll on later frames. None means that filesystem work is still pending.
+if let Some(receipt) = ticket.try_wait()? {
+    // A receipt confirms this request's publication, including its generation.
+    report_save(receipt);
+}
+```
+
+Keep each ticket until its terminal success or error has been handled. Results
+are delivered once; polling a consumed ticket reports `AlreadyCollected`.
+Count or byte saturation, or a stopped worker, returns the original capture to
+the caller. Oversized declared limits reject before publication. Active and
+queued jobs retain their reservations until their owned storage is released;
+completion, writer errors, panic, disconnect and draining shutdown release each
+reservation exactly once. Dropping a result ticket does not cancel an accepted
+save or release its reservation early. A short mutex protects only the admission
+counters; filesystem work and result delivery occur outside that critical section.
+Accepted requests are neither combined nor automatically retried. A busy
+repository, stale revision or disk failure is returned on that request's ticket;
+the writer continues to the next request. A stopped writer reports an explicit
+completion error rather than claiming that the state was saved.
+
+`SaveStatus::new(ticket)` provides an owned application adapter for presentation
+and host shutdown. `state()` borrows the last observation; `poll()` nonblockingly
+collects the existing ticket and returns `SaveState::Pending`,
+`SaveState::Published(WriteReceipt)` or `SaveState::Failed(CompletionError)`.
+Terminal receipts and errors remain readable across frames. Failed publication,
+writer disconnection and a previously consumed ticket never display a published
+status. This adapter owns one result, adds no writer or event journal, and does
+not read or mutate canonical state. Dropping it retains the existing rule that
+an accepted write continues.
+
+For orderly shutdown, drain/join `SaveWorker::finish` outside the frame loop and
+inspect each status separately: joining the writer still does not prove that
+every request succeeded. `SaveStatus::wait` reuses the ticket's blocking collection
+for shutdown and offline tools, returning an already observed terminal result
+without collecting twice. The existing native-save probe consumes this adapter
+and retains its report, recovery and durability contracts. Presentation can bind
+the same `poll()` boundary; this producer change does not claim a completed UI.
+
+Call `finish` outside the frame loop to close admission, drain accepted work and
+join the writer. Successful shutdown confirms draining and joining; individual
+write results still come from their tickets. Tickets remain usable afterward. Dropping a ticket does not
+cancel its write. Dropping the worker also drains and joins, so early returns
+cannot detach a writer that is still changing save slots. This can wait on a
+slow filesystem; explicit shutdown provides the worker-panic result. Process
+termination and filesystem recovery retain the separate repository guarantees
+described below.
+
+The installed-content `native-save-probe` uses this writer without changing its
+report or container schemas. Seven additional worker tests cover active/queued
+saturation, exact returned captures, FIFO generations, dropped tickets, drain on
+drop, worker panic, consumed results, independent world/catalogue lifetimes,
+script/reference/item/event restoration and request-error recovery. These are
+native host tests, not measurements of Bethesda quicksave timing or behavior.
 
 ## Container contract
 
@@ -59,6 +145,25 @@ The fixed overhead is 232 bytes. The default snapshot limit is 64 MiB; filesyste
 length is checked before allocation. META must agree with STAT's identity,
 revision, clocks, schema, length and cohort. Restoring also validates complete
 local schemas, content versions, all persistent links and pending event order.
+
+Current snapshot decoding and explicit schema-1/2 migration first traverse the
+bounded JSON input without constructing owned state or collection vectors. The
+pass counts references, script instances, pending events, aggregate locals and
+items, inventory banks, per-context arguments, and per-item/aggregate links and
+opaque bytes. Optional null item facts contribute no links. Escaped field names
+and positional struct arrays use the same limits as ordinary object fields.
+Every nested value is traversed with a recursion bound, including malformed or
+irrelevant fields; `IgnoredAny` is not used for this admission pass. JSON may use
+string scratch space up to the input byte limit. This is collection admission,
+not a complete heap ceiling.
+
+The existing strict DTO decoder and restoration validation still run afterward,
+so unknown/duplicate fields, invalid values, identity/link errors and unsupported
+schemas remain rejected. Oversized collections return the existing capacity
+errors before owned deserialization. Snapshot and native-envelope schemas and
+explicit migration semantics are unchanged. `snapshot_admission` tests cover
+early rejection, aggregate and exact limits, escaped names, positional current
+and legacy forms, malformed/deep input and source-bound restoration.
 
 Checkpoint 28's in-memory schema 1 can be migrated explicitly with
 `Snapshot::migrate_v1`, supplying a campaign identity. It preserves supplied
@@ -86,10 +191,78 @@ temporary is removed on ordinary failure. Interrupted processes can leave owned
 temporaries; those are not treated as valid save slots. A blocked backup write
 leaves current intact. Unknown or corrupt current state prevents a new commit.
 
+Publication checks intrinsic snapshot identities and links for both the proposed
+capture and the decoded current state before preparing any temporary or rotating
+previous. Restoration shares those checks: allocator bounds and unique identities,
+owners, local/context references, item/script links and pending-event order/clocks.
+A checksummed current snapshot with a dangling link therefore cannot overwrite
+a valid previous save. Rejection preserves both slots; recovery and repair remain
+explicit, followed by a fresh retry. The public APIs and native wire bytes are
+unchanged. Publication also checks exact source definition versions, complete
+local declaration banks and compiled event sites using the same checks as restore.
+The capture retains shared immutable schemas already prepared by its world,
+including schemas of removed instances, without copying or borrowing a catalogue.
+It can outlive both the world and its source loader.
+
+The context admits at most `max_instances` distinct cached definitions,
+`max_locals` aggregate declarations and `max_event_blocks` compiled event sites.
+Copied source identity strings are limited by `max_snapshot_bytes`. Admission
+checks the complete cache before allocating its owned index. Exceeding any bound
+is reported on publication without preparing a temporary or changing either slot.
+These are separate logical context bounds; the worker's existing declared snapshot
+byte reservation is unchanged and remains distinct from total heap usage.
+
+A current definition absent from the capture's prepared context is refused
+explicitly, even if container checksums match. Load current against its catalogue
+to prepare its schemas before changing/removing instances and recapturing; if it
+cannot restore, select explicit previous recovery and repair. Publication never
+guesses missing declaration kinds or silently falls back to intrinsic checks.
+Uninitialized unsupported locals, exact numeric bits, schema-1/2 migrations,
+explicit recovery and the native envelope remain unchanged.
+
 Strict loading is the default. Explicit fallback returns the restored previous
 state and the current failure without rewriting current. Explicit repair first
 fully restores previous against the catalogue, then copies it to current. Neither
 path drops unsupported state or conceals recovery in a successful current load.
+
+`native-save-probe --engineering-event-commit FILE` reuses the bounded explicit
+[script-state transaction request](script-runtime-state.md). It validates and
+commits the engineering request before creating the new repository or starting
+its writer; rejected requests publish no save. The inherited save worker then
+stores captures from before and after that transaction. The probe checks both
+complete snapshots, previous-slot fallback and explicit repair, and republishes
+the committed snapshot for a separate cold `native-load-probe` process. Its
+optional report includes the transaction receipt, exact snapshot hashes and the
+strict current-slot failure. The default probe and report remain unchanged.
+
+Staged save-worker tests retain full script, event, reference and inventory state
+after the originating world and catalogue are dropped. Corrupt-current fallback
+restores the pending precommit event; repair permits freshly staging that event
+again in the restored world. Separate publication interruption tests terminate
+the repository writer at all five observed stages, then cold processes verify a
+complete pending or committed boundary and an actual restarted save worker
+publishes it again. The interruption observer exercises the existing repository
+publication path used by the save worker. It does not add a second journal or
+change the save format.
+
+The existing staged interruption test also compares complete current and previous
+container bytes at every observed stage, before restarting the save worker.
+Previous is absent until its publication; afterward, its bytes match the complete
+precommit capture. Separate cold children verify explicit previous-slot fallback
+after truncating a copied current slot, leaving both copied slots unchanged.
+Set `FALLOUT_STAGED_INTERRUPTION_EVIDENCE` to a fresh existing private directory
+to retain authored inputs, interrupted slot copies, restarted worker slots and
+per-stage metadata for independent native-reader and cold CLI comparisons.
+Normal test runs use an automatically removed temporary directory.
+
+Repeated transaction tests retain proposals across actual native loads and an
+equal snapshot replacement. The earlier world epoch rejects those proposals even
+when every persisted field matches. Duplicate proposals and acknowledged-head
+requests also reject before changing the restored world or save slots. Two fresh
+head commits each advance revision once; explicit previous recovery can stage
+the remaining head again and reproduce identical current/previous bytes.
+Set `FALLOUT_STAGED_RESTORE_EVIDENCE` to a fresh existing private directory to
+retain the three exact captures and rejection receipts for cold native readers.
 
 File contents are synced using [Rust File::sync_all](https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all),
 and publication uses [same-directory rename](https://doc.rust-lang.org/std/fs/fn.rename.html).

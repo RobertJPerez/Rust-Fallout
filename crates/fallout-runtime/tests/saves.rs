@@ -4,7 +4,7 @@ use fallout_runtime::{
     Limits, World,
     events::{Context, Trigger},
     identity::{CampaignId, Owner, Value},
-    save::{self, Captured, Recovery, Repository, Slot, Stage, format},
+    save::{self, Captured, Recovery, Repository, SaveWorker, Slot, Stage, format},
     snapshot::Snapshot,
 };
 use sha2::{Digest, Sha256};
@@ -560,6 +560,276 @@ fn cold_process_reopens_snapshot_with_context_and_exact_values() {
     assert!(reader.0.wait().unwrap().success());
 }
 
+fn staged_cold_seed(catalogue: &fallout_data::loaded_scripts::Catalogue) -> World<'_> {
+    let mut world = seed(catalogue);
+    let reference = world.register_reference(Some(form(0x100))).unwrap();
+    let handle = world.handle(world.snapshot().instances[0].id).unwrap();
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: fallout_runtime::identity::ReferenceValue::Live { id: reference },
+                },
+            )],
+        )
+        .unwrap();
+    world.acknowledge(1).unwrap();
+    world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context {
+                calling_reference: Some(reference),
+                target: Some(fallout_runtime::identity::ReferenceValue::Live { id: reference }),
+                arguments: vec![fallout_runtime::identity::ReferenceValue::Live { id: reference }],
+                ..Context::default()
+            },
+        )
+        .unwrap();
+    world
+}
+
+#[test]
+fn staged_commit_cold_boundaries_preserve_pending_work_and_reference_links() {
+    let directory = tempfile::tempdir().unwrap();
+    write_fixture(directory.path(), false);
+    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    let mut world = staged_cold_seed(&catalogue);
+    let before = world.snapshot();
+    let stage = world
+        .stage_event_changes(
+            2,
+            &[(
+                42,
+                Value::Number {
+                    bits: 0x7ff8_1234_5678_9abc,
+                },
+            )],
+            true,
+        )
+        .unwrap();
+    let before_repository = repo(&directory.path().join("native-stage-before"), &world);
+    before_repository
+        .commit(&Captured::at_boundary(&world))
+        .unwrap();
+    assert_eq!(world.snapshot(), before);
+    let receipt = world.commit_event_changes(stage).unwrap();
+    assert_eq!(receipt.after_revision, before.state_revision + 1);
+    let after_repository = repo(&directory.path().join("native-stage-after"), &world);
+    after_repository
+        .commit(&Captured::at_boundary(&world))
+        .unwrap();
+    for mode in ["before", "after"] {
+        let ready = directory.path().join(format!("stage-{mode}-success"));
+        let mut reader = child(directory.path(), &format!("cold-stage:{mode}"), &ready);
+        await_ready(&ready, &mut reader);
+        assert!(reader.0.wait().unwrap().success());
+    }
+}
+
+const STAGED_SAVE_STAGES: [Stage; 5] = [
+    Stage::CurrentTempWritten,
+    Stage::CurrentTempSynced,
+    Stage::PreviousTempSynced,
+    Stage::PreviousPublished,
+    Stage::CurrentPublished,
+];
+
+fn expected_staged_after(mut before: Snapshot) -> Snapshot {
+    before.state_revision += 1;
+    before.pending_events.remove(0);
+    before.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number {
+        bits: 0x7ff8_1234_5678_9abc,
+    };
+    before
+}
+
+fn staged_publication_fixture() -> (Option<tempfile::TempDir>, PathBuf) {
+    match std::env::var_os("FALLOUT_STAGED_INTERRUPTION_EVIDENCE") {
+        Some(root) => {
+            let root = PathBuf::from(root).join("authored");
+            fs::create_dir(&root).unwrap();
+            (None, root)
+        }
+        None => {
+            let directory = tempfile::tempdir().unwrap();
+            let root = directory.path().to_path_buf();
+            (Some(directory), root)
+        }
+    }
+}
+
+fn copy_stage_repository(source: &Path, destination: &Path) {
+    fs::create_dir(destination).unwrap();
+    for entry in fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        assert!(entry.file_type().unwrap().is_file());
+        fs::copy(entry.path(), destination.join(entry.file_name())).unwrap();
+    }
+}
+
+#[test]
+fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage() {
+    let (_temporary, root) = staged_publication_fixture();
+    write_fixture(&root, false);
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let mut rows = Vec::new();
+    for (index, stage) in STAGED_SAVE_STAGES.into_iter().enumerate() {
+        let world = staged_cold_seed(&catalogue);
+        let before = world.snapshot();
+        let repository = repo(&root.join(format!("native-stage-kill-{index}")), &world);
+        let before_bytes = format::encode(&Captured::at_boundary(&world), 1).unwrap();
+        let after_world = World::restore(
+            &catalogue,
+            expected_staged_after(before.clone()),
+            Limits::default(),
+        )
+        .unwrap();
+        let after_bytes = format::encode(&Captured::at_boundary(&after_world), 2).unwrap();
+        let mut worker = SaveWorker::start(repository.clone(), 1).unwrap();
+        let saved = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+        worker.finish().unwrap();
+        assert_eq!(saved.wait().unwrap().metadata.generation, 1);
+        assert_eq!(
+            fs::read(repository.path().join("current.frsv")).unwrap(),
+            before_bytes
+        );
+        let ready = root.join(format!("stage-kill-ready-{index}"));
+        let mut writer = child(&root, &format!("kill-stage:{index}"), &ready);
+        await_ready(&ready, &mut writer);
+        assert!(matches!(
+            repository.load(&catalogue, Limits::default(), Recovery::Strict),
+            Err(save::Error::Busy)
+        ));
+        writer.0.kill().unwrap();
+        writer.0.wait().unwrap();
+        let (restored, receipt) = repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap();
+        let published = stage == Stage::CurrentPublished;
+        let expected = if published {
+            expected_staged_after(before.clone())
+        } else {
+            before.clone()
+        };
+        assert_eq!(restored.snapshot(), expected);
+        assert_eq!(receipt.metadata.generation, if published { 2 } else { 1 });
+        assert_eq!(
+            fs::read(repository.path().join("current.frsv")).unwrap(),
+            if published {
+                &after_bytes
+            } else {
+                &before_bytes
+            }
+            .as_slice()
+        );
+        assert_eq!(repository.path().join("previous.frsv").exists(), index >= 3);
+        if index >= 3 {
+            assert_eq!(
+                fs::read(repository.path().join("previous.frsv")).unwrap(),
+                before_bytes
+            );
+            assert_eq!(
+                format::decode(
+                    &fs::read(repository.path().join("previous.frsv")).unwrap(),
+                    Limits::default()
+                )
+                .unwrap()
+                .snapshot,
+                before
+            );
+        }
+        let observed = root.join(format!("observed-stage-{index}"));
+        copy_stage_repository(repository.path(), &observed);
+        let cold_ready = root.join(format!("stage-kill-cold-{index}"));
+        let mut cold = child(
+            &root,
+            &format!(
+                "cold-killed-stage:{index}:{}",
+                if published { "after" } else { "before" }
+            ),
+            &cold_ready,
+        );
+        await_ready(&cold_ready, &mut cold);
+        assert!(cold.0.wait().unwrap().success());
+        if index >= 3 {
+            let fallback = root.join(format!("fallback-stage-{index}"));
+            copy_stage_repository(repository.path(), &fallback);
+            fs::write(fallback.join("current.frsv"), b"truncated").unwrap();
+            let cold_ready = root.join(format!("stage-fallback-cold-{index}"));
+            let mut cold = child(
+                &root,
+                &format!("cold-killed-fallback:{index}:before"),
+                &cold_ready,
+            );
+            await_ready(&cold_ready, &mut cold);
+            assert!(cold.0.wait().unwrap().success());
+            assert_eq!(
+                fs::read(fallback.join("current.frsv")).unwrap(),
+                b"truncated"
+            );
+            assert_eq!(
+                fs::read(fallback.join("previous.frsv")).unwrap(),
+                before_bytes
+            );
+        }
+        let mut resumed = SaveWorker::start(repository.clone(), 1).unwrap();
+        let saved = resumed
+            .try_submit(Captured::at_boundary(&restored))
+            .unwrap();
+        resumed.finish().unwrap();
+        assert_eq!(
+            saved.wait().unwrap().metadata.generation,
+            if published { 3 } else { 2 }
+        );
+        assert_eq!(
+            repository
+                .load(&catalogue, Limits::default(), Recovery::Strict)
+                .unwrap()
+                .0
+                .snapshot(),
+            expected
+        );
+        let resumed = format::decode(
+            &fs::read(repository.path().join("current.frsv")).unwrap(),
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(repository.path().join("previous.frsv")).unwrap(),
+            if published {
+                &after_bytes
+            } else {
+                &before_bytes
+            }
+            .as_slice()
+        );
+        rows.push(serde_json::json!({
+            "stage":format!("{stage:?}"), "index":index,
+            "before":format::decode(&before_bytes, Limits::default()).unwrap().metadata,
+            "after":format::decode(&after_bytes, Limits::default()).unwrap().metadata,
+            "interrupted_current":receipt.metadata, "previous_published":index >= 3,
+            "resumed_current":resumed.metadata,
+            "cold_full_state_equal":true, "cold_fallback_verified":index >= 3
+        }));
+    }
+    fs::write(
+        root.join("interruption-receipt.json"),
+        serde_json::to_vec_pretty(&rows).unwrap(),
+    )
+    .unwrap();
+}
+
 #[test]
 #[ignore = "helper launched only by native save process tests"]
 fn native_save_child() {
@@ -575,6 +845,125 @@ fn native_save_child() {
         assert_eq!(world.snapshot(), seed(&catalogue).snapshot());
         assert_eq!(world.pending_events().len(), 1);
         fs::write(ready, b"verified").unwrap();
+        return;
+    }
+    if let Some(boundary) = mode.strip_prefix("cold-stage:") {
+        let repository =
+            Repository::open(&root.join(format!("native-stage-{boundary}")), &[]).unwrap();
+        let (world, _) = repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap();
+        let mut expected = staged_cold_seed(&catalogue).snapshot();
+        if boundary == "after" {
+            expected.state_revision += 1;
+            expected.pending_events.remove(0);
+            expected.instances[0]
+                .locals
+                .iter_mut()
+                .find(|local| local.index == 42)
+                .unwrap()
+                .value = Value::Number {
+                bits: 0x7ff8_1234_5678_9abc,
+            };
+        } else {
+            assert_eq!(boundary, "before");
+        }
+        assert_eq!(world.snapshot(), expected);
+        let handle = world.handle(expected.instances[0].id).unwrap();
+        assert_eq!(
+            world.instance(handle).unwrap().local(90).unwrap(),
+            &Value::Reference {
+                value: fallout_runtime::identity::ReferenceValue::Live {
+                    id: expected.references[0].id
+                }
+            }
+        );
+        fs::write(ready, b"verified staged boundary").unwrap();
+        return;
+    }
+    let cold_boundary = mode
+        .strip_prefix("cold-killed-stage:")
+        .map(|parameters| (parameters, false))
+        .or_else(|| {
+            mode.strip_prefix("cold-killed-fallback:")
+                .map(|parameters| (parameters, true))
+        });
+    if let Some((parameters, fallback)) = cold_boundary {
+        let (index, boundary) = parameters.split_once(':').unwrap();
+        let index: usize = index.parse().unwrap();
+        let name = if fallback {
+            "fallback-stage"
+        } else {
+            "native-stage-kill"
+        };
+        let repository = Repository::open(&root.join(format!("{name}-{index}")), &[]).unwrap();
+        if fallback {
+            assert!(
+                repository
+                    .load(&catalogue, Limits::default(), Recovery::Strict)
+                    .is_err()
+            );
+        }
+        let (world, receipt) = repository
+            .load(
+                &catalogue,
+                Limits::default(),
+                if fallback {
+                    Recovery::PreviousIfCurrentInvalid
+                } else {
+                    Recovery::Strict
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            receipt.slot,
+            if fallback {
+                Slot::Previous
+            } else {
+                Slot::Current
+            }
+        );
+        assert_eq!(receipt.current_failure.is_some(), fallback);
+        assert!(!receipt.current_repaired);
+        let before = staged_cold_seed(&catalogue).snapshot();
+        let expected = match boundary {
+            "before" => before,
+            "after" => expected_staged_after(before),
+            _ => panic!("invalid staged boundary"),
+        };
+        assert_eq!(world.snapshot(), expected);
+        fs::write(ready, b"verified complete interrupted staged boundary").unwrap();
+        return;
+    }
+    if let Some(index) = mode.strip_prefix("kill-stage:") {
+        let index: usize = index.parse().unwrap();
+        let stage = STAGED_SAVE_STAGES[index];
+        let repository =
+            Repository::open(&root.join(format!("native-stage-kill-{index}")), &[]).unwrap();
+        let mut world = staged_cold_seed(&catalogue);
+        let staged = world
+            .stage_event_changes(
+                2,
+                &[(
+                    42,
+                    Value::Number {
+                        bits: 0x7ff8_1234_5678_9abc,
+                    },
+                )],
+                true,
+            )
+            .unwrap();
+        world.commit_event_changes(staged).unwrap();
+        repository
+            .commit_observing(&Captured::at_boundary(&world), |observed| {
+                if observed == stage {
+                    fs::write(&ready, b"staged publication ready").unwrap();
+                    loop {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                }
+            })
+            .unwrap();
         return;
     }
     let index = mode

@@ -13,6 +13,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+const LINKED_REFERENCE_KINDS: [[u8; 4]; 7] = [
+    *b"REFR", *b"ACRE", *b"ACHR", *b"PGRE", *b"PMIS", *b"PBEA", *b"PLYR",
+];
+
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_records: usize,
@@ -56,6 +60,10 @@ pub enum Value {
     },
     LevelModifier {
         modifier: i32,
+    },
+    LinkedReference {
+        reference: inventory::Binding,
+        schema_kind_allowed: Option<bool>,
     },
 }
 #[derive(Debug, Serialize)]
@@ -206,7 +214,9 @@ impl Catalogue {
                     let offset = u32::try_from(field.payload_offset).map_err(|_| {
                         crate::Error::Unsupported("placed actor offset exceeds u32".into())
                     })?;
-                    if matches!(&field.kind, b"XEZN" | b"XMRC" | b"XLCM") && field.data.len() != 4 {
+                    if matches!(&field.kind, b"XEZN" | b"XMRC" | b"XLCM" | b"XLKR")
+                        && field.data.len() != 4
+                    {
                         return Err(malformed(
                             &definition.source.plugin,
                             record.header.offset,
@@ -254,7 +264,7 @@ impl Catalogue {
                     store,
                     at,
                     placement.base.value,
-                    expected_base,
+                    &[expected_base],
                     &mut binding_counts,
                     &mut definition.findings,
                     base_offset,
@@ -262,7 +272,7 @@ impl Catalogue {
                 definition.base = Some(base);
                 definition.base_schema_kind_allowed = allowed;
                 result.counts.bindings += 1;
-                let mut seen = [0usize; 3];
+                let mut seen = [0usize; 4];
                 let mut field_index = 0;
                 plugin::visit_subrecords(&record, &definition.source.plugin, |field| {
                     let output = &mut definition.fields[field_index];
@@ -271,6 +281,7 @@ impl Catalogue {
                         b"XEZN" => Some(0),
                         b"XMRC" => Some(1),
                         b"XLCM" => Some(2),
+                        b"XLKR" => Some(3),
                         _ => None,
                     };
                     let Some(index) = selected else {
@@ -284,6 +295,7 @@ impl Catalogue {
                                 "multiple_placed_encounter_zone_fields",
                                 "multiple_placed_merchant_fields",
                                 "multiple_placed_level_modifier_fields",
+                                "multiple_placed_linked_reference_fields",
                             ][index],
                         });
                     }
@@ -300,7 +312,11 @@ impl Catalogue {
                                 "placed actor binding budget exceeded".into(),
                             ));
                         }
-                        let expected = if index == 0 { *b"ECZN" } else { *b"REFR" };
+                        let expected: &[[u8; 4]] = match index {
+                            0 => &[*b"ECZN"],
+                            1 => &[*b"REFR"],
+                            _ => &LINKED_REFERENCE_KINDS,
+                        };
                         let (binding, allowed) = bind(
                             store,
                             at,
@@ -316,9 +332,14 @@ impl Catalogue {
                                 zone: binding,
                                 schema_kind_allowed: allowed,
                             }
-                        } else {
+                        } else if index == 1 {
                             Value::MerchantContainer {
                                 container: binding,
+                                schema_kind_allowed: allowed,
+                            }
+                        } else {
+                            Value::LinkedReference {
+                                reference: binding,
                                 schema_kind_allowed: allowed,
                             }
                         }
@@ -370,7 +391,7 @@ fn bind(
     store: &RecordStore,
     at: Location,
     raw: u32,
-    expected: [u8; 4],
+    expected: &[[u8; 4]],
     counts: &mut inventory::Counts,
     findings: &mut Vec<Finding>,
     offset: u32,
@@ -379,7 +400,7 @@ fn bind(
     let allowed = binding
         .target
         .as_ref()
-        .map(|target| target.kind == expected);
+        .map(|target| expected.contains(&target.kind));
     let code = match binding.status {
         inventory::Status::Missing => Some("placement_target_missing"),
         inventory::Status::Deleted => Some("placement_target_deleted"),

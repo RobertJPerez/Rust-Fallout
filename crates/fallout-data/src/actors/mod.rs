@@ -3,9 +3,13 @@
 //! and winning-content identity. No live actor state is initialized.
 pub mod associations;
 pub mod classes;
+pub mod dependencies;
 pub mod factions;
 pub mod fields;
+pub mod package_dependencies;
+pub mod packages;
 pub mod placements;
+pub mod races;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};
 use serde::Serialize;
 use std::collections::BTreeMap;

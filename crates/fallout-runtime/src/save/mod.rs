@@ -3,9 +3,14 @@
 //! are separate from original `.fos` compatibility and power-loss guarantees.
 pub mod format;
 mod repository;
+mod source_validation;
+mod status;
+mod worker;
 
 use crate::{Limits, World, snapshot::Snapshot};
 pub use repository::{LoadReceipt, Recovery, Repository, Slot, Stage, WriteReceipt};
+pub use status::{SaveState, SaveStatus};
+pub use worker::{CompletionError, Rejection, SaveTicket, SaveWorker, SubmitFailure, WorkerError};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -38,12 +43,14 @@ fn io(path: &std::path::Path, source: std::io::Error) -> Error {
 pub struct Captured {
     pub(crate) snapshot: Snapshot,
     pub(crate) limits: Limits,
+    source_validation: source_validation::SourceValidation,
 }
 impl Captured {
     pub fn at_boundary(world: &World<'_>) -> Self {
         Self {
             snapshot: world.snapshot(),
             limits: world.limits,
+            source_validation: source_validation::SourceValidation::capture(world),
         }
     }
     pub fn snapshot(&self) -> &Snapshot {

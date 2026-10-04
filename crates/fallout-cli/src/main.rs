@@ -22,13 +22,18 @@ mod loaded_script_inspection;
 mod narrative_inspection;
 mod native_migration_inspection;
 mod native_save_inspection;
+mod nif_animation_inspection;
 mod nif_skin_inspection;
 mod operand_inspection;
 mod pe_image;
 mod query_inspection;
 mod quest_script_inspection;
+#[path = "../../../tools/retail-profile/capture.rs"]
+mod retail_profile;
 mod script_profile;
 mod script_state_inspection;
+#[path = "../../../tools/retail-script-probes/runner.rs"]
+mod script_trace;
 mod shared_runtime_inspection;
 mod source_item_inspection;
 mod terrain_compare;
@@ -90,6 +95,28 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Decode bounded authored animation framing and compare raw native fields.
+    NifAnimation {
+        input: PathBuf,
+        #[arg(long)]
+        oracle_report: Option<PathBuf>,
+        #[arg(long)]
+        include_keyframes: bool,
+        #[arg(long)]
+        include_splines: bool,
+        #[arg(long)]
+        include_spline_components: bool,
+        #[arg(long)]
+        include_bool_interpolators: bool,
+        #[arg(long)]
+        include_bool_keys: bool,
+        #[arg(long, requires_all = ["sample_block", "sample_channel"], allow_hyphen_values = true)]
+        sample_time: Option<f64>,
+        #[arg(long, requires = "sample_time")]
+        sample_block: Option<u32>,
+        #[arg(long, value_enum, requires = "sample_time")]
+        sample_channel: Option<nif_animation_inspection::SampleChannel>,
+    },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
     NifSkin {
         input: PathBuf,
@@ -178,6 +205,16 @@ enum Command {
         include_factions: bool,
         #[arg(long)]
         include_placements: bool,
+        #[arg(long)]
+        include_races: bool,
+        #[arg(long)]
+        include_packages: bool,
+        #[arg(long, requires = "include_packages")]
+        include_package_dependencies: bool,
+        #[arg(long)]
+        include_dependencies: bool,
+        #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]
+        dependency_roots: Vec<identity::FormKey>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -242,6 +279,9 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         new_repository: PathBuf,
+        /// Explicit bounded engineering transaction checked before creating a save.
+        #[arg(long)]
+        engineering_event_commit: Option<PathBuf>,
     },
     /// Restore a native save in a fresh process against exact original content.
     NativeLoadProbe {
@@ -276,6 +316,9 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+        /// Explicit bounded engineering inputs for a staged local/event-head commit.
+        #[arg(long)]
+        engineering_event_commit: Option<PathBuf>,
     },
     /// Prepare bounded source windows for explicit engineering pending events.
     EventFrames {
@@ -288,6 +331,23 @@ enum Command {
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
     },
+    /// Compare imported semantic captures against exact prepared script sources.
+    ScriptTrace {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        profile_receipt: PathBuf,
+        #[arg(long)]
+        original_trace: Option<PathBuf>,
+        #[arg(long)]
+        replacement_trace: Option<PathBuf>,
+    },
     /// Inspect source operands against explicit live engineering storage.
     EventOperands {
         #[arg(long)]
@@ -299,6 +359,15 @@ enum Command {
         /// Explicit identity already present in the engineering world.
         #[arg(long)]
         player_id: Option<u64>,
+        /// Prepare immutable source plans once and reuse them across events.
+        #[arg(long)]
+        prepared_sources: bool,
+        /// Inventory source-bound native capabilities with faithful rejection.
+        #[arg(long)]
+        native_capabilities: bool,
+        /// Exercise one source-bound local copy over explicit engineering inputs.
+        #[arg(long, conflicts_with = "native_capabilities")]
+        engineering_local_copy: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -317,6 +386,13 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+        #[arg(long)]
+        include_source_owners: bool,
+        #[arg(long)]
+        include_source_runs: bool,
+        /// Read one explicit engineering query from a canonical snapshot; no condition truth.
+        #[arg(long)]
+        engineering_query_input: Option<PathBuf>,
     },
     /// Hash original compressed record inputs and exact decoded outputs.
     CompressedRecords {
@@ -488,6 +564,9 @@ enum Command {
         /// Resolve LTEX/TXST records and verify authored texture archive bytes.
         #[arg(long)]
         inspect_textures: bool,
+        /// Prepare exact one-LAND texture sources through bounded cancellable jobs.
+        #[arg(long, requires = "inspect_textures", conflicts_with = "body_cache")]
+        prepare_textures: bool,
         /// Expand authored quadrant alpha samples under the inspection blend model.
         #[arg(long)]
         inspect_blends: bool,
@@ -547,6 +626,9 @@ enum Command {
         /// Decode unambiguous model candidates and inspect their NIF containers.
         #[arg(long)]
         inspect_models: bool,
+        /// Include a bounded source-only CELL/WRLD/placement dependency graph.
+        #[arg(long)]
+        include_dependencies: bool,
         /// Cache decoded model bytes outside the installation for independent tools.
         #[arg(long, requires = "inspect_models")]
         model_cache: Option<PathBuf>,
@@ -564,6 +646,30 @@ enum Command {
     Baseline {
         #[arg(long)]
         install: PathBuf,
+    },
+    /// Observe explicit NV configuration sources; runtime precedence remains unverified.
+    VfsProfile {
+        #[arg(long)]
+        install: PathBuf,
+        /// Explicit Windows Known Folder Documents root, including redirects.
+        #[arg(long)]
+        documents: PathBuf,
+        #[arg(long)]
+        local_appdata: PathBuf,
+    },
+    /// Capture exact original files into a fresh private package; never launches the game.
+    RetailProfileCapture {
+        #[arg(long)]
+        install: PathBuf,
+        /// Defaults to the actual Windows Documents known folder, including redirects.
+        #[arg(long)]
+        documents: Option<PathBuf>,
+        /// Defaults to the actual Windows LocalApplicationData known folder.
+        #[arg(long)]
+        local_appdata: Option<PathBuf>,
+        /// New directory under an existing parent, outside all source roots.
+        #[arg(long)]
+        package: PathBuf,
     },
     /// Count all top-level ESM/ESP records and BSA entries, preserving unknowns.
     Census {
@@ -791,15 +897,27 @@ fn run(args: Args) -> Result<()> {
             include_classes,
             include_factions,
             include_placements,
+            include_races,
+            include_packages,
+            include_package_dependencies,
+            include_dependencies,
+            dependency_roots,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
-                include_associations,
-                include_classes,
-                include_factions,
-                include_placements,
+                actor_inspection::Options {
+                    include_associations,
+                    include_classes,
+                    include_factions,
+                    include_placements,
+                    include_races,
+                    include_packages,
+                    include_package_dependencies,
+                    include_dependencies,
+                    dependency_roots,
+                },
             )?;
             if let Some(oracle) = compare_oracle {
                 actor_inspection::compare(&mut report, &oracle)?;
@@ -819,6 +937,22 @@ fn run(args: Args) -> Result<()> {
                     .unwrap_or(0)
                     != 0
                 || report["actor_placements"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_races"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_packages"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_package_dependencies"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_dependencies"]["counts"]["source_findings"]
                     .as_u64()
                     .unwrap_or(0)
                     != 0
@@ -903,8 +1037,14 @@ fn run(args: Args) -> Result<()> {
             install,
             load_order,
             new_repository,
+            engineering_event_commit,
         } => {
-            let report = native_save_inspection::probe(&install, &load_order, &new_repository)?;
+            let report = native_save_inspection::probe(
+                &install,
+                &load_order,
+                &new_repository,
+                engineering_event_commit.as_deref(),
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeLoadProbe {
@@ -933,9 +1073,14 @@ fn run(args: Args) -> Result<()> {
             install,
             load_order,
             index_cache,
+            engineering_event_commit,
         } => {
-            let report =
-                script_state_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            let report = script_state_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                engineering_event_commit.as_deref(),
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::EventFrames {
@@ -955,19 +1100,58 @@ fn run(args: Args) -> Result<()> {
                 return Err("Pending events retain unresolved source findings; see report".into());
             }
         }
+        Command::ScriptTrace {
+            install,
+            load_order,
+            index_cache,
+            manifest,
+            profile_receipt,
+            original_trace,
+            replacement_trace,
+        } => {
+            let report = script_trace::inspect(script_trace::Inputs {
+                install: &install,
+                load_order: &load_order,
+                cache: index_cache.as_deref(),
+                manifest: &manifest,
+                profile_receipt: &profile_receipt,
+                original: original_trace.as_deref(),
+                replacement: replacement_trace.as_deref(),
+            })?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["comparison"]["status"] != "matched" {
+                return Err(
+                    "Semantic trace comparison is blocked or mismatched; see report".into(),
+                );
+            }
+        }
         Command::EventOperands {
             install,
             load_order,
             index_cache,
             player_id,
+            prepared_sources,
+            native_capabilities,
+            engineering_local_copy,
         } => {
             let report = event_operand_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 player_id,
+                prepared_sources,
+                native_capabilities,
+                engineering_local_copy.as_deref(),
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
+            if report["engineering_local_copy"]["status"] == "unsupported" {
+                return Err("Source local copy remains unsupported; see engineering report".into());
+            }
+            if native_capabilities && report["native_unsupported"] != 0 {
+                return Err(
+                    "Pending native calls retain unsupported faithful semantics; see report".into(),
+                );
+            }
             if report["prepared_probes"] != report["pending_events_checked"]
                 || report["unresolved_operands"] != 0
             {
@@ -990,15 +1174,25 @@ fn run(args: Args) -> Result<()> {
             install,
             load_order,
             index_cache,
+            include_source_owners,
+            include_source_runs,
+            engineering_query_input,
         } => {
             let report = condition_dependency_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
+                include_source_owners,
+                include_source_runs,
+                engineering_query_input.as_deref(),
             )?;
             emit(&report, args.output.as_deref(), &protected_tree(&install)?)?;
             if report["counts"]["source_findings"] != 0
                 || report["counts"]["unknown_parameters"] != 0
+                || ((include_source_owners || include_source_runs)
+                    && (report["source_owner_counts"]["source_findings"] != 0
+                        || report["source_owner_counts"]["orphan_conditions"] != 0
+                        || report["source_owner_counts"]["unmapped_conditions"] != 0))
             {
                 return Err(
                     "condition dependency inspection retains source or schema findings; see report"
@@ -1399,6 +1593,52 @@ fn run(args: Args) -> Result<()> {
                 return Err("compiled script framing or metadata has issues; see report".into());
             }
         }
+        Command::NifAnimation {
+            input,
+            oracle_report,
+            include_keyframes,
+            include_splines,
+            include_spline_components,
+            include_bool_interpolators,
+            include_bool_keys,
+            sample_time,
+            sample_block,
+            sample_channel,
+        } => {
+            let sample = match (sample_time, sample_block, sample_channel) {
+                (Some(time), Some(block), Some(channel)) => {
+                    Some(nif_animation_inspection::SampleRequest {
+                        time,
+                        block,
+                        channel,
+                    })
+                }
+                (None, None, None) => None,
+                _ => {
+                    return Err(
+                        "sample time, source block and channel are required together".into(),
+                    );
+                }
+            };
+            let report = nif_animation_inspection::inspect(
+                &input,
+                oracle_report.as_deref(),
+                nif_animation_inspection::SourceOptions {
+                    include_keyframes,
+                    include_splines,
+                    include_spline_components,
+                    include_bool_interpolators,
+                    include_bool_keys,
+                },
+                sample,
+            )?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err(
+                    "animation source decoding or independent comparison failed; see report".into(),
+                );
+            }
+        }
         Command::NifSkin {
             input,
             oracle_report,
@@ -1503,6 +1743,7 @@ fn run(args: Args) -> Result<()> {
             reconstruct_heights,
             inspect_mesh,
             inspect_textures,
+            prepare_textures,
             inspect_blends,
             texture_cache,
             neighbor_editor_id,
@@ -1530,27 +1771,59 @@ fn run(args: Args) -> Result<()> {
                     plugin::Limits::default(),
                 )?
             };
-            let mut report = fallout_data::terrain::inspect_cell(
-                &mut store,
-                editor_id.as_bytes(),
-                body_root.as_deref().map(|root| (root, install.as_path())),
-            )?;
-            if inspect_textures {
+            let texture_plan = if prepare_textures {
+                let root = store.cell_by_editor_id(editor_id.as_bytes())?.0;
+                let assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
+                Some(fallout_data::terrain::preparation::TextureSourcePlan::load(
+                    &mut store,
+                    &root,
+                    assets.mounts(),
+                    Default::default(),
+                )?)
+            } else {
+                None
+            };
+            let mut legacy_report = if texture_plan.is_none() {
+                Some(fallout_data::terrain::inspect_cell(
+                    &mut store,
+                    editor_id.as_bytes(),
+                    body_root.as_deref().map(|root| (root, install.as_path())),
+                )?)
+            } else {
+                None
+            };
+            if inspect_textures && let Some(report) = &mut legacy_report {
                 let mut assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
                 report.texture_dependencies = Some(fallout_data::terrain::textures::inspect(
                     &mut store,
-                    &report,
+                    report,
                     &mut assets,
                     body_root.as_deref().map(|root| (root, install.as_path())),
                     texture_cache.as_deref(),
                     fallout_data::terrain::textures::Limits::default(),
                 )?);
             }
+            let report = texture_plan
+                .as_ref()
+                .map(|plan| plan.terrain())
+                .or(legacy_report.as_ref())
+                .expect("one terrain source report");
+            let texture_preparation = if let Some(plan) = &texture_plan {
+                let mut preparation = fallout_data::terrain::preparation::TexturePreparation::new(
+                    plan.clone(),
+                    &install,
+                    texture_cache.as_deref(),
+                    Default::default(),
+                )?;
+                Some(preparation.wait()?.publish_for(report)?)
+            } else {
+                None
+            };
             let comparison = oracle_report
                 .as_deref()
                 .map(|oracle| {
                     terrain_compare::compare(
-                        &report,
+                        report,
                         oracle,
                         body_root.as_deref().expect("required body cache"),
                         &install,
@@ -1567,7 +1840,14 @@ fn run(args: Args) -> Result<()> {
                     .as_ref()
                     .is_none_or(|textures| textures.failures == 0)
                 && comparison.as_ref().is_none_or(|result| result.all_equal);
-            let mut value = serde_json::to_value(&report)?;
+            let clean = clean
+                && texture_preparation
+                    .as_ref()
+                    .is_none_or(|receipt| receipt.plan().texture_sources.failures == 0);
+            let mut value = serde_json::to_value(report)?;
+            if let Some(receipt) = texture_preparation {
+                value["texture_preparation"] = serde_json::to_value(receipt)?;
+            }
             if inspect_blends {
                 let mut maps = Vec::new();
                 for entry in &report.landscapes {
@@ -1603,7 +1883,7 @@ fn run(args: Args) -> Result<()> {
                 value["source_meshes"] = meshes.into();
             }
             if reconstruct_heights {
-                let surface = fallout_data::terrain::reconstruct_cell(&report)?;
+                let surface = fallout_data::terrain::reconstruct_cell(report)?;
                 let neighbor = if let Some(neighbor_id) = neighbor_editor_id {
                     Some(fallout_data::terrain::inspect_cell(
                         &mut store,
@@ -1646,6 +1926,7 @@ fn run(args: Args) -> Result<()> {
             defer_unread_payloads,
             index_cache,
             inspect_models,
+            include_dependencies,
             model_cache,
         } => {
             let names: Vec<String> = serde_json::from_reader(baseline::open_source(&load_order)?)?;
@@ -1669,13 +1950,48 @@ fn run(args: Args) -> Result<()> {
             } else {
                 fallout_data::store::RecordStore::open_nv(&install.join("Data"), &names, limits)?
             };
+            let root = if include_dependencies {
+                Some(store.cell_by_editor_id(editor_id.as_bytes())?.0)
+            } else {
+                None
+            };
+            let dependency_report = if let Some(root) = root.as_ref().filter(|_| !inspect_models) {
+                Some(fallout_data::world::dependencies::inspect_cell_key(
+                    &mut store,
+                    root,
+                    Default::default(),
+                )?)
+            } else {
+                None
+            };
             let mut mounts = MountIndex::default();
             for path in data_files(&install, &["bsa"])? {
                 NvArchive::open(&path)?.census(&mut mounts)?;
             }
+            let model_plan = if let Some(root) = root.as_ref().filter(|_| inspect_models) {
+                Some(fallout_data::world::preparation::CellModelPlan::load(
+                    &mut store,
+                    root,
+                    &mounts,
+                    Default::default(),
+                )?)
+            } else {
+                None
+            };
             let mut report =
                 fallout_data::world::inspect_cell(&mut store, editor_id.as_bytes(), &mounts)?;
-            if inspect_models {
+            let model_preparation = if let Some(plan) = &model_plan {
+                let mut preparation = fallout_data::world::preparation::CellPreparation::new(
+                    plan.clone(),
+                    &install,
+                    model_cache.as_deref(),
+                    Default::default(),
+                )?;
+                Some(preparation.wait()?.publish_into(&mut report)?)
+            } else {
+                None
+            };
+            if inspect_models && model_plan.is_none() {
                 fallout_data::model_probe::inspect_models(
                     &mut report,
                     &install,
@@ -1685,7 +2001,31 @@ fn run(args: Args) -> Result<()> {
             let clean = report.integrity_failures == 0
                 && report.link_failures == 0
                 && report.model_probes.iter().all(|p| p.error.is_none());
-            emit(&report, output, &install)?;
+            if let Some(dependency_report) = model_plan
+                .as_ref()
+                .map(|plan| plan.graph())
+                .or(dependency_report.as_ref())
+            {
+                #[derive(serde::Serialize)]
+                struct WithDependencies<'a> {
+                    #[serde(flatten)]
+                    cell: &'a fallout_data::world::CellReport,
+                    dependency_report: &'a fallout_data::world::dependencies::Report,
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    model_preparation: Option<&'a fallout_data::world::preparation::Receipt>,
+                }
+                emit(
+                    &WithDependencies {
+                        cell: &report,
+                        dependency_report,
+                        model_preparation: model_preparation.as_ref(),
+                    },
+                    output,
+                    &install,
+                )?;
+            } else {
+                emit(&report, output, &install)?;
+            }
             if !clean {
                 return Err("cell inspection contains integrity, reference, or model failures; runtime acceptance remains blocked".into());
             }
@@ -1733,6 +2073,50 @@ fn run(args: Args) -> Result<()> {
             if !complete {
                 return Err("baseline is missing required inputs; see the report".into());
             }
+        }
+        Command::VfsProfile {
+            install,
+            documents,
+            local_appdata,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for root in [&documents, &local_appdata] {
+                    if parent.starts_with(protected_tree(root)?) {
+                        return Err(
+                            "profile report output must be outside all configuration source roots"
+                                .into(),
+                        );
+                    }
+                }
+            }
+            let report = fallout_data::vfs::profile::observe(
+                &install,
+                &documents,
+                &local_appdata,
+                Default::default(),
+            )?;
+            emit(&report, output, &install)?;
+        }
+        Command::RetailProfileCapture {
+            install,
+            documents,
+            local_appdata,
+            package,
+        } => {
+            if output.is_some() {
+                return Err("retail-profile-capture writes its immutable --package; --output is not supported".into());
+            }
+            retail_profile::capture(
+                &install,
+                documents.as_deref(),
+                local_appdata.as_deref(),
+                &package,
+            )?;
         }
         Command::Census {
             install,

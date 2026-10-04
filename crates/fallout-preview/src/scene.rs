@@ -587,6 +587,7 @@ pub mod camera {
 
     pub const RECORD_BYTES: usize = 4096;
     const SOURCE_REPORT_BYTES: usize = 64 * 1024 * 1024;
+    const MAX_VIEW_COMPONENT: f32 = 1e12;
 
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -790,6 +791,7 @@ pub mod camera {
                 || near <= 0.
                 || !far.is_finite()
                 || far <= near
+                || far > MAX_VIEW_COMPONENT
                 || plane.iter().any(|v| !v.is_finite())
                 || plane[0] != 0.
                 || plane[1] != 0.
@@ -806,7 +808,14 @@ pub mod camera {
                 near_clip_plane: Vec4::from_array(plane),
             });
             let matrix = projection.get_clip_from_view();
-            if !matrix.is_finite() || matrix.determinant() == 0. || !matrix.inverse().is_finite() {
+            if !matrix.is_finite()
+                || matrix.determinant() == 0.
+                || !matrix.inverse().is_finite()
+                || projection
+                    .get_frustum_corners(-near, -far)
+                    .iter()
+                    .any(|corner| !corner.is_finite())
+            {
                 return Err("Camera projection must have a finite nonsingular matrix".into());
             }
             Ok(projection)
@@ -841,7 +850,7 @@ pub mod camera {
         let length = transform.rotation.length_squared();
         if origin.iter().any(|v| !v.is_finite())
             || !transform.translation.is_finite()
-            || transform.translation.abs().max_element() > 1e12
+            || transform.translation.abs().max_element() > MAX_VIEW_COMPONENT
             || !transform.rotation.is_finite()
             || !length.is_finite()
             || (length - 1.).abs() > 0.00002
@@ -1000,6 +1009,7 @@ pub mod camera {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use bevy::camera::CameraProjection;
 
         fn fixture() -> (Binding, Transform, Projection, Viewport) {
             let binding = Binding {
@@ -1153,7 +1163,7 @@ pub mod camera {
                 .unwrap()
                 .replacen("{", "{\"schema_version\":1,", 1);
             assert!(decode(duplicate.as_bytes(), RECORD_BYTES).is_err());
-            for index in 0..10 {
+            for index in 0..11 {
                 let mut bad = valid.clone();
                 match index {
                     0 => bad.rotation_f32_bits = [0; 4],
@@ -1165,7 +1175,27 @@ pub mod camera {
                     6 => bad.source_position_f64_bits[0] = 1002f64.to_bits(),
                     7 => bad.source_direction_f64_bits[1] = 0,
                     8 => bad.original_gameplay_accepted = true,
-                    _ => bad.perspective.near_clip_plane_f32_bits[0] = 1f32.to_bits(),
+                    9 => bad.perspective.near_clip_plane_f32_bits[0] = 1f32.to_bits(),
+                    _ => {
+                        // Infinite-reverse perspective matrices do not contain
+                        // far. Matrix/inverse checks alone admit these words,
+                        // while actual frustum corner products overflow.
+                        bad.perspective.fov_f32_bits = 3f32.to_bits();
+                        bad.perspective.far_f32_bits = f32::MAX.to_bits();
+                        let raw = PerspectiveProjection {
+                            fov: 3.,
+                            far: f32::MAX,
+                            near: 0.25,
+                            aspect_ratio: 1280. / 900.,
+                            ..default()
+                        };
+                        assert!(raw.get_clip_from_view().is_finite());
+                        assert!(
+                            raw.get_frustum_corners(-raw.near, -raw.far)
+                                .iter()
+                                .any(|corner| !corner.is_finite())
+                        );
+                    }
                 }
                 assert!(
                     decode(&encode(&bad, RECORD_BYTES).unwrap(), RECORD_BYTES).is_err(),

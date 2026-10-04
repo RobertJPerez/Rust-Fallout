@@ -25,6 +25,9 @@ revision or viewport refuses before moving the camera. Input and complete output
 including newline each have a 4 KiB ceiling. Nonfinite coordinates, source-origin
 precision loss, nonunit/singular/vertical rotation, invalid projection, unsupported
 orthographic/custom/oblique projection and unknown or absent fields are refused.
+Relative translation components and the far distance are limited to 1e12 source
+units. Actual frustum corners must also remain finite: an infinite-reverse
+projection matrix alone cannot validate a far distance that it does not contain.
 
 The renderer updates perspective aspect from the actual logical viewport; the
 record captures that value along with physical dimensions instead of inferring a

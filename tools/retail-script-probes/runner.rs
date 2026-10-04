@@ -12,6 +12,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs::File, io::Read, path::Path};
 
+#[path = "fixtures.rs"]
+pub(crate) mod fixtures;
+
 pub(crate) struct Inputs<'a> {
     pub install: &'a Path,
     pub load_order: &'a Path,

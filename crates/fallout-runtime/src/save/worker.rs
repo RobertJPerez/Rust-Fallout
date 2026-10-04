@@ -110,6 +110,8 @@ pub struct SaveWorker {
     sender: Option<SyncSender<Job>>,
     thread: Option<JoinHandle<()>>,
     admission: Arc<Admission>,
+    // None until joined; true clean, false panicked. No ticket outcomes stored.
+    joined: Option<bool>,
 }
 impl SaveWorker {
     pub const DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
@@ -128,10 +130,26 @@ impl SaveWorker {
         max_in_flight: usize,
         maximum_reserved_snapshot_bytes: usize,
     ) -> Result<Self, WorkerError> {
+        Self::start_observing(
+            repository,
+            max_in_flight,
+            maximum_reserved_snapshot_bytes,
+            |_| {},
+        )
+    }
+    /// Stage notifications run on the existing writer. They cannot alter the
+    /// capture or bypass publication. A panicking observer stops that writer;
+    /// the ordinary ticket/permit/temporary cleanup and panic reporting apply.
+    pub fn start_observing(
+        repository: Repository,
+        max_in_flight: usize,
+        maximum_reserved_snapshot_bytes: usize,
+        mut observer: impl FnMut(super::Stage) + Send + 'static,
+    ) -> Result<Self, WorkerError> {
         Self::spawn_with(
             max_in_flight,
             maximum_reserved_snapshot_bytes,
-            move |capture| repository.commit(capture),
+            move |capture| repository.commit_observing(capture, &mut observer),
         )
     }
     fn spawn_with(
@@ -173,6 +191,7 @@ impl SaveWorker {
             sender: Some(sender),
             thread: Some(thread),
             admission,
+            joined: None,
         })
     }
     pub fn try_submit(&mut self, capture: Captured) -> Result<SaveTicket, Box<SubmitFailure>> {
@@ -210,6 +229,27 @@ impl SaveWorker {
             }
         }
     }
+    /// Close the sole request sender without cancelling accepted writes. The
+    /// first close returns true; later closes return false. New submissions
+    /// return their original capture with WorkerStopped, without reservation.
+    pub fn close_admission(&mut self) -> bool {
+        self.sender.take().is_some()
+    }
+    /// Observe shutdown without joining an unfinished writer. Call
+    /// close_admission first to let accepted writes drain. false means Pending;
+    /// true means joined cleanly; Panicked remains the stable joined failure.
+    /// Individual tickets still need their own publication/failure observation.
+    pub fn try_shutdown(&mut self) -> Result<bool, WorkerError> {
+        if self
+            .thread
+            .as_ref()
+            .is_some_and(|thread| !thread.is_finished())
+        {
+            return Ok(false);
+        }
+        // Only join after std reports completion, never while IO is unfinished.
+        self.drain().map(|()| true)
+    }
     /// Close admission, drain accepted requests and join the thread. Tickets
     /// still contain their individual results after this returns. Success here
     /// confirms joining, not successful publication of every request. Call
@@ -218,10 +258,14 @@ impl SaveWorker {
         self.drain()
     }
     fn drain(&mut self) -> Result<(), WorkerError> {
-        self.sender.take();
-        match self.thread.take() {
-            Some(thread) => thread.join().map_err(|_| WorkerError::Panicked),
-            None => Ok(()),
+        self.close_admission();
+        if let Some(thread) = self.thread.take() {
+            self.joined = Some(thread.join().is_ok());
+        }
+        if self.joined == Some(false) {
+            Err(WorkerError::Panicked)
+        } else {
+            Ok(())
         }
     }
 }
@@ -235,6 +279,7 @@ impl Drop for SaveWorker {
 
 #[cfg(test)]
 mod tests {
+    mod shutdown;
     use super::*;
     use crate::{Limits, events::Clocks, identity::CampaignId, save::format, snapshot::Snapshot};
     use fallout_data::identity::ProfileId;

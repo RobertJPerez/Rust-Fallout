@@ -9,8 +9,8 @@ use fallout_runtime::{
     identity::Value as LocalValue,
     save::{
         AvailabilityError, AvailabilityPoll, AvailabilityRequest, AvailabilityTask, Captured,
-        Recovery, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask, SaveStatus,
-        SaveWorker, format,
+        Recovery, Rejection, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask,
+        SaveState, SaveStatus, SaveWorker, Stage, format,
     },
 };
 use serde_json::{Value, json};
@@ -20,7 +20,8 @@ use std::{
     io::{Read, Write},
     num::NonZeroU64,
     path::Path,
-    sync::Arc,
+    sync::{Arc, mpsc},
+    time::{Duration, Instant},
 };
 
 fn save_new(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -330,8 +331,23 @@ pub(super) fn probe(
         .map(|request| event_commit_probe(&mut engineering.world, request))
         .transpose()?;
     let repository = Repository::create(root, &[install.into()], engineering.world.campaign())?;
-    let mut worker = SaveWorker::start(repository.clone(), 2)?;
-    let first_status = SaveStatus::new(worker.try_submit(capture)?);
+    let (entered, entries) = mpsc::sync_channel(1);
+    let (release, releases) = mpsc::sync_channel(1);
+    let mut worker = SaveWorker::start_observing(
+        repository.clone(),
+        2,
+        SaveWorker::DEFAULT_MAX_RESERVED_SNAPSHOT_BYTES,
+        move |stage| {
+            if stage == Stage::CurrentTempWritten {
+                entered.send(()).expect("shutdown observer has its host");
+                releases
+                    .recv_timeout(Duration::from_secs(30))
+                    .expect("host releases gated publication");
+            }
+        },
+    )?;
+    let mut first_status = SaveStatus::new(worker.try_submit(capture)?);
+    entries.recv_timeout(Duration::from_secs(30))?;
     if event_commit.is_none() {
         let instance = first
             .instances
@@ -358,14 +374,65 @@ pub(super) fn probe(
             )],
         )?;
     }
+    let second = engineering.world.snapshot();
+    let mut second_status =
+        SaveStatus::new(worker.try_submit(Captured::at_boundary(&engineering.world))?);
+    if !worker.close_admission() || worker.close_admission() {
+        return Err("Save admission close was not idempotent".into());
+    }
+    let refused = worker
+        .try_submit(Captured::at_boundary(&engineering.world))
+        .unwrap_err();
+    if refused.reason != Rejection::WorkerStopped || refused.capture.snapshot() != &second {
+        return Err("Closed save admission changed the rejected capture".into());
+    }
+    drop(refused);
+    for _ in 0..2 {
+        if worker.try_shutdown()?
+            || !matches!(first_status.poll(), SaveState::Pending)
+            || !matches!(second_status.poll(), SaveState::Pending)
+        {
+            return Err("Held first publication did not preserve Pending shutdown/tickets".into());
+        }
+    }
+    release.send(())?;
+    entries.recv_timeout(Duration::from_secs(30))?;
+    if !matches!(first_status.poll(), SaveState::Published(_)) {
+        return Err("Published first ticket was not observable while second write was held".into());
+    }
     let first_receipt = first_status.wait()?;
-    let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
+    // The second writer owns its lock while held. Inspect the complete first
+    // native boundary and use the same canonical source restore without a
+    // competing writer lock; this read neither selects recovery nor repairs.
+    let decoded = format::decode(
+        &bounded_file(&repository.path().join("current.frsv"))?,
+        Limits::default(),
+    )?;
+    let restored =
+        fallout_runtime::World::restore(&catalogue, decoded.snapshot, Limits::default())?;
     if restored.snapshot() != first {
         return Err("Worker capture included later state mutations".into());
     }
-    let second = engineering.world.snapshot();
-    let second_status =
-        SaveStatus::new(worker.try_submit(Captured::at_boundary(&engineering.world))?);
+    for _ in 0..2 {
+        if worker.try_shutdown()? || !matches!(second_status.poll(), SaveState::Pending) {
+            return Err("Held second publication did not preserve Pending shutdown/ticket".into());
+        }
+    }
+    release.send(())?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !worker.try_shutdown()? {
+        second_status.poll();
+        if Instant::now() >= deadline {
+            return Err("Save shutdown observation timed out".into());
+        }
+        std::thread::yield_now();
+    }
+    if !worker.try_shutdown()?
+        || worker.close_admission()
+        || !matches!(second_status.poll(), SaveState::Published(_))
+    {
+        return Err("Joined shutdown or individual published ticket was not stable".into());
+    }
     worker.finish()?;
     let second_receipt = second_status.wait()?;
     let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
@@ -408,6 +475,10 @@ pub(super) fn probe(
         "sources":catalogue.sources,"instances":engineering.world.instance_count(),"pending_events":engineering.world.pending_events().len(),
         "current":current_metadata,"previous":previous_metadata,"first_write":first_receipt,"second_write":second_receipt,"final_write":final_receipt,
         "worker_capture_isolated":true,"current_round_trip_equal":true,"strict_truncation_rejected":true,"recovery":recovery,"repair":repair,
+        "worker_shutdown_probe":{"held_first_pending_polls":2,"held_second_pending_polls":2,
+            "close_admission_idempotent":true,"third_capture_refused_intact":true,
+            "first_published_while_second_pending":true,"first_complete_source_restore_equal":true,
+            "joined_clean_stable":true,"individual_tickets_published":true,"blocking_finish_compatible":true},
         "previous_round_trip_equal":true,"canonical_snapshot_sha256":format!("{:x}",Sha256::digest(second.encode(Limits::default().max_snapshot_bytes)?)),
         "original_live_state_captured":false,"retail_save_compatibility":false,"retail_parity_accepted":false});
     if let Some(mut event_commit) = event_commit {

@@ -14,6 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod terrain;
 mod textures;
 
 struct Release(Arc<Pause>);
@@ -61,6 +62,16 @@ fn setup(count: usize, missing: bool) -> (Fixture, CellModelPlan, Vec<u8>) {
     setup_payload(count, missing, nif)
 }
 fn setup_payload(count: usize, missing: bool, nif: Vec<u8>) -> (Fixture, CellModelPlan, Vec<u8>) {
+    setup_payload_extended(count, missing, nif, false, &[], &[])
+}
+fn setup_payload_extended(
+    count: usize,
+    missing: bool,
+    nif: Vec<u8>,
+    exterior: bool,
+    extra_members: &[u8],
+    extra_records: &[u8],
+) -> (Fixture, CellModelPlan, Vec<u8>) {
     let fixture = Fixture::new(&nif, true);
     let mut esm = record(
         b"TES4",
@@ -138,12 +149,32 @@ fn setup_payload(count: usize, missing: bool, nif: Vec<u8>) -> (Fixture, CellMod
     fs::write(&path, bsa).unwrap();
     let mut mounts = MountIndex::default();
     NvArchive::open(&path).unwrap().census(&mut mounts).unwrap();
-    esm.extend(record(
+    let cell = record(
         b"CELL",
         0x200,
-        &[sub(b"EDID", b"ResidentClinic\0"), sub(b"DATA", &[1])].concat(),
-    ));
-    esm.extend(group(6, &group(9, &members)));
+        &[
+            sub(b"EDID", b"ResidentClinic\0"),
+            sub(b"DATA", &[u8::from(!exterior)]),
+            if exterior {
+                sub(b"XCLC", &[0; 12])
+            } else {
+                Vec::new()
+            },
+        ]
+        .concat(),
+    );
+    members.extend(extra_members);
+    let children = group(6, &group(9, &members));
+    if exterior {
+        esm.extend(record(b"WRLD", 0x100, &sub(b"DATA", &[0])));
+        let mut world = group(1, &[cell, children].concat());
+        world[8..12].copy_from_slice(&0x100u32.to_le_bytes());
+        esm.extend(world);
+    } else {
+        esm.extend(cell);
+        esm.extend(children);
+    }
+    esm.extend(extra_records);
     fs::write(fixture.source.path().join("FalloutNV.esm"), esm).unwrap();
     let mut store = RecordStore::open_nv_headers(
         fixture.source.path(),

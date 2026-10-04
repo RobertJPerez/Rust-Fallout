@@ -3,6 +3,7 @@
 //! and winning-content identity. No live actor state is initialized.
 pub mod ai_inputs;
 pub mod associations;
+pub mod attack_inputs;
 pub mod classes;
 pub mod dependencies;
 pub mod effect_inputs;

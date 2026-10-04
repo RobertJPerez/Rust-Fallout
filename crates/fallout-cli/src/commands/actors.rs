@@ -56,6 +56,10 @@ pub(crate) enum ActorsCommand {
         effect_root: Option<identity::FormKey>,
         #[arg(long, requires = "effect_root")]
         effect_field: Option<usize>,
+        #[arg(long, value_parser = actor_inspection::parse_boxed_root)]
+        weapon_root: Option<Box<identity::FormKey>>,
+        #[arg(long, requires = "weapon_root", value_parser = actor_inspection::parse_boxed_root)]
+        ammo_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
         creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },

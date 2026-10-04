@@ -1271,3 +1271,32 @@ source count, depth, selected records, record bytes, decoded bytes, field visits
 retained fields, bindings, groups, raw bytes and projection bytes are bounded.
 Typed source admission does not establish an active effect, condition truth,
 stacking, timing or gameplay behavior. Execution remains unavailable.
+
+## Explicit weapon and ammo attack source inputs (V3-ACT-23)
+
+`actor-sources --weapon-root PLUGIN:HEX [--ammo-root PLUGIN:HEX]` retains the
+selected WEAP and optional caller-selected AMMO declarations. Weapon DNAM and
+ammo DAT2 projectile links remain independent. The request does not select ammo
+from inventory, choose a projectile priority or substitute a null declaration.
+NAM0 AMMO/FLST links retain their winning headers; list membership remains
+unavailable. No form-list decoder or flattening is added.
+
+The tested source profile is version 15: WEAP DATA15, DNAM120/204, CRDT16 and
+VATS16/20; AMMO DATA13 and DAT2 12/16/20; PROJ DATA68/80/84. Other versions and
+layouts keep all physical bytes as opaque fields. Signed damage/value/skill
+words, unsigned counts, raw flag bytes, unused bytes and floating-point bits
+remain exact. Optional fields stay absent. The weapon editor callback's reload
+and animation normalization is not applied.
+
+Every physical singleton and repeated ammo-effect link retains its ordered
+binding and winning source header. Repeated singleton fields withhold binding
+admission. Only uniquely bound weapon or explicit ammo projectile requests read
+PROJ bodies, with shared targets retained once and every edge kept. Projectile
+light/explosion/sound/default-weapon and weapon/ammo effect/consumption links
+remain header-only requests. Their bodies and cycles are not followed.
+
+Source count, body depth, nodes, header requests, record/decoded bytes, field
+visits, retained fields, bindings, raw word spans, raw bytes and projection
+bytes have separate bounds. Ammo choice, projectile precedence, firing,
+reloading, consumption, damage, spread, ballistics and mod effects remain
+unavailable; the source request does not mutate canonical state.

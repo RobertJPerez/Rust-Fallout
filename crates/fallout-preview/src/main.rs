@@ -221,6 +221,8 @@ struct Loading {
     phase: Phase,
 }
 
+type InspectionCameraFilter = (With<Camera3d>, Without<scene::ReferenceView>);
+
 fn output_path(
     path: &Path,
     install: Option<&Path>,
@@ -496,10 +498,7 @@ fn drive_loading(
     mut context: ResMut<input::Context>,
     mut orbit: ResMut<Orbit>,
     mut navigation: ResMut<Navigation>,
-    mut cameras: Query<
-        (&mut Transform, &mut Projection),
-        (With<Camera3d>, Without<scene::ReferenceView>),
-    >,
+    mut cameras: Query<(&mut Transform, &mut Projection), InspectionCameraFilter>,
     mut references: Query<
         (&mut scene::ReferenceView, &mut Transform, &mut Visibility),
         Without<Camera3d>,
@@ -838,7 +837,7 @@ fn capture(
             .cell
             .as_ref()
             .and_then(|cell| cell.native.as_ref())
-            .is_some_and(native::Host::pending)
+            .is_some_and(|host| !host.published())
     {
         return;
     }
@@ -965,7 +964,7 @@ mod tests {
         );
     }
 
-    fn loading_app(phase: Phase) -> App {
+    pub(crate) fn loading_app(phase: Phase) -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, WindowPlugin::default()))
             .init_resource::<Assets<Mesh>>()

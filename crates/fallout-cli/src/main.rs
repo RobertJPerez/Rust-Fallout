@@ -600,22 +600,23 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                 );
             }
         }
-        AssetsCommand::NifSkin {
-            input,
-            oracle_report,
-            include_partitions,
-            include_bindings,
-            pose_geometry,
-            pose_weight_tolerance,
-            sampled_pose_request,
-            influences_request,
-            external_rig,
-            external_skin_request,
-            shared_skin_request,
-            partition_streams_request,
-            partition_pose_request,
-            pose_set_request,
-        } => {
+        AssetsCommand::NifSkin(options) => {
+            let commands::NifSkinArgs {
+                input,
+                oracle_report,
+                include_partitions,
+                include_bindings,
+                pose_geometry,
+                pose_weight_tolerance,
+                sampled_pose_request,
+                influences_request,
+                external_rig,
+                external_skin_request,
+                shared_skin_request,
+                partition_streams_request,
+                partition_pose_request,
+                pose_set_request,
+            } = *options;
             if let Some(request) = pose_set_request {
                 if let Some(path) = output {
                     let parent = path

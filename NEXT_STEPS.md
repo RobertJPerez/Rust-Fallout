@@ -9,6 +9,14 @@ worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
+[Development batch 08](docs/integration/team-v3-development-08.json) passed 1,131
+data/runtime/CLI/preview test results, Clippy, formatting and executable builds.
+Twelve prepared-pose CLI calls and 22 linked-pose/raw-skin CLI calls passed their
+independent expectations, including higher-ID parents and 19 intended refusals
+in the linked-pose/skin matrix. Native input readiness, owner-scoped CELL queries,
+source grids and menu topology are integrated. These checks do not establish
+animation playback, original menu layout, Havok movement or gameplay parity.
+Later reviewed sources and the new boot compositor have separate proof scope.
 [Development batch 07](docs/integration/team-v3-development-07.json) passed 1,043
 data/runtime/CLI/preview test results, Clippy, formatting and executable builds.
 Twelve fresh prepared-pose CLI calls and 83 static collision queries passed

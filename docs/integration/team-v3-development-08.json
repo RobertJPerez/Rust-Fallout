@@ -1,0 +1,386 @@
+{
+  "schema_version": 1,
+  "revision": "8e8be61528970f993e9cafa7d105d712ec8771c2",
+  "scope": "Combined engineering checks: explicit native/reference input readiness, retained CELL collision queries, source grids and owner-scoped native presentation, source menu topology, condition/event observations, actor source joins, corrected linked pose sets and raw skin CSR.",
+  "source_manifest_sha256": "f8f486eb69373ecc622beec0944edabc3c833d13e5877b59a03e579f4b3feff0",
+  "rust_passing_results": 1131,
+  "ignored_helpers": 33,
+  "rust_result_lines": 117,
+  "commands": [
+    {
+      "name": "rust",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "ada5cb80bfbf1172be1603c05660ba01bde9eac346e3bedb6a9177bde249d920"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "556f40e3e6cce08f36e10af62f3b6bd8c8b535ce5642d284a5d6ae406dd2391e"
+    },
+    {
+      "name": "format",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer-build",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "build",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--bins",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "b94bde924534af33d9c60d444373767ff32503c0b9e6871ffa8442897d8ec24c"
+    }
+  ],
+  "binaries": {
+    "fallout": {
+      "bytes": 19376128,
+      "sha256": "7cdfe772afd007b2b829e6008f280ff7ac178dc0e7c66d8a14d5bf866c475ebc"
+    },
+    "fallout-evidence": {
+      "bytes": 8749568,
+      "sha256": "ab95106923f7520f9536a2d45d28d0aebad9790abeead80ac1f256485755a117"
+    },
+    "fallout-playtest": {
+      "bytes": 2137088,
+      "sha256": "3ca176c2540002f516aa722a05a54f8310b8490635ac4b4ade4380b5eb4109a6"
+    },
+    "fallout-preview": {
+      "bytes": 104499200,
+      "sha256": "245e60ed2fc748b63d6017405b6168b21a30527f78672a663d0037503c948f59"
+    },
+    "fallout-tests": {
+      "bytes": 8880128,
+      "sha256": "dc6848c87da3bf23d3cbb5062d816be8f04655b3e1e3415cce9f82ad9fad17b0"
+    },
+    "fallout_evidence-tests": {
+      "bytes": 1206784,
+      "sha256": "e8f78502c7a3ed1fc0e68d60611d02f7af5a35b71dce5c4f760de97cf285bc13"
+    },
+    "fallout_playtest-tests": {
+      "bytes": 733696,
+      "sha256": "8b3912ed8e38eabd2b818e81b15502e9d0723bbbc91c0ff6357ff098dc311c0f"
+    },
+    "fallout_data-tests": {
+      "bytes": 3945472,
+      "sha256": "f936d5fb0465efeddbe5c42fb0f25f0ea23a2f7be82cd0c40aae8c3ec1f1f30c"
+    },
+    "fallout_preview-tests": {
+      "bytes": 43953664,
+      "sha256": "2c99a54c4f9f1a2fc09633b77e69cca529a58a00b2ff9b2814615c0e262c6644"
+    },
+    "fallout_runtime-tests": {
+      "bytes": 5534720,
+      "sha256": "69ee874af0f591462352f36512f8e7eef06c76d93e7ee5a96faeb554ab69efd5"
+    }
+  },
+  "combined_receipt_sha256": "a1874e03b6855918ef9669a2731bb42f619988f576a0aa92295e995276313621",
+  "prepared_pose_consumer_receipt_sha256": "4d7759ab0b79ef38b0416ca3bf0220963a0a9913a3edfd613e00f31af2d9fb7a",
+  "linked_pose_skin_consumer_receipt_sha256": "44e3910784e5c702e7b4ee949f35ed031caaf3d91445a444b6291d5046d028ce",
+  "prepared_pose_consumer": {
+    "cli_calls": 12,
+    "analytic_samples": 6,
+    "empty_batch": 1,
+    "binary64_transport_cases": 1,
+    "intentional_refusals": 9,
+    "summary_sha256": "17ddcd0c535017c3c650489e665eff8d747090ed96a83e69a592113ed0df7d83"
+  },
+  "linked_pose_skin_consumer": {
+    "cli_calls": 22,
+    "positives": 3,
+    "intentional_refusals": 19,
+    "independent_expectation_sha256": "4a6d8240ed41eedd7f198c1e2fa84397da9af3967e6bea8dd76f03751634ba7d",
+    "scope": "Complete source-linked pose/channel/ancestor observations and raw influence CSR under authored exact rational expectations; higher-ID parent and request permutation included."
+  },
+  "commit_map": [
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-19",
+      "original": "2c4f5468deb2fc2f0e1f0272c757ff43db482aee",
+      "integrated": "32a9c1660141cd9bcb4cda8fb4c2d6748dc62972"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-20",
+      "original": "e86fc21f14131414ddf70a23b814598690a6f3d5",
+      "integrated": "968834cd5784715c73497a8bab0b0583f6188572"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-19",
+      "original": "dd47f5f53da5cff8d8681d989129f023f67bf688",
+      "integrated": "7bf05287c8bea3acce2a33097810a5412cc83487"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-20",
+      "original": "95d88232e21b1a3496bfbaffda6ac3e169adbab1",
+      "integrated": "f66f4d70927e58a29fada5e7c745d866d10bc882"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-17",
+      "original": "56ab93e634849d9ebc04828dfc492048cceed3cb",
+      "integrated": "24e84554387a19fa1e6b9365bafa8cb3639d2240"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-18",
+      "original": "d4da4a8b12ac64aeba196a2a7a5d0215628191e6",
+      "integrated": "ebb5090b2be480af9a1dbc52d8ee9238630cd84b"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-17-correction",
+      "original": "0b8e3db5a860be585003560f196ec5b07a7fe4b2",
+      "integrated": "ccc55309a2637f39f8c1e6e6044bea802eedc7d1"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-18A",
+      "original": "08c548e5a2da3b60f313466e725d243ae3e47d7e",
+      "integrated": "40152e551774d57ffa2fb48e3df6e0bd742ee292"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-18B",
+      "original": "09d07f99cd0d9b1674c63d25e3a4b9daf4b75c45",
+      "integrated": "b18b3b4b1de0190ed060b1f8f14d87395371bfce"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-17C",
+      "original": "90327bf7765c3002ab9be36ddec8b77560320a2b",
+      "integrated": "ad2bc1f8942cde0c05f96f9883bd57dac7c188aa"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-19",
+      "original": "f6f6b6fd60ed32fa4d0cdb43a3f58bcfcbe72988",
+      "integrated": "bfecb76d2a5cc45197b445364b76c41b6c0ad1b8"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-04A",
+      "original": "5ef125350be370e1fa9e87382b67a30739203ef0",
+      "integrated": "b2e08a15a4e74e7a10ba028cb7136ca1fc18991c"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-04A",
+      "original": "70cbe55274883db54fe607bd33d09d5d8594d476",
+      "integrated": "c986dcc047a3e2db7a81ab7b6870cce2e9b76136"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-04B",
+      "original": "dc1f347ec1477e30ab2ddd0ba96698177e0b971f",
+      "integrated": "d516ba5ffb8943e3dec57f2179f995e10803a482"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-08",
+      "original": "b9212d7c225ba55e8a928c7b90bea8136d7c5bf1",
+      "exit_code": 0,
+      "log_sha256": "11cce3bd375defdebfee5325ab053e4e0ef13e27a88197a61fa98b1fd61f5e35",
+      "timestamp": "2026-10-04T09:13:19.027844+00:00",
+      "integrated": "30b6a965b22654bef795e9d9945b7f32a1fc4ae3"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-09",
+      "original": "e576c17cb77512596d85c702a609f0dfa84aa6f1",
+      "exit_code": 0,
+      "log_sha256": "48706e0323d0688eda430e6d928867022c1a6094597d491b4e69a1bf4487f22d",
+      "timestamp": "2026-10-04T09:13:19.181663+00:00",
+      "integrated": "738b7533b07af87ebaa764b2b01d57fdff47f505"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-09-close-correction",
+      "original": "8b24eb9b8b6877e28f87e2d30db9520c94862ffd",
+      "exit_code": 0,
+      "log_sha256": "59513a19f759e7a05c485fabf342319939954a8410d66f560b12aa29dfd06d0f",
+      "timestamp": "2026-10-04T09:13:19.326168+00:00",
+      "integrated": "e71a6e303aa349472a73a6c46fa8a71dd352b479"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-05A",
+      "original": "af45f5d6063030dfbbb891162ba2f3e7860069dd",
+      "exit_code": 0,
+      "log_sha256": "0287501b96972906545c7cdbb848ac696b79ee77cd59939988cc37bdff5791fc",
+      "timestamp": "2026-10-04T09:13:19.496972+00:00",
+      "integrated": "5e389bb944e727a501dc4c36cd31e4778ed5d425"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-13",
+      "original": "1ed3e26659b41af84bbbf1ead39d123e5dba4c70",
+      "integrated": "115cde937fcad3f554666b5c2db58dd2d98c3173"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-14",
+      "original": "24969de026c298d363572836683635b6e2ca32c6",
+      "integrated": "bec2ed567664845d4e5bd1a7415444b8eb27593c"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-15",
+      "original": "0dbf3c2c90104927b7aaf5ad407f27b06aa7873d",
+      "integrated": "ecc83eefe64d1e6bd815799ff56984372b25e20e"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "scope": "Native and foreign read-only report placement",
+      "original": "fa427e429d606ac4a3044ade3d804787b5ba02d6",
+      "integrated": "fa427e429d606ac4a3044ade3d804787b5ba02d6"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "scope": "CLI command families and complete1MiB parser regression",
+      "original": "ce4b5e6e67ff27ddd38bfbe34250761f0d84b55a",
+      "integrated": "ce4b5e6e67ff27ddd38bfbe34250761f0d84b55a"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "scope": "Equivalent moved imports/output/test-pattern wiring",
+      "original": "a4b485c2517c15bc786f1a580a4b4d0699c3e250",
+      "integrated": "a4b485c2517c15bc786f1a580a4b4d0699c3e250"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "scope": "Established NIF command spelling lint annotation",
+      "original": "79cc170f2766c23baf6a64db6a0651680305c71e",
+      "integrated": "79cc170f2766c23baf6a64db6a0651680305c71e"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-04",
+      "scope": "Collision fixture sealed empty texture-plan admission, no production change",
+      "original": "12c2538c152a32c4bf1e213e50439f8b20bacb99",
+      "integrated": "8e8be61528970f993e9cafa7d105d712ec8771c2"
+    }
+  ],
+  "mapping_receipt_sha256": "a544fc0d686781a726feaf9932f0436cc94392b1492080d9bbb5a5c276c376d1",
+  "rehashed_evidence_files": 1414,
+  "preserved_failed_attempts": [
+    {
+      "receipt_sha256": "f5c21f9d92de7869195bda5d50c27bd4dd73d1e96c30cee7e89656ee82c493da",
+      "cause": "Combined CLI parser stack overflow; command families were subsequently split and checked on the committed source."
+    },
+    {
+      "receipt_sha256": "b5ae908da07deccdb2a6734aed53e4c966683f49d5e27c58aa976e0f6a8074b3",
+      "cause": "Collision fixture omitted its required sealed empty texture plan; production readiness gate retained, fixture corrected."
+    },
+    {
+      "receipt_sha256": "f4123b877c9362980051b69da7c72b78100e1ecf543c7b01d19f0577bc6147cd",
+      "cause": "Independent ancestor observation order was reversed; nearest-parent observation corrected while root-first matrix multiplication remained exact."
+    },
+    {
+      "receipt_sha256": "8f1090737bbd107d438a2d9d6f344c7490f8c72139fb7323a4b904adcaaca641",
+      "cause": "Protected-directory refusal driver used its request leaf as destination; fresh report leaf corrected, original evidence retained."
+    }
+  ],
+  "raw_evidence": [
+    "integration/local/team-v3-combined-08-corrected-02",
+    "integration/local/team-v3-combined-08-corrected-02-consumers",
+    "integration/local/team-v3-combined-08-corrected-02-asset-consumers-03",
+    "main/local/coordinator-combined08-consumer-diagnosis-01"
+  ],
+  "limits": [
+    "Explicit pose times, source-linked topology and raw weights do not establish animation playback, blend/event timing or GPU actor skinning parity.",
+    "Native host/reference rendering and grid/collision ownership are scoped engineering consumers; original units, Havok response, character movement, new-game activation and gameplay remain unaccepted.",
+    "Menu topology preserves source nodes/operators without original expression evaluation, layout, font rendering or display comparison.",
+    "Later batch09/10/11 sources, the new route-boot compositor and runtime24/25/26 are outside this frozen batch."
+  ],
+  "last_verified_checkpoint": 45,
+  "new_checkpoint_claimed": false,
+  "original_process_started": false,
+  "original_gameplay_scenarios_accepted": 0,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false,
+  "promoted_merge_revision": "b178e35f78082de4e6ed787a88222a031529ca97",
+  "promotion_equivalence": {
+    "matched_source_files": 1005,
+    "preserved_live_metadata": [
+      "docs/agents/team-v3/backlog.json"
+    ],
+    "receipt_sha256": "44fdd98de7dc7fb005c9acb2bd4b352808f2ba96b65e3dd211e2edc15ac089a4"
+  }
+}

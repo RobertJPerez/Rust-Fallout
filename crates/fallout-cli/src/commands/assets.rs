@@ -31,6 +31,9 @@ pub(crate) enum AssetsCommand {
         attachment: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        /// Evaluate one exact controller/time request for the selected node.
+        #[arg(long)]
+        sampled: bool,
     },
     /// Evaluate linked translation/scale at explicit source time; playback unverified.
     NifSourcePose {

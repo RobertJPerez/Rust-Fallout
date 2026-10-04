@@ -1,5 +1,30 @@
 # Actor package context requests
 
+## Explicit canonical equipment lot requests (V3-ACT-16)
+
+`actor_rules::equipment::observe(&World, &foreign::Content, owner, ItemId,
+Limits)` selects exactly one current canonical lot through the reviewed bounded
+inventory view. Its owned `Selection` retains the complete ordered bank and a
+private selected index, exact campaign/cohort/revision/clocks/owner, current count
+and optional facts, and the base's winning source kind/flags. It has no mutation
+or deserialization authority. `base()` supplies an explicit source-model request
+input without choosing a model role or assuming the item is equipped.
+
+Uninitialized inventory and initialized empty inventory return distinct refusals.
+Wrong-owner, removed/missing lot and unavailable/deleted source bases refuse.
+Two lots with the same base retain separate IDs and exact condition-width bits,
+`None`, `Some([])` and populated slot/modification values. Modification keys never
+become an ACT08 active modmask. Generic inventory-view item/link/opaque-byte limits
+apply before cloning; visit and total projection limits additionally bound the
+selection. Observation leaves the authoritative snapshot unchanged.
+
+Persistent `ItemId` is explicitly scoped to the supplied current World campaign.
+UI/storage handles use `observe_handle`, which calls the existing canonical
+epoch-checked `World::item_id` and rejects restored/foreign World handles before
+lookup. `actor-package-context --equipment-item ID --explicit-subject OWNER`
+provides a strict cold-snapshot consumer. The package actor root stays explicit;
+the equipment source base comes from the selected lot.
+
 ## Canonical actor reference source context (V3-ACT-15)
 
 `actor_rules::context::observe(&World, &foreign::Content,

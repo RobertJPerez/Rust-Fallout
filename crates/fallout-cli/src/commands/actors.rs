@@ -77,6 +77,8 @@ pub(crate) enum ActorsCommand {
         package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
         #[arg(long, requires = "explicit_subject")]
         include_actor_context: bool,
+        #[arg(long, requires = "explicit_subject")]
+        equipment_item: Option<std::num::NonZeroU64>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {

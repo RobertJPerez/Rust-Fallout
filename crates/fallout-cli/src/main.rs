@@ -1203,6 +1203,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             include_stat_requests,
             package_capability,
             include_actor_context,
+            equipment_item,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1218,6 +1219,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     include_stat_requests,
                     package_capability,
                     include_actor_context,
+                    equipment_item,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

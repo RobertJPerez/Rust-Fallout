@@ -7,7 +7,7 @@ use fallout_runtime::{
     identity::{CampaignId, ReferenceId},
     inventory::{
         Ammo, Condition, Facts, InventoryView, OpaqueExtra, Ownership, Page, PageLimits,
-        PageRequest, RemovalLimits, TransferLimits, ViewLimits,
+        PageRequest, PartialTransferLimits, RemovalLimits, TransferLimits, ViewLimits,
     },
     save::{Captured, Recovery, Repository},
     source_items::{Policy, Role, SourceFactsLimits, SourceInventoryLimits},
@@ -564,6 +564,264 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     report["removal_inputs"] = json!([{"id":first_id,"quantity":2},{"id":original,"quantity":12}]);
     report["removal_invalid_last_preserved_state"] = true.into();
     report["removal_capacity_proof"] = capacity_proof;
+    report["partial_item_transfer"] = partial_transfer_probe(
+        install,
+        repository_path,
+        &scripts,
+        &base,
+        &content,
+        &placed,
+        &keys,
+    )?;
+    Ok(report)
+}
+
+fn partial_transfer_probe(
+    install: &Path,
+    repository_path: &Path,
+    scripts: &loaded_scripts::Catalogue,
+    authored: &inventory::Catalogue,
+    content: &Content,
+    placed: &fallout_data::identity::FormKey,
+    keys: &[fallout_data::identity::FormKey],
+) -> Result<Value> {
+    let selected = authored
+        .iter()
+        .filter(|(_, definition)| !definition.deleted)
+        .find_map(|(parent, definition)| {
+            definition.fields.iter().find_map(|field| {
+                if let inventory::Value::Item {
+                    item,
+                    count: 8,
+                    schema_kind_allowed: Some(true),
+                } = &field.value
+                    && item.status == inventory::Status::Defined
+                    && item
+                        .target
+                        .as_ref()
+                        .is_some_and(|target| target.kind != *b"LVLI")
+                    && let Some(base) = &item.key
+                {
+                    Some((
+                        base.clone(),
+                        json!({"parent":parent,"source":definition.source,"field":field}),
+                    ))
+                } else {
+                    None
+                }
+            })
+        });
+    let Some((base, provenance)) = selected else {
+        return Ok(
+            json!({"status":"unavailable","reason":"No defined terminal authored 8-count entry","retail_parity_accepted":false}),
+        );
+    };
+    // Explicit engineering state in a separate campaign/repository. A decoded
+    // CNTO count supplies the quantity; the disclosed Facts are host inputs.
+    let canonical_limits = Limits {
+        max_item_instances: 2,
+        max_total_item_links: 12,
+        max_total_item_bytes: 6,
+        ..Limits::default()
+    };
+    let mut world =
+        World::with_campaign(scripts, canonical_limits, CampaignId::from_bytes([55; 16])?)?;
+    let source = world.register_reference(Some(placed.clone()))?;
+    let destination = world.register_reference(None)?;
+    let absent = world.register_reference(None)?;
+    world.initialize_inventory(destination)?;
+    let mut facts = Facts::unknown(base.clone());
+    facts.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abc,
+    });
+    facts.ownership = Some(Ownership::Live { reference: source });
+    facts.equipped_slots = Some(vec![7, 1]);
+    facts.ammo = Some(Ammo {
+        base: keys[1].clone(),
+        count: 0,
+    });
+    facts.modifications = Some(vec![keys[2].clone()]);
+    facts.quest_item = Some(false);
+    facts.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 255, 1],
+    }];
+    let base_kind = content.source_form(&world, &base)?.kind;
+    let ammo_kind = content.source_form(&world, &keys[1])?.kind;
+    let modification_kind = content.source_form(&world, &keys[2])?.kind;
+    let policy = Policy::new(&[
+        (Role::Base, &[base_kind]),
+        (Role::Ammo, &[ammo_kind]),
+        (Role::Modification, &[modification_kind]),
+    ])?;
+    let lots = [(facts.clone(), 8.try_into()?)];
+    let initialization = world.stage_source_inventory_initialization(
+        content,
+        &policy,
+        source,
+        &lots,
+        SourceInventoryLimits::default(),
+    )?;
+    let initialized =
+        world.commit_source_inventory_initialization(content, &policy, initialization)?;
+    let original_id = initialized.item_ids()[0];
+    let handle = world.item_handle(original_id)?;
+    let before = world.snapshot();
+    let owners = [source, destination, absent];
+    let query_keys = [base.clone(), keys[1].clone(), keys[2].clone()];
+    let before_views = views(&world, &owners)?;
+    let before_pages = pages(&world, &owners)?;
+    verify_pages(&before_pages, &before_views)?;
+    let before_traces = traces(&world, &owners[..2], &query_keys)?;
+    let operation_limits = PartialTransferLimits {
+        max_links: 6,
+        max_extra_bytes: 3,
+        ..PartialTransferLimits::default()
+    };
+    for (target, quantity) in [
+        (source, 3),
+        (absent, 3),
+        (ReferenceId(99.try_into()?), 3),
+        (destination, 8),
+        (destination, 9),
+    ] {
+        if world
+            .stage_partial_item_transfer(handle, quantity.try_into()?, target, operation_limits)
+            .is_ok()
+            || world.snapshot() != before
+        {
+            return Err("Partial transfer accepted an invalid request or changed state".into());
+        }
+    }
+    let dropped =
+        world.stage_partial_item_transfer(handle, 3.try_into()?, destination, operation_limits)?;
+    let usage = dropped.usage();
+    drop(dropped);
+    if world.snapshot() != before {
+        return Err("Dropped partial transfer changed state".into());
+    }
+    for limits in [
+        Limits {
+            max_item_instances: 1,
+            ..canonical_limits
+        },
+        Limits {
+            max_total_item_links: 11,
+            ..canonical_limits
+        },
+        Limits {
+            max_total_item_bytes: 5,
+            ..canonical_limits
+        },
+    ] {
+        let bounded = World::restore(scripts, before.clone(), limits)?;
+        if bounded
+            .stage_partial_item_transfer(
+                bounded.item_handle(original_id)?,
+                3.try_into()?,
+                destination,
+                operation_limits,
+            )
+            .is_ok()
+            || bounded.snapshot() != before
+        {
+            return Err("Partial transfer exceeded duplicated Facts capacity".into());
+        }
+    }
+    let mut competing = World::restore(scripts, before.clone(), canonical_limits)?;
+    let staged = competing.stage_partial_item_transfer(
+        competing.item_handle(original_id)?,
+        3.try_into()?,
+        destination,
+        operation_limits,
+    )?;
+    competing.add_item(destination, facts.clone(), 1.try_into()?)?;
+    let filled = competing.snapshot();
+    if competing.commit_partial_item_transfer(staged).is_ok() || competing.snapshot() != filled {
+        return Err("Partial transfer committed after the destination changed".into());
+    }
+    let repository = Repository::create(
+        &repository_path.join("partial-transfer"),
+        &[install.to_path_buf()],
+        world.campaign(),
+    )?;
+    let mut worker = fallout_runtime::save::SaveWorker::start(repository.clone(), 2)?;
+    let before_ticket = worker.try_submit(Captured::at_boundary(&world))?;
+    let stage = world.stage_partial_item_transfer(
+        handle,
+        3.try_into()?,
+        destination,
+        PartialTransferLimits {
+            max_copied_bytes: usage.copied_bytes,
+            ..operation_limits
+        },
+    )?;
+    let (receipt, moved) = world.commit_partial_item_transfer(stage)?;
+    let after = world.snapshot();
+    if receipt.before_revision != 5
+        || receipt.after_revision != 6
+        || after.next_item != 3
+        || world.item_by_handle(handle)?.count() != 5
+        || world.item_by_handle(handle)?.facts() != &facts
+        || world.item_by_handle(moved)?.count() != 3
+        || world.item_by_handle(moved)?.facts() != &facts
+        || world.item_id(moved)?.0.get() != 2
+        || world.inventory_count(source, &base)? != 5
+        || world.inventory_count(destination, &base)? != 3
+    {
+        return Err("Partial transfer did not preserve exact lots and one revision".into());
+    }
+    let after_ticket = worker.try_submit(Captured::at_boundary(&world))?;
+    if !worker.close_admission() {
+        return Err("Partial save admission already closed".into());
+    }
+    worker.finish()?;
+    let before_write = before_ticket.wait()?;
+    let after_write = after_ticket.wait()?;
+    let after_views = views(&world, &owners)?;
+    let after_pages = pages(&world, &owners)?;
+    verify_pages(&after_pages, &after_views)?;
+    let after_traces = traces(&world, &owners[..2], &query_keys)?;
+    let (cold, after_load) = repository.load(scripts, canonical_limits, Recovery::Strict)?;
+    if cold.snapshot() != after
+        || cold.item_by_handle(handle).is_ok()
+        || cold.item_by_handle(moved).is_ok()
+        || views(&cold, &owners)? != after_views
+        || traces(&cold, &owners[..2], &query_keys)? != after_traces
+    {
+        return Err("Partial transfer current cold restore differs".into());
+    }
+    let previous_path = repository_path.join("partial-transfer-before");
+    let previous = Repository::create(&previous_path, &[install.to_path_buf()], before.campaign)?;
+    std::fs::write(
+        previous.path().join("current.frsv"),
+        std::fs::read(repository.path().join("previous.frsv"))?,
+    )?;
+    let (cold_before, before_load) = previous.load(scripts, canonical_limits, Recovery::Strict)?;
+    if cold_before.snapshot() != before
+        || views(&cold_before, &owners)? != before_views
+        || traces(&cold_before, &owners[..2], &query_keys)? != before_traces
+    {
+        return Err("Partial transfer previous cold restore differs".into());
+    }
+    let mut report = json!({"status":"exercised","source_entry":provenance,"engineering_inputs":{"owners":owners,"query_keys":query_keys,"facts":facts,"authored_count":8,"moved_count":3,"policy":policy,"authored_owner":placed},
+        "before_snapshot":before,"after_snapshot":after,"receipt":receipt,"source_initialization":initialized,"retail_parity_accepted":false});
+    report["before_views"] = serde_json::to_value(before_views)?;
+    report["after_views"] = serde_json::to_value(after_views)?;
+    report["before_pages"] = serde_json::to_value(before_pages)?;
+    report["after_pages"] = serde_json::to_value(after_pages)?;
+    report["before_traces"] = before_traces;
+    report["after_traces"] = after_traces;
+    report["before_write"] = serde_json::to_value(before_write)?;
+    report["after_write"] = serde_json::to_value(after_write)?;
+    report["before_load"] = serde_json::to_value(before_load)?;
+    report["after_load"] = serde_json::to_value(after_load)?;
+    report["refused_requests_preserved_state"] = true.into();
+    report["dropped_stage_preserved_state"] = true.into();
+    report["duplicated_facts_capacity_refused"] = true.into();
+    report["changed_destination_refused"] = true.into();
+    report["cold_handles_expired"] = true.into();
+    report["one_revision_exact_facts_and_conserved_total"] = true.into();
     Ok(report)
 }
 pub(super) fn cold(

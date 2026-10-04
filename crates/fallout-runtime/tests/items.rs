@@ -6,7 +6,7 @@ use fallout_runtime::{
     identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value},
     inventory::{
         Ammo, Condition, Facts, ItemId, OpaqueExtra, Ownership, Page, PageLimits, PageRequest,
-        RemovalLimits, TransferLimits, ViewLimits, ViewUsage,
+        PartialTransferLimits, RemovalLimits, TransferLimits, ViewLimits, ViewUsage,
     },
     save::{Captured, Recovery, Repository},
     snapshot::Snapshot,
@@ -2224,6 +2224,547 @@ fn cold_inventory_removal_helper() {
     if phase == "after" {
         assert_eq!(views[1].items(), Some([].as_slice()));
     }
+    fs::write(
+        root.join(&phase).join("cold.restored.json"),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.views.json"),
+        serde_json::to_vec_pretty(&views).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join(&phase).join("cold.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+}
+
+fn partial_transfer_world(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, [ReferenceId; 3], [ItemId; 3]) {
+    let (mut world, owners, ids) = transfer_world(catalogue);
+    world.remove_item_quantity(ids[0], quantity(9)).unwrap();
+    (world, owners, ids)
+}
+
+#[test]
+fn partial_transfer_preserves_full_facts_remainder_id_and_all_other_state_in_one_revision() {
+    let (_dir, catalogue) = fixture();
+    let (mut world, [a, b, _], ids) = partial_transfer_world(&catalogue);
+    let handle = world.item_handle(ids[0]).unwrap();
+    let before = world.snapshot();
+    let original = world.item(ids[0]).unwrap().clone();
+    let stage = world
+        .stage_partial_item_transfer(handle, quantity(3), b, PartialTransferLimits::default())
+        .unwrap();
+    assert_eq!(stage.original(), &original);
+    assert_eq!(stage.target(), b);
+    assert_eq!(stage.quantity(), quantity(3));
+    assert_eq!(stage.base_revision(), 12);
+    assert_eq!(stage.usage().links, 7);
+    assert_eq!(stage.usage().extra_bytes, 3);
+    assert_eq!(world.snapshot(), before);
+    let (receipt, moved) = world.commit_partial_item_transfer(stage).unwrap();
+    assert_eq!(world.item_by_handle(handle).unwrap().count(), 5);
+    assert_eq!(
+        world.item_by_handle(handle).unwrap().facts(),
+        original.facts()
+    );
+    assert_eq!(world.item_by_handle(moved).unwrap().owner(), b);
+    assert_eq!(world.item_by_handle(moved).unwrap().count(), 3);
+    assert_eq!(
+        world.item_by_handle(moved).unwrap().facts(),
+        original.facts()
+    );
+    assert_eq!(world.item_id(moved).unwrap().0.get(), 4);
+    assert_eq!(world.snapshot().next_item, 5);
+    assert_eq!(receipt.before_revision, 12);
+    assert_eq!(receipt.after_revision, 13);
+    assert_eq!(receipt.next_item_before, 4);
+    assert_eq!(receipt.next_item_after, 5);
+    assert_eq!(receipt.source_item, ids[0]);
+    assert_eq!(receipt.destination_item.0.get(), 4);
+    assert_eq!(receipt.source_owner, a);
+    assert_eq!(receipt.destination_owner, b);
+    assert_eq!(
+        (
+            receipt.original_quantity,
+            receipt.remaining_quantity,
+            receipt.moved_quantity
+        ),
+        (8, 5, 3)
+    );
+    assert_eq!(
+        (receipt.source_total_before, receipt.source_total_after),
+        (11, 8)
+    );
+    assert_eq!(
+        (
+            receipt.destination_total_before,
+            receipt.destination_total_after
+        ),
+        (0, 3)
+    );
+    let mut expected = before;
+    expected.state_revision = 13;
+    expected.next_item = 5;
+    let mut first = facts();
+    first.script_instance = Some(InstanceId(1.try_into().unwrap()));
+    let mut second = first.clone();
+    second.condition = Some(Condition::Float64 {
+        bits: 0x7ff8_1234_5678_9abd,
+    });
+    let mut third = first.clone();
+    third.base = form(0x200);
+    third.condition = Some(Condition::Float32 { bits: 0x8000_0000 });
+    expected.inventory_banks = serde_json::from_value(serde_json::json!([
+        {"owner":1,"items":[{"id":1,"owner":1,"count":5,"facts":first}, {"id":2,"owner":1,"count":3,"facts":second}]},
+        {"owner":2,"items":[{"id":3,"owner":2,"count":5,"facts":third}, {"id":4,"owner":2,"count":3,"facts":first}]}
+    ])).unwrap();
+    assert_eq!(world.snapshot(), expected);
+    assert_transfer_counts(&world);
+}
+
+#[test]
+fn partial_transfer_refuses_bad_destination_quantities_and_missing_handle_without_a_split() {
+    let (_dir, catalogue) = fixture();
+    let (world, [a, b, absent], ids) = partial_transfer_world(&catalogue);
+    let before = world.snapshot();
+    let handle = world.item_handle(ids[0]).unwrap();
+    // The public quantity type cannot represent zero.
+    assert!(NonZeroU32::new(0).is_none());
+    for (target, count) in [
+        (a, 3),
+        (absent, 3),
+        (ReferenceId(99.try_into().unwrap()), 3),
+        (b, 8),
+        (b, 9),
+        (b, u32::MAX),
+    ] {
+        assert!(
+            world
+                .stage_partial_item_transfer(
+                    handle,
+                    quantity(count),
+                    target,
+                    PartialTransferLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_partial_item_transfer(handle, quantity(3), b, PartialTransferLimits::default())
+        .unwrap();
+    drop(stage);
+    assert_eq!(world.snapshot(), before);
+    assert!(world.item_handle(ItemId(99.try_into().unwrap())).is_err());
+}
+
+#[test]
+fn partial_transfer_bounds_facts_payload_before_copy_and_admits_exact_limits() {
+    let (_dir, catalogue) = fixture();
+    let (world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+    let handle = world.item_handle(ids[0]).unwrap();
+    let before = world.snapshot();
+    let usage = world
+        .stage_partial_item_transfer(handle, quantity(3), b, PartialTransferLimits::default())
+        .unwrap()
+        .usage();
+    let exact = PartialTransferLimits {
+        max_links: 7,
+        max_extra_bytes: 3,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    for limits in [
+        PartialTransferLimits {
+            max_links: 6,
+            ..exact
+        },
+        PartialTransferLimits {
+            max_extra_bytes: 2,
+            ..exact
+        },
+        PartialTransferLimits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..exact
+        },
+    ] {
+        assert!(
+            world
+                .stage_partial_item_transfer(handle, quantity(3), b, limits)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    assert!(
+        world
+            .stage_partial_item_transfer(handle, quantity(3), b, exact)
+            .is_ok()
+    );
+    let mut large = World::restore(&catalogue, before, Limits::default()).unwrap();
+    let mut supplied = large.item(ids[0]).unwrap().facts().clone();
+    supplied.extra_fields[0].bytes = vec![0xa5; 32 * 1024];
+    large.replace_item_facts(ids[0], supplied).unwrap();
+    let before = large.snapshot();
+    assert!(
+        large
+            .stage_partial_item_transfer(
+                large.item_handle(ids[0]).unwrap(),
+                quantity(3),
+                b,
+                PartialTransferLimits {
+                    max_copied_bytes: 32 * 1024,
+                    ..PartialTransferLimits::default()
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(large.snapshot(), before);
+}
+
+#[test]
+fn partial_transfer_duplicated_facts_obey_instance_link_and_opaque_capacity_without_consuming_id() {
+    let (_dir, catalogue) = fixture();
+    let (world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+    let before = world.snapshot();
+    let fit = Limits {
+        max_item_instances: 4,
+        max_total_item_links: 28,
+        max_total_item_bytes: 12,
+        ..Limits::default()
+    };
+    for limits in [
+        Limits {
+            max_item_instances: 3,
+            ..fit
+        },
+        Limits {
+            max_total_item_links: 27,
+            ..fit
+        },
+        Limits {
+            max_total_item_bytes: 11,
+            ..fit
+        },
+        Limits {
+            max_item_instances: 3,
+            max_total_item_links: 21,
+            max_total_item_bytes: 9,
+            ..fit
+        },
+    ] {
+        let bounded = World::restore(&catalogue, before.clone(), limits).unwrap();
+        assert!(
+            bounded
+                .stage_partial_item_transfer(
+                    bounded.item_handle(ids[0]).unwrap(),
+                    quantity(3),
+                    b,
+                    PartialTransferLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(bounded.snapshot(), before);
+    }
+    let mut bounded = World::restore(&catalogue, before, fit).unwrap();
+    let stage = bounded
+        .stage_partial_item_transfer(
+            bounded.item_handle(ids[0]).unwrap(),
+            quantity(3),
+            b,
+            PartialTransferLimits::default(),
+        )
+        .unwrap();
+    bounded.commit_partial_item_transfer(stage).unwrap();
+    let exact = bounded.snapshot();
+    assert_eq!(exact.next_item, 5);
+    assert!(
+        bounded
+            .stage_partial_item_transfer(
+                bounded.item_handle(ids[0]).unwrap(),
+                quantity(1),
+                b,
+                PartialTransferLimits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(bounded.snapshot(), exact);
+    assert_transfer_counts(&bounded);
+}
+
+#[test]
+fn partial_transfer_revision_and_new_id_overflow_refuse_and_last_valid_values_succeed() {
+    let (_dir, catalogue) = fixture();
+    let (world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+    for (revision, next) in [(u64::MAX, 4), (12, u64::MAX), (u64::MAX, u64::MAX)] {
+        let mut dto = world.snapshot();
+        dto.state_revision = revision;
+        dto.next_item = next;
+        let bounded = World::restore(&catalogue, dto.clone(), Limits::default()).unwrap();
+        assert!(
+            bounded
+                .stage_partial_item_transfer(
+                    bounded.item_handle(ids[0]).unwrap(),
+                    quantity(3),
+                    b,
+                    PartialTransferLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(bounded.snapshot(), dto);
+    }
+    let mut dto = world.snapshot();
+    dto.state_revision = u64::MAX - 1;
+    dto.next_item = u64::MAX - 1;
+    let mut last = World::restore(&catalogue, dto, Limits::default()).unwrap();
+    let stage = last
+        .stage_partial_item_transfer(
+            last.item_handle(ids[0]).unwrap(),
+            quantity(3),
+            b,
+            PartialTransferLimits::default(),
+        )
+        .unwrap();
+    let (receipt, handle) = last.commit_partial_item_transfer(stage).unwrap();
+    assert_eq!(last.item_id(handle).unwrap().0.get(), u64::MAX - 1);
+    assert_eq!(receipt.after_revision, u64::MAX);
+    assert_eq!(last.snapshot().next_item, u64::MAX);
+    assert_transfer_counts(&last);
+}
+
+#[test]
+fn partial_transfer_stale_competitor_and_changed_destination_or_facts_have_no_second_effect() {
+    let (_dir, catalogue) = fixture();
+    for change in 0..4 {
+        let (mut world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+        let stage = world
+            .stage_partial_item_transfer(
+                world.item_handle(ids[0]).unwrap(),
+                quantity(3),
+                b,
+                PartialTransferLimits::default(),
+            )
+            .unwrap();
+        match change {
+            0 => {
+                world.add_item(b, facts(), quantity(1)).unwrap();
+            }
+            1 => {
+                let mut f = facts();
+                f.condition = Some(Condition::Float64 { bits: 1 << 63 });
+                world.replace_item_facts(ids[0], f).unwrap();
+            }
+            2 => {
+                world.transfer_item(ids[0], b).unwrap();
+            }
+            _ => {
+                let other = world
+                    .stage_partial_item_transfer(
+                        world.item_handle(ids[0]).unwrap(),
+                        quantity(3),
+                        b,
+                        PartialTransferLimits::default(),
+                    )
+                    .unwrap();
+                world.commit_partial_item_transfer(other).unwrap();
+            }
+        }
+        let changed = world.snapshot();
+        assert!(world.commit_partial_item_transfer(stage).is_err());
+        assert_eq!(world.snapshot(), changed);
+        assert_transfer_counts(&world);
+    }
+    let (world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+    let handle = world.item_handle(ids[0]).unwrap();
+    let stage = world
+        .stage_partial_item_transfer(handle, quantity(3), b, PartialTransferLimits::default())
+        .unwrap();
+    let before = world.snapshot();
+    let mut cold = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        cold.stage_partial_item_transfer(handle, quantity(3), b, PartialTransferLimits::default()),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert!(matches!(
+        cold.commit_partial_item_transfer(stage),
+        Err(fallout_runtime::Error::StaleHandle)
+    ));
+    assert_eq!(cold.snapshot(), before);
+}
+
+#[test]
+fn partial_transfer_retains_signed_zero_nan_and_unknown_versus_explicit_empty_facts() {
+    let (_dir, catalogue) = fixture();
+    for f in [
+        Facts::unknown(form(0x100)),
+        Facts {
+            condition: Some(Condition::Float64 { bits: 1 << 63 }),
+            ownership: Some(Ownership::Unowned),
+            equipped_slots: Some(vec![]),
+            modifications: Some(vec![]),
+            quest_item: Some(false),
+            ..Facts::unknown(form(0x100))
+        },
+        Facts {
+            condition: Some(Condition::Float32 { bits: 0x7fc0_1234 }),
+            ..Facts::unknown(form(0x100))
+        },
+    ] {
+        let (mut world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+        world.replace_item_facts(ids[0], f.clone()).unwrap();
+        let stage = world
+            .stage_partial_item_transfer(
+                world.item_handle(ids[0]).unwrap(),
+                quantity(3),
+                b,
+                PartialTransferLimits::default(),
+            )
+            .unwrap();
+        let (_, new) = world.commit_partial_item_transfer(stage).unwrap();
+        assert_eq!(world.item(ids[0]).unwrap().facts(), &f);
+        assert_eq!(world.item_by_handle(new).unwrap().facts(), &f);
+        assert_eq!(world.item(ids[1]).unwrap().count(), 3);
+        assert_transfer_counts(&world);
+    }
+}
+
+#[test]
+fn partial_transfer_native_before_current_and_two_fresh_cold_consumers_preserve_whole_state() {
+    use std::{fs, process::Command};
+    let temporary = tempfile::tempdir().unwrap();
+    let retained = std::env::var_os("FALLOUT_INVENTORY_PARTIAL_TRANSFER_EVIDENCE")
+        .map(std::path::PathBuf::from);
+    let root = retained
+        .as_deref()
+        .unwrap_or(temporary.path())
+        .join("native-boundary");
+    fs::create_dir_all(&root).unwrap();
+    write_fixture(&root, false);
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let (mut world, [_, b, _], ids) = partial_transfer_world(&catalogue);
+    let old_handle = world.item_handle(ids[0]).unwrap();
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("native"), &[], world.campaign()).unwrap();
+    let mut worker = fallout_runtime::save::SaveWorker::start(repository.clone(), 2).unwrap();
+    let first = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    let stage = world
+        .stage_partial_item_transfer(old_handle, quantity(3), b, PartialTransferLimits::default())
+        .unwrap();
+    let (receipt, _) = world.commit_partial_item_transfer(stage).unwrap();
+    let after = world.snapshot();
+    let second = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    assert!(worker.close_admission());
+    worker.finish().unwrap();
+    assert_eq!(first.wait().unwrap().metadata.generation, 1);
+    assert_eq!(second.wait().unwrap().metadata.generation, 2);
+    fs::write(
+        root.join("expected.before.json"),
+        before.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("expected.after.json"),
+        after.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        root.join("partial.receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    let current = fs::read(repository.path().join("current.frsv")).unwrap();
+    let previous = fs::read(repository.path().join("previous.frsv")).unwrap();
+    let source = fs::read(root.join("FalloutNV.esm")).unwrap();
+    let (cold, _) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    assert_eq!(cold.snapshot(), after);
+    assert!(cold.item_by_handle(old_handle).is_err());
+    drop(cold);
+    drop(world);
+    drop(catalogue);
+    for (phase, snapshot, wire) in [("before", &before, &previous), ("after", &after, &current)] {
+        let phase_root = root.join(phase);
+        fs::create_dir(&phase_root).unwrap();
+        let copy = Repository::create(&phase_root.join("native"), &[], snapshot.campaign).unwrap();
+        fs::write(copy.path().join("current.frsv"), wire).unwrap();
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_partial_item_transfer_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_INVENTORY_PARTIAL_TRANSFER_COLD_ROOT", &root)
+            .env("FALLOUT_INVENTORY_PARTIAL_TRANSFER_COLD_PHASE", phase)
+            .output()
+            .unwrap();
+        fs::write(phase_root.join("cold.stdout.txt"), &child.stdout).unwrap();
+        fs::write(phase_root.join("cold.stderr.txt"), &child.stderr).unwrap();
+        assert!(
+            child.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert_eq!(fs::read(copy.path().join("current.frsv")).unwrap(), *wire);
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        current
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        previous
+    );
+    assert_eq!(fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh partial item transfer consumer invoked by parent"]
+fn cold_partial_item_transfer_helper() {
+    use std::fs;
+    let root = std::path::PathBuf::from(
+        std::env::var_os("FALLOUT_INVENTORY_PARTIAL_TRANSFER_COLD_ROOT").unwrap(),
+    );
+    let phase = std::env::var("FALLOUT_INVENTORY_PARTIAL_TRANSFER_COLD_PHASE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let repository = Repository::open(&root.join(&phase).join("native"), &[]).unwrap();
+    let (world, receipt) = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap();
+    let expected = Snapshot::decode(
+        &fs::read(root.join(format!("expected.{phase}.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(
+        receipt.metadata.generation,
+        if phase == "before" { 1 } else { 2 }
+    );
+    assert_eq!(world.revision(), if phase == "before" { 12 } else { 13 });
+    assert_eq!(
+        world.snapshot().next_item,
+        if phase == "before" { 4 } else { 5 }
+    );
+    assert_transfer_counts(&world);
+    let views = [1, 2, 3].map(|id| {
+        world
+            .inventory_view(
+                ReferenceId(id.try_into().unwrap()),
+                ViewLimits {
+                    max_items: 2,
+                    max_links: 14,
+                    max_extra_bytes: 6,
+                },
+            )
+            .unwrap()
+    });
+    assert!(views[2].items().is_none());
     fs::write(
         root.join(&phase).join("cold.restored.json"),
         world.snapshot().encode(1 << 20).unwrap(),

@@ -20,6 +20,12 @@ pub use transfers::{
     TransferUsage,
 };
 
+#[path = "state/inventory_partial_transfer.rs"]
+mod partial_transfer;
+pub use partial_transfer::{
+    PartialTransferLimits, PartialTransferReceipt, PartialTransferUsage, StagedPartialItemTransfer,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ItemId(pub NonZeroU64);

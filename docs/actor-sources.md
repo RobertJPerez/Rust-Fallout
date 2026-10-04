@@ -1,5 +1,52 @@
 # Immutable actor source fields
 
+## Template category declaration requests (V3-ACT-03)
+
+`actors::dependencies::Catalogue::template_manifest(root, TemplateLimits)` uses
+the existing inventory/list/template graph and its bounded structural closure.
+It adds the missing chosen-root category requests with exact inventory ACBS and
+TPLT field indices, offsets, hashes, raw flags and original bindings. Singleton
+defined actor templates expose structural candidate sources with their actual
+winning headers and plugin/body hashes. They are not inherited field winners.
+Inventory actors remain outside this candidate prefix, although the existing
+broad structural closure continues to retain them.
+
+The ten category masks come from pinned xEdit FNV callbacks, lines 2165-2370,
+and Common `wbTemplateFlags`, lines 8429-8453. A clear category mask identifies
+the chosen actor's authored source declaration. A set mask remains an unsupported
+inheritance request; it never chooses a parent field or substitutes editor
+defaults. The declared source index refers to the chosen root in canonical key
+order, including when an ancestor has a smaller key. Every request states that
+runtime values have not been evaluated.
+
+Repeated TPLT, null/missing/deleted/wrong-kind links, missing or repeated ACBS,
+unknown template bits and missing required template links retain explicit
+diagnostics. A legal LVLN/LVLC template remains a leveled selection request;
+its list is available in the existing structural graph and no random candidate
+is chosen. Direct actor template cycles use the existing shared graph helper
+and refer to exact candidate source indices. The candidate prefix visits each
+actor once and charges fields, graph joins and link/source/issue limits. All
+explicit CLI roots share aggregate template budgets.
+
+The existing `actor-sources` command accepts `--include-template-dependencies`
+with `--include-dependencies` and explicit `--dependency-root` values. Its
+optional `actor_template_dependencies` projection can be compared completely
+with the independent original-byte reader's matching flag. Template and render
+requests can be inspected together; their scopes stay explicit. Effective
+inheritance, leveled selection, auto-calculated statistics and gameplay remain
+unverified.
+
+Validation on 2026-10-04 passed all 21 dependency tests (one unrelated installed
+test remained ignored), formatting and warnings-denied data/CLI Clippy. The
+authored template projection independently matched two candidate sources and
+all ten requests. The installed DocMitchell projection independently matched
+the complete scalar/dependency report, two candidate sources, one TPLT origin
+and ten category requests with no template issues; all root declaration indices
+correctly identify source index 1. The independent authored combined render and
+template projection also matched. An altered category mask failed comparison,
+and missing flags failed before input reads. Deliberately incomplete authored
+records kept their existing source-finding exit after successful comparison.
+
 ## Selected actor render declarations (V3-ACT-01)
 
 `actors::dependencies::Catalogue::render_manifest(root, &ArchiveAssets,

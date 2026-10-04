@@ -237,6 +237,8 @@ enum Command {
         dependency_roots: Vec<identity::FormKey>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
         include_render_dependencies: bool,
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
+        include_template_dependencies: bool,
     },
     /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
     ActorPackageContext {
@@ -977,6 +979,7 @@ fn run(args: Args) -> Result<()> {
             include_dependencies,
             dependency_roots,
             include_render_dependencies,
+            include_template_dependencies,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -993,6 +996,7 @@ fn run(args: Args) -> Result<()> {
                     include_dependencies,
                     dependency_roots,
                     include_render_dependencies,
+                    include_template_dependencies,
                 },
             )?;
             if let Some(oracle) = compare_oracle {

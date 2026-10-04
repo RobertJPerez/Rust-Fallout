@@ -681,6 +681,300 @@ fn with_catalogue<T>(
     let catalogue = Catalogue::load(store, &actors, &associations, &lists, limits).unwrap();
     run(&actors, &catalogue)
 }
+fn template_config(flags: u16) -> Vec<u8> {
+    let mut config = [0; 24];
+    config[22..24].copy_from_slice(&flags.to_le_bytes());
+    field(b"ACBS", &config)
+}
+
+#[test]
+fn template_categories_keep_exact_origins_and_never_select_inherited_values() {
+    use dependencies::{DeclarationSelection, TemplateCategory, TemplateLimits};
+    let directory = tempfile::tempdir().unwrap();
+    render_fixture(directory.path(), 1, 0x43, &[]);
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |actors, catalogue| {
+        let manifest = catalogue
+            .template_manifest(&key(0x100), TemplateLimits::default())
+            .unwrap();
+        assert_eq!(
+            manifest
+                .candidate_sources
+                .iter()
+                .map(|source| source.key.local_id)
+                .collect::<Vec<_>>(),
+            [0x100, 0x102]
+        );
+        assert!(manifest.structural_closure.nodes.contains(&key(0x101)));
+        assert_eq!(manifest.links.len(), 1);
+        let link = &manifest.links[0];
+        let root = actors.get(&key(0x100)).unwrap().inventory_definition();
+        assert!(std::ptr::eq(
+            link.field,
+            &root.fields[link.inventory_field_index]
+        ));
+        assert_eq!(link.field.kind, *b"TPLT");
+        let edge = &catalogue.inventory_graph().edges[link.graph_edge_index];
+        assert_eq!(edge.role, "actor-template");
+        assert_eq!(edge.field_decoded_offset, link.field.decoded_offset);
+        let config = manifest.candidate_sources[0]
+            .configuration
+            .as_ref()
+            .unwrap();
+        assert_eq!(config.flags, 1);
+        assert_eq!(config.template_flags, 0x43);
+        assert_eq!(
+            root.fields[config.inventory_field_index].decoded_offset,
+            config.field_decoded_offset
+        );
+        assert_eq!(manifest.categories.len(), 10);
+        for (index, category) in manifest.categories.iter().enumerate() {
+            assert_eq!(category.mask, 1 << index);
+            if matches!(
+                category.category,
+                TemplateCategory::Traits
+                    | TemplateCategory::Stats
+                    | TemplateCategory::ModelAnimation
+            ) {
+                assert_eq!(category.template_flag_present, Some(true));
+                assert!(matches!(
+                    category.declaration,
+                    DeclarationSelection::Unsupported {
+                        reason: "unverified_template_inheritance"
+                    }
+                ));
+            } else {
+                assert!(matches!(
+                    category.declaration,
+                    DeclarationSelection::AuthoredSource { source_index: 0 }
+                ));
+            }
+            assert!(!category.runtime_value_evaluated);
+        }
+        assert_eq!(manifest.issues[0].source, key(0x102));
+        assert_eq!(manifest.issues[0].code, "missing_actor_configuration");
+        assert!(
+            !manifest.template_inheritance_supported
+                && !manifest.leveled_template_selection_supported
+        );
+        if let Some(root) = std::env::var_os("FALLOUT_ACTOR_TEMPLATE_EVIDENCE_DIR") {
+            let root = Path::new(&root);
+            assert!(root.is_absolute() && root.is_dir());
+            let case = root.join("authored-templates");
+            fs::create_dir(&case).unwrap();
+            fs::create_dir(case.join("Data")).unwrap();
+            fs::copy(
+                directory.path().join("FalloutNV.esm"),
+                case.join("Data/FalloutNV.esm"),
+            )
+            .unwrap();
+            fs::write(case.join("order.json"), b"[\"FalloutNV.esm\"]").unwrap();
+            fs::write(
+                case.join("expected.json"),
+                serde_json::to_vec_pretty(&manifest).unwrap(),
+            )
+            .unwrap();
+        }
+    });
+}
+
+#[test]
+fn template_cycles_and_root_source_index_use_exact_actor_edges_only() {
+    use dependencies::{DeclarationSelection, TemplateLimits};
+    let directory = tempfile::tempdir().unwrap();
+    let a = [template_config(0), word(b"TPLT", 0x200)].concat();
+    let b = [template_config(0), word(b"TPLT", 0x100)].concat();
+    fs::write(
+        directory.path().join("FalloutNV.esm"),
+        [
+            header(&[]),
+            disk(b"NPC_", 0x100, 0, 15, &a),
+            disk(b"NPC_", 0x200, 0, 15, &b),
+        ]
+        .concat(),
+    )
+    .unwrap();
+    let mut source = store(directory.path(), &["FalloutNV.esm"]);
+    with_catalogue(&mut source, Default::default(), |_, catalogue| {
+        let manifest = catalogue
+            .template_manifest(&key(0x200), TemplateLimits::default())
+            .unwrap();
+        assert_eq!(manifest.template_cycles, [vec![0, 1]]);
+        assert_eq!(manifest.candidate_sources[1].key, &key(0x200));
+        assert!(manifest.categories.iter().all(|category| matches!(
+            category.declaration,
+            DeclarationSelection::AuthoredSource { source_index: 1 }
+        )));
+        assert_eq!(
+            manifest
+                .issues
+                .iter()
+                .filter(|issue| issue.code == "cyclic_template_dependency")
+                .count(),
+            2
+        );
+        let exact = TemplateLimits {
+            closure: leveled::graph::Limits {
+                max_nodes: 2,
+                max_edges: 2,
+            },
+            max_sources: 2,
+            max_links: 2,
+            max_field_visits: manifest.field_visits,
+            max_issues: 2,
+        };
+        catalogue.template_manifest(&key(0x200), exact).unwrap();
+        for limits in [
+            TemplateLimits {
+                max_sources: 1,
+                ..exact
+            },
+            TemplateLimits {
+                max_links: 1,
+                ..exact
+            },
+            TemplateLimits {
+                max_field_visits: exact.max_field_visits - 1,
+                ..exact
+            },
+            TemplateLimits {
+                max_issues: 1,
+                ..exact
+            },
+            TemplateLimits {
+                closure: leveled::graph::Limits {
+                    max_nodes: 1,
+                    max_edges: 2,
+                },
+                ..exact
+            },
+            TemplateLimits {
+                closure: leveled::graph::Limits {
+                    max_nodes: 2,
+                    max_edges: 1,
+                },
+                ..exact
+            },
+        ] {
+            assert!(catalogue.template_manifest(&key(0x200), limits).is_err());
+        }
+    });
+}
+
+#[test]
+fn template_null_missing_deleted_wrong_kind_leveled_and_duplicate_links_remain_precise() {
+    use dependencies::TemplateLimits;
+    for (target, kind, flags, repeated, expected) in [
+        (0, *b"NPC_", 0, false, "unavailable_template_link"),
+        (0x777, *b"NPC_", 0, false, "unavailable_template_link"),
+        (
+            0x200,
+            *b"NPC_",
+            plugin::DELETED | plugin::COMPRESSED,
+            false,
+            "unavailable_template_link",
+        ),
+        (0x200, *b"CREA", 0, false, "unavailable_template_link"),
+        (
+            0x200,
+            *b"LVLN",
+            0,
+            false,
+            "leveled_template_selection_unsupported",
+        ),
+        (0x200, *b"NPC_", 0, true, "ambiguous_template_link"),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut root = [template_config(0x20), word(b"TPLT", target)].concat();
+        if repeated {
+            root.extend(word(b"TPLT", 0x200));
+        }
+        let target_body = if flags & plugin::DELETED != 0 {
+            b"unread tombstone".to_vec()
+        } else if kind == *b"LVLN" {
+            Vec::new()
+        } else {
+            template_config(0)
+        };
+        fs::write(
+            directory.path().join("FalloutNV.esm"),
+            [
+                header(&[]),
+                disk(b"NPC_", 0x100, 0, 15, &root),
+                disk(&kind, 0x200, flags, 15, &target_body),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let mut source = store(directory.path(), &["FalloutNV.esm"]);
+        with_catalogue(&mut source, Default::default(), |_, catalogue| {
+            let manifest = catalogue
+                .template_manifest(&key(0x100), TemplateLimits::default())
+                .unwrap();
+            assert_eq!(manifest.candidate_sources.len(), 1);
+            assert_eq!(manifest.links.len(), if repeated { 2 } else { 1 });
+            assert!(
+                manifest
+                    .issues
+                    .iter()
+                    .any(|issue| issue.code == expected && issue.graph_edge_index.is_some())
+            );
+            assert_eq!(manifest.links[0].binding.raw_form, target);
+            assert_eq!(manifest.links[0].ambiguous_source, repeated);
+        });
+    }
+}
+
+#[test]
+fn template_configuration_absence_ambiguity_and_unknown_bits_never_invent_defaults() {
+    use dependencies::{DeclarationSelection, TemplateLimits};
+    for (configurations, flags, expected) in [
+        (0, 0, "missing_actor_configuration"),
+        (2, 0, "ambiguous_actor_configuration"),
+        (1, 0x401, "unknown_template_category_bits"),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let root = (0..configurations)
+            .flat_map(|_| template_config(flags))
+            .collect::<Vec<_>>();
+        fs::write(
+            directory.path().join("FalloutNV.esm"),
+            [header(&[]), disk(b"NPC_", 0x100, 0, 15, &root)].concat(),
+        )
+        .unwrap();
+        let mut source = store(directory.path(), &["FalloutNV.esm"]);
+        with_catalogue(&mut source, Default::default(), |_, catalogue| {
+            let manifest = catalogue
+                .template_manifest(&key(0x100), TemplateLimits::default())
+                .unwrap();
+            assert!(manifest.issues.iter().any(|issue| issue.code == expected));
+            if configurations != 1 {
+                assert!(manifest.categories.iter().all(|category| {
+                    category.template_flag_present.is_none()
+                        && matches!(
+                            category.declaration,
+                            DeclarationSelection::Unsupported {
+                                reason: "actor_configuration_unavailable"
+                            }
+                        )
+                }));
+            } else {
+                assert!(
+                    manifest
+                        .issues
+                        .iter()
+                        .any(|issue| issue.code == "missing_template_link")
+                );
+            }
+            assert!(
+                catalogue
+                    .template_manifest(&key(0x777), TemplateLimits::default())
+                    .is_err()
+            );
+        });
+    }
+}
+
 fn dependency_error(store: &mut RecordStore, limits: Limits) -> String {
     let inventory = inventory::Catalogue::load(store, Default::default()).unwrap();
     let actors = actors::Catalogue::load(&inventory, Default::default()).unwrap();

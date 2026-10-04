@@ -790,6 +790,16 @@ fn cli_saved_event_request_helper() {
             json!("FalloutNV.esm"),
         ),
         ("bad-intent", "/intent", json!("automatic")),
+        (
+            "intent-object-engineering-null",
+            "/intent",
+            json!({"engineering":null}),
+        ),
+        (
+            "intent-object-faithful-null",
+            "/intent",
+            json!({"faithful":null}),
+        ),
         ("bad-schema", "/schema_version", json!(2)),
     ] {
         let mut invalid = request.clone();

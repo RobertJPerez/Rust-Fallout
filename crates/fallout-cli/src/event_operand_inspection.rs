@@ -2629,11 +2629,23 @@ fn read_bounded_named(path: &Path, maximum: usize, capacity: &'static str) -> Re
     Ok(bytes)
 }
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 enum SavedNativeIntent {
     Faithful,
     EngineeringObservation,
+}
+impl<'de> serde::Deserialize<'de> for SavedNativeIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        match <String as serde::Deserialize>::deserialize(deserializer)?.as_str() {
+            "faithful" => Ok(Self::Faithful),
+            "engineering_observation" => Ok(Self::EngineeringObservation),
+            value => Err(serde::de::Error::unknown_variant(
+                value,
+                &["faithful", "engineering_observation"],
+            )),
+        }
+    }
 }
 
 fn explicit_optional_reference<'de, D: serde::Deserializer<'de>>(

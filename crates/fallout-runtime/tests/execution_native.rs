@@ -1483,6 +1483,19 @@ fn cli_saved_native_helper() {
     assert_eq!(report["physical_call_count"], 4);
     assert_eq!(report["state_revision"], before.state_revision);
     assert_eq!(world.snapshot(), before);
+    for (name, intent) in [
+        (
+            "intent-object-engineering-null",
+            json!({"engineering_observation":null}),
+        ),
+        ("intent-object-faithful-null", json!({"faithful":null})),
+    ] {
+        let mut invalid = request.clone();
+        invalid["calls"][0]["intent"] = intent;
+        let (output, path) = run(name, &snapshot_path, &invalid);
+        assert!(!output.status.success() && !path.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("expected a string"));
+    }
     for (name, maximum, success) in [
         ("exact-report", report_bytes.len(), true),
         ("short-report", report_bytes.len() - 1, false),
@@ -1740,7 +1753,7 @@ fn cli_saved_native_helper() {
     assert_eq!(world.snapshot(), before);
     fs::write(evidence.join("scope.json"),serde_json::to_vec_pretty(&json!({
         "scope":"strict_current_snapshot_read_only_native_observations","original_executed":false,
-        "actual_cli_calls":30,"input_schema":before.schema_version,"input_snapshot":before,
+        "actual_cli_calls":32,"input_schema":before.schema_version,"input_snapshot":before,
         "requested_occurrences":[3,1,0,3],"aggregate_contributions":7,"exact_report_bytes":report_bytes.len(),
         "original_numeric_return":null,"retail_parity_accepted":false
     })).unwrap()).unwrap();
@@ -2075,6 +2088,19 @@ fn cli_owned_native_plan_helper() {
     let missing: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     assert_eq!(missing["outcome"]["reason"], "host_query_unavailable");
     assert!(missing["plan"].is_object());
+    for (name, intent) in [
+        (
+            "intent-object-engineering-null",
+            json!({"engineering_observation":null}),
+        ),
+        ("intent-object-faithful-null", json!({"faithful":null})),
+    ] {
+        let mut invalid = request.clone();
+        invalid["intent"] = intent;
+        let (output, path) = run(name, &before, &changed, &invalid, &[], None);
+        assert!(!output.status.success() && !path.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("expected a string"));
+    }
     let mut detached = before.clone();
     detached.instances[0].context = Context::default();
     for pending in &mut detached.pending_events {

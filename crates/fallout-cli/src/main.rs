@@ -30,6 +30,8 @@ mod query_inspection;
 mod quest_script_inspection;
 mod script_profile;
 mod script_state_inspection;
+#[path = "../../../tools/retail-script-probes/runner.rs"]
+mod script_trace;
 mod shared_runtime_inspection;
 mod source_item_inspection;
 mod terrain_compare;
@@ -326,6 +328,23 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+    },
+    /// Compare imported semantic captures against exact prepared script sources.
+    ScriptTrace {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        profile_receipt: PathBuf,
+        #[arg(long)]
+        original_trace: Option<PathBuf>,
+        #[arg(long)]
+        replacement_trace: Option<PathBuf>,
     },
     /// Inspect source operands against explicit live engineering storage.
     EventOperands {
@@ -1063,6 +1082,31 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &protected_tree(&install)?)?;
             if report["prepared_frames"] != report["pending_events_checked"] {
                 return Err("Pending events retain unresolved source findings; see report".into());
+            }
+        }
+        Command::ScriptTrace {
+            install,
+            load_order,
+            index_cache,
+            manifest,
+            profile_receipt,
+            original_trace,
+            replacement_trace,
+        } => {
+            let report = script_trace::inspect(script_trace::Inputs {
+                install: &install,
+                load_order: &load_order,
+                cache: index_cache.as_deref(),
+                manifest: &manifest,
+                profile_receipt: &profile_receipt,
+                original: original_trace.as_deref(),
+                replacement: replacement_trace.as_deref(),
+            })?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["comparison"]["status"] != "matched" {
+                return Err(
+                    "Semantic trace comparison is blocked or mismatched; see report".into(),
+                );
             }
         }
         Command::EventOperands {

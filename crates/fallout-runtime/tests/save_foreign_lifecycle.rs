@@ -30,7 +30,10 @@ fn limits() -> Limits {
     }
 }
 fn fixture() -> (Option<tempfile::TempDir>, PathBuf) {
-    let (temporary, root) = match std::env::var_os("FALLOUT_FOREIGN_LIFECYCLE_EVIDENCE") {
+    fixture_with_evidence("FALLOUT_FOREIGN_LIFECYCLE_EVIDENCE")
+}
+fn fixture_with_evidence(variable: &str) -> (Option<tempfile::TempDir>, PathBuf) {
+    let (temporary, root) = match std::env::var_os(variable) {
         Some(root) => {
             let root = PathBuf::from(root).join("authored");
             fs::create_dir(&root).unwrap();
@@ -414,6 +417,261 @@ fn foreign_owner_guards_unload_reattachment_and_cold_banks_preserve_exact_identi
         reattached_reads
     );
     fs::write(root.join("receipt.json"),serde_json::to_vec_pretty(&json!({"source_instance":source_id,"retired_instance":target_id,"replacement_instance":replacement_id,"reference":reference,"player_reference":player,"pending_removal_error":pending_error,"item_link_removal_error":link_error,"live_write":first,"unloaded_write":second,"reattached_write":third,"live_reads":live_reads,"reattached_reads":reattached_reads,"cold_live":live_cold,"cold_unloaded":unloaded_cold,"cold_reattached":reattached_cold,"old_handles_rejected":true,"reference_identity_unchanged":true,"source_tail_unchanged":true,"engineering_only":true})).unwrap()).unwrap();
+}
+
+fn legacy_foreign_envelope(snapshot: &Snapshot) -> Vec<u8> {
+    // Existing documented schema 2 has no item banks; never discard current items.
+    assert!(snapshot.inventory_banks.is_empty());
+    assert_eq!(snapshot.next_item, 1);
+    let mut value = serde_json::to_value(snapshot).unwrap();
+    let object = value.as_object_mut().unwrap();
+    object.remove("inventory_banks");
+    object.remove("next_item");
+    object.insert("schema_version".into(), 2.into());
+    let body = serde_json::to_vec(&value).unwrap();
+    assert!(body.len() < BUDGET);
+    let mut metadata = Vec::new();
+    metadata.extend(1_u32.to_le_bytes());
+    metadata.extend(2_u32.to_le_bytes());
+    metadata.extend(9_u64.to_le_bytes());
+    metadata.extend(snapshot.clocks.tick.to_le_bytes());
+    for index in (0..64).step_by(2) {
+        metadata
+            .push(u8::from_str_radix(&snapshot.catalogue_sha256[index..index + 2], 16).unwrap());
+    }
+    metadata.extend((body.len() as u64).to_le_bytes());
+    metadata.extend(snapshot.campaign.bytes());
+    metadata.extend(snapshot.state_revision.to_le_bytes());
+    let mut bytes = b"FRSAVE01".to_vec();
+    bytes.extend(1_u16.to_le_bytes());
+    bytes.extend(0_u16.to_le_bytes());
+    bytes.extend(2_u32.to_le_bytes());
+    for (tag, payload) in [(b"META", metadata.as_slice()), (b"STAT", body.as_slice())] {
+        bytes.extend(tag);
+        bytes.extend(1_u32.to_le_bytes());
+        bytes.extend((payload.len() as u64).to_le_bytes());
+        bytes.extend(Sha256::digest(payload));
+        bytes.extend(payload);
+    }
+    bytes.extend(Sha256::digest(&bytes));
+    bytes
+}
+
+#[test]
+fn legacy_foreign_migration_preserves_typed_identity_before_explicit_item_initialization() {
+    let (_temporary, root) = fixture_with_evidence("FALLOUT_FOREIGN_MIGRATION_EVIDENCE");
+    let (catalogue, content) = load_content(&root);
+    let mut world = World::with_campaign(
+        Arc::clone(&catalogue),
+        limits(),
+        CampaignId::from_bytes([0x4f; 16]).unwrap(),
+    )
+    .unwrap();
+    let reference = world.register_reference(Some(form(0x101))).unwrap();
+    let player = world.register_reference(None).unwrap();
+    let static_value = ReferenceValue::Content { key: form(0x102) };
+    let context = Context {
+        calling_reference: Some(reference),
+        containing_reference: Some(player),
+        target: Some(static_value.clone()),
+        arguments: vec![
+            ReferenceValue::Live { id: reference },
+            static_value.clone(),
+            ReferenceValue::Null,
+        ],
+    };
+    let source = world
+        .create_instance(
+            &definition(&catalogue, 0x300),
+            Owner::Fragment {
+                activation: 1.try_into().unwrap(),
+            },
+            context.clone(),
+        )
+        .unwrap();
+    let target = world
+        .create_instance(
+            &definition(&catalogue, 0x301),
+            Owner::Placed { reference },
+            context.clone(),
+        )
+        .unwrap();
+    world
+        .assign(
+            source,
+            &[
+                (42, Value::Number { bits: OLD_BITS }),
+                (
+                    90,
+                    Value::Reference {
+                        value: ReferenceValue::Live { id: reference },
+                    },
+                ),
+            ],
+        )
+        .unwrap();
+    world
+        .assign(
+            target,
+            &[
+                (42, Value::Number { bits: NEW_BITS }),
+                (
+                    70,
+                    Value::Reference {
+                        value: static_value,
+                    },
+                ),
+            ],
+        )
+        .unwrap();
+    world
+        .advance_clocks(fallout_runtime::events::Clocks {
+            tick: 7,
+            game_nanoseconds: 11,
+            menu_nanoseconds: 13,
+            real_nanoseconds: 17,
+        })
+        .unwrap();
+    for handle in [source, target] {
+        world
+            .enqueue(
+                handle,
+                Trigger::Block {
+                    event_id: 0,
+                    begin_byte_offset: 0,
+                },
+                context.clone(),
+            )
+            .unwrap();
+    }
+    let source_id = world.instance(source).unwrap().id();
+    let target_id = world.instance(target).unwrap().id();
+    let before = world.snapshot();
+    let original_reads = reads(&world, &content, source, player);
+    let legacy = legacy_foreign_envelope(&before);
+    fs::write(root.join("legacy-schema2.frsv"), &legacy).unwrap();
+    assert!(format::decode(&legacy, limits()).is_err());
+    let migration = format::migrate_v2(&legacy, limits()).unwrap();
+    assert_eq!(migration.source_metadata.generation, 9);
+    assert_eq!(migration.snapshot, before);
+    let mut restored =
+        World::restore(Arc::clone(&catalogue), migration.snapshot, limits()).unwrap();
+    assert_eq!(restored.snapshot(), before);
+    for handle in [source, target] {
+        assert!(matches!(restored.instance(handle), Err(Error::StaleHandle)));
+    }
+    assert_eq!(restored.authored_reference(&form(0x101)), Some(reference));
+    assert_eq!(
+        reads(
+            &restored,
+            &content,
+            restored.handle(source_id).unwrap(),
+            player
+        ),
+        original_reads
+    );
+    assert!(restored.inventory_count(reference, &form(0x102)).is_err());
+    assert!(restored.snapshot().inventory_banks.is_empty());
+    assert_eq!(restored.snapshot().next_item, 1);
+    let repository =
+        Repository::create(&root.join("native-migration"), &[], restored.campaign()).unwrap();
+    let mut worker = SaveWorker::start_with_budget(repository.clone(), 2, 2 * BUDGET).unwrap();
+    let prewrite = worker
+        .try_submit(Captured::at_boundary(&restored))
+        .unwrap()
+        .wait()
+        .unwrap();
+    let legacy_cold = phase(&root, "legacy-current", &repository, &before);
+    restored.initialize_inventory(reference).unwrap();
+    let mut facts = Facts::unknown(form(0x102));
+    facts.ownership = Some(fallout_runtime::inventory::Ownership::Live { reference: player });
+    facts.condition = Some(fallout_runtime::inventory::Condition::Float64 { bits: NEW_BITS });
+    facts.script_instance = Some(target_id);
+    facts.extra_fields.push(OpaqueExtra {
+        tag: *b"HOST",
+        bytes: vec![0, 255, 1],
+    });
+    let item_id = restored
+        .add_item(reference, facts, 17.try_into().unwrap())
+        .unwrap();
+    let item = restored.item_handle(item_id).unwrap();
+    assert_eq!(item_id.0.get(), 1);
+    assert_eq!(restored.snapshot().next_item, 2);
+    let after = restored.snapshot();
+    let mut expected = before.clone();
+    expected.state_revision += 2;
+    expected.next_item = 2;
+    expected.inventory_banks = after.inventory_banks.clone();
+    assert_eq!(after, expected);
+    let postwrite = worker.try_submit(Captured::at_boundary(&restored)).unwrap();
+    restored
+        .assign(
+            restored.handle(source_id).unwrap(),
+            &[(42, Value::Number { bits: 99 })],
+        )
+        .unwrap();
+    drop(restored);
+    drop(world);
+    worker.finish().unwrap();
+    let postwrite = postwrite.wait().unwrap();
+    assert_eq!(prewrite.metadata.generation, 1);
+    assert_eq!(postwrite.metadata.generation, 2);
+    let items_cold = phase(&root, "items-current", &repository, &after);
+    let previous = fs::read(repository.path().join("previous.frsv")).unwrap();
+    assert_eq!(
+        previous,
+        fs::read(root.join("legacy-current.frsv")).unwrap()
+    );
+    let previous_repository =
+        Repository::create(&root.join("previous-selection"), &[], before.campaign).unwrap();
+    fs::write(previous_repository.path().join("current.frsv"), &previous).unwrap();
+    let previous_cold = phase(&root, "items-previous", &previous_repository, &before);
+    let current = repository
+        .load(catalogue.as_ref(), limits(), Recovery::Strict)
+        .unwrap()
+        .0;
+    assert_eq!(current.snapshot(), after);
+    assert!(current.item_by_handle(item).is_err());
+    assert_eq!(
+        current
+            .item_id(current.item_handle(item_id).unwrap())
+            .unwrap(),
+        item_id
+    );
+    assert_eq!(current.item(item_id).unwrap().owner(), reference);
+    assert_eq!(
+        current.item(item_id).unwrap().facts().ownership,
+        Some(fallout_runtime::inventory::Ownership::Live { reference: player })
+    );
+    assert_eq!(
+        current.item(item_id).unwrap().facts().script_instance,
+        Some(target_id)
+    );
+    assert_eq!(current.authored_reference(&form(0x101)), Some(reference));
+    let mut item_reads = original_reads.clone();
+    for read in item_reads.as_array_mut().unwrap() {
+        read["target"]["state_revision"] = after.state_revision.into();
+    }
+    assert_eq!(
+        reads(
+            &current,
+            &content,
+            current.handle(source_id).unwrap(),
+            player
+        ),
+        item_reads
+    );
+    for handle in [source, target] {
+        assert!(matches!(current.instance(handle), Err(Error::StaleHandle)));
+    }
+    assert_eq!(fs::read(root.join("legacy-schema2.frsv")).unwrap(), legacy);
+    fs::write(root.join("migration-identity-receipt.json"),serde_json::to_vec_pretty(&json!({
+        "source_instance":source_id,"target_instance":target_id,"reference":reference,"player_reference":player,"item":item_id,
+        "legacy_metadata":migration.source_metadata,"prewrite":prewrite,"postwrite":postwrite,
+        "legacy_cold":legacy_cold,"items_cold":items_cold,"previous_cold":previous_cold,
+        "reads":original_reads,"item_reads":item_reads,"full_migration_fields_equal":true,"old_instance_and_item_handles_rejected":true,
+        "inventory_unknown_until_explicit_initialization":true,"typed_origins_and_links_equal":true,"engineering_only":true
+    })).unwrap()).unwrap();
 }
 
 #[test]

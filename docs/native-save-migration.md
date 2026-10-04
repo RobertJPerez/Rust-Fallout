@@ -38,6 +38,18 @@ the original metadata plus a current snapshot. Callers must still use
 `World::restore` before publishing it. The CLI completes that validation and
 publication workflow. No public API downgrades populated schema 3 state.
 
+The source-bound foreign lifecycle test also imports a schema 2 fixture containing
+static, live and null references, placed ownership, event contexts and exact
+local bits. It compares the full migrated snapshot, rebuilds both compiled
+foreign-local reads and rejects handles from the earlier world. Inventory queries
+remain unknown until the host explicitly initializes a bank after migration.
+The test then stores an item with live ownership, a script-instance link and
+opaque bytes through the save worker. Cold children compare complete current and
+previous snapshots; restored item and instance handles must be acquired again.
+Set `FALLOUT_FOREIGN_MIGRATION_EVIDENCE` to a fresh existing private directory to
+retain the legacy input, selected slots, snapshots and cold receipts for the
+existing migration, foreign-load and independent native-reader consumers.
+
 Six tests cover exact preservation, schema disagreement, duplicate/unknown JSON,
 rehashed metadata contradictions, corruption, budgets, source/allocator validation
 and publication without changing the legacy input. The checkpoint also authors

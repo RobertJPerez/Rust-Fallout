@@ -6,6 +6,449 @@ use fallout_data::nif_animation::{
 use sha2::{Digest, Sha256};
 const NULL: u32 = u32::MAX;
 const NAME: &[u8] = b"Bip01 Rotate\0\xff";
+
+const SET_NAMES: [&[u8]; 7] = [
+    b"Child\0\xff",
+    b"Sibling",
+    b"Root",
+    b"Parent",
+    b"OtherRoot",
+    b"Other\x80",
+    b"NiTransformController",
+];
+fn set_node(
+    name: u32,
+    controller: u32,
+    rotation: [[f32; 3]; 3],
+    translation: [f32; 3],
+    scale: f32,
+    children: &[u32],
+) -> Vec<u8> {
+    let mut out = Vec::new();
+    words(&mut out, &[name, 0, controller, 0x89AB_CDEF]);
+    floats(&mut out, &translation);
+    for row in rotation {
+        floats(&mut out, &row);
+    }
+    floats(&mut out, &[scale]);
+    words(&mut out, &[0, NULL, children.len() as u32]);
+    words(&mut out, children);
+    words(&mut out, &[0]);
+    out
+}
+fn set_skeleton_blocks() -> Blocks {
+    let id = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]];
+    let r90 = [[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]];
+    let rm90 = [[0., 1., 0.], [-1., 0., 0.], [0., 0., 1.]];
+    let r180 = [[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]];
+    let mut result = vec![
+        ("NiNode", set_node(0, 6, r90, [99., 98., 97.], 9., &[])),
+        ("NiNode", set_node(1, 7, id, [77., 76., 75.], 8., &[])),
+        ("NiNode", set_node(2, NULL, r90, [10., -2., 3.], 2., &[3])),
+        ("NiNode", set_node(3, 8, rm90, [99., 98., 97.], 3., &[0, 1])),
+        ("NiNode", set_node(4, NULL, rm90, [-5., 7., 9.], 1., &[5])),
+        ("NiNode", set_node(5, 9, r180, [9., 9., 9.], 7., &[])),
+    ];
+    for target in [0, 1, 3, 5] {
+        let mut data = Vec::new();
+        words(&mut data, &[NULL]);
+        data.extend(0x004cu16.to_le_bytes());
+        floats(&mut data, &[17., -9., 100., 101.]);
+        words(&mut data, &[target, NULL]);
+        result.push(("NiTransformController", data));
+    }
+    result
+}
+fn set_keys(a: [f32; 3], b: [f32; 3], scales: [f32; 2]) -> Vec<u8> {
+    let mut out = Vec::new();
+    words(&mut out, &[0, 2, 1]);
+    floats(&mut out, &[-2.]);
+    floats(&mut out, &a);
+    floats(&mut out, &[2.]);
+    floats(&mut out, &b);
+    words(&mut out, &[2, 1]);
+    floats(&mut out, &[-2., scales[0], 2., scales[1]]);
+    out
+}
+fn set_clip_blocks() -> Blocks {
+    let mut sequence = Vec::new();
+    words(&mut sequence, &[NULL, 4, 7]);
+    for (ordinal, name) in [3, 0, 1, 5].into_iter().enumerate() {
+        words(&mut sequence, &[1 + 2 * ordinal as u32, NULL]);
+        sequence.push(11 * (ordinal as u8 + 1));
+        words(&mut sequence, &[name, NULL, 6, NULL, NULL]);
+    }
+    floats(&mut sequence, &[0.25]);
+    words(&mut sequence, &[NULL, 3]);
+    floats(&mut sequence, &[17., 100., 101.]);
+    words(&mut sequence, &[NULL, NULL]);
+    sequence.extend(2u16.to_le_bytes());
+    words(&mut sequence, &[NULL, NULL]);
+    let mut result = vec![("NiControllerSequence", sequence)];
+    for (ordinal, (a, b, scales)) in [
+        ([1., 2., 3.], [3., -2., 5.], [1., 3.]),
+        ([-1., 3., 1.], [3., 1., -1.], [2., 4.]),
+        ([2., -4., -2.], [0., 2., 2.], [1., -1.]),
+        ([-2., 1., 3.], [2., 3., 1.], [-2., -4.]),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut interp = Vec::new();
+        floats(&mut interp, &[100., 200., 300., 2., -3., 4., -5., 12.]);
+        words(&mut interp, &[2 + 2 * ordinal as u32]);
+        result.push(("NiTransformInterpolator", interp));
+        result.push(("NiTransformData", set_keys(a, b, scales)));
+    }
+    result
+}
+fn set_pair() -> (Vec<u8>, Vec<u8>) {
+    (
+        container(&set_skeleton_blocks(), &SET_NAMES, &[2, 4]),
+        container(&set_clip_blocks(), &SET_NAMES, &[0]),
+    )
+}
+fn set_requests(s: &[u8], c: &[u8]) -> [Request<'static>; 4] {
+    [(0, 1), (3, 0), (1, 2), (5, 3)].map(|(object, controlled_ordinal)| Request {
+        expected_skeleton_sha256: Sha256::digest(s).into(),
+        expected_clip_sha256: Sha256::digest(c).into(),
+        object,
+        node_name_bytes: SET_NAMES[object as usize],
+        sequence: 0,
+        controlled_ordinal,
+        source_time: 0.,
+    })
+}
+
+#[test]
+fn external_packet_set_has_literal_higher_id_parent_child_shared_ancestor_and_separate_root_worlds()
+{
+    let (s, c) = set_pair();
+    let requests = set_requests(&s, &c);
+    let result = clip::evaluate_set(&s, &c, "literal set", &requests, Default::default()).unwrap();
+    assert_eq!(
+        result
+            .objects
+            .iter()
+            .map(|v| v.channel.object.block)
+            .collect::<Vec<_>>(),
+        [0, 3, 1, 5]
+    );
+    assert_eq!(
+        result
+            .objects
+            .iter()
+            .map(|v| v.channel.local)
+            .collect::<Vec<_>>(),
+        [
+            [[0., -3., 0., 1.], [3., 0., 0., 2.], [0., 0., 3., 0.]],
+            [[0., 2., 0., 2.], [-2., 0., 0., 0.], [0., 0., 2., 4.]],
+            [[0., 0., 0., 1.], [0., 0., 0., -1.], [0., 0., 0., 0.]],
+            [[3., 0., 0., 0.], [0., 3., 0., 2.], [0., 0., -3., 2.]],
+        ]
+    );
+    assert_eq!(
+        result
+            .objects
+            .iter()
+            .map(|v| v.source_world)
+            .collect::<Vec<_>>(),
+        [
+            [[0., -12., 0., 14.], [12., 0., 0., 10.], [0., 0., 12., 11.]],
+            [[4., 0., 0., 10.], [0., 4., 0., 2.], [0., 0., 4., 11.]],
+            [[0., 0., 0., 14.], [0., 0., 0., -2.], [0., 0., 0., 11.]],
+            [[0., 3., 0., -3.], [-3., 0., 0., 7.], [0., 0., -3., 11.]],
+        ]
+    );
+    assert_eq!(
+        result.objects[0]
+            .ancestors
+            .iter()
+            .map(|a| (a.source.block, a.parent, a.applied_object))
+            .collect::<Vec<_>>(),
+        [(3, Some(2), Some(3)), (2, None, None)]
+    );
+    assert_eq!(
+        result.objects[0].ancestors[0].effective_local,
+        result.objects[1].channel.local
+    );
+    assert_eq!(
+        (
+            result.scene_decodes,
+            result.animation_key_decodes,
+            result.whole_source_sha256_computations,
+            result.additional_span_hashes,
+            result.propagated_objects
+        ),
+        (1, 1, 2, 19, 6)
+    );
+    assert_eq!(result.skeleton_sha256, format!("{:x}", Sha256::digest(&s)));
+    assert_eq!(result.clip_sha256, format!("{:x}", Sha256::digest(&c)));
+    for (value, request) in result.objects.iter().zip(requests) {
+        assert_eq!(value.channel.node_name_bytes, request.node_name_bytes);
+        assert_eq!(
+            value.channel.requested_time_f64_bits,
+            request.source_time.to_bits()
+        );
+        assert_eq!(
+            value.channel.controlled_packet.priority,
+            11 * (request.controlled_ordinal as u8 + 1)
+        );
+        assert_eq!(
+            value.channel.unapplied_sequence_fields.weight_bits,
+            0.25f32.to_bits()
+        );
+        assert_eq!(
+            value.channel.unapplied_sequence_fields.frequency_bits,
+            17f32.to_bits()
+        );
+        assert_eq!(
+            value.channel.unapplied_interpolator_fields.scale_bits,
+            12f32.to_bits()
+        );
+        let sb = &skeleton_span(&s, request.object);
+        assert_eq!(
+            (
+                value.channel.object.offset,
+                value.channel.object.bytes,
+                value.channel.object.sha256.as_str()
+            ),
+            (sb.0, sb.1, sb.2.as_str())
+        );
+    }
+    assert!(!result.retail_behavior_verified);
+}
+fn skeleton_span(bytes: &[u8], id: u32) -> (usize, usize, String) {
+    let payloads = set_skeleton_blocks();
+    // The authored writer has two footer roots. Derive offsets from its own
+    // payload lengths, independently of the production container inspector.
+    let start = bytes.len() - 12 - payloads.iter().map(|b| b.1.len()).sum::<usize>();
+    let offset = start
+        + payloads[..id as usize]
+            .iter()
+            .map(|b| b.1.len())
+            .sum::<usize>();
+    let size = payloads[id as usize].1.len();
+    (
+        offset,
+        size,
+        format!("{:x}", Sha256::digest(&bytes[offset..offset + size])),
+    )
+}
+
+#[test]
+fn external_packet_set_request_order_and_signed_zero_do_not_choose_channel_priority() {
+    let (s, c) = set_pair();
+    let requests = set_requests(&s, &c);
+    let baseline = clip::evaluate_set(&s, &c, "set", &requests, Default::default()).unwrap();
+    for order in [[3, 2, 1, 0], [1, 3, 0, 2], [2, 0, 3, 1]] {
+        let selected = order.map(|i| requests[i]);
+        let result = clip::evaluate_set(&s, &c, "set", &selected, Default::default()).unwrap();
+        for (value, index) in result.objects.iter().zip(order) {
+            assert_eq!(
+                serde_json::to_value(value).unwrap(),
+                serde_json::to_value(&baseline.objects[index]).unwrap()
+            );
+        }
+        assert_eq!(
+            (
+                result.retained_bytes,
+                result.work_units,
+                result.propagated_objects
+            ),
+            (
+                baseline.retained_bytes,
+                baseline.work_units,
+                baseline.propagated_objects
+            )
+        );
+    }
+    let mut minus_zero = requests;
+    minus_zero[0].source_time = -0.;
+    let result =
+        clip::evaluate_set(&s, &c, "negative zero", &minus_zero, Default::default()).unwrap();
+    assert_eq!(
+        result.objects[0].channel.requested_time_f64_bits,
+        (-0f64).to_bits()
+    );
+    assert_eq!(
+        result.objects[0].source_world,
+        baseline.objects[0].source_world
+    );
+}
+
+#[test]
+fn external_packet_set_missing_required_parent_duplicate_packet_identity_and_late_time_refuse_atomically()
+ {
+    let (s, c) = set_pair();
+    let requests = set_requests(&s, &c);
+    let before = (s.clone(), c.clone());
+    let missing = [requests[0], requests[2], requests[3]];
+    assert!(
+        clip::evaluate_set(&s, &c, "missing", &missing, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("required ancestor 3 controller 8")
+    );
+    for kind in 0..9 {
+        let mut bad = requests;
+        match kind {
+            0 => bad[3] = bad[0],
+            1 => bad[3].controlled_ordinal = bad[0].controlled_ordinal,
+            2 => bad[3].expected_skeleton_sha256[0] ^= 1,
+            3 => bad[3].expected_clip_sha256[0] ^= 1,
+            4 => bad[3].source_time = 3.,
+            5 => bad[3].source_time = f64::NAN,
+            6 => bad[3].node_name_bytes = b"wrong",
+            7 => bad[3].sequence = 1,
+            _ => bad[3].controlled_ordinal = 4,
+        }
+        assert!(
+            clip::evaluate_set(&s, &c, "bad", &bad, Default::default()).is_err(),
+            "case {kind}"
+        );
+    }
+    assert_eq!((s, c), before);
+}
+
+#[test]
+fn external_packet_set_ambiguous_absent_names_unreachable_nodes_property_type_and_rotation_refuse()
+{
+    let (s, c) = set_pair();
+    for kind in 0..3 {
+        let mut source = set_skeleton_blocks();
+        match kind {
+            0 => set(&mut source[1].1, 0, 0),
+            1 => set(&mut source[5].1, 0, NULL),
+            _ => {}
+        }
+        let bytes = container(&source, &SET_NAMES, if kind == 2 { &[4] } else { &[2, 4] });
+        assert!(
+            clip::evaluate_set(
+                &bytes,
+                &c,
+                "source",
+                &set_requests(&bytes, &c),
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+    for kind in 0..4 {
+        let mut packets = set_clip_blocks();
+        match kind {
+            0 => set(&mut packets[0].1, 25 + 3 * 29, 0),
+            1 => set(&mut packets[0].1, 29 + 3 * 29, 2),
+            2 => set(&mut packets[0].1, 21 + 3 * 29, NULL),
+            _ => {
+                let mut rotation = Vec::new();
+                words(&mut rotation, &[1, 1]);
+                floats(&mut rotation, &[0., 1., 0., 0., 0.]);
+                words(&mut rotation, &[0, 0]);
+                packets[8].1 = rotation;
+            }
+        }
+        let bytes = container(&packets, &SET_NAMES, &[0]);
+        assert!(
+            clip::evaluate_set(
+                &s,
+                &bytes,
+                "packet",
+                &set_requests(&s, &bytes),
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn external_packet_set_source_input_names_sampling_forest_and_aggregate_ceilings_are_exact() {
+    let (s, c) = set_pair();
+    let requests = set_requests(&s, &c);
+    let baseline = clip::evaluate_set(&s, &c, "baseline", &requests, Default::default()).unwrap();
+    let names = requests
+        .iter()
+        .map(|r| r.node_name_bytes.len())
+        .sum::<usize>();
+    let mut exact = clip::SetLimits {
+        combined_input_bytes: s.len() + c.len(),
+        requests: 4,
+        raw_name_bytes: names,
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        ancestry_depth: 3,
+        decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+        decoder_check_admission_units: baseline.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.scene.input_bytes = s.len();
+    exact.keys.animation.input_bytes = c.len();
+    exact.scene.blocks = 10;
+    exact.keys.animation.blocks = 9;
+    clip::evaluate_set(&s, &c, "exact", &requests, exact).unwrap();
+    for cap in 0..11 {
+        let mut under = exact;
+        match cap {
+            0 => under.combined_input_bytes -= 1,
+            1 => under.requests -= 1,
+            2 => under.raw_name_bytes -= 1,
+            3 => under.array_bytes -= 1,
+            4 => under.work_units -= 1,
+            5 => under.ancestry_depth -= 1,
+            6 => under.scene.input_bytes -= 1,
+            7 => under.keys.animation.input_bytes -= 1,
+            8 => under.scene.blocks -= 1,
+            9 => under.keys.animation.blocks -= 1,
+            _ => under.decoder_array_admission_bytes -= 1,
+        }
+        assert!(
+            clip::evaluate_set(&s, &c, "under", &requests, under).is_err(),
+            "cap {cap}"
+        );
+    }
+    let mut under = exact;
+    under.decoder_check_admission_units -= 1;
+    assert!(clip::evaluate_set(&s, &c, "decoder", &requests, under).is_err());
+    let mut sampler = exact;
+    sampler.sampling.validation_work = baseline.sample_work.validation_units;
+    sampler.sampling.sampling_work = baseline.sample_work.sampling_units;
+    clip::evaluate_set(&s, &c, "exact sampler", &requests, sampler).unwrap();
+    for validation in [false, true] {
+        let mut under = sampler;
+        if validation {
+            under.sampling.validation_work -= 1;
+        } else {
+            under.sampling.sampling_work -= 1;
+        }
+        assert!(clip::evaluate_set(&s, &c, "sampler under", &requests, under).is_err());
+    }
+    for malformed in [
+        clip::SetLimits {
+            keys: keyframe::Limits {
+                max_combined_retained_bytes: usize::MAX,
+                ..exact.keys
+            },
+            ..exact
+        },
+        clip::SetLimits {
+            sampling: fallout_data::nif_animation::sampling::Limits {
+                validation_work: usize::MAX,
+                ..exact.sampling
+            },
+            ..exact
+        },
+        clip::SetLimits {
+            scene: fallout_data::nif_scene::Limits {
+                array_bytes: 0,
+                ..exact.scene
+            },
+            ..exact
+        },
+    ] {
+        assert!(clip::evaluate_set(&s, &c, "overflow/phase", &requests, malformed).is_err());
+    }
+}
 type Blocks = Vec<(&'static str, Vec<u8>)>;
 fn words(out: &mut Vec<u8>, values: &[u32]) {
     for value in values {

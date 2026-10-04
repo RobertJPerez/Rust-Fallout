@@ -126,6 +126,9 @@ enum Command {
         /// Prepare both exact sources once and sample an ordered source_times list.
         #[arg(long)]
         batch: bool,
+        /// Compose explicitly selected external packets over one required forest.
+        #[arg(long, conflicts_with = "batch")]
+        set: bool,
     },
     /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
     NifRigidAttachment {
@@ -1777,6 +1780,7 @@ fn run(args: Args) -> Result<()> {
             clip,
             request,
             batch,
+            set,
         } => {
             if let Some(path) = output {
                 let parent = path
@@ -1789,6 +1793,15 @@ fn run(args: Args) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if set {
+                let report =
+                    nif_animation_inspection::inspect_clip_set(&skeleton, &clip, &request)?;
+                emit(&report, output, &skeleton)?;
+                if report.failures != 0 {
+                    return Err("explicit external clip pose set refused; see report".into());
+                }
+                return Ok(());
             }
             if batch {
                 let report =

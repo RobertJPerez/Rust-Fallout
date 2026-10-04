@@ -297,125 +297,23 @@ fn evaluate_prepared(
             ancestors: Vec::new(),
         });
     }
-    // Scene validates the forest, then sorts its public worlds by block ID.
-    // Build a private required-child CSR and root queue from validated parents;
-    // source block order never determines whether a parent has propagated.
-    budget.reserve::<usize>(blocks)?;
-    let offset_count = blocks
-        .checked_add(1)
-        .ok_or_else(|| budget.fail("required forest offset count overflow"))?;
-    budget.reserve::<usize>(offset_count)?;
-    budget.charge(blocks)?;
-    let required_count = required.iter().filter(|&&value| value).count();
-    budget.reserve::<u32>(required_count)?;
-    let mut counts = vec![0usize; blocks];
-    let mut queue = Vec::with_capacity(required_count);
-    let mut edges = 0usize;
-    budget.charge(prepared.scene.world_transforms.len())?;
-    for world in &prepared.scene.world_transforms {
-        if !required[world.block as usize] {
-            continue;
-        }
-        match world.parent {
-            Some(parent) => {
-                if !required[parent as usize] {
-                    return Err(budget.fail("required forest parent is missing"));
-                }
-                counts[parent as usize] = counts[parent as usize]
-                    .checked_add(1)
-                    .ok_or_else(|| budget.fail("required forest child count overflow"))?;
-                edges = edges
-                    .checked_add(1)
-                    .ok_or_else(|| budget.fail("required forest edge count overflow"))?;
-            }
-            None => queue.push(world.block),
-        }
-    }
-    budget.reserve::<u32>(edges)?;
-    budget.charge(blocks)?;
-    let mut offsets = Vec::with_capacity(offset_count);
-    offsets.push(0usize);
-    for (id, count) in counts.iter_mut().enumerate() {
-        let next = offsets[id]
-            .checked_add(*count)
-            .ok_or_else(|| budget.fail("required forest prefix sum overflow"))?;
-        *count = offsets[id];
-        offsets.push(next);
-    }
-    if offsets[blocks] != edges {
-        return Err(budget.fail("required forest edge count differs"));
-    }
-    let mut children = vec![0u32; edges];
-    budget.charge(prepared.scene.world_transforms.len())?;
-    for world in &prepared.scene.world_transforms {
-        if required[world.block as usize]
-            && let Some(parent) = world.parent
-        {
-            let parent = parent as usize;
-            let slot = counts[parent];
-            if slot >= offsets[parent + 1] {
-                return Err(budget.fail("required forest child fill exceeds range"));
-            }
-            children[slot] = world.block;
-            counts[parent] += 1;
-        }
-    }
-    let mut propagated_objects = 0;
-    while propagated_objects < queue.len() {
-        budget.charge(1)?;
-        let id = queue[propagated_objects] as usize;
-        let world = &prepared.scene.world_transforms
-            [prepared.worlds[id].expect("required reachable world validated")];
-        let object = view
-            .object(world.block)
-            .ok_or_else(|| budget.fail("unresolved required object"))?;
-        let local = selected[id]
-            .map(|i| objects[i].channel.local)
-            .unwrap_or_else(|| scene_affine(object.transform));
-        let matrix = match world.parent {
-            Some(parent) => compose(
-                worlds[parent as usize]
-                    .ok_or_else(|| budget.fail("required forest parent not propagated"))?,
-                local,
-            ),
-            None => local,
-        };
-        if !matrix.iter().flatten().all(|v| v.is_finite()) {
-            return Err(budget.fail("evaluated matrix overflow"));
-        }
-        worlds[id] = Some(matrix);
-        if let Some(scope) = scope {
-            budget.charge(1)?;
-            relative[id] = if world.block == scope.anchor {
-                Some(IDENTITY)
-            } else {
-                match world.parent.and_then(|parent| relative[parent as usize]) {
-                    Some(parent) => {
-                        let value = compose(parent, local);
-                        if !value.iter().flatten().all(|v| v.is_finite()) {
-                            return Err(budget.fail("evaluated root-relative matrix overflow"));
-                        }
-                        Some(value)
-                    }
-                    None => None,
-                }
-            };
-        }
-        propagated_objects += 1;
-        let descendants = &children[offsets[id]..offsets[id + 1]];
-        budget.charge(descendants.len())?;
-        if queue
-            .len()
-            .checked_add(descendants.len())
-            .is_none_or(|n| n > required_count)
-        {
-            return Err(budget.fail("required forest queue exceeds admitted objects"));
-        }
-        queue.extend_from_slice(descendants);
-    }
-    if propagated_objects != required_count {
-        return Err(budget.fail("required forest could not propagate all objects"));
-    }
+    let propagated_objects = propagate_required(
+        ForestView {
+            scene: &prepared.scene,
+            object_slots: &prepared.objects,
+            world_slots: &prepared.worlds,
+            required: &required,
+        },
+        &mut worlds,
+        &mut relative,
+        scope.map(|s| s.anchor),
+        &mut budget,
+        |object| {
+            selected[object.block as usize]
+                .map(|i| objects[i].channel.local)
+                .unwrap_or_else(|| scene_affine(object.transform))
+        },
+    )?;
     for ordinal in 0..objects.len() {
         let id = objects[ordinal].channel.object.block;
         objects[ordinal].source_world =
@@ -468,4 +366,154 @@ fn evaluate_prepared(
         worlds,
         relative,
     })
+}
+
+/// Borrowed maps originate only in a freshly decoded/validated Scene. This is
+/// crate-private traversal data, never a public caller pose or matrix authority.
+pub(in crate::nif_animation) struct ForestView<'a> {
+    pub(crate) scene: &'a nif_scene::Scene,
+    pub(crate) object_slots: &'a [Option<usize>],
+    pub(crate) world_slots: &'a [Option<usize>],
+    pub(crate) required: &'a [bool],
+}
+impl ForestView<'_> {
+    pub(crate) fn object(&self, id: u32) -> Option<&nif_scene::Object> {
+        self.object_slots
+            .get(id as usize)
+            .copied()
+            .flatten()
+            .and_then(|slot| self.scene.objects.get(slot))
+    }
+}
+
+/// The same required-child CSR/root queue serves same-container channels and
+/// exact external packet locals. Existing set charge ordering remains intact.
+pub(in crate::nif_animation) fn propagate_required(
+    forest: ForestView<'_>,
+    worlds: &mut [Option<Affine>],
+    relative: &mut [Option<Affine>],
+    anchor: Option<u32>,
+    budget: &mut Budget<'_>,
+    mut local: impl FnMut(&nif_scene::Object) -> Affine,
+) -> Result<usize> {
+    let blocks = forest.required.len();
+    let required = forest.required;
+    // Scene validates the forest, then sorts its public worlds by block ID.
+    // Build a private required-child CSR and root queue from validated parents;
+    // source block order never determines whether a parent has propagated.
+    budget.reserve::<usize>(blocks)?;
+    let offset_count = blocks
+        .checked_add(1)
+        .ok_or_else(|| budget.fail("required forest offset count overflow"))?;
+    budget.reserve::<usize>(offset_count)?;
+    budget.charge(blocks)?;
+    let required_count = required.iter().filter(|&&value| value).count();
+    budget.reserve::<u32>(required_count)?;
+    let mut counts = vec![0usize; blocks];
+    let mut queue = Vec::with_capacity(required_count);
+    let mut edges = 0usize;
+    budget.charge(forest.scene.world_transforms.len())?;
+    for world in &forest.scene.world_transforms {
+        if !required[world.block as usize] {
+            continue;
+        }
+        match world.parent {
+            Some(parent) => {
+                if !required[parent as usize] {
+                    return Err(budget.fail("required forest parent is missing"));
+                }
+                counts[parent as usize] = counts[parent as usize]
+                    .checked_add(1)
+                    .ok_or_else(|| budget.fail("required forest child count overflow"))?;
+                edges = edges
+                    .checked_add(1)
+                    .ok_or_else(|| budget.fail("required forest edge count overflow"))?;
+            }
+            None => queue.push(world.block),
+        }
+    }
+    budget.reserve::<u32>(edges)?;
+    budget.charge(blocks)?;
+    let mut offsets = Vec::with_capacity(offset_count);
+    offsets.push(0usize);
+    for (id, count) in counts.iter_mut().enumerate() {
+        let next = offsets[id]
+            .checked_add(*count)
+            .ok_or_else(|| budget.fail("required forest prefix sum overflow"))?;
+        *count = offsets[id];
+        offsets.push(next);
+    }
+    if offsets[blocks] != edges {
+        return Err(budget.fail("required forest edge count differs"));
+    }
+    let mut children = vec![0u32; edges];
+    budget.charge(forest.scene.world_transforms.len())?;
+    for world in &forest.scene.world_transforms {
+        if required[world.block as usize]
+            && let Some(parent) = world.parent
+        {
+            let parent = parent as usize;
+            let slot = counts[parent];
+            if slot >= offsets[parent + 1] {
+                return Err(budget.fail("required forest child fill exceeds range"));
+            }
+            children[slot] = world.block;
+            counts[parent] += 1;
+        }
+    }
+    let mut propagated_objects = 0;
+    while propagated_objects < queue.len() {
+        budget.charge(1)?;
+        let id = queue[propagated_objects] as usize;
+        let world = &forest.scene.world_transforms
+            [forest.world_slots[id].expect("required reachable world validated")];
+        let object = forest
+            .object(world.block)
+            .ok_or_else(|| budget.fail("unresolved required object"))?;
+        let local = local(object);
+        let matrix = match world.parent {
+            Some(parent) => compose(
+                worlds[parent as usize]
+                    .ok_or_else(|| budget.fail("required forest parent not propagated"))?,
+                local,
+            ),
+            None => local,
+        };
+        if !matrix.iter().flatten().all(|v| v.is_finite()) {
+            return Err(budget.fail("evaluated matrix overflow"));
+        }
+        worlds[id] = Some(matrix);
+        if let Some(anchor) = anchor {
+            budget.charge(1)?;
+            relative[id] = if world.block == anchor {
+                Some(IDENTITY)
+            } else {
+                match world.parent.and_then(|parent| relative[parent as usize]) {
+                    Some(parent) => {
+                        let value = compose(parent, local);
+                        if !value.iter().flatten().all(|v| v.is_finite()) {
+                            return Err(budget.fail("evaluated root-relative matrix overflow"));
+                        }
+                        Some(value)
+                    }
+                    None => None,
+                }
+            };
+        }
+        propagated_objects += 1;
+        let descendants = &children[offsets[id]..offsets[id + 1]];
+        budget.charge(descendants.len())?;
+        if queue
+            .len()
+            .checked_add(descendants.len())
+            .is_none_or(|n| n > required_count)
+        {
+            return Err(budget.fail("required forest queue exceeds admitted objects"));
+        }
+        queue.extend_from_slice(descendants);
+    }
+    if propagated_objects != required_count {
+        return Err(budget.fail("required forest could not propagate all objects"));
+    }
+    Ok(propagated_objects)
 }

@@ -1,0 +1,291 @@
+{
+  "schema_version": 1,
+  "revision": "d2a2e1bb7b7c81203555e3a15b81e2ac4d4de3d7",
+  "scope": "Combined data/runtime/CLI/preview engineering validation with actual retained CELL texture consumption",
+  "rust_passing_results": 920,
+  "ignored_helpers": 19,
+  "rust_result_lines": 101,
+  "commands": [
+    {
+      "name": "rust",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "cb848c6230e2cd48b087cc4c52b0a134e84213f650b37fa9249bbe6e7bd6a6ea"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "5953ba54009d505e53ea0fca2f8b3ce2199eb33ff71556d349705c4ca99a54cd"
+    },
+    {
+      "name": "format",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer-build",
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "build",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "-p",
+        "fallout-preview",
+        "--bins",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "b7fa70ffa96e3d1a38271bf31eaa86651d89e9edf1a6ada0bec49b20bb039c6c"
+    },
+    {
+      "name": "external-clip-consumer",
+      "command": [
+        "py",
+        "-3",
+        "G:\\Rust-Fallout-worktrees\\integration\\tools\\nif-animation-oracle\\check_clip.py",
+        "--binary",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-05-freeze-01\\producer\\fallout.exe",
+        "--output-dir",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-05-freeze-01\\external-clip"
+      ],
+      "exit_code": 0,
+      "log_sha256": "bb78a11a084f8afaebe465372d228fa90cb7cf9139a81be8047af4edae15ad91"
+    }
+  ],
+  "binaries": {
+    "fallout": {
+      "sha256": "9f4d7bc0f65d6413155a506b964ad1ecda472cdbcabb168fe5cf7d1ba179aad0",
+      "bytes": 16544256
+    },
+    "fallout-preview": {
+      "sha256": "bcc6a74d6cf905f5467328b9de5bc28e2ccb4f406d575ab9270b3ed73b0e9f32",
+      "bytes": 101391360
+    },
+    "preview-tests": {
+      "sha256": "55bbecb954cfa5e685113ca7731c0d7c7b1fe89bbafbbefd0d968f613d65fa25",
+      "bytes": 40254464
+    }
+  },
+  "combined_receipt_sha256": "c79d4596ae9ea76f8c7da3514ad4ce2aad317c8d6231badf10894b4902ded3a3",
+  "gpu_receipt_sha256": "6180f3ea56f9405427c3e66c90077bd77f5175aea40ed1837a79098b5bed1d32",
+  "visual_review_sha256": "a8b656988697fcb14c1f5c5e24c0fff57ae7ed3f3413febc2f2187c55997f11c",
+  "raw_evidence": [
+    "integration/local/team-v3-combined-05",
+    "integration/local/team-v3-combined-05-freeze-01",
+    "integration/local/texture-consumer-gpu-proof-05"
+  ],
+  "packaging_correction": "Initial Windows log-path matcher failed after all four code commands passed. Preserved first receipt; fresh continuation froze the matching binaries and ran the external-clip consumer without repeating passing checks.",
+  "gpu_checks": [
+    {
+      "case": "cell",
+      "accepted": true
+    },
+    {
+      "case": "chair",
+      "accepted": true
+    },
+    {
+      "case": "terrain",
+      "accepted": true
+    },
+    {
+      "case": "missing",
+      "accepted": true
+    },
+    {
+      "case": "cancel-1",
+      "accepted": true
+    },
+    {
+      "case": "cancel-2",
+      "accepted": true
+    },
+    {
+      "case": "cancel-3",
+      "accepted": true
+    }
+  ],
+  "cell_texture_consumer": {
+    "completed_models": 207,
+    "requested_models": 207,
+    "completed_textures": 312,
+    "requested_textures": 312,
+    "pinned_source_bytes": 66028711,
+    "texture_state": "Decoded",
+    "complete_texture_coverage": true,
+    "texture_reference_coverage_verified": false,
+    "stage": "DependenciesReady",
+    "dependencies": "Ready",
+    "collision": "Unsupported",
+    "behavior": "Unsupported",
+    "simulation_ready": false,
+    "render_published": false
+  },
+  "resident_texture_fix": {
+    "revision": "df909a9dc2106ee2e9224e6dc5015503f286e74e",
+    "scope": "Retain captured DDS data through draw upload, validate owner/ticket before cached sampling, refuse missing or stale captured paths without archive fallback."
+  },
+  "commit_map": [
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-12",
+      "original": "5c9b3887823926991c2903c3278da045e4aac7d5",
+      "integrated": "ba04f962bdc736a69bdd2430749a112502eac34c"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-09",
+      "original": "c1085004892790c9463fa35351d19501d3f56252",
+      "integrated": "f085430baea0457c4e7a88b2f081a10c4967913a"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-10",
+      "original": "0fca7da67ad252478a8ed9fc2ea0fddab7da4282",
+      "integrated": "feb555e8ebf302328c71ffde4b532c9e38ebd27e"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-07",
+      "original": "e1e3a171b99d2facb0285c407b1ada2cbe49c22f",
+      "integrated": "29d0585d7643853765e230f80f9ff623b56b665c"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-16",
+      "original": "62111ebe8a99ee763610456da72cc57d5b853aed",
+      "integrated": "5c992e85c167069606405f84a14a8cf6c78b0de6"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-03",
+      "original": "1f846b488d7c828ebcb225fb956f6bb296c81a08",
+      "integrated": "2e8391c052f3c70765b88ab858e960606deb8225"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-09",
+      "original": "d170a3cff3bde79513cd1a34b5bf105602d3cbb7",
+      "integrated": "e306d5181c3e20965abcf25fd2f9c0c3e4daa136"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-10",
+      "original": "be9fb638f66d3c89196c4286dd2d85839d0fff6a",
+      "integrated": "e1a4a8a1e5cb16e4526f80401374a5195dcd8860"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-07",
+      "original": "58d759b3120e0c15eac38dd7e679740e8a51b85c",
+      "integrated": "74429a1f8a4ac3cd41bd8d8b29763f2107c12587"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-11",
+      "original": "a80397aa7024a945c92c7e41b0d2fa435f7dfb59",
+      "integrated": "1399b1d082bd672d39579359988ab4e223160fb4"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-12",
+      "original": "5fa7a2438e0570c6f01670bc5cc57e0bd90d827a",
+      "integrated": "a388321dc232a74053b8fead5aafcae58401d40f"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-13",
+      "original": "7bed2ac903e7124693fae154cfccc758a716bafc",
+      "integrated": "910ef988475f92f368127edf02b65bafe0fce094"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-02",
+      "original": "b0cdd4e7118bc2e9fe7e668f567160fd6e82e3b4",
+      "integrated": "cc586e7d621308e382585a5a44308bf64668edc2"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-02A",
+      "original": "fe40290ce3ad271047ec0c7ea2dee19e30485177",
+      "integrated": "d2a2e1bb7b7c81203555e3a15b81e2ac4d4de3d7"
+    }
+  ],
+  "limits": [
+    "CELL receipt is pre-upload DependenciesReady; successful PNG proves a later visible frame, not a post-upload residency snapshot or complete model/reference coverage.",
+    "Missing asset refuses with no capture/report; three cancellation checks run exact frozen test cases, not a production cancellation CLI or original game.",
+    "Coordinator inspected all three static frames. Original camera/material/input comparison and manual responsiveness remain unaccepted.",
+    "Skin renderer preserves explicit source selection and raw weight tolerance; independent native individual posed-vertex/playback proof remains open.",
+    "External clip refusal/pose fixtures are engineering checks, not original animation scheduling or gameplay.",
+    "Numerically held physics query stack remains excluded from this batch."
+  ],
+  "last_verified_checkpoint": 45,
+  "new_checkpoint_claimed": false,
+  "original_process_started": false,
+  "original_gameplay_scenarios_accepted": 0,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false
+}

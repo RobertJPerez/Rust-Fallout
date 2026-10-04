@@ -9,10 +9,12 @@ worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
-[Development batch 04](docs/integration/team-v3-development-04.json) passed 843
-data/runtime/CLI test results, affected-package Clippy and formatting, five
-transport tests, and actual cold actor/cohort consumers. This is engineering
-validation; original gameplay acceptance remains open.
+[Development batch 05](docs/integration/team-v3-development-05.json) passed 920
+data/runtime/CLI/preview test results, affected-package Clippy and formatting,
+fresh external-clip checks and seven GPU/refusal/cancellation checks. The CELL
+renderer now consumes retained model and DDS data; the house, chair and terrain
+frames were visually inspected. Batch 04's cold actor/cohort evidence remains
+preserved. These are engineering checks; original gameplay acceptance remains open.
 [Checkpoint 45](reports/checkpoint-45.md) is the latest verified implementation. Later worker handoffs stay outside its frozen proof until separately reviewed and integrated.
 
 Checkpoint 14 is ready for a direct visual/input comparison. Run the verified build

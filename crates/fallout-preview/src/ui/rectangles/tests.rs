@@ -96,6 +96,60 @@ fn source_rectangles_have_independent_bounds_bits_color_and_ancestor_semantics()
 fn request_for(doc: &Document) -> Request {
     request(doc)
 }
+
+#[test]
+fn distinct_world_depths_that_collapse_to_actual_bevy_camera_sort_keys_refuse() {
+    const TIE: &str = "<rect name='Panel'><x>8</x><y>6</y><width>60</width><height>42</height><depth>2e-7</depth><red>255</red><green>0</green><blue>0</blue><alpha>255</alpha><visible>1</visible><rect name='Behind'><x>0</x><y>0</y><width>60</width><height>42</height><depth>-1e-7</depth><red>0</red><green>255</green><blue>0</blue><alpha>255</alpha><visible>1</visible></rect></rect>";
+    let doc = document(TIE);
+    let mut request = request(&doc);
+    request.parent.origin = [0.; 3];
+    request.parent.opacity = 1.;
+    request.viewport.depth_range = [-20., 20.];
+    request.viewport.width = 96;
+    request.viewport.height = 64;
+    let parent = Vec3::new(38., -27., 2e-7);
+    let child = Vec3::new(38., -27., 1e-7);
+    assert_eq!(parent.z.to_bits(), 0x3456bf95);
+    assert_eq!(child.z.to_bits(), 0x33d6bf95);
+    assert_ne!(parent.z, child.z);
+    let rangefinder = ViewRangefinder3d::from_world_from_view(&camera(&request).0.compute_affine());
+    assert_eq!(rangefinder.distance(&parent).to_bits(), 0xc2f00000);
+    assert_eq!(rangefinder.distance(&child).to_bits(), 0xc2f00000);
+    assert!(
+        project(&doc, &request, Limits::default())
+            .err()
+            .expect("camera key tie must refuse")
+            .to_string()
+            .contains("camera-space sort-key collision")
+    );
+    // A key tie has no visible ordering consequence for hidden/zero-opacity
+    // work. It also remains allowed when the admitted bounds do not overlap.
+    request.parent.visible = false;
+    assert!(project(&doc, &request, Limits::default()).is_ok());
+    request.parent.visible = true;
+    request.parent.opacity = 0.;
+    assert!(project(&doc, &request, Limits::default()).is_ok());
+    request.parent.opacity = 1.;
+    let separate = document(&TIE.replace("name='Behind'><x>0", "name='Behind'><x>100"));
+    let mut separate_request = request_for(&separate);
+    separate_request.parent.origin = [0.; 3];
+    separate_request.parent.opacity = 1.;
+    separate_request.viewport.depth_range = [-20., 20.];
+    assert!(project(&separate, &separate_request, Limits::default()).is_ok());
+    let safe = document(
+        &TIE.replace("<depth>2e-7</depth>", "<depth>1</depth>")
+            .replace("<depth>-1e-7</depth>", "<depth>-0.00002</depth>"),
+    );
+    let mut safe_request = request_for(&safe);
+    safe_request.parent.origin = [0.; 3];
+    safe_request.parent.opacity = 1.;
+    safe_request.viewport.depth_range = [-20., 20.];
+    let plan = project(&safe, &safe_request, Limits::default()).unwrap();
+    assert!(plan.rectangles[0].sort_key > plan.rectangles[1].sort_key);
+    for rectangle in plan.rectangles {
+        assert_eq!(rectangle.sort_key.to_bits(), rectangle.sort_key_bits);
+    }
+}
 #[test]
 fn unsupported_missing_duplicate_empty_entities_and_operations_never_receive_defaults() {
     let complete = format!("{ROOT}</rect>");

@@ -6,6 +6,7 @@ use bevy::{
     camera::ScalingMode,
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
+    render::render_phase::ViewRangefinder3d,
 };
 use fallout_data::vfs::AssetPath;
 use serde::{Deserialize, Serialize};
@@ -175,6 +176,9 @@ pub struct Rectangle {
     pub positions: [[f32; 3]; 4],
     pub translation: [f32; 3],
     pub mesh_positions: [[f32; 3]; 4],
+    /// The renderer's f32 camera-space key, including its actual rounding.
+    pub sort_key: f32,
+    pub sort_key_bits: u32,
 }
 #[derive(Default, Serialize)]
 pub struct Usage {
@@ -281,6 +285,7 @@ fn project_checked(
         }])
         .collect();
     let mut usage = Usage::default();
+    let rangefinder = ViewRangefinder3d::from_world_from_view(&camera(request).0.compute_affine());
     let mut rectangles: Vec<Rectangle> = Vec::new();
     let mut stack = vec![(request.tile.node, None, 1usize)];
     while let Some((id, parent, depth)) = stack.pop() {
@@ -495,6 +500,12 @@ fn project_checked(
             return Err("Menu rectangle GPU color/opacity precision collapsed".into());
         }
         let effective_visible = shown && visible.value;
+        // Local mesh z is exactly zero; the instance translation is the
+        // renderer's world AABB-center z. Use the same pinned Bevy calculator.
+        let sort_key = rangefinder.distance(&Vec3::from_array(translation));
+        if !sort_key.is_finite() {
+            return Err("Menu rectangle camera-space sort key must be finite".into());
+        }
         // Equal-depth overlapping translucent draws have no certified source
         // ordering policy here. Refuse them instead of inventing a tie breaker.
         if effective_visible
@@ -513,6 +524,20 @@ fn project_checked(
                 "Menu rectangle overlapping equal-depth draws need an explicit supported order"
                     .into(),
             );
+        }
+        if effective_visible
+            && effective_opacity > 0.
+            && rectangles.iter().any(|p| {
+                p.effective_visible
+                    && p.effective_opacity > 0.
+                    && p.sort_key == sort_key
+                    && bounds[0] < p.bounds[2]
+                    && bounds[2] > p.bounds[0]
+                    && bounds[1] < p.bounds[3]
+                    && bounds[3] > p.bounds[1]
+            })
+        {
+            return Err("Menu rectangle overlapping camera-space sort-key collision requires a supported order".into());
         }
         charge(
             &mut usage.mesh_bytes,
@@ -536,6 +561,8 @@ fn project_checked(
             positions,
             translation,
             mesh_positions,
+            sort_key,
+            sort_key_bits: sort_key.to_bits(),
         });
         stack.extend(
             node.children

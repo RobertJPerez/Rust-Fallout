@@ -221,6 +221,11 @@ do not establish output-alpha channel behavior. Overlapping visible nonzero-alph
 rectangles at equal f32 depth refuse because this consumer has no certified tie
 ordering policy. Collapsed geometry, draw area, reconstruction and subnormal GPU
 coordinates/color/opacity also refuse.
+Distinct world depths can round to one camera-space sorting key. The consumer
+also rejects overlapping visible positive-alpha draws with identical keys from
+the pinned Bevy `ViewRangefinder3d`; each plan retains that key and its bits.
+The world-depth equality refusal stays in place. This avoids claiming an order
+when the actual transparent sort cannot distinguish the two draws.
 
 Limits are 128 KiB request, 256 rectangles/draws, subtree depth 64 and 32,768
 direct traversal visits. Aggregate literal projection reserves at most 8 MiB

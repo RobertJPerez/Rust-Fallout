@@ -67,6 +67,10 @@ pub enum Error {
     Capacity(&'static str),
     #[error("source preparation is incomplete: {remaining_definitions} definitions remain")]
     Incomplete { remaining_definitions: usize },
+    #[error("explicit source selection contains a duplicate definition key")]
+    DuplicateSelection,
+    #[error(transparent)]
+    Lookup(#[from] LookupError),
     #[error(transparent)]
     State(#[from] crate::Error),
 }
@@ -77,6 +81,8 @@ pub enum LookupError {
     ContentChanged,
     #[error("prepared script definition is missing or has changed")]
     DefinitionChanged,
+    #[error("exact script definition was not selected for this prepared-source cache")]
+    NotSelected,
     #[error(transparent)]
     Source(Arc<definition_plan::Error>),
 }
@@ -111,6 +117,9 @@ pub struct PreparedSources<'a> {
     cohort: String,
     decoder_sha256: String,
     entries: Vec<Entry<'a>>,
+    // Canonical borrowed sources in key order, including absent/rejected bodies.
+    // None is the historical full-cache behavior; Some(empty) selects nothing.
+    selection: Option<Vec<&'a LoadedScript>>,
     absent: Arc<definition_plan::Error>,
     counts: Counts,
 }
@@ -318,6 +327,43 @@ impl<'a> PreparedSources<'a> {
         job.finish()
     }
 
+    /// Prepare only explicitly selected exact versions, with no inferred closure.
+    /// Validate every handle and reject duplicate keys before preparing anything.
+    /// Full catalogue/decoder identity and the catalogue admission cap remain;
+    /// attempt/plan/body counters and aggregate work allowances cover selection.
+    pub fn load_selected(
+        catalogue: &'a Catalogue,
+        model: &Model<'_>,
+        signatures: &Signatures,
+        exact_handles: &[Handle],
+        limits: Limits,
+    ) -> Result<Self, Error> {
+        if exact_handles.len() > limits.maximum_definitions {
+            return Err(Error::Capacity("selected definitions"));
+        }
+        let mut sources = Self::initialize(catalogue, model, signatures, limits)?;
+        let mut selection = Vec::with_capacity(exact_handles.len());
+        for handle in exact_handles {
+            selection.push(
+                catalogue
+                    .get_handle(handle)
+                    .ok_or(LookupError::DefinitionChanged)?,
+            );
+        }
+        selection.sort_by(|a, b| a.handle().key.cmp(&b.handle().key));
+        if selection
+            .windows(2)
+            .any(|pair| pair[0].handle().key == pair[1].handle().key)
+        {
+            return Err(Error::DuplicateSelection);
+        }
+        for source in &selection {
+            sources.prepare_one(source, model, signatures, limits)?;
+        }
+        sources.selection = Some(selection);
+        Ok(sources)
+    }
+
     fn initialize(
         catalogue: &'a Catalogue,
         model: &Model<'_>,
@@ -340,6 +386,7 @@ impl<'a> PreparedSources<'a> {
             cohort,
             decoder_sha256,
             entries: Vec::new(),
+            selection: None,
             absent: Arc::new(definition_plan::Error::MissingBody),
             counts: Counts {
                 definitions,
@@ -471,6 +518,13 @@ impl<'a> PreparedSources<'a> {
             .catalogue
             .get_handle(handle)
             .ok_or(LookupError::DefinitionChanged)?;
+        if self.selection.as_ref().is_some_and(|selection| {
+            selection
+                .binary_search_by(|source| source.handle().key.cmp(&handle.key))
+                .is_err()
+        }) {
+            return Err(LookupError::NotSelected);
+        }
         if source.compiled().is_none() && source.issues().is_empty() {
             return Err(LookupError::Source(Arc::clone(&self.absent)));
         }

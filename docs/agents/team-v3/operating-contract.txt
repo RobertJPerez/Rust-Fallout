@@ -51,6 +51,16 @@ integration priority. Keep one coding task and at most one parked validation tas
 Use source/fixture/consumer work while a build is busy; no untested feature pile.
 Real exhaustion is reported honestly rather than inventing work to consume credit.
 
+Coordinator queue maintenance: at every handoff, count independent ready work
+separately from blocked acceptance. Replenish before a lane drops below six ready
+tasks, aiming for twelve. Keep tested partial producers usable without claiming
+their still-open gameplay acceptance is complete. Resolve dependency decisions
+at the boundary rather than withholding an entire batch for checkpoint wording.
+Robert authorizes redirecting a lane toward a demonstrated critical-path gap.
+Transfer writing ownership only at a clean preserved handoff, update assignment
+and ownership records, and notify both owners before the new writer edits. Parallel
+read-only review can help another lane immediately; it never takes its write lease.
+
 OWNERSHIP AND INTERFACES
 ownership.json is binding; unlisted paths are coordinator-owned pending a clear
 assignment. contracts.json preauthorizes the initial producer/consumer boundaries.

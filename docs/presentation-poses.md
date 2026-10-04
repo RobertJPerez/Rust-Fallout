@@ -82,3 +82,36 @@ and an authored two-sided material. Literal expected matrices and vertices expos
 transform ordering, signed-scale winding and raw normal length. The second packet
 adds a descendant controller that the renderer must refuse. All retail-derived
 inputs, captures and per-source reports remain under ignored local evidence.
+
+## Explicit source-time skin inspection
+
+Add all five sample arguments to an existing `--skin-geometry` and
+`--skin-weight-tolerance` model request:
+
+```text
+--skin-sample-object BLOCK --skin-sample-controller BLOCK --skin-sample-time TIME
+--skin-sample-source-sha256 HEX64 --skin-sample-controller-policy refuse-other-required
+```
+
+The source hash is exactly 64 hexadecimal ASCII digits. The existing published
+`nif_skin::pose::evaluate_sampled` producer validates that source, the exact
+same-container object/controller/time links, selected skin ancestry and the
+explicit other-controller policy. Presentation adds no sampler. Missing joints,
+wrong hashes/links, unsupported channels, invalid times or another required
+controller refuse the complete source request. The unit-weight tolerance remains
+explicit and never repairs weights. The producer's existing conservative combined
+decoder, element-storage and work allowances apply.
+
+Validated positions and raw normal directions use the same existing binary64
+skin-world/basis transport, mesh attribute hashes, materials and bounded upload
+path. The geometry owner's transform is excluded. The optional schema-4 report
+keeps `source_skin_pose` and adds `source_sampled_skin_pose`: the full validated
+sample receipt, source palette, explicit controller policy and producer admission
+counts. Charged element accounting includes scratch already released and is not
+a measurement of retained process memory. Raw deformed source arrays are released
+after draw conversion; the palette moves into the receipt without a second copy.
+
+With no sample arguments, stored-pose schema 3 and default schema 2 reports retain
+their previous fields and behavior. The host applies no running animation clock,
+rotation-key mapping, original callback or playback policy. Original animated
+skin rendering and gameplay remain unaccepted.

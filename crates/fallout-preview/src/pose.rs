@@ -13,6 +13,7 @@ pub use animation::Request as ObjectRequest;
 #[derive(Clone, Copy)]
 pub enum Request {
     Skin(SkinRequest),
+    SampledSkin(SampledSkinRequest),
     Object(ObjectRequest),
 }
 
@@ -20,6 +21,28 @@ pub enum Request {
 pub struct SkinRequest {
     pub geometry: u32,
     pub absolute_weight_tolerance: f64,
+}
+
+#[derive(Clone, Copy)]
+pub struct SampledSkinRequest {
+    pub skin: SkinRequest,
+    pub expected_source_sha256: [u8; 32],
+    pub animation: ObjectRequest,
+    pub controller_policy: source::ControllerPolicy,
+}
+
+#[derive(Serialize)]
+pub struct SampledSkinSummary {
+    pub contract: &'static str,
+    pub controller_policy: source::ControllerPolicy,
+    pub sample: animation::ObjectPose,
+    pub palette: Vec<source::BonePalette>,
+    pub decoder_array_admission_bytes: usize,
+    pub decoder_check_admission_units: usize,
+    /// Producer element accounting includes scratch already released.
+    pub producer_charged_array_bytes: usize,
+    pub producer_work_units: usize,
+    pub retail_behavior_verified: bool,
 }
 
 #[derive(Serialize)]
@@ -45,6 +68,7 @@ pub struct SkinSummary {
 
 pub struct Skin {
     pub summary: SkinSummary,
+    pub sample: Option<SampledSkinSummary>,
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     /// Only used for the existing inspection winding/representability check.
@@ -99,6 +123,41 @@ pub fn skin(bytes: &[u8], name: &str, request: SkinRequest) -> Result<Skin> {
         },
         Default::default(),
     )?;
+    draw_skin(evaluated, None)
+}
+
+pub fn sampled_skin(bytes: &[u8], name: &str, request: SampledSkinRequest) -> Result<Skin> {
+    let evaluated = source::evaluate_sampled(
+        bytes,
+        name,
+        source::SampledRequest {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: source::Request {
+                geometry: request.skin.geometry,
+                weights: source::WeightPolicy::RequireUnitSum {
+                    absolute_tolerance: request.skin.absolute_weight_tolerance,
+                },
+            },
+            controller_policy: request.controller_policy,
+        },
+        request.animation,
+        Default::default(),
+    )?;
+    let sample = SampledSkinSummary {
+        contract: evaluated.contract,
+        controller_policy: evaluated.controller_policy,
+        sample: evaluated.sample,
+        palette: Vec::new(),
+        decoder_array_admission_bytes: evaluated.decoder_array_admission_bytes,
+        decoder_check_admission_units: evaluated.decoder_check_admission_units,
+        producer_charged_array_bytes: evaluated.retained_bytes,
+        producer_work_units: evaluated.work_units,
+        retail_behavior_verified: false,
+    };
+    draw_skin(evaluated.skin, Some(sample))
+}
+
+fn draw_skin(evaluated: source::Evaluation, sample: Option<SampledSkinSummary>) -> Result<Skin> {
     let positions = draw_vectors(
         evaluated.skin_to_source_world,
         evaluated.positions.iter().copied(),
@@ -134,8 +193,15 @@ pub fn skin(bytes: &[u8], name: &str, request: SkinRequest) -> Result<Skin> {
         normal_convention: "raw weighted linear skin directions, source-world linear map once, no normalization or inverse-transpose; unlit inspection",
         retail_behavior_verified: false,
     };
+    // Move the validated palette into the optional sample receipt. The default
+    // stored-pose report remains identical and retains no extra palette copy.
+    let sample = sample.map(|mut sample| {
+        sample.palette = evaluated.palette;
+        sample
+    });
     Ok(Skin {
         summary,
+        sample,
         positions,
         normals,
         world,
@@ -299,8 +365,357 @@ pub fn object_vectors(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    const NULL: u32 = u32::MAX;
+    const ID: [[f32; 3]; 3] = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]];
+    const R90: [[f32; 3]; 3] = [[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]];
+    const RM90: [[f32; 3]; 3] = [[0., 1., 0.], [-1., 0., 0.], [0., 0., 1.]];
+
+    fn words(values: &[u32]) -> Vec<u8> {
+        values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    }
+    fn shorts(values: &[u16]) -> Vec<u8> {
+        values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    }
+    fn floats(values: &[f32]) -> Vec<u8> {
+        values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    }
+    fn av(
+        rotation: [[f32; 3]; 3],
+        translation: [f32; 3],
+        scale: f32,
+        controller: u32,
+        properties: &[u32],
+    ) -> Vec<u8> {
+        [
+            words(&[NULL, 0, controller, 0]),
+            floats(&translation),
+            floats(&rotation.concat()),
+            floats(&[scale]),
+            words(&[properties.len() as u32]),
+            words(properties),
+            words(&[NULL]),
+        ]
+        .concat()
+    }
+    fn node(
+        rotation: [[f32; 3]; 3],
+        translation: [f32; 3],
+        scale: f32,
+        controller: u32,
+        children: &[u32],
+    ) -> Vec<u8> {
+        [
+            av(rotation, translation, scale, controller, &[]),
+            words(&[children.len() as u32]),
+            words(children),
+            words(&[0]),
+        ]
+        .concat()
+    }
+    fn skin_transform(rotation: [[f32; 3]; 3], translation: [f32; 3], scale: f32) -> Vec<u8> {
+        [
+            floats(&rotation.concat()),
+            floats(&translation),
+            floats(&[scale]),
+        ]
+        .concat()
+    }
+
+    /// Authored byte declarations only; the existing production decoder/sampler
+    /// owns all interpretation. Matches the second published producer oracle,
+    /// with explicit untextured cyan/two-sided material for a visible GPU draw.
+    pub(crate) fn sampled_blocks() -> Vec<(&'static str, Vec<u8>)> {
+        let geometry = [
+            av(ID, [999., 888., 777.], 99., NULL, &[10, 11]),
+            words(&[6, 4, 0, NULL]),
+            vec![0],
+        ]
+        .concat();
+        let data = [
+            words(&[0]),
+            shorts(&[3]),
+            vec![0, 0, 1],
+            floats(&[2., -1., 3., -2., 4., 1., 0., 3., -1.]),
+            shorts(&[0]),
+            vec![1],
+            floats(&[1., 2., 0., 1., 2., 0., 1., 2., 0.]),
+            floats(&[0., 0., 0., 10.]),
+            vec![0],
+            shorts(&[0]),
+            words(&[NULL]),
+            shorts(&[1]),
+            words(&[3]),
+            vec![1],
+            shorts(&[0, 1, 2, 0]),
+        ]
+        .concat();
+        let mut skin = [skin_transform(ID, [1., -2., 3.], 0.5), words(&[2]), vec![1]].concat();
+        for (rotation, translation, scale, influences) in [
+            (ID, [-1., 0., 2.], 1., [(0u16, 0.25), (1, 1.)]),
+            (R90, [0., -1., 0.], 2., [(0u16, 0.75), (2, 1.)]),
+        ] {
+            skin.extend(skin_transform(rotation, translation, scale));
+            skin.extend(floats(&[0., 0., 0., 10.]));
+            skin.extend(shorts(&[2]));
+            for (vertex, weight) in influences {
+                skin.extend(shorts(&[vertex]));
+                skin.extend(floats(&[weight]));
+            }
+        }
+        let controller = [
+            words(&[NULL]),
+            shorts(&[0xffff]),
+            floats(&[17., -9., 100., 101.]),
+            words(&[1, 8]),
+        ]
+        .concat();
+        let interpolator = [
+            floats(&[1000., 2000., 3000., 2., -3., 4., -5., 12.]),
+            words(&[9]),
+        ]
+        .concat();
+        let keys = [
+            words(&[0, 2, 1]),
+            floats(&[-2., -1., 2., 4., 2., 5., -4., 0.]),
+            words(&[2, 1]),
+            floats(&[-2., -2., 2., 2.]),
+        ]
+        .concat();
+        vec![
+            ("NiNode", node(R90, [4., -2., 8.], 2., NULL, &[1, 2, 3])),
+            ("NiNode", node(RM90, [3., 1., 0.], 2., 7, &[])),
+            ("NiNode", node(ID, [-2., 4., 1.], 3., NULL, &[])),
+            ("NiTriShape", geometry),
+            ("NiSkinInstance", words(&[5, NULL, 0, 2, 1, 2])),
+            ("NiSkinData", skin),
+            ("NiTriShapeData", data),
+            ("NiTransformController", controller),
+            ("NiTransformInterpolator", interpolator),
+            ("NiTransformData", keys),
+            (
+                "NiMaterialProperty",
+                [
+                    words(&[NULL, 0, NULL]),
+                    floats(&[0., 0., 0., 0., 0., 0., 0., 1., 1.]),
+                ]
+                .concat(),
+            ),
+            (
+                "NiStencilProperty",
+                [words(&[NULL, 0, NULL]), shorts(&[3 << 10]), words(&[0, 0])].concat(),
+            ),
+        ]
+    }
+
+    pub(crate) fn packet(blocks: &[(&str, Vec<u8>)]) -> Vec<u8> {
+        let mut types = Vec::new();
+        for (name, _) in blocks {
+            if !types.contains(name) {
+                types.push(*name);
+            }
+        }
+        let mut bytes = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+        bytes.extend(words(&[0x14020007]));
+        bytes.push(1);
+        bytes.extend(words(&[11, blocks.len() as u32, 34]));
+        bytes.extend([0; 3]);
+        bytes.extend(shorts(&[types.len() as u16]));
+        for name in &types {
+            bytes.extend(words(&[name.len() as u32]));
+            bytes.extend(name.as_bytes());
+        }
+        for (name, _) in blocks {
+            bytes.extend(shorts(&[
+                types.iter().position(|v| v == name).unwrap() as u16
+            ]));
+        }
+        for (_, data) in blocks {
+            bytes.extend(words(&[data.len() as u32]));
+        }
+        bytes.extend(words(&[0, 0, 0]));
+        for (_, data) in blocks {
+            bytes.extend(data);
+        }
+        bytes.extend(words(&[1, 0]));
+        bytes
+    }
+
+    pub(crate) fn sampled_request(bytes: &[u8], time: f64) -> SampledSkinRequest {
+        SampledSkinRequest {
+            skin: SkinRequest {
+                geometry: 3,
+                absolute_weight_tolerance: 0.,
+            },
+            expected_source_sha256: Sha256::digest(bytes).into(),
+            animation: ObjectRequest {
+                object: 1,
+                controller: 7,
+                source_time: time,
+            },
+            controller_policy: source::ControllerPolicy::RefuseOtherRequired,
+        }
+    }
+
+    pub(crate) const SAMPLED_POSITIONS: [[[f32; 3]; 3]; 3] = [
+        [[-17.5, 33.5, -4.5], [12., 4., 20.], [2., -2., 42.]],
+        [[-15., 37.5, -5.], [6., 12., -2.], [2., -2., 42.]],
+        [[-12.5, 41.5, -5.5], [0., 20., -24.], [2., -2., 42.]],
+    ];
+    pub(crate) const SAMPLED_NORMALS: [[[f32; 3]; 3]; 3] = [
+        [[-10., 0., 20.], [-4., 0., 8.], [-12., 0., 24.]],
+        [[-9., 0., 18.], [0., 0., 0.], [-12., 0., 24.]],
+        [[-8., 0., 16.], [4., 0., -8.], [-12., 0., 24.]],
+    ];
+
+    #[test]
+    fn sampled_palette_literal_vectors_source_basis_once_and_zero_scale_are_preserved() {
+        let bytes = packet(&sampled_blocks());
+        let palettes = [
+            [[0., -1., 0., 0.5], [1., 0., 0., -2.], [0., 0., -1., 3.]],
+            [[0., 0., 0., 2.], [0., 0., 0., -2.5], [0., 0., 0., 4.]],
+            [[0., 1., 0., 3.5], [-1., 0., 0., -3.], [0., 0., 1., 5.]],
+        ];
+        for (index, time) in [-2., 0., 2.].into_iter().enumerate() {
+            let skin = sampled_skin(
+                &bytes,
+                "authored sampled skin",
+                sampled_request(&bytes, time),
+            )
+            .unwrap();
+            assert_eq!(skin.positions, SAMPLED_POSITIONS[index]);
+            assert_eq!(skin.normals, SAMPLED_NORMALS[index]);
+            assert_eq!(
+                skin.summary.draw_positions_sha256,
+                draw_hash(&SAMPLED_POSITIONS[index])
+            );
+            assert_eq!(
+                skin.summary.draw_normals_sha256,
+                draw_hash(&SAMPLED_NORMALS[index])
+            );
+            assert_eq!(
+                skin.summary.skin_to_source_world,
+                [[0., -4., 0., -4.], [4., 0., 0., -6.], [0., 0., 4., -4.]]
+            );
+            assert_eq!(skin.summary.raw_weight_sum_range, [1., 1.]);
+            let sample = skin.sample.unwrap();
+            assert_eq!(sample.palette.len(), 2);
+            assert_eq!((sample.palette[0].ordinal, sample.palette[0].node), (0, 1));
+            assert_eq!(sample.palette[0].matrix, palettes[index]);
+            assert_eq!(
+                sample.palette[1].matrix,
+                [[0., -3., 0., 0.], [3., 0., 0., -1.5], [0., 0., 3., 3.5]]
+            );
+            assert_eq!(sample.sample.requested_time_f64_bits, time.to_bits());
+            assert_eq!(sample.sample.source_sha256, skin.summary.source_sha256);
+            assert_eq!(sample.sample.unapplied_controller_fields.flags, 0xffff);
+            assert_eq!(
+                sample.sample.unapplied_controller_fields.frequency_bits,
+                17f32.to_bits()
+            );
+            assert!(!sample.retail_behavior_verified && !sample.sample.retail_behavior_verified);
+            assert!(skin.summary.unapplied_controllers.is_empty());
+            assert!(
+                sample.decoder_array_admission_bytes > 0
+                    && sample.producer_charged_array_bytes > 0
+                    && sample.producer_work_units > 0
+            );
+        }
+        let zero =
+            sampled_skin(&bytes, "negative zero time", sampled_request(&bytes, -0.)).unwrap();
+        assert_eq!(zero.positions, SAMPLED_POSITIONS[1]);
+        assert_eq!(
+            zero.sample.unwrap().sample.requested_time_f64_bits,
+            (-0f64).to_bits()
+        );
+    }
+
+    #[test]
+    fn sampled_transport_refuses_source_time_links_required_controllers_and_missing_bones() {
+        let bytes = packet(&sampled_blocks());
+        let baseline = sampled_request(&bytes, 0.);
+        let mut stale = baseline;
+        stale.expected_source_sha256[0] ^= 1;
+        let mut controller = baseline;
+        controller.animation.controller = 8;
+        let mut object = baseline;
+        object.animation.object = 2;
+        let mut geometry = baseline;
+        geometry.skin.geometry = 1;
+        for (request, expected) in [
+            (stale, "source SHA256 differs"),
+            (controller, "object.controller differs"),
+            (object, "object.controller differs"),
+            (geometry, "selected geometry has no decoded skin owner"),
+        ] {
+            let error = sampled_skin(&bytes, "refuse sampled request", request)
+                .err()
+                .expect("Invalid request must refuse");
+            assert!(error.to_string().contains(expected), "{error}");
+        }
+        for time in [-3., 3., f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(sampled_skin(&bytes, "invalid time", sampled_request(&bytes, time)).is_err());
+        }
+        for failure in ["bone", "controller", "rotation", "draw-overflow"] {
+            let mut blocks = sampled_blocks();
+            let expected = match failure {
+                "bone" => {
+                    blocks[4].1[16..20].copy_from_slice(&NULL.to_le_bytes());
+                    "unresolved root, bone or owner ancestry"
+                }
+                "controller" => {
+                    blocks[2].1[8..12].copy_from_slice(&7u32.to_le_bytes());
+                    "required object 2 controller 7 is unapplied"
+                }
+                "rotation" => {
+                    blocks[9].1 = [
+                        words(&[1, 1]),
+                        floats(&[0., 1., 0., 0., 0.]),
+                        blocks[9].1[4..].to_vec(),
+                    ]
+                    .concat();
+                    "rotation key mapping is unapplied"
+                }
+                "draw-overflow" => {
+                    blocks[0].1[64..68].copy_from_slice(&f32::MAX.to_le_bytes());
+                    "draw vector is not finite/representable"
+                }
+                _ => unreachable!(),
+            };
+            let bytes = packet(&blocks);
+            let error = sampled_skin(&bytes, "invalid source", sampled_request(&bytes, 0.))
+                .err()
+                .expect("Unsupported source must refuse");
+            assert!(error.to_string().contains(expected), "{failure}: {error}");
+        }
+    }
+
+    #[test]
+    fn sampled_unit_weight_tolerance_is_explicit_and_never_repairs_raw_weights() {
+        let mut blocks = sampled_blocks();
+        // Second bind's first influence weight, after the two literal transforms.
+        blocks[5].1[211..215].copy_from_slice(&0.5f32.to_le_bytes());
+        let bytes = packet(&blocks);
+        let mut request = sampled_request(&bytes, 0.);
+        assert!(sampled_skin(&bytes, "nonunit", request).is_err());
+        for tolerance in [-1., f64::NAN, f64::INFINITY, 0.249] {
+            request.skin.absolute_weight_tolerance = tolerance;
+            assert!(sampled_skin(&bytes, "invalid/exhausted tolerance", request).is_err());
+        }
+        request.skin.absolute_weight_tolerance = 0.25;
+        let skin = sampled_skin(&bytes, "explicit raw tolerance", request).unwrap();
+        assert_eq!(skin.summary.raw_weight_sum_range, [0.75, 1.]);
+        assert_eq!(skin.positions[0], [-10.5, 25., -2.]);
+        assert_eq!(skin.normals[0], [-6., 0., 12.]);
+        assert!(matches!(
+            skin.summary.weights,
+            source::WeightPolicy::RequireUnitSum {
+                absolute_tolerance: 0.25
+            }
+        ));
+    }
 
     #[test]
     fn actual_decoded_draw_hierarchy_obeys_exact_depth_object_and_work_boundaries() {

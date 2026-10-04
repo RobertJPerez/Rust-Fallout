@@ -54,6 +54,8 @@ pub struct Report {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_skin_pose: Option<Box<crate::pose::SkinSummary>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_sampled_skin_pose: Option<Box<crate::pose::SampledSkinSummary>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_object_pose: Option<Box<crate::pose::ObjectSummary>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_file: Option<Box<PathBuf>>,
@@ -251,6 +253,11 @@ fn from_texture_source(
             &String::from_utf8_lossy(path.bytes()),
             request,
         )?),
+        Some(crate::pose::Request::SampledSkin(request)) => Some(crate::pose::sampled_skin(
+            bytes,
+            &String::from_utf8_lossy(path.bytes()),
+            request,
+        )?),
         _ => None,
     };
     let (index, scene) = nif_scene::decode(bytes, &String::from_utf8_lossy(path.bytes()))?;
@@ -286,6 +293,7 @@ fn from_texture_source(
         rendering: "unlit diffuse/vertex-color inspection with source alpha, culling and depth states; no retail lighting, effects, animation or collision parity",
         retail_parity_accepted: false,
         source_skin_pose: None,
+        source_sampled_skin_pose: None,
         source_object_pose: None,
         source_file: None,
     };
@@ -661,6 +669,11 @@ fn from_texture_source(
         report.schema_version = 3;
         report.source_skin_pose = Some(Box::new(skin.summary));
         report.rendering = "unlit exact selected source-local skin; source-world map once; raw weights/linear normals, controllers and original playback unapplied; no retail parity";
+        if let Some(sample) = skin.sample {
+            report.schema_version = 4;
+            report.source_sampled_skin_pose = Some(Box::new(sample));
+            report.rendering = "unlit exact selected source-time skin; validated linked sample and source-world map once; raw weights/linear normals, other required controllers refused; source clocks/rotation keys/original playback unapplied, no retail parity";
+        }
     }
     if let Some(pose) = selected_object {
         report.schema_version = 3;
@@ -863,6 +876,109 @@ mod tests {
             .join("../../target/preview-pose-test-install");
         std::fs::create_dir_all(install.join("Data")).unwrap();
         ArchiveAssets::open_nv(&install).unwrap()
+    }
+
+    #[test]
+    fn explicit_sampled_skin_is_the_actual_mesh_with_literal_attributes_and_winding() {
+        let assets = authored_sources();
+        let path = AssetPath::new(b"authored/source-sampled-skin.nif").unwrap();
+        let bytes = crate::pose::tests::packet(&crate::pose::tests::sampled_blocks());
+        for (index, time) in [-2., 0., 2.].into_iter().enumerate() {
+            let (model, report) = from_bytes_with_pose(
+                &assets,
+                &path,
+                &bytes,
+                &mut Textures::default(),
+                Some(crate::pose::Request::SampledSkin(
+                    crate::pose::tests::sampled_request(&bytes, time),
+                )),
+            )
+            .unwrap();
+            assert_eq!(model.parts.len(), 1);
+            let mesh = &model.parts[0].mesh;
+            assert!(
+                matches!(mesh.attribute(Mesh::ATTRIBUTE_POSITION),Some(VertexAttributeValues::Float32x3(values)) if values == &crate::pose::tests::SAMPLED_POSITIONS[index])
+            );
+            assert!(
+                matches!(mesh.attribute(Mesh::ATTRIBUTE_NORMAL),Some(VertexAttributeValues::Float32x3(values)) if values == &crate::pose::tests::SAMPLED_NORMALS[index])
+            );
+            assert!(matches!(mesh.indices(),Some(Indices::U32(values)) if values==&[0,1,2]));
+            assert_eq!(report.schema_version, 4);
+            assert!(report.source_object_pose.is_none());
+            let sampled = report.source_sampled_skin_pose.as_ref().unwrap();
+            assert_eq!(sampled.sample.requested_time_f64_bits, time.to_bits());
+            assert_eq!(sampled.palette[0].node, 1);
+            assert_eq!(report.bindings[0].diffuse_mode, "authored-untextured");
+            assert_eq!(report.bindings[0].raster.draw_mode, 3);
+            assert_eq!(
+                report.source_skin_pose.unwrap().draw_positions_sha256,
+                crate::pose::draw_hash(&crate::pose::tests::SAMPLED_POSITIONS[index])
+            );
+        }
+        // An independently authored negative root scale changes winding, while
+        // the sampled selected-bone palette remains in the same skin frame.
+        let mut blocks = crate::pose::tests::sampled_blocks();
+        blocks[0].1[64..68].copy_from_slice(&(-2f32).to_le_bytes());
+        let bytes = crate::pose::tests::packet(&blocks);
+        let (model, report) = from_bytes_with_pose(
+            &assets,
+            &path,
+            &bytes,
+            &mut Textures::default(),
+            Some(crate::pose::Request::SampledSkin(
+                crate::pose::tests::sampled_request(&bytes, 2.),
+            )),
+        )
+        .unwrap();
+        assert!(
+            matches!(model.parts[0].mesh.indices(),Some(Indices::U32(values)) if values==&[0,2,1])
+        );
+        assert!(
+            matches!(model.parts[0].mesh.attribute(Mesh::ATTRIBUTE_POSITION),Some(VertexAttributeValues::Float32x3(values)) if values==&[[20.5,-25.5,9.5],[8.,-4.,28.],[6.,18.,-38.]])
+        );
+        assert_eq!(
+            report.source_sampled_skin_pose.unwrap().palette[0].matrix,
+            [[0., 1., 0., 3.5], [-1., 0., 0., -3.], [0., 0., 1., 5.]]
+        );
+    }
+
+    #[test]
+    fn stored_skin_and_default_reports_keep_existing_schema_and_no_sample_receipt() {
+        let assets = authored_sources();
+        let path = AssetPath::new(b"authored/source-sampled-skin.nif").unwrap();
+        let bytes = crate::pose::tests::packet(&crate::pose::tests::sampled_blocks());
+        // Default mode still refuses an unselected source skin; it does not
+        // acquire an implicit sample. Use the existing rigid fixture for schema2.
+        assert!(
+            from_bytes_with_pose(&assets, &path, &bytes, &mut Textures::default(), None).is_err()
+        );
+        let rigid = include_bytes!("testdata/source-pose-triangle.packet");
+        for (input, request, version) in [
+            (rigid.as_slice(), None, 2),
+            (
+                bytes.as_slice(),
+                Some(crate::pose::Request::Skin(crate::pose::SkinRequest {
+                    geometry: 3,
+                    absolute_weight_tolerance: 0.,
+                })),
+                3,
+            ),
+        ] {
+            let (_, report) =
+                from_bytes_with_pose(&assets, &path, input, &mut Textures::default(), request)
+                    .unwrap();
+            assert_eq!(report.schema_version, version);
+            let json = serde_json::to_value(&report).unwrap();
+            assert!(json.get("source_sampled_skin_pose").is_none());
+            if version == 3 {
+                let stored = report.source_skin_pose.unwrap();
+                assert_eq!(stored.contract, "engineering-source-local-skin-v1");
+                assert_eq!(stored.unapplied_controllers.len(), 1);
+                assert_eq!(stored.unapplied_controllers[0].object, 1);
+            } else {
+                assert!(report.source_skin_pose.is_none());
+            }
+        }
     }
 
     #[test]

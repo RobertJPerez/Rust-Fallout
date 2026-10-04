@@ -91,6 +91,18 @@ struct Options {
     /// Validate raw unit weight sums; never repair or normalize weights.
     #[arg(long, requires = "skin_geometry")]
     skin_weight_tolerance: Option<f64>,
+    /// One validated source-linked sample driving the selected skin.
+    #[arg(long, requires_all = ["skin_geometry", "skin_sample_controller", "skin_sample_time", "skin_sample_source_sha256", "skin_sample_controller_policy"])]
+    skin_sample_object: Option<u32>,
+    #[arg(long, requires = "skin_sample_object")]
+    skin_sample_controller: Option<u32>,
+    /// Direct source-key time; no host clock or original repeat policy.
+    #[arg(long, requires = "skin_sample_object", allow_hyphen_values = true)]
+    skin_sample_time: Option<f64>,
+    #[arg(long, requires = "skin_sample_object", value_parser = parse_source_sha256)]
+    skin_sample_source_sha256: Option<[u8; 32]>,
+    #[arg(long, requires = "skin_sample_object", value_enum)]
+    skin_sample_controller_policy: Option<SkinControllerPolicy>,
     /// Evaluate this exact source object at the caller's explicit source time.
     #[arg(long, requires_all = ["model_source", "pose_controller", "pose_time"], conflicts_with = "skin_geometry")]
     pose_object: Option<u32>,
@@ -137,6 +149,74 @@ struct Options {
     headless: bool,
     #[arg(long)]
     report: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum SkinControllerPolicy {
+    RefuseOtherRequired,
+}
+
+fn parse_source_sha256(value: &str) -> std::result::Result<[u8; 32], String> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("source SHA256 requires exactly 64 hexadecimal ASCII digits".into());
+    }
+    let mut result = [0; 32];
+    for (index, byte) in result.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16)
+            .map_err(|_| "invalid source SHA256 digit")?;
+    }
+    Ok(result)
+}
+
+fn selected_pose(options: &Options) -> Option<pose::Request> {
+    options
+        .skin_geometry
+        .map(|geometry| {
+            let skin = pose::SkinRequest {
+                geometry,
+                absolute_weight_tolerance: options
+                    .skin_weight_tolerance
+                    .expect("clap requires tolerance"),
+            };
+            match options.skin_sample_object {
+                Some(object) => {
+                    let policy = match options
+                        .skin_sample_controller_policy
+                        .expect("clap requires controller policy")
+                    {
+                        SkinControllerPolicy::RefuseOtherRequired => {
+                            fallout_data::nif_skin::pose::ControllerPolicy::RefuseOtherRequired
+                        }
+                    };
+                    pose::Request::SampledSkin(pose::SampledSkinRequest {
+                        skin,
+                        expected_source_sha256: options
+                            .skin_sample_source_sha256
+                            .expect("clap requires source SHA256"),
+                        animation: pose::ObjectRequest {
+                            object,
+                            controller: options
+                                .skin_sample_controller
+                                .expect("clap requires sampled controller"),
+                            source_time: options
+                                .skin_sample_time
+                                .expect("clap requires sampled source time"),
+                        },
+                        controller_policy: policy,
+                    })
+                }
+                None => pose::Request::Skin(skin),
+            }
+        })
+        .or_else(|| {
+            options.pose_object.map(|object| {
+                pose::Request::Object(pose::ObjectRequest {
+                    object,
+                    controller: options.pose_controller.expect("clap requires controller"),
+                    source_time: options.pose_time.expect("clap requires source time"),
+                })
+            })
+        })
 }
 
 impl Options {
@@ -688,25 +768,7 @@ fn prepare_scene(
             projection: Some(projection),
         });
     }
-    let pose = options
-        .skin_geometry
-        .map(|geometry| {
-            pose::Request::Skin(pose::SkinRequest {
-                geometry,
-                absolute_weight_tolerance: options
-                    .skin_weight_tolerance
-                    .expect("clap requires tolerance"),
-            })
-        })
-        .or_else(|| {
-            options.pose_object.map(|object| {
-                pose::Request::Object(pose::ObjectRequest {
-                    object,
-                    controller: options.pose_controller.expect("clap requires controller"),
-                    source_time: options.pose_time.expect("clap requires source time"),
-                })
-            })
-        });
+    let pose = selected_pose(options);
     let mut cell_sources = None;
     let (prepared, report) = if options.material_fixture {
         let (prepared, report) = fixture::prepare()?;
@@ -718,11 +780,19 @@ fn prepare_scene(
             pose,
         )?
     } else if let Some(path) = &options.model_file {
-        scene::load_model_file(
+        let (prepared, mut report) = scene::load_model_file(
             options.install.as_deref().expect("clap requires install"),
             path,
             pose,
-        )?
+        )?;
+        // The existing file loader tags its file metadata as schema3. The
+        // opt-in sampled receipt requires schema4 on both source entry routes.
+        if let scene::Report::Model(model) = &mut report
+            && model.source_sampled_skin_pose.is_some()
+        {
+            model.schema_version = 4;
+        }
+        (prepared, report)
     } else if let Some(name) = &options.terrain {
         terrain::load(
             options.install.as_deref().expect("clap requires install"),
@@ -1112,15 +1182,15 @@ fn drive_loading(
         Phase::Preparing(job) => {
             let (message, elapsed) = job.status();
             format!(
-                "Loading: {message} ({}s) — Backspace cancels",
+                "Loading: {message} ({}s) â€” Backspace cancels",
                 elapsed.as_secs()
             )
         }
         Phase::Draining(job) => format!(
-            "Cancelling: waiting for source worker return ({}s) — Escape closes",
+            "Cancelling: waiting for source worker return ({}s) â€” Escape closes",
             job.status().1.as_secs()
         ),
-        Phase::Uploading(queue) => format!("{} — Backspace cancels", queue.status()),
+        Phase::Uploading(queue) => format!("{} â€” Backspace cancels", queue.status()),
         Phase::Disposing(queue, _) => queue.queue.disposal_status(),
         Phase::Ready(queue) => queue
             .cell
@@ -1128,10 +1198,10 @@ fn drive_loading(
             .and_then(|cell| cell.native.as_ref())
             .map_or_else(|| "Ready".into(), |host| host.title().into()),
         Phase::Failed(error) => format!(
-            "Failed: {} — Enter retries; Escape closes",
+            "Failed: {} â€” Enter retries; Escape closes",
             error.chars().take(180).collect::<String>()
         ),
-        Phase::Cancelled => "Cancelled — Enter retries; Escape closes".into(),
+        Phase::Cancelled => "Cancelled â€” Enter retries; Escape closes".into(),
     };
     for (_, mut window) in &mut windows {
         let title = format!("Fallout Rust - {status}");
@@ -1371,6 +1441,214 @@ fn main() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn actual_source_file_preparation_keeps_stored_schema3_and_sampled_schema4() {
+        use sha2::Digest;
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/preview-sample-file-tests")
+            .join(format!(
+                "{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        let install = root.join("install");
+        std::fs::create_dir_all(install.join("Data")).unwrap();
+        let inputs = root.join("inputs");
+        std::fs::create_dir_all(&inputs).unwrap();
+        let bytes = pose::tests::packet(&pose::tests::sampled_blocks());
+        let source = inputs.join("sampled.nif");
+        std::fs::write(&source, &bytes).unwrap();
+        let hash = format!("{:x}", sha2::Sha256::digest(&bytes));
+        for sampled in [false, true] {
+            let report = root.join(if sampled {
+                "sampled.json"
+            } else {
+                "stored.json"
+            });
+            let mut arguments = vec![
+                "fallout-preview".to_owned(),
+                "--install".into(),
+                install.to_string_lossy().into_owned(),
+                "--model-file".into(),
+                source.to_string_lossy().into_owned(),
+                "--skin-geometry".into(),
+                "3".into(),
+                "--skin-weight-tolerance".into(),
+                "0".into(),
+                "--report".into(),
+                report.to_string_lossy().into_owned(),
+            ];
+            if sampled {
+                arguments.extend(
+                    [
+                        "--skin-sample-object",
+                        "1",
+                        "--skin-sample-controller",
+                        "7",
+                        "--skin-sample-time",
+                        "0",
+                        "--skin-sample-source-sha256",
+                        &hash,
+                        "--skin-sample-controller-policy",
+                        "refuse-other-required",
+                    ]
+                    .into_iter()
+                    .map(str::to_owned),
+                );
+            }
+            let options = Options::try_parse_from(arguments).unwrap();
+            let mut job = loading::Job::start(7, move |context| {
+                prepare_scene(&options, &context, 7).map_err(|e| e.to_string())
+            })
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                match job.poll(7) {
+                    loading::Poll::Ready(_) => break,
+                    loading::Poll::Pending => {
+                        assert!(Instant::now() < deadline);
+                        std::thread::yield_now();
+                    }
+                    loading::Poll::Failed(e) => {
+                        panic!("Actual sampled source-file preparation failed: {e}")
+                    }
+                    _ => panic!("Actual preparation ended without a result"),
+                }
+            }
+            let value: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&report).unwrap()).unwrap();
+            assert_eq!(value["schema_version"], if sampled { 4 } else { 3 });
+            assert_eq!(value["source_file"], source.to_string_lossy().as_ref());
+            assert_eq!(value.get("source_sampled_skin_pose").is_some(), sampled);
+        }
+    }
+
+    #[test]
+    fn sampled_skin_cli_requires_all_explicit_inputs_and_preserves_exact_time_identity() {
+        let hash = "aB".repeat(32);
+        let mut complete = vec![
+            "fallout-preview",
+            "--install",
+            "authored-empty-install",
+            "--model-file",
+            "authored.packet",
+            "--skin-geometry",
+            "3",
+            "--skin-weight-tolerance",
+            "0",
+            "--skin-sample-object",
+            "1",
+            "--skin-sample-controller",
+            "7",
+            "--skin-sample-time",
+            "-0",
+            "--skin-sample-source-sha256",
+            &hash,
+            "--skin-sample-controller-policy",
+            "refuse-other-required",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+        let parsed = Options::try_parse_from(&complete).unwrap();
+        let Some(pose::Request::SampledSkin(request)) = selected_pose(&parsed) else {
+            panic!("Explicit sampled mode missing")
+        };
+        assert_eq!(request.expected_source_sha256, [0xab; 32]);
+        assert_eq!(request.animation.source_time.to_bits(), (-0f64).to_bits());
+        assert_eq!(
+            (
+                request.skin.geometry,
+                request.animation.object,
+                request.animation.controller
+            ),
+            (3, 1, 7)
+        );
+        for flag in [
+            "--skin-geometry",
+            "--skin-weight-tolerance",
+            "--skin-sample-object",
+            "--skin-sample-controller",
+            "--skin-sample-time",
+            "--skin-sample-source-sha256",
+            "--skin-sample-controller-policy",
+        ] {
+            let mut partial = complete.clone();
+            let i = partial.iter().position(|v| v == flag).unwrap();
+            partial.drain(i..i + 2);
+            assert!(
+                Options::try_parse_from(partial).is_err(),
+                "Missing{flag} must refuse"
+            );
+        }
+        complete.extend(
+            [
+                "--pose-object",
+                "1",
+                "--pose-controller",
+                "7",
+                "--pose-time",
+                "0",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        assert!(Options::try_parse_from(complete).is_err());
+        let stored = Options::try_parse_from([
+            "fallout-preview",
+            "--install",
+            ".",
+            "--model-file",
+            "authored.packet",
+            "--skin-geometry",
+            "3",
+            "--skin-weight-tolerance",
+            "0",
+        ])
+        .unwrap();
+        assert!(matches!(
+            selected_pose(&stored),
+            Some(pose::Request::Skin(_))
+        ));
+        for invalid in [
+            "gg".repeat(32),
+            "ff".repeat(31),
+            "ff".repeat(33),
+            "?".repeat(32),
+        ] {
+            assert!(parse_source_sha256(&invalid).is_err());
+        }
+        assert_eq!(parse_source_sha256(&"AB".repeat(32)).unwrap(), [0xab; 32]);
+        let mut policy = vec![
+            "fallout-preview",
+            "--install",
+            ".",
+            "--model-file",
+            "authored.packet",
+            "--skin-geometry",
+            "3",
+            "--skin-weight-tolerance",
+            "0",
+            "--skin-sample-object",
+            "1",
+            "--skin-sample-controller",
+            "7",
+            "--skin-sample-time",
+            "0",
+            "--skin-sample-source-sha256",
+            &hash,
+            "--skin-sample-controller-policy",
+            "stored-fallback",
+        ];
+        assert!(Options::try_parse_from(&policy).is_err());
+        policy.pop();
+        policy.push("refuse-other-required");
+        assert!(Options::try_parse_from(&policy).is_ok());
+    }
     use super::*;
     use std::sync::mpsc;
 

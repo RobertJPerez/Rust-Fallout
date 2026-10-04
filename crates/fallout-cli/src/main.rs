@@ -1,3 +1,8 @@
+mod commands;
+use commands::{
+    ActorsCommand, AssetsCommand, Command, PhysicsCommand, RuntimeCommand, ScriptsCommand,
+    SourcesCommand, WorldCommand,
+};
 mod actor_inspection;
 mod argument_inspection;
 mod collision;
@@ -40,7 +45,7 @@ mod source_item_inspection;
 mod terrain_compare;
 mod world_preparation_inspection;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use fallout_data::{
     archive::NvArchive,
     baseline, content,
@@ -81,6 +86,62 @@ mod identity_tests {
     }
 }
 
+#[cfg(test)]
+mod command_stack_tests {
+    use super::Args;
+    use clap::{CommandFactory, Parser};
+
+    #[test]
+    fn complete_cli_parses_on_a_one_mib_stack() {
+        // Windows executables normally start with a 1 MiB stack. Growing the
+        // command set must not require a larger test or application stack.
+        std::thread::Builder::new()
+            .name("cli-stack-bound".into())
+            .stack_size(1024 * 1024)
+            .spawn(|| {
+                Args::command().debug_assert();
+                let base = [
+                    "fallout",
+                    "script-state",
+                    "--install",
+                    "private-install",
+                    "--load-order",
+                    "order.json",
+                ];
+                assert!(Args::try_parse_from(base).is_ok());
+                assert!(
+                    Args::try_parse_from(base.into_iter().chain([
+                        "--host-snapshot",
+                        "snapshot.json",
+                        "--host-requirements",
+                        "requirements.json",
+                    ]))
+                    .is_ok()
+                );
+                assert!(
+                    Args::try_parse_from(
+                        base.into_iter()
+                            .chain(["--host-snapshot", "snapshot.json",])
+                    )
+                    .is_err()
+                );
+                assert!(
+                    Args::try_parse_from([
+                        "fallout",
+                        "nif-source-pose-set",
+                        "source.nif",
+                        "--request",
+                        "request.json",
+                    ])
+                    .is_ok()
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
 #[derive(Parser)]
 #[command(
     name = "fallout",
@@ -93,902 +154,6 @@ struct Args {
     output: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Compose an explicit supported set of parent/child channels; no blending.
-    NifSourcePoseSet {
-        input: PathBuf,
-        #[arg(long)]
-        request: PathBuf,
-    },
-    /// Prepare one exact source once and sample an explicit bounded time list.
-    NifSourcePoseBatch {
-        input: PathBuf,
-        #[arg(long)]
-        request: PathBuf,
-    },
-    /// Bind exact external source keys to one skeleton node; playback unverified.
-    NifClipPose {
-        skeleton: PathBuf,
-        clip: PathBuf,
-        #[arg(long)]
-        request: PathBuf,
-    },
-    /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
-    NifRigidAttachment {
-        skeleton: PathBuf,
-        attachment: PathBuf,
-        #[arg(long)]
-        request: PathBuf,
-    },
-    /// Evaluate linked translation/scale at explicit source time; playback unverified.
-    NifSourcePose {
-        input: PathBuf,
-        /// Sample exact NiVisController local visibility; parent/clock semantics unapplied.
-        #[arg(long)]
-        local_visibility: bool,
-        #[arg(long)]
-        object: u32,
-        #[arg(long)]
-        controller: u32,
-        #[arg(long, allow_hyphen_values = true)]
-        source_time: f64,
-    },
-    /// Decode bounded authored animation framing and compare raw native fields.
-    NifAnimation {
-        input: PathBuf,
-        #[arg(long)]
-        oracle_report: Option<PathBuf>,
-        #[arg(long)]
-        include_keyframes: bool,
-        #[arg(long)]
-        include_splines: bool,
-        #[arg(long)]
-        include_spline_components: bool,
-        #[arg(long)]
-        include_bool_interpolators: bool,
-        #[arg(long)]
-        include_bool_keys: bool,
-        #[arg(long, requires_all = ["sample_block", "sample_channel"], allow_hyphen_values = true)]
-        sample_time: Option<f64>,
-        #[arg(long, requires = "sample_time")]
-        sample_block: Option<u32>,
-        #[arg(long, value_enum, requires = "sample_time")]
-        sample_channel: Option<nif_animation_inspection::SampleChannel>,
-        /// Observe exact physical text keys over an explicit source-time interval.
-        #[arg(long, conflicts_with_all = ["oracle_report", "include_keyframes", "include_splines", "include_spline_components", "include_bool_interpolators", "include_bool_keys", "sample_time", "sample_block", "sample_channel"])]
-        markers_request: Option<PathBuf>,
-    },
-    /// Decode exact NV skin source fields and optionally compare an independent oracle.
-    NifSkin {
-        input: PathBuf,
-        #[arg(long)]
-        oracle_report: Option<PathBuf>,
-        #[arg(long)]
-        include_partitions: bool,
-        #[arg(long)]
-        include_bindings: bool,
-        /// Evaluate one exact geometry block using stored source locals.
-        #[arg(long, requires = "pose_weight_tolerance", conflicts_with_all = ["oracle_report", "include_partitions", "include_bindings"])]
-        pose_geometry: Option<u32>,
-        /// Admit the raw weight sum within this absolute tolerance; never normalize.
-        #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
-        pose_weight_tolerance: Option<f64>,
-        /// Deform one skin with an exact same-container, explicit-time channel.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings"])]
-        sampled_pose_request: Option<PathBuf>,
-        /// Export every exact raw influence and reconstruct one source-local skin.
-        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request"])]
-        influences_request: Option<PathBuf>,
-    },
-    /// Compare shared native/condition entry routing over explicit host state.
-    PrimitiveQueryState {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        new_repository: PathBuf,
-    },
-    /// Repeat shared query traces in a cold source-bound process.
-    PrimitiveQueryLoadProbe {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        repository: PathBuf,
-        #[arg(long)]
-        query_inputs: PathBuf,
-    },
-    /// Validate explicit host item mutations against winning source headers.
-    SourceItemState {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        new_repository: PathBuf,
-    },
-    /// Repeat source-bound item checks after cold native restoration.
-    SourceItemLoadProbe {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        repository: PathBuf,
-        #[arg(long)]
-        query_inputs: PathBuf,
-    },
-    /// Probe explicit mutable item state, queries and owned native persistence.
-    ItemState {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        new_repository: PathBuf,
-    },
-    /// Cold-restore an item probe and query explicit subjects/items from a file.
-    ItemLoadProbe {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        repository: PathBuf,
-        #[arg(long)]
-        query_inputs: PathBuf,
-    },
-    /// Preserve authored NPC_/CREA scalar words with exact inventory provenance.
-    ActorSources {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        compare_oracle: Option<PathBuf>,
-        #[arg(long)]
-        include_associations: bool,
-        #[arg(long)]
-        include_classes: bool,
-        #[arg(long)]
-        include_factions: bool,
-        #[arg(long)]
-        include_placements: bool,
-        #[arg(long)]
-        include_races: bool,
-        #[arg(long)]
-        include_packages: bool,
-        #[arg(long, requires = "include_packages")]
-        include_package_dependencies: bool,
-        #[arg(long)]
-        include_dependencies: bool,
-        #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]
-        dependency_roots: Vec<identity::FormKey>,
-        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
-        include_render_dependencies: bool,
-        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
-        include_template_dependencies: bool,
-        /// Explicit caller-selected equipment winner; requires one actor root and a role.
-        #[arg(long, requires_all = ["include_dependencies", "dependency_roots", "equipment_role"], value_parser = actor_inspection::parse_root)]
-        equipment_source: Option<identity::FormKey>,
-        #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
-        equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
-        #[arg(long, value_parser = actor_inspection::parse_root)]
-        voice_root: Option<identity::FormKey>,
-        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
-        creature_model_directory: Option<fallout_data::vfs::AssetPath>,
-    },
-    /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
-    ActorPackageContext {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long, value_parser = actor_inspection::parse_root)]
-        actor_root: identity::FormKey,
-        #[arg(long)]
-        native_snapshot: PathBuf,
-        #[arg(long)]
-        explicit_subject: Option<std::num::NonZeroU64>,
-        #[arg(long)]
-        engineering_observation: bool,
-        /// Exact pinned descriptor image, also usable with authored plugin fixtures.
-        #[arg(long)]
-        condition_executable: Option<PathBuf>,
-        /// Preserve authored SNAM/FACT relationship requests without live faction rules.
-        #[arg(long)]
-        include_faction_requests: bool,
-        /// Join raw actor scalars to source template categories; evaluated values remain unavailable.
-        #[arg(long)]
-        include_stat_requests: bool,
-        /// Report the exact refusal for a package operation; never execute AI.
-        #[arg(long, value_parser = actor_inspection::parse_package_operation)]
-        package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
-        #[arg(long, requires = "explicit_subject")]
-        include_actor_context: bool,
-    },
-    /// Preserve winning base inventory entries, ownership words and template inputs.
-    BaseInventory {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-    },
-    /// Preserve winning ordered form-list members and structural dependencies.
-    FormLists {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long, requires = "root_id")]
-        root_plugin: Option<String>,
-        #[arg(long, requires = "root_plugin")]
-        root_id: Option<u32>,
-    },
-    /// Preserve authored leveled lists and plan inventory/template dependencies.
-    LeveledLists {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long, requires = "root_id")]
-        root_plugin: Option<String>,
-        #[arg(long, requires = "root_plugin")]
-        root_id: Option<u32>,
-    },
-    /// Probe compiled foreign locals through explicit host live script instances.
-    ForeignContext {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        new_repository: Option<PathBuf>,
-    },
-    /// Cold-restore an engineering save and repeat every compiled foreign lookup.
-    ForeignLoadProbe {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        repository: PathBuf,
-        #[arg(long)]
-        player_id: u64,
-    },
-    /// Exercise filesystem save/recovery on explicit engineering state in a new directory.
-    NativeSaveProbe {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        new_repository: PathBuf,
-        /// Explicit bounded engineering transaction checked before creating a save.
-        #[arg(long)]
-        engineering_event_commit: Option<PathBuf>,
-    },
-    /// Restore a native save in a fresh process against exact original content.
-    NativeLoadProbe {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        repository: PathBuf,
-    },
-    /// Observe source-bound current/previous availability without selection or repair.
-    NativeSlotAvailability {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        repository: PathBuf,
-    },
-    /// Explicitly import our schema-2 native save into a new repository.
-    NativeMigrateV2 {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        file: PathBuf,
-        #[arg(long)]
-        new_repository: PathBuf,
-    },
-    /// Explicitly import our schema-3 native save, keeping pose/enable unavailable.
-    NativeMigrateV3 {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        file: PathBuf,
-        #[arg(long)]
-        new_repository: PathBuf,
-    },
-    /// Inspect native container integrity without loading or changing game state.
-    NativeSaveFile {
-        #[arg(long)]
-        file: PathBuf,
-    },
-    /// Inspect compiled local schemas and exercise native canonical state.
-    ScriptState {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        /// Explicit bounded engineering inputs for a staged local/event-head commit.
-        #[arg(long)]
-        engineering_event_commit: Option<PathBuf>,
-        /// Source-bound canonical snapshot for a read-only host input check.
-        #[arg(
-            long,
-            requires = "host_requirements",
-            conflicts_with = "engineering_event_commit"
-        )]
-        host_snapshot: Option<PathBuf>,
-        /// Explicit canonical data requirements; grants no execution authority.
-        #[arg(
-            long,
-            requires = "host_snapshot",
-            conflicts_with = "engineering_event_commit"
-        )]
-        host_requirements: Option<PathBuf>,
-    },
-    /// Prepare bounded source windows for explicit engineering pending events.
-    EventFrames {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-        /// Capture one historical owned frame for a consumer thread after World drop.
-        #[arg(
-            long,
-            requires = "snapshot_input",
-            conflicts_with = "comparison_bundle"
-        )]
-        owned_observation: Option<PathBuf>,
-        #[arg(long, requires = "owned_observation")]
-        snapshot_input: Option<PathBuf>,
-    },
-    /// Author bounded source fixtures and trace shape without original expectations.
-    ScriptFixture {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        request: PathBuf,
-        #[arg(long)]
-        profile_receipt: PathBuf,
-        #[arg(long)]
-        destination: PathBuf,
-    },
-    /// Compare imported semantic captures against exact prepared script sources.
-    ScriptTrace {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        manifest: PathBuf,
-        #[arg(long)]
-        profile_receipt: PathBuf,
-        #[arg(long)]
-        original_trace: Option<PathBuf>,
-        #[arg(long)]
-        replacement_trace: Option<PathBuf>,
-        /// Produce engineering own-local copies through canonical commit APIs.
-        #[arg(long, conflicts_with = "replacement_trace")]
-        replacement_copy: Option<PathBuf>,
-    },
-    /// Inspect source operands against explicit live engineering storage.
-    EventOperands {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        /// Explicit identity already present in the engineering world.
-        #[arg(long)]
-        player_id: Option<u64>,
-        /// Prepare immutable source plans once and reuse them across events.
-        #[arg(long)]
-        prepared_sources: bool,
-        /// Inventory source-bound native capabilities with faithful rejection.
-        #[arg(long)]
-        native_capabilities: bool,
-        /// Exercise one source-bound local copy over explicit engineering inputs.
-        #[arg(long, conflicts_with = "native_capabilities")]
-        engineering_local_copy: Option<PathBuf>,
-        /// Consume a saved journal head using explicit engineering activation/intent.
-        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
-        snapshot_copy_request: Option<PathBuf>,
-        /// Observe explicitly selected native occurrences from saved state.
-        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
-        snapshot_native_request: Option<PathBuf>,
-        /// Strict current canonical snapshot; no migration or engineering seeding.
-        #[arg(long, requires = "saved_snapshot_request")]
-        snapshot_input: Option<PathBuf>,
-        /// Fresh snapshot artifact, written only after canonical copy commit.
-        #[arg(long, requires = "snapshot_copy_request")]
-        snapshot_output: Option<PathBuf>,
-    },
-    /// Exercise shared source ownership and canonical state across a worker.
-    SharedRuntime {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-    },
-    /// Bind authored winning CTDA operands and static form dependencies.
-    ConditionDependencies {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        include_source_owners: bool,
-        #[arg(long)]
-        include_source_runs: bool,
-        /// Read one explicit engineering query from a canonical snapshot; no condition truth.
-        #[arg(long)]
-        engineering_query_input: Option<PathBuf>,
-        /// Observe an ordered batch of physical condition sites with shared budgets.
-        #[arg(long, conflicts_with = "engineering_query_input")]
-        engineering_query_batch: Option<PathBuf>,
-    },
-    /// Hash original compressed record inputs and exact decoded outputs.
-    CompressedRecords {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        inspect_checksum_mismatches: bool,
-    },
-    /// Link authored quest scripts and inspect foreign declarations without values.
-    QuestScripts {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        script_comparison_bundle: Option<PathBuf>,
-        #[arg(long)]
-        quest_comparison_bundle: Option<PathBuf>,
-    },
-    /// Load immutable winning scripts, source owners and reference dependencies.
-    LoadedScripts {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Index winning INFO records by authored topic-child group membership.
-    DialogueMembership {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-    },
-    /// Inspect exact cell model and texture residency through bounded source jobs.
-    CellResidencySources {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        /// Private decoded-member cache outside the source installation.
-        #[arg(long)]
-        cache: Option<PathBuf>,
-        #[arg(long)]
-        cell: String,
-        /// Per-stage worker polling deadline; planning/fingerprinting is separate.
-        #[arg(long, default_value_t = 30_000)]
-        source_timeout_ms: u64,
-    },
-    /// Inspect source-selected door destination CELL model/texture residency.
-    DoorResidencySources {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        cache: Option<PathBuf>,
-        /// Explicit source CELL, not a changed runtime current cell.
-        #[arg(long)]
-        cell: String,
-        #[arg(long)]
-        door: String,
-        #[arg(long, default_value_t = 30_000)]
-        source_timeout_ms: u64,
-    },
-    /// Inspect a unique explicit WRLD/XCLC grid CELL through bounded source jobs.
-    GridResidencySources {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        cache: Option<PathBuf>,
-        #[arg(long)]
-        world: String,
-        #[arg(long, allow_hyphen_values = true)]
-        grid_x: i32,
-        #[arg(long, allow_hyphen_values = true)]
-        grid_y: i32,
-        #[arg(long, default_value_t = 30_000)]
-        source_timeout_ms: u64,
-    },
-    /// Prepare an explicitly requested winning topic/INFO for source consumers.
-    ConversationSources {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        /// Canonical origin-plugin:local-hex-id; never a runtime load-order slot.
-        #[arg(long)]
-        topic: String,
-        #[arg(long)]
-        info: String,
-        #[arg(long)]
-        speaker: Option<String>,
-        #[arg(long)]
-        bind_result_fragments: bool,
-    },
-    /// Preserve authored quest/dialogue sections and condition/script ownership.
-    Narrative {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Decode authored condition fields, retaining short layouts and raw parameters.
-    Conditions {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Associate all supported compiled operands with their owning script tables.
-    OperandBindings {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Decode native operands from vanilla compiled scripts; invokes no handler.
-    NativeArguments {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Prepare exact winning script versions and owning source-table bindings.
-    SourcePlans {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-        /// Exact source roots/cohort for bounded execution capability diagnostics.
-        #[arg(long)]
-        execution_admission: Option<PathBuf>,
-        /// Bounded cooperative cache preparation; optional cancellation-by-drop.
-        #[arg(long)]
-        cooperative_preparation: Option<PathBuf>,
-        /// Prepare only explicit exact script handles; infers no dependencies.
-        #[arg(long)]
-        selected_source: Option<PathBuf>,
-    },
-    /// Match source delimiters and raw distances in an offline SCDA bundle.
-    ControlFlow {
-        /// Installation protected from report output; the bundle stays read-only.
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        bundle: PathBuf,
-        #[arg(long)]
-        diagnose_structure: bool,
-    },
-    /// Build source-token postfix structure from a hash-bound offline bundle.
-    ExpressionPlans {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        bundle: PathBuf,
-        /// Preserve structural findings in a diagnostic report; still returns 1.
-        #[arg(long)]
-        diagnose_structure: bool,
-    },
-    /// Inspect vanilla expression tokens without evaluating or executing them.
-    Expressions {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Associate authored script caller references with each unit's own tables.
-    #[command(name = "script-bindings")]
-    Bindings {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        /// Local raw decoded records for an independent metadata comparison.
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Inspect vanilla command/event metadata from the exact pinned executable.
-    #[command(name = "command-catalogue")]
-    Catalogue {
-        #[arg(long)]
-        install: PathBuf,
-    },
-    /// Inventory compiled script instruction headers and event IDs; executes nothing.
-    Scripts {
-        #[arg(long)]
-        install: PathBuf,
-        /// Read only record kinds containing SCDA in the pinned FNV schema.
-        #[arg(long)]
-        defer_unrelated_payloads: bool,
-        /// Write raw SCDA bodies for a separate offline framing comparison.
-        #[arg(long)]
-        comparison_bundle: Option<PathBuf>,
-    },
-    /// Decode an exterior CELL, its parent worlds and winning LAND source fields.
-    Terrain {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        editor_id: String,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        /// Cache tagged decoded bodies outside the installation for offline comparison.
-        #[arg(long)]
-        body_cache: Option<PathBuf>,
-        #[arg(long, requires = "body_cache")]
-        oracle_report: Option<PathBuf>,
-        /// Convert VHGT using the pinned ESM4 height convention; source fields stay intact.
-        #[arg(long)]
-        reconstruct_heights: bool,
-        /// Inspect source-local mesh geometry; retail topology remains unmeasured.
-        #[arg(long, requires = "reconstruct_heights")]
-        inspect_mesh: bool,
-        /// Resolve LTEX/TXST records and verify authored texture archive bytes.
-        #[arg(long)]
-        inspect_textures: bool,
-        /// Prepare exact one-LAND texture sources through bounded cancellable jobs.
-        #[arg(long, requires = "inspect_textures", conflicts_with = "body_cache")]
-        prepare_textures: bool,
-        /// Expand authored quadrant alpha samples under the inspection blend model.
-        #[arg(long)]
-        inspect_blends: bool,
-        #[arg(long, requires = "inspect_textures")]
-        texture_cache: Option<PathBuf>,
-        /// Compare an explicitly selected cardinal neighbor in the same worldspace.
-        #[arg(
-            long,
-            requires = "reconstruct_heights",
-            conflicts_with = "neighbor_form"
-        )]
-        neighbor_editor_id: Option<String>,
-        /// Unnamed neighbor: origin plugin and local hexadecimal ID, e.g. FalloutNV.esm:DAEB9.
-        #[arg(long, requires = "reconstruct_heights", value_parser = parse_cell_key)]
-        neighbor_form: Option<identity::FormKey>,
-    },
-    /// Inspect source-authored selected-cell navigation; optionally request a bounded route.
-    NavigationRoute {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        editor_id: String,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        request: Option<PathBuf>,
-    },
-    /// Query selected engineering collision through sealed cell source residency.
-    CellCollision {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        editor_id: String,
-        #[arg(long)]
-        index_cache: Option<PathBuf>,
-        #[arg(long)]
-        source_cache: Option<PathBuf>,
-        #[arg(long)]
-        request: PathBuf,
-    },
-    /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
-    NifCollision {
-        input: PathBuf,
-        #[arg(long)]
-        oracle_report: Option<PathBuf>,
-        /// Explicit frozen-body engineering ray/overlap request (one input file).
-        #[arg(long, conflicts_with = "oracle_report")]
-        query_request: Option<PathBuf>,
-    },
-    /// Resolve and verify external texture dependencies from a NIF or model cache directory.
-    NifAssets {
-        input: PathBuf,
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        texture_cache: Option<PathBuf>,
-    },
-    /// Decode NV scene nodes and mesh payloads from a local NIF or cached blob.
-    NifScene { input: PathBuf },
-    /// Inventory all archived NIF/KF containers and retain every unsupported member.
-    NifCensus {
-        #[arg(long)]
-        install: PathBuf,
-        /// Also decode supported scene/mesh blocks; list each payload failure separately.
-        #[arg(long)]
-        inspect_scenes: bool,
-    },
-    /// Inspect a real CELL and its winning placements, base forms, and model candidates.
-    Cell {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        editor_id: String,
-        #[arg(long)]
-        inspect_checksum_mismatches: bool,
-        /// Validate headers/CELL metadata now and other record bodies on access.
-        #[arg(long, conflicts_with = "inspect_checksum_mismatches")]
-        defer_unread_payloads: bool,
-        /// Reuse source-bound plugin metadata from an existing cache outside the installation.
-        #[arg(long, requires = "defer_unread_payloads")]
-        index_cache: Option<PathBuf>,
-        /// Decode unambiguous model candidates and inspect their NIF containers.
-        #[arg(long)]
-        inspect_models: bool,
-        /// Include a bounded source-only CELL/WRLD/placement dependency graph.
-        #[arg(long)]
-        include_dependencies: bool,
-        /// Cache decoded model bytes outside the installation for independent tools.
-        #[arg(long, requires = "inspect_models")]
-        model_cache: Option<PathBuf>,
-    },
-    /// Dry-run source preparation with digests and master dependencies; writes no assets.
-    Plan {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        #[arg(long)]
-        inspect_checksum_mismatches: bool,
-    },
-    /// Fingerprint the installation, including loose data. Reads every source byte.
-    Baseline {
-        #[arg(long)]
-        install: PathBuf,
-    },
-    /// Observe explicit NV configuration sources; runtime precedence remains unverified.
-    VfsProfile {
-        #[arg(long)]
-        install: PathBuf,
-        /// Explicit Windows Known Folder Documents root, including redirects.
-        #[arg(long)]
-        documents: PathBuf,
-        #[arg(long)]
-        local_appdata: PathBuf,
-    },
-    /// Capture exact original files into a fresh private package; never launches the game.
-    RetailProfileCapture {
-        #[arg(long)]
-        install: PathBuf,
-        /// Defaults to the actual Windows Documents known folder, including redirects.
-        #[arg(long)]
-        documents: Option<PathBuf>,
-        /// Defaults to the actual Windows LocalApplicationData known folder.
-        #[arg(long)]
-        local_appdata: Option<PathBuf>,
-        /// New directory under an existing parent, outside all source roots.
-        #[arg(long)]
-        package: PathBuf,
-    },
-    /// Count all top-level ESM/ESP records and BSA entries, preserving unknowns.
-    Census {
-        #[arg(long)]
-        install: PathBuf,
-        /// Continue checksum-only defects for diagnosis; tainted records stay untrusted.
-        #[arg(long)]
-        inspect_checksum_mismatches: bool,
-    },
-    /// Show a definition's raw header, source offsets, and bounded field previews.
-    Inspect {
-        plugin: PathBuf,
-        #[arg(long,value_parser=parse_form)]
-        form: u32,
-    },
-    /// Resolve an explicit JSON array of plugin names. Never changes the retail order.
-    Resolve {
-        #[arg(long)]
-        install: PathBuf,
-        #[arg(long)]
-        load_order: PathBuf,
-        /// Inspect chains around checksum defects; exits unsuccessfully if any remain.
-        #[arg(long)]
-        inspect_checksum_mismatches: bool,
-    },
-    /// Decode and hash one archive member; optionally cache it outside the installation.
-    Asset {
-        archive: PathBuf,
-        path: String,
-        #[arg(long)]
-        cache_root: Option<PathBuf>,
-        /// Validate NV NIF container tables and inventory block types.
-        #[arg(long)]
-        inspect_nif: bool,
-    },
 }
 
 fn parse_cell_key(raw: &str) -> std::result::Result<identity::FormKey, String> {
@@ -1191,7 +356,353 @@ fn data_files(install: &Path, extensions: &[&str]) -> Result<Vec<PathBuf>> {
 fn run(args: Args) -> Result<()> {
     let output = args.output.as_deref();
     match args.command {
-        Command::PrimitiveQueryState {
+        Command::Assets(command) => run_assets(command, output),
+        Command::Runtime(command) => run_runtime(command, output),
+        Command::Actors(command) => run_actors(command, output),
+        Command::Scripts(command) => run_scripts(command, output),
+        Command::World(command) => run_world(command, output),
+        Command::Physics(command) => run_physics(command, output),
+        Command::Sources(command) => run_sources(command, output),
+    }
+}
+
+fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        AssetsCommand::NifSourcePoseSet { input, request } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_pose_set(&input, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("explicit source pose set refused; see report".into());
+            }
+        }
+        AssetsCommand::NifSourcePoseBatch { input, request } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_pose_batch(&input, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("prepared source pose batch refused; see report".into());
+            }
+        }
+        AssetsCommand::NifClipPose {
+            skeleton,
+            clip,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for input in [&skeleton, &clip, &request] {
+                    if parent.starts_with(protected_tree(input)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_clip(&skeleton, &clip, &request)?;
+            emit(&report, output, &skeleton)?;
+            if report.failures != 0 {
+                return Err("external source clip pose refused; see report".into());
+            }
+        }
+        AssetsCommand::NifRigidAttachment {
+            skeleton,
+            attachment,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for input in [&skeleton, &attachment, &request] {
+                    if parent.starts_with(protected_tree(input)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report =
+                nif_animation_inspection::inspect_attachment(&skeleton, &attachment, &request)?;
+            emit(&report, output, &skeleton)?;
+            if report.failures != 0 {
+                return Err("rigid source attachment refused; see report".into());
+            }
+        }
+        AssetsCommand::NifSourcePose {
+            input,
+            local_visibility,
+            object,
+            controller,
+            source_time,
+        } => {
+            if local_visibility {
+                let report = nif_animation_inspection::inspect_visibility(
+                    &input,
+                    fallout_data::nif_animation::visibility::Request {
+                        object,
+                        controller,
+                        source_time,
+                    },
+                )?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("local visibility sample refused; see report".into());
+                }
+                return Ok(());
+            }
+            let report = nif_animation_inspection::inspect_pose(
+                &input,
+                fallout_data::nif_animation::pose::Request {
+                    object,
+                    controller,
+                    source_time,
+                },
+            )?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("linked source pose refused; see report".into());
+            }
+        }
+        AssetsCommand::NifAnimation {
+            input,
+            oracle_report,
+            include_keyframes,
+            include_splines,
+            include_spline_components,
+            include_bool_interpolators,
+            include_bool_keys,
+            sample_time,
+            sample_block,
+            sample_channel,
+            markers_request,
+        } => {
+            if let Some(request) = markers_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_animation_inspection::inspect_markers(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source text-key interval refused; see report".into());
+                }
+                return Ok(());
+            }
+            let sample = match (sample_time, sample_block, sample_channel) {
+                (Some(time), Some(block), Some(channel)) => {
+                    Some(nif_animation_inspection::SampleRequest {
+                        time,
+                        block,
+                        channel,
+                    })
+                }
+                (None, None, None) => None,
+                _ => {
+                    return Err(
+                        "sample time, source block and channel are required together".into(),
+                    );
+                }
+            };
+            let report = nif_animation_inspection::inspect(
+                &input,
+                oracle_report.as_deref(),
+                nif_animation_inspection::SourceOptions {
+                    include_keyframes,
+                    include_splines,
+                    include_spline_components,
+                    include_bool_interpolators,
+                    include_bool_keys,
+                },
+                sample,
+            )?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err(
+                    "animation source decoding or independent comparison failed; see report".into(),
+                );
+            }
+        }
+        AssetsCommand::NifSkin {
+            input,
+            oracle_report,
+            include_partitions,
+            include_bindings,
+            pose_geometry,
+            pose_weight_tolerance,
+            sampled_pose_request,
+            influences_request,
+        } => {
+            if let Some(request) = influences_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_influences(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("exact raw influence reconstruction refused; see report".into());
+                }
+                return Ok(());
+            }
+            if let Some(request) = sampled_pose_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_sampled_pose(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source-linked sampled skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
+            if let Some(geometry) = pose_geometry {
+                let tolerance = pose_weight_tolerance.ok_or("pose weight tolerance missing")?;
+                let report = nif_skin_inspection::inspect_pose(&input, geometry, tolerance)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source-local skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
+            let report = nif_skin_inspection::inspect(
+                &input,
+                oracle_report.as_deref(),
+                include_partitions,
+                include_bindings,
+            )?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("skin decoding or independent comparison failed; see report".into());
+            }
+        }
+        AssetsCommand::NifAssets {
+            input,
+            install,
+            texture_cache,
+        } => {
+            let mut assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
+            let report = fallout_data::texture_probe::inspect(
+                &input,
+                &mut assets,
+                texture_cache.as_deref(),
+            )?;
+            emit(&report, output, &install)?;
+            if report.failures != 0 {
+                return Err(
+                    "model texture dependencies contain unresolved or failed inputs; see report"
+                        .into(),
+                );
+            }
+        }
+        AssetsCommand::NifScene { input } => {
+            use std::io::Read;
+            let mut file = baseline::open_source(&input)?.take(64 * 1024 * 1024 + 1);
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes)?;
+            let (index, scene) =
+                fallout_data::nif_scene::decode(&bytes, &input.display().to_string())?;
+            emit(
+                &json!({"schema_version":1,"profile":"nv-original","input":input,
+                "sha256":format!("{:x}", Sha256::digest(&bytes)),"decoded_bytes":bytes.len(),
+                "index":index,"scene":scene}),
+                output,
+                &input,
+            )?;
+        }
+        AssetsCommand::NifCensus {
+            install,
+            inspect_scenes,
+        } => {
+            let mut archives = Vec::new();
+            for path in data_files(&install, &["bsa"])? {
+                eprintln!("Inspecting NIF/KF members in {}", path.display());
+                archives.push(fallout_data::nif_census::scan_with_scenes(
+                    &path,
+                    inspect_scenes,
+                )?);
+            }
+            let failures: usize = archives.iter().map(|a| a.failures.len()).sum();
+            let scene_failures: usize = archives
+                .iter()
+                .filter_map(|a| a.scene_payloads.as_ref())
+                .map(|s| s.failures.len())
+                .sum();
+            emit(
+                &json!({"schema_version":1,"profile":"nv-original","archives":archives,"failures":failures,"scene_failures":scene_failures,
+                "scope":"all NIF/KF members in discovered top-level BSA files; loose assets not included",
+                "accepted_gameplay":false}),
+                output,
+                &install,
+            )?;
+            if failures > 0 || scene_failures > 0 {
+                return Err(
+                    "NIF census contains unsupported or invalid containers; see report".into(),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        RuntimeCommand::PrimitiveQueryState {
             install,
             load_order,
             new_repository,
@@ -1199,7 +710,7 @@ fn run(args: Args) -> Result<()> {
             let report = query_inspection::probe(&install, &load_order, &new_repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::PrimitiveQueryLoadProbe {
+        RuntimeCommand::PrimitiveQueryLoadProbe {
             install,
             load_order,
             repository,
@@ -1210,7 +721,7 @@ fn run(args: Args) -> Result<()> {
                 query_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::SourceItemState {
+        RuntimeCommand::SourceItemState {
             install,
             load_order,
             new_repository,
@@ -1218,7 +729,7 @@ fn run(args: Args) -> Result<()> {
             let report = source_item_inspection::probe(&install, &load_order, &new_repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::SourceItemLoadProbe {
+        RuntimeCommand::SourceItemLoadProbe {
             install,
             load_order,
             repository,
@@ -1229,7 +740,7 @@ fn run(args: Args) -> Result<()> {
                 source_item_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::ItemState {
+        RuntimeCommand::ItemState {
             install,
             load_order,
             new_repository,
@@ -1237,7 +748,7 @@ fn run(args: Args) -> Result<()> {
             let report = item_state_inspection::probe(&install, &load_order, &new_repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::ItemLoadProbe {
+        RuntimeCommand::ItemLoadProbe {
             install,
             load_order,
             repository,
@@ -1248,7 +759,278 @@ fn run(args: Args) -> Result<()> {
                 item_state_inspection::cold(&install, &load_order, &repository, &owners, &keys)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::ActorSources {
+        RuntimeCommand::ForeignContext {
+            install,
+            load_order,
+            new_repository,
+        } => {
+            let report = foreign_context_inspection::inspect(
+                &install,
+                &load_order,
+                new_repository.as_deref(),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::ForeignLoadProbe {
+            install,
+            load_order,
+            repository,
+            player_id,
+        } => {
+            // A read-only load must also leave the input directory unchanged.
+            protect_native_report(output, &repository)?;
+            let report =
+                foreign_context_inspection::cold(&install, &load_order, &repository, player_id)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::NativeSaveProbe {
+            install,
+            load_order,
+            new_repository,
+            engineering_event_commit,
+        } => {
+            let report = native_save_inspection::probe(
+                &install,
+                &load_order,
+                &new_repository,
+                engineering_event_commit.as_deref(),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::NativeLoadProbe {
+            install,
+            load_order,
+            repository,
+        } => {
+            protect_native_report(output, &repository)?;
+            let report = native_save_inspection::load(&install, &load_order, &repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::NativeSlotAvailability {
+            install,
+            load_order,
+            repository,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                if parent.starts_with(repository.canonicalize()?) {
+                    return Err(
+                        "availability report output must be outside the native repository".into(),
+                    );
+                }
+            }
+            let report = native_save_inspection::availability(&install, &load_order, &repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::NativeMigrateV2 {
+            install,
+            load_order,
+            file,
+            new_repository,
+        } => {
+            let report =
+                native_migration_inspection::import(&install, &load_order, &file, &new_repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::NativeMigrateV3 {
+            install,
+            load_order,
+            file,
+            new_repository,
+        } => {
+            let report = native_migration_inspection::import_v3(
+                &install,
+                &load_order,
+                &file,
+                &new_repository,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::NativeSaveFile { file } => {
+            let report = native_save_inspection::file(&file)?;
+            emit(&report, output, &file.canonicalize()?)?;
+        }
+        RuntimeCommand::ScriptState {
+            install,
+            load_order,
+            index_cache,
+            engineering_event_commit,
+            host_snapshot,
+            host_requirements,
+        } => {
+            let report = script_state_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                engineering_event_commit.as_deref(),
+                host_snapshot.as_deref().zip(host_requirements.as_deref()),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::EventFrames {
+            install,
+            load_order,
+            index_cache,
+            comparison_bundle,
+            owned_observation,
+            snapshot_input,
+        } => {
+            let report = event_frame_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                comparison_bundle.as_deref(),
+                owned_observation.as_deref(),
+                snapshot_input.as_deref(),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if owned_observation.is_none()
+                && report["prepared_frames"] != report["pending_events_checked"]
+            {
+                return Err("Pending events retain unresolved source findings; see report".into());
+            }
+        }
+        RuntimeCommand::ScriptFixture {
+            install,
+            request,
+            profile_receipt,
+            destination,
+        } => {
+            let report = script_trace::fixtures::generate(
+                &install,
+                &request,
+                &profile_receipt,
+                &destination,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        RuntimeCommand::ScriptTrace {
+            install,
+            load_order,
+            index_cache,
+            manifest,
+            profile_receipt,
+            original_trace,
+            replacement_trace,
+            replacement_copy,
+        } => {
+            let report = script_trace::inspect(script_trace::Inputs {
+                install: &install,
+                load_order: &load_order,
+                cache: index_cache.as_deref(),
+                manifest: &manifest,
+                profile_receipt: &profile_receipt,
+                original: original_trace.as_deref(),
+                replacement: replacement_trace.as_deref(),
+                replacement_copy: replacement_copy.as_deref(),
+            })?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["comparison"]["status"] != "matched" {
+                return Err(
+                    "Semantic trace comparison is blocked or mismatched; see report".into(),
+                );
+            }
+        }
+        RuntimeCommand::EventOperands {
+            install,
+            load_order,
+            index_cache,
+            player_id,
+            prepared_sources,
+            native_capabilities,
+            engineering_local_copy,
+            snapshot_copy_request,
+            snapshot_native_request,
+            snapshot_input,
+            snapshot_output,
+        } => {
+            if let Some(request) = snapshot_native_request {
+                let report = event_operand_inspection::observe_saved_native(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["observations"]
+                    .as_array()
+                    .ok_or("Missing native observations")?
+                    .iter()
+                    .any(|row| row["observation"]["outcome"]["status"] != "engineering_observation")
+                {
+                    return Err(
+                        "Saved native observations retain unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
+            if let Some(request) = snapshot_copy_request {
+                let report = event_operand_inspection::copy_saved(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_copy"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved source copy remains unsupported; see engineering report".into(),
+                    );
+                }
+                return Ok(());
+            }
+            let report = event_operand_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                player_id,
+                prepared_sources,
+                native_capabilities,
+                engineering_local_copy.as_deref(),
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+            if report["engineering_local_copy"]["status"] == "unsupported" {
+                return Err("Source local copy remains unsupported; see engineering report".into());
+            }
+            if native_capabilities && report["native_unsupported"] != 0 {
+                return Err(
+                    "Pending native calls retain unsupported faithful semantics; see report".into(),
+                );
+            }
+            if report["prepared_probes"] != report["pending_events_checked"]
+                || report["unresolved_operands"] != 0
+            {
+                return Err(
+                    "Pending operands retain unresolved source or storage findings; see report"
+                        .into(),
+                );
+            }
+        }
+        RuntimeCommand::SharedRuntime {
+            install,
+            load_order,
+            index_cache,
+        } => {
+            let report =
+                shared_runtime_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+    }
+    Ok(())
+}
+
+fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        ActorsCommand::ActorSources {
             install,
             load_order,
             index_cache,
@@ -1332,7 +1114,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("actor source inspection retains source findings; see report".into());
             }
         }
-        Command::ActorPackageContext {
+        ActorsCommand::ActorPackageContext {
             install,
             load_order,
             index_cache,
@@ -1367,7 +1149,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("actor package execution capability is unsupported; see refusal dependencies in report".into());
             }
         }
-        Command::BaseInventory {
+        ActorsCommand::BaseInventory {
             install,
             load_order,
             index_cache,
@@ -1382,7 +1164,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::FormLists {
+        ActorsCommand::FormLists {
             install,
             load_order,
             index_cache,
@@ -1397,7 +1179,7 @@ fn run(args: Args) -> Result<()> {
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
-        Command::LeveledLists {
+        ActorsCommand::LeveledLists {
             install,
             load_order,
             index_cache,
@@ -1418,272 +1200,13 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::ForeignContext {
-            install,
-            load_order,
-            new_repository,
-        } => {
-            let report = foreign_context_inspection::inspect(
-                &install,
-                &load_order,
-                new_repository.as_deref(),
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::ForeignLoadProbe {
-            install,
-            load_order,
-            repository,
-            player_id,
-        } => {
-            // A read-only load must also leave the input directory unchanged.
-            protect_native_report(output, &repository)?;
-            let report =
-                foreign_context_inspection::cold(&install, &load_order, &repository, player_id)?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::NativeSaveProbe {
-            install,
-            load_order,
-            new_repository,
-            engineering_event_commit,
-        } => {
-            let report = native_save_inspection::probe(
-                &install,
-                &load_order,
-                &new_repository,
-                engineering_event_commit.as_deref(),
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::NativeLoadProbe {
-            install,
-            load_order,
-            repository,
-        } => {
-            protect_native_report(output, &repository)?;
-            let report = native_save_inspection::load(&install, &load_order, &repository)?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::NativeSlotAvailability {
-            install,
-            load_order,
-            repository,
-        } => {
-            if let Some(path) = output {
-                let parent = path
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or(Path::new("."))
-                    .canonicalize()?;
-                if parent.starts_with(repository.canonicalize()?) {
-                    return Err(
-                        "availability report output must be outside the native repository".into(),
-                    );
-                }
-            }
-            let report = native_save_inspection::availability(&install, &load_order, &repository)?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::NativeMigrateV2 {
-            install,
-            load_order,
-            file,
-            new_repository,
-        } => {
-            let report =
-                native_migration_inspection::import(&install, &load_order, &file, &new_repository)?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::NativeMigrateV3 {
-            install,
-            load_order,
-            file,
-            new_repository,
-        } => {
-            let report = native_migration_inspection::import_v3(
-                &install,
-                &load_order,
-                &file,
-                &new_repository,
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::NativeSaveFile { file } => {
-            let report = native_save_inspection::file(&file)?;
-            emit(&report, output, &file.canonicalize()?)?;
-        }
-        Command::ScriptState {
-            install,
-            load_order,
-            index_cache,
-            engineering_event_commit,
-            host_snapshot,
-            host_requirements,
-        } => {
-            let report = script_state_inspection::inspect(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                engineering_event_commit.as_deref(),
-                host_snapshot.as_deref().zip(host_requirements.as_deref()),
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::EventFrames {
-            install,
-            load_order,
-            index_cache,
-            comparison_bundle,
-            owned_observation,
-            snapshot_input,
-        } => {
-            let report = event_frame_inspection::inspect(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                comparison_bundle.as_deref(),
-                owned_observation.as_deref(),
-                snapshot_input.as_deref(),
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-            if owned_observation.is_none()
-                && report["prepared_frames"] != report["pending_events_checked"]
-            {
-                return Err("Pending events retain unresolved source findings; see report".into());
-            }
-        }
-        Command::ScriptFixture {
-            install,
-            request,
-            profile_receipt,
-            destination,
-        } => {
-            let report = script_trace::fixtures::generate(
-                &install,
-                &request,
-                &profile_receipt,
-                &destination,
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::ScriptTrace {
-            install,
-            load_order,
-            index_cache,
-            manifest,
-            profile_receipt,
-            original_trace,
-            replacement_trace,
-            replacement_copy,
-        } => {
-            let report = script_trace::inspect(script_trace::Inputs {
-                install: &install,
-                load_order: &load_order,
-                cache: index_cache.as_deref(),
-                manifest: &manifest,
-                profile_receipt: &profile_receipt,
-                original: original_trace.as_deref(),
-                replacement: replacement_trace.as_deref(),
-                replacement_copy: replacement_copy.as_deref(),
-            })?;
-            emit(&report, output, &protected_tree(&install)?)?;
-            if report["comparison"]["status"] != "matched" {
-                return Err(
-                    "Semantic trace comparison is blocked or mismatched; see report".into(),
-                );
-            }
-        }
-        Command::EventOperands {
-            install,
-            load_order,
-            index_cache,
-            player_id,
-            prepared_sources,
-            native_capabilities,
-            engineering_local_copy,
-            snapshot_copy_request,
-            snapshot_native_request,
-            snapshot_input,
-            snapshot_output,
-        } => {
-            if let Some(request) = snapshot_native_request {
-                let report = event_operand_inspection::observe_saved_native(
-                    &install,
-                    &load_order,
-                    index_cache.as_deref(),
-                    &request,
-                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
-                )?;
-                emit(&report, output, &protected_tree(&install)?)?;
-                if report["observations"]
-                    .as_array()
-                    .ok_or("Missing native observations")?
-                    .iter()
-                    .any(|row| row["observation"]["outcome"]["status"] != "engineering_observation")
-                {
-                    return Err(
-                        "Saved native observations retain unsupported semantics; see report".into(),
-                    );
-                }
-                return Ok(());
-            }
-            if let Some(request) = snapshot_copy_request {
-                let report = event_operand_inspection::copy_saved(
-                    &install,
-                    &load_order,
-                    index_cache.as_deref(),
-                    &request,
-                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
-                    snapshot_output
-                        .as_deref()
-                        .ok_or("Missing snapshot output")?,
-                )?;
-                emit(&report, output, &protected_tree(&install)?)?;
-                if report["snapshot_copy"]["status"] != "engineering_committed" {
-                    return Err(
-                        "Saved source copy remains unsupported; see engineering report".into(),
-                    );
-                }
-                return Ok(());
-            }
-            let report = event_operand_inspection::inspect(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                player_id,
-                prepared_sources,
-                native_capabilities,
-                engineering_local_copy.as_deref(),
-            )?;
-            emit(&report, output, &protected_tree(&install)?)?;
-            if report["engineering_local_copy"]["status"] == "unsupported" {
-                return Err("Source local copy remains unsupported; see engineering report".into());
-            }
-            if native_capabilities && report["native_unsupported"] != 0 {
-                return Err(
-                    "Pending native calls retain unsupported faithful semantics; see report".into(),
-                );
-            }
-            if report["prepared_probes"] != report["pending_events_checked"]
-                || report["unresolved_operands"] != 0
-            {
-                return Err(
-                    "Pending operands retain unresolved source or storage findings; see report"
-                        .into(),
-                );
-            }
-        }
-        Command::SharedRuntime {
-            install,
-            load_order,
-            index_cache,
-        } => {
-            let report =
-                shared_runtime_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
-            emit(&report, output, &protected_tree(&install)?)?;
-        }
-        Command::ConditionDependencies {
+    }
+    Ok(())
+}
+
+fn run_scripts(command: ScriptsCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        ScriptsCommand::ConditionDependencies {
             install,
             load_order,
             index_cache,
@@ -1726,7 +1249,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::CompressedRecords {
+        ScriptsCommand::CompressedRecords {
             install,
             load_order,
             inspect_checksum_mismatches,
@@ -1744,7 +1267,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::QuestScripts {
+        ScriptsCommand::QuestScripts {
             install,
             load_order,
             index_cache,
@@ -1770,7 +1293,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::LoadedScripts {
+        ScriptsCommand::LoadedScripts {
             install,
             load_order,
             index_cache,
@@ -1789,151 +1312,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("loaded script catalogue retains source findings; see report".into());
             }
         }
-        Command::DialogueMembership {
-            install,
-            load_order,
-            index_cache,
-        } => {
-            let report =
-                dialogue_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
-            let counts = &report["membership"]["counts"];
-            let failures = [
-                "missing_parents",
-                "null_parents",
-                "missing_topics",
-                "deleted_topics",
-                "wrong_topic_kinds",
-            ]
-            .into_iter()
-            .map(|key| counts[key].as_u64().unwrap_or(0))
-            .sum::<u64>();
-            let failed = failures != 0;
-            emit(&report, output, &install)?;
-            if failed {
-                return Err("dialogue membership has unresolved topic links; see report".into());
-            }
-        }
-        Command::CellResidencySources {
-            install,
-            load_order,
-            index_cache,
-            cache,
-            cell,
-            source_timeout_ms,
-        } => {
-            let report = world_preparation_inspection::residency(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                cache.as_deref(),
-                world_preparation_inspection::ResidencyInput {
-                    cell: parse_cell_key(&cell)?,
-                    source_timeout_ms,
-                },
-            )?;
-            let available = report["captured_sources_available"].as_bool() == Some(true);
-            emit(&report, output, &install)?;
-            if !available {
-                return Err("cell source dependencies are unavailable; see report".into());
-            }
-        }
-        Command::DoorResidencySources {
-            install,
-            load_order,
-            index_cache,
-            cache,
-            cell,
-            door,
-            source_timeout_ms,
-        } => {
-            let report = world_preparation_inspection::door_residency(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                cache.as_deref(),
-                world_preparation_inspection::DoorInput {
-                    source: world_preparation_inspection::ResidencyInput {
-                        cell: parse_cell_key(&cell)?,
-                        source_timeout_ms,
-                    },
-                    door: parse_cell_key(&door)?,
-                },
-            )?;
-            let available = report["captured_sources_available"].as_bool() == Some(true);
-            emit(&report, output, &install)?;
-            if !available {
-                return Err(
-                    "door destination source dependencies are unavailable; see report".into(),
-                );
-            }
-        }
-        Command::GridResidencySources {
-            install,
-            load_order,
-            index_cache,
-            cache,
-            world,
-            grid_x,
-            grid_y,
-            source_timeout_ms,
-        } => {
-            let report = world_preparation_inspection::grid_residency(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                cache.as_deref(),
-                world_preparation_inspection::GridInput {
-                    world: parse_cell_key(&world)?,
-                    grid: [grid_x, grid_y],
-                    source_timeout_ms,
-                },
-            )?;
-            let available = report["captured_sources_available"].as_bool() == Some(true);
-            emit(&report, output, &install)?;
-            if !available {
-                return Err("grid CELL source dependencies are unavailable; see report".into());
-            }
-        }
-        Command::ConversationSources {
-            install,
-            load_order,
-            index_cache,
-            topic,
-            info,
-            speaker,
-            bind_result_fragments,
-        } => {
-            let request = world_preparation_inspection::Input {
-                topic: parse_cell_key(&topic)?,
-                info: parse_cell_key(&info)?,
-                speaker: speaker.as_deref().map(parse_cell_key).transpose()?,
-                bind_result_fragments,
-            };
-            let report = world_preparation_inspection::conversation(
-                &install,
-                &load_order,
-                index_cache.as_deref(),
-                request,
-            )?;
-            emit(&report, output, &install)?;
-        }
-        Command::Narrative {
-            install,
-            defer_unrelated_payloads,
-            comparison_bundle,
-        } => {
-            let report = narrative_inspection::inspect(
-                &install,
-                defer_unrelated_payloads,
-                comparison_bundle.as_deref(),
-            )?;
-            let failed = report["findings"] != 0;
-            emit(&report, output, &install)?;
-            if failed {
-                return Err("quest/dialogue ownership has source findings; see report".into());
-            }
-        }
-        Command::Conditions {
+        ScriptsCommand::Conditions {
             install,
             defer_unrelated_payloads,
             comparison_bundle,
@@ -1952,7 +1331,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("condition function metadata has unresolved links; see report".into());
             }
         }
-        Command::OperandBindings {
+        ScriptsCommand::OperandBindings {
             install,
             defer_unrelated_payloads,
             comparison_bundle,
@@ -1970,7 +1349,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("operand table associations have issues; see report".into());
             }
         }
-        Command::NativeArguments {
+        ScriptsCommand::NativeArguments {
             install,
             defer_unrelated_payloads,
             comparison_bundle,
@@ -1990,7 +1369,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("native argument inspection has issues; see report".into());
             }
         }
-        Command::SourcePlans {
+        ScriptsCommand::SourcePlans {
             install,
             load_order,
             index_cache,
@@ -2036,7 +1415,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::ControlFlow {
+        ScriptsCommand::ControlFlow {
             install,
             bundle,
             diagnose_structure,
@@ -2050,7 +1429,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::ExpressionPlans {
+        ScriptsCommand::ExpressionPlans {
             install,
             bundle,
             diagnose_structure,
@@ -2066,7 +1445,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::Expressions {
+        ScriptsCommand::Expressions {
             install,
             defer_unrelated_payloads,
             comparison_bundle,
@@ -2086,7 +1465,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("expression framing, token decoding or command descriptor links have issues; see report".into());
             }
         }
-        Command::Bindings {
+        ScriptsCommand::Bindings {
             install,
             defer_unrelated_payloads,
             comparison_bundle,
@@ -2163,11 +1542,11 @@ fn run(args: Args) -> Result<()> {
                 return Err("script table associations have issues; see report".into());
             }
         }
-        Command::Catalogue { install } => {
+        ScriptsCommand::Catalogue { install } => {
             let catalogue = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
             emit(&catalogue, output, &install)?;
         }
-        Command::Scripts {
+        ScriptsCommand::Scripts {
             install,
             defer_unrelated_payloads,
             comparison_bundle,
@@ -2240,387 +1619,157 @@ fn run(args: Args) -> Result<()> {
                 return Err("compiled script framing or metadata has issues; see report".into());
             }
         }
-        Command::NifSourcePoseSet { input, request } => {
-            if let Some(path) = output {
-                let parent = path
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or(Path::new("."))
-                    .canonicalize()?;
-                for source in [&input, &request] {
-                    if parent.starts_with(protected_tree(source)?) {
-                        return Err("report output must be outside every source directory".into());
-                    }
-                }
-            }
-            let report = nif_animation_inspection::inspect_pose_set(&input, &request)?;
-            emit(&report, output, &input)?;
-            if report.failures != 0 {
-                return Err("explicit source pose set refused; see report".into());
-            }
-        }
-        Command::NifSourcePoseBatch { input, request } => {
-            if let Some(path) = output {
-                let parent = path
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or(Path::new("."))
-                    .canonicalize()?;
-                for source in [&input, &request] {
-                    if parent.starts_with(protected_tree(source)?) {
-                        return Err("report output must be outside every source directory".into());
-                    }
-                }
-            }
-            let report = nif_animation_inspection::inspect_pose_batch(&input, &request)?;
-            emit(&report, output, &input)?;
-            if report.failures != 0 {
-                return Err("prepared source pose batch refused; see report".into());
-            }
-        }
-        Command::NifClipPose {
-            skeleton,
-            clip,
-            request,
+    }
+    Ok(())
+}
+
+fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        WorldCommand::DialogueMembership {
+            install,
+            load_order,
+            index_cache,
         } => {
-            if let Some(path) = output {
-                let parent = path
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or(Path::new("."))
-                    .canonicalize()?;
-                for input in [&skeleton, &clip, &request] {
-                    if parent.starts_with(protected_tree(input)?) {
-                        return Err("report output must be outside every source directory".into());
-                    }
-                }
-            }
-            let report = nif_animation_inspection::inspect_clip(&skeleton, &clip, &request)?;
-            emit(&report, output, &skeleton)?;
-            if report.failures != 0 {
-                return Err("external source clip pose refused; see report".into());
-            }
-        }
-        Command::NifRigidAttachment {
-            skeleton,
-            attachment,
-            request,
-        } => {
-            if let Some(path) = output {
-                let parent = path
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or(Path::new("."))
-                    .canonicalize()?;
-                for input in [&skeleton, &attachment, &request] {
-                    if parent.starts_with(protected_tree(input)?) {
-                        return Err("report output must be outside every source directory".into());
-                    }
-                }
-            }
             let report =
-                nif_animation_inspection::inspect_attachment(&skeleton, &attachment, &request)?;
-            emit(&report, output, &skeleton)?;
-            if report.failures != 0 {
-                return Err("rigid source attachment refused; see report".into());
+                dialogue_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            let counts = &report["membership"]["counts"];
+            let failures = [
+                "missing_parents",
+                "null_parents",
+                "missing_topics",
+                "deleted_topics",
+                "wrong_topic_kinds",
+            ]
+            .into_iter()
+            .map(|key| counts[key].as_u64().unwrap_or(0))
+            .sum::<u64>();
+            let failed = failures != 0;
+            emit(&report, output, &install)?;
+            if failed {
+                return Err("dialogue membership has unresolved topic links; see report".into());
             }
         }
-        Command::NifSourcePose {
-            input,
-            local_visibility,
-            object,
-            controller,
-            source_time,
+        WorldCommand::CellResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            source_timeout_ms,
         } => {
-            if local_visibility {
-                let report = nif_animation_inspection::inspect_visibility(
-                    &input,
-                    fallout_data::nif_animation::visibility::Request {
-                        object,
-                        controller,
-                        source_time,
+            let report = world_preparation_inspection::residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::ResidencyInput {
+                    cell: parse_cell_key(&cell)?,
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("cell source dependencies are unavailable; see report".into());
+            }
+        }
+        WorldCommand::DoorResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            door,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::door_residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::DoorInput {
+                    source: world_preparation_inspection::ResidencyInput {
+                        cell: parse_cell_key(&cell)?,
+                        source_timeout_ms,
                     },
-                )?;
-                emit(&report, output, &input)?;
-                if report.failures != 0 {
-                    return Err("local visibility sample refused; see report".into());
-                }
-                return Ok(());
-            }
-            let report = nif_animation_inspection::inspect_pose(
-                &input,
-                fallout_data::nif_animation::pose::Request {
-                    object,
-                    controller,
-                    source_time,
+                    door: parse_cell_key(&door)?,
                 },
             )?;
-            emit(&report, output, &input)?;
-            if report.failures != 0 {
-                return Err("linked source pose refused; see report".into());
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err(
+                    "door destination source dependencies are unavailable; see report".into(),
+                );
             }
         }
-        Command::NifAnimation {
-            input,
-            oracle_report,
-            include_keyframes,
-            include_splines,
-            include_spline_components,
-            include_bool_interpolators,
-            include_bool_keys,
-            sample_time,
-            sample_block,
-            sample_channel,
-            markers_request,
+        WorldCommand::GridResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            world,
+            grid_x,
+            grid_y,
+            source_timeout_ms,
         } => {
-            if let Some(request) = markers_request {
-                if let Some(path) = output {
-                    let parent = path
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .unwrap_or(Path::new("."))
-                        .canonicalize()?;
-                    for source in [&input, &request] {
-                        if parent.starts_with(protected_tree(source)?) {
-                            return Err(
-                                "report output must be outside every source directory".into()
-                            );
-                        }
-                    }
-                }
-                let report = nif_animation_inspection::inspect_markers(&input, &request)?;
-                emit(&report, output, &input)?;
-                if report.failures != 0 {
-                    return Err("source text-key interval refused; see report".into());
-                }
-                return Ok(());
+            let report = world_preparation_inspection::grid_residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::GridInput {
+                    world: parse_cell_key(&world)?,
+                    grid: [grid_x, grid_y],
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("grid CELL source dependencies are unavailable; see report".into());
             }
-            let sample = match (sample_time, sample_block, sample_channel) {
-                (Some(time), Some(block), Some(channel)) => {
-                    Some(nif_animation_inspection::SampleRequest {
-                        time,
-                        block,
-                        channel,
-                    })
-                }
-                (None, None, None) => None,
-                _ => {
-                    return Err(
-                        "sample time, source block and channel are required together".into(),
-                    );
-                }
+        }
+        WorldCommand::ConversationSources {
+            install,
+            load_order,
+            index_cache,
+            topic,
+            info,
+            speaker,
+            bind_result_fragments,
+        } => {
+            let request = world_preparation_inspection::Input {
+                topic: parse_cell_key(&topic)?,
+                info: parse_cell_key(&info)?,
+                speaker: speaker.as_deref().map(parse_cell_key).transpose()?,
+                bind_result_fragments,
             };
-            let report = nif_animation_inspection::inspect(
-                &input,
-                oracle_report.as_deref(),
-                nif_animation_inspection::SourceOptions {
-                    include_keyframes,
-                    include_splines,
-                    include_spline_components,
-                    include_bool_interpolators,
-                    include_bool_keys,
-                },
-                sample,
-            )?;
-            emit(&report, output, &input)?;
-            if report.failures != 0 {
-                return Err(
-                    "animation source decoding or independent comparison failed; see report".into(),
-                );
-            }
-        }
-        Command::NifSkin {
-            input,
-            oracle_report,
-            include_partitions,
-            include_bindings,
-            pose_geometry,
-            pose_weight_tolerance,
-            sampled_pose_request,
-            influences_request,
-        } => {
-            if let Some(request) = influences_request {
-                if let Some(path) = output {
-                    let parent = path
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .unwrap_or(Path::new("."))
-                        .canonicalize()?;
-                    for source in [&input, &request] {
-                        if parent.starts_with(protected_tree(source)?) {
-                            return Err(
-                                "report output must be outside every source directory".into()
-                            );
-                        }
-                    }
-                }
-                let report = nif_skin_inspection::inspect_influences(&input, &request)?;
-                emit(&report, output, &input)?;
-                if report.failures != 0 {
-                    return Err("exact raw influence reconstruction refused; see report".into());
-                }
-                return Ok(());
-            }
-            if let Some(request) = sampled_pose_request {
-                if let Some(path) = output {
-                    let parent = path
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .unwrap_or(Path::new("."))
-                        .canonicalize()?;
-                    for source in [&input, &request] {
-                        if parent.starts_with(protected_tree(source)?) {
-                            return Err(
-                                "report output must be outside every source directory".into()
-                            );
-                        }
-                    }
-                }
-                let report = nif_skin_inspection::inspect_sampled_pose(&input, &request)?;
-                emit(&report, output, &input)?;
-                if report.failures != 0 {
-                    return Err("source-linked sampled skin pose refused; see report".into());
-                }
-                return Ok(());
-            }
-            if let Some(geometry) = pose_geometry {
-                let tolerance = pose_weight_tolerance.ok_or("pose weight tolerance missing")?;
-                let report = nif_skin_inspection::inspect_pose(&input, geometry, tolerance)?;
-                emit(&report, output, &input)?;
-                if report.failures != 0 {
-                    return Err("source-local skin pose refused; see report".into());
-                }
-                return Ok(());
-            }
-            let report = nif_skin_inspection::inspect(
-                &input,
-                oracle_report.as_deref(),
-                include_partitions,
-                include_bindings,
-            )?;
-            emit(&report, output, &input)?;
-            if report.failures != 0 {
-                return Err("skin decoding or independent comparison failed; see report".into());
-            }
-        }
-        Command::NavigationRoute {
-            install,
-            load_order,
-            editor_id,
-            index_cache,
-            request,
-        } => {
-            let report = navigation_inspection::inspect(
+            let report = world_preparation_inspection::conversation(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
-                &editor_id,
-                request.as_deref(),
+                request,
             )?;
             emit(&report, output, &install)?;
         }
-        Command::CellCollision {
+        WorldCommand::Narrative {
             install,
-            load_order,
-            editor_id,
-            index_cache,
-            source_cache,
-            request,
+            defer_unrelated_payloads,
+            comparison_bundle,
         } => {
-            let report = collision::cell_query(
+            let report = narrative_inspection::inspect(
                 &install,
-                &load_order,
-                index_cache.as_deref(),
-                source_cache.as_deref(),
-                &editor_id,
-                &request,
+                defer_unrelated_payloads,
+                comparison_bundle.as_deref(),
             )?;
+            let failed = report["findings"] != 0;
             emit(&report, output, &install)?;
-        }
-        Command::NifCollision {
-            input,
-            oracle_report,
-            query_request,
-        } => {
-            if let Some(request) = query_request {
-                let report = collision::query(&input, &request)?;
-                emit(&report, output, &input)?;
-                return Ok(());
-            }
-            let report = collision::inspect(&input, oracle_report.as_deref())?;
-            emit(&report, output, &input)?;
-            if report.failures != 0 {
-                return Err(
-                    "collision decoding or independent comparison failed; see report".into(),
-                );
+            if failed {
+                return Err("quest/dialogue ownership has source findings; see report".into());
             }
         }
-        Command::NifAssets {
-            input,
-            install,
-            texture_cache,
-        } => {
-            let mut assets = fallout_data::assets::ArchiveAssets::open_nv(&install)?;
-            let report = fallout_data::texture_probe::inspect(
-                &input,
-                &mut assets,
-                texture_cache.as_deref(),
-            )?;
-            emit(&report, output, &install)?;
-            if report.failures != 0 {
-                return Err(
-                    "model texture dependencies contain unresolved or failed inputs; see report"
-                        .into(),
-                );
-            }
-        }
-        Command::NifScene { input } => {
-            use std::io::Read;
-            let mut file = baseline::open_source(&input)?.take(64 * 1024 * 1024 + 1);
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)?;
-            let (index, scene) =
-                fallout_data::nif_scene::decode(&bytes, &input.display().to_string())?;
-            emit(
-                &json!({"schema_version":1,"profile":"nv-original","input":input,
-                "sha256":format!("{:x}", Sha256::digest(&bytes)),"decoded_bytes":bytes.len(),
-                "index":index,"scene":scene}),
-                output,
-                &input,
-            )?;
-        }
-        Command::NifCensus {
-            install,
-            inspect_scenes,
-        } => {
-            let mut archives = Vec::new();
-            for path in data_files(&install, &["bsa"])? {
-                eprintln!("Inspecting NIF/KF members in {}", path.display());
-                archives.push(fallout_data::nif_census::scan_with_scenes(
-                    &path,
-                    inspect_scenes,
-                )?);
-            }
-            let failures: usize = archives.iter().map(|a| a.failures.len()).sum();
-            let scene_failures: usize = archives
-                .iter()
-                .filter_map(|a| a.scene_payloads.as_ref())
-                .map(|s| s.failures.len())
-                .sum();
-            emit(
-                &json!({"schema_version":1,"profile":"nv-original","archives":archives,"failures":failures,"scene_failures":scene_failures,
-                "scope":"all NIF/KF members in discovered top-level BSA files; loose assets not included",
-                "accepted_gameplay":false}),
-                output,
-                &install,
-            )?;
-            if failures > 0 || scene_failures > 0 {
-                return Err(
-                    "NIF census contains unsupported or invalid containers; see report".into(),
-                );
-            }
-        }
-        Command::Terrain {
+        WorldCommand::Terrain {
             install,
             load_order,
             editor_id,
@@ -2805,7 +1954,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("terrain inspection contains integrity, reference, or field-comparison failures".into());
             }
         }
-        Command::Cell {
+        WorldCommand::Cell {
             install,
             load_order,
             editor_id,
@@ -2917,7 +2066,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("cell inspection contains integrity, reference, or model failures; runtime acceptance remains blocked".into());
             }
         }
-        Command::Plan {
+        WorldCommand::Plan {
             install,
             load_order,
             inspect_checksum_mismatches,
@@ -2952,7 +2101,71 @@ fn run(args: Args) -> Result<()> {
                 return Err("import plan has integrity failures or missing required inputs".into());
             }
         }
-        Command::Baseline { install } => {
+    }
+    Ok(())
+}
+
+fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        PhysicsCommand::NavigationRoute {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &editor_id,
+                request.as_deref(),
+            )?;
+            emit(&report, output, &install)?;
+        }
+        PhysicsCommand::CellCollision {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::cell_query(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
+        PhysicsCommand::NifCollision {
+            input,
+            oracle_report,
+            query_request,
+        } => {
+            if let Some(request) = query_request {
+                let report = collision::query(&input, &request)?;
+                emit(&report, output, &input)?;
+                return Ok(());
+            }
+            let report = collision::inspect(&input, oracle_report.as_deref())?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err(
+                    "collision decoding or independent comparison failed; see report".into(),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn run_sources(command: SourcesCommand, output: Option<&Path>) -> Result<()> {
+    match command {
+        SourcesCommand::Baseline { install } => {
             let report =
                 baseline::discover(&install, |path| eprintln!("Hashing {}", path.display()))?;
             let complete = report.missing_required.is_empty();
@@ -2961,7 +2174,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("baseline is missing required inputs; see the report".into());
             }
         }
-        Command::VfsProfile {
+        SourcesCommand::VfsProfile {
             install,
             documents,
             local_appdata,
@@ -2989,7 +2202,7 @@ fn run(args: Args) -> Result<()> {
             )?;
             emit(&report, output, &install)?;
         }
-        Command::RetailProfileCapture {
+        SourcesCommand::RetailProfileCapture {
             install,
             documents,
             local_appdata,
@@ -3005,7 +2218,7 @@ fn run(args: Args) -> Result<()> {
                 &package,
             )?;
         }
-        Command::Census {
+        SourcesCommand::Census {
             install,
             inspect_checksum_mismatches,
         } => {
@@ -3044,7 +2257,7 @@ fn run(args: Args) -> Result<()> {
                 return Err("official corpus is incomplete; see the report".into());
             }
         }
-        Command::Inspect { plugin: path, form } => {
+        SourcesCommand::Inspect { plugin: path, form } => {
             let file = baseline::open_source(&path)?;
             let len = file.metadata()?.len();
             let mut found = None;
@@ -3081,7 +2294,7 @@ fn run(args: Args) -> Result<()> {
                 &path,
             )?;
         }
-        Command::Resolve {
+        SourcesCommand::Resolve {
             install,
             load_order,
             inspect_checksum_mismatches,
@@ -3114,7 +2327,7 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Command::Asset {
+        SourcesCommand::Asset {
             archive: path,
             path: member,
             cache_root,

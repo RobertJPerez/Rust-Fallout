@@ -52,6 +52,11 @@ partial results. Query/local coordinates, radius and ray distance are limited to
 absolute `1e50` to avoid overflowing higher-order dot/cross products; nonfinite or
 overflowing conversions return errors. These limits are engineering choices,
 not measured game-world limits or peak-process-memory guarantees.
+Sphere and capsule rays measure perpendicular distance directly with compensated
+cross products, avoiding cancellation between squared axial distances. When a
+true surface entry is too small to distinguish from the closest approach in
+binary64, the query refuses the numerical input. Units and transform tolerance
+are immutable after scene construction; `units()` returns a copied description.
 
 ## Headless source consumer
 

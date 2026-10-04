@@ -111,6 +111,71 @@ fn close(actual: f64, expected: f64) {
 }
 
 #[test]
+fn distant_sphere_and_capsule_rays_keep_perpendicular_misses_and_refuse_lost_entries() {
+    for (name, geometry) in [
+        ("bhkSphereShape", sphere(1.)),
+        ("bhkCapsuleShape", capsule([0., 0., -2.], [0., 0., 2.], 1.)),
+    ] {
+        let scene = scene(&[("bhkRigidBody", body(1)), (name, geometry)]);
+        // Independently: the line's perpendicular distance is2, exceeding1.
+        for far in [1e9, 1e20] {
+            assert!(
+                scene
+                    .ray_cast(
+                        ray([far, 2., 0.], [-1., 0., 0.], far),
+                        QueryBudget::default()
+                    )
+                    .unwrap()
+                    .is_empty(),
+                "{name} {far}"
+            );
+            let hits = scene
+                .ray_cast(
+                    ray([far, 1., 0.], [-1., 0., 0.], far),
+                    QueryBudget::default(),
+                )
+                .unwrap();
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].distance, far);
+            assert_eq!(hits[0].position, [0., 1., 0.]);
+        }
+        assert!(
+            scene
+                .ray_cast(
+                    ray([6e8 - 1.6, 8e8 + 1.2, 0.], [-0.6, -0.8, 0.], 1e9 + 10.),
+                    QueryBudget::default()
+                )
+                .unwrap()
+                .is_empty()
+        );
+        let hits = scene
+            .ray_cast(
+                ray([1e9, 0., 0.], [-1., 0., 0.], 1e9),
+                QueryBudget::default(),
+            )
+            .unwrap();
+        assert_eq!(hits[0].distance, 1e9 - 1.);
+        assert_eq!(hits[0].position, [1., 0., 0.]);
+        assert!(matches!(
+            scene.ray_cast(
+                ray([1e20, 0., 0.], [-1., 0., 0.], 1e20),
+                QueryBudget::default()
+            ),
+            Err(QueryError::Invalid(
+                "ray surface entry exceeds numerical precision"
+            ))
+        ));
+        assert_eq!(
+            scene
+                .ray_cast(ray([0.; 3], [1., 0., 0.], 0.), QueryBudget::default())
+                .unwrap()[0]
+                .distance,
+            0.
+        );
+    }
+}
+
+#[test]
 fn source_sphere_ray_units_pose_range_and_filter_bits() {
     let (_, collision) = nif_collision::decode(
         &container(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(2.))]),

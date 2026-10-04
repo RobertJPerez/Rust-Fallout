@@ -26,10 +26,15 @@ struct Leaf {
     shell: f32,
 }
 
+/// Units are immutable after construction, including the validated tolerance.
+/// ```compile_fail
+/// use fallout_runtime::physics::StaticScene;
+/// fn bypass(scene: &mut StaticScene) { scene.units.transform_tolerance = 10.; }
+/// ```
 #[derive(Debug)]
 pub struct StaticScene {
     leaves: Vec<Leaf>,
-    pub units: EngineeringUnits,
+    units: EngineeringUnits,
 }
 
 fn unsupported(block: u32, reason: &'static str) -> QueryError {
@@ -185,6 +190,9 @@ fn geometry(
 }
 
 impl StaticScene {
+    pub fn units(&self) -> EngineeringUnits {
+        self.units
+    }
     /// Build atomically: any unsupported reachable shape or exceeded budget returns
     /// an error, never a successful incomplete body. Shared DAG geometry is cached;
     /// occurrence expansion is iterative and separately bounded.

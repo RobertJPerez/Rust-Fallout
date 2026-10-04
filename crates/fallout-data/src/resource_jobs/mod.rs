@@ -79,6 +79,7 @@ pub struct Artifact {
     cache: Option<CacheResult>,
     _reservation: Arc<Reservation>,
     _source: Arc<ArchiveInput>,
+    _scope: Option<Arc<dyn Send + Sync>>,
 }
 impl Artifact {
     pub fn bytes(&self) -> &[u8] {
@@ -95,6 +96,7 @@ struct Work {
     cache: Option<(PathBuf, PathBuf)>,
     reservation: Arc<Reservation>,
     reply: SyncSender<JobResult<Artifact>>,
+    scope: Option<Arc<dyn Send + Sync>>,
     #[cfg(test)]
     pause: Option<Arc<tests::Pause>>,
 }
@@ -231,12 +233,33 @@ impl ResourceJobs {
         token: JobToken,
         cache: Option<(PathBuf, PathBuf)>,
     ) -> JobResult<JobHandle> {
-        self.submit_inner(
+        self.submit_inner_scoped(
             member,
             token,
             cache,
+            None,
             #[cfg(test)]
             None,
+        )
+    }
+
+    /// Residency accounting must outlive cancellation while a worker still owns
+    /// its mapped input, and stay attached to a retained successful payload.
+    pub(crate) fn submit_scoped(
+        &self,
+        member: Member,
+        token: JobToken,
+        cache: Option<(PathBuf, PathBuf)>,
+        scope: Arc<dyn Send + Sync>,
+        #[cfg(test)] pause: Option<Arc<tests::Pause>>,
+    ) -> JobResult<JobHandle> {
+        self.submit_inner_scoped(
+            member,
+            token,
+            cache,
+            Some(scope),
+            #[cfg(test)]
+            pause,
         )
     }
 
@@ -248,14 +271,26 @@ impl ResourceJobs {
         cache: Option<(PathBuf, PathBuf)>,
         pause: Arc<tests::Pause>,
     ) -> JobResult<JobHandle> {
-        self.submit_inner(member, token, cache, Some(pause))
+        self.submit_inner_scoped(member, token, cache, None, Some(pause))
     }
 
+    #[cfg(test)]
     fn submit_inner(
         &self,
         member: Member,
         token: JobToken,
         cache: Option<(PathBuf, PathBuf)>,
+        pause: Option<Arc<tests::Pause>>,
+    ) -> JobResult<JobHandle> {
+        self.submit_inner_scoped(member, token, cache, None, pause)
+    }
+
+    fn submit_inner_scoped(
+        &self,
+        member: Member,
+        token: JobToken,
+        cache: Option<(PathBuf, PathBuf)>,
+        scope: Option<Arc<dyn Send + Sync>>,
         #[cfg(test)] pause: Option<Arc<tests::Pause>>,
     ) -> JobResult<JobHandle> {
         token.check()?;
@@ -292,6 +327,7 @@ impl ResourceJobs {
             cache,
             reservation: reservation.clone(),
             reply,
+            scope,
             #[cfg(test)]
             pause,
         };
@@ -380,6 +416,7 @@ fn execute(work: Work) -> JobResult<Artifact> {
         cache: receipt,
         _reservation: work.reservation,
         _source: input,
+        _scope: work.scope,
     })
 }
 

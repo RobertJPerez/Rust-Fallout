@@ -577,10 +577,397 @@ pub fn cell_query(
     )
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReferenceBodyRequest {
+    reference: std::num::NonZeroU64,
+    authored: fallout_data::identity::FormKey,
+    body_blocks: Vec<u32>,
+    attachment_rows: [[f64; 4]; 3],
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReferenceRequest {
+    model_index: usize,
+    source_sha256: String,
+    placements: Vec<ReferenceBodyRequest>,
+    units: fallout_runtime::physics::EngineeringUnits,
+    ray: Option<fallout_runtime::physics::Ray>,
+    overlap: Option<SphereRequest>,
+    io_deadline_ms: u64,
+    #[serde(default)]
+    verify_unload: bool,
+}
+#[derive(Serialize)]
+pub struct ReferenceReport {
+    schema_version: u32,
+    scope: fallout_runtime::physics::reference::Scope,
+    native_load: fallout_runtime::save::LoadReceipt,
+    canonical_snapshot_sha256: String,
+    canonical_snapshot_unchanged: bool,
+    request_sha256: String,
+    load_order_sha256: String,
+    sources: Vec<fallout_data::store::SourceReceipt>,
+    selected_model: Value,
+    primitive_count: usize,
+    ray_hits: Vec<fallout_runtime::physics::Hit>,
+    overlap_hits: Vec<fallout_runtime::physics::Hit>,
+    ray_numeric_input: Option<RayNumericInput>,
+    overlap_numeric_input: Option<OverlapNumericInput>,
+    residency: fallout_data::world::residency::Snapshot,
+    unload: Option<Value>,
+    query_semantics: &'static str,
+    faithful_ready: bool,
+}
+
+// Count the complete pretty report before emit allocates it or opens an output.
+// Failure leaves no report file and cannot publish a partial successful report.
+struct ReportCounter(usize);
+impl std::io::Write for ReportCounter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self
+            .0
+            .checked_add(bytes.len())
+            .filter(|v| *v <= 64 * 1024 * 1024)
+            .ok_or_else(|| std::io::Error::other("reference collision report exceeds 64 MiB"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+// Resolve the nearest existing parent without creating a cache. Canonicalizing
+// it also catches an existing link into either protected input tree.
+fn writable_destination(path: &Path, protected: &[PathBuf]) -> Result<()> {
+    let mut ancestor = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    while !ancestor.exists() {
+        ancestor = ancestor
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+    }
+    let parent = ancestor.canonicalize()?;
+    if protected.iter().any(|root| parent.starts_with(root)) {
+        return Err(
+            "reference collision report/cache must be outside installation and input repository"
+                .into(),
+        );
+    }
+    // A cache may already exist: inspect its resolved destination too.
+    if path.exists() {
+        let destination = path.canonicalize()?;
+        if protected.iter().any(|root| destination.starts_with(root)) {
+            return Err("reference collision report/cache resolves into protected input".into());
+        }
+    }
+    Ok(())
+}
+
+/// Read an existing source-bound native World and join explicit engineering
+/// placements. This consumer never creates a World or registers a reference.
+#[allow(clippy::too_many_arguments)]
+pub fn reference_query(
+    install: &Path,
+    order_path: &Path,
+    save_root: &Path,
+    index_cache: Option<&Path>,
+    source_cache: Option<&Path>,
+    editor_id: &str,
+    request_path: &Path,
+    output: Option<&Path>,
+) -> Result<ReferenceReport> {
+    use fallout_data::{
+        archive::NvArchive,
+        loaded_scripts,
+        vfs::MountIndex,
+        world::{
+            preparation::CellModelPlan,
+            residency::{self, CellResidency, Stage},
+        },
+    };
+    use fallout_runtime::{
+        identity::ReferenceId,
+        physics::{
+            BodyPlacement, QueryBudget,
+            reference::{self, ReferenceCollision, ReferencePlacement},
+        },
+        save::{Recovery, Repository},
+    };
+    use std::time::{Duration, Instant};
+    let protected = [crate::protected_tree(install)?, save_root.canonicalize()?];
+    for path in [output, index_cache, source_cache].into_iter().flatten() {
+        writable_destination(path, &protected)?;
+    }
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: ReferenceRequest = serde_json::from_slice(&request_bytes)?;
+    let body_count = request
+        .placements
+        .iter()
+        .try_fold(0usize, |n, p| {
+            if p.body_blocks.is_empty() {
+                return None;
+            }
+            n.checked_add(p.body_blocks.len())
+        })
+        .ok_or("reference collision body count invalid")?;
+    if body_count == 0
+        || body_count > 1024
+        || !(1..=60_000).contains(&request.io_deadline_ms)
+        || (request.ray.is_none() && request.overlap.is_none())
+        || request.source_sha256.len() != 64
+        || !request.source_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err("reference collision needs bounded explicit placements, source SHA, IO deadline and query".into());
+    }
+    let expected_sha = std::array::from_fn(|i| {
+        u8::from_str_radix(&request.source_sha256[2 * i..2 * i + 2], 16).expect("checked ASCII hex")
+    });
+    let order = crate::inspection_input::Order::read(order_path)?;
+    let mut source_bytes = 0u64;
+    for name in &order.names {
+        fallout_data::identity::plugin_name(name)?;
+        source_bytes = source_bytes
+            .checked_add(std::fs::metadata(install.join("Data").join(name))?.len())
+            .ok_or("reference collision source bytes overflow")?;
+        if source_bytes > reference::Limits::default().source_bytes {
+            return Err("reference collision plugin cohort exceeds 4 GiB".into());
+        }
+    }
+    let index_limits = fallout_data::plugin::Limits {
+        max_records: 4_000_000 / order.names.len() as u64,
+        max_record_bytes: 4 * 1024 * 1024,
+        max_decoded_bytes: 4 * 1024 * 1024 * 1024 / order.names.len() as u64,
+        ..Default::default()
+    };
+    let data = install.join("Data");
+    let mut store = if let Some(cache) = index_cache {
+        fallout_data::store::RecordStore::open_nv_headers_cached(
+            &data,
+            &order.names,
+            index_limits,
+            cache,
+        )?
+    } else {
+        fallout_data::store::RecordStore::open_nv_headers(&data, &order.names, index_limits)?
+    };
+    // Fixed phase ceilings bound this whole consumer: catalogue reads 64 MiB,
+    // plan reads 64 MiB, reference admission (including plan/model) 64 MiB.
+    // The phases do not multiply their allowances by placement/query count.
+    let catalogue = loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits {
+            max_candidate_read_bytes: 64 * 1024 * 1024,
+            max_candidate_record_bytes: 4 * 1024 * 1024,
+            max_retained_bytes: 16 * 1024 * 1024,
+            ..Default::default()
+        },
+        |_, _| Ok(()),
+    )?;
+    let repository = Repository::open(save_root, &[install.into()])?;
+    let (world, native_load) = repository.load(
+        &catalogue,
+        fallout_runtime::Limits::default(),
+        Recovery::Strict,
+    )?;
+    let before = world.snapshot();
+    let canonical_bytes = before.encode(fallout_runtime::Limits::default().max_snapshot_bytes)?;
+    let canonical_snapshot_sha256 = format!("{:x}", Sha256::digest(&canonical_bytes));
+    let sources = store.source_receipts()?;
+    let root = store.cell_by_editor_id(editor_id.as_bytes())?.0;
+    let mut mounts = MountIndex::default();
+    let archives = crate::data_files(install, &["bsa"])?;
+    if archives.len() > 8 {
+        return Err("reference collision archive count exceeds eight".into());
+    }
+    let archive_bytes = archives.iter().try_fold(0u64, |sum, path| {
+        sum.checked_add(std::fs::metadata(path)?.len())
+            .ok_or_else(|| std::io::Error::other("archive bytes overflow"))
+    })?;
+    if archive_bytes > 16 * 1024 * 1024 * 1024 {
+        return Err("reference collision archive sources exceed 16 GiB".into());
+    }
+    for path in archives {
+        NvArchive::open(&path)?.census(&mut mounts)?;
+    }
+    let plan = CellModelPlan::load(&mut store, &root, &mounts, Default::default())?;
+    let mut owner = CellResidency::new(
+        install,
+        source_cache,
+        residency::Limits {
+            workers: 1,
+            source_bytes: 64 * 1024 * 1024,
+            ..Default::default()
+        },
+    )?;
+    let ticket = owner.request(plan)?;
+    let deadline = Instant::now() + Duration::from_millis(request.io_deadline_ms);
+    loop {
+        let snapshot = owner.poll()?;
+        if snapshot.stage == Stage::Decoded {
+            break;
+        }
+        if snapshot.stage == Stage::Failed {
+            return Err(format!(
+                "reference collision source IO failed: {:?}",
+                snapshot.failure
+            )
+            .into());
+        }
+        if Instant::now() >= deadline {
+            return Err("reference collision source IO deadline exhausted".into());
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let selected_model = {
+        let resident = owner.sources(&ticket)?;
+        let plan = resident.plan()?;
+        serde_json::to_value(
+            plan.receipt()
+                .requests
+                .get(request.model_index)
+                .ok_or("resident model receipt index out of range")?,
+        )?
+    };
+    let mut placements = Vec::with_capacity(body_count);
+    for p in &request.placements {
+        for &body_block in &p.body_blocks {
+            placements.push(ReferencePlacement {
+                authored: p.authored.clone(),
+                body: BodyPlacement {
+                    reference: ReferenceId(p.reference),
+                    source_sha256: expected_sha,
+                    body_block,
+                    attachment_to_source: fallout_data::coordinates::Affine {
+                        rows: p.attachment_rows,
+                    },
+                },
+            });
+        }
+    }
+    let mut collision = ReferenceCollision::default();
+    let scope = collision.admit(
+        &world,
+        &mut owner,
+        &ticket,
+        &mut store,
+        request.model_index,
+        &placements,
+        request.units,
+        reference::Limits::default(),
+    )?;
+    let ray_numeric_input = request.ray.map(ray_numeric_input);
+    let overlap_numeric_input = request.overlap.as_ref().map(overlap_numeric_input);
+    let queries = usize::from(request.ray.is_some()) + usize::from(request.overlap.is_some());
+    let total = QueryBudget::default();
+    let budget = reference::Budget {
+        reference_checks: 4096 / queries,
+        geometry: QueryBudget {
+            primitive_tests: total.primitive_tests / queries,
+            geometry_tests: total.geometry_tests / queries,
+            hits: total.hits / queries,
+        },
+    };
+    let ray = request
+        .ray
+        .map(|r| collision.ray_cast(&world, &owner, r, budget))
+        .transpose()
+        .map_err(|e| {
+            format!(
+                "reference collision ray refused: {e}; ray_numeric_input={}",
+                serde_json::to_string(&ray_numeric_input).expect("numeric audit")
+            )
+        })?;
+    let overlap = request
+        .overlap
+        .map(|s| collision.overlap_sphere(&world, &owner, s.center, s.radius, budget))
+        .transpose()
+        .map_err(|e| {
+            format!(
+                "reference collision overlap refused: {e}; overlap_numeric_input={}",
+                serde_json::to_string(&overlap_numeric_input).expect("numeric audit")
+            )
+        })?;
+    let ray_hits = ray
+        .as_ref()
+        .map(|r| r.hits(&world, &owner))
+        .transpose()?
+        .unwrap_or(&[])
+        .to_vec();
+    let overlap_hits = overlap
+        .as_ref()
+        .map(|r| r.hits(&world, &owner))
+        .transpose()?
+        .unwrap_or(&[])
+        .to_vec();
+    let residency = owner.snapshot();
+    let primitive_count = collision.retained_primitive_count();
+    let unload = if request.verify_unload {
+        owner.unload()?;
+        let receipts_refuse = ray.as_ref().is_none_or(|r| r.hits(&world, &owner).is_err())
+            && overlap
+                .as_ref()
+                .is_none_or(|r| r.hits(&world, &owner).is_err());
+        let geometry_released =
+            collision.invalidate(&world, &owner) && collision.retained_primitive_count() == 0;
+        let after = owner.poll()?;
+        if !receipts_refuse
+            || !geometry_released
+            || after.pinned_source_bytes != 0
+            || after.retained_plans != 0
+            || after.outstanding != 0
+        {
+            return Err(
+                "reference collision unload did not revoke results and release owned pins".into(),
+            );
+        }
+        Some(
+            serde_json::json!({"receipts_refuse":receipts_refuse,"geometry_released":geometry_released,"residency":after}),
+        )
+    } else {
+        None
+    };
+    if world.snapshot() != before {
+        return Err("reference collision changed canonical World".into());
+    }
+    let report = ReferenceReport {
+        schema_version: 1,
+        scope,
+        native_load,
+        canonical_snapshot_sha256,
+        canonical_snapshot_unchanged: true,
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        load_order_sha256: order.sha256,
+        sources,
+        selected_model,
+        primitive_count,
+        ray_hits,
+        overlap_hits,
+        ray_numeric_input,
+        overlap_numeric_input,
+        residency,
+        unload,
+        query_semantics: "selected core engineering geometry; exact canonical reference/source join; explicit caller query frame distinct from source DATA and saved canonical pose; all filters retained; whole-cell collision Unsupported; immutable World",
+        faithful_ready: false,
+    };
+    serde_json::to_writer_pretty(&mut ReportCounter(1), &report)?;
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use fallout_data::nif_collision::{Block, Triangle};
+    #[test]
+    fn reference_output_counter_rejects_the_first_excess_byte() {
+        use std::io::Write;
+        let mut counter = ReportCounter(64 * 1024 * 1024 - 2);
+        counter.write_all(&[0; 2]).unwrap();
+        assert!(counter.write_all(&[0]).is_err());
+    }
     #[test]
     fn bit_projection_keeps_negative_zero_distinct_from_indices() {
         let mut value = serde_json::json!({"float":-0.0f32,"index":7u32,"values":[1.0f32,0.1f32]});

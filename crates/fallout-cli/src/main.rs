@@ -602,6 +602,23 @@ enum Command {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Query selected collision bound to existing canonical references in a strict saved World.
+    ReferenceCollision {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        save_root: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        source_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,
@@ -1746,6 +1763,27 @@ fn run(args: Args) -> Result<()> {
                 source_cache.as_deref(),
                 &editor_id,
                 &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
+        Command::ReferenceCollision {
+            install,
+            load_order,
+            save_root,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::reference_query(
+                &install,
+                &load_order,
+                &save_root,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
+                output,
             )?;
             emit(&report, output, &install)?;
         }

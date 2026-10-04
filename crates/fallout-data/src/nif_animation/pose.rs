@@ -119,23 +119,23 @@ pub struct ObjectPose {
     pub retail_behavior_verified: bool,
 }
 
-struct Budget<'a> {
-    source: &'a str,
-    bytes: usize,
-    work: usize,
+pub(super) struct Budget<'a> {
+    pub(super) source: &'a str,
+    pub(super) bytes: usize,
+    pub(super) work: usize,
 }
 impl Budget<'_> {
-    fn fail(&self, detail: &str) -> Error {
+    pub(super) fn fail(&self, detail: &str) -> Error {
         Error::Unsupported(format!("{}: linked source pose: {detail}", self.source))
     }
-    fn reserve<T>(&mut self, count: usize) -> Result<()> {
+    pub(super) fn reserve<T>(&mut self, count: usize) -> Result<()> {
         self.bytes = count
             .checked_mul(std::mem::size_of::<T>())
             .and_then(|size| self.bytes.checked_sub(size))
             .ok_or_else(|| self.fail("array storage budget exceeded"))?;
         Ok(())
     }
-    fn charge(&mut self, count: usize) -> Result<()> {
+    pub(super) fn charge(&mut self, count: usize) -> Result<()> {
         self.work = self
             .work
             .checked_sub(count)
@@ -155,6 +155,124 @@ pub(super) fn span(bytes: &[u8], index: &nif::NifIndex, block: u32) -> SourceSpa
             Sha256::digest(&bytes[selected.offset..selected.offset + selected.bytes])
         ),
     }
+}
+
+pub(super) struct SceneMapping<'a> {
+    scene: &'a nif_scene::Scene,
+    objects: Vec<Option<usize>>,
+    worlds: Vec<Option<usize>>,
+    selected_world: nif_scene::WorldTransform,
+}
+impl<'a> SceneMapping<'a> {
+    pub(super) fn prepare(
+        scene: &'a nif_scene::Scene,
+        index: &nif::NifIndex,
+        object: u32,
+        budget: &mut Budget<'_>,
+    ) -> Result<Self> {
+        budget.reserve::<Option<usize>>(index.blocks.len() * 2)?;
+        let mut objects = vec![None; index.blocks.len()];
+        let mut worlds = vec![None; index.blocks.len()];
+        for (i, value) in scene.objects.iter().enumerate() {
+            objects[value.block as usize] = Some(i);
+        }
+        for (i, value) in scene.world_transforms.iter().enumerate() {
+            worlds[value.block as usize] = Some(i);
+        }
+        let selected_world = worlds
+            .get(object as usize)
+            .copied()
+            .flatten()
+            .map(|i| &scene.world_transforms[i])
+            .ok_or_else(|| budget.fail("missing selected object ancestry"))?;
+        if !selected_world.reachable_from_footer {
+            return Err(budget.fail("selected object is not reachable from footer"));
+        }
+        Ok(Self {
+            scene,
+            objects,
+            worlds,
+            selected_world: *selected_world,
+        })
+    }
+    pub(super) fn compose(
+        &self,
+        bytes: &[u8],
+        index: &nif::NifIndex,
+        local: Affine,
+        budget: &mut Budget<'_>,
+        ancestry_depth: usize,
+    ) -> Result<(Affine, Vec<Ancestor>)> {
+        let mut world = local;
+        let mut parent = self.selected_world.parent;
+        let mut ancestors = Vec::new();
+        let mut depth = 1;
+        while let Some(id) = parent {
+            budget.charge(1)?;
+            depth += 1;
+            if depth > ancestry_depth {
+                return Err(budget.fail("ancestry depth budget exceeded"));
+            }
+            let object = self
+                .objects
+                .get(id as usize)
+                .copied()
+                .flatten()
+                .map(|i| &self.scene.objects[i])
+                .ok_or_else(|| budget.fail("unresolved ancestor object"))?;
+            let ancestor_world = self
+                .worlds
+                .get(id as usize)
+                .copied()
+                .flatten()
+                .map(|i| &self.scene.world_transforms[i])
+                .ok_or_else(|| budget.fail("unresolved ancestor world link"))?;
+            if object.controller.is_some() {
+                return Err(budget.fail(&format!("ancestor {id} controller is unapplied")));
+            }
+            budget.reserve::<Ancestor>(1)?;
+            budget.reserve::<u8>(64)?;
+            world = compose(scene_affine(object.transform), world);
+            ancestors.push(Ancestor {
+                source: span(bytes, index, id),
+                local: object.transform.into(),
+                flags: object.flags,
+                parent: ancestor_world.parent,
+            });
+            parent = ancestor_world.parent;
+        }
+        if !local.iter().chain(&world).flatten().all(|v| v.is_finite()) {
+            return Err(budget.fail("evaluated matrix overflow"));
+        }
+        Ok((world, ancestors))
+    }
+}
+pub(super) fn component_local(
+    transform: nif_scene::Transform,
+    translation: &sampling::Diagnostic,
+    scale: &sampling::Diagnostic,
+) -> Affine {
+    let selected_translation = match &translation.evaluation {
+        sampling::Evaluated::Translation {
+            sample: Some(value),
+        } => value.evaluated_f64_bits.map(f64::from_bits),
+        _ => transform.translation.map(f64::from),
+    };
+    let selected_scale = match &scale.evaluation {
+        sampling::Evaluated::Scale {
+            sample: Some(value),
+        } => f64::from_bits(value.evaluated_f64_bits[0]),
+        _ => f64::from(transform.scale),
+    };
+    std::array::from_fn(|r| {
+        std::array::from_fn(|c| {
+            if c == 3 {
+                selected_translation[r]
+            } else {
+                f64::from(transform.rotation[r][c]) * selected_scale
+            }
+        })
+    })
 }
 
 /// Existing decoders build their own immutable index from these bytes. No public
@@ -238,24 +356,7 @@ pub fn evaluate(
     if !matches!(data.data.rotation, keyframe::Rotation::Absent) {
         return Err(budget.fail("rotation key mapping is unapplied"));
     }
-    budget.reserve::<Option<usize>>(index.blocks.len() * 2)?;
-    let mut objects = vec![None; index.blocks.len()];
-    let mut worlds = vec![None; index.blocks.len()];
-    for (i, value) in scene.objects.iter().enumerate() {
-        objects[value.block as usize] = Some(i);
-    }
-    for (i, value) in scene.world_transforms.iter().enumerate() {
-        worlds[value.block as usize] = Some(i);
-    }
-    let selected_world = worlds
-        .get(request.object as usize)
-        .copied()
-        .flatten()
-        .map(|i| &scene.world_transforms[i])
-        .ok_or_else(|| budget.fail("missing selected object ancestry"))?;
-    if !selected_world.reachable_from_footer {
-        return Err(budget.fail("selected object is not reachable from footer"));
-    }
+    let mapping = SceneMapping::prepare(&scene, &index, request.object, &mut budget)?;
     budget.reserve::<ObjectPose>(1)?;
     // Whole source, four spans and two borrowed-source sampling receipts.
     budget.reserve::<u8>(7 * 64)?;
@@ -272,66 +373,9 @@ pub fn evaluate(
         request.source_time,
         &mut sampling_budget,
     )?;
-    let selected_translation = match &translation.evaluation {
-        sampling::Evaluated::Translation {
-            sample: Some(value),
-        } => value.evaluated_f64_bits.map(f64::from_bits),
-        _ => object.transform.translation.map(f64::from),
-    };
-    let selected_scale = match &scale.evaluation {
-        sampling::Evaluated::Scale {
-            sample: Some(value),
-        } => f64::from_bits(value.evaluated_f64_bits[0]),
-        _ => f64::from(object.transform.scale),
-    };
-    let local = std::array::from_fn(|r| {
-        std::array::from_fn(|c| {
-            if c == 3 {
-                selected_translation[r]
-            } else {
-                f64::from(object.transform.rotation[r][c]) * selected_scale
-            }
-        })
-    });
-    let mut world = local;
-    let mut parent = selected_world.parent;
-    let mut ancestors = Vec::new();
-    let mut depth = 1;
-    while let Some(id) = parent {
-        budget.charge(1)?;
-        depth += 1;
-        if depth > limits.ancestry_depth {
-            return Err(budget.fail("ancestry depth budget exceeded"));
-        }
-        let object = objects
-            .get(id as usize)
-            .copied()
-            .flatten()
-            .map(|i| &scene.objects[i])
-            .ok_or_else(|| budget.fail("unresolved ancestor object"))?;
-        let ancestor_world = worlds
-            .get(id as usize)
-            .copied()
-            .flatten()
-            .map(|i| &scene.world_transforms[i])
-            .ok_or_else(|| budget.fail("unresolved ancestor world link"))?;
-        if object.controller.is_some() {
-            return Err(budget.fail(&format!("ancestor {id} controller is unapplied")));
-        }
-        budget.reserve::<Ancestor>(1)?;
-        budget.reserve::<u8>(64)?;
-        world = compose(scene_affine(object.transform), world);
-        ancestors.push(Ancestor {
-            source: span(bytes, &index, id),
-            local: object.transform.into(),
-            flags: object.flags,
-            parent: ancestor_world.parent,
-        });
-        parent = ancestor_world.parent;
-    }
-    if !local.iter().chain(&world).flatten().all(|v| v.is_finite()) {
-        return Err(budget.fail("evaluated matrix overflow"));
-    }
+    let local = component_local(object.transform, &translation, &scale);
+    let (world, ancestors) =
+        mapping.compose(bytes, &index, local, &mut budget, limits.ancestry_depth)?;
     Ok(ObjectPose {
         contract: CONTRACT,
         source_sha256: format!("{:x}", Sha256::digest(bytes)),

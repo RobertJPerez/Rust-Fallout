@@ -108,6 +108,73 @@ pub struct AttachmentReport {
     evaluation: Option<nif_animation::attachment::Evaluation>,
     error: Option<String>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_clip_sha256: [u8; 32],
+    object: u32,
+    node_name_bytes: Vec<u8>,
+    sequence: u32,
+    controlled_ordinal: usize,
+    source_time: f64,
+}
+#[derive(Serialize)]
+pub struct ClipReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    clip: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    clip_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::clip::Evaluation>,
+    error: Option<String>,
+}
+pub fn inspect_clip(skeleton: &Path, clip: &Path, request_path: &Path) -> Result<ClipReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: ClipRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 {
+        return Err("unsupported external clip request schema".into());
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let clip_bytes = attachment_input(clip, 64 * 1024 * 1024)?;
+    let evaluated = nif_animation::clip::evaluate(
+        &skeleton_bytes,
+        &clip_bytes,
+        &skeleton.display().to_string(),
+        nif_animation::clip::Request {
+            expected_skeleton_sha256: request.expected_skeleton_sha256,
+            expected_clip_sha256: request.expected_clip_sha256,
+            object: request.object,
+            node_name_bytes: &request.node_name_bytes,
+            sequence: request.sequence,
+            controlled_ordinal: request.controlled_ordinal,
+            source_time: request.source_time,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(result) => (Some(result), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ClipReport {
+        schema_version: 1,
+        contract: nif_animation::clip::CONTRACT,
+        skeleton: skeleton.into(),
+        clip: clip.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        clip_sha256: format!("{:x}", Sha256::digest(&clip_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 fn attachment_input(path: &Path, limit: u64) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     baseline::open_source(path)?

@@ -20,6 +20,11 @@ use std::{
 
 static NEXT_HOST: AtomicU64 = AtomicU64::new(1);
 
+mod continuation;
+pub use continuation::{
+    ContinueBoundary, ContinueReceipt, ContinueRequest, PreparedContinue, ScenePublisher,
+};
+
 pub type Result<T> = std::result::Result<T, Failure>;
 
 #[derive(Debug, thiserror::Error)]
@@ -30,6 +35,8 @@ pub enum Failure {
     Source(#[from] crate::foreign::Failure),
     #[error(transparent)]
     ItemSource(#[from] source_items::Failure),
+    #[error(transparent)]
+    Restore(#[from] crate::save::RestoreError),
     #[error("application selection belongs to an expired host or scene")]
     ExpiredSelection,
     #[error("application selection revision differs from the canonical world")]
@@ -116,11 +123,26 @@ pub struct TransferCommand {
     selection: Selection,
 }
 
+/// Process-local publication identity. Native restore can reuse a saved numeric
+/// revision, so acknowledgements also need the host identity that issued them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HostIdentity(u64);
+
 #[derive(Debug, Clone)]
 pub struct TransferResult {
     pub request: NonZeroU64,
     pub replayed: bool,
     pub receipt: Arc<TransferReceipt>,
+    host: HostIdentity,
+    scene: NonZeroU64,
+}
+impl TransferResult {
+    pub fn host_identity(&self) -> HostIdentity {
+        self.host
+    }
+    pub fn scene_generation(&self) -> NonZeroU64 {
+        self.scene
+    }
 }
 struct Accepted {
     command: TransferCommand,
@@ -136,6 +158,8 @@ pub struct Host<'a> {
     limits: HostLimits,
     accepted: BTreeMap<NonZeroU64, Accepted>,
     retained_bytes: usize,
+    pending_continue: Option<ContinueRequest>,
+    last_continue_request: u64,
 }
 impl<'a> Host<'a> {
     pub fn new(
@@ -158,10 +182,15 @@ impl<'a> Host<'a> {
             limits,
             accepted: BTreeMap::new(),
             retained_bytes: 0,
+            pending_continue: None,
+            last_continue_request: 0,
         })
     }
     pub fn world(&self) -> &World<'a> {
         &self.world
+    }
+    pub fn identity(&self) -> HostIdentity {
+        HostIdentity(self.epoch)
     }
     pub fn into_world(self) -> World<'a> {
         self.world
@@ -249,6 +278,8 @@ impl<'a> Host<'a> {
                 request: command.request,
                 replayed: true,
                 receipt: Arc::clone(&accepted.receipt),
+                host: self.identity(),
+                scene: self.scene,
             });
         }
         if selection.campaign != self.world.campaign()
@@ -294,6 +325,8 @@ impl<'a> Host<'a> {
             request: command.request,
             replayed: false,
             receipt: Arc::clone(&receipt),
+            host: self.identity(),
+            scene: self.scene,
         };
         self.accepted
             .insert(command.request, Accepted { command, receipt });

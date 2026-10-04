@@ -15,7 +15,8 @@ admits the existing bounded inventory stage and reserves receipt retention befor
 committing once. Identical accepted retries return the same immutable receipt;
 reusing the identity with another selection refuses. Revision, source, quantity,
 bank initialization, scene, host and capacity refusals preserve canonical state.
-Receipts are retained without eviction until the host is dropped. A full ledger
+Receipts are retained without eviction until the host is dropped or publishes an
+admitted Continue. A full ledger
 refuses new requests while existing same-scene retries remain available.
 
 advance_scene cancels prior scene selections without changing canonical state.
@@ -28,7 +29,37 @@ inventory initialization, dynamic owners without source identity, equipment/crim
 rules and original activation scripts are unsupported. This is an explicit host
 command; it does not infer retail action semantics from source headers.
 
-application_inventory exercises the production adapter with independently authored
-plugin headers, canonical lots and complete snapshot comparisons. Visible input,
-original menus, Save/restart and independent frozen route acceptance remain required
-consumer work. The adapter is a dependency slice until the scene host consumes it.
+Save captures Host::world through the existing Captured::at_boundary and SaveWorker.
+Continue uses the existing RestoreTask, RequestIdentity and RestoredCandidate.
+begin_continue binds the active host, scene, revision, campaign and source cohort;
+request identities advance within the host. Cancellation and supersession affect
+only that transient request. The task owner keeps it alive until the candidate is
+accepted. prepare_continue takes the native result into an opaque private candidate;
+it does not replace the active canonical World.
+
+publish_continue rechecks the current request and canonical boundary. Its borrowed
+ScenePublisher prepares the complete destination: current display stamp, every
+active source member, resource readiness and all fallible draw conversions. The
+scene producer must retain its residency owner and immutable membership through
+this synchronous call. ScenePublisher::prepare is the final fallible operation;
+publish consumes the owned renderer stage infallibly, without another lookup,
+membership check or asynchronous write. The application replaces its World only
+after preparation succeeds. The receipt carries prior and candidate host identities,
+scene generation and revisions so the display can adopt the exact canonical result.
+This boundary does not authorize a different thread to publish later.
+
+An accepted Continue gives the host a new process-local identity and clears its
+transient transfer ledger. Numeric saved revisions may repeat or move backwards;
+TransferResult acknowledgements must match host identity and scene generation as
+well as their transaction revision. Old selections cannot execute or replay in
+the restored host, including when the revision is identical. Failed scene or
+canonical admission preserves the complete active World and displayed state.
+
+application_inventory and application_continue consume the public runtime API
+with independently authored plugin headers and complete snapshot comparisons.
+The latter uses SaveWorker and a fresh child process to restore exact inventory,
+quest-owned script locals and pending events. This does not establish original
+quest-stage semantics. The scene fixture is not the native renderer or GPU proof.
+Visible input, original menus, the legacy native-host failure reproduction and
+independent frozen route acceptance remain required consumer work. These adapters
+are dependency slices until the real scene host consumes them.

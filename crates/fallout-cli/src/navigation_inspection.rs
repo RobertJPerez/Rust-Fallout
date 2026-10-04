@@ -634,3 +634,84 @@ pub fn inspect_corridor(
     serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
     Ok(report)
 }
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EndpointsRequest {
+    cell: FormKey,
+    points: Vec<route::endpoint::EndpointRequest>,
+    #[serde(default)]
+    source_limits: SourceWork,
+    #[serde(default)]
+    endpoint_limits: route::endpoint::EndpointLimits,
+}
+#[derive(Serialize)]
+pub struct EndpointReport<'a> {
+    schema_version: u32,
+    load_order_sha256: String,
+    request_sha256: String,
+    source_limits: SourceWork,
+    endpoint_limits: route::endpoint::EndpointLimits,
+    source_usage: &'a route::corridor::InputUsage,
+    result: route::endpoint::EndpointView<'a>,
+    faithful_ready: bool,
+    semantics: &'static str,
+}
+pub fn inspect_endpoints(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    consume: impl FnOnce(&EndpointReport<'_>) -> Result<()>,
+) -> Result<()> {
+    let mut bytes = Vec::new();
+    baseline::open_source(request_path)?
+        .take(1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 1024 * 1024 {
+        return Err("navigation endpoint request exceeds1 MiB".into());
+    }
+    let request: EndpointsRequest = serde_json::from_slice(&bytes)?;
+    let source = request.source_limits.limits()?;
+    let limits = request.endpoint_limits.validate()?;
+    if source.cells == 0 || request.points.is_empty() || request.points.len() > limits.requests {
+        return Err("navigation endpoint cell/point count budget exceeded".into());
+    }
+    for point in &request.points {
+        let route::corridor::PlaneContract::AxisAlignedDyadic { normal_axis } = point.plane;
+        if normal_axis > 2 || point.point.iter().any(|v| !v.is_finite()) {
+            return Err(
+                "navigation endpoints require finite points and explicit plane axis".into(),
+            );
+        }
+    }
+    let order = Order::read(order_path)?;
+    let mut store = bounded_store(install, &order, cache, source)?;
+    let query = route::endpoint::EndpointQuery::load(
+        &mut store,
+        &request.cell,
+        route::corridor::InputLimits {
+            source_bytes: source.source_bytes,
+            index_visits: source.index_visits,
+            meshes: source.meshes,
+            records: source.records,
+            retained_bytes: source.identity_metadata_bytes,
+            ..Default::default()
+        },
+    )?;
+    let batch = query.inspect(&request.points, limits)?;
+    let report = EndpointReport {
+        schema_version: 1,
+        load_order_sha256: order.sha256,
+        request_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        source_limits: request.source_limits,
+        endpoint_limits: limits,
+        source_usage: query.source_usage(),
+        result: query.observations(&batch)?,
+        faithful_ready: false,
+        semantics: "explicit source CELL/triangle/finite point under named exact axis-aligned dyadic plane; raw f32 source and f64 point words, ordered protected source cohort; contained/outside/unsupported observations from one live sealed Store-borrowing query; no nearest triangle, point adjustment, source eligibility/movement defaults, canonical pose/state/save, residency authority or gameplay",
+    };
+    serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
+    // Consumer serialization finishes before the source owner/borrow drops.
+    consume(&report)
+}

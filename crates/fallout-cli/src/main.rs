@@ -2746,6 +2746,20 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
 
 fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        PhysicsCommand::NavigationEndpoints {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            navigation_inspection::inspect_endpoints(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+                |report| emit(report, output, &install),
+            )?;
+        }
         PhysicsCommand::NavigationCorridor {
             install,
             load_order,

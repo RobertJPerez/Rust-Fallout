@@ -30,8 +30,14 @@ is an explicit inspection choice, not an original-game measurement.
 
 Losing focus, changing context, connecting/replacing a controller or a connection
 change on the same controller enters a boundary. Held buttons are quarantined
-until release; held sticks must return to neutral. Focus loss includes the last
-focused keyboard sample because Bevy synthesizes key releases when focus is lost.
+until release; held sticks must return to neutral. Keyboard quarantine survives
+empty samples after focus loss. The adapter reads primary-window `KeyboardInput`
+messages: a release in a stable focused context or a fresh non-repeat press can
+leave quarantine. Repeats cannot arm quarantined movement or shortcuts. `KeyboardFocusLost`
+also enters a boundary, so Bevy's delayed synthetic releases cannot arm a key
+even if the window has already regained focus. A fresh press can restore input
+after a physical release outside the application was not observed. Keyboard
+shortcut edges use these fresh source messages rather than `ButtonInput` edges.
 Transient mouse motion and scrolling at a context/focus boundary are discarded.
 A mode-toggle frame cannot apply movement from its old context to its new camera.
 The selected controller stays selected until disconnect; replacement selection
@@ -42,8 +48,12 @@ Headless regressions cover source camera overflow and declared source basis vect
 focus recovery, context leakage, mouse drag ownership, analog magnitude, disconnect,
 reconnect and malformed device values. An additional headless Bevy application
 exercises real keyboard, focus, mixed scroll and controller messages through the
-production schedule. The first engineering handoff passes all 14 preview tests,
-affected-package Clippy with warnings denied, formatting and whitespace checks.
+production schedule. The focus follow-up reproduces a held W becoming movement
+after empty focus-regain samples and an auto-repeat. Additional actual-pipeline
+checks cover shortcut repeats, delayed focus clearing, fresh presses after an
+unobserved release and another window's messages. Focused tests, affected-package
+Clippy with warnings denied, formatting and whitespace results belong to the
+corresponding handoff; the original 14-test handoff remains immutable.
 Exact commands, logs and hashes are recorded in the lane's local handoff receipt.
 
 Physical controller discovery requires Bevy's `bevy_gilrs` feature. Its manifest,

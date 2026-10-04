@@ -91,6 +91,14 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Feed one exact three-source clip sample into an explicitly mapped rig skin.
+    NifExternalClipSkin {
+        input: PathBuf,
+        rig: PathBuf,
+        clip: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Compose an explicit supported set of parent/child channels; no blending.
     NifSourcePoseSet {
         input: PathBuf,
@@ -1677,6 +1685,32 @@ fn run(args: Args) -> Result<()> {
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
             }
+        }
+        Command::NifExternalClipSkin {
+            input,
+            rig,
+            clip,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &rig, &clip, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report =
+                nif_skin_inspection::inspect_external_clip_skin(&input, &rig, &clip, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("sampled external clip skin refused; see report".into());
+            }
+            return Ok(());
         }
         Command::NifSourcePoseSet { input, request } => {
             if let Some(path) = output {

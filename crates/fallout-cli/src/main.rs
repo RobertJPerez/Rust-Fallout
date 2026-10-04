@@ -574,6 +574,17 @@ enum Command {
         #[arg(long, requires = "reconstruct_heights", value_parser = parse_cell_key)]
         neighbor_form: Option<identity::FormKey>,
     },
+    /// Classify explicit source points against exact selected navigation triangles.
+    NavigationEndpoints {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Certify an internally generated same-cell source triangle corridor.
     NavigationCorridor {
         #[arg(long)]
@@ -1774,6 +1785,20 @@ fn run(args: Args) -> Result<()> {
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());
             }
+        }
+        Command::NavigationEndpoints {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            navigation_inspection::inspect_endpoints(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+                |report| emit(report, output, &install),
+            )?;
         }
         Command::NavigationCorridor {
             install,

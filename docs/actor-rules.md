@@ -1,5 +1,29 @@
 # Actor package context requests
 
+## Canonical actor reference source context (V3-ACT-15)
+
+`actor_rules::context::observe(&World, &foreign::Content,
+&actors::placements::Catalogue, &actors::Catalogue, ReferenceId, Limits)` returns
+a read-only observation of one existing canonical reference, its exact authored
+ACHR/ACRE placement and uniquely bound winning NPC_/CREA base. It acquires a fresh
+canonical `reference_state::View` and checks ordered source receipts, winning
+content identity, placement kind/flags and base binding provenance. The complete
+source placement and actor scalar fields retain physical offsets and hashes.
+
+The authored transform/scale and raw disabled flags remain source declarations.
+The optional current canonical pose/enable remains a separate reference view;
+missing state stays unavailable. This request does not register a reference,
+initialize an actor, reset pose, infer enable or select a template value.
+Unregistered/dynamic, missing/deleted/non-actor origins and unavailable/wrong-kind
+bases refuse. Changed source bodies/cohorts cannot supply this join. Selected
+fields, source rows, visits and complete JSON projection have finite limits.
+
+`actor-package-context --include-actor-context --explicit-subject ID` adds the
+observation after strict current snapshot restoration. Its resolved base must
+match `--actor-root`; a mismatch refuses instead of binding another actor.
+The host verifies the canonical snapshot remains identical. Default package
+context output remains unchanged.
+
 `actor_rules::packages::Requests::prepare` joins one winning actor's existing
 ordered PKID associations to `actors::package_dependencies`. It requires the
 canonical world's exact ordered source receipts and winning-content identity.

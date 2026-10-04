@@ -44,6 +44,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) include_faction_requests: bool,
     pub(super) include_stat_requests: bool,
     pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
+    pub(super) include_actor_context: bool,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -67,6 +68,7 @@ pub(super) fn package_context(
     let mut store = order.store(install, cache)?;
     let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
     let world = World::restore(&scripts, snapshot, limits)?;
+    let before_observation = options.include_actor_context.then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
     let inventory = inventory::Catalogue::load(&mut store, Default::default())?;
     let actors = actors::Catalogue::load(&inventory, Default::default())?;
@@ -167,6 +169,28 @@ pub(super) fn package_context(
             .require_execution()
             .expect_err("package execution is unsupported");
         report["package_capability"] = serde_json::to_value(capability)?;
+    }
+    if options.include_actor_context {
+        let reference = options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId)
+            .ok_or("actor context requires an explicit canonical subject")?;
+        let placements = actors::placements::Catalogue::load(&mut store, Default::default())?;
+        let observation = fallout_runtime::actor_rules::context::observe(
+            &world,
+            &content,
+            &placements,
+            &actors,
+            reference,
+            Default::default(),
+        )?;
+        if observation.actor.key != options.actor_root {
+            return Err("canonical actor placement base differs from --actor-root".into());
+        }
+        report["actor_context"] = serde_json::to_value(observation)?;
+        if before_observation.as_ref() != Some(&world.snapshot()) {
+            return Err("actor context changed canonical state".into());
+        }
     }
     Ok(report)
 }

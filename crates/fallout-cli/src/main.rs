@@ -253,6 +253,8 @@ enum Command {
         /// Report the exact refusal for a package operation; never execute AI.
         #[arg(long, value_parser = actor_inspection::parse_package_operation)]
         package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
+        #[arg(long, requires = "explicit_subject")]
+        include_actor_context: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1002,6 +1004,7 @@ fn run(args: Args) -> Result<()> {
             include_faction_requests,
             include_stat_requests,
             package_capability,
+            include_actor_context,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1016,6 +1019,7 @@ fn run(args: Args) -> Result<()> {
                     include_faction_requests,
                     include_stat_requests,
                     package_capability,
+                    include_actor_context,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

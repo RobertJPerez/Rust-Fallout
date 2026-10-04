@@ -1300,3 +1300,40 @@ visits, retained fields, bindings, raw word spans, raw bytes and projection
 bytes have separate bounds. Ammo choice, projectile precedence, firing,
 reloading, consumption, damage, spread, ballistics and mod effects remain
 unavailable; the source request does not mutate canonical state.
+
+## Selected death-item source requests (ACT24)
+
+`actor-sources --death-item-root PLUGIN:HEX --death-item-field INDEX` selects one
+physical INAM association. Both flags are required. The private, non-deserializable
+`actors::death_item_inputs::Manifest` exposes a read-only `nodes()` view from
+`request(&mut RecordStore, &actors::Catalogue, &associations::Catalogue,
+&leveled::Catalogue, &FormKey, usize, Limits)`. The existing leveled producer is
+the only LVLO/COED decoder. This adapter retains physical bytes, existing typed
+values, duplicate entries and exact winning header requests for each binding.
+Item, owner and global bodies remain unread.
+
+Pinned xEdit Common `wbLeveledListEntry` (9062–9086) declares level and count as
+`itU16`; high bits remain unsigned words. Count absence stays explicit and an
+editor's default is never inserted. FNV LVLI (6683–6699), COED (2898–2906) and
+Common owner decider (5718–5738) ground the retained fields and ownership union.
+Only a live FACT owner admits the existing signed i32 required-rank view; item
+condition stays raw float bits. Unknown fields retain opaque bytes. Untested
+record versions retain all physical fields with typed values and child links
+withheld. Malformed known layouts fail through the existing producer.
+
+INAM uses Traits template bit 1. Repeated INAM and unavailable/repeated ACBS
+withhold direct declaration admission; structural source evidence remains
+separate. Each list preserves all chance/flags/global singleton occurrences,
+COED attachment findings and null, missing, deleted or unsupported bindings.
+No list metadata is evaluated. Nested lists are deduplicated by exact FormKey
+while all physical edges remain. Selected cycles fail atomically through the
+shared iterative SCC helper. A longest-path DAG check includes shared children
+and leaf header requests in the depth bound. Unselected cycles do not gate the
+request. Work reservations bound SCC traversal before graph allocations.
+
+Twelve limits cover the complete source cohort, depth, selected lists, individual
+record bytes, decoded bytes, field/work visits, retained fields/entries/bindings,
+header requests, raw bytes and serialized projection. Exact boundary fixtures
+exercise each. Requests establish source candidates only: no RNG, probability
+roll, level threshold, respawn, inherited selection, death event or item creation.
+The canonical runtime and direct inventory initialization remain unchanged.

@@ -306,6 +306,8 @@ pub(super) struct Options {
     pub(super) effect_field: Option<usize>,
     pub(super) weapon_root: Option<FormKey>,
     pub(super) ammo_root: Option<FormKey>,
+    pub(super) death_item_root: Option<FormKey>,
+    pub(super) death_item_field: Option<usize>,
     pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
@@ -437,6 +439,7 @@ pub(super) fn inspect(
         || options.voice_root.is_some()
         || options.initialization_root.is_some()
         || options.effect_root.is_some()
+        || options.death_item_root.is_some()
     {
         Some(actors::associations::Catalogue::load(
             &mut store,
@@ -559,6 +562,23 @@ pub(super) fn inspect(
             Default::default(),
         )?;
         report["actor_attack_inputs"] = json!({"manifest": manifest});
+    }
+    if let Some(root) = &options.death_item_root {
+        let lists = leveled::Catalogue::load(&mut store, Default::default())?;
+        let manifest = actors::death_item_inputs::request(
+            &mut store,
+            &catalogue,
+            associations
+                .as_ref()
+                .expect("death-item associations loaded"),
+            &lists,
+            root,
+            options
+                .death_item_field
+                .ok_or("death-item root requires a physical field index")?,
+            Default::default(),
+        )?;
+        report["actor_death_item_inputs"] = json!({"manifest": manifest});
     }
     if let Some(root) = &options.script_root {
         let scripts =
@@ -865,6 +885,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         return Err("independent actor source comparison differs in actor_attack_inputs".into());
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
+    if report.get("actor_death_item_inputs").is_some()
+        && report.get("actor_death_item_inputs") != oracle.get("actor_death_item_inputs")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_death_item_inputs".into(),
+        );
+    }
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
         "fields_checked":report["counts"]["fields"],"scalar_fields_checked":report["counts"]["scalar_fields"],

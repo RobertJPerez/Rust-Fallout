@@ -739,7 +739,7 @@ mod tests {
             .concat()
         };
         let reference = |id: u32, teleport: u32, x: f32| {
-            let pose = [x, 2.0, 3.0, 0.0, 0.0, -0.5]
+            let pose = [x, 2.0, 3.0, 0.0, -0.0, -0.5]
                 .into_iter()
                 .flat_map(f32::to_le_bytes)
                 .collect::<Vec<_>>();
@@ -809,6 +809,17 @@ mod tests {
             42.0
         );
         assert_eq!(report["door_destination"]["destination"]["raw_flags"], 7);
+        assert_eq!(
+            report["door_destination"]["destination"]["authored_transform_words"],
+            json!([
+                0x4228_0000_u32,
+                0x4000_0000,
+                0x4040_0000,
+                0,
+                0x8000_0000_u32,
+                0xbf00_0000_u32
+            ])
+        );
         assert_eq!(report["captured_sources_available"], true);
         assert_eq!(report["residency"]["completed_models"], 1);
         assert_eq!(report["residency"]["completed_textures"], 1);

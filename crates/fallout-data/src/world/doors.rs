@@ -21,6 +21,9 @@ pub struct Destination {
     pub door: FormKey,
     /// The source door's XTEL position/rotation, in original source units.
     pub authored_transform: Transform,
+    /// Exact XTEL f32 words: position XYZ, then rotation XYZ. These preserve
+    /// signed zero even when a downstream numeric display normalizes it.
+    pub authored_transform_words: [u32; 6],
     pub raw_flags: u32,
 }
 
@@ -223,10 +226,19 @@ impl DoorDestination {
                     metadata.destination_cell_node =
                         graph.nodes.iter().position(|node| node.key == *cell_key);
                     if let Some(teleport) = &source.teleport {
+                        let pose = &teleport.value.destination;
                         metadata.destination = Some(Destination {
                             cell: cell_key.clone(),
                             door: destination_key.clone(),
                             authored_transform: teleport.value.destination.clone(),
+                            authored_transform_words: [
+                                pose.position[0].to_bits(),
+                                pose.position[1].to_bits(),
+                                pose.position[2].to_bits(),
+                                pose.rotation[0].to_bits(),
+                                pose.rotation[1].to_bits(),
+                                pose.rotation[2].to_bits(),
+                            ],
                             raw_flags: teleport.value.flags,
                         });
                     }

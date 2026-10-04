@@ -12,6 +12,11 @@ identify exact winning headers, physical field spans, raw form IDs and source
 plugin digests. The destination position and rotation come from the source door's
 XTEL field, in original units, with its raw flags preserved. Target-door DATA is a
 distinct placement and is never substituted for that authored transform.
+`authored_transform_words` preserves the six exact XTEL f32 bit patterns in
+position XYZ, then rotation XYZ order. Integer words carry signed zero through
+numeric display/JSON tools that may normalize it; they do not apply a coordinate
+conversion or an activation rule. The typed/display transform remains alongside
+those words, backed by the same immutable decoded source field and graph span.
 
 Unresolved, deleted, wrongly typed, moved-out-of-cell and absent-link requests
 retain diagnostics and cannot prepare a destination CELL. Construction itself

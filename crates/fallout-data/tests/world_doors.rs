@@ -164,6 +164,12 @@ fn exact_source_xtel_prepares_its_destination_cell_without_applying_pose() {
         .map(f32::to_bits)
         .collect::<Vec<_>>();
     assert_eq!(pose, SOURCE_POSE);
+    assert_eq!(destination.authored_transform_words, SOURCE_POSE);
+    let serialized = serde_json::to_value(metadata).unwrap();
+    assert_eq!(
+        serialized["destination"]["authored_transform_words"],
+        serde_json::json!(SOURCE_POSE)
+    );
     assert_eq!(destination.raw_flags, 0xdead_beef);
     let graph = request.graph();
     let node = &graph.nodes[metadata.destination_cell_node.unwrap()];

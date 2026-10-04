@@ -585,6 +585,17 @@ enum Command {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Advance or cancel a bounded source navigation search without restarting.
+    NavigationSearch {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Certify an internally generated same-cell source triangle corridor.
     NavigationCorridor {
         #[arg(long)]
@@ -1791,6 +1802,20 @@ fn run(args: Args) -> Result<()> {
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());
             }
+        }
+        Command::NavigationSearch {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect_search(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+            )?;
+            emit(&report, output, &install)?;
         }
         Command::NavigationEndpoints {
             install,

@@ -7,6 +7,10 @@ mod source_validation;
 mod status;
 mod worker;
 
+#[cfg(test)]
+#[path = "../../tests/common/mod.rs"]
+mod test_source;
+
 use crate::{Limits, World, snapshot::Snapshot};
 pub use repository::{LoadReceipt, Recovery, Repository, Slot, Stage, WriteReceipt};
 pub use status::{SaveState, SaveStatus};

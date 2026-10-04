@@ -1,14 +1,11 @@
 //! Observe actual schema ownership through the existing queue, rather than
 //! inferring its lifetime from serialized-byte admission counters.
-#[path = "../../../tests/common/mod.rs"]
-mod common;
-
 use super::*;
 use crate::{
     Limits, World,
     events::Context,
     identity::{CampaignId, Owner, Value},
-    save::{Recovery, SaveState, SaveStatus, Stage},
+    save::{Recovery, SaveState, SaveStatus, Stage, test_source as common},
     state::DefinitionSchema,
 };
 use fallout_data::loaded_scripts::Catalogue;

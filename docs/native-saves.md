@@ -238,6 +238,16 @@ and process-lifetime checks, not a measurement of total heap use. Set
 running `save::worker::source_context_tests` to preserve authored inputs, exact
 snapshots, repository slots and the asserted lifetime observations.
 
+Separate source-budget fixtures retain 32 authored definitions and one live
+script with a pending compiled block. They derive the identity-byte charge from
+the source plugin name and fixed hexadecimal SHA-256 identity size. Capture at
+the exact charge owns the bounded schema index and restores the complete state;
+a budget one byte smaller owns no partial schema index and refuses before any
+temporary or rotation stage, preserving the valid current save. Both snapshots
+fit within their serialized-byte budgets. Set `FALLOUT_SOURCE_BUDGET_EVIDENCE`
+to a fresh existing private directory when running
+`save::source_validation::tests` to retain this distinct boundary evidence.
+
 Uninitialized unsupported locals, exact numeric bits, schema-1/2 migrations,
 explicit recovery and the native envelope remain unchanged.
 

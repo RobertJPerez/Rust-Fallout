@@ -66,6 +66,8 @@ pub(crate) enum ActorsCommand {
         death_item_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires = "death_item_root")]
         death_item_field: Option<usize>,
+        #[arg(long, value_parser = actor_inspection::parse_boxed_root)]
+        body_part_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
         creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },

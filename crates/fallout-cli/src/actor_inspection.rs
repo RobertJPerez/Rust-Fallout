@@ -309,6 +309,7 @@ pub(super) struct Options {
     pub(super) ammo_root: Option<FormKey>,
     pub(super) death_item_root: Option<FormKey>,
     pub(super) death_item_field: Option<usize>,
+    pub(super) body_part_root: Option<FormKey>,
     pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
@@ -527,6 +528,11 @@ pub(super) fn inspect(
         let manifest =
             actors::ai_inputs::request(&mut store, &catalogue, root, Default::default())?;
         report["actor_ai_inputs"] = json!({"manifest": manifest});
+    }
+    if let Some(root) = &options.body_part_root {
+        let manifest =
+            actors::body_part_inputs::request(&mut store, &catalogue, root, Default::default())?;
+        report["actor_body_part_inputs"] = json!({"manifest": manifest});
     }
     if let Some(root) = &options.initialization_root {
         let manifest = actors::initialization_inputs::request(
@@ -902,6 +908,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         return Err("independent actor source comparison differs in actor_attack_inputs".into());
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
+    if report.get("actor_body_part_inputs").is_some()
+        && report.get("actor_body_part_inputs") != oracle.get("actor_body_part_inputs")
+    {
+        return Err("independent actor source comparison differs in actor_body_part_inputs".into());
+    }
     if report.get("actor_material_overrides").is_some()
         && report.get("actor_material_overrides") != oracle.get("actor_material_overrides")
     {

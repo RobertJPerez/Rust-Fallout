@@ -653,3 +653,406 @@ fn cold_restore_helper() {
     assert_eq!(live.locals()[&90], Value::Uninitialized);
     println!("VM_COPY_COLD_FIXED_EXPECTATIONS_PASSED");
 }
+
+fn saved_fixture(body: &[u8]) -> (tempfile::TempDir, Arc<Catalogue>, Content) {
+    let (directory, _, _) = fixture(body);
+    let path = directory.path().join("FalloutNV.esm");
+    let mut bytes = fs::read(&path).unwrap();
+    let placement: Vec<_> = [0x3f800000_u32, 0x80000000, 1, 0, 0, 0]
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect();
+    bytes.extend(record(b"CELL", 0x400, 0, &field(b"DATA", &[1])));
+    bytes.extend(record(
+        b"REFR",
+        0x500,
+        0,
+        &[
+            field(b"NAME", &0x100_u32.to_le_bytes()),
+            field(b"DATA", &placement),
+        ]
+        .concat(),
+    ));
+    fs::write(path, bytes).unwrap();
+    let (catalogue, content) = load_content(directory.path());
+    (directory, catalogue, content)
+}
+
+fn saved_world(catalogue: Arc<Catalogue>) -> (World<'static>, u64) {
+    let (mut world, handle, sequence) = seed(catalogue, Some(0x7ff8123456789abc));
+    world
+        .assign(
+            handle,
+            &[(
+                2,
+                Value::Number {
+                    bits: 0x8000000000000000,
+                },
+            )],
+        )
+        .unwrap();
+    let unrelated = world.register_reference(Some(form(0x500))).unwrap();
+    let view = world.reference_view(unrelated).unwrap();
+    let pose = fallout_runtime::reference_state::Pose::from_source(
+        &fallout_data::world::Transform {
+            position: [1.0, -0.0, f32::from_bits(1)],
+            rotation: [0.0; 3],
+        },
+        None,
+    )
+    .unwrap();
+    let proposal = world
+        .stage_reference_state(
+            &view,
+            fallout_runtime::reference_state::State::new(form(0x400), pose, false).unwrap(),
+        )
+        .unwrap();
+    world.commit_reference_state(proposal).unwrap();
+    world.initialize_inventory(unrelated).unwrap();
+    let mut facts = fallout_runtime::inventory::Facts::unknown(form(0x100));
+    facts.condition = Some(fallout_runtime::inventory::Condition::Float32 { bits: 0x7fc12345 });
+    facts
+        .extra_fields
+        .push(fallout_runtime::inventory::OpaqueExtra {
+            tag: *b"TEST",
+            bytes: vec![0, 255, 1],
+        });
+    world
+        .add_item(unrelated, facts, 19.try_into().unwrap())
+        .unwrap();
+    world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    (world, sequence)
+}
+
+fn expected_saved_copy(mut before: Snapshot) -> Snapshot {
+    before.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 2)
+        .unwrap()
+        .value = Value::Number {
+        bits: 0x7ff8123456789abc,
+    };
+    before.state_revision += 1;
+    before.pending_events.remove(0);
+    before
+}
+
+#[test]
+fn saved_pending_consumer_commits_existing_head_and_keeps_every_unrelated_bank_on_cold_restore() {
+    use fallout_runtime::execution::copy_probe::{self, PendingOutcome};
+    let (_directory, catalogue, content) = saved_fixture(&event(&copy()));
+    let sources = prepared_sources(&catalogue);
+    let (world, sequence) = saved_world(Arc::clone(&catalogue));
+    let before = world.snapshot();
+    let mut restored =
+        World::restore(Arc::clone(&catalogue), before.clone(), Default::default()).unwrap();
+    let result = copy_probe::commit_pending(
+        &mut restored,
+        &sources,
+        &content,
+        sequence,
+        1.try_into().unwrap(),
+        Intent::Engineering,
+        Default::default(),
+    )
+    .unwrap();
+    let PendingOutcome::EngineeringCommitted { committed } = result else {
+        panic!("{result:?}")
+    };
+    assert_eq!(
+        committed.trace.destination_before,
+        Value::Number {
+            bits: 0x8000000000000000
+        }
+    );
+    assert_eq!(committed.receipt.assignments, 1);
+    assert_eq!(
+        committed.receipt.acknowledged.as_ref(),
+        Some(&before.pending_events[0])
+    );
+    let expected = expected_saved_copy(before);
+    assert_eq!(restored.snapshot(), expected);
+    let mut cold =
+        World::restore(Arc::clone(&catalogue), expected.clone(), Default::default()).unwrap();
+    assert!(
+        copy_probe::commit_pending(
+            &mut cold,
+            &sources,
+            &content,
+            sequence,
+            1.try_into().unwrap(),
+            Intent::Engineering,
+            Default::default()
+        )
+        .is_err()
+    );
+    assert_eq!(cold.snapshot(), expected);
+}
+
+#[test]
+fn saved_pending_consumer_requires_matching_activation_head_and_explicit_engineering() {
+    use fallout_runtime::execution::copy_probe::{self, PendingOutcome};
+    let (_directory, catalogue, content) = saved_fixture(&event(&copy()));
+    let sources = prepared_sources(&catalogue);
+    let (mut world, sequence) = saved_world(Arc::clone(&catalogue));
+    let before = world.snapshot();
+    for (requested, activation) in [(sequence, 2), (sequence + 1, 1), (0, 1)] {
+        assert!(
+            copy_probe::commit_pending(
+                &mut world,
+                &sources,
+                &content,
+                requested,
+                activation.try_into().unwrap(),
+                Intent::Engineering,
+                Default::default()
+            )
+            .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let result = copy_probe::commit_pending(
+        &mut world,
+        &sources,
+        &content,
+        sequence,
+        1.try_into().unwrap(),
+        Intent::Faithful,
+        Default::default(),
+    )
+    .unwrap();
+    assert!(matches!(
+        result,
+        PendingOutcome::Unsupported {
+            reason: Unsupported::UnverifiedRetailSemantics,
+            ..
+        }
+    ));
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+#[ignore = "built CLI and authored metadata copy; saved engineering state only, no original launch"]
+fn cli_saved_pending_copy_helper() {
+    use serde_json::{Value as Json, json};
+    use std::path::PathBuf;
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("metadata input"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_SAVED_COPY_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let (temporary, catalogue, _) = saved_fixture(&event(&copy()));
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let (world, sequence) = saved_world(Arc::clone(&catalogue));
+    let before = world.snapshot();
+    let before_bytes = before.encode(64 * 1024 * 1024).unwrap();
+    let initial = evidence.join("initial.snapshot.json");
+    fs::write(&initial, &before_bytes).unwrap();
+    let request =
+        json!({"schema_version":1,"sequence":sequence,"activation":1,"intent":"engineering"});
+    let run_on =
+        |name: &str, install: &Path, snapshot: &Path, request: &Json, result: Option<&Path>| {
+            let directory = evidence.join(name);
+            fs::create_dir(&directory).unwrap();
+            let request_path = directory.join("request.json");
+            let report = directory.join("report.json");
+            let result = result
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| directory.join("result.snapshot.json"));
+            fs::write(&request_path, serde_json::to_vec_pretty(request).unwrap()).unwrap();
+            let output = Command::new(&cli)
+                .args(["event-operands", "--install"])
+                .arg(install)
+                .arg("--load-order")
+                .arg(&order)
+                .arg("--snapshot-copy-request")
+                .arg(&request_path)
+                .arg("--snapshot-input")
+                .arg(snapshot)
+                .arg("--snapshot-output")
+                .arg(&result)
+                .arg("--output")
+                .arg(&report)
+                .output()
+                .unwrap();
+            fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+            fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+            (output, report, result)
+        };
+    let run = |name: &str, snapshot: &Path, request: &Json, result: Option<&Path>| {
+        run_on(name, &install, snapshot, request, result)
+    };
+    let (output, report_path, result_path) = run("commit", &initial, &request, None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Json = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+    assert_eq!(report["snapshot_copy"]["status"], "engineering_committed");
+    assert_eq!(
+        report["snapshot_copy"]["committed"]["trace"]["copied_value"]["bits"],
+        0x7ff8123456789abc_u64
+    );
+    assert_eq!(report["faithful_execution_admitted"], false);
+    assert_eq!(report["event_acknowledged"], true);
+    assert_eq!(
+        report["prepared_sources"]["counts"]["preparation_attempts"],
+        1
+    );
+    let after = Snapshot::decode(&fs::read(&result_path).unwrap(), Default::default()).unwrap();
+    assert_eq!(after, expected_saved_copy(before.clone()));
+    assert_eq!(fs::read(&initial).unwrap(), before_bytes);
+    let (output, report, result) = run("cold-replay", &result_path, &request, None);
+    assert!(!output.status.success());
+    assert!(!result.exists());
+    assert!(!report.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("journal head"));
+    for (name, field, value, reason) in [
+        ("nonhead", "sequence", json!(sequence + 1), "journal head"),
+        ("activation", "activation", json!(2), "activation differs"),
+        ("zero-activation", "activation", json!(0), "nonzero"),
+        ("missing-intent", "intent", Json::Null, "missing field"),
+        ("faithful", "intent", json!("faithful"), "unknown variant"),
+        ("initializer", "initial_numbers", json!([]), "unknown field"),
+        (
+            "request-schema",
+            "schema_version",
+            json!(2),
+            "request schema",
+        ),
+        (
+            "request-byte-limit",
+            "extra",
+            json!("x".repeat(16 * 1024)),
+            "byte budget",
+        ),
+    ] {
+        let mut invalid = request.clone();
+        if name == "missing-intent" {
+            invalid.as_object_mut().unwrap().remove(field);
+        } else {
+            invalid[field] = value;
+        }
+        let (output, report, result) = run(name, &initial, &invalid, None);
+        assert!(!output.status.success(), "{name}");
+        assert!(!report.exists(), "{name}");
+        assert!(!result.exists(), "{name}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(reason),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let (output, report, _) = run("existing-output", &initial, &request, Some(&result_path));
+    assert!(!output.status.success());
+    assert!(!report.exists());
+    assert_eq!(
+        Snapshot::decode(&fs::read(&result_path).unwrap(), Default::default()).unwrap(),
+        after
+    );
+    let protected = install.join("result.snapshot.json");
+    let (output, report, _) = run("protected-output", &initial, &request, Some(&protected));
+    assert!(!output.status.success());
+    assert!(!report.exists());
+    assert!(!protected.exists());
+    for (name, mutate) in [
+        ("legacy-schema", 0),
+        ("wrong-cohort", 1),
+        ("unset-input", 2),
+    ] {
+        let mut snapshot = serde_json::to_value(&before).unwrap();
+        match mutate {
+            0 => snapshot["schema_version"] = json!(3),
+            1 => snapshot["catalogue_sha256"] = json!("0".repeat(64)),
+            _ => {
+                let locals = snapshot["instances"][0]["locals"].as_array_mut().unwrap();
+                locals.iter_mut().find(|local| local["index"] == 1).unwrap()["value"] =
+                    json!({"kind":"uninitialized"});
+            }
+        }
+        let path = evidence.join(format!("{name}.snapshot.json"));
+        fs::write(&path, serde_json::to_vec(&snapshot).unwrap()).unwrap();
+        let (output, report, result) = run(name, &path, &request, None);
+        assert!(!output.status.success());
+        assert!(!result.exists());
+        if mutate == 2 {
+            let report: Json = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+            assert_eq!(report["snapshot_copy"]["status"], "unsupported");
+            assert_eq!(report["canonical_state_unchanged"], true);
+            assert_eq!(report["result_snapshot"], Json::Null);
+            assert_eq!(report["event_acknowledged"], false);
+        } else {
+            assert!(!report.exists());
+        }
+    }
+    // A different valid source event is bound to its own restored snapshot;
+    // unmeasured literal semantics must refuse without publishing replacement.
+    let (unsupported_source, unsupported_catalogue, _) =
+        saved_fixture(&event(&assignment(&[b's', 2, 0], b"1")));
+    let literal_install = evidence.join("literal-source-copy");
+    fs::create_dir(&literal_install).unwrap();
+    fs::create_dir(literal_install.join("Data")).unwrap();
+    fs::copy(
+        unsupported_source.path().join("FalloutNV.esm"),
+        literal_install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        install.join("FalloutNV.exe"),
+        literal_install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let (unsupported_world, _) = saved_world(unsupported_catalogue);
+    let path = evidence.join("literal.snapshot.json");
+    fs::write(
+        &path,
+        unsupported_world
+            .snapshot()
+            .encode(64 * 1024 * 1024)
+            .unwrap(),
+    )
+    .unwrap();
+    let (output, report, result) = run_on(
+        "unsupported-literal",
+        &literal_install,
+        &path,
+        &request,
+        None,
+    );
+    assert!(!output.status.success());
+    assert!(!result.exists());
+    let report: Json = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+    assert_eq!(report["snapshot_copy"]["reason"], "expression_shape");
+    assert_eq!(report["canonical_state_unchanged"], true);
+    assert_eq!(report["event_acknowledged"], false);
+    fs::write(evidence.join("scope.json"), serde_json::to_vec_pretty(&json!({
+        "scope":"strict_current_snapshot_engineering_copy_only","original_executed":false,
+        "input_schema":before.schema_version,"canonical_expected_snapshot":expected_saved_copy(before),
+        "actual_cli_calls":16,"retail_parity_accepted":false
+    })).unwrap()).unwrap();
+}

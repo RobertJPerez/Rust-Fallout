@@ -473,6 +473,17 @@ enum Command {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve an explicit winning CELL's exact lighting and template declarations.
+    CellLightingSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+    },
     /// Prepare an explicit world's separately selected persistent CELL source plan.
     PersistentCellSources {
         #[arg(long)]
@@ -1432,6 +1443,24 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &install)?;
             if !available {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::CellLightingSources {
+            install,
+            load_order,
+            index_cache,
+            cell,
+        } => {
+            let report = world_preparation_inspection::lighting(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&cell)?,
+            )?;
+            let available = report["source_inputs_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("CELL lighting source inputs unavailable; see report".into());
             }
         }
         Command::PersistentCellSources {

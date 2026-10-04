@@ -688,6 +688,33 @@ pub fn decode_diffuse(bytes: &[u8], clamp: u32) -> Result<Image> {
     decode_diffuse_bounded(bytes, clamp, u64::MAX, 128 * 1024 * 1024)
 }
 
+/// Bevy pads the base BC extent, then wgpu pads each mip to whole 4x4 blocks.
+/// Count that physical footprint, including the final sub-block mip levels.
+pub(crate) fn diffuse_physical_mip_pixels(width: u32, height: u32, levels: u32) -> Result<u64> {
+    if width == 0 || height == 0 || width > 16384 || height > 16384 {
+        return Err("DDS exceeds preview dimensions".into());
+    }
+    if levels == 0 || levels > width.max(height).ilog2() + 1 {
+        return Err("invalid DDS mip count".into());
+    }
+    let physical = |axis: u32| {
+        axis.checked_add(3)
+            .and_then(|value| (value / 4).checked_mul(4))
+            .ok_or("DDS physical extent overflow")
+    };
+    let (width, height) = (physical(width)?, physical(height)?);
+    (0..levels)
+        .try_fold(0u64, |total, mip| {
+            let pixels = u64::from(physical((width >> mip).max(1))?)
+                .checked_mul(u64::from(physical((height >> mip).max(1))?))
+                .ok_or("DDS physical mip texel count overflow")?;
+            total
+                .checked_add(pixels)
+                .ok_or("DDS physical mip texel count overflow")
+        })
+        .map_err(Into::into)
+}
+
 /// The selected tile consumer has tighter input/mip-texel limits. Header,
 /// format and payload interpretation remain in this single existing adapter.
 pub fn decode_diffuse_bounded(
@@ -712,6 +739,17 @@ pub fn decode_diffuse_bounded(
         || u64::from(width) * u64::from(height) > max_pixels
     {
         return Err("DDS exceeds preview dimensions or byte budget".into());
+    }
+    // Match pinned ddsfile's optional MIPMAPCOUNT field and Bevy's zero-to-one
+    // rule. All accepted BC1/BC2/BC3 formats have 4x4 blocks; the existing image
+    // decoder still owns format interpretation. Refuse before it retains data.
+    let header_levels = if word(8) & 0x20000 != 0 {
+        word(28).max(1)
+    } else {
+        1
+    };
+    if diffuse_physical_mip_pixels(width, height, header_levels)? > max_pixels {
+        return Err("DDS exceeds selected image physical mip texel budget".into());
     }
     let wrap = ImageAddressMode::Repeat;
     let edge = ImageAddressMode::ClampToEdge;
@@ -746,16 +784,19 @@ pub fn decode_diffuse_bounded(
         _ => return Err("preview currently supports BC1/BC2/BC3 diffuse textures".into()),
     };
     let levels = image.texture_descriptor.mip_level_count;
-    if levels == 0 || levels > width.max(height).ilog2() + 1 {
-        return Err("invalid DDS mip count".into());
+    if levels != header_levels
+        || image.texture_descriptor.size.width != width.div_ceil(4) * 4
+        || image.texture_descriptor.size.height != height.div_ceil(4) * 4
+    {
+        return Err("DDS decoded extent/mip count differs from bounded header".into());
     }
-    let pixels = (0..levels)
-        .try_fold(0u64, |total, mip| {
-            total.checked_add(u64::from((width >> mip).max(1)) * u64::from((height >> mip).max(1)))
-        })
-        .ok_or("DDS mip texel count overflow")?;
-    if pixels > max_pixels {
-        return Err("DDS exceeds selected image mip texel budget".into());
+    if diffuse_physical_mip_pixels(
+        image.texture_descriptor.size.width,
+        image.texture_descriptor.size.height,
+        levels,
+    )? > max_pixels
+    {
+        return Err("DDS exceeds selected image physical mip texel budget".into());
     }
     let expected: usize = (0..levels)
         .map(|mip| {

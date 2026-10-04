@@ -362,6 +362,7 @@ pub fn load<'a>(
         ..ImageSamplerDescriptor::nearest()
     });
     let mip_levels = image.texture_descriptor.mip_level_count;
+    let mip_pixels = model::diffuse_physical_mip_pixels(size.width, size.height, mip_levels)?;
     let texture = Texture {
         source: texture_source,
         path: path.clone(),
@@ -372,9 +373,7 @@ pub fn load<'a>(
         width: size.width,
         height: size.height,
         mip_levels,
-        mip_pixels: (0..mip_levels)
-            .map(|m| u64::from((size.width >> m).max(1)) * u64::from((size.height >> m).max(1)))
-            .sum(),
+        mip_pixels,
         format: format!("{:?}", image.texture_descriptor.format),
         sampling: SAMPLING,
     };

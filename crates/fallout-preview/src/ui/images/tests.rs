@@ -1,5 +1,6 @@
 use super::*;
 use bevy::image::ImageFilterMode;
+use bevy::render::render_resource::TextureFormat;
 use clap::Parser;
 use std::{
     fs,
@@ -286,6 +287,173 @@ fn sole_dds_adapter_preserves_default_and_bounds_base_all_mip_texels_and_input_b
     let mut missing = bytes.clone();
     missing.pop();
     assert!(model::decode_diffuse_bounded(&missing, 0, 80, 168).is_err());
+}
+
+fn authored_dds_extent(width: u32, height: u32, levels: u32, fourcc: &[u8; 4]) -> Vec<u8> {
+    let block_bytes = if fourcc == b"DXT1" { 8 } else { 16 };
+    let payload: usize = (0..levels)
+        .map(|mip| {
+            (width >> mip).max(1).div_ceil(4) as usize
+                * (height >> mip).max(1).div_ceil(4) as usize
+                * block_bytes
+        })
+        .sum();
+    let mut bytes = vec![0; 128 + payload];
+    bytes[..4].copy_from_slice(b"DDS ");
+    for (offset, value) in [
+        (4, 124),
+        (8, if levels > 1 { 0xa1007 } else { 0x81007 }),
+        (12, height),
+        (16, width),
+        (
+            20,
+            width.div_ceil(4) * height.div_ceil(4) * block_bytes as u32,
+        ),
+        (28, levels),
+        (76, 32),
+        (80, 4),
+        (108, if levels > 1 { 0x401008 } else { 0x1000 }),
+    ] {
+        bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bytes[84..88].copy_from_slice(fourcc);
+    bytes
+}
+
+#[test]
+fn physical_dds_extent_refuses_the_independent_raw_under_physical_over_case_before_decode() {
+    // Root's concrete dimensions: raw 4,194,300, actual Bevy 4,202,496.
+    let bytes = authored_dds_extent(2050, 2046, 1, b"DXT1");
+    assert_eq!(bytes.len(), 2_101_376);
+    let unbounded = model::decode_diffuse(&bytes, 3).unwrap();
+    assert_eq!(unbounded.texture_descriptor.size.width, 2052);
+    assert_eq!(unbounded.texture_descriptor.size.height, 2048);
+    assert_eq!(unbounded.data.as_ref().unwrap().len(), 2_101_248);
+    assert_eq!(
+        model::diffuse_physical_mip_pixels(2050, 2046, 1).unwrap(),
+        4_202_496
+    );
+    for cap in [4_194_300, 4_194_304, 4_202_495] {
+        let error = model::decode_diffuse_bounded(&bytes, 0, cap, bytes.len())
+            .expect_err("Physical extent must refuse the complete image");
+        assert!(error.to_string().contains("physical mip texel budget"));
+    }
+    assert!(model::decode_diffuse_bounded(&bytes, 0, 4_202_496, bytes.len()).is_ok());
+    let aligned = authored_dds_extent(2048, 2048, 1, b"DXT1");
+    assert!(model::decode_diffuse_bounded(&aligned, 0, 4_194_304, aligned.len()).is_ok());
+    assert!(model::decode_diffuse_bounded(&aligned, 0, 4_194_303, aligned.len()).is_err());
+    // An invalid header would fail in ddsfile. The physical refusal arrives
+    // first, establishing that Image::from_buffer has not been reached.
+    let mut invalid = bytes;
+    invalid[4..8].copy_from_slice(&0u32.to_le_bytes());
+    let error = model::decode_diffuse_bounded(&invalid, 0, 4_194_304, invalid.len())
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("physical mip texel budget"));
+    assert!(model::decode_diffuse(&invalid, 0).is_err());
+}
+
+#[test]
+fn physical_tail_mips_and_existing_bc_format_clamp_payload_policies_keep_exact_bounds() {
+    for (width, height, levels, physical_pixels, bc1_payload) in [
+        (1, 1, 1, 16, 8),
+        (4, 4, 3, 48, 24),
+        (7, 5, 3, 96, 48),
+        (8, 8, 2, 80, 40),
+    ] {
+        for fourcc in [b"DXT1", b"DXT2", b"DXT3", b"DXT4", b"DXT5"] {
+            let bytes = authored_dds_extent(width, height, levels, fourcc);
+            let payload = if fourcc == b"DXT1" {
+                bc1_payload
+            } else {
+                bc1_payload * 2
+            };
+            assert_eq!(bytes.len(), 128 + payload);
+            assert_eq!(
+                model::diffuse_physical_mip_pixels(width, height, levels).unwrap(),
+                physical_pixels
+            );
+            for clamp in 0..4 {
+                let image =
+                    model::decode_diffuse_bounded(&bytes, clamp, physical_pixels, bytes.len())
+                        .unwrap();
+                assert_eq!(image.texture_descriptor.mip_level_count, levels);
+                assert_eq!(image.data.as_ref().unwrap(), &bytes[128..]);
+                assert!(matches!(
+                    image.texture_descriptor.format,
+                    TextureFormat::Bc1RgbaUnormSrgb
+                        | TextureFormat::Bc2RgbaUnormSrgb
+                        | TextureFormat::Bc3RgbaUnormSrgb
+                ));
+                assert!(model::decode_diffuse(&bytes, clamp).is_ok());
+            }
+            assert!(
+                model::decode_diffuse_bounded(&bytes, 0, physical_pixels - 1, bytes.len()).is_err()
+            );
+            assert!(
+                model::decode_diffuse_bounded(&bytes, 0, physical_pixels, bytes.len() - 1).is_err()
+            );
+            assert!(
+                model::decode_diffuse_bounded(
+                    &bytes[..bytes.len() - 1],
+                    0,
+                    physical_pixels,
+                    bytes.len()
+                )
+                .is_err()
+            );
+            assert!(
+                model::decode_diffuse_bounded(&bytes, 4, physical_pixels, bytes.len()).is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn hostile_dimensions_optional_mip_header_and_unsupported_formats_never_expand_admission() {
+    let valid = authored_dds_extent(4, 4, 1, b"DXT1");
+    for (offset, value) in [
+        (12, 0),
+        (16, 0),
+        (12, u32::MAX),
+        (16, u32::MAX),
+        (16, 16385),
+    ] {
+        let mut bytes = valid.clone();
+        bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        assert!(model::decode_diffuse_bounded(&bytes, 0, u64::MAX, bytes.len()).is_err());
+    }
+    for (width, height, levels) in [
+        (u32::MAX, 1, 1),
+        (1, u32::MAX, 1),
+        (4, 4, 0),
+        (4, 4, u32::MAX),
+        (4, 4, 4),
+    ] {
+        assert!(model::diffuse_physical_mip_pixels(width, height, levels).is_err());
+    }
+    let mut bytes = valid.clone();
+    bytes[28..32].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert_eq!(
+        model::decode_diffuse_bounded(&bytes, 0, 16, bytes.len())
+            .unwrap()
+            .texture_descriptor
+            .mip_level_count,
+        1
+    );
+    bytes[8..12].copy_from_slice(&0xa1007u32.to_le_bytes());
+    assert!(model::decode_diffuse_bounded(&bytes, 0, u64::MAX, bytes.len()).is_err());
+    bytes[28..32].copy_from_slice(&0u32.to_le_bytes());
+    assert!(model::decode_diffuse_bounded(&bytes, 0, 16, bytes.len()).is_ok());
+    for fourcc in [b"NOPE", b"ATI1", b"ATI2", b"DX10"] {
+        let mut bytes = valid.clone();
+        bytes[84..88].copy_from_slice(fourcc);
+        assert!(model::decode_diffuse_bounded(&bytes, 0, 16, bytes.len()).is_err());
+    }
+    let mut volume = valid;
+    volume[8..12].copy_from_slice(&0x881007u32.to_le_bytes());
+    volume[24..28].copy_from_slice(&2u32.to_le_bytes());
+    assert!(model::decode_diffuse_bounded(&volume, 0, 16, volume.len()).is_err());
 }
 fn archive(folder: &[u8], name: &[u8], payload: &[u8]) -> Vec<u8> {
     let table = 54 + folder.len();

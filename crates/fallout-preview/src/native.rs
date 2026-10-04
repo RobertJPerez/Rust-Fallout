@@ -1,0 +1,494 @@
+//! Read-only canonical observations and an off-frame native save/Continue host.
+//! The existing runtime owns restoration, captures, publication and identity.
+use crate::model;
+use bevy::prelude::*;
+use fallout_data::{coordinates::Affine, identity::FormKey, loaded_scripts::Catalogue};
+use fallout_runtime::{
+    Limits, World,
+    reference_state::View,
+    save::{Captured, LoadReceipt, Recovery, Repository, SaveState, SaveStatus, SaveWorker},
+};
+use serde::Serialize;
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TryRecvError},
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
+};
+
+#[cfg(test)]
+mod render_tests;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Binding {
+    pub key: FormKey,
+    pub canonical: Option<View>,
+    pub source_affine: Option<Affine>,
+    pub display: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Report {
+    pub schema_version: u32,
+    pub load: LoadReceipt,
+    pub campaign: fallout_runtime::identity::CampaignId,
+    pub catalogue_sha256: String,
+    pub revision: u64,
+    pub cell: FormKey,
+    pub bindings: Vec<Binding>,
+    pub scope: &'static str,
+    pub original_save_compatibility: bool,
+}
+
+pub struct Observation {
+    pub report: Report,
+    pub draws: BTreeMap<FormKey, Option<Transform>>,
+    index: BTreeMap<FormKey, usize>,
+}
+impl Observation {
+    pub fn binding(&self, key: &FormKey) -> Option<&Binding> {
+        self.index
+            .get(key)
+            .map(|index| &self.report.bindings[*index])
+    }
+}
+
+pub struct Session {
+    world: World<'static>,
+    catalogue: Arc<Catalogue>,
+    repository: Repository,
+    cell: FormKey,
+    keys: Vec<FormKey>,
+    load: LoadReceipt,
+}
+
+#[derive(Clone, Default)]
+pub struct Shutdown(Arc<ShutdownState>);
+#[derive(Default)]
+struct ShutdownState {
+    closed: AtomicBool,
+    tasks: Mutex<Vec<JoinHandle<()>>>,
+}
+impl Shutdown {
+    /// Drain after App::run, never from a render/input frame. A late cancelled
+    /// loader cannot admit another owner once shutdown has closed admission.
+    pub fn finish(&self) -> model::Result<()> {
+        let tasks = {
+            let mut tasks = self
+                .0
+                .tasks
+                .lock()
+                .map_err(|_| "Native shutdown registry poisoned")?;
+            self.0.closed.store(true, Ordering::Release);
+            std::mem::take(&mut *tasks)
+        };
+        let mut panicked = false;
+        for task in tasks {
+            panicked |= task.join().is_err();
+        }
+        if panicked {
+            return Err("Native host panicked during shutdown".into());
+        }
+        Ok(())
+    }
+}
+
+impl Session {
+    pub fn load(
+        path: &Path,
+        protected: &[PathBuf],
+        catalogue: Arc<Catalogue>,
+        cell: FormKey,
+        keys: Vec<FormKey>,
+    ) -> model::Result<Self> {
+        if keys.len() > 10_000 || keys.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(
+                "Canonical display requires at most 10000 unique sorted source keys".into(),
+            );
+        }
+        let repository = Repository::open(path, protected)?;
+        let (world, load) =
+            repository.load(Arc::clone(&catalogue), Limits::default(), Recovery::Strict)?;
+        Ok(Self {
+            world,
+            catalogue,
+            repository,
+            cell,
+            keys,
+            load,
+        })
+    }
+
+    /// No registration, initialization or state commit is performed by display.
+    pub fn bindings(&self) -> model::Result<Vec<Binding>> {
+        bindings(&self.world, &self.cell, &self.keys)
+    }
+
+    pub fn start(self, origin: [f64; 3], shutdown: Shutdown) -> model::Result<(Host, Observation)> {
+        let initial = observe(&self.world, &self.cell, &self.keys, origin, self.load)?;
+        let (commands, receiver) = mpsc::sync_channel(1);
+        let (results, replies) = mpsc::sync_channel(1);
+        let title = restored_title(&initial, "Native");
+        let mut tasks = shutdown
+            .0
+            .tasks
+            .lock()
+            .map_err(|_| "Native shutdown registry poisoned")?;
+        if shutdown.0.closed.load(Ordering::Acquire) || tasks.len() >= 8 {
+            return Err("Native host admission closed or its eight-owner bound exhausted".into());
+        }
+        let closing = Arc::clone(&shutdown.0);
+        tasks.push(
+            thread::Builder::new()
+                .name("fallout-preview-native".into())
+                .spawn(move || {
+                    run(
+                        self.world,
+                        self.catalogue,
+                        self.repository,
+                        self.cell,
+                        self.keys,
+                        origin,
+                        receiver,
+                        results,
+                        closing,
+                    );
+                })?,
+        );
+        drop(tasks);
+        Ok((
+            Host {
+                commands: Some(commands),
+                replies: Mutex::new(replies),
+                shutdown,
+                pending: false,
+                published: false,
+                title,
+            },
+            initial,
+        ))
+    }
+}
+
+fn bindings(world: &World<'_>, cell: &FormKey, keys: &[FormKey]) -> model::Result<Vec<Binding>> {
+    keys.iter()
+        .map(|key| {
+            let canonical = world
+                .authored_reference(key)
+                .map(|id| world.reference_view(id))
+                .transpose()?;
+            let mut binding = Binding {
+                key: key.clone(),
+                canonical,
+                source_affine: None,
+                display: "canonical-identity-unavailable",
+            };
+            if let Some(view) = &binding.canonical {
+                if view.authored() != Some(key)
+                    || view.campaign() != world.campaign()
+                    || view.revision() != world.revision()
+                    || view.catalogue_fingerprint() != world.catalogue_fingerprint()
+                {
+                    return Err("Canonical observation identity differs from restored world".into());
+                }
+                binding.display = match view.state() {
+                    None => "canonical-state-unavailable",
+                    Some(state) if state.cell() != cell => {
+                        "canonical-reference-outside-selected-cell"
+                    }
+                    Some(state) if !state.enabled() => "canonical-disabled",
+                    Some(state) => match state.pose().source_scale() {
+                        None => "canonical-scale-unavailable",
+                        Some(scale) => {
+                            binding.source_affine = Some(Affine::nv_reference(
+                                &state.pose().source_transform(),
+                                scale,
+                            )?);
+                            "canonical-enabled"
+                        }
+                    },
+                };
+            }
+            Ok(binding)
+        })
+        .collect()
+}
+
+fn observe(
+    world: &World<'_>,
+    cell: &FormKey,
+    keys: &[FormKey],
+    origin: [f64; 3],
+    load: LoadReceipt,
+) -> model::Result<Observation> {
+    if origin.iter().any(|v| !v.is_finite()) {
+        return Err("Canonical display origin must be finite".into());
+    }
+    let bindings = bindings(world, cell, keys)?;
+    let index = bindings
+        .iter()
+        .enumerate()
+        .map(|(index, binding)| (binding.key.clone(), index))
+        .collect();
+    let mut draws = BTreeMap::new();
+    for binding in &bindings {
+        let transform = binding
+            .source_affine
+            .map(|source| -> model::Result<Transform> {
+                let matrix = model::affine(source.relative_view(origin).rows);
+                let transform = Transform::from_matrix(matrix);
+                if !matrix.is_finite() || !transform.is_finite() {
+                    return Err(
+                        "Canonical pose overflows the renderer's finite f32 transform".into(),
+                    );
+                }
+                Ok(transform)
+            })
+            .transpose()?;
+        draws.insert(binding.key.clone(), transform);
+    }
+    Ok(Observation {
+        draws,
+        index,
+        report: Report {
+            schema_version: 1,
+            load,
+            campaign: world.campaign(),
+            catalogue_sha256: world.catalogue_fingerprint().into(),
+            revision: world.revision(),
+            cell: cell.clone(),
+            bindings,
+            scope: "Source-bound project-native canonical pose/enable display; immutable observations; no source initialization or gameplay simulation",
+            original_save_compatibility: false,
+        },
+    })
+}
+
+#[derive(Clone, Copy)]
+pub enum Request {
+    Save,
+    Continue,
+}
+
+pub enum Event {
+    Saved(fallout_runtime::save::WriteReceipt),
+    Continued(Box<Observation>),
+    Failed(String),
+}
+
+pub struct Host {
+    commands: Option<SyncSender<Request>>,
+    replies: Mutex<Receiver<Event>>,
+    shutdown: Shutdown,
+    pending: bool,
+    published: bool,
+    title: String,
+}
+
+impl Host {
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+    pub fn published(&self) -> bool {
+        self.published
+    }
+
+    pub fn request(&mut self, request: Request) -> bool {
+        if self.pending {
+            return false;
+        }
+        if self.shutdown.0.closed.load(Ordering::Acquire) {
+            self.failure("Native host admission closed".into());
+            return false;
+        }
+        match self
+            .commands
+            .as_ref()
+            .ok_or("Native host stopped")
+            .and_then(|sender| {
+                sender
+                    .try_send(request)
+                    .map_err(|_| "Native host unavailable")
+            }) {
+            Ok(()) => {
+                self.pending = true;
+                if matches!(request, Request::Save) {
+                    self.published = false;
+                }
+                self.title = match request {
+                    Request::Save => "Save pending publication",
+                    Request::Continue => "Continue validating current native save",
+                }
+                .into();
+                true
+            }
+            Err(error) => {
+                self.failure(error.into());
+                false
+            }
+        }
+    }
+
+    pub fn failure(&mut self, error: String) {
+        self.title = format!(
+            "Native failed: {}",
+            error.chars().take(160).collect::<String>()
+        );
+    }
+
+    pub fn poll(&mut self) -> Option<Event> {
+        if !self.pending {
+            return None;
+        }
+        let result = self
+            .replies
+            .get_mut()
+            .expect("exclusive native host receiver")
+            .try_recv();
+        let event = match result {
+            Ok(event) => event,
+            Err(TryRecvError::Empty) => return None,
+            Err(TryRecvError::Disconnected) => {
+                Event::Failed("Native host stopped before returning this request".into())
+            }
+        };
+        self.pending = false;
+        match &event {
+            Event::Saved(receipt) => {
+                self.published = true;
+                self.title = format!(
+                    "Save published generation {} revision {}; F5 save; F9 Continue",
+                    receipt.metadata.generation, receipt.metadata.state_revision
+                )
+            }
+            Event::Continued(observation) => self.title = restored_title(observation, "Continue"),
+            Event::Failed(error) => self.failure(error.clone()),
+        }
+        Some(event)
+    }
+}
+
+fn restored_title(observation: &Observation, action: &str) -> String {
+    let available = observation
+        .report
+        .bindings
+        .iter()
+        .filter(|binding| binding.source_affine.is_some())
+        .count();
+    format!(
+        "{action} restored revision {}; {available}/{} poses available; F5 save; F9 Continue",
+        observation.report.revision,
+        observation.report.bindings.len()
+    )
+}
+
+impl Drop for Host {
+    fn drop(&mut self) {
+        // Disconnect admission. The owner drains accepted publication on its
+        // own thread; a slow disk cannot turn window close into a frame join.
+        self.commands.take();
+        // Join ownership remains in Shutdown for collection outside App::run.
+    }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The runtime thread owns source, authority, request and result channels separately"
+)]
+fn run(
+    mut world: World<'static>,
+    catalogue: Arc<Catalogue>,
+    repository: Repository,
+    cell: FormKey,
+    keys: Vec<FormKey>,
+    origin: [f64; 3],
+    commands: Receiver<Request>,
+    results: SyncSender<Event>,
+    closing: Arc<ShutdownState>,
+) {
+    // This is the only writer handle, and it is dropped outside the frame loop.
+    let mut writer: Option<SaveWorker> = None;
+    loop {
+        let request = if closing.closed.load(Ordering::Acquire) {
+            // Drain an already admitted host command before exiting. No new
+            // request can pass Host::request after admission is closed.
+            match commands.try_recv() {
+                Ok(request) => request,
+                Err(_) => break,
+            }
+        } else {
+            match commands.recv_timeout(Duration::from_millis(5)) {
+                Ok(request) => request,
+                Err(RecvTimeoutError::Timeout) => continue,
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        };
+        let event = match request {
+            Request::Continue => {
+                let result =
+                    repository.load(Arc::clone(&catalogue), Limits::default(), Recovery::Strict);
+                match result {
+                    Ok((fresh, load)) if fresh.campaign() == world.campaign() => {
+                        match observe(&fresh, &cell, &keys, origin, load) {
+                            Ok(observation) => {
+                                world = fresh;
+                                Event::Continued(Box::new(observation))
+                            }
+                            Err(error) => Event::Failed(error.to_string()),
+                        }
+                    }
+                    Ok(_) => Event::Failed(
+                        "Continue campaign differs from the active canonical world".into(),
+                    ),
+                    Err(error) => Event::Failed(error.to_string()),
+                }
+            }
+            Request::Save => {
+                if writer.is_none() {
+                    match SaveWorker::start(repository.clone(), 1) {
+                        Ok(worker) => writer = Some(worker),
+                        Err(error) => {
+                            if results.send(Event::Failed(error.to_string())).is_err() {
+                                break;
+                            }
+                            continue;
+                        }
+                    }
+                }
+                match writer
+                    .as_mut()
+                    .expect("started writer")
+                    .try_submit(Captured::at_boundary(&world))
+                {
+                    Err(error) => Event::Failed(error.to_string()),
+                    Ok(ticket) => {
+                        let mut status = SaveStatus::new(ticket);
+                        while matches!(status.poll(), SaveState::Pending) {
+                            thread::sleep(Duration::from_millis(2));
+                        }
+                        match status.wait() {
+                            Ok(receipt) => Event::Saved(receipt),
+                            Err(error) => Event::Failed(error.to_string()),
+                        }
+                    }
+                }
+            }
+        };
+        if results.send(event).is_err() {
+            break;
+        }
+    }
+    if let Some(writer) = writer
+        && let Err(error) = writer.finish()
+    {
+        eprintln!("Native host writer shutdown: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests;

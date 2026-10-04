@@ -21,6 +21,17 @@ metadata without emitting raw story text. The inspector supplies no native
 condition signature table; unsupported functions remain explicit. Existing
 `dialogue-membership` behavior remains the structural index inspection.
 
+The CLI also consumes every response-owned NAM1 span through the retained
+`info_bytes` accessor. `subtitle_payloads` carries its response ordinal, original
+response number, occurrence ordinal, exact INFO field index, byte length and
+SHA-256. Repeated occurrences, original terminators and non-UTF8 bytes remain
+distinct; orphan fields remain in source metadata rather than being assigned to
+a response. A hash mismatch refuses the report. Indexed field access visits each
+response-owned field once, without rereading the plugin or repeatedly searching
+for the next occurrence. These receipts contain hashes rather than story text;
+they establish source-byte consumption without admitting UI display, voice
+playback, dialogue eligibility or original timing.
+
 The returned `ConversationSources` retains their original decoded bodies and
 checked field spans. Presentation can consume `subtitle_bytes(response, occurrence)`
 directly, including original terminators and non-UTF8 bytes. Repeated NAM1 fields

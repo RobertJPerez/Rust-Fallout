@@ -59,6 +59,22 @@ pub(super) fn load(install: &Path, order_path: &Path, root: &Path) -> Result<Val
         "canonical_snapshot_bytes":bytes.len(),"source_bound_restore":true,"original_live_state_captured":false,"retail_parity_accepted":false}),
     )
 }
+pub(super) fn availability(install: &Path, order_path: &Path, root: &Path) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, None)?;
+    let catalogue =
+        loaded_scripts::Catalogue::load(&mut store, loaded_scripts::Limits::default(), |_, _| {
+            Ok(())
+        })?;
+    let repository = Repository::open(root, &[install.into()])?;
+    let report = repository.inspect_availability(&catalogue, Limits::default())?;
+    Ok(json!({
+        "schema_version":1,"profile":"nv-original","availability":report,
+        "scope":"Separate read-only source-bound slot observations; choose an explicit Recovery policy for a later load",
+        "pair_is_atomic":false,"slot_selected":false,"current_repaired":false,
+        "original_live_state_captured":false,"retail_parity_accepted":false
+    }))
+}
 pub(super) fn probe(
     install: &Path,
     order_path: &Path,

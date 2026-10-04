@@ -1,4 +1,5 @@
 //! Source-bound actor model dependencies. No inheritance or part/clip selection.
+mod creature_parts;
 pub mod equipment;
 mod fields;
 mod manifest;
@@ -10,6 +11,10 @@ use crate::{
     identity::{self, FormKey},
     inventory, leveled, plugin, record_metadata,
     store::{RecordStore, SourceReceipt},
+};
+pub use creature_parts::{
+    CreaturePartRequest, CreaturePartSelection, CreaturePartsCounts, CreaturePartsLimits,
+    CreaturePartsManifest,
 };
 pub use fields::{ByteString, Context, Field, Link, LinkRole, Marker, PathRole, Value};
 pub use manifest::{

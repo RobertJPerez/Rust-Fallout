@@ -1182,3 +1182,80 @@ are byte-identical. The original first-person skeleton's exact node12/controller
 request refuses its missing transform interpolator through both one-shot and
 prepared batch paths, without a partial result. Frozen sources/executables and
 receipts stay in ignored `local/v3-asset-15`; retail playback remains unverified.
+
+## Explicit simultaneous parent and child channels
+
+`pose::evaluate_set(bytes, source, &[Request], SetLimits)` returns an engineering
+`PoseSet` for exact selected object/controller links. Each affected object has
+exactly one request. Every controlled ancestor needed by a requested object's
+world transform must also have an explicit supported request; missing ancestors
+refuse with the source object and controller IDs. Unselected static ancestors
+retain authored locals. Duplicate requests, cycles, orphaned ancestry, unsupported
+rotation or controller chains, out-of-range times and malformed links refuse.
+
+The producer prepares the existing source catalogues privately, validates the
+required ancestry and admits all requested local channels, then propagates each
+required source object once through a private bounded topological queue derived
+from the existing validated parents. The public scene vector is sorted by source
+block ID and supplies no propagation-order guarantee. A required-child CSR and
+root queue admit their full count/offset/child/queue storage before allocation;
+source block order cannot cause a lower-ID child to propagate before its parent.
+Parent and child requests may have different explicit times. Request permutation
+changes only output order, including the local diagnostic observations; it never
+selects a priority or changes evaluated transforms. Ancestor receipts record the
+exact selected source object ID and effective local matrix, alongside its raw
+authored local and source span. No blending, sequence selection, clock, quaternion
+repair or live event behavior is introduced.
+
+Defaults admit 256 requests, 16 MiB extra logical array/string storage, two million
+set traversal units, one million validation and sampling units each, and ancestry
+depth 1,024. Existing source preparation/decoder caps remain separate and appear
+in the preparation receipt. Request lookup, required-object and world-matrix maps
+and complete output headers are charged before allocation; copied span hashes and
+ancestor entries are charged before retention. Each next channel receives only
+the aggregate remaining sampler allowance, using a private per-request diagnostic
+counter. Logical counts include charged temporary maps, excluding allocator
+overhead and spare vector capacity. Later failure drops the whole set and returns
+no completed poses. This is not a process-memory or playback-speed claim.
+
+The owned headless consumer is:
+
+```text
+fallout nif-source-pose-set INPUT --request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 JSON requires `expected_sha256` (32 byte integers) and `requests`
+containing exact `object`, `controller` and finite `source_time` fields. Request
+JSON is capped at 64 KiB and source input at 64 MiB; output must be outside both
+input directories. Identity/semantic refusal emits `evaluation: null`, exact
+error and nonzero exit. Existing one-shot and prepared-batch consumers retain
+their contracts. `tools/nif-animation-oracle/check_set.py` constructs a second
+independent three-node source and checks literal noncommuting world matrices,
+negative/zero/positive scales, mixed explicit times, permutation and refusals.
+
+Validation passes 49 focused data tests (four new set cases), 38 CLI tests,
+affected all-target Clippy with warnings denied, formatting and the CLI build.
+The frozen second source passes five literal matrix cases, one full-observation
+permutation check and eleven intended refusals. Five prior one-shot reports and
+the prepared batch report remain byte-identical. An original first-person
+skeleton node12/controller13 request refuses its unselected controlled ancestor
+node10/controller11, without any pose escaping. The initial permutation test
+caught cumulative per-channel diagnostic counters; each request now uses its
+own counter under the shared remaining allowance. That failed test receipt and
+the initial Clippy style failure remain preserved beside the passing rerun in
+ignored `local/v3-asset-17`. Engineering transforms do not prove retail playback.
+
+The coordinator's independent review found that the original set propagation
+incorrectly treated the public block-ID-sorted scene vector as topological order.
+The correction uses the bounded private queue described above. Two additional
+Rust tests cover a higher-ID root and parent, complete observation permutation,
+and exact/one-under storage, traversal, sampler and depth limits. All 57 focused
+data tests, 38 CLI tests, Clippy, formatting and the rebuilt consumer pass. CLI
+tests ran serially after a preserved parallel-test temporary-directory collision.
+The frozen correction also passes the reviewer's independent hierarchy 2->1->0
+with every expected object field matching in both request orders; public source
+scene ordering is unchanged. The authored checker adds both orders of that
+higher-parent hierarchy. Five prior one-shot reports and the prepared batch
+report remain byte-identical. Original reports and the review failure are
+preserved; fresh correction evidence is in
+`local/v3-asset-17/topology-correction-01`.

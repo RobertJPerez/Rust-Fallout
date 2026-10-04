@@ -3,8 +3,11 @@
 The existing model, CELL and terrain inspector creates its window before starting
 source preparation. `WindowCreated` for the primary window admits one preparation
 worker; headless captures start the same worker on the first update. The window
-title shows preparation, upload and failure status. Loading allows close input
-while suppressing camera actions, and the input boundary quarantines held actions
+title shows preparation, upload and failure status. During interactive loading,
+Backspace cancels the inspection request; Enter retries a terminal failure or
+completed cancellation; Escape closes. These are inspection keyboard bindings,
+not original menu/controller actions. Loading suppresses camera and canonical
+save/Continue actions, and the input boundary quarantines held actions
 when a completed scene enters its camera context.
 
 Source preparation runs outside the window update. Progress replaces one string
@@ -15,10 +18,35 @@ worker. A cancelled or superseded epoch cannot yield an admitted result. Closing
 the window cancels this host's request; opaque source operations finish their
 existing bounded work before dropping their result.
 
+Close retains a cancelled preparation owner in the draining phase, including any
+result queued before the close message. It does not implicitly drop that queued
+scene on the window update. If updates continue, the same bounded retirement
+path consumes the result. If the application exits, remaining app-owned payloads
+are released during teardown outside the update loop.
+
+In-window cancellation retains the worker until it returns, without joining an
+active decoder in the update loop. Retry during that wait or GPU disposal is
+ignored rather than queued. A result queued immediately before cancellation goes
+to bounded disposal and cannot publish. A normal source result is observed only
+after its worker has returned, so terminal failure/retry cannot overlap workers.
+Retry starts the same explicit request with a fresh checked host generation and
+new CELL residency owner/tickets; generation exhaustion is a visible refusal.
+Held keys, repeat messages, focus loss and camera-to-loading context changes
+cannot trigger retry. Headless runs retain their single-attempt failing exit.
+
+Requested reports/captures remain immutable. If either output path already
+exists, retry refuses with a diagnostic requiring a new run with fresh paths;
+it never removes the old artifact or silently drops a requested output. Fresh
+output paths still use the existing `create_new` protection. Repairing an
+explicit source input permits retry; missing/unsupported source work remains a
+failure and cannot select a successful default scene.
+
 CELL preparation consumes the sealed `CellModelPlan` and existing `CellResidency`
-jobs. It keeps the returned `Arc<ResidentSources>` through model adaptation,
-staging and render publication. The model adapter reads the retained exact bytes;
-it uses the existing scene/material decoder and texture lookup. The borrowed plan
+jobs. It keeps the returned `Arc<ResidentSources>` and `Arc<ResidentTextures>`
+through model adaptation, staging and render publication. A captured texture plan,
+including an explicit empty plan, closes dependency readiness. The model adapter
+uses existing scene/material and DDS decoders over those retained exact bytes;
+missing captured textures cannot trigger another archive lookup. The borrowed plan
 view supplies placement/request provenance without detaching a cloneable plan.
 The residency owner is retained behind a mutex for Bevy's shared-resource type
 requirement. Main-thread access uses exclusive `get_mut`, without waiting on a
@@ -33,10 +61,17 @@ limits, not measurements of driver memory or frame duration.
 
 Staged entities inherit a hidden root. Only a complete current scene reveals
 that root. CELL visibility publication runs inside the current residency ticket's
-once-per-epoch `publish_render` callback. Failures remove this host's partial
-entities and asset handles. Disposal currently traverses the preflight-bounded
-scene in one update; incremental disposal and retry are subsequent VIEW08/09
-work, and this slice does not claim those behaviors.
+once-per-epoch `publish_render` callback. Failure and cancellation close further
+upload/publication and hide the root immediately. Disposal retires at most 128
+owned entities and eight resources/16 MiB of declared payload per update. Reverse
+creation order removes children before their parents, keeping relationship
+cascades inside that entity bound. Submitted asset handles and unsubmitted
+image/mesh/instance payloads remain owned until their retirement completes. A
+returned original epoch cannot revive retirement. Unrelated entities/assets are
+preserved. The host retains a disposing phase until cleanup finishes; an actual
+app exit may release the remaining app resources outside the frame loop. These
+limits do not measure driver reclamation or
+physical frame time.
 
 Captures begin their 64 settling frames only after admission. The source-worker
 timeout is separate from the subsequent GPU capture timeout. Failed source work

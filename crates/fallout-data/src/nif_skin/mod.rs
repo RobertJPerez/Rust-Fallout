@@ -2,6 +2,7 @@
 //! source decoding does not establish pose evaluation or gameplay skinning.
 pub mod binding;
 mod graph;
+pub mod influences;
 pub mod partition;
 pub mod pose;
 mod read;
@@ -211,4 +212,29 @@ fn reserve<T>(remaining: &mut usize, count: usize, source: &str) -> Result<()> {
             Error::Unsupported(format!("{source}: skin catalogue storage budget exceeded"))
         })?;
     Ok(())
+}
+
+// Shared raw policy checks. They return details so each existing consumer keeps
+// its own exact source/error context, without accepting public decoded weights.
+fn raw_weight(bits: u32) -> std::result::Result<f64, &'static str> {
+    let value = f64::from(f32::from_bits(bits));
+    if !value.is_finite() || value < 0. {
+        Err("negative or nonfinite raw weight")
+    } else {
+        Ok(value)
+    }
+}
+
+fn weight_sum_error(vertex: usize, sum: f64, policy: pose::WeightPolicy) -> Option<String> {
+    if !sum.is_finite() || sum <= 0. {
+        return Some(format!("vertex {vertex} has no positive finite weight sum"));
+    }
+    if let pose::WeightPolicy::RequireUnitSum { absolute_tolerance } = policy
+        && (sum - 1.).abs() > absolute_tolerance
+    {
+        return Some(format!(
+            "vertex {vertex} raw weight sum {sum} exceeds declared tolerance {absolute_tolerance}"
+        ));
+    }
+    None
 }

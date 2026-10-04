@@ -12,7 +12,10 @@ mod worker;
 mod test_source;
 
 use crate::{Limits, World, snapshot::Snapshot};
-pub use repository::{LoadReceipt, Recovery, Repository, Slot, Stage, WriteReceipt};
+pub use repository::{
+    LoadReceipt, Recovery, Repository, Slot, SlotAvailability, SlotAvailabilityReport,
+    SlotRejection, SlotRejectionCode, Stage, WriteReceipt,
+};
 pub use status::{SaveState, SaveStatus};
 pub use worker::{CompletionError, Rejection, SaveTicket, SaveWorker, SubmitFailure, WorkerError};
 

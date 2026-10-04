@@ -253,14 +253,15 @@ def script_unit(reader, key, entry, body_hash, unit):
     return {"field_index": unit["index"], "physical_marker": unit["marker"], "handle": {"key": identity, "version_sha256": version_hash.hexdigest()}, "version": version, "owner": {"kind": "unverified_embedded", "section_marker": unit["offset"], "stage_marker": None, "schema_ownership_verified": False}, "script_type": struct.unpack_from("<H", header, 16)[0], "flags": struct.unpack_from("<H", header, 18)[0], "declarations": declarations, "references": rows, "issues": issues}
 
 
-def project(reader, native, descriptors):
+def project(reader, native, descriptors, selected_keys=None):
     signatures = {row["function_id"]: row["parameters"] for row in descriptors["condition_descriptors"]}
     sources = [{"source_name": s["source_name"], "source_bytes": s["source_bytes"], "source_sha256": s["source_sha256"]} for s in native["sources"]]
     cohort = digest(b"FNVCTDASOURCES1" + compact(sources))
-    expected = {key_tuple(d["key"]): d for d in native["actor_packages"]["definitions"]}
+    expected = {key_tuple(d["key"]): d for d in native["actor_packages"]["definitions"]
+                if selected_keys is None or key_tuple(d["key"]) in selected_keys}
     selected = []
     for key, entry in sorted(reader.winners.items()):
-        if entry["kind_name"] == "PACK":
+        if entry["kind_name"] == "PACK" and (selected_keys is None or key in selected_keys):
             require(len(selected) < 65536, "package candidate budget")
             selected.append((key, entry))
     require(set(expected) == {key for key, _ in selected}, "PACK winner identities differ from native base")

@@ -43,6 +43,8 @@ pub(super) struct ContextOptions<'a> {
     pub(super) condition_executable: Option<&'a Path>,
     pub(super) include_faction_requests: bool,
     pub(super) include_stat_requests: bool,
+    pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
+    pub(super) include_actor_context: bool,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -66,6 +68,7 @@ pub(super) fn package_context(
     let mut store = order.store(install, cache)?;
     let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
     let world = World::restore(&scripts, snapshot, limits)?;
+    let before_observation = options.include_actor_context.then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
     let inventory = inventory::Catalogue::load(&mut store, Default::default())?;
     let actors = actors::Catalogue::load(&inventory, Default::default())?;
@@ -152,7 +155,56 @@ pub(super) fn package_context(
         report["stat_requests"] =
             serde_json::to_value(requests.observe(&world, stats::Limits::default())?)?;
     }
+    if let Some(operation) = options.package_capability {
+        let capability = requests.capability(
+            &world,
+            &content,
+            options
+                .explicit_subject
+                .map(fallout_runtime::identity::ReferenceId),
+            operation,
+            packages::CapabilityLimits::default(),
+        )?;
+        capability
+            .require_execution()
+            .expect_err("package execution is unsupported");
+        report["package_capability"] = serde_json::to_value(capability)?;
+    }
+    if options.include_actor_context {
+        let reference = options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId)
+            .ok_or("actor context requires an explicit canonical subject")?;
+        let placements = actors::placements::Catalogue::load(&mut store, Default::default())?;
+        let observation = fallout_runtime::actor_rules::context::observe(
+            &world,
+            &content,
+            &placements,
+            &actors,
+            reference,
+            Default::default(),
+        )?;
+        if observation.actor.key != options.actor_root {
+            return Err("canonical actor placement base differs from --actor-root".into());
+        }
+        report["actor_context"] = serde_json::to_value(observation)?;
+        if before_observation.as_ref() != Some(&world.snapshot()) {
+            return Err("actor context changed canonical state".into());
+        }
+    }
     Ok(report)
+}
+
+pub(super) fn parse_package_operation(
+    raw: &str,
+) -> std::result::Result<fallout_runtime::actor_rules::packages::Operation, String> {
+    use fallout_runtime::actor_rules::packages::Operation;
+    match raw {
+        "eligibility" => Ok(Operation::Eligibility),
+        "selection" => Ok(Operation::Selection),
+        "scheduling" => Ok(Operation::Scheduling),
+        _ => Err("expected eligibility, selection or scheduling".into()),
+    }
 }
 
 #[derive(Default)]
@@ -171,6 +223,7 @@ pub(super) struct Options {
     pub(super) equipment_source: Option<FormKey>,
     pub(super) equipment_role: Option<actors::dependencies::equipment::Role>,
     pub(super) voice_root: Option<FormKey>,
+    pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
 pub(super) fn parse_equipment_role(
@@ -219,6 +272,18 @@ pub(super) fn parse_root(raw: &str) -> std::result::Result<FormKey, String> {
     })
 }
 
+pub(super) fn parse_creature_directory(
+    raw: &str,
+) -> std::result::Result<fallout_data::vfs::AssetPath, String> {
+    let path = fallout_data::vfs::AssetPath::new(raw.as_bytes()).map_err(|e| e.to_string())?;
+    if !path.bytes().starts_with(b"meshes/") || path.bytes().len() > 4096 {
+        return Err(
+            "creature model directory must be rooted beneath meshes/ and at most 4096 bytes".into(),
+        );
+    }
+    Ok(path)
+}
+
 pub(super) fn inspect(
     install: &Path,
     order_path: &Path,
@@ -241,6 +306,11 @@ pub(super) fn inspect(
     }
     if options.dependency_roots.len() > 64 {
         return Err("actor dependency root budget exceeds 64".into());
+    }
+    if options.creature_model_directory.is_some()
+        && (!options.include_dependencies || options.dependency_roots.len() != 1)
+    {
+        return Err("creature model directory requires exactly one dependency root and --include-dependencies".into());
     }
     if !options.include_dependencies && !options.dependency_roots.is_empty() {
         return Err("actor dependency roots require --include-dependencies".into());
@@ -402,6 +472,9 @@ pub(super) fn inspect(
             Default::default(),
         )?;
         let assets = ArchiveAssets::open_nv(install)?;
+        if let Some(directory) = &options.creature_model_directory {
+            report["actor_creature_parts"] = json!({"manifest":dependencies.creature_parts_manifest(&options.dependency_roots[0], directory, &assets, Default::default())?});
+        }
         if let (Some(equipment), Some(role)) = (&options.equipment_source, options.equipment_role) {
             let selected = actors::dependencies::equipment::request(
                 &mut store,
@@ -578,6 +651,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         return Err(
             "independent actor source comparison differs in actor_equipment_dependencies".into(),
         );
+    }
+    if report.get("actor_creature_parts").is_some()
+        && report.get("actor_creature_parts") != oracle.get("actor_creature_parts")
+    {
+        return Err("independent actor source comparison differs in actor_creature_parts".into());
     }
     if report.get("actor_package_dependencies").is_some()
         && report.get("actor_package_dependencies") != oracle.get("actor_package_dependencies")

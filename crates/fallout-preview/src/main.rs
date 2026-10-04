@@ -2,13 +2,17 @@
 mod fixture;
 mod input;
 mod loading;
+#[cfg(test)]
+mod loading_tests;
 mod material;
 mod model;
+mod native;
 mod pose;
 mod scene;
 mod startup;
 mod terrain;
 mod terrain_textures;
+mod ui;
 mod upload;
 
 use bevy::{
@@ -36,9 +40,11 @@ use std::{
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
+    #[arg(skip)]
+    native_shutdown: native::Shutdown,
     #[arg(long)]
     install: Option<PathBuf>,
     /// Archive path, for example meshes/furniture/chair01.nif.
@@ -47,6 +53,12 @@ struct Options {
     /// Exact bounded local NIF input; diffuse paths use the same archive lookup.
     #[arg(long, requires = "install")]
     model_file: Option<PathBuf>,
+    /// Retain exact source menu XML in a local inspection report, without evaluating tiles.
+    #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["capture", "headless"])]
+    menu: Option<String>,
+    /// Select exactly one authored name attribute; ambiguous names are refused.
+    #[arg(long, requires = "menu")]
+    menu_tile: Option<String>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -78,6 +90,12 @@ struct Options {
     material_fixture: bool,
     #[arg(long, requires = "install")]
     load_order: Option<PathBuf>,
+    /// Source-bound current project-native save repository; F5 save/F9 Continue.
+    #[arg(long, requires = "cell")]
+    native_save: Option<PathBuf>,
+    /// Engineering capture: submit one real save after complete draw admission.
+    #[arg(long, requires_all = ["native_save", "headless"])]
+    native_save_after_ready: bool,
     /// Camera position in original source units (x,y,z).
     #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
         requires_all = ["camera_look_at", "load_order"])]
@@ -182,8 +200,11 @@ impl DrawScene {
         Ok(true)
     }
 
-    fn dispose(&mut self, commands: &mut Commands, assets: &mut upload::Resources) {
-        if let Some(cell) = &mut self.cell {
+    fn dispose(&mut self, commands: &mut Commands, assets: &mut upload::Resources) -> bool {
+        if !self.queue.retiring()
+            && let Some(cell) = &mut self.cell
+        {
+            cell.native.take();
             match cell.owner.get_mut() {
                 Ok(owner) => {
                     if let Err(error) = owner.unload() {
@@ -193,15 +214,17 @@ impl DrawScene {
                 Err(error) => error!("Source residency owner poisoned: {error}"),
             }
         }
-        self.queue.dispose(commands, assets);
+        self.queue.dispose(commands, assets)
     }
 }
 
 enum Phase {
     WaitingForWindow,
     Preparing(loading::Job<ReadyScene>),
+    Draining(loading::Job<ReadyScene>),
     Uploading(DrawScene),
     Ready(DrawScene),
+    Disposing(DrawScene, Option<String>),
     Failed(String),
     Cancelled,
 }
@@ -210,6 +233,34 @@ enum Phase {
 struct Loading {
     epoch: u64,
     phase: Phase,
+}
+
+type InspectionCameraFilter = (With<Camera3d>, Without<scene::ReferenceView>);
+
+fn start_preparation(options: &Options, epoch: u64) -> Result<loading::Job<ReadyScene>, String> {
+    let request = options.clone();
+    loading::Job::start(epoch, move |context| {
+        prepare_scene(&request, &context, epoch).map_err(|error| error.to_string())
+    })
+    .map_err(|error| error.to_string())
+}
+
+fn retry_outputs(options: &Options) -> Result<(), String> {
+    for path in [options.report.as_ref(), options.capture.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        if path
+            .try_exists()
+            .map_err(|error| format!("Retry output check failed: {error}"))?
+        {
+            return Err(format!(
+                "Retry refused: output {} already exists; start a new run with fresh output paths",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn output_path(
@@ -262,7 +313,27 @@ fn run() -> model::Result<AppExit> {
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
     }
+    if let Some(menu) = &options.menu {
+        let report = ui::inspect(
+            options
+                .install
+                .as_deref()
+                .expect("menu requires installation"),
+            &AssetPath::new(menu.as_bytes())?,
+            options.menu_tile.as_deref(),
+            ui::Limits::default(),
+        )?;
+        let path = options.report.as_ref().expect("menu requires report");
+        let file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        ui::write_report(file, &report, ui::Limits::default().output_bytes)?;
+        eprintln!(
+            "Menu source tree retained: {} nodes; tile evaluation/display remains unavailable",
+            report.document.nodes.len()
+        );
+        return Ok(AppExit::Success);
+    }
     let headless = options.headless;
+    let native_shutdown = options.native_shutdown.clone();
     let orbit = Orbit {
         center: Vec3::ZERO,
         radius: 1.,
@@ -321,7 +392,9 @@ fn run() -> model::Result<AppExit> {
     if headless {
         app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)));
     }
-    Ok(app.run())
+    let result = app.run();
+    native_shutdown.finish()?;
+    Ok(result)
 }
 
 fn prepare_scene(
@@ -384,6 +457,8 @@ fn prepare_scene(
                 .as_deref()
                 .expect("clap requires model or cell"),
             context,
+            options.native_save.as_deref(),
+            options.native_shutdown.clone(),
         )?;
         cell_sources = Some(sources);
         (prepared, report)
@@ -482,7 +557,11 @@ fn drive_loading(
     mut context: ResMut<input::Context>,
     mut orbit: ResMut<Orbit>,
     mut navigation: ResMut<Navigation>,
-    mut cameras: Query<(&mut Transform, &mut Projection), With<Camera3d>>,
+    mut cameras: Query<(&mut Transform, &mut Projection), InspectionCameraFilter>,
+    mut references: Query<
+        (&mut scene::ReferenceView, &mut Transform, &mut Visibility),
+        Without<Camera3d>,
+    >,
     mut windows: Query<(Entity, &mut Window), With<PrimaryWindow>>,
     mut created: MessageReader<WindowCreated>,
     mut closed: MessageReader<WindowCloseRequested>,
@@ -493,20 +572,48 @@ fn drive_loading(
     let window_ready = created
         .read()
         .any(|event| windows.iter().any(|(id, _)| id == event.window));
-    let closing = closed.read().next().is_some() || actions.close;
+    let closing = closed
+        .read()
+        .any(|event| windows.iter().any(|(id, _)| id == event.window))
+        || actions.close;
     let epoch = state.epoch;
-    let phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
+    let mut phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
     if closing {
         state.epoch = state.epoch.saturating_add(1);
         match phase {
-            Phase::Preparing(mut job) => job.cancel(),
-            Phase::Uploading(mut queue) | Phase::Ready(mut queue) => {
-                queue.dispose(&mut commands, &mut assets)
+            Phase::Preparing(mut job) | Phase::Draining(mut job) => {
+                job.cancel();
+                // Retain a result queued before close. Its potentially large
+                // draw payload belongs to bounded retirement or app teardown,
+                // never an implicit receiver drop inside this window update.
+                state.phase = Phase::Draining(job);
+            }
+            Phase::Uploading(mut queue)
+            | Phase::Ready(mut queue)
+            | Phase::Disposing(mut queue, _) => {
+                if !queue.dispose(&mut commands, &mut assets) {
+                    state.phase = Phase::Disposing(queue, None);
+                }
             }
             _ => {}
         }
         *context = input::Context::Suspended;
         return;
+    }
+    if actions.cancel_loading && !options.headless {
+        phase = match phase {
+            Phase::WaitingForWindow => Phase::Cancelled,
+            Phase::Preparing(mut job) => {
+                job.cancel();
+                state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
+                Phase::Draining(job)
+            }
+            Phase::Uploading(queue) => {
+                state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
+                Phase::Disposing(queue, None)
+            }
+            phase => phase,
+        };
     }
     let failure = |error: String, exit: &mut MessageWriter<AppExit>| {
         error!("Source scene failed: {error}");
@@ -517,12 +624,36 @@ fn drive_loading(
     };
     state.phase = match phase {
         Phase::WaitingForWindow if options.headless || window_ready => {
-            let request = options.clone();
-            match loading::Job::start(epoch, move |context| {
-                prepare_scene(&request, &context, epoch).map_err(|error| error.to_string())
-            }) {
+            match start_preparation(&options, epoch) {
                 Ok(job) => Phase::Preparing(job),
-                Err(error) => failure(error.to_string(), &mut exit),
+                Err(error) => failure(error, &mut exit),
+            }
+        }
+        Phase::Draining(mut job) => match job.retire() {
+            loading::Retirement::Pending => Phase::Draining(job),
+            loading::Retirement::Done(Some(mut ready)) => {
+                if ready.upload.dispose(&mut commands, &mut assets) {
+                    Phase::Cancelled
+                } else {
+                    Phase::Disposing(ready.upload, None)
+                }
+            }
+            loading::Retirement::Done(None) => Phase::Cancelled,
+        },
+        Phase::Failed(_) | Phase::Cancelled
+            if actions.retry_loading && !actions.cancel_loading && !options.headless =>
+        {
+            let request = retry_outputs(&options).and_then(|()| {
+                let next = state
+                    .epoch
+                    .checked_add(1)
+                    .ok_or("Source retry epoch exhausted")?;
+                state.epoch = next;
+                start_preparation(&options, next)
+            });
+            match request {
+                Ok(job) => Phase::Preparing(job),
+                Err(error) => failure(error, &mut exit),
             }
         }
         Phase::Preparing(mut job) => {
@@ -568,28 +699,112 @@ fn drive_loading(
                 capture.frame = 0;
                 capture.started = Instant::now();
                 startup::stage("Source scene admitted; graphics settling before capture.");
+                if options.native_save_after_ready
+                    && let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut())
+                {
+                    host.request(native::Request::Save);
+                }
                 Phase::Ready(queue)
             }
             Err(error) => {
-                queue.dispose(&mut commands, &mut assets);
-                failure(error, &mut exit)
+                if queue.dispose(&mut commands, &mut assets) {
+                    failure(error, &mut exit)
+                } else {
+                    Phase::Disposing(queue, Some(error))
+                }
             }
         },
+        Phase::Disposing(mut queue, error) => {
+            if queue.dispose(&mut commands, &mut assets) {
+                if let Some(error) = error {
+                    failure(error, &mut exit)
+                } else {
+                    Phase::Cancelled
+                }
+            } else {
+                Phase::Disposing(queue, error)
+            }
+        }
+        Phase::Ready(mut queue) => {
+            if let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut()) {
+                if let Some(event) = host.poll() {
+                    match event {
+                        native::Event::Continued(observation) => {
+                            // Validate the complete destination set before changing any entity.
+                            let valid = references
+                                .iter()
+                                .all(|(view, _, _)| observation.draws.contains_key(&view.key));
+                            if valid {
+                                for (mut view, mut transform, mut visibility) in &mut references {
+                                    view.canonical = observation
+                                        .binding(&view.key)
+                                        .and_then(|binding| binding.canonical.clone());
+                                    if let Some(next) = observation.draws[&view.key] {
+                                        *transform = next;
+                                        *visibility = Visibility::Inherited;
+                                    } else {
+                                        *visibility = Visibility::Hidden;
+                                    }
+                                }
+                                eprintln!(
+                                    "Continue source-bound revision {}",
+                                    observation.report.revision
+                                );
+                            } else {
+                                host.failure(
+                                    "Continue does not bind every active source view".into(),
+                                );
+                            }
+                        }
+                        native::Event::Saved(receipt) => {
+                            eprintln!(
+                                "Native save publication receipt: {}",
+                                serde_json::to_string(&receipt).expect("serializable save receipt")
+                            );
+                        }
+                        native::Event::Failed(error) => {
+                            error!("Native request failed: {error}");
+                            if options.native_save_after_ready {
+                                exit.write(AppExit::error());
+                            }
+                        }
+                    }
+                }
+                if actions.continue_saved {
+                    host.request(native::Request::Continue);
+                } else if actions.save {
+                    host.request(native::Request::Save);
+                }
+            }
+            Phase::Ready(queue)
+        }
         phase => phase,
     };
     let status = match &state.phase {
         Phase::WaitingForWindow => "Opening inspection window".into(),
         Phase::Preparing(job) => {
             let (message, elapsed) = job.status();
-            format!("Loading: {message} ({}s)", elapsed.as_secs())
+            format!(
+                "Loading: {message} ({}s) — Backspace cancels",
+                elapsed.as_secs()
+            )
         }
-        Phase::Uploading(queue) => queue.status(),
-        Phase::Ready(_) => "Ready".into(),
+        Phase::Draining(job) => format!(
+            "Cancelling: waiting for source worker return ({}s) — Escape closes",
+            job.status().1.as_secs()
+        ),
+        Phase::Uploading(queue) => format!("{} — Backspace cancels", queue.status()),
+        Phase::Disposing(queue, _) => queue.queue.disposal_status(),
+        Phase::Ready(queue) => queue
+            .cell
+            .as_ref()
+            .and_then(|cell| cell.native.as_ref())
+            .map_or_else(|| "Ready".into(), |host| host.title().into()),
         Phase::Failed(error) => format!(
-            "Failed: {} — Escape closes",
+            "Failed: {} — Enter retries; Escape closes",
             error.chars().take(180).collect::<String>()
         ),
-        Phase::Cancelled => "Cancelled".into(),
+        Phase::Cancelled => "Cancelled — Enter retries; Escape closes".into(),
     };
     for (_, mut window) in &mut windows {
         let title = format!("Fallout Rust - {status}");
@@ -749,6 +964,16 @@ fn capture(
         exit.write(AppExit::error());
         return;
     }
+    if options.native_save_after_ready
+        && let Phase::Ready(queue) = &loading.phase
+        && queue
+            .cell
+            .as_ref()
+            .and_then(|cell| cell.native.as_ref())
+            .is_some_and(|host| !host.published())
+    {
+        return;
+    }
     state.frame += 1;
     // Asset extraction takes several frames. Synchronous pipeline compilation
     // above ensures a queued shader does not turn the smoke capture into a blank.
@@ -872,7 +1097,7 @@ mod tests {
         );
     }
 
-    fn loading_app(phase: Phase) -> App {
+    pub(crate) fn loading_app(phase: Phase) -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, WindowPlugin::default()))
             .init_resource::<Assets<Mesh>>()
@@ -917,7 +1142,7 @@ mod tests {
         app
     }
 
-    fn ready_fixture(epoch: u64) -> ReadyScene {
+    pub(crate) fn ready_fixture(epoch: u64) -> ReadyScene {
         let (prepared, _) = fixture::prepare().unwrap();
         ReadyScene {
             upload: DrawScene {
@@ -963,7 +1188,7 @@ mod tests {
         app.update();
         assert!(matches!(
             app.world().resource::<Loading>().phase,
-            Phase::Cancelled
+            Phase::Draining(_)
         ));
         assert_eq!(app.world().resource::<Loading>().epoch, 8);
         assert_eq!(

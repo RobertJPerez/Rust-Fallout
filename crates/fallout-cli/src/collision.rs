@@ -282,6 +282,19 @@ struct OverlapNumericInput {
     center_binary64_hex: [String; 3],
     radius_binary64_hex: String,
 }
+fn ray_numeric_input(ray: fallout_runtime::physics::Ray) -> RayNumericInput {
+    RayNumericInput {
+        origin_binary64_hex: ray.origin.map(|v| format!("{:016x}", v.to_bits())),
+        direction_binary64_hex: ray.direction.map(|v| format!("{:016x}", v.to_bits())),
+        max_distance_binary64_hex: format!("{:016x}", ray.max_distance.to_bits()),
+    }
+}
+fn overlap_numeric_input(s: &SphereRequest) -> OverlapNumericInput {
+    OverlapNumericInput {
+        center_binary64_hex: s.center.map(|v| format!("{:016x}", v.to_bits())),
+        radius_binary64_hex: format!("{:016x}", s.radius.to_bits()),
+    }
+}
 #[derive(Serialize)]
 pub struct QueryReport {
     source_sha256: String,
@@ -332,15 +345,8 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
         request.units,
         QueryLimits::default(),
     )?;
-    let ray_numeric_input = request.ray.map(|r| RayNumericInput {
-        origin_binary64_hex: r.origin.map(|v| format!("{:016x}", v.to_bits())),
-        direction_binary64_hex: r.direction.map(|v| format!("{:016x}", v.to_bits())),
-        max_distance_binary64_hex: format!("{:016x}", r.max_distance.to_bits()),
-    });
-    let overlap_numeric_input = request.overlap.as_ref().map(|s| OverlapNumericInput {
-        center_binary64_hex: s.center.map(|v| format!("{:016x}", v.to_bits())),
-        radius_binary64_hex: format!("{:016x}", s.radius.to_bits()),
-    });
+    let ray_numeric_input = request.ray.map(ray_numeric_input);
+    let overlap_numeric_input = request.overlap.as_ref().map(overlap_numeric_input);
     let ray_hits = request
         .ray
         .map(|ray| scene.ray_cast(ray, QueryBudget::default()))
@@ -377,6 +383,198 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
         query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; certified convex cuboids use exact eight-corner vertex hull with source-f32 supporting-plane certificate; box/cuboid slabs include query distance range and conservative representable entry witness; uncertain cuboid predicates refuse; convex/packed shell margins excluded; source axes retained",
         faithful_ready: scene.faithful_ready(),
     })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CellRequest {
+    model_index: usize,
+    source_sha256: String,
+    query: QueryRequest,
+    /// Explicit offline engineering IO deadline, unrelated to game scheduling.
+    io_deadline_ms: u64,
+    #[serde(default)]
+    verify_unload: bool,
+}
+
+pub fn cell_query(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    source_cache: Option<&Path>,
+    editor_id: &str,
+    request_path: &Path,
+) -> Result<Value> {
+    use fallout_data::{
+        archive::NvArchive,
+        vfs::MountIndex,
+        world::{
+            preparation::CellModelPlan,
+            residency::{self, CellResidency, Stage},
+        },
+    };
+    use fallout_runtime::{
+        identity::ReferenceId,
+        physics::{BodyPlacement, QueryBudget, QueryLimits, cell::CellCollision},
+    };
+    use std::time::{Duration, Instant};
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: CellRequest = serde_json::from_slice(&request_bytes)?;
+    if !(1..=60_000).contains(&request.io_deadline_ms)
+        || request.query.body_blocks.is_empty()
+        || request.query.body_blocks.len() > 10_000
+        || (request.query.ray.is_none() && request.query.overlap.is_none())
+        || request.source_sha256.len() != 64
+        || !request.source_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err(
+            "cell collision needs explicit bounded IO deadline, source SHA, bodies and query"
+                .into(),
+        );
+    }
+    let expected_sha = std::array::from_fn(|i| {
+        u8::from_str_radix(&request.source_sha256[2 * i..2 * i + 2], 16).expect("checked ASCII hex")
+    });
+    let order = crate::inspection_input::Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let root = store.cell_by_editor_id(editor_id.as_bytes())?.0;
+    let mut mounts = MountIndex::default();
+    for path in crate::data_files(install, &["bsa"])? {
+        NvArchive::open(&path)?.census(&mut mounts)?;
+    }
+    let plan = CellModelPlan::load(&mut store, &root, &mounts, Default::default())?;
+    let mut world = CellResidency::new(
+        install,
+        source_cache,
+        residency::Limits {
+            workers: 1,
+            ..Default::default()
+        },
+    )?;
+    let ticket = world.request(plan)?;
+    let deadline = Instant::now() + Duration::from_millis(request.io_deadline_ms);
+    loop {
+        let snapshot = world.poll()?;
+        if snapshot.stage == Stage::Decoded {
+            break;
+        }
+        if snapshot.stage == Stage::Failed {
+            return Err(format!("cell collision source IO failed: {:?}", snapshot.failure).into());
+        }
+        if Instant::now() >= deadline {
+            return Err("cell collision source IO deadline exhausted".into());
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let selected_model = {
+        let sources = world.sources(&ticket)?;
+        let plan = sources.plan()?;
+        let source = plan
+            .receipt()
+            .requests
+            .get(request.model_index)
+            .ok_or("resident model receipt index out of range")?;
+        serde_json::to_value(source)?
+    };
+    let placements: Vec<_> = request
+        .query
+        .body_blocks
+        .iter()
+        .map(|&body_block| BodyPlacement {
+            reference: ReferenceId(request.query.reference),
+            source_sha256: expected_sha,
+            body_block,
+            attachment_to_source: fallout_data::coordinates::Affine {
+                rows: request.query.attachment_rows,
+            },
+        })
+        .collect();
+    let mut collision = CellCollision::default();
+    let scope = collision.admit(
+        &mut world,
+        &ticket,
+        request.model_index,
+        &placements,
+        request.query.units,
+        QueryLimits::default(),
+    )?;
+    let ray_numeric_input = request.query.ray.map(ray_numeric_input);
+    let overlap_numeric_input = request.query.overlap.as_ref().map(overlap_numeric_input);
+    let ray = if let Some(ray) = request.query.ray {
+        Some(
+            collision
+                .ray_cast(&world, ray, QueryBudget::default())
+                .map_err(|error| {
+                    format!(
+                        "cell collision ray refused: {error}; ray_numeric_input={}",
+                        serde_json::to_string(&ray_numeric_input)
+                            .expect("string-only numeric audit")
+                    )
+                })?,
+        )
+    } else {
+        None
+    };
+    let overlap = if let Some(s) = request.query.overlap {
+        Some(
+            collision
+                .overlap_sphere(&world, s.center, s.radius, QueryBudget::default())
+                .map_err(|error| {
+                    format!(
+                        "cell collision overlap refused: {error}; overlap_numeric_input={}",
+                        serde_json::to_string(&overlap_numeric_input)
+                            .expect("string-only numeric audit")
+                    )
+                })?,
+        )
+    } else {
+        None
+    };
+    // Serialize only validated borrowed hits while the owner is current.
+    let ray_hits = serde_json::to_value(
+        ray.as_ref()
+            .map(|r| r.hits(&world))
+            .transpose()?
+            .unwrap_or(&[]),
+    )?;
+    let overlap_hits = serde_json::to_value(
+        overlap
+            .as_ref()
+            .map(|r| r.hits(&world))
+            .transpose()?
+            .unwrap_or(&[]),
+    )?;
+    let before = world.snapshot();
+    let primitive_count = collision.retained_primitive_count();
+    let unload = if request.verify_unload {
+        world.unload()?;
+        let receipts_refuse = ray.as_ref().is_none_or(|r| r.hits(&world).is_err())
+            && overlap.as_ref().is_none_or(|r| r.hits(&world).is_err());
+        let geometry_released =
+            collision.invalidate(&world) && collision.retained_primitive_count() == 0;
+        let after = world.poll()?;
+        if !receipts_refuse
+            || !geometry_released
+            || after.pinned_source_bytes != 0
+            || after.retained_plans != 0
+            || after.outstanding != 0
+        {
+            return Err(
+                "cell collision unload did not revoke queries and release owned pins".into(),
+            );
+        }
+        Some(
+            serde_json::json!({"receipts_refuse":receipts_refuse,"geometry_released":geometry_released,"residency":after}),
+        )
+    } else {
+        None
+    };
+    Ok(
+        serde_json::json!({"schema_version":1,"scope":scope,"request_sha256":format!("{:x}",Sha256::digest(&request_bytes)),
+        "load_order_sha256":order.sha256,"sources":store.source_receipts()?,"selected_model":selected_model,"primitive_count":primitive_count,
+        "ray_hits":ray_hits,"overlap_hits":overlap_hits,"ray_numeric_input":ray_numeric_input,"overlap_numeric_input":overlap_numeric_input,"residency":before,"unload":unload,"faithful_ready":false,
+        "query_semantics":"selected source-model engineering geometry scoped to cell owner/epoch; explicit caller attachment/reference; canonical pose/revision binding unimplemented; whole-cell faithful collision Unsupported"}),
+    )
 }
 
 #[cfg(test)]

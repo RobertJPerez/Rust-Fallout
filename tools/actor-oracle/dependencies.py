@@ -797,6 +797,7 @@ def main():
     parser.add_argument("--include-template-dependencies", action="store_true")
     parser.add_argument("--equipment-source")
     parser.add_argument("--equipment-role")
+    parser.add_argument("--creature-model-directory")
     parser.add_argument("--team-directory", type=pathlib.Path)
     parser.add_argument("--session-id")
     args = parser.parse_args()
@@ -805,6 +806,7 @@ def main():
     require(not args.include_template_dependencies or args.root or args.root_editor_id, "template dependencies require explicit roots")
     require(bool(args.equipment_source) == bool(args.equipment_role), "equipment source and role required together")
     require(not args.equipment_source or len(args.root) + len(args.root_editor_id) == 1, "equipment requires one actor root")
+    require(not args.creature_model_directory or len(args.root) + len(args.root_editor_id) == 1, "creature directory requires one actor root")
 
     def guard():
         if args.team_directory is None:
@@ -865,6 +867,10 @@ def main():
                 graph, manifest['inventory_closure'], template_remaining, native['winning_content_sha256'])
                 for root, manifest in zip(roots, manifests)])
         native["actor_dependencies"] = {"counts": counts, "definitions": list(definitions.values()), "inventory_graph": graph, "manifests": [] if args.include_render_dependencies else manifests}
+        if args.creature_model_directory:
+            from creature_parts import manifest as creature_manifest
+            native['actor_creature_parts'] = dict(manifest=creature_manifest(reader, roots[0], definitions, manifests[0],
+                args.creature_model_directory.encode('utf-8'), native['winning_content_sha256']))
         if args.equipment_source:
             from equipment import manifest as equipment_manifest
             origin, local = args.equipment_source.split(":")

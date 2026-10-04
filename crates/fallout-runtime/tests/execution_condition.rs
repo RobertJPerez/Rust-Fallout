@@ -512,3 +512,618 @@ fn cold_snapshot_helper() {
     assert_eq!(serde_json::to_value(observation).unwrap(), expected);
     assert_eq!(world.snapshot(), snapshot);
 }
+
+fn batch_fixture(count: usize) -> (tempfile::TempDir, Catalogue, Content, PreparedRecord) {
+    let directory = tempfile::tempdir().unwrap();
+    write_fixture(directory.path(), false);
+    let mut body = field(b"EDID", b"condition_batch\0");
+    for index in 0..count {
+        if index % 17 == 0 {
+            body.extend(field(b"FULL", b"physical marker\0"));
+        }
+        let bytes = raw(28, 47, if index % 2 == 0 { 0x100 } else { 0x102 }, 0);
+        if index % 7 == 0 {
+            body.extend(field(b"XXXX", &28_u32.to_le_bytes()));
+        }
+        body.extend(field(b"CTDA", &bytes));
+    }
+    let path = directory.path().join("FalloutNV.esm");
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.extend(record(b"QUST", 0x500, 0, &body));
+    bytes.extend(record(b"MISC", 0x102, 0, &[]));
+    fs::write(path, bytes).unwrap();
+    let (catalogue, content, record) = load_sources(directory.path(), &signatures());
+    (directory, catalogue, content, record)
+}
+
+#[test]
+fn indexed_batch_matches_individual_sites_in_requested_order_with_one_receipt_validation() {
+    use fallout_runtime::execution::condition::{BatchLimits, Requests};
+    let (_dir, catalogue, content, record) = batch_fixture(257);
+    let (world, subject) = populated(
+        &catalogue,
+        &[(0x100, u32::MAX), (0x100, u32::MAX), (0x102, 23)],
+    );
+    let before = world.snapshot();
+    let offsets: Vec<_> = record
+        .sites()
+        .iter()
+        .rev()
+        .chain(record.sites()[..4].iter())
+        .map(|site| site.field_decoded_offset())
+        .collect();
+    assert!(
+        record
+            .sites()
+            .windows(2)
+            .all(|sites| sites[0].field_decoded_offset() < sites[1].field_decoded_offset())
+    );
+    let batch = Requests::prepare(&world, &record, &offsets, BatchLimits::default()).unwrap();
+    assert_eq!(batch.len(), 261);
+    assert!(!batch.is_empty());
+    let counts = batch.counts();
+    assert_eq!(counts.cohort_validations, 1);
+    assert_eq!(
+        counts.source_receipt_bytes,
+        serde_json::to_vec(&world.catalogue().sources)
+            .unwrap()
+            .len()
+    );
+    assert_eq!(counts.requests, offsets.len());
+    assert_eq!(counts.record_sites, 257);
+    assert!(counts.site_comparisons <= offsets.len() * 9);
+    let old_search: usize = (1..=257).sum::<usize>() + 10;
+    assert!(counts.site_comparisons * 10 < old_search);
+    let observations = batch
+        .observe(
+            &world,
+            &content,
+            Some(subject),
+            Intent::EngineeringObservation,
+            1024,
+        )
+        .unwrap();
+    let mut total = 0;
+    for (&offset, observed) in offsets.iter().zip(&observations) {
+        assert_eq!(observed.site.field_decoded_offset(), offset);
+        let individual = Request::prepare(&world, &record, offset).unwrap();
+        let expected = individual
+            .observe(
+                &world,
+                &content,
+                Some(subject),
+                Intent::EngineeringObservation,
+                2,
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(observed).unwrap(),
+            serde_json::to_value(expected).unwrap()
+        );
+        let Outcome::EngineeringObservation { trace } = &observed.outcome else {
+            panic!("{observed:?}")
+        };
+        total += trace.query.contributions.len();
+        assert!(observed.condition_truth.is_none() && !observed.condition_evaluation_ready);
+    }
+    assert_eq!(
+        batch
+            .observe(
+                &world,
+                &content,
+                Some(subject),
+                Intent::EngineeringObservation,
+                total
+            )
+            .unwrap()
+            .len(),
+        offsets.len()
+    );
+    assert!(matches!(
+        batch.observe(
+            &world,
+            &content,
+            Some(subject),
+            Intent::EngineeringObservation,
+            total - 1
+        ),
+        Err(Error::Capacity)
+    ));
+    for observed in batch
+        .observe(&world, &content, Some(subject), Intent::Faithful, 0)
+        .unwrap()
+    {
+        reason(&observed, Unsupported::UnverifiedRetailSemantics);
+    }
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn batch_exact_admission_and_search_limits_refuse_without_a_partial_selection() {
+    use fallout_runtime::execution::condition::{BatchLimits, Requests};
+    let (_dir, catalogue, content, record) = batch_fixture(257);
+    let (world, subject) = populated(&catalogue, &[(0x100, 1)]);
+    let before = world.snapshot();
+    let offsets = [
+        record.sites()[256].field_decoded_offset(),
+        record.sites()[0].field_decoded_offset(),
+        record.sites()[256].field_decoded_offset(),
+        record.sites()[128].field_decoded_offset(),
+    ];
+    let counts = Requests::prepare(&world, &record, &offsets, Default::default())
+        .unwrap()
+        .counts();
+    let exact = BatchLimits {
+        maximum_requests: 4,
+        maximum_source_receipt_bytes: counts.source_receipt_bytes,
+        maximum_site_comparisons: counts.site_comparisons,
+    };
+    assert_eq!(
+        Requests::prepare(&world, &record, &offsets, exact)
+            .unwrap()
+            .counts(),
+        counts
+    );
+    for (limits, expected) in [
+        (
+            BatchLimits {
+                maximum_requests: 3,
+                ..exact
+            },
+            "requests",
+        ),
+        (
+            BatchLimits {
+                maximum_source_receipt_bytes: exact.maximum_source_receipt_bytes - 1,
+                ..exact
+            },
+            "source receipt bytes",
+        ),
+        (
+            BatchLimits {
+                maximum_site_comparisons: exact.maximum_site_comparisons - 1,
+                ..exact
+            },
+            "site comparisons",
+        ),
+    ] {
+        assert!(
+            matches!(Requests::prepare(&world,&record,&offsets,limits),Err(Error::BatchCapacity(reason)) if reason==expected)
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    assert!(
+        matches!(Requests::prepare(&world,&record,&[offsets[0],offsets[0]+1],Default::default()),Err(Error::MissingSite(offset)) if offset==offsets[0]+1)
+    );
+    let empty = Requests::prepare(
+        &world,
+        &record,
+        &[],
+        BatchLimits {
+            maximum_requests: 0,
+            maximum_site_comparisons: 0,
+            ..exact
+        },
+    )
+    .unwrap();
+    assert!(empty.is_empty());
+    assert_eq!(empty.counts().cohort_validations, 1);
+    assert!(
+        empty
+            .observe(
+                &world,
+                &content,
+                Some(subject),
+                Intent::EngineeringObservation,
+                0
+            )
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn batch_context_guards_cover_empty_selection_foreign_content_and_cold_campaign_changes() {
+    use fallout_runtime::execution::condition::Requests;
+    let (dir, catalogue, content, record) = batch_fixture(2);
+    let (world, subject) = populated(&catalogue, &[(0x100, 19)]);
+    let before = world.snapshot();
+    let selected = Requests::prepare(
+        &world,
+        &record,
+        &[record.sites()[0].field_decoded_offset()],
+        Default::default(),
+    )
+    .unwrap();
+    let empty = Requests::prepare(&world, &record, &[], Default::default()).unwrap();
+    let restored = World::restore(&catalogue, before.clone(), Default::default()).unwrap();
+    assert_eq!(
+        serde_json::to_value(
+            selected
+                .observe(
+                    &world,
+                    &content,
+                    Some(subject),
+                    Intent::EngineeringObservation,
+                    1
+                )
+                .unwrap()
+        )
+        .unwrap(),
+        serde_json::to_value(
+            selected
+                .observe(
+                    &restored,
+                    &content,
+                    Some(subject),
+                    Intent::EngineeringObservation,
+                    1
+                )
+                .unwrap()
+        )
+        .unwrap()
+    );
+    let mut changed = before.clone();
+    changed.campaign = fallout_runtime::identity::CampaignId::from_bytes([0x59; 16]).unwrap();
+    let other_campaign = World::restore(&catalogue, changed.clone(), Default::default()).unwrap();
+    for batch in [&selected, &empty] {
+        assert!(matches!(
+            batch.observe(
+                &other_campaign,
+                &content,
+                Some(subject),
+                Intent::Faithful,
+                0
+            ),
+            Err(Error::ContextChanged)
+        ));
+    }
+    assert_eq!(other_campaign.snapshot(), changed);
+    let foreign_catalogue = load(dir.path(), &["FalloutNV.esm", "Other.esm"]);
+    let mut foreign_store = RecordStore::open_nv_headers(
+        dir.path(),
+        &["FalloutNV.esm".into(), "Other.esm".into()],
+        Default::default(),
+    )
+    .unwrap();
+    let foreign_content = Content::load(&mut foreign_store, &foreign_catalogue, 100).unwrap();
+    for batch in [&selected, &empty] {
+        assert!(matches!(
+            batch.observe(&world, &foreign_content, Some(subject), Intent::Faithful, 0),
+            Err(Error::Content(_))
+        ));
+    }
+    let foreign_world = World::new(&foreign_catalogue, Default::default()).unwrap();
+    for offsets in [vec![], vec![record.sites()[0].field_decoded_offset()]] {
+        assert!(matches!(
+            Requests::prepare(&foreign_world, &record, &offsets, Default::default()),
+            Err(Error::ContextChanged)
+        ));
+    }
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+#[ignore = "built CLI and authored metadata; condition source batching only, no original launch or truth"]
+fn cli_condition_batch_helper() {
+    use fallout_runtime::execution::condition::Requests;
+    use serde_json::Value as Json;
+    use std::path::PathBuf;
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let metadata =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("metadata input"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_CONDITION_BATCH_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let (temporary, catalogue, content, record) = batch_fixture(64);
+    let (world, subject) = populated(
+        &catalogue,
+        &[(0x100, u32::MAX), (0x100, u32::MAX), (0x102, 23)],
+    );
+    let before = world.snapshot();
+    let input_bytes = before.encode(Limits::default().max_snapshot_bytes).unwrap();
+    let snapshot = evidence.join("snapshot.json");
+    fs::write(&snapshot, &input_bytes).unwrap();
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        metadata.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let offsets: Vec<_> = [63, 0, 63, 31]
+        .map(|index| record.sites()[index].field_decoded_offset())
+        .into();
+    let batch = Requests::prepare(&world, &record, &offsets, Default::default()).unwrap();
+    let counts = batch.counts();
+    let request = json!({"schema_version":1,"record":form(0x500),"field_decoded_offsets":offsets,
+        "explicit_subject":subject,"snapshot":snapshot,"maximum_source_receipt_bytes":counts.source_receipt_bytes,
+        "maximum_site_comparisons":counts.site_comparisons,"maximum_contributions":5});
+    let run_on = |name: &str, install: &Path, flag: &str, request: &Json, extra: &[&str]| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let request_path = directory.join("request.json");
+        let report_path = directory.join("report.json");
+        // Compact input isolates the request-count cap from the separate 16 KiB
+        // transport cap, including 4097 selected zero offsets.
+        fs::write(&request_path, serde_json::to_vec(request).unwrap()).unwrap();
+        let output = Command::new(&cli)
+            .args(["condition-dependencies", "--install"])
+            .arg(install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg(flag)
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report_path)
+            .args(extra)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        assert_eq!(
+            fs::read(&snapshot).unwrap(),
+            input_bytes,
+            "{name}: input changed"
+        );
+        (output, report_path)
+    };
+    let run = |name: &str, flag: &str, request: &Json| run_on(name, &install, flag, request, &[]);
+    let (output, path) = run("batch", "--engineering-query-batch", &request);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(report["schema_version"], 5);
+    let result = &report["engineering_batch"];
+    assert_eq!(result["preparation"], serde_json::to_value(counts).unwrap());
+    assert_eq!(result["canonical_state_unchanged"], true);
+    assert_eq!(
+        result["engineering"],
+        serde_json::to_value(
+            batch
+                .observe(
+                    &world,
+                    &content,
+                    Some(subject),
+                    Intent::EngineeringObservation,
+                    5
+                )
+                .unwrap()
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        result["faithful"],
+        serde_json::to_value(
+            batch
+                .observe(&world, &content, Some(subject), Intent::Faithful, 0)
+                .unwrap()
+        )
+        .unwrap()
+    );
+    let expected_counts = [23_u64, 8_589_934_590, 23, 23];
+    for (index, &offset) in offsets.iter().enumerate() {
+        let single = json!({"record":form(0x500),"field_decoded_offset":offset,"explicit_subject":subject,"snapshot":snapshot});
+        let (output, path) = run(
+            &format!("single-{index}"),
+            "--engineering-query-input",
+            &single,
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let single: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(single["schema_version"], 4);
+        assert_eq!(single["records"], report["records"]);
+        assert_eq!(
+            single["engineering_query"]["engineering"],
+            result["engineering"][index]
+        );
+        assert_eq!(
+            single["engineering_query"]["faithful"],
+            result["faithful"][index]
+        );
+        assert_eq!(
+            result["engineering"][index]["outcome"]["trace"]["query"]["result"],
+            expected_counts[index]
+        );
+        assert_eq!(result["engineering"][index]["condition_truth"], Json::Null);
+        assert_eq!(
+            result["engineering"][index]["condition_evaluation_ready"],
+            false
+        );
+    }
+    for (name, field, value, reason) in [
+        (
+            "source-byte-short",
+            "maximum_source_receipt_bytes",
+            json!(counts.source_receipt_bytes - 1),
+            "source receipt bytes",
+        ),
+        (
+            "search-short",
+            "maximum_site_comparisons",
+            json!(counts.site_comparisons - 1),
+            "site comparisons",
+        ),
+        (
+            "contribution-short",
+            "maximum_contributions",
+            json!(4),
+            "contribution budget",
+        ),
+        (
+            "missing-site",
+            "field_decoded_offsets",
+            json!([offsets[0], offsets[0] + 1]),
+            "is absent",
+        ),
+        (
+            "wrong-record",
+            "record",
+            json!(form(0x777)),
+            "no nondeleted admitted candidate",
+        ),
+        (
+            "request-schema",
+            "schema_version",
+            json!(2),
+            "invalid condition batch request",
+        ),
+        (
+            "empty-selection",
+            "field_decoded_offsets",
+            json!([]),
+            "invalid condition batch request",
+        ),
+        (
+            "selection-limit",
+            "field_decoded_offsets",
+            json!(vec![0; 4097]),
+            "invalid condition batch request",
+        ),
+        (
+            "source-ceiling",
+            "maximum_source_receipt_bytes",
+            json!(1024 * 1024 + 1),
+            "invalid condition batch request",
+        ),
+        (
+            "search-ceiling",
+            "maximum_site_comparisons",
+            json!(1_048_577),
+            "invalid condition batch request",
+        ),
+        (
+            "contribution-ceiling",
+            "maximum_contributions",
+            json!(65_537),
+            "invalid condition batch request",
+        ),
+        ("zero-subject", "explicit_subject", json!(0), "non-zero"),
+        ("unknown-field", "initialize", json!(true), "unknown field"),
+        (
+            "request-byte-limit",
+            "extra",
+            json!("x".repeat(16 * 1024)),
+            "input byte budget",
+        ),
+    ] {
+        let mut invalid = request.clone();
+        invalid[field] = value;
+        let (output, path) = run(name, "--engineering-query-batch", &invalid);
+        assert!(!output.status.success(), "{name}");
+        assert!(!path.exists(), "{name}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(reason),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    for (name, field, value) in [
+        ("legacy", "schema_version", json!(3)),
+        ("stale", "catalogue_sha256", json!("0".repeat(64))),
+    ] {
+        let mut invalid = serde_json::to_value(&before).unwrap();
+        invalid[field] = value;
+        let invalid_snapshot = evidence.join(format!("{name}.snapshot.json"));
+        fs::write(&invalid_snapshot, serde_json::to_vec(&invalid).unwrap()).unwrap();
+        let mut input = request.clone();
+        input["snapshot"] = json!(invalid_snapshot);
+        let (output, path) = run(name, "--engineering-query-batch", &input);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    let mut unavailable = request.clone();
+    unavailable["explicit_subject"] = json!(999);
+    let (output, path) = run("unknown-subject", "--engineering-query-batch", &unavailable);
+    assert!(!output.status.success());
+    let unsupported: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        unsupported["engineering_batch"]["engineering"][0]["outcome"]["reason"],
+        "host_query_unavailable"
+    );
+    assert_eq!(
+        unsupported["engineering_batch"]["canonical_state_unchanged"],
+        true
+    );
+    let (output, path) = run_on(
+        "flags-conflict",
+        &install,
+        "--engineering-query-batch",
+        &request,
+        &["--engineering-query-input", "unused.json"],
+    );
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    let partial = evidence.join("unsupported-source-copy");
+    fs::create_dir(&partial).unwrap();
+    fs::create_dir(partial.join("Data")).unwrap();
+    fs::copy(install.join("FalloutNV.exe"), partial.join("FalloutNV.exe")).unwrap();
+    let mut bytes = fs::read(temporary.path().join("FalloutNV.esm")).unwrap();
+    // Mutate only a separately authored source's chosen CTDA Run On word.
+    let position = record.identity().record_file_offset as usize + 24 + offsets[0] + 6 + 20;
+    bytes[position..position + 4].copy_from_slice(&1_u32.to_le_bytes());
+    fs::write(partial.join("Data/FalloutNV.esm"), bytes).unwrap();
+    let (changed_catalogue, _, changed_record) = load_sources(&partial.join("Data"), &signatures());
+    let (changed_world, changed_subject) =
+        populated(&changed_catalogue, &[(0x100, 19), (0x102, 23)]);
+    let changed_snapshot = evidence.join("unsupported.snapshot.json");
+    fs::write(
+        &changed_snapshot,
+        changed_world
+            .snapshot()
+            .encode(Limits::default().max_snapshot_bytes)
+            .unwrap(),
+    )
+    .unwrap();
+    let mut input = request.clone();
+    input["snapshot"] = json!(changed_snapshot);
+    input["explicit_subject"] = json!(changed_subject);
+    input["field_decoded_offsets"] =
+        json!([changed_record.sites()[0].field_decoded_offset(), offsets[0]]);
+    input["maximum_source_receipt_bytes"] = json!(1024 * 1024);
+    input["maximum_site_comparisons"] = json!(1024);
+    let (output, path) = run_on(
+        "later-unsupported",
+        &partial,
+        "--engineering-query-batch",
+        &input,
+        &[],
+    );
+    assert!(!output.status.success());
+    let report: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        report["engineering_batch"]["engineering"][0]["outcome"]["status"],
+        "engineering_observation"
+    );
+    assert_eq!(
+        report["engineering_batch"]["engineering"][1]["outcome"]["reason"],
+        "subject_selection"
+    );
+    assert_eq!(
+        report["engineering_batch"]["canonical_state_unchanged"],
+        true
+    );
+    assert_eq!(world.snapshot(), before);
+    fs::write(evidence.join("scope.json"),serde_json::to_vec_pretty(&json!({
+        "scope":"source-bound condition batching only","original_executed":false,"actual_cli_calls":24,
+        "preparation":counts,"individual_search_comparisons":64+1+64+32,
+        "individual_source_receipt_validations":4,"requested_offsets":offsets,
+        "canonical_snapshot":before,"condition_truth_verified":false,"retail_parity_accepted":false
+    })).unwrap()).unwrap();
+}

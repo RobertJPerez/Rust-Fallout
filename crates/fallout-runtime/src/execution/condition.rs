@@ -11,6 +11,7 @@ use fallout_data::condition_operands::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::io::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -31,6 +32,8 @@ pub enum Error {
     Content(#[from] crate::foreign::Failure),
     #[error("condition query contribution budget exceeded")]
     Capacity,
+    #[error("condition batch budget exceeded: {0}")]
+    BatchCapacity(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -69,6 +72,195 @@ pub struct Request<'a> {
     cohort: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BatchLimits {
+    pub maximum_requests: usize,
+    pub maximum_source_receipt_bytes: usize,
+    pub maximum_site_comparisons: usize,
+}
+impl Default for BatchLimits {
+    fn default() -> Self {
+        Self {
+            maximum_requests: 65_536,
+            maximum_source_receipt_bytes: 1024 * 1024,
+            maximum_site_comparisons: 1_048_576,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct BatchCounts {
+    pub cohort_validations: usize,
+    /// Compact ordered receipt JSON bytes; the fixed hash domain is excluded.
+    pub source_receipt_bytes: usize,
+    pub record_sites: usize,
+    pub requests: usize,
+    pub site_comparisons: usize,
+}
+
+/// A complete ordered selection over privately admitted immutable sites. This
+/// is a read-only request batch, never condition truth or mutation authority.
+pub struct Requests<'a> {
+    requests: Vec<Request<'a>>,
+    counts: BatchCounts,
+    campaign: CampaignId,
+    cohort: String,
+}
+
+struct ReceiptHash {
+    hash: Sha256,
+    bytes: usize,
+    maximum: usize,
+    exceeded: bool,
+}
+impl Write for ReceiptHash {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.maximum.saturating_sub(self.bytes) {
+            self.exceeded = true;
+            return Err(std::io::Error::other(
+                "condition source receipt byte budget exceeded",
+            ));
+        }
+        self.hash.update(bytes);
+        self.bytes += bytes.len();
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn validate_record_source(
+    world: &World<'_>,
+    record: &PreparedRecord,
+    maximum: usize,
+) -> Result<usize, Error> {
+    // Same existing CTDA receipt domain and ordered complete source list. Stream
+    // once into the digest, bounding work before an owned serialization exists.
+    let mut writer = ReceiptHash {
+        hash: Sha256::new(),
+        bytes: 0,
+        maximum,
+        exceeded: false,
+    };
+    writer.hash.update(b"FNVCTDASOURCES1");
+    if let Err(error) = serde_json::to_writer(&mut writer, &world.catalogue().sources) {
+        return Err(if writer.exceeded {
+            Error::BatchCapacity("source receipt bytes")
+        } else {
+            Error::SourceEncoding(error)
+        });
+    }
+    if record.identity().source_cohort_sha256 != format!("{:x}", writer.hash.finalize()) {
+        return Err(Error::ContextChanged);
+    }
+    Ok(writer.bytes)
+}
+
+impl<'a> Requests<'a> {
+    pub fn prepare(
+        world: &World<'_>,
+        record: &'a PreparedRecord,
+        requested_offsets: &[usize],
+        limits: BatchLimits,
+    ) -> Result<Self, Error> {
+        if requested_offsets.len() > limits.maximum_requests {
+            return Err(Error::BatchCapacity("requests"));
+        }
+        let receipt_bytes =
+            validate_record_source(world, record, limits.maximum_source_receipt_bytes)?;
+        let mut counts = BatchCounts {
+            cohort_validations: 1,
+            source_receipt_bytes: receipt_bytes,
+            record_sites: record.sites().len(),
+            requests: requested_offsets.len(),
+            site_comparisons: 0,
+        };
+        let mut requests = Vec::with_capacity(requested_offsets.len());
+        for &offset in requested_offsets {
+            // Strict visit_subrecords appends sites in increasing physical
+            // decoded offsets; PreparedRecord is private and not deserializable.
+            // Its existing vector is the index, with no duplicate parser/index.
+            let mut lower = 0;
+            let mut upper = record.sites().len();
+            let mut selected = None;
+            while lower < upper {
+                if counts.site_comparisons >= limits.maximum_site_comparisons {
+                    return Err(Error::BatchCapacity("site comparisons"));
+                }
+                counts.site_comparisons += 1;
+                let middle = lower + (upper - lower) / 2;
+                let site = &record.sites()[middle];
+                match site.field_decoded_offset().cmp(&offset) {
+                    std::cmp::Ordering::Less => lower = middle + 1,
+                    std::cmp::Ordering::Greater => upper = middle,
+                    std::cmp::Ordering::Equal => {
+                        selected = Some(site);
+                        break;
+                    }
+                }
+            }
+            let site = selected.ok_or(Error::MissingSite(offset))?;
+            requests.push(Request {
+                record,
+                site,
+                campaign: world.campaign(),
+                cohort: world.catalogue_fingerprint().into(),
+            });
+        }
+        Ok(Self {
+            requests,
+            counts,
+            campaign: world.campaign(),
+            cohort: world.catalogue_fingerprint().into(),
+        })
+    }
+    pub fn counts(&self) -> BatchCounts {
+        self.counts
+    }
+    pub fn len(&self) -> usize {
+        self.requests.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.requests.is_empty()
+    }
+
+    /// Reuse individual request observations with one contribution allowance.
+    /// An error drops earlier read-only observations and returns no partial batch.
+    pub fn observe<'b>(
+        &'b self,
+        world: &World<'_>,
+        content: &Content,
+        explicit_subject: Option<ReferenceId>,
+        intent: Intent,
+        maximum_contributions: usize,
+    ) -> Result<Vec<Observation<'b>>, Error> {
+        if self.campaign != world.campaign() || self.cohort != world.catalogue_fingerprint() {
+            return Err(Error::ContextChanged);
+        }
+        content.validate_world(world)?;
+        let mut used = 0_usize;
+        let mut observations = Vec::with_capacity(self.requests.len());
+        for request in &self.requests {
+            let observation = request.observe(
+                world,
+                content,
+                explicit_subject,
+                intent,
+                maximum_contributions.saturating_sub(used),
+            )?;
+            if let Outcome::EngineeringObservation { trace } = &observation.outcome {
+                used = used
+                    .checked_add(trace.query.contributions.len())
+                    .filter(|&used| used <= maximum_contributions)
+                    .ok_or(Error::Capacity)?;
+            }
+            observations.push(observation);
+        }
+        Ok(observations)
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct Observation<'a> {
     pub campaign: CampaignId,
@@ -90,14 +282,7 @@ impl<'a> Request<'a> {
         record: &'a PreparedRecord,
         field_decoded_offset: usize,
     ) -> Result<Self, Error> {
-        // This is the existing prepared CTDA receipt domain, distinct from the
-        // runtime catalogue fingerprint. Include every ordered source receipt.
-        let mut hash = Sha256::new();
-        hash.update(b"FNVCTDASOURCES1");
-        hash.update(serde_json::to_vec(&world.catalogue().sources)?);
-        if record.identity().source_cohort_sha256 != format!("{:x}", hash.finalize()) {
-            return Err(Error::ContextChanged);
-        }
+        validate_record_source(world, record, usize::MAX)?;
         let site = record
             .sites()
             .iter()

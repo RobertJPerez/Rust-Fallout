@@ -11,12 +11,65 @@ use fallout_runtime::{
     identity::{CampaignId, Owner, ReferenceValue, Value},
     schema::{self, Kind},
     snapshot::Snapshot,
-    state::initialization,
+    state::{HostLimits, HostRequirements, initialization},
 };
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, io::Read, path::Path};
+
+struct HostCheckInput {
+    snapshot: Snapshot,
+    requirements: HostRequirements,
+}
+fn read_bounded(path: &Path, maximum: u64, message: &'static str) -> Result<Vec<u8>> {
+    let file = fallout_data::baseline::open_source(path)?;
+    if file.metadata()?.len() > maximum {
+        return Err(message.into());
+    }
+    let mut bytes = Vec::new();
+    file.take(maximum + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > maximum {
+        return Err(message.into());
+    }
+    Ok(bytes)
+}
+impl HostCheckInput {
+    fn read(snapshot: &Path, requirements: &Path) -> Result<Self> {
+        let limits = Limits::default();
+        let requirements = read_bounded(
+            requirements,
+            1024 * 1024,
+            "Host requirements input byte budget exceeded",
+        )?;
+        let requirements = serde_json::from_slice(&requirements)?;
+        let snapshot = read_bounded(
+            snapshot,
+            limits.max_snapshot_bytes as u64,
+            "Host snapshot input byte budget exceeded",
+        )?;
+        Ok(Self {
+            snapshot: Snapshot::decode(&snapshot, limits)?,
+            requirements,
+        })
+    }
+    fn probe(self, catalogue: &Catalogue) -> Result<Json> {
+        let limits = Limits::default();
+        let world = World::restore(catalogue, self.snapshot, limits)?;
+        let before = world.snapshot();
+        let readiness = world.check_host_requirements(&self.requirements, HostLimits::default())?;
+        if world.snapshot() != before {
+            return Err("Host requirements check changed canonical state".into());
+        }
+        Ok(json!({
+            "scope":"Read-only availability of explicitly required canonical data at this revision",
+            "readiness":readiness,"canonical_data_available":readiness.canonical_data_available(),
+            "first_unavailable":readiness.first_unavailable(),
+            "restored_snapshot_sha256":format!("{:x}",Sha256::digest(before.encode(limits.max_snapshot_bytes)?)),
+            "canonical_state_unchanged":true,"bytecode_executed":false,"retail_parity_accepted":false
+        }))
+    }
+}
 
 /// A bounded explicit inspector request, not a persisted script continuation.
 #[derive(Deserialize)]
@@ -29,15 +82,11 @@ pub(super) struct EngineeringCommit {
 impl EngineeringCommit {
     pub(super) fn read(path: &Path) -> Result<Self> {
         const MAXIMUM_BYTES: u64 = 64 * 1024;
-        let file = fallout_data::baseline::open_source(path)?;
-        if file.metadata()?.len() > MAXIMUM_BYTES {
-            return Err("Engineering event-commit input byte budget exceeded".into());
-        }
-        let mut bytes = Vec::new();
-        file.take(MAXIMUM_BYTES + 1).read_to_end(&mut bytes)?;
-        if bytes.len() as u64 > MAXIMUM_BYTES {
-            return Err("Engineering event-commit input byte budget exceeded".into());
-        }
+        let bytes = read_bounded(
+            path,
+            MAXIMUM_BYTES,
+            "Engineering event-commit input byte budget exceeded",
+        )?;
         Ok(serde_json::from_slice(&bytes)?)
     }
     pub(super) fn stage(
@@ -259,10 +308,17 @@ pub(super) fn inspect(
     order_path: &Path,
     cache: Option<&Path>,
     engineering_event_commit: Option<&Path>,
+    host_inputs: Option<(&Path, &Path)>,
 ) -> Result<Json> {
     // Bound and validate the opt-in request before loading the content corpus.
+    if engineering_event_commit.is_some() && host_inputs.is_some() {
+        return Err("Host requirements and engineering event commit are mutually exclusive".into());
+    }
     let request = engineering_event_commit
         .map(EngineeringCommit::read)
+        .transpose()?;
+    let host = host_inputs
+        .map(|(snapshot, requirements)| HostCheckInput::read(snapshot, requirements))
         .transpose()?;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
@@ -315,14 +371,18 @@ pub(super) fn inspect(
                 "record_flags":version.record_flags,"decoded_bytes":bytes,"decoded_sha256":version.decoded_record_sha256,"units":[unit]}));
         }
     }
-    let state_probe = probe(&catalogue)?;
     let mut report = json!({"schema_version":1,"profile":"nv-original","sources":catalogue.sources,"metadata":metadata,
         "counts":{"candidate_records":catalogue.counts.candidate_records_read+catalogue.counts.deleted_candidates_skipped,
             "deleted_candidate_records":catalogue.counts.deleted_candidates_skipped,"decoded_candidate_bytes":catalogue.counts.payload_bytes_scanned,
             "scripts":catalogue.counts.scripts,"unique_locals":count,"duplicate_declarations":catalogue.counts.duplicate_variable_indices,"local_kinds":kinds},
-        "records":records,"state_probe":state_probe,"explicit_load_order":order.names,"load_order_sha256":order.sha256,
+        "records":records,"explicit_load_order":order.names,"load_order_sha256":order.sha256,
         "index_cache":store.index_cache_report(),"catalogue_source_findings":catalogue.counts.scripts_with_issues,
         "constructor_defaults_verified":false,"retail_parity_accepted":false});
+    if let Some(host) = host {
+        report["host_readiness"] = host.probe(&catalogue)?;
+    } else {
+        report["state_probe"] = probe(&catalogue)?;
+    }
     if let Some(request) = request {
         let mut harness = engineering_world(&catalogue)?;
         report["engineering_event_commit"] = event_commit_probe(&mut harness.world, request)?;
@@ -400,5 +460,75 @@ mod tests {
             EngineeringCommit::read(path).err().unwrap().to_string(),
             "Engineering event-commit input byte budget exceeded"
         );
+    }
+
+    #[test]
+    fn host_requirements_inputs_are_strict_typed_and_bounded_before_snapshot_loading() {
+        let request = json!({
+            "campaign":vec![25_u8;16],"catalogue_sha256":"a".repeat(64),
+            "reference_states":[1],"inventory_owners":[2],
+            "instances":[{"owner":{"kind":"placed","reference":1},"instance":1,
+                "definition":{"key":{"record":{"profile":fallout_data::identity::ProfileId::NvOriginal,"origin_plugin":"falloutnv.esm","local_id":768},
+                    "header_decoded_offset":0},"version_sha256":"b".repeat(64)}}],
+            "expected_journal_head":{"kind":"event","sequence":7,"instance":1}
+        });
+        let mut request = request;
+        let parsed: HostRequirements = serde_json::from_value(request.clone()).unwrap();
+        assert_eq!(parsed.reference_states[0].0.get(), 1);
+        assert_eq!(parsed.instances[0].instance.0.get(), 1);
+        assert_eq!(parsed.instances[0].definition.key.record.local_id, 0x300);
+        for field in ["unexpected", "reference_states"] {
+            let bytes = serde_json::to_string(&request).unwrap();
+            let duplicate_or_unknown = format!("{{\"{field}\":[],{}", &bytes[1..]);
+            assert!(serde_json::from_str::<HostRequirements>(&duplicate_or_unknown).is_err());
+        }
+        request["instances"][0]["instance"] = json!(0);
+        assert!(serde_json::from_value::<HostRequirements>(request).is_err());
+        let file = InputFile::new();
+        std::fs::write(&file.0, vec![b' '; 1024 * 1024 + 1]).unwrap();
+        assert_eq!(
+            HostCheckInput::read(Path::new("nonexistent-host-snapshot.json"), &file.0)
+                .err()
+                .unwrap()
+                .to_string(),
+            "Host requirements input byte budget exceeded"
+        );
+    }
+
+    #[test]
+    fn host_check_flags_require_both_inputs_and_exclude_the_mutating_commit_mode() {
+        use clap::Parser;
+        let base = [
+            "fallout",
+            "script-state",
+            "--install",
+            "private-install",
+            "--load-order",
+            "private-order.json",
+        ];
+        for extra in [
+            vec!["--host-snapshot", "snapshot.json"],
+            vec!["--host-requirements", "requirements.json"],
+            vec![
+                "--host-snapshot",
+                "snapshot.json",
+                "--host-requirements",
+                "requirements.json",
+                "--engineering-event-commit",
+                "commit.json",
+            ],
+        ] {
+            assert!(super::super::Args::try_parse_from(base.into_iter().chain(extra)).is_err());
+        }
+        assert!(
+            super::super::Args::try_parse_from(base.into_iter().chain([
+                "--host-snapshot",
+                "snapshot.json",
+                "--host-requirements",
+                "requirements.json"
+            ]))
+            .is_ok()
+        );
+        assert!(super::super::Args::try_parse_from(base).is_ok());
     }
 }

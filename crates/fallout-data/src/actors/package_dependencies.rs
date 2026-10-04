@@ -100,6 +100,10 @@ pub struct Definition<'a> {
     package: &'a packages::Definition,
 }
 impl Definition<'_> {
+    /// Exact existing scalar catalogue source, not an executable package.
+    pub fn source_definition(&self) -> &packages::Definition {
+        self.package
+    }
     pub fn record(&self) -> Option<&plugin::Record> {
         self.package.record()
     }

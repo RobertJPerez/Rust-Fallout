@@ -576,6 +576,21 @@ enum Command {
         #[arg(long)]
         request: Option<PathBuf>,
     },
+    /// Query selected engineering collision through sealed cell source residency.
+    CellCollision {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        source_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,
@@ -1688,6 +1703,24 @@ fn run(args: Args) -> Result<()> {
                 index_cache.as_deref(),
                 &editor_id,
                 request.as_deref(),
+            )?;
+            emit(&report, output, &install)?;
+        }
+        Command::CellCollision {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::cell_query(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
             )?;
             emit(&report, output, &install)?;
         }

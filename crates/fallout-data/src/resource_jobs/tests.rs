@@ -12,13 +12,13 @@ use std::{
     time::Instant,
 };
 
-pub(super) struct Pause {
+pub(crate) struct Pause {
     after_extract: bool,
     state: Mutex<(bool, bool, bool)>,
     changed: Condvar,
 }
 impl Pause {
-    fn new(after_extract: bool) -> Arc<Self> {
+    pub(crate) fn new(after_extract: bool) -> Arc<Self> {
         Arc::new(Self {
             after_extract,
             state: Mutex::new((false, false, false)),
@@ -36,7 +36,7 @@ impl Pause {
             state = self.changed.wait(state).unwrap();
         }
     }
-    fn reached(&self) {
+    pub(crate) fn reached(&self) {
         let state = self.state.lock().unwrap();
         let (state, timeout) = self
             .changed
@@ -47,7 +47,7 @@ impl Pause {
             "worker did not reach controlled boundary"
         );
     }
-    fn release(&self) {
+    pub(crate) fn release(&self) {
         self.state.lock().unwrap().1 = true;
         self.changed.notify_all();
     }
@@ -55,7 +55,7 @@ impl Pause {
         self.state.lock().unwrap().2 = true;
         self.changed.notify_all();
     }
-    fn completed(&self) {
+    pub(crate) fn completed(&self) {
         let state = self.state.lock().unwrap();
         let (state, timeout) = self
             .changed

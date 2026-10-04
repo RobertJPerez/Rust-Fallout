@@ -1824,11 +1824,15 @@ fn run(args: Args) -> Result<()> {
             } else {
                 fallout_data::store::RecordStore::open_nv(&install.join("Data"), &names, limits)?
             };
-            let dependency_report = if include_dependencies {
-                let (key, _) = store.cell_by_editor_id(editor_id.as_bytes())?;
+            let root = if include_dependencies {
+                Some(store.cell_by_editor_id(editor_id.as_bytes())?.0)
+            } else {
+                None
+            };
+            let dependency_report = if let Some(root) = root.as_ref().filter(|_| !inspect_models) {
                 Some(fallout_data::world::dependencies::inspect_cell_key(
                     &mut store,
-                    &key,
+                    root,
                     Default::default(),
                 )?)
             } else {
@@ -1838,9 +1842,30 @@ fn run(args: Args) -> Result<()> {
             for path in data_files(&install, &["bsa"])? {
                 NvArchive::open(&path)?.census(&mut mounts)?;
             }
+            let model_plan = if let Some(root) = root.as_ref().filter(|_| inspect_models) {
+                Some(fallout_data::world::preparation::CellModelPlan::load(
+                    &mut store,
+                    root,
+                    &mounts,
+                    Default::default(),
+                )?)
+            } else {
+                None
+            };
             let mut report =
                 fallout_data::world::inspect_cell(&mut store, editor_id.as_bytes(), &mounts)?;
-            if inspect_models {
+            let model_preparation = if let Some(plan) = &model_plan {
+                let mut preparation = fallout_data::world::preparation::CellPreparation::new(
+                    plan.clone(),
+                    &install,
+                    model_cache.as_deref(),
+                    Default::default(),
+                )?;
+                Some(preparation.wait()?.publish_into(&mut report)?)
+            } else {
+                None
+            };
+            if inspect_models && model_plan.is_none() {
                 fallout_data::model_probe::inspect_models(
                     &mut report,
                     &install,
@@ -1850,17 +1875,24 @@ fn run(args: Args) -> Result<()> {
             let clean = report.integrity_failures == 0
                 && report.link_failures == 0
                 && report.model_probes.iter().all(|p| p.error.is_none());
-            if let Some(dependency_report) = &dependency_report {
+            if let Some(dependency_report) = model_plan
+                .as_ref()
+                .map(|plan| plan.graph())
+                .or(dependency_report.as_ref())
+            {
                 #[derive(serde::Serialize)]
                 struct WithDependencies<'a> {
                     #[serde(flatten)]
                     cell: &'a fallout_data::world::CellReport,
                     dependency_report: &'a fallout_data::world::dependencies::Report,
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    model_preparation: Option<&'a fallout_data::world::preparation::Receipt>,
                 }
                 emit(
                     &WithDependencies {
                         cell: &report,
                         dependency_report,
+                        model_preparation: model_preparation.as_ref(),
                     },
                     output,
                     &install,

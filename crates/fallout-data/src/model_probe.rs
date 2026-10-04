@@ -2,7 +2,7 @@
 //! examined; this does not substitute for a verified retail mount policy.
 use crate::{
     Error, Result, cache, nif,
-    resource_jobs::{ArchiveInput, Generation, Limits, ResourceJobs},
+    resource_jobs::{ArchiveInput, Artifact, Generation, Limits, ResourceJobs},
     vfs::{AssetPath, AssetSource},
     world::CellReport,
 };
@@ -19,6 +19,31 @@ pub struct ModelProbe {
     pub nif: Option<nif::NifIndex>,
     pub cache: Option<cache::CacheResult>,
     pub error: Option<String>,
+}
+
+impl ModelProbe {
+    pub(crate) fn empty(path: AssetPath, source: AssetSource) -> Self {
+        Self {
+            path,
+            source,
+            decoded_bytes: None,
+            sha256: None,
+            nif: None,
+            cache: None,
+            error: None,
+        }
+    }
+}
+
+pub(crate) fn inspect_artifact(probe: &mut ModelProbe, artifact: &mut Artifact) -> Result<()> {
+    probe.decoded_bytes = Some(artifact.bytes().len());
+    probe.sha256 = Some(format!("{:x}", Sha256::digest(artifact.bytes())));
+    probe.nif = Some(nif::inspect(
+        artifact.bytes(),
+        &String::from_utf8_lossy(probe.path.bytes()),
+    )?);
+    probe.cache = artifact.take_cache_receipt();
+    Ok(())
 }
 
 pub fn inspect_models(
@@ -52,15 +77,7 @@ pub fn inspect_models(
             archives.insert(source.container.clone(), archive);
         }
         let archive = &archives[&source.container];
-        let mut probe = ModelProbe {
-            path,
-            source,
-            decoded_bytes: None,
-            sha256: None,
-            nif: None,
-            cache: None,
-            error: None,
-        };
+        let mut probe = ModelProbe::empty(path, source);
         let result = (|| -> Result<()> {
             let mut artifact = jobs
                 .submit(
@@ -76,14 +93,7 @@ pub fn inspect_models(
                 )
                 .and_then(|handle| handle.wait())
                 .map_err(|error| Error::Resolution(error.to_string()))?;
-            probe.decoded_bytes = Some(artifact.bytes().len());
-            probe.sha256 = Some(format!("{:x}", Sha256::digest(artifact.bytes())));
-            probe.nif = Some(nif::inspect(
-                artifact.bytes(),
-                &String::from_utf8_lossy(probe.path.bytes()),
-            )?);
-            probe.cache = artifact.take_cache_receipt();
-            Ok(())
+            inspect_artifact(&mut probe, &mut artifact)
         })();
         if let Err(error) = result {
             probe.error = Some(error.to_string());

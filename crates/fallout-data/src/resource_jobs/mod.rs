@@ -240,6 +240,17 @@ impl ResourceJobs {
         )
     }
 
+    #[cfg(test)]
+    pub(crate) fn submit_paused(
+        &self,
+        member: Member,
+        token: JobToken,
+        cache: Option<(PathBuf, PathBuf)>,
+        pause: Arc<tests::Pause>,
+    ) -> JobResult<JobHandle> {
+        self.submit_inner(member, token, cache, Some(pause))
+    }
+
     fn submit_inner(
         &self,
         member: Member,

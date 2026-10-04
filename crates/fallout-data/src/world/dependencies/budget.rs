@@ -31,7 +31,7 @@ impl Default for Limits {
 }
 
 impl Limits {
-    pub(super) fn validate(self) -> Result<Self> {
+    pub(in crate::world) fn validate(self) -> Result<Self> {
         let ceiling = Self::default();
         for (value, maximum, name) in [
             (

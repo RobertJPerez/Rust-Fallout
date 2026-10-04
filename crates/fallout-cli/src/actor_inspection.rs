@@ -1,11 +1,11 @@
 //! Immutable source scalars over the existing inventory production load path.
-use super::{Result, inspection_input::Order};
+use super::{Result, command_catalogue, inspection_input::Order};
 use fallout_data::{
     actors,
     assets::ArchiveAssets,
-    baseline,
+    baseline, condition_operands,
     identity::{self, FormKey, ProfileId},
-    inventory, leveled, record_metadata,
+    inventory, leveled, loaded_scripts, record_metadata,
 };
 use serde_json::{Value, json};
 use std::{io::Read, path::Path};
@@ -18,6 +18,7 @@ pub(super) struct Options {
     pub(super) include_placements: bool,
     pub(super) include_races: bool,
     pub(super) include_packages: bool,
+    pub(super) include_package_dependencies: bool,
     pub(super) include_dependencies: bool,
     pub(super) dependency_roots: Vec<FormKey>,
 }
@@ -46,6 +47,9 @@ pub(super) fn inspect(
     cache: Option<&Path>,
     options: Options,
 ) -> Result<Value> {
+    if options.include_package_dependencies && !options.include_packages {
+        return Err("package dependencies require --include-packages".into());
+    }
     if options.dependency_roots.len() > 64 {
         return Err("actor dependency root budget exceeds 64".into());
     }
@@ -127,6 +131,59 @@ pub(super) fn inspect(
             "{}; authored PACK scalar inputs, no scheduling, conditions or AI execution",
             report["scope"].as_str().unwrap_or_default()
         ));
+        if options.include_package_dependencies {
+            let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+            let signatures: condition_operands::Signatures = descriptors
+                .script_commands
+                .iter()
+                .filter(|row| row.condition_handler_present)
+                .map(|row| {
+                    (
+                        (row.id - 0x1000) as u16,
+                        condition_operands::Signature {
+                            parameters: row
+                                .parameters
+                                .iter()
+                                .map(|parameter| condition_operands::Parameter {
+                                    type_id: parameter.type_id,
+                                    optional_word: parameter.optional_word,
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect();
+            let scripts =
+                loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
+            let dependencies = actors::package_dependencies::Catalogue::load(
+                &mut store,
+                &packages,
+                &scripts,
+                &signatures,
+                Default::default(),
+            )?;
+            let descriptor_receipt = json!({
+                "source_bytes": descriptors.source_bytes,
+                "source_sha256": descriptors.source_sha256,
+                "source_version_profile": descriptors.source_version_profile,
+                "image_base": descriptors.image_base,
+                "pe_timestamp": descriptors.pe_timestamp,
+                "condition_descriptors": descriptors.script_commands.iter()
+                    .filter(|row| row.condition_handler_present)
+                    .map(|row| json!({"function_id": row.id - 0x1000,
+                        "descriptor_file_offset": row.descriptor_file_offset,
+                        "parameters": row.parameters})).collect::<Vec<_>>(),
+            });
+            report["actor_package_dependencies"] = json!({
+                "counts": dependencies.counts(),
+                "definitions": dependencies.iter().map(|(_, definition)| definition).collect::<Vec<_>>(),
+                "descriptor_receipt": descriptor_receipt,
+            });
+            report["scope"] = json!(format!(
+                "{}; physical PACK CTDA and embedded script source dependencies with separate fingerprinted descriptor receipt; no grouping, condition truth, event ownership, script execution or AI",
+                report["scope"].as_str().unwrap_or_default()
+            ));
+        }
     }
     if options.include_dependencies {
         let lists = leveled::Catalogue::load(&mut store, leveled::Limits::default())?;
@@ -225,6 +282,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err("independent actor source comparison differs in actor_dependencies".into());
     }
+    if report.get("actor_package_dependencies").is_some()
+        && report.get("actor_package_dependencies") != oracle.get("actor_package_dependencies")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_package_dependencies".into(),
+        );
+    }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
@@ -253,6 +317,10 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     if report.get("actor_packages").is_some() {
         report["independent_comparison"]["packages_checked"] =
             report["actor_packages"]["counts"]["records"].clone();
+    }
+    if report.get("actor_package_dependencies").is_some() {
+        report["independent_comparison"]["package_dependency_records_checked"] =
+            report["actor_package_dependencies"]["counts"]["records"].clone();
     }
     if report.get("actor_dependencies").is_some() {
         report["independent_comparison"]["dependency_records_checked"] =

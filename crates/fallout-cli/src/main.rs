@@ -205,6 +205,8 @@ enum Command {
         include_races: bool,
         #[arg(long)]
         include_packages: bool,
+        #[arg(long, requires = "include_packages")]
+        include_package_dependencies: bool,
         #[arg(long)]
         include_dependencies: bool,
         #[arg(long = "dependency-root", requires = "include_dependencies", value_parser = actor_inspection::parse_root)]
@@ -862,6 +864,7 @@ fn run(args: Args) -> Result<()> {
             include_placements,
             include_races,
             include_packages,
+            include_package_dependencies,
             include_dependencies,
             dependency_roots,
         } => {
@@ -876,6 +879,7 @@ fn run(args: Args) -> Result<()> {
                     include_placements,
                     include_races,
                     include_packages,
+                    include_package_dependencies,
                     include_dependencies,
                     dependency_roots,
                 },
@@ -906,6 +910,10 @@ fn run(args: Args) -> Result<()> {
                     .unwrap_or(0)
                     != 0
                 || report["actor_packages"]["counts"]["source_findings"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    != 0
+                || report["actor_package_dependencies"]["counts"]["source_findings"]
                     .as_u64()
                     .unwrap_or(0)
                     != 0

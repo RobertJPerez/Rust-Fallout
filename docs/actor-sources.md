@@ -774,3 +774,86 @@ source oracle. Receipts remain under `local/act07d-trust-validation-20261004-01`
 and `local/act07d-good-source-results-20261004-01`; the binary is sealed under
 `local/act07d-trust-frozen-tools-20261004-01`. No source schema, runtime state,
 save format, scheduling or verified gameplay behavior changes.
+
+## Physical package dependencies (ACT-07B)
+
+`actors::package_dependencies::Catalogue::load` joins the existing PACK scalar
+catalogue and loaded script catalogue to the current winning store. It checks
+complete source cohorts, winning-content identity, each header/body digest and
+every borrowed script version. Deleted winners retain their headers without
+reading bodies. Recovered bodies cannot supply dependency inputs.
+
+Physical CTDA occurrences use the scripting lane's `prepare_record` decoder,
+including exact 20/24/28-byte layouts, preceding field offsets, preserved raw
+words and explicit unknown dependencies. No owning condition group or truth
+value is inferred. SCHR units borrow the existing script handles, version,
+declarations, ordered references and issues. PACK script ownership remains
+`unverified_embedded`; nearest POBA/POEA/POCA markers are recorded separately.
+Pinned xEdit declares these event markers as empty, INAM as an IDLE/NULL FormID
+and TNAM as a DIAL/NULL FormID, each exactly four bytes. Missing markers and
+wrong target kinds receive source findings. Link resolution reuses the existing
+inventory binder; null, missing, deleted and wrong-kind targets stay distinct.
+
+The exact raw installed-source matrix contains 4,885 PACK records, 88,491 fields,
+3,801 CTDA occurrences (24 width-20 and 3,777 width-28), 14,616 SCHR units,
+558 SCDA bodies, 595 SCTX fields, 875 SCRO and 10 SCRV references, and 13
+SLSD/SCVR declarations. Each marker occurs 4,872 times; INAM and TNAM each
+occur 14,616 times. All decoded body hashes match the preserved native oracle.
+The matrix is retained under `local/act07b-pack-matrix-20261004-01`.
+
+Admission limits cover 65,536 package records, 64 MiB per record, 256 MiB total
+decoded bytes, two million physical fields, four million visits over two passes,
+one million condition sites, 128 MiB of condition retained rows, one million
+event fields and links, 262,144 script units and declarations, one million
+references, and 128 MiB of compact serialized definitions. Counts are charged
+across records before retaining further views. Compact projection bytes cover
+definitions rather than total process heap, prior catalogues, descriptor
+receipts or pretty report bytes; borrowed script metadata is not cloned.
+
+`actor-sources --include-packages --include-package-dependencies` is the optional
+consumer. It reuses the fingerprinted command catalogue and reports descriptor
+provenance separately: plugin source receipts do not certify caller-supplied
+signatures. The independent raw Python reader in
+`tools/actor-oracle/package_dependencies.py` reads locked plugin bytes and the
+same exact executable's descriptor bytes. It augments the existing native
+oracle without invoking production decoders or executable handlers. Default
+actor reports keep their existing schema and bytes.
+
+Exact approved scripting prerequisites are VM-03 `5a505ccb` mapped as `de5fb78`
+and VM-03B `0a16e72` mapped as `b1a8d5e`. The latter preserves the exact patch
+while excluding the unrelated earlier `decoded_record_bytes` getter. No other
+script changes were adopted. This slice does not initialize actor state, infer
+event ownership, execute conditions/scripts, choose schedules, or establish AI
+or gameplay parity.
+
+All 65 actor tests pass, including seven new source-join, exact/one-less bound,
+deleted-body, aggregate-record, warm-reload and dependency-only binding cases.
+Affected data/CLI all-target Clippy with warnings denied, CLI build, formatting,
+PowerShell/Python syntax and whitespace checks pass. Complete installed and
+authored projections match the independent reader in cold, warm and reordered
+runs. Installed dependencies retain 3,801 conditions, 14,616 scripts, 558
+compiled bodies, 13 declarations and 885 references, with no new source findings.
+The authored four-package cohort includes an unread deleted winner, four
+conditions, four scripts, seven references and eleven explicit source findings.
+
+Both readers reject fourteen malformed source cases for their specific field
+diagnostic. The CLI rejects fifteen altered complete projections, refuses an
+unsupported executable fingerprint, and requires the package scalar flag before
+opening inputs. The default authored report is byte-equal to the preserved
+ACT-07D binary. An extra raw tag containing space, NUL and `0xFF` exposed display
+label escaping in the independent reader; the corrected reader matches the full
+crafted projection. Corrected installed oracle bytes are equal to the sealed
+original oracles for both load orders. No Rust decoder changed for that fix.
+
+Original comparison receipts are in `local/act07b-original-comparison-20261004-01`;
+final authored receipts are in `local/act07b-authored-comparison-20261004-02`.
+Corrected-reader equality, tag-label and negative/default receipts are in
+`local/act07b-reader-equality-20261004-01`,
+`local/act07b-tag-label-reports-20261004-01` and
+`local/act07b-negative-results-20261004-01`. Final tools are sealed in
+`local/act07b-package-frozen-tools-20261004-02`. The installed comparison used the
+preceding reader, and the equality receipts bind its complete oracle bytes to
+the corrected reader; final authored runs use the corrected reader directly.
+Earlier pilots, fixture setup failures and intermediate private helper drafts
+remain separate. These are source-decoding and engineering-bound receipts,
+with no actor initialization, scheduling, AI, save or gameplay acceptance.

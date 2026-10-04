@@ -1080,3 +1080,66 @@ freshly checked against the preserved independent baseline, and all selected
 physical source bodies/field origins were freshly verified. All 31 original
 plugin/archive inputs and five private frozen/baseline inputs keep their hashes.
 This source admission establishes no renderer or gameplay acceptance.
+
+## Selected voice source requests (V3-ACT-12)
+
+`actors::voices::request` joins one explicit actor to its existing authored
+associations and race catalogue. Exact ordered plugin receipts and winning
+content identity must match the supplied store before any target read. Every
+actor VTCK/RNAM occurrence keeps its physical field and source binding. A unique
+nondeleted RACE link exposes both authored VTCK FormIDs, in male/female order;
+their alignment with a unique NPC ACBS sex declaration is reported separately.
+CREA flag bit zero never supplies an NPC sex. Traits inheritance, missing or
+repeated configuration leaves authored sex unavailable.
+
+Repeated singleton actor/race links stay ambiguous and are not followed. Null,
+missing, deleted and wrong-kind target bindings stay explicit. At most three
+unique winning VTYP sources are followed; their complete headers, physical
+field hashes/offsets and optional raw DNAM flag bytes are retained. Repeated
+DNAM fields remain separate and receive a diagnostic. Unknown bits are retained.
+Unsupported VTYP header versions retain their identity with an unread body;
+deleted compressed tombstones are never decoded.
+
+The pinned xEdit FNV source at `9fb016884bec138ea6c7b872cec831537d464c3e`
+declares VTYP's optional one-byte DNAM at 6094-6101 and RACE's two VTCK FormIDs
+at 7400-7403. The independent local base-ESM check observed voice versions
+1, 4, 9, 11, 13, 14 and 15. All nine version-1 records omit DNAM; all 91 later
+records contain one byte. Absence remains absence. Default dialogue flags do
+not evaluate dialogue conditions, select a fallback voice or choose an audio
+language/path. This consumer does not load audio or initialize actor behavior.
+
+```powershell
+.\target\debug\fallout.exe actor-sources --install LOCAL_INSTALL --load-order ORDER_JSON --voice-root FalloutNV.esm:104C0C --output local/voice.json
+```
+
+The explicit `--voice-root` enables `actor_voice_requests` and loads the existing
+association/race prerequisites. Their whole catalogues appear only with the
+existing `--include-associations`/`--include-races` options. Default source
+reports are unchanged. `--compare-oracle` checks the complete new projection.
+The independent `tools/actor-oracle/voices.py` reuses the raw source/header
+reader and checks native actor/race/association rows against fresh physical
+bytes before deriving voice pairs, flags, provenance and sex alignment.
+
+Limits bound individual and aggregate decoded bytes, physical fields,
+declarations, selected sources, visits, issues and the complete serialized
+projection. The existing strict indexed reader also bounds a compressed
+record's stored extent by the remaining decoded allowance; it may conservatively
+refuse a tightly bounded compressed record. Existing actor/race decoders remain
+the only decoders of their typed scalar fields.
+
+Validation on 2026-10-04 passed eight voice tests, seven association tests and
+six race tests, format, data/CLI all-target warnings-denied Clippy and the CLI
+build. Nine complete authored native/raw/CLI projections match, including
+compressed winning overrides, repeated declarations, null/missing/wrong-kind
+targets, unread deleted/unknown-version bodies, traits requirements and creature
+flags. The NPC fixtures retain the existing missing-class finding when the
+whole association catalogue is requested; their reports still compare exactly.
+The voice-only consumer exits zero, default scalar reports match, and changed
+voice flags, raw bindings and sex alignment reject through the actual CLI.
+
+The selected installed Doc Mitchell (`FalloutNV.esm:104C0C`) request also matches
+the full independent reader. It retains three winning VTYP sources (versions
+15, 4 and 9, raw DNAM bytes 0, 1 and 3), four declarations, 175 physical fields
+and no voice issues. All ten original plugin and seven private input hashes
+remain unchanged. Evidence and failed drafts remain under
+`local/v3-act12-voices-20261004-01`; no gameplay or audio behavior is accepted.

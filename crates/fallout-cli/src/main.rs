@@ -220,6 +220,8 @@ enum Command {
         equipment_source: Option<identity::FormKey>,
         #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
         equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, value_parser = actor_inspection::parse_root)]
+        voice_root: Option<identity::FormKey>,
     },
     /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
     ActorPackageContext {
@@ -906,6 +908,7 @@ fn run(args: Args) -> Result<()> {
             include_template_dependencies,
             equipment_source,
             equipment_role,
+            voice_root,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -925,6 +928,7 @@ fn run(args: Args) -> Result<()> {
                     include_template_dependencies,
                     equipment_source,
                     equipment_role,
+                    voice_root,
                 },
             )?;
             if let Some(oracle) = compare_oracle {

@@ -170,6 +170,7 @@ pub(super) struct Options {
     pub(super) dependency_roots: Vec<FormKey>,
     pub(super) equipment_source: Option<FormKey>,
     pub(super) equipment_role: Option<actors::dependencies::equipment::Role>,
+    pub(super) voice_root: Option<FormKey>,
 }
 
 pub(super) fn parse_equipment_role(
@@ -271,7 +272,10 @@ pub(super) fn inspect(
         "counts":catalogue.counts(),"definitions":definitions,"index_cache":store.index_cache_report(),
         "scope":"Exact authored NPC_/CREA scalar source fields joined to existing inventory provenance; no actor initialization, inheritance, automatic statistics or runtime conversion",
         "actors_initialized":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
-    let associations = if options.include_associations || options.include_dependencies {
+    let associations = if options.include_associations
+        || options.include_dependencies
+        || options.voice_root.is_some()
+    {
         Some(actors::associations::Catalogue::load(
             &mut store,
             &catalogue,
@@ -316,13 +320,32 @@ pub(super) fn inspect(
             report["scope"].as_str().unwrap_or_default()
         ));
     }
+    let races = if options.include_races || options.voice_root.is_some() {
+        Some(actors::races::Catalogue::load(
+            &mut store,
+            actors::races::Limits::default(),
+        )?)
+    } else {
+        None
+    };
     if options.include_races {
-        let races = actors::races::Catalogue::load(&mut store, actors::races::Limits::default())?;
+        let races = races.as_ref().expect("requested races loaded");
         report["actor_races"] = json!({"counts":races.counts(),"definitions":races.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
         report["scope"] = json!(format!(
             "{}; authored RACE scalar inputs, no race or FaceGen application",
             report["scope"].as_str().unwrap_or_default()
         ));
+    }
+    if let Some(root) = &options.voice_root {
+        let voices = actors::voices::request(
+            &mut store,
+            &catalogue,
+            associations.as_ref().expect("voice associations loaded"),
+            races.as_ref().expect("voice races loaded"),
+            root,
+            Default::default(),
+        )?;
+        report["actor_voice_requests"] = json!({"manifest":voices});
     }
     if options.include_packages {
         let packages =
@@ -543,6 +566,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         return Err(
             "independent actor source comparison differs in actor_template_dependencies".into(),
         );
+    }
+    if report.get("actor_voice_requests").is_some()
+        && report.get("actor_voice_requests") != oracle.get("actor_voice_requests")
+    {
+        return Err("independent actor source comparison differs in actor_voice_requests".into());
     }
     if report.get("actor_equipment_dependencies").is_some()
         && report.get("actor_equipment_dependencies") != oracle.get("actor_equipment_dependencies")

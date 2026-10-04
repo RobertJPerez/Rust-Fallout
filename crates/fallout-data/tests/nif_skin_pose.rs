@@ -515,6 +515,305 @@ fn evaluate(blocks: &[(&str, Vec<u8>)]) -> pose::Evaluation {
     )
     .unwrap()
 }
+
+#[test]
+fn palette_transport_has_literal_noncommuting_rows_separate_placement_and_raw_weights() {
+    use pose::palette_packet as transport;
+    let mut blocks = subset_fixture();
+    blocks[5].1 = skin(
+        &[vec![(0, 0.25), (0, 0.5), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    let bytes = container(&blocks, &[0]);
+    let before = bytes.clone();
+    let selected = transport::Request {
+        expected_source_sha256: source_digest(&bytes),
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+        precision: transport::Precision::FiniteNearestF32 {
+            maximum_absolute_error: 0.,
+        },
+    };
+    let packet = transport::prepare(&bytes, "transport", selected, Default::default()).unwrap();
+    let expected = [
+        [[0f32, -2., 0., -2.], [2., 0., 0., 3.], [0., 0., 2., 4.]],
+        [[0., -2., 0., -6.], [2., 0., 0., 3.], [0., 0., 2., 4.]],
+    ];
+    assert_eq!(
+        packet
+            .palette()
+            .iter()
+            .map(|b| (b.ordinal, b.node))
+            .collect::<Vec<_>>(),
+        [(0, 1), (1, 2)]
+    );
+    for (bone, matrix) in packet.palette().iter().zip(expected) {
+        assert_eq!(
+            bone.matrix.row_major_3x4_bits,
+            matrix.map(|row| row.map(f32::to_bits))
+        );
+        assert_eq!(bone.matrix.maximum_absolute_error_bound, 0.);
+    }
+    assert_eq!(
+        packet.skin_to_source_world().row_major_3x4_bits,
+        [
+            [1.5f32, 0., 0., 13.],
+            [0., 1.5, 0., 15.5],
+            [0., 0., 1.5, 24.]
+        ]
+        .map(|row| row.map(f32::to_bits))
+    );
+    let old = pose::evaluate(
+        &bytes,
+        "transport",
+        Request {
+            geometry: 3,
+            weights: selected.weights,
+        },
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(old.weight_sums, [1.5, 1., 1.]);
+    assert_eq!(
+        (
+            packet.usage().deformation_charged_bytes,
+            packet.usage().deformation_work_units
+        ),
+        (old.retained_bytes, old.work_units)
+    );
+    assert_eq!(
+        (
+            packet.usage().scalar_conversions,
+            packet.usage().source_decodes,
+            packet.usage().full_source_sha256_traversals
+        ),
+        (36, 1, 1)
+    );
+    let value = serde_json::to_value(&packet).unwrap();
+    assert_eq!(value["instance"], 4);
+    assert_eq!(value["skin_data"], 5);
+    assert_eq!(value["geometry_data"], 6);
+    assert_eq!(
+        value["source_sha256"],
+        format!("{:x}", sha2::Sha256::digest(&bytes))
+    );
+    assert_eq!(bytes, before);
+    for bad in [
+        transport::Request {
+            expected_source_sha256: [0; 32],
+            ..selected
+        },
+        transport::Request {
+            geometry: 1,
+            ..selected
+        },
+        transport::Request {
+            weights: WeightPolicy::RequireUnitSum {
+                absolute_tolerance: 0.,
+            },
+            ..selected
+        },
+        transport::Request {
+            weights: WeightPolicy::RequireUnitSum {
+                absolute_tolerance: f64::NAN,
+            },
+            ..selected
+        },
+        transport::Request {
+            precision: transport::Precision::FiniteNearestF32 {
+                maximum_absolute_error: f64::NAN,
+            },
+            ..selected
+        },
+        transport::Request {
+            precision: transport::Precision::FiniteNearestF32 {
+                maximum_absolute_error: -1.,
+            },
+            ..selected
+        },
+    ] {
+        assert!(transport::prepare(&bytes, "bad", bad, Default::default()).is_err());
+        assert_eq!(bytes, before);
+    }
+}
+#[test]
+fn palette_transport_bounds_all_storage_work_decoder_and_live_concurrency() {
+    use pose::palette_packet as transport;
+    let bytes = container(&fixture(), &[0]);
+    let selected = transport::Request {
+        expected_source_sha256: source_digest(&bytes),
+        geometry: 3,
+        weights: request().weights,
+        precision: transport::Precision::FiniteNearestF32 {
+            maximum_absolute_error: 0.,
+        },
+    };
+    let packet = transport::prepare(&bytes, "limits", selected, Default::default()).unwrap();
+    let u = packet.usage();
+    let mut exact = transport::Limits {
+        palette_entries: 2,
+        array_bytes: u.retained_bytes,
+        work_units: u.work_units,
+        decoder_array_admission_bytes: u.decoder_array_admission_bytes,
+        decoder_check_admission_units: u.decoder_check_admission_units,
+        source_metadata_array_bytes: u.source_metadata_retained_bytes,
+        source_metadata_work_units: u.source_metadata_work_units,
+        ..Default::default()
+    };
+    exact.pose.array_bytes = u.deformation_charged_bytes;
+    exact.pose.work_units = u.deformation_work_units;
+    exact.pose.source.partition.skin.scene.input_bytes = bytes.len();
+    let baseline = transport::prepare(&bytes, "exact", selected, exact).unwrap();
+    exact.max_combined_retained_bytes = baseline
+        .usage()
+        .initial_concurrent_admission_bytes
+        .max(baseline.usage().conservative_concurrent_charged_bytes);
+    transport::prepare(&bytes, "exact", selected, exact).unwrap();
+    for limits in [
+        transport::Limits {
+            palette_entries: 1,
+            ..exact
+        },
+        transport::Limits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        transport::Limits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        transport::Limits {
+            decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+            ..exact
+        },
+        transport::Limits {
+            decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+            ..exact
+        },
+        transport::Limits {
+            source_metadata_array_bytes: exact.source_metadata_array_bytes - 1,
+            ..exact
+        },
+        transport::Limits {
+            source_metadata_work_units: exact.source_metadata_work_units - 1,
+            ..exact
+        },
+        transport::Limits {
+            max_combined_retained_bytes: exact.max_combined_retained_bytes - 1,
+            ..exact
+        },
+    ] {
+        assert!(transport::prepare(&bytes, "under", selected, limits).is_err());
+    }
+    for kind in 0..4 {
+        let mut limits = exact;
+        match kind {
+            0 => limits.pose.array_bytes -= 1,
+            1 => limits.pose.work_units -= 1,
+            2 => limits.pose.source.partition.skin.scene.input_bytes -= 1,
+            _ => limits.pose.ancestry_depth = 0,
+        }
+        assert!(transport::prepare(&bytes, "phase under", selected, limits).is_err());
+    }
+}
+#[test]
+fn palette_transport_source_composition_tie_rounding_and_late_placement_overflow_are_atomic() {
+    use pose::palette_packet as transport;
+    let half = 2f32.powi(-24);
+    let mut blocks = fixture();
+    blocks[0].1 = node(ID, [0.; 3], 1., &[1, 3]);
+    blocks[1].1 = node(
+        [[1., half, 0.], [0., 1., 0.], [0., 0., 1.]],
+        [0.; 3],
+        1.,
+        &[2],
+    );
+    blocks[2].1 = node(ID, [0.; 3], 1., &[]);
+    let mut data = Vec::new();
+    transform(&mut data, ID, [0.; 3], 1.);
+    words(&mut data, &[2]);
+    data.push(1);
+    for (r, weights) in [
+        (
+            [[1., 0., 0.], [1., 1., 0.], [0., 0., 1.]],
+            vec![(0, 0.5), (1, 1.)],
+        ),
+        (ID, vec![(0, 0.75), (2, 1.)]),
+    ] {
+        transform(&mut data, r, [0.; 3], 1.);
+        floats(&mut data, &[0., 0., 0., 10.]);
+        shorts(&mut data, &[weights.len() as u16]);
+        for (v, w) in weights {
+            shorts(&mut data, &[v]);
+            floats(&mut data, &[w]);
+        }
+    }
+    blocks[5].1 = data;
+    let bytes = container(&blocks, &[0]);
+    let selected = transport::Request {
+        expected_source_sha256: source_digest(&bytes),
+        geometry: 3,
+        weights: WeightPolicy::PreserveRawNonnegative,
+        precision: transport::Precision::FiniteNearestF32 {
+            maximum_absolute_error: f64::from(half),
+        },
+    };
+    let packet = transport::prepare(&bytes, "halfway", selected, Default::default()).unwrap();
+    assert_eq!(
+        packet.palette()[0].matrix.row_major_3x4_bits,
+        [
+            [0x3f800000, 0x33800000, 0, 0],
+            [0x3f800000, 0x3f800000, 0, 0],
+            [0, 0, 0x3f800000, 0]
+        ]
+    );
+    assert_eq!(
+        packet.palette()[0].matrix.maximum_absolute_error_bound,
+        f64::from(half)
+    );
+    assert!(
+        transport::prepare(
+            &bytes,
+            "below",
+            transport::Request {
+                precision: transport::Precision::FiniteNearestF32 {
+                    maximum_absolute_error: f64::from(half).next_down()
+                },
+                ..selected
+            },
+            Default::default()
+        )
+        .is_err()
+    );
+    // Both bone palettes remain finite f32. Placement is converted last and
+    // exceeds f32 after RootScale * inverse(SkinScale), while f64 stays finite.
+    let mut blocks = fixture();
+    blocks[0].1 = node(ID, [0.; 3], f32::MAX, &[1, 3]);
+    let bytes = container(&blocks, &[0]);
+    let request = transport::Request {
+        expected_source_sha256: source_digest(&bytes),
+        precision: transport::Precision::FiniteNearestF32 {
+            maximum_absolute_error: f64::MAX,
+        },
+        ..selected
+    };
+    let old = pose::evaluate(
+        &bytes,
+        "overflow",
+        Request {
+            geometry: 3,
+            weights: request.weights,
+        },
+        Default::default(),
+    );
+    assert!(old.is_ok());
+    assert!(
+        transport::prepare(&bytes, "overflow", request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("finite f32 range")
+    );
+}
 fn refusal(blocks: &[(&str, Vec<u8>)], expected: &str) {
     let error = pose::evaluate(
         &container(blocks, &[0]),

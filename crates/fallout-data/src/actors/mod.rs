@@ -1,6 +1,7 @@
 //! Immutable authored actor inputs. Scalars borrow their exact inventory
 //! catalogue; separate prerequisite catalogues retain complete source receipts
 //! and winning-content identity. No live actor state is initialized.
+pub mod ai_inputs;
 pub mod associations;
 pub mod classes;
 pub mod dependencies;

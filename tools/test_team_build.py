@@ -28,11 +28,13 @@ SPEC.loader.exec_module(build)
 
 
 class AuthorizationTests(unittest.TestCase):
+    team_name = "team-v3"
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="fallout-team-build-test-")
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.team = self.root / "local" / "team-v3"
+        self.team = self.root / "local" / self.team_name
         (self.team / "leases").mkdir(parents=True)
         (self.root / "local" / "team").mkdir()
         self.worktree = self.root / "worker"
@@ -41,10 +43,10 @@ class AuthorizationTests(unittest.TestCase):
             "mode": "active", "stop_requested": False,
             "focused_build_policy": "automatic_mutex",
             "active_coordination_directory": str(self.team),
-            "generation": "team-v3-test", "run_id": "run-test",
+            "generation": f"{self.team_name}-test", "run_id": "run-test",
             "workers": ["scripts", "runtime", "actors", "assets", "world", "presentation", "physics"],
         }
-        identity = {"generation": "team-v3-test", "run_id": "run-test", "lane": "scripts"}
+        identity = {"generation": f"{self.team_name}-test", "run_id": "run-test", "lane": "scripts"}
         self.assignment = {
             **identity, "state": "active", "implementation_authorized": True,
             "worktree": str(self.worktree), "branch": "agents/scripts",
@@ -530,6 +532,30 @@ class AuthorizationTests(unittest.TestCase):
             stopper.join(15)
             for handle in handles:
                 kernel.CloseHandle(handle)
+
+
+class V4AuthorizationTests(AuthorizationTests):
+    """Run every existing admission and cancellation case for the new team too."""
+
+    team_name = "team-v4"
+
+    def test_all_new_roles_require_current_assignment_and_lease(self):
+        for self.lane in ("behavior-lead", "engine-lead", "audio", "behavior-acceptance", "engine-acceptance"):
+            with self.subTest(lane=self.lane):
+                self.control["workers"].append(self.lane)
+                for record in (self.assignment, self.lease, self.status):
+                    record["lane"] = self.lane
+                self.save()
+                self.assertEqual(self.authorize().lane, self.lane)
+                self.lease["run_id"] = "old-run"
+                self.save()
+                with self.assertRaisesRegex(RuntimeError, "run_id differs"):
+                    self.authorize()
+                self.lease["run_id"] = "run-test"
+
+    def test_unlisted_new_role_does_not_gain_authority(self):
+        with self.assertRaisesRegex(RuntimeError, "not a current lane"):
+            build.check_authorization("engine-lead", "test-session", "focused")
 
 
 class ReadTests(unittest.TestCase):

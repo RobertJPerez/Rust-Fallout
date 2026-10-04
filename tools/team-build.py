@@ -149,8 +149,11 @@ def check_authorization(
 
     control = read_json(ROOT / "local" / "team" / "control.json")
     team = absolute_path(control, "active_coordination_directory")
-    if team != (ROOT / "local" / "team-v3").resolve():
-        raise RuntimeError("This wrapper requires the central team-v3 directory")
+    # Keep an explicit allowlist: a control-file typo must not redirect build
+    # authority to an arbitrary checkout or revive an older team generation.
+    central_teams = {(ROOT / "local" / name).resolve() for name in ("team-v3", "team-v4")}
+    if team not in central_teams:
+        raise RuntimeError("This wrapper requires the central team-v3 or team-v4 directory")
     if control.get("mode") != "active" or control.get("stop_requested") is not False:
         raise RuntimeError("Team is stopped or inactive")
     if control.get("focused_build_policy") != "automatic_mutex":

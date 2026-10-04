@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "tests": 66,
+  "command": "C:\\Users\\robjp\\AppData\\Local\\Programs\\Python\\Python313\\python.exe tools\\test_team_build.py",
+  "production_control": "unchanged_paused",
+  "sources": [
+    {
+      "path": "tools/team-build.py",
+      "sha256": "541bae9277c3b0314040f4b7a68ec6627a2c2724a7cd43c57b85e33065e4a3a5",
+      "bytes": 23705
+    },
+    {
+      "path": "tools/test_team_build.py",
+      "sha256": "b111cfcf000bdfdcf8b964735ae8668da509efe1375c477571a849aa9ce8b671",
+      "bytes": 38095
+    }
+  ]
+}

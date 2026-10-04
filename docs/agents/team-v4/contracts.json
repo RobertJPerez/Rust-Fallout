@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "state": "prepared_paused",
+  "rules": [
+    "Existing v3 contracts remain the baseline until explicitly replaced. New contracts below authorize additive producer/consumer work inside owned files, not guessed persistent semantics.",
+    "Gameplay command boundary: source-qualified owner/target, expected canonical revision, request identity, supported operation, admitted/refused result. Only runtime commits canonical mutations. Preserve existing identifiers and transaction types.",
+    "Single world authority: application modules compose the existing canonical World host; they do not create a parallel gameplay world or a second save repository. Presentation and engine_bridge consume immutable observations and acknowledged commands. Restore stays prepared until complete scene admission; only then publish the new canonical and displayed revision together.",
+    "Scene boundary: world ticket/source generation and retained leases flow to engine_bridge; prepared CPU data, GPU upload completion and simulation readiness are distinct states. No early Ready on spawn.",
+    "Movement boundary: input requests -> physics sweep/support/clearance result -> runtime pose commit -> rendering/camera consumer. Camera never becomes canonical body state.",
+    "Animation boundary: actor intent -> source-bound asset sampling -> validated palette/attachments -> renderer. Carry source fingerprint, rig order and revision. Missing binding is not identity fallback.",
+    "Audio boundary: admitted cue/source generation, playback handle, observable clock, cancellation and completion/error result. Runtime persists intent through its own modules; audio owns device buffers only.",
+    "Dialogue boundary: source-selected response plus speaker/target context -> supported compiled effects -> one canonical receipt -> UI and voice. Unsupported conditions are not zero and failed effects are not accepted.",
+    "Producer and consumer may implement against existing interfaces immediately. Additive API/schema proposals are recorded once for the owning lead; no per-function grant. Durable format, dependency, source-pin or shared semantics changes need coordinator decision.",
+    "Workers submit exact root export/CLI/manifest patch in handoff; coordinator is sole writer of those shared paths. Leads code adapters in their exclusive application/engine_bridge directories; presentation owns existing host entrypoint wiring.",
+    "One handoff per coherent feature package, not per method. Leads may integrate owned worker commits into their own staging branches without requesting root approval per merge. Only root merges/promotes main."
+  ]
+}

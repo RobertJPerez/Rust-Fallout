@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "roles": 13,
+  "packages": 104,
+  "dependency_graph": "acyclic",
+  "ownership_paths_checked": 1288,
+  "ownership_overlaps": 0,
+  "existing_worker_heads_and_dirty_paths": "unchanged",
+  "main_and_candidate_heads": "unchanged",
+  "stopped_binary_patches_checked": 14,
+  "untracked_source_drafts_checked": 10,
+  "global_control": "unchanged_paused",
+  "new_worktrees": 5,
+  "prepared_assignments_checked": 13,
+  "prepared_live_leases": 0,
+  "engine_tests_run": false,
+  "activation_ready": false,
+  "build_authorization_tests": 66,
+  "activation_prerequisite": "Coordinator must verify prepared wrapper source pins and install fresh assignments/leases before activation."
+}

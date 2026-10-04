@@ -1,0 +1,49 @@
+{
+  "state": "paused_preparation",
+  "main": "b9662efc7da927e9fdbf2097661d05ccd95ef71c",
+  "integration": "d622128fb3fca1c67a1285dec85fd48c7526031f",
+  "control_sha256": "cf6f1feea8967262c28dc26e3b49fb2513ecf3e5a20a8a0fb8d44e4503c4b789",
+  "shutdown_manifest": "G:\\Rust-Fallout\\local\\coordinator-stop-reorganize-20261004-01\\shutdown-complete.json",
+  "lanes": {
+    "coordinator": {
+      "worktree": "G:\\Rust-Fallout",
+      "head": "b9662efc7da927e9fdbf2097661d05ccd95ef71c",
+      "status": "?? docs/agents/team-v4/"
+    },
+    "scripts": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-scripts",
+      "head": "30a0547f4b968f4b349249357ba9ba7e3f6706b0",
+      "status": "M crates/fallout-cli/src/event_operand_inspection.rs\n M crates/fallout-cli/src/main.rs\n M crates/fallout-runtime/src/execution/copy_probe.rs\n M crates/fallout-runtime/tests/execution_multi_copy.rs\n?? docs/vm-saved-named-multi-copy.md"
+    },
+    "runtime": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-runtime",
+      "head": "e129b5a03c32de218ec38b6420d5749fe68b4552",
+      "status": "M crates/fallout-runtime/src/save/format.rs\n M crates/fallout-runtime/src/save/mod.rs\n M crates/fallout-runtime/src/save/repository.rs\n M crates/fallout-runtime/src/save/source_validation/tests.rs\n M crates/fallout-runtime/src/save/worker.rs\n M crates/fallout-runtime/src/save/worker/tests/shutdown.rs\n?? crates/fallout-runtime/src/save/fork.rs"
+    },
+    "actors": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-actors",
+      "head": "5254c6a00e8b739adc759201e3f9ea5de95f7a3a",
+      "status": "M crates/fallout-cli/src/actor_inspection.rs\n M crates/fallout-cli/src/main.rs\n M crates/fallout-runtime/src/actor_rules/context.rs\n M crates/fallout-runtime/src/actor_rules/mod.rs\n M docs/actor-rules.md\n?? crates/fallout-runtime/src/actor_rules/context_batch.rs\n?? crates/fallout-runtime/src/actor_rules/faction_pair.rs\n?? crates/fallout-runtime/tests/actor_rules_context_batch.rs\n?? crates/fallout-runtime/tests/actor_rules_context_batch_fixture.rs\n?? crates/fallout-runtime/tests/actor_rules_faction_pair.rs\n?? tools/actor-oracle/decision_inputs.py"
+    },
+    "assets": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-assets",
+      "head": "454c37a5990e1b5de57494c1d27cf3ca7ce092e0",
+      "status": "M crates/fallout-data/src/nif_animation/pose.rs\n M crates/fallout-data/src/nif_animation/spline/sampling.rs\n M crates/fallout-data/src/nif_skin/mod.rs\n M crates/fallout-data/src/nif_skin/storage.rs\n?? crates/fallout-data/src/nif_animation/pose/spline.rs\n?? crates/fallout-data/tests/nif_animation_spline_pose.rs"
+    },
+    "world": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-world",
+      "head": "c3e4aa1e951b7f219b6530244e7f8f86edf12638",
+      "status": ""
+    },
+    "presentation": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-presentation",
+      "head": "d59c5cc487540ec1f2e257d453b05b1e6fd99444",
+      "status": ""
+    },
+    "physics": {
+      "worktree": "G:\\Rust-Fallout-worktrees\\v3-physics",
+      "head": "77c720a480b0aa2521596316a65c279ebb4ab79a",
+      "status": ""
+    }
+  }
+}

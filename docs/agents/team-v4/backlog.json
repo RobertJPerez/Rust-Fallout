@@ -1,0 +1,1240 @@
+{
+  "schema_version": 1,
+  "state": "prepared_paused",
+  "lanes": {
+    "coordinator": [
+      {
+        "id": "coordinator-01",
+        "title": "Bootstrap the new run safely",
+        "consumer": "All thirteen assignments",
+        "acceptance": "Verify the prepared v 4 build authorization and its 66-test receipt; install matching assignments and exclusive leases; activate control last.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-02",
+        "title": "Reconcile preserved work once",
+        "consumer": "Both staging leads",
+        "acceptance": "Import the stopped mapping ledger and exact drafts; distinguish mapped source 51 from proved source 40; do not replay old prerequisite commits.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-03",
+        "title": "Publish a common development baseline",
+        "consumer": "All application consumers",
+        "acceptance": "Combine the two reviewed dependency slices, fix actual shared dispatch failures, run affected tests and publish exact source/tree proof scope.",
+        "depends_on": [
+          "behavior-lead-01",
+          "engine-lead-01"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-04",
+        "title": "Finish isolated original execution transport",
+        "consumer": "Independent behavior and scene comparisons",
+        "acceptance": "Demonstrate actual process capture with separate user-data roots and unchanged installation/settings/saves; profile-only receipts cannot pass.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-05",
+        "title": "Repair source-store joins on the chosen route",
+        "consumer": "Existing content store and identity APIs",
+        "acceptance": "Reproduce a concrete source mismatch, repair only the shared cause, reject stale or foreign identity without widening parser admission.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-06",
+        "title": "Complete dependency and platform wiring",
+        "consumer": "Real controller, audio and module consumers",
+        "acceptance": "Audit only needed pinned additions, register owned modules, compile consumers and preserve unsupported capabilities explicitly. Existing bevy_gilrs is already enabled on pinned Bevy 0.19.1; do not redo that feature toggle or upgrade Bevy merely to add audio. Publish needed application, engine_bridge and audio module exports early as one additive wiring change so workers can compile consumers without repeated root grants.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-07",
+        "title": "Promote the first connected route",
+        "consumer": "Main and a reproducible user launch",
+        "acceptance": "Accept fresh route and cold-save evidence from frozen source; publish runnable command and remaining scope; inspection is not gameplay parity.",
+        "depends_on": [
+          "behavior-acceptance-02",
+          "engine-acceptance-02",
+          "engine-acceptance-03"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "coordinator-08",
+        "title": "Prepare later-game boundaries without a second engine",
+        "consumer": "Fallout 3, 4 and 76 roadmap",
+        "acceptance": "After the NV route is stable, isolate profile-specific formats and semantic capabilities; identify lawful installed inputs and external-service limits before promising equivalent behavior.",
+        "depends_on": [
+          "coordinator-07"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "coordinator"
+      }
+    ],
+    "behavior-lead": [
+      {
+        "id": "behavior-lead-01",
+        "title": "Adopt stopped gameplay packages",
+        "consumer": "Compiled execution, save and actor consumers",
+        "acceptance": "Map reviewed VM/STATE/ACT commits once; preserve unfinished drafts and exact refusal corrections; report missing validation instead of replaying completed work.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-02",
+        "title": "Connect activation to canonical inventory",
+        "consumer": "application host consumed by scene input",
+        "acceptance": "Use existing source-qualified selection and inventory transaction APIs; one accepted action changes state once; failed admission changes nothing.",
+        "depends_on": [
+          "behavior-lead-01"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-03",
+        "title": "Connect supported script events to host tick",
+        "consumer": "application host and observable world commands",
+        "acceptance": "Admit compiled events in declared order, dispatch bounded supported effects, acknowledge commits and expose unsupported opcodes before effects.",
+        "depends_on": [
+          "scripts-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-04",
+        "title": "Connect Save and fresh Continue to gameplay",
+        "consumer": "application host and save worker",
+        "acceptance": "First reproduce the late scene-membership rejection after native host replacement; prepare restore and acknowledge complete host/scene admission before publishing either authority. Reuse existing SaveWorker; a fresh process restores the same inventory, quest state and pending events.",
+        "depends_on": [
+          "runtime-03"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-05",
+        "title": "Connect dialogue to durable consequences",
+        "consumer": "original menu actions and canonical quest state",
+        "acceptance": "Source-selected response commits supported begin/end effects exactly once; cancel/re-enter and unsupported response paths cannot invent rewards.",
+        "depends_on": [
+          "scripts-05",
+          "runtime-05"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-06",
+        "title": "Connect actor intent to world commands",
+        "consumer": "AI packages, movement and animation consumers",
+        "acceptance": "Consume actor intent without making presentation authoritative; maintain generation and acknowledgement ordering across unloaded cells.",
+        "depends_on": [
+          "actors-03"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-07",
+        "title": "Make destination activation atomic",
+        "consumer": "scene transition orchestration",
+        "acceptance": "Failed destination preparation leaves source state intact; accepted transition commits location and events once and survives cold restore.",
+        "depends_on": [
+          "world-03",
+          "physics-04"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "behavior-lead-08",
+        "title": "Extend one authored playable sequence",
+        "consumer": "First normal-input NV route",
+        "acceptance": "Connect consecutive supported actions through visible consequences and cold restore; list exact missing semantics rather than substituting canned stage progression.",
+        "depends_on": [
+          "behavior-lead-04",
+          "behavior-lead-05"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "coordinator"
+      }
+    ],
+    "engine-lead": [
+      {
+        "id": "engine-lead-01",
+        "title": "Adopt stopped engine packages",
+        "consumer": "Scene host using existing source producers",
+        "acceptance": "Integrate reviewed physics, asset, world and presentation slices with preserved maps; prioritize missing validation and avoid replaying entire legacy branches.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-02",
+        "title": "Connect canonical scene boot",
+        "consumer": "engine_bridge scene lifetime",
+        "acceptance": "Compose existing startup/residency/model APIs into a visible source-backed interior; carry leases until unload and distinguish prepared, uploaded and simulation-ready. Coordinate prepared Continue admission with gameplay lead so a late scene-membership refusal preserves both host and visible revision.",
+        "depends_on": [
+          "engine-lead-01"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-03",
+        "title": "Connect body motion and camera",
+        "consumer": "physics pose receipts and rendering",
+        "acceptance": "Input requests move the canonical body through admitted queries; camera follows its own presentation state; refused movement cannot mutate position.",
+        "depends_on": [
+          "physics-02",
+          "engine-lead-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-04",
+        "title": "Connect player activation to gameplay host",
+        "consumer": "input selection and application command boundary",
+        "acceptance": "Stable source identity reaches gameplay once per admitted action; cancelled/stale selections do not fire events.",
+        "depends_on": [
+          "behavior-lead-02",
+          "engine-lead-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-05",
+        "title": "Connect actor pose and equipment to rendering",
+        "consumer": "existing model and palette upload",
+        "acceptance": "Consume prepared skin/pose/attachment results with source hashes and real frame upload; no invented root transforms or silent missing-bone success.",
+        "depends_on": [
+          "assets-02",
+          "engine-lead-02"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-06",
+        "title": "Connect doors and region lifetimes",
+        "consumer": "world transition and gameplay destination command",
+        "acceptance": "Prepare destination, verify actual render/collision readiness, commit once, then drain old leases; failed load retains the old scene.",
+        "depends_on": [
+          "world-03",
+          "physics-04",
+          "behavior-lead-07"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-07",
+        "title": "Connect original menu and audio actions",
+        "consumer": "presentation menus and audio clock",
+        "acceptance": "Menu focus owns input while active; confirmed gameplay receipts drive HUD/voice; cancelled dialogue stops only its own audio stream.",
+        "depends_on": [
+          "presentation-04",
+          "audio-02"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "coordinator"
+      },
+      {
+        "id": "engine-lead-08",
+        "title": "Remove measured route stalls",
+        "consumer": "real host timing and resource telemetry",
+        "acceptance": "Fix largest reproduced CPU/upload/IO stall with bounded queues and before/after replay data; maintain source and save results.",
+        "depends_on": [
+          "engine-acceptance-06"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "coordinator"
+      }
+    ],
+    "scripts": [
+      {
+        "id": "scripts-01",
+        "title": "Finish preserved VM37/38 consumer validation",
+        "consumer": "existing operand and event-frame CLI",
+        "acceptance": "Retain committed VM37 and four-file VM38 draft; run missing real command cases and refusal paths without recreating completed operand work.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-02",
+        "title": "Execute an ordered activation event batch",
+        "consumer": "behavior application tick",
+        "acceptance": "Use existing execution admission and source-qualified owners; commit supported effects once, retain instruction budget and reject unsupported operands.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-03",
+        "title": "Persist suspended supported event state",
+        "consumer": "runtime save and application scheduler",
+        "acceptance": "Define and consume explicit serializable continuation for supported waits; cold restore equals uninterrupted run, stale source plans reject.",
+        "depends_on": [
+          "scripts-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-04",
+        "title": "Execute quest-stage effects without guesses",
+        "consumer": "quest state and dialogue host",
+        "acceptance": "Resolve source-authored stage fragments and conditions; stage setter routes through canonical state; unsupported functions never become zero.",
+        "depends_on": [
+          "scripts-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-05",
+        "title": "Execute conversation begin/end fragments",
+        "consumer": "dialogue host acknowledgement",
+        "acceptance": "Bind correct speaker/target, preserve ordering, prevent duplicate response effects on retry and leave no partial mutation on refusal.",
+        "depends_on": [
+          "scripts-02"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-06",
+        "title": "Implement next measured high-frequency opcode family",
+        "consumer": "selected NV route execution",
+        "acceptance": "Use route census only to select a needed missing family; add measured semantics, actual host consumer and boundary/negative examples.",
+        "depends_on": [
+          "scripts-02"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-07",
+        "title": "Harden compiled control flow under malformed inputs",
+        "consumer": "existing VM admission",
+        "acceptance": "Bound stack, jumps, recursion and decode lengths; reject malformed source before effects; differential fixtures must include failing mutations.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "scripts-08",
+        "title": "Close event lifecycle and unload cancellation",
+        "consumer": "world transition and application scheduler",
+        "acceptance": "Pending owned events retain valid context or cancel explicitly across unload/reload; cold restore has no duplicate or lost admitted events.",
+        "depends_on": [
+          "scripts-03"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "behavior-lead"
+      }
+    ],
+    "runtime": [
+      {
+        "id": "runtime-01",
+        "title": "Finish preserved save 39/40 fork work",
+        "consumer": "existing native save repository",
+        "acceptance": "Preserve six modified files and fork.rs; supply missing tests, compile the actual draft, verify fork ancestry and failed-write isolation.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-02",
+        "title": "Complete lifecycle 36-38 host admission",
+        "consumer": "application and residency host",
+        "acceptance": "Reuse finished producer commits; reproduce source identity, stale-generation and transaction refusal at actual consumer boundaries.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-03",
+        "title": "Support gameplay save and fresh Continue",
+        "consumer": "behavior application host",
+        "acceptance": "One durable snapshot captures accepted inventory/reference/event state; restart separately, reject wrong profile and recover interrupted publication.",
+        "depends_on": [
+          "runtime-01"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-04",
+        "title": "Commit inventory actions atomically",
+        "consumer": "container and actor inventory commands",
+        "acceptance": "Apply existing transfers and equipment state in one canonical transaction; invalid count/context/capacity leaves both sides unchanged.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-05",
+        "title": "Persist dialogue and quest outcomes",
+        "consumer": "application dialogue and journal",
+        "acceptance": "Durable accepted outcome and event acknowledgements survive save/retry; no duplicate reward or fabricated stage default.",
+        "depends_on": [
+          "runtime-04"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-06",
+        "title": "Persist cell transitions and actor lifetime",
+        "consumer": "world lifecycle and application",
+        "acceptance": "Atomic destination/reference revision and event state; stale residency tickets cannot overwrite a newer save.",
+        "depends_on": [
+          "runtime-02"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-07",
+        "title": "Bound save memory and cancellation",
+        "consumer": "save worker used during actual scene play",
+        "acceptance": "Measure queue bytes, cancel superseded owned requests, preserve previous committed file on injected failures and report terminal outcomes.",
+        "depends_on": [
+          "runtime-01"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "runtime-08",
+        "title": "Validate migration against real current formats",
+        "consumer": "existing native migration command",
+        "acceptance": "Reject incompatible source/schema atomically, migrate only supported versions and independently compare canonical relationships after restore.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "behavior-lead"
+      }
+    ],
+    "actors": [
+      {
+        "id": "actors-01",
+        "title": "Finish preserved ACT33/34 milestone",
+        "consumer": "existing actor inspector and runtime rules",
+        "acceptance": "Keep eleven-path draft; fix known Clippy failure, run missing CLI proof and retain 67-test evidence without declaring unrun proof passed.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-02",
+        "title": "Publish source-backed actor spawn state",
+        "consumer": "gameplay host and scene actor consumer",
+        "acceptance": "Resolve templates/inventory/equipment/stats using existing admitted sources; missing/chance-dependent behavior stays explicit.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-03",
+        "title": "Drive a supported package lifecycle",
+        "consumer": "application tick and navigation requests",
+        "acceptance": "Ordered start/change/end with source identity, bounded selection and no successful no-op on unsupported package type.",
+        "depends_on": [
+          "actors-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-04",
+        "title": "Drive equipment changes through actor intent",
+        "consumer": "runtime inventory and visible attachments",
+        "acceptance": "One canonical equip command produces validated slot/weapon response and animation request; refused equipment preserves prior state.",
+        "depends_on": [
+          "actors-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-05",
+        "title": "Implement measured damage and death response",
+        "consumer": "supported combat action and animation consumer",
+        "acceptance": "Connect admitted damage through health/limb/death state and one event response; numeric edge cases measured and saved.",
+        "depends_on": [
+          "actors-02"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-06",
+        "title": "Persist actor schedules across cell lifetime",
+        "consumer": "runtime snapshots and world activation",
+        "acceptance": "Unload/reload retains supported package and references without duplicating actors or resetting admitted state.",
+        "depends_on": [
+          "actors-03"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-07",
+        "title": "Connect dialogue eligibility to canonical actor state",
+        "consumer": "dialogue host conditions",
+        "acceptance": "Template-derived factions/relationships/stats come from the same admitted actor context as gameplay; reject ambiguous speakers.",
+        "depends_on": [
+          "actors-02"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "actors-08",
+        "title": "Extend one route-required actor behavior",
+        "consumer": "first authored NV sequence",
+        "acceptance": "Choose a missing package/combat/interaction behavior from actual route failure, implement producer and observable host result with negative tests.",
+        "depends_on": [
+          "actors-03"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "behavior-lead"
+      }
+    ],
+    "assets": [
+      {
+        "id": "assets-01",
+        "title": "Finish stopped spline and skin package",
+        "consumer": "existing animation/skin inspectors",
+        "acceptance": "Preserve six held packages and compact-spline draft; settle unsealed verification against immutable inputs and run missing source cases.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-02",
+        "title": "Deliver sampled animation to visible actor",
+        "consumer": "engine_bridge palette and model consumer",
+        "acceptance": "Produce validated time-sampled pose from admitted controllers; source hashes, joint order and bindings match rendered actor.",
+        "depends_on": [
+          "assets-01"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-03",
+        "title": "Support equipment and weapon attachment poses",
+        "consumer": "actor intent and model attachment consumer",
+        "acceptance": "Compose local hierarchy and attachment transforms from admitted source; reject missing binding instead of substituting identity.",
+        "depends_on": [
+          "assets-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-04",
+        "title": "Handle animation transition and interruption",
+        "consumer": "application animation requests",
+        "acceptance": "Support bounded known transitions, cancellation and boundary events; separate clip time from rendering frame count. Test nonzero clip start, final text keys, interrupted clips and loop crossings so sound/action markers fire once at the correct boundary.",
+        "depends_on": [
+          "assets-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-05",
+        "title": "Preserve actor animation across cold restore",
+        "consumer": "runtime animation intent and engine host",
+        "acceptance": "Restore canonical request/time under matching source fingerprint; missing/changed clip cannot silently replace playback.",
+        "depends_on": [
+          "assets-04"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-06",
+        "title": "Handle independent rigs and malformed palettes",
+        "consumer": "same real skin upload path",
+        "acceptance": "Demonstrate multiple source rig structures and negative bounds/weights cases; no player-only names or truncated strongest-weight assumption without evidence.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-07",
+        "title": "Reduce measured pose and upload cost",
+        "consumer": "actor render consumer",
+        "acceptance": "Cache immutable bindings and batch changed palettes within memory limits; benchmark same visible output and source rejection behavior.",
+        "depends_on": [
+          "assets-02"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "assets-08",
+        "title": "Add next unsupported route asset controller",
+        "consumer": "selected NV actor or scene",
+        "acceptance": "Use actual host failure to choose supported controller family, trace full source rule and prove both decoded result and visible consumer.",
+        "depends_on": [
+          "assets-02"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "engine-lead"
+      }
+    ],
+    "world": [
+      {
+        "id": "world-01",
+        "title": "Finish stopped WORLD35/37 native proof",
+        "consumer": "existing world source consumers",
+        "acceptance": "Retain clean committed work and 133 focused tests; run the missing 15 actual native cases, not a repeat source census.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-02",
+        "title": "Drive adjacent region residency",
+        "consumer": "engine scene host",
+        "acceptance": "Use existing jobs/tickets with priority and hysteresis; reverse crossings do not duplicate roots and late completions cannot publish stale scenes. Test worldspace replacement with a reused cell/block key and a delayed old completion; generation must participate in identity.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-03",
+        "title": "Prepare authored door destinations",
+        "consumer": "gameplay transition and scene host",
+        "acceptance": "Resolve source destination/context and arrival transform; failure preserves current scene and source leases; readiness remains explicit. Join doors and destinations by qualified identity, never by zipping lists after filtering renderable models.",
+        "depends_on": [
+          "world-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-04",
+        "title": "Drain source and cache lifetimes on unload",
+        "consumer": "engine residency and retained resource users",
+        "acceptance": "Cancel obsolete work, retain live dependencies, release after final consumer; repeated crossing returns counters within budget.",
+        "depends_on": [
+          "world-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-05",
+        "title": "Recover cache publication after interruption",
+        "consumer": "existing importer/cache used by host boot",
+        "acceptance": "Inject interruption before/after completion marker; correct source/options digest invalidates only affected entries and installed inputs remain untouched. A header-only output or absent mandatory resource cannot satisfy a complete cache receipt; failure and cancellation join owned workers before publication.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-06",
+        "title": "Connect terrain and lighting sources",
+        "consumer": "presentation material and exterior scene",
+        "acceptance": "Finish held source producers; correct lease/version/texture role reach renderer; unsupported material cannot masquerade as faithful fallback.",
+        "depends_on": [
+          "world-01"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-07",
+        "title": "Resolve dialogue/world membership for a route",
+        "consumer": "behavior dialogue and quest host",
+        "acceptance": "Use existing narrative membership and winning override context; wrong cell/source/speaker produces explicit refusal.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "world-08",
+        "title": "Bound streaming memory under long traversal",
+        "consumer": "actual multi-cell scene consumer",
+        "acceptance": "Measure queued/resident/retained bytes and evict by valid lifetime; looping route stays bounded and restored references retain state.",
+        "depends_on": [
+          "world-02",
+          "world-04"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "engine-lead"
+      }
+    ],
+    "presentation": [
+      {
+        "id": "presentation-01",
+        "title": "Finish stopped VIEW packages and corrections",
+        "consumer": "current preview renderer",
+        "acceptance": "Adopt held 22/23/24/31/32/25 with exact proof scope; finish private 30/33 only after reading their actual state and far-frustum correction.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-02",
+        "title": "Render original font glyphs and menu text",
+        "consumer": "existing XML tile pipeline",
+        "acceptance": "Extend existing includes/traits/dependencies/images/rectangles with validated font pages and text layout; render actual menu text with bounded inputs.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-03",
+        "title": "Route keyboard and controller actions by focus",
+        "consumer": "scene and gameplay command host",
+        "acceptance": "Separate gameplay/menu/console focus, release held actions on transitions and test reconnect/rebinding without duplicate activation. Reuse existing held-state quarantine and monotone context intents in input.rs; add the real gameplay action consumer instead of rewriting the input guard.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-04",
+        "title": "Display canonical inventory and interaction menus",
+        "consumer": "behavior application receipts",
+        "acceptance": "Menu rows and selection reflect source-backed state; accepted transfer updates visibly once, refusal leaves old UI state and explains cause. Preserve physical button identity when hidden or unaccelerated rows are filtered; reject stale or invalid quantity submissions through the canonical transaction.",
+        "depends_on": [
+          "behavior-lead-02",
+          "presentation-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-05",
+        "title": "Display source-selected dialogue and subtitles",
+        "consumer": "dialogue host and audio clock",
+        "acceptance": "Real selected options/response text, cancellation and focus restoration; voice timing consumes audio receipt rather than arbitrary sleeps. Test source text encoding explicitly and keep shortcut/response indices stable when options are filtered.",
+        "depends_on": [
+          "behavior-lead-05",
+          "presentation-02",
+          "audio-04"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-06",
+        "title": "Render source animation and attachments",
+        "consumer": "engine model consumer",
+        "acceptance": "Wire prepared palette updates and equipped models through actual render lifecycle; source/bounds mismatch visible as unsupported, not success.",
+        "depends_on": [
+          "assets-02"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-07",
+        "title": "Complete matched interior/exterior materials",
+        "consumer": "world terrain/light/water consumers",
+        "acceptance": "Correct material roles, normal/alpha/UV handling and camera captures; optional enhancements stay separate from original profile.",
+        "depends_on": [
+          "world-06"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "presentation-08",
+        "title": "Remove actual scene frame stalls",
+        "consumer": "engine replay and GPU telemetry",
+        "acceptance": "Batch measured hot upload/draw path, preserve output within declared tolerances and enforce retained texture/model memory budget.",
+        "depends_on": [
+          "engine-acceptance-06"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "engine-lead"
+      }
+    ],
+    "physics": [
+      {
+        "id": "physics-01",
+        "title": "Finish adoption of held finite-query work",
+        "consumer": "scene movement consumer",
+        "acceptance": "Preserve 23-27/36 exact commits and 99 Rust/112 native cases; reconcile approved 4-step mapper against actual new parent before further edits.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-02",
+        "title": "Drive body sweeps from movement requests",
+        "consumer": "engine bridge canonical pose",
+        "acceptance": "Consume existing authored query shapes; wall/floor/support/clearance failures refuse motion without moving camera authority into physics.",
+        "depends_on": [
+          "physics-01"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-03",
+        "title": "Handle steps, slopes and contact transitions",
+        "consumer": "player route controller",
+        "acceptance": "Use measured or explicitly engineering parameters; demonstrate doorway/step/slope fixtures and 30/60/120 render-frame invariance.",
+        "depends_on": [
+          "physics-02"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-04",
+        "title": "Validate destination clearance",
+        "consumer": "authored door activation",
+        "acceptance": "Check arrival against prepared destination collision; invalid placement prevents transition commit and retains source scene.",
+        "depends_on": [
+          "physics-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-05",
+        "title": "Drive supported actor navigation corridors",
+        "consumer": "actor package intent",
+        "acceptance": "Resolve source nav/collision bounds, produce bounded path and local motion requests; impossible destinations refuse without endless retries.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-06",
+        "title": "Update moving collision owners safely",
+        "consumer": "canonical reference pose consumer",
+        "acceptance": "Revisioned owner transforms update queries; stale and nonfinite changes refuse, removed objects cannot remain query hits.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-07",
+        "title": "Keep movement stable across save and rebasing",
+        "consumer": "runtime pose and scene origin",
+        "acceptance": "Same source-coordinate result after cold restore and repeated local-origin changes; no accumulated world drift.",
+        "depends_on": [
+          "physics-02"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "physics-08",
+        "title": "Optimize measured broad phase and query work",
+        "consumer": "real route movement workload",
+        "acceptance": "Benchmark candidate counts/query time/memory and compare independent exact fixtures; avoid speculative engine replacement.",
+        "depends_on": [
+          "physics-02"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "engine-lead"
+      }
+    ],
+    "audio": [
+      {
+        "id": "audio-01",
+        "title": "Build bounded source sound preparation",
+        "consumer": "new audio consumer using existing VFS",
+        "acceptance": "Resolve source-qualified audio through existing resource leases; validate format lengths/channels/rates and report unsupported codecs without silent success. Include truncated format chunks, zero sample rate/channel counts, oversized declared payload and decoder-cancellation fixtures.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-02",
+        "title": "Play actual admitted sound requests",
+        "consumer": "audio event adapter in scene host",
+        "acceptance": "Finite bounded queue, cancellation and error-bearing completion; generation prevents stale voice/effect completion in a newer scene.",
+        "depends_on": [
+          "audio-01"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-03",
+        "title": "Stream music without unbounded decoding",
+        "consumer": "scene music deck consumer",
+        "acceptance": "Bound decoded samples and worker lifetime; seek/stop cancels own stream; decoder failure is distinct from natural end.",
+        "depends_on": [
+          "audio-01"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-04",
+        "title": "Play dialogue voice with an observable clock",
+        "consumer": "presentation subtitles and conversation host",
+        "acceptance": "Selected source cue starts once, clock drives subtitles, cancel/re-enter isolates old playback and missing voice remains explicit. Drive timing from the observable playback clock, not render dt; prepare/decode off the frame thread and distinguish decode failure from natural completion.",
+        "depends_on": [
+          "audio-02"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-05",
+        "title": "Apply source-backed spatial sound",
+        "consumer": "canonical emitter/listener pose",
+        "acceptance": "Document measured attenuation/direction semantics; fixture verifies transforms and channel behavior without invented faithful constants.",
+        "depends_on": [
+          "audio-02"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-06",
+        "title": "Persist supported music and radio intent",
+        "consumer": "runtime saves via gameplay adapter",
+        "acceptance": "Save canonical source cue and supported position, restore with source check and no duplicate streams; unsupported radio rules declared.",
+        "depends_on": [
+          "audio-03"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-07",
+        "title": "Handle device loss, pause and focus changes",
+        "consumer": "actual host audio backend",
+        "acceptance": "Recover or visibly refuse device change, no leaked worker/buffer; menu pause follows explicit supported policy.",
+        "depends_on": [
+          "audio-02"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "audio-08",
+        "title": "Connect supported original media cues",
+        "consumer": "menu and authored sequence host",
+        "acceptance": "Select route-required media format and present real source content with bounded lifetime and cancellation; no copied retail assets in Git.",
+        "depends_on": [
+          "audio-01"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "engine-lead"
+      }
+    ],
+    "behavior-acceptance": [
+      {
+        "id": "behavior-acceptance-01",
+        "title": "Build independent route replay assertions",
+        "consumer": "frozen gameplay host revisions",
+        "acceptance": "Implement input/state/event capture and expectation schema; deliberately wrong inventory, quest or acknowledgement must fail.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-02",
+        "title": "Prove fresh-process inventory Continue",
+        "consumer": "connected container route",
+        "acceptance": "Normal activation/transfer/save/exit/restart restores source-qualified inventory; capture process and input provenance. Inject late scene-membership rejection and prove canonical host and displayed revision both retain the prior state.",
+        "depends_on": [
+          "behavior-lead-04",
+          "engine-lead-04",
+          "presentation-04"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-03",
+        "title": "Prove script ordering and cancellation",
+        "consumer": "compiled event host",
+        "acceptance": "Independent expected trace catches missing/duplicate/reordered effects, wrong owner and unsupported-opcode success.",
+        "depends_on": [
+          "behavior-lead-03"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-04",
+        "title": "Prove dialogue consequence persistence",
+        "consumer": "source-selected conversation route",
+        "acceptance": "Assert actual option/response/effects and cancellation, cold restore and retry; canned quest setter cannot satisfy acceptance.",
+        "depends_on": [
+          "behavior-lead-05"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-05",
+        "title": "Prove actor lifecycle through unloading",
+        "consumer": "world and actor package route",
+        "acceptance": "Detect duplicate/reset actors, lost intent and wrong template context after leave/return/save/restart.",
+        "depends_on": [
+          "actors-06",
+          "behavior-lead-06"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-06",
+        "title": "Add interrupted-write and stale-source acceptance",
+        "consumer": "native repository and gameplay host",
+        "acceptance": "Kill only owned harness child at declared boundary; last valid save survives; altered source/profile and damaged receipts reject.",
+        "depends_on": [
+          "runtime-03"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-07",
+        "title": "Import isolated original behavior traces",
+        "consumer": "coordinator capture transport",
+        "acceptance": "Verify actual binary/profile/input/process evidence and compare units/order; synthetic fixtures cannot receive retail-pass status.",
+        "depends_on": [
+          "coordinator-04"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "behavior-lead"
+      },
+      {
+        "id": "behavior-acceptance-08",
+        "title": "Grow accepted normal-input sequences",
+        "consumer": "first playable NV route",
+        "acceptance": "Each new sequence has prerequisites, actual input, independent state/visible exit and unsupported inventory; never label full campaign from one route.",
+        "depends_on": [
+          "behavior-acceptance-02",
+          "behavior-acceptance-04"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "behavior-lead"
+      }
+    ],
+    "engine-acceptance": [
+      {
+        "id": "engine-acceptance-01",
+        "title": "Build frozen scene replay harness",
+        "consumer": "engine host and renderer",
+        "acceptance": "Pin source/binary/input/camera/resource manifest; independent missing-resource and changed-pose mutations fail expected assertions. Reject stale captures and all-skipped runs; validate per-run completion and distinguish absent observations from passing results.",
+        "depends_on": [],
+        "state": "prepared",
+        "priority": 1,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-02",
+        "title": "Prove scene boot and graceful shutdown",
+        "consumer": "actual visible interior host",
+        "acceptance": "Capture first visible content, frame readiness and complete resource drain; no empty console/window counted as scene success.",
+        "depends_on": [
+          "engine-lead-02"
+        ],
+        "state": "prepared",
+        "priority": 2,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-03",
+        "title": "Prove movement and camera separation",
+        "consumer": "body query and scene input",
+        "acceptance": "Replay wall/step/doorway and frame-rate variants; compare canonical pose independently from camera transform and cold restore.",
+        "depends_on": [
+          "engine-lead-03"
+        ],
+        "state": "prepared",
+        "priority": 3,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-04",
+        "title": "Prove door transitions and failed loads",
+        "consumer": "world residency and application transition",
+        "acceptance": "Reverse/retry/cancel routes leave one scene authority, no duplicate roots and old state intact on destination failure.",
+        "depends_on": [
+          "engine-lead-06"
+        ],
+        "state": "prepared",
+        "priority": 4,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-05",
+        "title": "Prove actor skin and menu glyph rendering",
+        "consumer": "visible pose/text consumers",
+        "acceptance": "Use source-derived fixtures and matched camera captures; missing palettes/font pages fail instead of accepting placeholders.",
+        "depends_on": [
+          "engine-lead-05",
+          "presentation-02"
+        ],
+        "state": "prepared",
+        "priority": 5,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-06",
+        "title": "Prove bounded traversal memory and timing",
+        "consumer": "actual streaming route",
+        "acceptance": "Measure IO/queue/upload/resident maxima with fixed workload; capture regression thresholds and error provenance.",
+        "depends_on": [
+          "world-08"
+        ],
+        "state": "prepared",
+        "priority": 6,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-07",
+        "title": "Prove audio lifecycle and subtitle timing",
+        "consumer": "audio scene consumer",
+        "acceptance": "Independent sample/clock observations detect duplicate voice, silence-as-success, cancelled callbacks and stream leaks.",
+        "depends_on": [
+          "audio-04"
+        ],
+        "state": "prepared",
+        "priority": 7,
+        "review_owner": "engine-lead"
+      },
+      {
+        "id": "engine-acceptance-08",
+        "title": "Compare matched original scene captures",
+        "consumer": "isolated original transport",
+        "acceptance": "Validate capture provenance and exact camera/profile; quantify visual/timing differences, never use engineering demo as 1:1 evidence.",
+        "depends_on": [
+          "coordinator-04"
+        ],
+        "state": "prepared",
+        "priority": 8,
+        "review_owner": "engine-lead"
+      }
+    ]
+  },
+  "dependency_contract": "Production consumers may start on a tested, named consumable dependency slice while its producer feature remains open. The full producer exit still requires the actual consumer. Proof and promotion dependencies require completed acceptance evidence, not merely a published harness or API. Update the same package receipt; do not add per-helper handoffs."
+}

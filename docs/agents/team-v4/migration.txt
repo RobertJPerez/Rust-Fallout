@@ -1,0 +1,57 @@
+V4 MIGRATION — DO NOT SKIP THE LEGACY ADOPTION
+
+Current global control remains paused, stop_requested=true. All seven v3 worker
+assignments remain paused. This preparation does not create a run or live leases.
+Read the exact preserved snapshot before activating:
+G:\Rust-Fallout\local\coordinator-stop-reorganize-20261004-01\COORDINATOR-HANDOFF.txt
+G:\Rust-Fallout\local\coordinator-stop-reorganize-20261004-01\shutdown-complete.json
+
+1. Confirm stopped branches/drafts against preservation.json. Four worker trees
+   intentionally contain unfinished work. Preserve bytes and never clean them.
+2. Current integration source51 is d622128fb3fca1c67a1285dec85fd48c7526031f.
+   This is a preservation seed, NOT a fresh combined-proved baseline. Last proved
+   source40 is d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc; checkpoint45 unchanged.
+3. Prepared tools/team-build.py now explicitly admits central team-v3 and team-v4.
+   Its 66 setup tests passed while production control remained paused. Coordinator
+   verifies the actual source pins and receipt before any active v4 assignments.
+   Test v3 compatibility, allowed v4 central path, wrong path/run/session/branch,
+   paused or missing control, STOP outboxes, target mismatch and resource limits.
+   Keep old global mutex names so v3 and v4 cannot evade resource bounds.
+   These setup tests used isolated synthetic control roots, never an active
+   production run. Further setup is authorized by submitting coordinator prompt.
+4. Create local/team-v4 assignment/status/outbox records, no borrowed v3 UUIDs.
+   Leads own only their own status/outbox and staging tree. Coordinator owns
+   assignments/control/ownership; leads publish review and dependency decisions
+   without a root grant. Claim exclusive leases, never overwrite live ones.
+5. Publish current central AGENTS routing and exact plan revision to assignments.
+   Workers read central instructions even when old checkout docs differ. Check
+   wrapper and preservation prerequisites, then publish active global control
+   last with a fresh run_id. Only then start production work. Do not pretend
+   merely opening a worker prompt can reactivate a paused run.
+6. Gameplay lead adopts VM/STATE/ACT; engine lead adopts PHYS/ASSET/WORLD/VIEW.
+   Existing legacy mapped commits are imported only once. Integration ledger 51
+   and the stopped handoff are authoritative. The new CLI command family layout
+   must survive imports from older flattened worker branches. Never merge old
+   branch ancestry wholesale just because Git can do so without text conflicts.
+7. For legacy drafts workers stay in existing seven trees until their pending
+   work is preserved and adopted. After a clean boundary, coordinator may create
+   a fresh branch at a reviewed common base and switch that clean tree, preserving
+   its old branch. Record new branch/lease/assignment atomically while quiescent.
+   Do not reset/rebase or move uncommitted work to force the migration.
+8. After common-base cutover use ordinary reviewed Git merges preserving ancestry
+   for new feature packages. Stop bespoke per-commit remapping of unrelated old
+   history. Leads publish exact consumed producer commits before worker testing.
+9. Acceptance workers prove frozen batches separately. Coordinator combines the
+   two staging batches, repairs only actual shared issues and promotes main only
+   with appropriate fresh proof. Development dependency publication is separate
+   from checkpoint claims.
+
+Immediate preserved gaps, not new feature requests:
+- Runtime fork/save 39/40 draft is uncompiled and lacks fork tests.
+- Actors ACT33/34 has a known Clippy failure and missing actual CLI proof.
+- World 35/37 has focused tests but lacks its 15-case native proof.
+- Assets has six held packages and an unsealed verification slice.
+- Scripts VM38 has focused checks but lacks its real new CLI cases.
+- Physics held packages/mapper must be matched to the actual integration parent.
+- Presentation held packages and private drafts have different proof coverage.
+Read original stopped receipts for exact commands, dependencies and artifact pins.

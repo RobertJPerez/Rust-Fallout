@@ -1,0 +1,51 @@
+Agent 1: Coordinator, shared engineering and release
+G:\Rust-Fallout
+Startup: G:\Rust-Fallout\docs\agents\team-v4\01-coordinator.txt
+
+Agent 2: Gameplay integration and application host
+G:\Rust-Fallout-worktrees\v4-behavior-lead
+Startup: G:\Rust-Fallout\docs\agents\team-v4\02-behavior-lead.txt
+
+Agent 3: Engine integration and scene host
+G:\Rust-Fallout-worktrees\v4-engine-lead
+Startup: G:\Rust-Fallout\docs\agents\team-v4\03-engine-lead.txt
+
+Agent 4: Compiled scripts and event execution
+G:\Rust-Fallout-worktrees\v3-scripts
+Startup: G:\Rust-Fallout\docs\agents\team-v4\04-scripts.txt
+
+Agent 5: Canonical state, transactions and native saves
+G:\Rust-Fallout-worktrees\v3-runtime
+Startup: G:\Rust-Fallout\docs\agents\team-v4\05-runtime.txt
+
+Agent 6: Actor rules, packages and gameplay responses
+G:\Rust-Fallout-worktrees\v3-actors
+Startup: G:\Rust-Fallout\docs\agents\team-v4\06-actors.txt
+
+Agent 7: Skeletons, skinning and animation
+G:\Rust-Fallout-worktrees\v3-assets
+Startup: G:\Rust-Fallout\docs\agents\team-v4\07-assets.txt
+
+Agent 8: World residency, content and transitions
+G:\Rust-Fallout-worktrees\v3-world
+Startup: G:\Rust-Fallout\docs\agents\team-v4\08-world.txt
+
+Agent 9: Rendering, input and original menus
+G:\Rust-Fallout-worktrees\v3-presentation
+Startup: G:\Rust-Fallout\docs\agents\team-v4\09-presentation.txt
+
+Agent 10: Collision, movement and navigation
+G:\Rust-Fallout-worktrees\v3-physics
+Startup: G:\Rust-Fallout\docs\agents\team-v4\10-physics.txt
+
+Agent 11: Audio, voice, music and media
+G:\Rust-Fallout-worktrees\v4-audio
+Startup: G:\Rust-Fallout\docs\agents\team-v4\11-audio.txt
+
+Agent 12: Gameplay replay and persistence acceptance
+G:\Rust-Fallout-worktrees\v4-behavior-acceptance
+Startup: G:\Rust-Fallout\docs\agents\team-v4\12-behavior-acceptance.txt
+
+Agent 13: Scene, movement and resource acceptance
+G:\Rust-Fallout-worktrees\v4-engine-acceptance
+Startup: G:\Rust-Fallout\docs\agents\team-v4\13-engine-acceptance.txt

@@ -1,0 +1,85 @@
+Two integration streams
+Gameplay lead integrates scripts/runtime/actors. Engine lead integrates assets/
+world/presentation/physics/audio. Each lead works only in its own staging tree.
+Acceptance owners produce executable independent tests and frozen-route evidence.
+Coordinator receives two coherent tested subsystem batches, fixes shared identity,
+source-store/platform problems, owns original-profile infrastructure and main.
+Cross-stream dependencies publish exact development commits promptly; they do not
+wait for a checkpoint announcement. Root still proves combined compatibility.
+
+Package size and completion
+Aim for a complete consumer capability in roughly 2-5 coherent commits, rather
+than one handoff per helper. Do not force unrelated changes into a large batch.
+A package names actual consumer, source inputs, acceptance and refusals; producer
+work that lacks its consumer is explicitly partial. One receipt per package holds
+base/head/dependencies, changed paths, commands/results and evidence hashes.
+Validate changed behavior once on its actual source, then affected combined paths;
+do not rerun every historical immutable proof for every micro-commit.
+
+Dependency readiness is separate from feature acceptance
+A producer may publish a tested, named API slice for its consumer while the
+larger feature remains open. For example, validated animation samples can unblock
+the renderer; the animation feature is accepted only after visible consumption.
+Do not wait for a renderer to exist before releasing its producer dependency,
+or claim the producer feature complete from its unit tests. Update the same
+package receipt with dependency-ready and accepted evidence; no per-helper grant
+or extra handoff is required. Proof and promotion dependencies always require
+completed acceptance evidence, not just a harness or candidate API.
+
+Continuous useful work
+Each lane has eight concrete packages and an owned fallback list. These 104
+packages are an initial queue, not an estimate of all work remaining across the
+engine and four games. Select a ready package without a grant. At three remaining
+actionable packages, append at least
+three meaningful owned follow-ons in your outbox with consumer/exit/dependencies;
+the lead incorporates them at the next task boundary. Do not wait for that copy.
+Handoff publication does not end a worker's run. Continue the next ready package.
+At two outstanding packages, the lead prioritizes review before starting another
+feature; the worker improves that stack, its real tests or independent owned work
+rather than growing an unlimited dependent branch. Do not busy-poll or invent
+metrics-only work to look active. No process design guarantees infinite service
+availability; preserve resumable state on a real session or resource limit.
+
+Fallbacks while a build, producer or review is unavailable
+Read relevant source completely; implement independent owned module behavior;
+write independent fixture expectations; investigate a reproduced route failure;
+fix robustness/performance in an existing owned consumer; finish current draft
+tests; prepare a concrete additive interface proposal. Do not repeat completed
+audits, fabricate a successful stub or write into another owner's checkout.
+
+Resource limits
+Keep the existing machine limit: two focused builds and one heavy/GPU/proof task,
+with jobs 1 initially. More chats do not add RAM, disk or GPU capacity. Use the
+central tested wrapper, private targets and immutable proof inputs. Busy exit 75
+starts nothing: take an independent coding/read task. Proof workers own their
+frozen proof operations so leads keep integrating/coding. No wrapper bypass.
+
+Reviews and ownership
+Read ownership.json and contracts.json. Existing main/lib/CLI/Cargo shared roots
+stay coordinator-owned. Bounded changes inside declared module APIs need no
+per-task approval. New dependencies, durable formats and unmeasured semantics
+remain explicit decisions. A lead who needs another lane's file sends a bounded
+request; it does not edit that worker's tree. Reassignment occurs only after
+preserving current work and recording exclusive new ownership.
+
+Preservation and activation
+All old branches, drafts, receipts and worktrees remain intact. Existing seven
+worktrees retain v3 names during legacy adoption; their names do not authorize an
+old run. Five new trees are staging/feature preparation only. See migration.txt:
+the prepared v4 build authorization passed 66 setup tests; verify its source pins before activation.
+No new engine run is active merely because these files exist. Submitting the
+coordinator startup prompt authorizes its described safe setup and activation.
+
+Truthful acceptance
+Latest verified checkpoint remains 45. The source 51 candidate is not covered by
+the source 40 combined proof. No measured percentage of complete NV parity exists.
+Record engineering fixtures, original-game measurements, playable sequences and
+full compatibility as distinct evidence. Unknown behavior stays unsupported.
+Raw retail files stay local. Any incorporated third-party code must retain its
+required notices; independently written code does not need comparison commentary.
+
+Stop and recovery
+Robert's latest instruction overrides every queue. Propagate STOP immediately,
+start no new task and preserve task/head/base/draft/tests/evidence/next action.
+Never overwrite a live lease or expire it by age. Never reset, clean, rebase,
+delete or force-push another worker's work. Only coordinator promotes main.

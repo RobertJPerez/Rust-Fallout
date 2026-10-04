@@ -1,0 +1,82 @@
+REORGANIZATION REVIEW — 2026-10-04
+
+This is a coordination and selected-code review, not a full codebase correctness
+certification. Production implementation stays paused during preparation.
+
+1. Integration throughput is the immediate organizational bottleneck.
+   Seven specialist streams accumulated held packages while one coordinator
+   mapped legacy history, repaired shared CLI layout and orchestrated proofs.
+   Fix: two coding technical leads assemble subsystem batches; acceptance
+   engineers own reproducible proof execution. Coordinator still writes shared
+   platform/source-store fixes and original-profile transport.
+
+2. Producer completion is not connected gameplay completion.
+   Canonical state, save, execution admission, actor rules, resource residency,
+   skin and rendering paths exist. The next unit of value is an actual scene
+   action with durable consequences, not another count of decoded records.
+   Fix: first connected route is scene boot -> canonical movement -> activation
+   -> state change -> visible result -> Save -> process exit -> Continue.
+   Current state/inventory_transfers.rs already stages atomic lot-preserving
+   transfers with revision/context guards. state/event_commit.rs already stages
+   instance locals plus journal acknowledgement. Do not rebuild either system.
+   execution/event_request.rs remains an engineering snapshot operation; its
+   Faithful mode refuses unverified retail semantics. A host must preserve that
+   distinction while introducing actual event dispatch and measured behavior.
+   Preview model.rs already sends selected source skin positions/normals to Mesh.
+   Its missing animated palette/clock lifecycle is the next consumer gap, not
+   another skin decoder or DDS transport.
+
+3. Last combined proof and current candidate are different revisions.
+   Development 12/source 40 had 1636 Rust passes,63 ignored tests,24 headless cases
+   and 4 GPU cases. Source 51 includes newer mapped changes without a fresh combined
+   proof. Those counts do not establish campaign, M1 or 1:1 gameplay acceptance.
+   Fix: preserve scopes and use fresh frozen route evidence for new claims.
+
+4. Stopped drafts contain specific unfinished checks, not permission blockers.
+   Runtime save/fork needs compilation and missing tests; actors has a known
+   Clippy failure and unrun CLI proof; scripts has unrun new CLI cases; world has
+   unrun native cases; assets has an unsealed verification slice. Exact original
+   receipts and failed outputs are preserved. Fix those once, then use the
+   existing producers. Do not recreate their functionality from task titles.
+
+5. The build wrapper had a v3-only directory restriction.
+   Preparation fixed tools/team-build.py to admit only central v3/v4 directories.
+   All 66 setup tests passed, including both generations, STOP, lease/run/target
+   rejection, resource admission and Windows child lifetime checks. Production
+   control stayed paused. Coordinator still verifies source pins before activation.
+
+6. Original menus and media need actual consumers.
+   The existing preview already has XML includes, entities, traits, dependency,
+   image and rectangle modules. Extend that pipeline with font glyph rendering
+   and state-driven menu actions; do not replace the importer. Audio gets a real
+   owner for bounded preparation, playback, voice clocks and cancellation.
+
+7. Connected features still need measured behavior.
+   Event dispatch, font-to-GPU rendering, skin upload, streaming and audio need
+   real consumers. Unsupported script calls must not become zero, body/camera
+   coordinates must stay separate, and provisional movement constants must not
+   become original-profile defaults. Preserve source identity, admission and
+   native save guarantees when extending these systems.
+
+8. Backlog length alone does not prevent downtime.
+   Each package has a consumer, exit and dependency list. Every owner has a useful
+   independent fallback. Refill begins with three actionable packages remaining.
+   Leads prioritize review at two outstanding packages; workers improve/test
+   those packages rather than producing endless dependent handoffs. No paperwork
+   role is funded solely to update the queue. Real session limits remain real.
+
+Verification for this preparation is in validation.json: dependency acyclicity,
+ownership checks, existing heads/drafts preserved and control still paused.
+No engine feature, new checkpoint or activation is claimed by these plan files.
+
+Concrete integration issue to reproduce and fix first
+The current preview Continue path can advance the private canonical host before
+the presentation thread accepts complete destination membership. native.rs commits
+the restored World after observation, while main.rs:1010 performs the later scene
+membership check. If that check fails, the display retains its old revision but
+the host has advanced; subsequent save/continue intents tagged with the old display
+can be rejected. This is a static review finding, not a reproduced runtime failure.
+Gameplay and engine leads should implement prepared restore plus complete host/
+scene acknowledgement, reusing existing SaveWorker and scene validation. Acceptance
+must inject the late membership failure and prove both authorities remain aligned.
+This correction belongs ahead of additional Continue features.

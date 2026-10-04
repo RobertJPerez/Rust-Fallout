@@ -1,5 +1,37 @@
 # Immutable actor source fields
 
+## Explicit creature model-list directory requests (V3-ACT-14)
+
+`dependencies::Catalogue::creature_parts_manifest(root, &explicit_mesh_directory,
+assets, CreaturePartsLimits)` adds physical CREA NIFZ archive requests to the
+existing render manifest. The caller supplies a normalized `AssetPath` beneath
+`meshes/`; the request never infers a directory from MODL or actor identity.
+Every original frame retains its raw bytes and physical offset through
+`manifest_path_index`. Default structural and render projections remain exact.
+
+The concrete installed diagnostic is GSCheyenne, FalloutNV.esm:10588D (version15,
+record offset11972408): MODL declares `Creatures\Dog\Skeleton.nif`, while NIFZ
+contains `dogskin.nif`, `eyessetblue.nif` and an empty physical frame. With the
+explicit engineering directory `meshes/creatures/dog`, nonempty safe names get
+archive candidates. Empty frames retain `empty_source_path`; there is no claim
+that an empty frame is a retail array terminator. Absolute, traversal, drive,
+unsafe and overly long names stay visible with exact lookup refusal.
+
+Missing/repeated ACBS, Model/Animation template mask64 and repeated physical
+NIFZ fields retain all frames without selecting source candidates. Missing
+models, empty lists, collisions and any existing render issue prevent complete
+part-request admission. Candidate counts and bytes aggregate the original
+structural manifest and added directory requests under the same limits; lookup
+bytes, visits, requests and total JSON projection have separate finite budgets.
+Admission concerns physical requests under an explicit choice. Effective part
+assembly and rig playback remain unsupported.
+
+`actor-sources --include-dependencies --dependency-root FalloutNV.esm:10588D
+--creature-model-directory meshes/creatures/dog` emits `actor_creature_parts`.
+The option requires exactly one creature root. The independent Python oracle
+uses the existing raw plugin/string-frame reader and archive metadata reader;
+it compares the entire new projection without another NIF or asset decoder.
+
 ## Template category declaration requests (V3-ACT-03)
 
 `actors::dependencies::Catalogue::template_manifest(root, TemplateLimits)` uses

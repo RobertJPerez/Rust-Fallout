@@ -282,6 +282,8 @@ enum Command {
         equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
         #[arg(long, value_parser = actor_inspection::parse_root)]
         voice_root: Option<identity::FormKey>,
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
+        creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },
     /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
     ActorPackageContext {
@@ -1249,6 +1251,7 @@ fn run(args: Args) -> Result<()> {
             equipment_source,
             equipment_role,
             voice_root,
+            creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -1269,6 +1272,7 @@ fn run(args: Args) -> Result<()> {
                     equipment_source,
                     equipment_role,
                     voice_root,
+                    creature_model_directory,
                 },
             )?;
             if let Some(oracle) = compare_oracle {

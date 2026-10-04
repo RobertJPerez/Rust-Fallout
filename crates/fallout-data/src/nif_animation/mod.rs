@@ -1,5 +1,6 @@
 //! Bounded authored animation framing. Source bits/links remain exact; clocks,
 //! event delivery, interpolation, external name binding and poses are unverified.
+pub mod boolean;
 mod families;
 pub mod keyframe;
 mod preflight;

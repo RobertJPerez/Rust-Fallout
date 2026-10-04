@@ -2,7 +2,7 @@
 use crate::Result;
 use fallout_data::{
     baseline,
-    nif_animation::{self, Animation, Limits, keyframe, sampling, spline},
+    nif_animation::{self, Animation, Limits, boolean, keyframe, sampling, spline},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -30,6 +30,8 @@ pub struct FileReport {
     spline_components: Option<spline::components::Catalogue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     engineering_sample: Option<sampling::Diagnostic>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bool_interpolators: Option<boolean::Catalogue>,
     error: Option<String>,
     comparison: Option<&'static str>,
 }
@@ -45,6 +47,8 @@ pub struct Report {
     spline_component_branch: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     engineering_sampling_contract: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bool_interpolator_branch: Option<&'static str>,
     float_encoding: &'static str,
     string_encoding: &'static str,
     input: PathBuf,
@@ -121,10 +125,17 @@ fn compare(actual: &FileReport, expected: &Value) -> Result<()> {
         return Err("oracle spline-source block identity/span/hash or source fields differ".into());
     }
     if let Some(components) = &actual.spline_components
-        && !compare_components(&components.blocks, &expected["spline_components"])?
+        && !compare_fixed_blocks(&components.blocks, &expected["spline_components"])?
     {
         return Err(
             "oracle spline-component block identity/span/hash or source fields differ".into(),
+        );
+    }
+    if let Some(booleans) = &actual.bool_interpolators
+        && !compare_fixed_blocks(&booleans.blocks, &expected["bool_interpolators"])?
+    {
+        return Err(
+            "oracle Boolean interpolator identity/span/hash or source fields differ".into(),
         );
     }
     Ok(())
@@ -263,7 +274,7 @@ fn compare_splines(blocks: &[spline::Block], expected: &Value) -> Result<bool> {
     Ok(true)
 }
 
-fn compare_components(blocks: &[spline::components::Block], expected: &Value) -> Result<bool> {
+fn compare_fixed_blocks<T: Serialize>(blocks: &[T], expected: &Value) -> Result<bool> {
     let Some(expected) = expected.as_array() else {
         return Ok(false);
     };
@@ -271,7 +282,7 @@ fn compare_components(blocks: &[spline::components::Block], expected: &Value) ->
         return Ok(false);
     }
     for (block, row) in blocks.iter().zip(expected) {
-        // Each component is a bounded fixed-size source product.
+        // Each block is a bounded fixed-size source product.
         if serde_json::to_value(block)? != *row {
             return Ok(false);
         }
@@ -283,6 +294,7 @@ struct Work {
     keys: usize,
     splines: usize,
     components: usize,
+    booleans: usize,
     diagnostic_bytes: usize,
 }
 impl Default for Work {
@@ -291,6 +303,7 @@ impl Default for Work {
             keys: 16_000_000,
             splines: 16_000_000,
             components: 16_000_000,
+            booleans: 16_000_000,
             diagnostic_bytes: 0,
         }
     }
@@ -302,6 +315,7 @@ pub fn inspect(
     include_keyframes: bool,
     include_splines: bool,
     include_components: bool,
+    include_booleans: bool,
     sample: Option<SampleRequest>,
 ) -> Result<Report> {
     if sample
@@ -319,6 +333,7 @@ pub fn inspect(
         include_keyframes || sample.is_some(),
         include_splines,
         include_components,
+        include_booleans,
         Work {
             diagnostic_bytes: if sample.is_some() { 64 } else { 0 },
             ..Default::default()
@@ -384,10 +399,12 @@ fn inspect_with_key_work(
         include_keyframes,
         false,
         false,
+        false,
         Work {
             keys: key_work,
             splines: 0,
             components: 0,
+            booleans: 0,
             diagnostic_bytes: 0,
         },
     )
@@ -398,18 +415,23 @@ fn inspect_with_work(
     include_keyframes: bool,
     include_splines: bool,
     include_components: bool,
+    include_booleans: bool,
     work: Work,
 ) -> Result<Report> {
+    let include_components = include_components || include_booleans;
     let include_splines = include_splines || include_components;
     let include_keyframes = include_keyframes || include_splines;
     let Work {
         keys: mut key_work,
         splines: mut spline_work,
         components: mut component_work,
+        booleans: mut boolean_work,
         diagnostic_bytes: reserved_diagnostic_bytes,
     } = work;
     let mut report = Report {
-        schema_version: if include_components {
+        schema_version: if include_booleans {
+            5
+        } else if include_components {
             4
         } else if include_splines {
             3
@@ -423,6 +445,7 @@ fn inspect_with_work(
         spline_branch: include_splines.then_some("nv-compact-transform-source"),
         spline_component_branch: include_components.then_some("nv-compact-components-source"),
         engineering_sampling_contract: None,
+        bool_interpolator_branch: include_booleans.then_some("nv-bool-interpolator-source"),
         float_encoding: "ieee754-binary32-bits",
         string_encoding: "raw-byte-arrays",
         input: input.into(),
@@ -469,6 +492,12 @@ fn inspect_with_work(
                 || document["raw_component_fields_checked"] != true)
         {
             return Err("oracle spline-component source/provenance contract is missing".into());
+        }
+        if include_booleans
+            && (document["bool_interpolator_branch"] != "nv-bool-interpolator-source"
+                || document["raw_bool_fields_checked"] != true)
+        {
+            return Err("oracle Boolean interpolator source/provenance contract is missing".into());
         }
         let hash = document["oracle_binary_sha256"]
             .as_str()
@@ -555,6 +584,7 @@ fn inspect_with_work(
             splines: None,
             spline_components: None,
             engineering_sample: None,
+            bool_interpolators: None,
             error: None,
             comparison: None,
         };
@@ -573,7 +603,32 @@ fn inspect_with_work(
             array_bytes: remaining.min(128 * 1024 * 1024),
             spline_work,
         };
-        let decoded = if include_components {
+        let component_limits = spline::components::Limits {
+            splines: spline_limits,
+            array_bytes: remaining.min(128 * 1024 * 1024),
+            component_work,
+        };
+        let decoded = if include_booleans {
+            boolean::decode_with_limits(
+                &bytes,
+                &row.input.display().to_string(),
+                boolean::Limits {
+                    components: component_limits,
+                    array_bytes: remaining.min(128 * 1024 * 1024),
+                    boolean_work,
+                },
+            )
+            .map(|(index, decoded)| {
+                (
+                    index,
+                    decoded.source.source.animation,
+                    Some(decoded.source.source.keys),
+                    Some(decoded.source.source.splines),
+                    Some(decoded.source.components),
+                    Some(decoded.booleans),
+                )
+            })
+        } else if include_components {
             spline::components::decode_with_limits(
                 &bytes,
                 &row.input.display().to_string(),
@@ -590,6 +645,7 @@ fn inspect_with_work(
                     Some(decoded.source.keys),
                     Some(decoded.source.splines),
                     Some(decoded.components),
+                    None,
                 )
             })
         } else if include_splines {
@@ -601,18 +657,20 @@ fn inspect_with_work(
                         Some(source.keys),
                         Some(source.splines),
                         None,
+                        None,
                     )
                 },
             )
         } else if include_keyframes {
-            keyframe::decode_with_limits(&bytes, &row.input.display().to_string(), key_limits)
-                .map(|(index, source)| (index, source.animation, Some(source.keys), None, None))
+            keyframe::decode_with_limits(&bytes, &row.input.display().to_string(), key_limits).map(
+                |(index, source)| (index, source.animation, Some(source.keys), None, None, None),
+            )
         } else {
             nif_animation::decode_with_limits(&bytes, &row.input.display().to_string(), limits)
-                .map(|(index, animation)| (index, animation, None, None, None))
+                .map(|(index, animation)| (index, animation, None, None, None, None))
         };
         match decoded {
-            Ok((index, animation, keys, splines, components)) => {
+            Ok((index, animation, keys, splines, components, booleans)) => {
                 remaining = remaining
                     .checked_sub(animation.retained_bytes)
                     .ok_or("aggregate animation catalogue budget exceeded")?;
@@ -660,6 +718,21 @@ fn inspect_with_work(
                     }
                     report.unresolved_dependencies += components.dependencies.len();
                 }
+                if let Some(booleans) = &booleans {
+                    boolean_work = boolean_work
+                        .checked_sub(booleans.work_units)
+                        .ok_or("aggregate Boolean source work budget exceeded")?;
+                    remaining = remaining
+                        .checked_sub(booleans.retained_bytes)
+                        .ok_or("aggregate Boolean source catalogue budget exceeded")?;
+                    for block in &booleans.blocks {
+                        *report
+                            .block_counts
+                            .entry(block.block_type.into())
+                            .or_default() += 1;
+                    }
+                    report.unresolved_dependencies += booleans.dependencies.len();
+                }
                 row.tuple = Some([index.version, index.user_version, index.bethesda_version]);
                 row.strings = Some(index.strings);
                 row.container_block_counts = Some(index.block_counts);
@@ -675,6 +748,7 @@ fn inspect_with_work(
                 row.keys = keys;
                 row.splines = splines;
                 row.spline_components = components;
+                row.bool_interpolators = booleans;
                 if let Some(document) = &oracle {
                     let result = row
                         .input
@@ -707,6 +781,9 @@ fn inspect_with_work(
                 if include_components {
                     component_work = 0;
                 }
+                if include_booleans {
+                    boolean_work = 0;
+                }
                 row.error = Some(e.to_string());
                 report.failures += 1;
             }
@@ -721,6 +798,89 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn boolean_batch_work_and_failed_row_debit_preserve_earlier_schema() {
+        let inputs = inputs(&[]);
+        for id in 0..2 {
+            std::fs::write(
+                inputs.0.join(format!("{id}.kf")),
+                source_of(&[2, 255, 255, 255, 255], "NiBoolTimelineInterpolator"),
+            )
+            .unwrap();
+        }
+        let limits = |booleans| Work {
+            booleans,
+            ..Default::default()
+        };
+        let exact =
+            inspect_with_work(&inputs.0, None, false, false, false, true, limits(10)).unwrap();
+        assert_eq!(exact.schema_version, 5);
+        assert_eq!(exact.failures, 0);
+        assert!(exact.files.iter().all(|f| {
+            f.bool_interpolators.as_ref().unwrap().blocks[0]
+                .data
+                .raw_value
+                == 2
+        }));
+        let under =
+            inspect_with_work(&inputs.0, None, false, false, false, true, limits(9)).unwrap();
+        assert_eq!(under.failures, 1);
+        assert!(
+            under.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("Boolean source work budget exceeded")
+        );
+        std::fs::write(
+            inputs.0.join("0.kf"),
+            source_of(&[2], "NiBoolTimelineInterpolator"),
+        )
+        .unwrap();
+        let failed =
+            inspect_with_work(&inputs.0, None, false, false, false, true, limits(100)).unwrap();
+        assert_eq!(failed.failures, 2);
+        assert!(
+            failed.files[0]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("field exceeds")
+        );
+        assert!(
+            failed.files[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("Boolean source work budget exceeded")
+        );
+        let old = inspect_with_work(&inputs.0, None, false, false, true, false, limits(0)).unwrap();
+        assert_eq!(old.failures, 0);
+        let old = serde_json::to_value(old).unwrap();
+        assert_eq!(old["schema_version"], 4);
+        assert!(old.get("bool_interpolator_branch").is_none());
+        assert!(old["files"][0].get("bool_interpolators").is_none());
+    }
+    #[test]
+    fn boolean_comparison_rejects_normalization_links_and_extra_evaluated_fields() {
+        let source = source_of(&[2, 255, 255, 255, 255], "NiBoolInterpolator");
+        let (_, decoded) = boolean::decode(&source, "bool.kf").unwrap();
+        let blocks = &decoded.booleans.blocks;
+        let expected = serde_json::to_value(blocks).unwrap();
+        assert!(compare_fixed_blocks(blocks, &expected).unwrap());
+        for (field, value) in [("raw_value", 1), ("data", 0)] {
+            let mut changed = expected.clone();
+            changed[0]["data"][field] = json!(value);
+            assert!(!compare_fixed_blocks(blocks, &changed).unwrap());
+        }
+        let mut changed = expected.clone();
+        changed[0]["block_type"] = json!("NiBoolTimelineInterpolator");
+        assert!(!compare_fixed_blocks(blocks, &changed).unwrap());
+        let mut changed = expected;
+        changed[0]["data"]["truth"] = json!(true);
+        assert!(!compare_fixed_blocks(blocks, &changed).unwrap());
+    }
 
     struct Inputs(PathBuf);
     impl Drop for Inputs {
@@ -849,6 +1009,7 @@ mod tests {
             false,
             true,
             false,
+            false,
             Work {
                 keys: 0,
                 splines: 6,
@@ -872,6 +1033,7 @@ mod tests {
             None,
             false,
             true,
+            false,
             false,
             Work {
                 keys: 0,
@@ -899,6 +1061,7 @@ mod tests {
             false,
             true,
             false,
+            false,
             Work {
                 keys: 0,
                 splines: 100,
@@ -925,6 +1088,7 @@ mod tests {
             &inputs.0,
             None,
             true,
+            false,
             false,
             false,
             Work {
@@ -989,9 +1153,11 @@ mod tests {
             keys: 0,
             splines: 0,
             components,
+            booleans: 0,
             diagnostic_bytes: 0,
         };
-        let exact = inspect_with_work(&inputs.0, None, false, false, true, limits(18)).unwrap();
+        let exact =
+            inspect_with_work(&inputs.0, None, false, false, true, false, limits(18)).unwrap();
         assert_eq!(exact.failures, 0);
         assert_eq!(exact.schema_version, 4);
         assert_eq!(
@@ -1008,7 +1174,8 @@ mod tests {
                 .iter()
                 .all(|f| f.keys.is_some() && f.splines.is_some())
         );
-        let under = inspect_with_work(&inputs.0, None, false, false, true, limits(17)).unwrap();
+        let under =
+            inspect_with_work(&inputs.0, None, false, false, true, false, limits(17)).unwrap();
         assert_eq!(under.failures, 1);
         assert!(
             under.files[1]
@@ -1024,7 +1191,8 @@ mod tests {
             source_of(&bad, "NiBSplineCompFloatInterpolator"),
         )
         .unwrap();
-        let failed = inspect_with_work(&inputs.0, None, false, false, true, limits(100)).unwrap();
+        let failed =
+            inspect_with_work(&inputs.0, None, false, false, true, false, limits(100)).unwrap();
         assert_eq!(failed.failures, 2);
         assert!(
             failed.files[0]
@@ -1040,7 +1208,7 @@ mod tests {
                 .unwrap()
                 .contains("spline-component work budget exceeded")
         );
-        let old = inspect_with_work(&inputs.0, None, false, true, false, limits(0)).unwrap();
+        let old = inspect_with_work(&inputs.0, None, false, true, false, false, limits(0)).unwrap();
         assert_eq!(old.failures, 0);
         let old = serde_json::to_value(old).unwrap();
         assert_eq!(old["schema_version"], 3);
@@ -1056,7 +1224,7 @@ mod tests {
         let (_, decoded) = spline::components::decode(&source, "component.kf").unwrap();
         let blocks = &decoded.components.blocks;
         let expected = serde_json::to_value(blocks).unwrap();
-        assert!(compare_components(blocks, &expected).unwrap());
+        assert!(compare_fixed_blocks(blocks, &expected).unwrap());
         for (name, value) in [
             ("value_bits", 0),
             ("handle", u32::MAX),
@@ -1065,14 +1233,14 @@ mod tests {
         ] {
             let mut changed = expected.clone();
             changed[0]["data"][name] = json!(value);
-            assert!(!compare_components(blocks, &changed).unwrap(), "{name}");
+            assert!(!compare_fixed_blocks(blocks, &changed).unwrap(), "{name}");
         }
         let mut changed = expected.clone();
         changed[0]["sha256"] = json!("0".repeat(64));
-        assert!(!compare_components(blocks, &changed).unwrap());
+        assert!(!compare_fixed_blocks(blocks, &changed).unwrap());
         let mut changed = expected;
         changed[0]["data"]["evaluated_pose"] = json!(true);
-        assert!(!compare_components(blocks, &changed).unwrap());
+        assert!(!compare_fixed_blocks(blocks, &changed).unwrap());
     }
     #[test]
     fn explicit_engineering_sample_is_consumed_without_changing_source_catalogue() {
@@ -1091,10 +1259,11 @@ mod tests {
             0,
         ])]);
         let path = inputs.0.join("0.kf");
-        let source = inspect(&path, None, true, false, false, None).unwrap();
+        let source = inspect(&path, None, true, false, false, false, None).unwrap();
         let sampled = inspect(
             &path,
             None,
+            false,
             false,
             false,
             false,
@@ -1133,6 +1302,7 @@ mod tests {
             false,
             false,
             false,
+            false,
             Some(SampleRequest {
                 block: 0,
                 channel: SampleChannel::Scale,
@@ -1158,6 +1328,7 @@ mod tests {
                 false,
                 false,
                 false,
+                false,
                 Some(SampleRequest {
                     block,
                     channel: SampleChannel::Translation,
@@ -1178,7 +1349,7 @@ mod tests {
             })
         };
         assert!(
-            inspect(&path, None, false, false, false, request())
+            inspect(&path, None, false, false, false, false, request())
                 .err()
                 .unwrap()
                 .to_string()
@@ -1188,6 +1359,7 @@ mod tests {
             inspect(
                 &inputs.0,
                 None,
+                false,
                 false,
                 false,
                 false,

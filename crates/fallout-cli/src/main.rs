@@ -102,6 +102,8 @@ enum Command {
         include_splines: bool,
         #[arg(long)]
         include_spline_components: bool,
+        #[arg(long)]
+        include_bool_interpolators: bool,
         #[arg(long, requires_all = ["sample_block", "sample_channel"], allow_hyphen_values = true)]
         sample_time: Option<f64>,
         #[arg(long, requires = "sample_time")]
@@ -1492,6 +1494,7 @@ fn run(args: Args) -> Result<()> {
             include_keyframes,
             include_splines,
             include_spline_components,
+            include_bool_interpolators,
             sample_time,
             sample_block,
             sample_channel,
@@ -1517,6 +1520,7 @@ fn run(args: Args) -> Result<()> {
                 include_keyframes,
                 include_splines,
                 include_spline_components,
+                include_bool_interpolators,
                 sample,
             )?;
             emit(&report, output, &input)?;

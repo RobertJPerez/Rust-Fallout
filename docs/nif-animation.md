@@ -532,3 +532,58 @@ probes refuse for their intended reasons. The first matrix run refused the
 and failure are retained. The corrected 128-MiB animation allowance and final
 matrix pass without changing any original source or inspector output. No Rust
 or native implementation changed in this audit.
+
+## Raw Boolean interpolator source (ASSET-07C)
+
+`nif_animation::boolean` adds a separate source catalogue for exactly
+`NiBoolInterpolator` and `NiBoolTimelineInterpolator`. Pinned inheritance and
+primitive IO agree on five bytes: one raw uint8 value and one u32 `NiBoolData`
+link. Values 0 through 255 are retained without truth conversion, including the
+source pose sentinel 2. The timeline subclass has no additional stored fields;
+its event/update policy remains unverified.
+
+The decoder reuses the existing component/spline/key/animation decoder's single
+immutable index. It admits all block/digest storage and five work units per
+selected block before allocation or primitive construction. Those units cover
+the block, two primitives and two link visits. Defaults are 128 MiB additional
+logical storage and 16 million work units, under the existing combined cap.
+Dependency vector and owned target names are admitted before cloning. Known
+`NiBoolData` targets remain ordered `undecoded_payload` dependencies; unknown
+classes remain `unknown_class`. Null links stay absent; out-of-range links and
+known wrong classes refuse. Exact incoming interpolator dependencies retire only
+after every selected payload/link succeeds. Released strings reduce retention;
+the original dependency vector capacity stays charged.
+
+`fallout nif-animation INPUT --include-bool-interpolators` selects additive source
+schema5, including the earlier key/spline/component catalogues and a separate
+`bool_interpolators` catalogue with branch `nv-bool-interpolator-source`. The
+native oracle uses the same flag and requires `raw_bool_fields_checked: true`.
+It checks exact spans, links, known classes, work and storage before pinned
+uint8 factories, then projects their source values. Fixed-size source products
+compare exactly. Batch work shares one allowance; failed combined decoding
+conservatively exhausts remaining allowances. Earlier flags omit this catalogue
+and keep Boolean payloads opaque.
+
+Private validation is held in `local/asset-07c-teamv2-20261003-01`, with a separate
+native build in `local/nif-animation-oracle-build-07c-teamv2`. Eight new decoder
+tests include all 256 raw byte values for both classes across all twelve admitted
+streams, ordered unsupported targets and exact work/storage boundaries. The
+existing 52 animation/key/spline/sampling tests and all 23 CLI tests pass. This
+source catalogue does not admit Boolean key evaluation, truth semantics,
+timeline events, evaluated poses, clocks, rendering or retail playback.
+
+Both readers and independent authored expectations agree for 96 files across
+twelve streams. Thirteen altered reports and ten malformed sources refuse for
+their intended reasons; schema4 continues to admit those opaque Boolean payloads.
+All 70 originals compare exactly, including 252 ordinary and three timeline
+interpolators. Their additional work is 1,275 units and logical retention is
+36,680 bytes. Forty `NiBoolData` dependencies remain explicit; overall remaining
+dependencies total 3,854, diagnostics zero and runtime readiness false. A third
+raw header/layout audit independently matches every Boolean block identity,
+span/hash and primitive field. Earlier animation/key/spline/component projections
+still match the frozen native oracle, and original Rust default schemas1/2/3/4
+are byte-exact. Fresh Rust/native builds, all-target Clippy with warnings denied,
+formatting and diff checks pass. The first comparison helper put a malformed
+input beside reports and hit the output-directory guard. Its failed snapshot and
+run remain preserved; separating input and report directories fixes the evidence
+layout without changing decoder code, binary or source bytes.

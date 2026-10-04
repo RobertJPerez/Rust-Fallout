@@ -1,6 +1,6 @@
 //! Retained source menu structure for the original tile consumer. This uses the
-//! existing archive importer and the audited tokenizer, never another importer
-//! with explicit bounded entity/include consumers in the owned submodules.
+//! existing archive importer and audited tokenizer. Bounded source consumers
+//! live in the owned submodules.
 use crate::model::Result;
 use fallout_data::{
     assets::ArchiveAssets,
@@ -373,6 +373,7 @@ fn read_json<T: DeserializeOwned>(path: &Path, limit: usize, kind: &str) -> Resu
 
 pub mod entities;
 pub mod includes;
+pub mod traits;
 
 #[cfg(test)]
 mod tests;

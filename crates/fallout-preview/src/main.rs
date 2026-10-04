@@ -191,8 +191,11 @@ impl DrawScene {
         Ok(true)
     }
 
-    fn dispose(&mut self, commands: &mut Commands, assets: &mut upload::Resources) {
-        if let Some(cell) = &mut self.cell {
+    fn dispose(&mut self, commands: &mut Commands, assets: &mut upload::Resources) -> bool {
+        if !self.queue.retiring()
+            && let Some(cell) = &mut self.cell
+        {
+            cell.native.take();
             match cell.owner.get_mut() {
                 Ok(owner) => {
                     if let Err(error) = owner.unload() {
@@ -202,7 +205,7 @@ impl DrawScene {
                 Err(error) => error!("Source residency owner poisoned: {error}"),
             }
         }
-        self.queue.dispose(commands, assets);
+        self.queue.dispose(commands, assets)
     }
 }
 
@@ -211,6 +214,7 @@ enum Phase {
     Preparing(loading::Job<ReadyScene>),
     Uploading(DrawScene),
     Ready(DrawScene),
+    Disposing(DrawScene, Option<String>),
     Failed(String),
     Cancelled,
 }
@@ -520,8 +524,12 @@ fn drive_loading(
         state.epoch = state.epoch.saturating_add(1);
         match phase {
             Phase::Preparing(mut job) => job.cancel(),
-            Phase::Uploading(mut queue) | Phase::Ready(mut queue) => {
-                queue.dispose(&mut commands, &mut assets)
+            Phase::Uploading(mut queue)
+            | Phase::Ready(mut queue)
+            | Phase::Disposing(mut queue, _) => {
+                if !queue.dispose(&mut commands, &mut assets) {
+                    state.phase = Phase::Disposing(queue, None);
+                }
             }
             _ => {}
         }
@@ -596,10 +604,24 @@ fn drive_loading(
                 Phase::Ready(queue)
             }
             Err(error) => {
-                queue.dispose(&mut commands, &mut assets);
-                failure(error, &mut exit)
+                if queue.dispose(&mut commands, &mut assets) {
+                    failure(error, &mut exit)
+                } else {
+                    Phase::Disposing(queue, Some(error))
+                }
             }
         },
+        Phase::Disposing(mut queue, error) => {
+            if queue.dispose(&mut commands, &mut assets) {
+                if let Some(error) = error {
+                    failure(error, &mut exit)
+                } else {
+                    Phase::Cancelled
+                }
+            } else {
+                Phase::Disposing(queue, error)
+            }
+        }
         Phase::Ready(mut queue) => {
             if let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut()) {
                 if let Some(event) = host.poll() {
@@ -662,6 +684,7 @@ fn drive_loading(
             format!("Loading: {message} ({}s)", elapsed.as_secs())
         }
         Phase::Uploading(queue) => queue.status(),
+        Phase::Disposing(queue, _) => queue.queue.disposal_status(),
         Phase::Ready(queue) => queue
             .cell
             .as_ref()

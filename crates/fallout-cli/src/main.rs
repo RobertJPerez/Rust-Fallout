@@ -259,6 +259,8 @@ enum Command {
         include_actor_context: bool,
         #[arg(long, requires = "explicit_subject")]
         equipment_item: Option<std::num::NonZeroU64>,
+        #[arg(long, requires = "explicit_subject")]
+        inventory_boot_request: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1012,6 +1014,7 @@ fn run(args: Args) -> Result<()> {
             package_capability,
             include_actor_context,
             equipment_item,
+            inventory_boot_request,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1028,6 +1031,7 @@ fn run(args: Args) -> Result<()> {
                     package_capability,
                     include_actor_context,
                     equipment_item,
+                    inventory_boot_request: inventory_boot_request.as_deref(),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

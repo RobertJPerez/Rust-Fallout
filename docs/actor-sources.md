@@ -1377,3 +1377,43 @@ name/raw bytes, bindings, headers and serialized projection.
 These requests preserve material source declarations. They do not choose a mesh,
 import texture sets, apply archive precedence or shaders, mutate materials,
 select equipped inventory or establish original rendering behavior.
+
+## Creature body-part source requests (ACT26)
+
+`actor-sources --body-part-root PLUGIN:HEX` adds `actor_body_part_inputs` for one
+live CREA. The private, non-deserializable manifest is constructed by
+`actors::body_part_inputs::request(&mut RecordStore, &actors::Catalogue,
+&FormKey, Limits)` and exposes an immutable `declaration()` view. It verifies
+the complete fresh source cohort, winner, retained actor header/body and every
+physical field before binding a PNAM declaration. Default actor and association
+decoding remain unchanged. Existing ACT22 `SourceRequest` supplies the header
+projection; the plugin visitor and FormID binder remain the only framing and
+identity decoders.
+
+Pinned FNV CREA (4276-4429) declares PNAM/BPTD under ModelAnimation template bit
+64. Only one live, uniquely bound BPTD source is read. Repeated, absent, null,
+missing, deleted, wrong-kind or unsupported PNAM inputs preserve their exact
+physical bytes/header requests without choosing a body. Missing or repeated
+ACBS and template inheritance withhold direct declaration admission. Structural
+source evidence remains separate from an effective inherited actor body.
+
+Pinned BPTD (5954-6010), Common body-location enum and position/rotation structs,
+and FNV actor-value enum ground the 84-byte BPND view. Version 15 admits raw
+damage/scale/vector float bits, flags, signed i8 part type and actor value,
+unsigned hit/chance/health/decal bytes, unsigned u16 explosion debris count,
+signed i32 severable debris count, and unused bytes. Six embedded FormIDs at
+offsets 12, 16, 32, 36, 68 and 72 retain exact DEBR/EXPL/IPDS winning headers.
+RAGA retains RGDL header requests. Leaf bodies stay unread. Other record versions
+or BPND layouts retain complete raw fields with typed values and embedded links
+withheld; unknown enum and flag values remain explicit.
+
+Every named/model field and BPND occurrence retains physical order. Optional
+first names and any-member editor grouping do not justify assigning the nearest
+name to a part. Editor sorting, name decoding, inferred part groups and first
+duplicate winners are not applied. Repeated signed part types are marked and
+all raw name frames, replacement-model bytes and opaque NAM5 metadata remain
+available independently. Twelve limits bound sources, individual/decoded bytes,
+fields/work visits, parts/names, name/raw bytes, bindings/headers and projection.
+
+The request cannot map a contact to a limb, choose a model, evaluate damage or
+limb health, perform gore/dismemberment, or mutate canonical actor state.

@@ -388,6 +388,32 @@ fn cuboid_ray(o: V, d: V, minimum: V, maximum: V, max: f64) -> QueryResult<Optio
     if cuboid_contains(o, minimum, maximum) {
         return Ok(Some(0.));
     }
+    let Some((enter, exit)) = cuboid_interval(o, d, minimum, maximum, max)? else {
+        return Ok(None);
+    };
+    if enter.upper > exit.lower {
+        return Err(QueryError::Invalid(
+            "cuboid slab predicate is numerically uncertain",
+        ));
+    }
+    // A possible intersection is insufficient. The upper entry bound lies
+    // inside every guaranteed slab and the caller's exact distance interval.
+    let witness: V = std::array::from_fn(|i| d[i].mul_add(enter.upper, o[i]));
+    if !cuboid_contains(witness, minimum, maximum) {
+        return Err(QueryError::Invalid(
+            "cuboid entry witness is numerically uncertain",
+        ));
+    }
+    Ok(Some(enter.upper))
+}
+
+fn cuboid_interval(
+    o: V,
+    d: V,
+    minimum: V,
+    maximum: V,
+    max: f64,
+) -> QueryResult<Option<(Interval, Interval)>> {
     let mut enter = Interval {
         lower: 0.,
         upper: 0.,
@@ -421,20 +447,13 @@ fn cuboid_ray(o: V, d: V, minimum: V, maximum: V, max: f64) -> QueryResult<Optio
     if enter.lower > exit.upper {
         return Ok(None);
     }
-    if enter.upper > exit.lower {
-        return Err(QueryError::Invalid(
-            "cuboid slab predicate is numerically uncertain",
-        ));
-    }
-    // A possible intersection is insufficient. The upper entry bound lies
-    // inside every guaranteed slab and the caller's exact distance interval.
-    let witness: V = std::array::from_fn(|i| d[i].mul_add(enter.upper, o[i]));
-    if !cuboid_contains(witness, minimum, maximum) {
-        return Err(QueryError::Invalid(
-            "cuboid entry witness is numerically uncertain",
-        ));
-    }
-    Ok(Some(enter.upper))
+    Ok(Some((enter, exit)))
+}
+
+/// Culling is permitted only for a certified miss. Uncertain or overflowing
+/// enclosures keep the source primitive for its actual geometry predicate.
+pub(super) fn cuboid_may_ray(o: V, d: V, minimum: V, maximum: V, max: f64) -> bool {
+    !matches!(cuboid_interval(o, d, minimum, maximum, max), Ok(None))
 }
 
 /// Closest point lies either on a triangle edge or inside its perpendicular
@@ -463,6 +482,31 @@ fn triangle_distance2(p: V, [a, b, c]: [V; 3]) -> f64 {
 }
 
 impl Shape {
+    /// Bounds of authored core geometry, used only as culling supersets.
+    pub fn bounds(&self) -> (V, V) {
+        match *self {
+            Self::Sphere(r) => ([-r; 3], [r; 3]),
+            Self::Box(extents) => (extents.map(|v| -v), extents),
+            Self::ConvexCuboid {
+                minimum, maximum, ..
+            } => (minimum, maximum),
+            Self::Capsule { a, b, radius } => (
+                std::array::from_fn(|i| (a[i].min(b[i]) - radius).next_down()),
+                std::array::from_fn(|i| (a[i].max(b[i]) + radius).next_up()),
+            ),
+            Self::Triangle(vertices) => (
+                std::array::from_fn(|i| {
+                    vertices.iter().map(|v| v[i]).fold(f64::INFINITY, f64::min)
+                }),
+                std::array::from_fn(|i| {
+                    vertices
+                        .iter()
+                        .map(|v| v[i])
+                        .fold(f64::NEG_INFINITY, f64::max)
+                }),
+            ),
+        }
+    }
     pub fn cost(&self) -> usize {
         if matches!(self, Self::Triangle(_)) {
             1

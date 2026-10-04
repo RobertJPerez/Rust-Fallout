@@ -177,6 +177,22 @@ pub(crate) enum WorldCommand {
         #[arg(long, required = true, allow_hyphen_values = true)]
         grid: Vec<String>,
     },
+    /// Consume immutable CPU terrain patches for an explicit ordered grid set.
+    TerrainPatchSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        #[arg(long, required = true, allow_hyphen_values = true)]
+        grid: Vec<String>,
+        /// Explicit zero-based patch indices, repeated in comparison order.
+        #[arg(long)]
+        seam: Vec<String>,
+    },
     /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
     GridTerrainSources {
         #[arg(long)]

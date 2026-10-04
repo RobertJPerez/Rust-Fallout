@@ -3,6 +3,7 @@
 pub mod binding;
 mod graph;
 pub mod partition;
+pub mod pose;
 mod read;
 
 use crate::{Error, Result, nif, nif_scene, nif_scene::cursor::Reader};

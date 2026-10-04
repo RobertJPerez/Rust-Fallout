@@ -1382,7 +1382,7 @@
       },
       {
         "id": "V3-STATE-22",
-        "state": "ready",
+        "state": "completed_producer",
         "title": "Stage explicit multi-lot inventory transfers atomically",
         "depends_on": [],
         "owned_paths": [
@@ -1408,7 +1408,7 @@
       {
         "id": "V3-STATE-23",
         "title": "Page one canonical inventory bank without cloning every lot",
-        "state": "ready",
+        "state": "completed_producer",
         "producer": "runtime",
         "owned_paths": [
           "crates/fallout-runtime/src/inventory.rs",
@@ -2223,7 +2223,7 @@
       },
       {
         "id": "V3-ACT-16",
-        "state": "ready",
+        "state": "completed_producer",
         "title": "Admit an explicit canonical item lot as a read-only equipment request",
         "depends_on": [],
         "gap": "Runtime ItemId/Facts and InventoryView retain distinct lots, explicit equipped_slots and modifications, but the actor lane accepts only source FormKey model choices. There is no actor adapter binding the user's selected lot to its canonical owner/base without treating inventory presence as equipped state.",
@@ -2260,7 +2260,7 @@
       },
       {
         "id": "V3-ACT-17",
-        "state": "ready",
+        "state": "completed_producer",
         "title": "Resolve authored package destination and target operands into bounded requests",
         "depends_on": [],
         "gap": "actors/packages.rs Value currently decodes General and Schedule only. Source location/target fields therefore remain Opaque; package_dependencies joins CTDA and embedded scripts but cannot give a navigation host an exact authored destination operand request.",
@@ -3386,10 +3386,8 @@
       },
       {
         "id": "V3-ASSET-28",
-        "state": "blocked",
-        "depends_on": [
-          "V3-ASSET-20 tested reviewed handoff and published exact producer"
-        ],
+        "state": "ready",
+        "depends_on": [],
         "title": "Feed an exact sampled external rig pose into the reviewed two-file palette",
         "gap": "Pending ASSET20 establishes stored external rig-to-skin mapping and palette. The next actual skin route needs one exact supported rig clip/node sample without replacing source identity by caller matrices.",
         "owned_paths": [
@@ -3426,7 +3424,28 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "reviewed_dependencies": [
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-20",
+            "original": "1855df8b407b1ecd5fa36b2350efe730bb692ae3",
+            "integrated": "f1f40cbb669e9138ff860f43c1804fd0b8d3e023"
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-13",
+            "original": "c42a4f6bb558c8da1a05c03bccb7ce31547b03c3",
+            "integrated": "1078de65e6bac15a607e184b328c4c074f24a315"
+          },
+          {
+            "lane": "assets",
+            "task_id": "V3-ASSET-20-correction",
+            "original": "9702df5f3ace989b8274128d4d0c9c3fbcac9fd0",
+            "integrated": "0dbb3e0b0c2f274a02e2b880c4ac688bd33e9309"
+          }
+        ],
+        "scope_note": "Exact corrected20 chain has a reviewed mapping; owned producer already present in asset checkout. Proceed without public checkpoint, do not replay source. Original HOLD evidence remains preserved."
       },
       {
         "id": "V3-ASSET-29",
@@ -4395,7 +4414,7 @@
       },
       {
         "id": "V3-VIEW-10",
-        "state": "ready",
+        "state": "completed_producer",
         "title": "Keep action intent separate from canonical mutation",
         "depends_on": [],
         "consumer": "Keyboard/controller host input adapter.",
@@ -4457,7 +4476,7 @@
       },
       {
         "id": "V3-VIEW-16",
-        "state": "ready",
+        "state": "completed_producer",
         "title": "Load a bounded source menu include closure",
         "gap": "ui::inspect reads one archive member; includes stay opaque. A selected menu cannot access its authored include dependencies.",
         "owned_paths": [
@@ -4974,7 +4993,7 @@
       },
       {
         "id": "V3-PHYS-16",
-        "state": "ready",
+        "state": "completed_producer",
         "depends_on": [],
         "title": "Bind selected collision placements to current canonical reference identity",
         "gap": "BodyPlacement accepts a ReferenceId and caller frame directly. Cell admission verifies model SHA/ticket, but neither checks the ReferenceId against World::reference_origin/authored_reference nor joins it to the exact winning placed/base source record. Whole-cell and canonical movement remain unavailable.",
@@ -5652,7 +5671,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T09:59:00.342730+00:00",
+  "updated_at": "2026-10-04T10:23:17.016387+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

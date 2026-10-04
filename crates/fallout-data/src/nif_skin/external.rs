@@ -1,4 +1,5 @@
 //! Explicit two-source engineering root/bone mapping, never automatic rig choice.
+mod determinant;
 use super::{Data, binding, pose};
 use crate::{Result, nif, nif_scene};
 use pose::{Affine, Budget};
@@ -249,6 +250,7 @@ pub fn evaluate(
     }
     // Invertibility is required by this explicit root-space relationship even
     // though forward palette composition itself does not use its inverse.
+    determinant::certify(request.explicit_root_space_mapping, &mut budget)?;
     pose::inverse(request.explicit_root_space_mapping, &budget)
         .map_err(|_| budget.fail("external root-space mapping is singular or overflowing"))?;
     let skin_digest = Sha256::digest(skin_bytes);

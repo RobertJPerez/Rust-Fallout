@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "generation": "team-v3-20261004",
+  "development_base": "5dff0c2f24812f43b791ee30c51a8c9f5542d5c0",
+  "last_verified_checkpoint": 45,
+  "checkpoint45_implementation": "494a718cc73e08154d195efceac1d071af336a05",
+  "prior_candidate": "3835d2ff6f9bbd5eed2ea3125987030ca10e7800",
+  "new_mappings": [
+    {
+      "original": "a648fffbf5e12d2d49f4ce422981214cee236872",
+      "integrated": "4a94adbf0f8ac9dd27b2afe0339c27ac36cf9a32"
+    },
+    {
+      "original": "e6b48645185a915da8164230929864e5b1719b24",
+      "integrated": "2ed84c7938ff2d9163da7f8c10ef5bb7994b281e"
+    },
+    {
+      "original": "b60726a5df17032814a9fc30574310af0297791b",
+      "integrated": "aa953e885cf4d372d9ee1793e703d5675f18ca63"
+    },
+    {
+      "original": "16b0b1feb0ad8ec4da29f68ea915b8a6ede74d13",
+      "integrated": "f2e0e9e9a5dfb59fe3d92b793eb8d6cc0ca62842"
+    },
+    {
+      "original": "ede746914576da06c961c3e608e2662659464b41",
+      "integrated": "c7bd68fec2d6d076bdac2753258405cb64b291c4"
+    },
+    {
+      "original": "0f266246946c467465656b0a4c6ebfa18db7a0cf",
+      "integrated": "5dff0c2f24812f43b791ee30c51a8c9f5542d5c0"
+    }
+  ],
+  "preserved_handoffs": [
+    {
+      "lane": "actors",
+      "task_id": "ACT-07B",
+      "commits": [
+        "ede746914576da06c961c3e608e2662659464b41",
+        "0f266246946c467465656b0a4c6ebfa18db7a0cf"
+      ],
+      "handoff": "G:\\Rust-Fallout-worktrees\\actors\\local\\act07b-package-validation-20261004-01\\handoff-verified.json",
+      "handoff_sha256": "533aa495f44e0ba46923157caaa91dec2579e21f406e382e278c57ecbcda0bf7",
+      "state": "tested_clean_pending_review"
+    },
+    {
+      "lane": "assets",
+      "task_id": "ASSET-09",
+      "commits": [
+        "16b0b1feb0ad8ec4da29f68ea915b8a6ede74d13"
+      ],
+      "handoff": "G:\\Rust-Fallout-worktrees\\assets\\local\\asset-09-teamv2-20261003-02\\handoff-committed.json",
+      "handoff_sha256": "9a8ac10185ef5a98f5e1a5a0366ab1678a94e8d36ac8bd7efd1a48747066c068",
+      "state": "tested_clean_pending_review"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "STATE-04K",
+      "commits": [
+        "e6b48645185a915da8164230929864e5b1719b24"
+      ],
+      "handoff": "G:\\Rust-Fallout-worktrees\\runtime-next\\local\\state-04k-20261004-4a7eb2d5\\handoff.json",
+      "handoff_sha256": "0e0d2c3e5921389fd8eea4e3073de3f52b546998ae1f7a2be5286fbf6b64ac55",
+      "state": "tested_clean_pending_review"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "VM-03E",
+      "commits": [
+        "a648fffbf5e12d2d49f4ce422981214cee236872"
+      ],
+      "handoff": "G:\\Rust-Fallout-worktrees\\script-vm\\local\\vm-03e-development-01\\handoff.json",
+      "handoff_sha256": "b6a0bf669a6e0d53f4e23a386812cab7d5e90cbd8af267220ebe70ac5786c2aa",
+      "state": "tested_clean_pending_review"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "VM-05",
+      "commits": [
+        "b60726a5df17032814a9fc30574310af0297791b"
+      ],
+      "handoff": "G:\\Rust-Fallout-worktrees\\script-vm\\local\\vm-05-development-01\\handoff.json",
+      "handoff_sha256": "e35bb5b4bda0d14bef74e16f384ca363cfae466c9193e10034f65ff3ec5a5380",
+      "state": "tested_clean_pending_review"
+    }
+  ],
+  "prior_map": "G:\\Rust-Fallout\\local\\team-v2\\board.json",
+  "backup_manifest": "G:\\Rust-Fallout-preservation\\team-v2-before-v3-20261004\\manifest.json",
+  "proof46": "Preserved clean/unbuilt at3835; no new checkpoint acceptance.",
+  "verification_receipt": "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-base-review-01\\check.json",
+  "combined_validation": {
+    "revision": "5dff0c2f24812f43b791ee30c51a8c9f5542d5c0",
+    "rust_test_pass_results": 723,
+    "format": "passed",
+    "clippy_all_targets_warnings_denied": "passed",
+    "publication_tests_passed": 5,
+    "receipt_sha256": "650545d4fc52de4afa87f86467f0b6ec1134efe1e4f35429b959ea9786d378c0",
+    "log_sha256": "498fa7879df69ef5c03f28f56303ce0c52ba12c101cd2903074668ce32c0d229",
+    "scope": "Combined asset-free development checks; no new retail/gameplay acceptance"
+  }
+}

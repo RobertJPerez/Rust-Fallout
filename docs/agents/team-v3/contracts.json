@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "generation": "team-v3-20261004",
+  "status": "preauthorized_on_team_activation",
+  "rule": "These engineering boundaries authorize implementation without a per-task grant. Owners publish exact signatures before consumers bind, and retain backward compatibility. They do not establish original-game semantics. Changes to the stated invariants require coordinator review.",
+  "contracts": [
+    {
+      "id": "REF-STATE",
+      "producer": "runtime",
+      "consumers": ["world", "presentation", "physics", "actors"],
+      "producer_path": "crates/fallout-runtime/src/reference_state/",
+      "invariants": [
+        "Reuse canonical persistent reference identity and content/campaign version; never store render entity IDs as authority.",
+        "Store explicit finite original-coordinate pose and explicit enable state; preserve source transform conventions and central coordinates conversion. No guessed default player spawn, actor values or unit scaling.",
+        "Runtime alone validates and commits revision-checked mutations. Physics returns proposed movement/query results; presentation emits intent and consumes immutable snapshots.",
+        "Optional unavailable fields remain unavailable. New persisted component gets explicit schema version/migration and cold restore; old saves must not acquire fabricated gameplay defaults."
+      ],
+      "first_consumer": "One selected placed reference retains an explicit transform/enable change across unload and cold restart."
+    },
+    {
+      "id": "CELL-RESIDENCY",
+      "producer": "world",
+      "consumers": ["presentation", "physics", "runtime"],
+      "producer_path": "crates/fallout-data/src/world/",
+      "invariants": [
+        "Reuse resource_jobs, existing cache, source fingerprints and generation tokens; no new importer.",
+        "Explicit staged source/dependency readiness is distinct from simulation/collision readiness and render residency.",
+        "Requests and immutable results carry source/cell identity and generation; stale completions cannot publish entities or reacquire released pins.",
+        "World owns residency and source resource pins; physics owns query geometry; presentation owns GPU resources; runtime owns persistent existence.",
+        "Bound queues, bytes and cancellation; missing collision or behavior-critical input cannot mark a cell simulation-ready."
+      ],
+      "first_consumer": "Application remains responsive during a real cell load and does not spawn stale scene resources after cancellation."
+    },
+    {
+      "id": "SOURCE-POSE",
+      "producer": "assets",
+      "consumers": ["presentation", "actors"],
+      "producer_path": "crates/fallout-data/src/nif_animation/",
+      "invariants": [
+        "Reuse decoded skin binding, controller, skeleton and ASSET06/09 sampler outputs. Inputs identify exact source/block/controller and explicit finite sample time.",
+        "Assets owns pose/palette math and supported channel sampling; presentation owns draw mesh/GPU upload/scene transforms. World may expose source links only when that renderer consumer needs them.",
+        "No silent quaternion/weight repair, guessed missing component default or assumed event timing; unsupported source channels remain explicit.",
+        "WORLD03C outbox42 is a preserved source-only proposal, not delivered rendering or permission for world to edit preview.",
+        "Actor lane resolves record-specific model/equipment selection; no second asset decoder in actor or presentation code."
+      ],
+      "first_consumer": "An actual source-bound skin is displayed with independently checked bind or explicit-time pose."
+    },
+    {
+      "id": "COLLISION-QUERY",
+      "producer": "physics",
+      "consumers": ["world", "presentation", "actors"],
+      "producer_path": "crates/fallout-runtime/src/physics/",
+      "invariants": [
+        "Consume existing collision source shapes and generation-tagged placements. Return bounded query hits with stable source IDs; do not invent a second canonical mutable world.",
+        "Caller-supplied engineering unit conversion is explicit and cannot imply measured retail units. All consumers use the same approved conversion boundary.",
+        "Unsupported shapes/filter semantics block faithful readiness; do not replace collision with visual bounding boxes.",
+        "New backend dependencies go through coordinator after pinned API/license inspection. Independent shape/query work proceeds without waiting for a backend selection.",
+        "Navigation preserves authored portals/doors/special links, uses admissible heuristics for declared costs and reports unreachable/unsupported paths."
+      ],
+      "first_consumer": "Headless queries against supported authored house shapes, followed by actual constrained movement."
+    },
+    {
+      "id": "SEMANTIC-TRACE",
+      "producer": "scripts",
+      "consumers": ["coordinator", "actors", "world"],
+      "producer_path": "tools/retail-script-probes/",
+      "invariants": [
+        "Coordinator owns isolated executable/profile launch and capture transport; scripts owns compiled microfixtures, expected semantics and original/replacement trace comparison.",
+        "Capture exact executable/data/profile/fixture identity, source offsets, caller, numeric bits, effects and ordering; independently produced expectations.",
+        "No production account, original installation, normal save or setting mutation; use a separate profile/copy and prove isolation before execution.",
+        "Rust standalone implementation never calls into retail executable. Native observation glue is separately identified research tooling.",
+        "Workers may implement fixture/trace consumers without capture readiness; missing captures remain blocked acceptance, never inferred success."
+      ],
+      "first_consumer": "One original source-less primitive measured and reproduced through prepared script plans and canonical commit."
+    }
+  ]
+}

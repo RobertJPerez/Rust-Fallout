@@ -1,54 +1,57 @@
 # Working together on Rust Fallout
 
-The current arrangement is one coordinator plus five implementation workers.
-Read `G:\Rust-Fallout\docs\agents\team-v2\team-plan.md` and
-`G:\Rust-Fallout\docs\agents\team-v2\operating-contract.txt` before work.
-Current instructions and assignments live in the primary tree even when a worker
-checkout still contains an older four-agent plan.
+Read [the eight-agent plan](docs/agents/team-v3/team-plan.md),
+[operating contract](docs/agents/team-v3/operating-contract.txt),
+[ownership map](docs/agents/team-v3/ownership.json),
+[preauthorized interfaces](docs/agents/team-v3/contracts.json) and
+[concrete backlogs](docs/agents/team-v3/backlog.json).
+Robert requested one coordinator and seven implementation workers. The coordinator
+owns review, integration, shared engineering, original-profile infrastructure and
+main promotion. Workers own scripts, runtime, actors, assets, world, presentation
+and physics. There is no separate integration agent.
 
-- Robert's latest instruction controls. Setup/planning does not resume engine
-  implementation. Read `G:\Rust-Fallout\local\team\control.json` and your
-  `G:\Rust-Fallout\local\team-v2\<lane>.assignment.json` before edits,
-  commands, commits and task transitions. Require matching generation, active
-  control and active assignment. Missing/malformed coordination permits only
-  read-only investigation until the coordinator repairs it.
-- Read the entire master brief, NEXT_STEPS.md, latest verified checkpoint and
-  preserved handoffs. Source decoding and engineering tests do not prove gameplay.
-- Use the assigned worktree, branch and private Cargo/native/evidence directories.
-  All sessions share the filesystem, Git object database, refs and caches.
-  Do not reset, clean, rebase, remove or overwrite another lane's work.
-- Follow the ownership map and narrower task assignment. Coordinator owns shared
-  exports, dependencies, source pins, public contracts and final promotion.
-  Minimal private export/CLI wiring is allowed when declared. Coordinate semantic
-  APIs, canonical state and save formats before changes. Ask the coordinator,
-  not Robert, to resolve routine engineering decisions.
-- One session owns a lane. Claim its lease before source/mailbox writes; never
-  steal an existing lease. Workers write only their own status/outbox. Coordinator
-  writes assignments and the integration board. Separate chats do not share
-  messages automatically: read the durable mailboxes.
-- Keep one active task and at most six new unmerged handoffs per worker.
-  Prioritize review fixes and dependency integration.
-  Deliver reachable functionality; do not create duplicate parsers or empty crates.
-- Each active worker has a ready queue in its `local/team-v2/<lane>.assignment.json`.
-  After a tested handoff, take the next ready slice without a coordinator signal.
-  If one dependency is missing, record it once and continue an independent slice.
-  When the listed queue is exhausted, derive the next source-backed task from
-  the master brief and `NEXT_STEPS.md` within assigned paths, with a named
-  consumer and a small tested exit. Share that task in the lane outbox. A
-  dependency-gated task is never the end of the lane queue: the coordinator keeps
-  a concrete independent fallback behind it and replenishes that fallback at
-  each handoff. Do not repeat an unchanged blocker audit while ready work exists.
-- Once control enables `automatic_mutex`, run focused Cargo and native builds via
-  `tools/team-v2-focused.py` from the assigned worktree with its private target.
-  The wrapper waits for one shared build slot; no coordinator grant is needed.
-- Original installations, saves/settings and pinned research remain untouched.
-  Never rebuild binaries used by a live proof. Raw retail material stays local.
-- Only coordinator assigns checkpoints and promotes/pushes main. Interrupted or
-  failed proofs remain incomplete. Earlier scoped reports stay immutable.
-- STOP means stop immediately at a safe cancellation boundary, preserve work and
-  cancel only owned processes. Do not start another fix, test, commit, proof or
-  publication afterward. Check control during long commands, not after a whole
-  milestone. Resume only on Robert's instruction and reconciled assignments.
+- Robert's latest instruction overrides coordination files. The prepared v3 team
+  is paused until its coordinator startup prompt is submitted and a fresh run is
+  activated. Setup/review authorized directly by Robert may proceed while engine
+  implementation remains paused. Old v2 writers stay stopped.
+- Read the entire master brief in docs/references/Fallout_Rust_Codex_Master_Brief.txt,
+  NEXT_STEPS.md and the latest verified checkpoint. Decoding and inspection do not
+  establish gameplay parity. Read relevant pinned source fully before deriving rules.
+- Before commands, edits, commits and task transitions, check
+  G:\Rust-Fallout\local\team\control.json and your v3 assignment. Missing/malformed
+  control or assignment permits read-only investigation until repaired. Old checkout
+  instructions do not supersede these current central instructions.
+- Use your assigned external worktree, branch, private targets and evidence. All
+  sessions share filesystem/Git refs; no duplicate writers. Claim an exclusive
+  current-run session lease. Never overwrite a live lease or expire it by age.
+- Edit only assigned paths. Published contracts preauthorize their bounded producer/
+  consumer changes. Minimal private module export/CLI wiring is allowed if declared
+  in handoff. New dependencies, source pins or shared semantics outside the contracts
+  require a coordinator decision; proceed with an independent ready task meanwhile.
+- Each worker writes only its status/outbox; coordinator owns assignments/board/
+  control. Announce startup, interface proposals, blockers and tested handoffs.
+  Read other current-run outboxes for STOP; separate chats have no assumed live bus.
+- While active, select the next ready task yourself. Backlogs contain concrete
+  consumers, acceptance and dependencies. If one is blocked, take independent work.
+  If the queue is exhausted, derive a bounded useful task within ownership from the
+  brief, record its consumer/exit and proceed. Do not wait for a per-task grant or
+  repeat completed audits. One coding task plus at most one parked validation slice.
+- Use tools/team-build.py for focused builds and heavy/GPU/proof work. Admission
+  is automatic; default busy exit75 launches nothing, so do other useful work.
+  One focused plus one heavy operation initially. Do not bypass limits or rebuild
+  frozen proof binaries. Keep installation, saves, settings and research read-only.
+- Send small tested handoffs with exact commits, dependency mapping, commands,
+  results, evidence hashes, shared wiring and next action. Review corrections take
+  priority. At four unmerged handoffs request integration priority and improve that
+  stack rather than growing an unlimited dependent branch. Coordinator publishes
+  checked development dependencies before the next checkpoint when appropriate.
+- Only coordinator promotes/pushes main and assigns checkpoints. Do not reset,
+  clean, rebase, remove or force-push another branch/tree. Preserve all prior drafts,
+  handoffs and evidence. Raw retail data must not enter public Git artifacts.
+- On interruption preserve task/head/base/draft/tests/evidence/next action. On STOP,
+  propagate immediately; start no new task, cancel only your own processes, preserve
+  state and return. An explicitly graceful stop has only the user's stated boundary
+  and deadline. No queued work or persistent Goal overrides STOP.
 
-The operating contract defines startup, handoff, build scheduling and resumption.
-Historical four-agent role files are superseded by the team-v2 startup prompts.
+Copyable prompts: docs/agents/team-v3/01-coordinator.txt through 08-physics.txt.
+Old team-v1/v2 files and worktrees remain preserved historical records.

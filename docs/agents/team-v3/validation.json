@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-04T03:02:39.245908+00:00",
+  "generation": "team-v3-20261004",
+  "state": "prepared_paused",
+  "engine_development_base": "5dff0c2f24812f43b791ee30c51a8c9f5542d5c0",
+  "checks": [
+    {
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1",
+      "worktree": "G:\\Rust-Fallout-worktrees\\integration",
+      "result": "passed",
+      "rust_test_pass_results": 723,
+      "python_publication_tests": 5,
+      "format": "passed",
+      "clippy": "all targets, warnings denied"
+    },
+    {
+      "command": "py -3 tools/test_team_build.py",
+      "worktree": "G:\\Rust-Fallout",
+      "result": "passed",
+      "tests": 29,
+      "coverage": [
+        "UTF-8/BOM",
+        "run/session/branch/worktree/target validation",
+        "nonblocking busy admission",
+        "STOP and lease replacement",
+        "partial append retry and persistent malformed refusal",
+        "real Windows process tree cleanup",
+        "forced wrapper termination",
+        "captured PowerShell output and exit code"
+      ]
+    },
+    {
+      "command": "py -3 tools/validate-team-v3.py",
+      "result": "passed",
+      "lanes": 8,
+      "tasks": 46,
+      "ownership_paths_checked": 816,
+      "contracts": 5,
+      "clean_worker_worktrees": 7
+    },
+    {
+      "command": "git bundle verify G:\\Rust-Fallout-preservation\\team-v2-before-v3-20261004\\all-refs.bundle",
+      "result": "passed",
+      "preserved_worktrees": 10
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "tool_sha256": {
+    "tools/team-build.py": "4c1ac408b6e6aebec455dd6c70dbd26c148b8e95f25285f88460f1d078238f19",
+    "tools/test_team_build.py": "1df3a4b8c131cfde86301199533158e627e3806f74928cf12e7c91ac84806188",
+    "tools/validate-team-v3.py": "25027c170e34cca9b59b1c174d1b19c28ab98788e33543c71530e7dd65afedf9"
+  },
+  "build_test_log": "G:\\Rust-Fallout\\local\\team-v3\\setup-tests.log",
+  "build_test_log_sha256": "72720a077664aab1f4cd8eaba0b0e7e1dceeb753ecfe08718f958234dc17fb30",
+  "limits": [
+    "Targeted review, not an audit of every repository/source-atlas file.",
+    "No new retail/gameplay acceptance or checkpoint46.",
+    "Workers are prepared sessions; setup does not start them."
+  ]
+}

@@ -24,6 +24,13 @@ outbox; workers do not need a separate build grant. Route exact review defects t
 their owner. Do not let a lane run repeated audits of the same blocker when a
 bounded source investigation or existing-consumer regression can move it forward.
 
+For a fresh proof worktree, build the committed candidate in its private target,
+then run `tools/integration_seed_proof.py --source G:\Rust-Fallout-worktrees\integration
+--destination YOUR_PROOF_WORKTREE --receipt local/UNIQUE-setup.json` before
+`verify-integration-candidate.py`. The helper verifies and copies only frozen
+private receipts/inputs; it leaves newly built oracle binaries in place. Keep
+each build, setup and proof directory unique and preserve failed attempts.
+
 
 AGENT 2: ObScript VM, conditions and native semantics
 Lane: scripts

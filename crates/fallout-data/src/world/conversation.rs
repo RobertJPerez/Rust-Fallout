@@ -14,7 +14,7 @@ use crate::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, io::Write};
+use std::{collections::BTreeMap, io::Write, sync::Arc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -68,7 +68,98 @@ impl Request {
     }
 }
 
+/// Lowerable logical page admission; index construction keeps its existing limit.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PageLimits {
+    pub members: usize,
+    /// Conservative member visits, including existing request membership searches.
+    pub visited_members: usize,
+    /// String bytes plus five fixed logical bytes per copied canonical key.
+    pub copied_bytes: usize,
+}
+impl Default for PageLimits {
+    fn default() -> Self {
+        Self {
+            members: 64,
+            visited_members: 16_384,
+            copied_bytes: 64 * 1024,
+        }
+    }
+}
+impl PageLimits {
+    fn validate(self) -> Result<Self> {
+        if !(1..=1024).contains(&self.members)
+            || !(1..=32_768).contains(&self.visited_members)
+            || !(1..=1024 * 1024).contains(&self.copied_bytes)
+        {
+            return Err(page_error("limits outside supported ceilings"));
+        }
+        Ok(self)
+    }
+}
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PageUsage {
+    pub returned_members: usize,
+    pub visited_members: usize,
+    pub copied_bytes: usize,
+}
+/// In-process authority only. Its index token never retains the membership graph.
+pub struct PageCursor {
+    index: Arc<()>,
+    cohort: String,
+    topic: FormKey,
+    speaker: Option<FormKey>,
+    next_index: usize,
+    last_key: FormKey,
+}
+/// Canonical structural source members, not original dialogue menu eligibility.
+#[derive(Serialize)]
+pub struct MembershipPage {
+    requests: Vec<Request>,
+    usage: PageUsage,
+    total_members: usize,
+    start_index: usize,
+    source_cohort_sha256: String,
+    continuation_available: bool,
+    canonical_structural_order: bool,
+    original_order_verified: bool,
+    payloads_prepared: bool,
+    #[serde(skip)]
+    cursor: Option<PageCursor>,
+}
+impl MembershipPage {
+    pub fn requests(&self) -> &[Request] {
+        &self.requests
+    }
+    pub fn cursor(&self) -> Option<&PageCursor> {
+        self.cursor.as_ref()
+    }
+    pub fn usage(&self) -> PageUsage {
+        self.usage
+    }
+    pub fn total_members(&self) -> usize {
+        self.total_members
+    }
+    pub fn start_index(&self) -> usize {
+        self.start_index
+    }
+}
+fn page_error(message: &str) -> Error {
+    Error::Unsupported(format!("conversation membership page {message}"))
+}
+fn key_copy_bytes(key: &FormKey) -> Result<usize> {
+    key.origin_plugin
+        .len()
+        .checked_add(5)
+        .ok_or_else(|| page_error("key byte overflow"))
+}
+fn page_add(left: usize, right: usize) -> Result<usize> {
+    left.checked_add(right)
+        .ok_or_else(|| page_error("admission overflow"))
+}
+
 pub struct DialogueSources {
+    index_token: Arc<()>,
     membership: MembershipIndex,
     sources: Vec<SourceReceipt>,
     cohort: String,
@@ -80,6 +171,7 @@ impl DialogueSources {
         let membership = MembershipIndex::build(store, limits.infos)?;
         let retained_bytes = json_bytes(&(&sources, membership.report()), limits.retained_bytes)?;
         Ok(Self {
+            index_token: Arc::new(()),
             cohort: cohort(&sources)?,
             sources,
             membership,
@@ -93,13 +185,100 @@ impl DialogueSources {
     pub fn retained_bytes(&self) -> usize {
         self.retained_bytes
     }
+    /// Continuation is bound to this exact index and caller-declared topic/speaker.
+    /// No source bodies are read; prepare validates current sources separately.
+    pub fn page(
+        &self,
+        topic: &FormKey,
+        speaker: Option<&FormKey>,
+        cursor: Option<&PageCursor>,
+        limits: PageLimits,
+    ) -> Result<MembershipPage> {
+        let limits = limits.validate()?;
+        let members = self.topic_infos(topic);
+        let start = if let Some(cursor) = cursor {
+            if !Arc::ptr_eq(&cursor.index, &self.index_token)
+                || cursor.cohort != self.cohort
+                || &cursor.topic != topic
+                || cursor.speaker.as_ref() != speaker
+                || cursor.next_index == 0
+                || cursor.next_index >= members.len()
+                || members.get(cursor.next_index - 1) != Some(&cursor.last_key)
+                || members[cursor.next_index] <= cursor.last_key
+            {
+                return Err(page_error(
+                    "cursor does not match index/topic/speaker/progress",
+                ));
+            }
+            cursor.next_index
+        } else {
+            0
+        };
+        let count = limits.members.min(members.len() - start);
+        let end = page_add(start, count)?;
+        // binary_search performs at most bit_length(len) comparisons plus one;
+        // reserve that bound before any request copies rather than hiding scans.
+        let search_bound = (usize::BITS - members.len().leading_zeros()) as usize + 1;
+        let visits = count
+            .checked_mul(page_add(search_bound, 2)?)
+            .and_then(|n| n.checked_add(2 * usize::from(cursor.is_some())))
+            .ok_or_else(|| page_error("visit overflow"))?;
+        if visits > limits.visited_members {
+            return Err(page_error("visited member budget exceeded"));
+        }
+        let topic_bytes = key_copy_bytes(topic)?;
+        let speaker_bytes = speaker.map(key_copy_bytes).transpose()?.unwrap_or(0);
+        let envelope = page_add(page_add(topic_bytes, speaker_bytes)?, self.cohort.len())?;
+        let mut copied = self.cohort.len(); // the page's source identity string
+        for info in &members[start..end] {
+            copied = page_add(copied, page_add(envelope, key_copy_bytes(info)?)?)?;
+        }
+        let has_next = end < members.len();
+        if has_next {
+            copied = page_add(
+                copied,
+                page_add(envelope, key_copy_bytes(&members[end - 1])?)?,
+            )?;
+        }
+        if copied > limits.copied_bytes {
+            return Err(page_error("copied key/string byte budget exceeded"));
+        }
+        let mut requests = Vec::with_capacity(count);
+        for info in &members[start..end] {
+            requests.push(self.request(topic.clone(), info.clone(), speaker.cloned())?);
+        }
+        let next = has_next.then(|| PageCursor {
+            index: Arc::clone(&self.index_token),
+            cohort: self.cohort.clone(),
+            topic: topic.clone(),
+            speaker: speaker.cloned(),
+            next_index: end,
+            last_key: members[end - 1].clone(),
+        });
+        Ok(MembershipPage {
+            requests,
+            usage: PageUsage {
+                returned_members: count,
+                visited_members: visits,
+                copied_bytes: copied,
+            },
+            total_members: members.len(),
+            start_index: start,
+            source_cohort_sha256: self.cohort.clone(),
+            continuation_available: has_next,
+            canonical_structural_order: true,
+            original_order_verified: false,
+            payloads_prepared: false,
+            cursor: next,
+        })
+    }
     pub fn request(
         &self,
         topic: FormKey,
         info: FormKey,
         speaker: Option<FormKey>,
     ) -> Result<Request> {
-        if !self.topic_infos(&topic).contains(&info) {
+        if self.topic_infos(&topic).binary_search(&info).is_err() {
             return Err(Error::Resolution(
                 "requested INFO is not a live winning member of topic".into(),
             ));

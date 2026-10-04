@@ -73,3 +73,33 @@ fragment resolver. All output is published together after every binding and
 final source validation succeed. Optional binding remains a source definition
 observation; execution, timing, selection, condition truth and runtime readiness
 remain false. The original single-request command retains its existing behavior.
+
+
+## Canonical source membership pages
+
+`DialogueSources::page(topic, speaker, cursor, PageLimits)` returns private sealed
+requests from the existing membership index. Canonical key sorting is an
+engineering lookup order. Deleted and moved winners stay excluded from their old
+topic; overrides retain their canonical origin key. No INFO bodies are read.
+
+`PageCursor` is opaque, neither cloned nor serialized. It binds the exact index
+instance, complete source cohort, topic, explicit speaker, next ordinal and last
+canonical key. It cannot continue another index even with identical sources.
+Its small index token does not keep the membership graph alive. Metadata JSON
+contains no continuation authority. Pages may be retried from the same borrowed
+cursor; continuation never mutates the index.
+
+Limits admit 1–1024 returned members, 1–32768 reserved member visits and
+1–1048576 logical copied bytes. All copies are charged before allocation.
+Visits conservatively reserve each bounded membership binary search, both page
+passes and two cursor progress witnesses. Copied bytes count actual cloned
+strings plus five fixed logical bytes per canonical key (profile and local ID),
+including every request, the next cursor and the page cohort. These bounds
+exclude allocator overhead and the separately admitted immutable index.
+An absent topic returns explicit empty structural membership, charging its
+cohort string; it establishes no playable empty menu.
+
+The caller selects a returned `Request` and passes it to the existing single
+`prepare`, which still validates the live full source cohort and winning physical
+parent. Paging alone establishes no eligibility, condition truth, original menu
+order, inferred actor, PNAM behavior, voice path or runtime readiness.

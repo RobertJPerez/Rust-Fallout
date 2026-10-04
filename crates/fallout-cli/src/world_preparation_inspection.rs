@@ -5,6 +5,7 @@ use fallout_data::{
     identity::FormKey,
     loaded_scripts::{Catalogue, Limits as ScriptLimits},
     store::RecordStore,
+    terrain::preparation::{Receipt as TerrainReceipt, TexturePreparation, TextureSourcePlan},
     vfs::MountIndex,
     world::{
         cells::CellGridSources,
@@ -64,6 +65,47 @@ pub(super) fn grid_residency(
     resource_cache: Option<&Path>,
     input: GridInput,
 ) -> Result<Value> {
+    grid_report(
+        install,
+        order_path,
+        index_cache,
+        resource_cache,
+        input,
+        GridKind::Models,
+    )
+}
+
+pub(super) fn grid_terrain(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+) -> Result<Value> {
+    grid_report(
+        install,
+        order_path,
+        index_cache,
+        resource_cache,
+        input,
+        GridKind::TerrainTextures,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum GridKind {
+    Models,
+    TerrainTextures,
+}
+
+fn grid_report(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+    kind: GridKind,
+) -> Result<Value> {
     let deadline = source_deadline(input.source_timeout_ms)?;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, index_cache)?;
@@ -74,15 +116,31 @@ pub(super) fn grid_residency(
         Ok(request) => {
             selected = Some(serde_json::to_value(&request)?);
             let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
-            match sources.prepare_cell(&mut store, &request, assets.mounts(), Default::default()) {
-                Ok(plan) => Ok(consume_plan(
-                    install,
-                    resource_cache,
-                    deadline,
-                    plan,
+            match kind {
+                GridKind::Models => match sources.prepare_cell(
+                    &mut store,
+                    &request,
                     assets.mounts(),
-                )?),
-                Err(error) => Err(error.to_string()),
+                    Default::default(),
+                ) {
+                    Ok(plan) => Ok(consume_plan(
+                        install,
+                        resource_cache,
+                        deadline,
+                        plan,
+                        assets.mounts(),
+                    )?),
+                    Err(error) => Err(error.to_string()),
+                },
+                GridKind::TerrainTextures => match sources.prepare_terrain(
+                    &mut store,
+                    &request,
+                    assets.mounts(),
+                    Default::default(),
+                ) {
+                    Ok(plan) => Ok(consume_terrain(install, resource_cache, deadline, plan)?),
+                    Err(error) => Err(error.to_string()),
+                },
             }
         }
         Err(error) => Err(error.to_string()),
@@ -100,10 +158,65 @@ pub(super) fn grid_residency(
     report["cell_grid_request"] = json!(selected);
     report["current_cell_changed"] = json!(false);
     report["activation_applied"] = json!(false);
-    report["scope"] = json!(
-        "Explicit WRLD/XCLC source CELL model/texture jobs; persistent groups remain separate, no position/grid inference or runtime activation"
-    );
+    match kind {
+        GridKind::Models => {
+            report["scope"] = json!(
+                "Explicit WRLD/XCLC source CELL model/texture jobs; persistent groups remain separate, no position/grid inference or runtime activation"
+            )
+        }
+        GridKind::TerrainTextures => {
+            report["surface_prepared"] = json!(false);
+            report["scope"] = json!(
+                "Explicit WRLD/XCLC CELL strict LAND/world/layer external texture source jobs; surface, inheritance and runtime activation remain unadmitted"
+            );
+        }
+    }
     Ok(report)
+}
+
+fn consume_terrain(
+    install: &Path,
+    resource_cache: Option<&Path>,
+    deadline: Duration,
+    plan: TextureSourcePlan,
+) -> Result<Value> {
+    let source_plan = serde_json::to_value(plan.receipt())?;
+    let mut preparation =
+        TexturePreparation::new(plan, install, resource_cache, Default::default())?;
+    let start = Instant::now();
+    let result = (|| -> Result<TerrainReceipt> {
+        loop {
+            if preparation.poll()? {
+                let ready = preparation
+                    .take_ready()?
+                    .ok_or("terrain source batch completed without receipt")?;
+                return Ok(ready.publish_for(preparation.plan().terrain())?);
+            }
+            if start.elapsed() >= deadline {
+                return Err(
+                    "terrain source polling deadline exceeded; owned request cancelled".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    })();
+    let (textures, error, available) = match result {
+        Ok(receipt) => {
+            let available = receipt.all_requested_texture_sources_ready
+                && receipt.all_authored_texture_sources_resolved;
+            (Some(serde_json::to_value(receipt)?), None, available)
+        }
+        Err(error) => {
+            preparation.cancel();
+            (None, Some(error.to_string()), false)
+        }
+    };
+    let usage = preparation.usage();
+    Ok(json!({"schema_version":1,"profile":"nv-original",
+        "terrain_source_plan":source_plan,"terrain_textures":textures,
+        "terrain_job_usage":{"outstanding":usage.outstanding,"decoded_bytes":usage.decoded_bytes},"source_error":error,
+        "captured_sources_available":available,"lookup_precedence_verified":false,
+        "surface_prepared":false,"runtime_ready":false,"retail_parity_accepted":false}))
 }
 
 pub(super) fn door_residency(
@@ -655,6 +768,229 @@ mod tests {
             grid,
             source_timeout_ms: 10_000,
         }
+    }
+    fn terrain_grid_fixture(root: &Path, mode: &str) {
+        grid_fixture(root, false);
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let texture = if mode == "default" { 0_u32 } else { 0x600 };
+        let land = record(
+            b"LAND",
+            0x500,
+            &field(
+                b"BTXT",
+                &[texture.to_le_bytes().as_slice(), &[0; 4]].concat(),
+            ),
+        );
+        let mut lands = land;
+        if mode == "duplicate" {
+            lands.extend(record(
+                b"LAND",
+                0x501,
+                &field(
+                    b"BTXT",
+                    &[texture.to_le_bytes().as_slice(), &[0; 4]].concat(),
+                ),
+            ));
+        }
+        let path = root.join("Data/Base.esm");
+        let mut bytes = fs::read(&path).unwrap();
+        bytes.extend(group(0x100, 1, &group(0x200, 6, &group(0x200, 9, &lands))));
+        bytes.extend(record(
+            b"LTEX",
+            0x600,
+            &field(b"TNAM", &0x700_u32.to_le_bytes()),
+        ));
+        bytes.extend(record(
+            b"TXST",
+            0x700,
+            &field(
+                b"TX00",
+                if mode == "missing" {
+                    b"missing.dds\0"
+                } else {
+                    b"t.dds\0"
+                },
+            ),
+        ));
+        fs::write(path, bytes).unwrap();
+        if mode == "ambiguous" {
+            archive(
+                root,
+                "other-terrain",
+                b"textures",
+                b"t.dds",
+                b"other-source",
+            );
+        }
+        fs::write(
+            root.join("terrain-grid-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+    }
+    #[test]
+    fn cli_terrain_grid_consumes_exact_existing_jobs_and_private_cache_without_surface_admission() {
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let paths = [
+            "Data/Base.esm",
+            "Data/models.bsa",
+            "Data/textures.bsa",
+            "order.json",
+        ];
+        let before: Vec<_> = paths
+            .iter()
+            .map(|path| Sha256::digest(fs::read(directory.join(path)).unwrap()))
+            .collect();
+        let cache = directory.with_file_name(format!(
+            "{}-terrain-cache",
+            directory.file_name().unwrap().to_string_lossy()
+        ));
+        fs::create_dir(&cache).unwrap();
+        for reused in [false, true] {
+            let report = grid_terrain(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                Some(&cache),
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["cell_grid_request"]["cell"]["local_id"], 0x200);
+            assert_eq!(report["terrain_source_plan"]["root"]["local_id"], 0x200);
+            assert_eq!(
+                report["terrain_source_plan"]["source_cohort_sha256"],
+                report["cell_grid_sources"]["source_cohort_sha256"]
+            );
+            assert_eq!(
+                report["terrain_textures"]["textures"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                report["terrain_textures"]["textures"][0]["sha256"],
+                format!("{:x}", Sha256::digest(b"authored-source-texture"))
+            );
+            assert_eq!(
+                report["terrain_textures"]["textures"][0]["cache"]["reused"],
+                reused
+            );
+            assert_eq!(report["captured_sources_available"], true);
+            assert_eq!(report["terrain_job_usage"]["outstanding"], 0);
+            assert_eq!(report["terrain_job_usage"]["decoded_bytes"], 0);
+            assert_eq!(report["surface_prepared"], false);
+            assert_eq!(report["current_cell_changed"], false);
+            assert_eq!(report["activation_applied"], false);
+            assert_eq!(report["runtime_ready"], false);
+            assert_eq!(report["terrain_textures"]["runtime_ready"], false);
+        }
+        for (path, sha) in paths.iter().zip(before) {
+            assert_eq!(Sha256::digest(fs::read(directory.join(path)).unwrap()), sha);
+        }
+    }
+    #[test]
+    fn cli_terrain_grid_retains_missing_ambiguous_default_and_duplicate_land_refusals() {
+        for mode in ["missing", "ambiguous", "default", "duplicate"] {
+            let directory = directory();
+            terrain_grid_fixture(&directory, mode);
+            let report = grid_terrain(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                None,
+                grid_input([-18, 0]),
+            )
+            .unwrap();
+            assert_eq!(report["captured_sources_available"], false, "{mode}");
+            assert_eq!(report["surface_prepared"], false);
+            assert_eq!(report["runtime_ready"], false);
+            assert_eq!(report["cell_grid_request"]["cell"]["local_id"], 0x200);
+            if mode == "duplicate" {
+                assert!(report["terrain_source_plan"].is_null());
+                assert!(report["terrain_textures"].is_null());
+                assert!(
+                    report["source_error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("exactly one winning present LAND")
+                );
+            } else {
+                assert_eq!(
+                    report["terrain_textures"]["all_requested_texture_sources_ready"],
+                    true
+                );
+                assert_eq!(
+                    report["terrain_textures"]["all_authored_texture_sources_resolved"],
+                    false
+                );
+                let sources = &report["terrain_source_plan"]["texture_sources"];
+                assert!(
+                    sources["failures"].as_u64().unwrap() > 0
+                        || sources["unapplied_default_layers"].as_u64().unwrap() > 0
+                );
+            }
+        }
+    }
+    #[test]
+    fn cli_terrain_grid_missing_selection_and_bad_deadline_never_start_jobs() {
+        let directory = directory();
+        terrain_grid_fixture(&directory, "valid");
+        let report = grid_terrain(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            grid_input([i32::MAX, i32::MIN]),
+        )
+        .unwrap();
+        assert!(report["cell_grid_request"].is_null());
+        assert!(report["terrain_source_plan"].is_null());
+        assert!(report["terrain_textures"].is_null());
+        assert_eq!(report["captured_sources_available"], false);
+        assert!(report["source_error"].as_str().unwrap().contains("no live"));
+        for timeout in [0, 120_001] {
+            let mut input = grid_input([-18, 0]);
+            input.source_timeout_ms = timeout;
+            assert!(
+                grid_terrain(Path::new("absent"), Path::new("absent"), None, None, input).is_err()
+            );
+        }
+        use clap::Parser;
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "grid-terrain-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--world",
+            "Base.esm:100",
+            "--grid-x",
+            "-2147483648",
+            "--grid-y",
+            "2147483647",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::GridTerrainSources {
+                grid_x: i32::MIN,
+                grid_y: i32::MAX,
+                ..
+            }
+        ));
     }
     #[test]
     fn cli_grid_consumer_selects_explicit_cell_and_uses_existing_resident_sources() {

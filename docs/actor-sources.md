@@ -1271,3 +1271,69 @@ source count, depth, selected records, record bytes, decoded bytes, field visits
 retained fields, bindings, groups, raw bytes and projection bytes are bounded.
 Typed source admission does not establish an active effect, condition truth,
 stacking, timing or gameplay behavior. Execution remains unavailable.
+
+## Explicit weapon and ammo attack source inputs (V3-ACT-23)
+
+`actor-sources --weapon-root PLUGIN:HEX [--ammo-root PLUGIN:HEX]` retains the
+selected WEAP and optional caller-selected AMMO declarations. Weapon DNAM and
+ammo DAT2 projectile links remain independent. The request does not select ammo
+from inventory, choose a projectile priority or substitute a null declaration.
+NAM0 AMMO/FLST links retain their winning headers; list membership remains
+unavailable. No form-list decoder or flattening is added.
+
+The tested source profile is version 15: WEAP DATA15, DNAM120/204, CRDT16 and
+VATS16/20; AMMO DATA13 and DAT2 12/16/20; PROJ DATA68/80/84. Other versions and
+layouts keep all physical bytes as opaque fields. Signed damage/value/skill
+words, unsigned counts, raw flag bytes, unused bytes and floating-point bits
+remain exact. Optional fields stay absent. The weapon editor callback's reload
+and animation normalization is not applied.
+
+Every physical singleton and repeated ammo-effect link retains its ordered
+binding and winning source header. Repeated singleton fields withhold binding
+admission. Only uniquely bound weapon or explicit ammo projectile requests read
+PROJ bodies, with shared targets retained once and every edge kept. Projectile
+light/explosion/sound/default-weapon and weapon/ammo effect/consumption links
+remain header-only requests. Their bodies and cycles are not followed.
+
+Source count, body depth, nodes, header requests, record/decoded bytes, field
+visits, retained fields, bindings, raw word spans, raw bytes and projection
+bytes have separate bounds. Ammo choice, projectile precedence, firing,
+reloading, consumption, damage, spread, ballistics and mod effects remain
+unavailable; the source request does not mutate canonical state.
+
+## Selected death-item source requests (ACT24)
+
+`actor-sources --death-item-root PLUGIN:HEX --death-item-field INDEX` selects one
+physical INAM association. Both flags are required. The private, non-deserializable
+`actors::death_item_inputs::Manifest` exposes a read-only `nodes()` view from
+`request(&mut RecordStore, &actors::Catalogue, &associations::Catalogue,
+&leveled::Catalogue, &FormKey, usize, Limits)`. The existing leveled producer is
+the only LVLO/COED decoder. This adapter retains physical bytes, existing typed
+values, duplicate entries and exact winning header requests for each binding.
+Item, owner and global bodies remain unread.
+
+Pinned xEdit Common `wbLeveledListEntry` (9062–9086) declares level and count as
+`itU16`; high bits remain unsigned words. Count absence stays explicit and an
+editor's default is never inserted. FNV LVLI (6683–6699), COED (2898–2906) and
+Common owner decider (5718–5738) ground the retained fields and ownership union.
+Only a live FACT owner admits the existing signed i32 required-rank view; item
+condition stays raw float bits. Unknown fields retain opaque bytes. Untested
+record versions retain all physical fields with typed values and child links
+withheld. Malformed known layouts fail through the existing producer.
+
+INAM uses Traits template bit 1. Repeated INAM and unavailable/repeated ACBS
+withhold direct declaration admission; structural source evidence remains
+separate. Each list preserves all chance/flags/global singleton occurrences,
+COED attachment findings and null, missing, deleted or unsupported bindings.
+No list metadata is evaluated. Nested lists are deduplicated by exact FormKey
+while all physical edges remain. Selected cycles fail atomically through the
+shared iterative SCC helper. A longest-path DAG check includes shared children
+and leaf header requests in the depth bound. Unselected cycles do not gate the
+request. Work reservations bound SCC traversal before graph allocations.
+
+Twelve limits cover the complete source cohort, depth, selected lists, individual
+record bytes, decoded bytes, field/work visits, retained fields/entries/bindings,
+header requests, raw bytes and serialized projection. Exact boundary fixtures
+exercise each. Requests establish source candidates only: no RNG, probability
+roll, level threshold, respawn, inherited selection, death event or item creation.
+The canonical runtime and direct inventory initialization remain unchanged.

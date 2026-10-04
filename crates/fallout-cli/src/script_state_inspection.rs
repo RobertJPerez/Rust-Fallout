@@ -17,8 +17,8 @@ use fallout_runtime::{
     save::{Captured, Recovery, Repository},
     schema::{self, Kind},
     snapshot::Snapshot,
-    state::observation,
     state::{HostLimits, HostRequirements, initialization},
+    state::{assignment_group, enqueue_group, journal, observation},
 };
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -420,6 +420,378 @@ fn selected_local_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
     }
     Ok(None)
 }
+fn local_assignment_group_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    let mut selected = Vec::new();
+    for (_, script) in catalogue.iter() {
+        let declarations = schema::locals(script);
+        let indices = declarations
+            .values()
+            .filter(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+            .take(7)
+            .map(|local| local.index)
+            .collect::<Vec<_>>();
+        if indices.len() >= 2 {
+            selected.push((script, declarations, indices));
+        }
+        if selected.len() == 2 {
+            break;
+        }
+    }
+    if selected.len() != 2 {
+        return Ok(None);
+    }
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        CampaignId::from_bytes([0x2a; 16])?,
+    )?;
+    let reference = world.register_reference(None)?;
+    let mut inputs = Vec::new();
+    for (position, (script, declarations, indices)) in selected.into_iter().enumerate() {
+        let context = Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Null,
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Live { id: reference },
+            ],
+        };
+        let handle = world.create_instance(
+            script.handle(),
+            Owner::Fragment {
+                activation: (position as u64 + 1).try_into()?,
+            },
+            context.clone(),
+        )?;
+        if let Some(instruction) = script
+            .program()?
+            .iter()
+            .flat_map(|program| program.instructions.iter())
+            .find(|instruction| instruction.event.is_some())
+        {
+            world.enqueue(
+                handle,
+                Trigger::Block {
+                    event_id: instruction.event.expect("selected group event").id,
+                    begin_byte_offset: instruction.bytes.start as u32,
+                },
+                context,
+            )?;
+        }
+        let mut assignments = Vec::new();
+        let mut numbers = position;
+        let mut references = 0;
+        for &index in &indices[..indices.len() - 1] {
+            let value = match declarations[&index].kind {
+                Kind::Float | Kind::Integer => {
+                    let bits = [
+                        0x8000000000000000_u64,
+                        0x7ff8123456789abc,
+                        0x7ff8123456789abd,
+                    ][numbers % 3];
+                    numbers += 1;
+                    Value::Number { bits }
+                }
+                Kind::Reference => {
+                    let value = match references % 3 {
+                        0 => ReferenceValue::Null,
+                        1 => ReferenceValue::Content {
+                            key: script.handle().key.record.clone(),
+                        },
+                        _ => ReferenceValue::Live { id: reference },
+                    };
+                    references += 1;
+                    Value::Reference { value }
+                }
+                _ => return Err("Group assignment declaration changed".into()),
+            };
+            assignments.push((index, value));
+        }
+        inputs.push((handle, assignments));
+    }
+    // Caller order deliberately differs from persistent instance/slot order.
+    inputs.reverse();
+    let before = world.snapshot();
+    let requests = inputs
+        .iter()
+        .map(|(instance, assignments)| assignment_group::Request {
+            instance: *instance,
+            assignments,
+        })
+        .collect::<Vec<_>>();
+    let stage = world.stage_local_assignments(&requests, assignment_group::Limits::default())?;
+    if world.snapshot() != before {
+        return Err("Group assignment staging changed canonical state".into());
+    }
+    let explicit = stage.rows().iter().map(|row| json!({
+        "instance":row.instance(),"definition":row.definition(),"assignments":row.assignments(),
+    })).collect::<Vec<_>>();
+    let receipt = world.commit_local_assignments(stage)?;
+    let current = world.snapshot();
+    if before.pending_events != current.pending_events || before.clocks != current.clocks {
+        return Err("Group assignment changed the event journal or clocks".into());
+    }
+    let restored = World::restore(catalogue, current.clone(), Limits::default())?;
+    if restored.snapshot() != current {
+        return Err("Group assignment differs after restore".into());
+    }
+    Ok(Some(json!({
+        "scope":"Explicit isolated host writes to two source-loaded instances; pending events retained",
+        "inputs":explicit,"receipt":receipt,"before_snapshot":before,"current_snapshot":current,
+        "restored_snapshot":restored.snapshot(),"stage_preserved_state":true,"journal_unchanged":true,
+        "canonical_round_trip_equal":true,"bytecode_executed":false,"retail_parity_accepted":false,
+    })))
+}
+fn journal_pages(world: &World<'_>) -> fallout_runtime::Result<Vec<journal::Page>> {
+    let mut cursor = None;
+    let mut pages = Vec::new();
+    loop {
+        let page = world.pending_page(
+            journal::Request {
+                after: cursor.as_ref(),
+                start_after: None,
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )?;
+        let complete = page.is_complete();
+        cursor = Some(page.cursor().clone());
+        pages.push(page);
+        if complete {
+            return Ok(pages);
+        }
+    }
+}
+fn journal_page_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    for (_, script) in catalogue.iter() {
+        let Some(trigger) = script
+            .program()?
+            .iter()
+            .flat_map(|program| program.instructions.iter())
+            .find_map(|instruction| {
+                instruction.event.map(|event| Trigger::Block {
+                    event_id: event.id,
+                    begin_byte_offset: instruction.bytes.start as u32,
+                })
+            })
+        else {
+            continue;
+        };
+        let mut world = World::with_campaign(
+            catalogue,
+            Limits::default(),
+            CampaignId::from_bytes([0x2b; 16])?,
+        )?;
+        let reference = world.register_reference(None)?;
+        let a = Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Content {
+                key: script.handle().key.record.clone(),
+            }),
+            arguments: vec![
+                ReferenceValue::Null,
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Live { id: reference },
+            ],
+        };
+        let b = Context {
+            calling_reference: None,
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Null,
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+            ],
+        };
+        let c = Context {
+            calling_reference: Some(reference),
+            containing_reference: None,
+            target: Some(ReferenceValue::Null),
+            arguments: vec![
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Null,
+            ],
+        };
+        let handle = world.create_instance(
+            script.handle(),
+            Owner::Fragment {
+                activation: 1.try_into()?,
+            },
+            a.clone(),
+        )?;
+        world.advance_clocks(Clocks {
+            tick: 7,
+            game_nanoseconds: 100,
+            menu_nanoseconds: 200,
+            real_nanoseconds: 300,
+        })?;
+        world.enqueue(handle, Trigger::ObjectEvent { mask: 0x80000001 }, a.clone())?;
+        world.enqueue(handle, trigger.clone(), b)?;
+        world.advance_clocks(Clocks {
+            tick: 9,
+            game_nanoseconds: 101,
+            menu_nanoseconds: 202,
+            real_nanoseconds: 303,
+        })?;
+        world.enqueue(handle, Trigger::ObjectEvent { mask: 0xdeadbeef }, c)?;
+        world.enqueue(handle, trigger, a)?;
+        let before = world.snapshot();
+        let pages = journal_pages(&world)?;
+        if world.snapshot() != before {
+            return Err("Journal paging changed canonical state".into());
+        }
+        let restored = World::restore(catalogue, before.clone(), Limits::default())?;
+        let restored_pages = journal_pages(&restored)?;
+        if restored.snapshot() != before
+            || serde_json::to_value(&pages)? != serde_json::to_value(&restored_pages)?
+        {
+            return Err("Journal pages differ after restore".into());
+        }
+        return Ok(Some(json!({
+            "scope":"Exact isolated host-supplied pending journal observations; no dispatch or retail scheduling",
+            "rows_per_page":2,"pages":pages,"restored_pages":restored_pages,"snapshot":before,
+            "read_preserved_state":true,"persistent_pages_equal":true,"bytecode_executed":false,"retail_parity_accepted":false,
+        })));
+    }
+    Ok(None)
+}
+fn enqueue_group_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    let mut selected = Vec::new();
+    for (_, script) in catalogue.iter() {
+        if let Some(trigger) = script
+            .program()?
+            .iter()
+            .flat_map(|program| program.instructions.iter())
+            .find_map(|instruction| {
+                instruction.event.map(|event| Trigger::Block {
+                    event_id: event.id,
+                    begin_byte_offset: instruction.bytes.start as u32,
+                })
+            })
+        {
+            selected.push((script, trigger));
+        }
+        if selected.len() == 2 {
+            break;
+        }
+    }
+    if selected.len() != 2 {
+        return Ok(None);
+    }
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        CampaignId::from_bytes([45; 16])?,
+    )?;
+    let reference = world.register_reference(None)?;
+    let mut handles = Vec::new();
+    for (position, (script, _)) in selected.iter().enumerate() {
+        handles.push(world.create_instance(
+            script.handle(),
+            Owner::Fragment {
+                activation: (position as u64 + 1).try_into()?,
+            },
+            Context::default(),
+        )?);
+    }
+    world.advance_clocks(Clocks {
+        tick: 11,
+        game_nanoseconds: 111,
+        menu_nanoseconds: 222,
+        real_nanoseconds: 333,
+    })?;
+    let a = Context {
+        calling_reference: Some(reference),
+        containing_reference: None,
+        target: Some(ReferenceValue::Content {
+            key: selected[1].0.handle().key.record.clone(),
+        }),
+        arguments: vec![ReferenceValue::Null, ReferenceValue::Live { id: reference }],
+    };
+    let b = Context {
+        calling_reference: None,
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Live { id: reference }),
+        arguments: vec![
+            ReferenceValue::Content {
+                key: selected[0].0.handle().key.record.clone(),
+            },
+            ReferenceValue::Null,
+        ],
+    };
+    let c = Context {
+        calling_reference: Some(reference),
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Null),
+        arguments: vec![
+            ReferenceValue::Live { id: reference },
+            ReferenceValue::Content {
+                key: selected[1].0.handle().key.record.clone(),
+            },
+            ReferenceValue::Null,
+        ],
+    };
+    // Keep one prior observation so appending also proves retained journal order.
+    world.enqueue(
+        handles[0],
+        Trigger::ObjectEvent { mask: 0x40000000 },
+        Context::default(),
+    )?;
+    let mask = Trigger::ObjectEvent { mask: 0x80000001 };
+    let requests = [
+        enqueue_group::Request {
+            instance: handles[1],
+            trigger: &selected[1].1,
+            context: &a,
+        },
+        enqueue_group::Request {
+            instance: handles[0],
+            trigger: &selected[0].1,
+            context: &b,
+        },
+        enqueue_group::Request {
+            instance: handles[1],
+            trigger: &mask,
+            context: &c,
+        },
+    ];
+    let before = world.snapshot();
+    let stage = world.stage_pending_events(&requests, enqueue_group::Limits::default())?;
+    if world.snapshot() != before {
+        return Err("Event batch staging changed canonical state".into());
+    }
+    let inputs=stage.rows().iter().map(|row|json!({
+        "instance":row.instance(),"definition":row.definition(),"trigger":row.trigger(),"context":row.context(),
+    })).collect::<Vec<_>>();
+    let receipt = world.commit_pending_events(stage)?;
+    let current = world.snapshot();
+    let restored = World::restore(catalogue, current.clone(), Limits::default())?;
+    if restored.snapshot() != current {
+        return Err("Event batch differs after restore".into());
+    }
+    Ok(Some(json!({
+        "scope":"Explicit host-selected ordered event append; source block identities validated without execution",
+        "inputs":inputs,"receipt":receipt,"before_snapshot":before,"current_snapshot":current,
+        "restored_snapshot":restored.snapshot(),"stage_preserved_state":true,"canonical_round_trip_equal":true,
+        "bytecode_executed":false,"retail_parity_accepted":false,
+    })))
+}
 fn probe(catalogue: &Catalogue) -> Result<Json> {
     let EngineeringWorld {
         world,
@@ -454,6 +826,15 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
         "original_state_captured":false,"bytecode_executed":false,"retail_parity_accepted":false});
     if let Some(observation) = selected_local_probe(catalogue)? {
         report["selected_local_probe"] = observation;
+    }
+    if let Some(group) = local_assignment_group_probe(catalogue)? {
+        report["local_assignment_group"] = group;
+    }
+    if let Some(journal) = journal_page_probe(catalogue)? {
+        report["journal_page_probe"] = journal;
+    }
+    if let Some(group) = enqueue_group_probe(catalogue)? {
+        report["enqueue_group_probe"] = group;
     }
     Ok(report)
 }

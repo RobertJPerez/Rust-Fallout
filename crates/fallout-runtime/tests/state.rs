@@ -1596,6 +1596,2011 @@ fn cold_instance_initialization_helper() {
     );
 }
 
+fn assignment_group_fixture(root: &std::path::Path) {
+    std::fs::create_dir_all(root).unwrap();
+    std::fs::write(
+        root.join("FalloutNV.esm"),
+        [
+            header(&[]),
+            record(
+                b"SCPT",
+                0x300,
+                0,
+                &unit(
+                    &[
+                        (42, 0),
+                        (2, 1),
+                        (90, 0),
+                        (91, 0),
+                        (92, 0),
+                        (93, 0),
+                        (94, 1),
+                        (42, 1),
+                        (99, 7),
+                        (0, 0),
+                    ],
+                    &[(b"SCRV", 90), (b"SCRV", 91), (b"SCRV", 92)],
+                ),
+            ),
+            record(
+                b"SCPT",
+                0x301,
+                0,
+                &unit(
+                    &[
+                        (7, 1),
+                        (15, 0),
+                        (20, 0),
+                        (21, 0),
+                        (22, 0),
+                        (23, 1),
+                        (99, 9),
+                        (0, 1),
+                    ],
+                    &[(b"SCRV", 20), (b"SCRV", 21), (b"SCRV", 22)],
+                ),
+            ),
+            record(b"ACTI", 0x100, 0, &[]),
+        ]
+        .concat(),
+    )
+    .unwrap();
+}
+fn assignment_group_host(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, [fallout_runtime::state::InstanceHandle; 2]) {
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        fallout_runtime::identity::CampaignId::from_bytes([43; 16]).unwrap(),
+    )
+    .unwrap();
+    let reference = world.register_reference(None).unwrap();
+    let mut handles = Vec::new();
+    for (position, (_, script)) in catalogue.iter().enumerate() {
+        let context = Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(if position == 0 {
+                ReferenceValue::Content { key: form(0x100) }
+            } else {
+                ReferenceValue::Live { id: reference }
+            }),
+            arguments: vec![
+                ReferenceValue::Null,
+                ReferenceValue::Content {
+                    key: form(if position == 0 { 0x300 } else { 0x100 }),
+                },
+                ReferenceValue::Live { id: reference },
+            ],
+        };
+        let handle = world
+            .create_instance(script.handle(), owner(position as u64 + 1), context.clone())
+            .unwrap();
+        world.enqueue(handle, block(), context).unwrap();
+        handles.push(handle);
+    }
+    (world, handles.try_into().unwrap())
+}
+fn assignment_group_values(
+    reference: fallout_runtime::identity::ReferenceId,
+) -> [Vec<(u32, Value)>; 2] {
+    [
+        vec![
+            (
+                2,
+                Value::Number {
+                    bits: 0x8000000000000000,
+                },
+            ),
+            (
+                42,
+                Value::Number {
+                    bits: 0x7ff8123456789abc,
+                },
+            ),
+            (
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Null,
+                },
+            ),
+            (
+                91,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: form(0x100) },
+                },
+            ),
+            (
+                92,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: reference },
+                },
+            ),
+            (93, Value::Uninitialized),
+            (99, Value::Uninitialized),
+            (0, Value::Uninitialized),
+        ],
+        vec![
+            (
+                7,
+                Value::Number {
+                    bits: 0x7ff8123456789abd,
+                },
+            ),
+            (
+                15,
+                Value::Number {
+                    bits: 0x8000000000000000,
+                },
+            ),
+            (
+                20,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: form(0x300) },
+                },
+            ),
+            (
+                21,
+                Value::Reference {
+                    value: ReferenceValue::Live { id: reference },
+                },
+            ),
+            (
+                22,
+                Value::Reference {
+                    value: ReferenceValue::Null,
+                },
+            ),
+            (99, Value::Uninitialized),
+            (0, Value::Uninitialized),
+        ],
+    ]
+}
+fn assignment_group_requests<'a>(
+    handles: [fallout_runtime::state::InstanceHandle; 2],
+    values: &'a [Vec<(u32, Value)>; 2],
+) -> [fallout_runtime::state::assignment_group::Request<'a>; 2] {
+    // Deliberately retain caller order distinct from slot/persistent-id order.
+    [
+        fallout_runtime::state::assignment_group::Request {
+            instance: handles[1],
+            assignments: &values[1],
+        },
+        fallout_runtime::state::assignment_group::Request {
+            instance: handles[0],
+            assignments: &values[0],
+        },
+    ]
+}
+
+#[test]
+fn local_assignment_group_closes_partial_cross_instance_writes_and_preserves_journal() {
+    use fallout_runtime::state::assignment_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (mut legacy, handles) = assignment_group_host(&catalogue);
+    let before = legacy.snapshot();
+    legacy
+        .assign(handles[0], &[(2, Value::Number { bits: 123 })])
+        .unwrap();
+    assert!(matches!(
+        legacy.assign(
+            handles[1],
+            &[(
+                7,
+                Value::Reference {
+                    value: ReferenceValue::Null
+                }
+            )]
+        ),
+        Err(Error::IncompatibleLocal(7))
+    ));
+    assert_ne!(legacy.snapshot(), before); // The old host loop already published row one.
+    assert_eq!(legacy.snapshot().instances[1], before.instances[1]);
+    let (mut world, handles) = assignment_group_host(&catalogue);
+    let before = world.snapshot();
+    let first = [(2, Value::Number { bits: 123 })];
+    let bad = [(
+        7,
+        Value::Reference {
+            value: ReferenceValue::Null,
+        },
+    )];
+    assert!(
+        world
+            .stage_local_assignments(
+                &[
+                    group::Request {
+                        instance: handles[0],
+                        assignments: &first
+                    },
+                    group::Request {
+                        instance: handles[1],
+                        assignments: &bad
+                    },
+                ],
+                group::Limits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    let values = assignment_group_values(before.references[0].id);
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(stage.rows()[0].instance(), before.instances[1].id);
+    assert_eq!(stage.rows()[1].instance(), before.instances[0].id);
+    assert_eq!(stage.rows()[0].assignments(), values[1]);
+    assert_eq!(world.snapshot(), before);
+    let receipt = world.commit_local_assignments(stage).unwrap();
+    assert_eq!(receipt.before_revision(), 5);
+    assert_eq!(receipt.after_revision(), 6);
+    assert_eq!(receipt.usage().instances, 2);
+    assert_eq!(receipt.usage().assignments, 15);
+    let mut expected = before.clone();
+    expected.state_revision = 6;
+    for (instance, values) in expected.instances.iter_mut().zip(&values) {
+        for (index, value) in values {
+            instance
+                .locals
+                .iter_mut()
+                .find(|row| row.index == *index)
+                .unwrap()
+                .value = value.clone();
+        }
+    }
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(
+        world.pending_events().collect::<Vec<_>>(),
+        before.pending_events.iter().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        world.instance(handles[0]).unwrap().locals()[&94],
+        Value::Uninitialized
+    );
+    assert_eq!(
+        world.instance(handles[1]).unwrap().locals()[&23],
+        Value::Uninitialized
+    );
+    assert_eq!(
+        receipt.rows()[0].definition(),
+        world.instance(handles[1]).unwrap().definition()
+    );
+}
+
+#[test]
+fn local_assignment_group_refuses_bad_final_rows_and_aggregate_caps_before_effects() {
+    use fallout_runtime::state::assignment_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (mut world, handles) = assignment_group_host(&catalogue);
+    let before = world.snapshot();
+    let good = [(2, Value::Number { bits: 123 })];
+    let bad_keys = [
+        (777, Value::Uninitialized),
+        (
+            7,
+            Value::Reference {
+                value: ReferenceValue::Null,
+            },
+        ),
+        (
+            20,
+            Value::Reference {
+                value: ReferenceValue::Live {
+                    id: fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+                },
+            },
+        ),
+        (
+            20,
+            Value::Reference {
+                value: ReferenceValue::Content {
+                    key: fallout_data::identity::FormKey {
+                        origin_plugin: "BAD.ESM".into(),
+                        ..form(0x100)
+                    },
+                },
+            },
+        ),
+        (99, Value::Number { bits: 1 }),
+        (0, Value::Number { bits: 1 }),
+    ];
+    for bad in &bad_keys {
+        assert!(
+            world
+                .stage_local_assignments(
+                    &[
+                        group::Request {
+                            instance: handles[0],
+                            assignments: &good
+                        },
+                        group::Request {
+                            instance: handles[1],
+                            assignments: std::slice::from_ref(bad)
+                        },
+                    ],
+                    group::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let duplicate = [
+        (7, Value::Number { bits: 1 }),
+        (7, Value::Number { bits: 2 }),
+    ];
+    assert!(
+        world
+            .stage_local_assignments(
+                &[
+                    group::Request {
+                        instance: handles[0],
+                        assignments: &good
+                    },
+                    group::Request {
+                        instance: handles[1],
+                        assignments: &duplicate
+                    },
+                ],
+                group::Limits::default()
+            )
+            .is_err()
+    );
+    assert!(
+        world
+            .stage_local_assignments(
+                &[
+                    group::Request {
+                        instance: handles[0],
+                        assignments: &[]
+                    },
+                    group::Request {
+                        instance: handles[0],
+                        assignments: &[]
+                    },
+                ],
+                group::Limits::default()
+            )
+            .is_err()
+    );
+    let mut values = assignment_group_values(before.references[0].id);
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let usage = stage.usage();
+    drop(stage);
+    assert_eq!(world.snapshot(), before);
+    for limits in [
+        group::Limits {
+            max_instances: 1,
+            ..Default::default()
+        },
+        group::Limits {
+            max_assignments: 14,
+            ..Default::default()
+        },
+        group::Limits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(
+            world
+                .stage_local_assignments(&assignment_group_requests(handles, &values), limits)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits {
+                max_instances: 2,
+                max_assignments: 15,
+                max_copied_bytes: usage.copied_bytes,
+            },
+        )
+        .unwrap();
+    values[0][0].1 = Value::Number { bits: 0 }; // Owned staged values are independent of caller storage.
+    world.commit_local_assignments(stage).unwrap();
+    assert_eq!(
+        world.instance(handles[0]).unwrap().local(2).unwrap(),
+        &Value::Number {
+            bits: 0x8000000000000000
+        }
+    );
+}
+
+#[test]
+fn local_assignment_group_expires_on_mutation_restore_and_recycled_handles() {
+    use fallout_runtime::state::assignment_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    for mutation in 0..5 {
+        let (mut world, handles) = assignment_group_host(&catalogue);
+        let values = assignment_group_values(world.snapshot().references[0].id);
+        let stage = world
+            .stage_local_assignments(
+                &assignment_group_requests(handles, &values),
+                group::Limits::default(),
+            )
+            .unwrap();
+        match mutation {
+            0 => world
+                .assign(handles[0], &[(2, Value::Number { bits: 17 })])
+                .unwrap(),
+            1 => {
+                world.register_reference(None).unwrap();
+            }
+            2 => world
+                .advance_clocks(Clocks {
+                    tick: 1,
+                    ..Default::default()
+                })
+                .unwrap(),
+            3 => {
+                world
+                    .enqueue(
+                        handles[1],
+                        block(),
+                        world.instance(handles[1]).unwrap().context().clone(),
+                    )
+                    .unwrap();
+            }
+            _ => {
+                world.acknowledge(1).unwrap();
+            }
+        }
+        let after = world.snapshot();
+        assert!(world.commit_local_assignments(stage).is_err());
+        assert_eq!(world.snapshot(), after);
+    }
+    let (mut world, handles) = assignment_group_host(&catalogue);
+    let before = world.snapshot();
+    let values = assignment_group_values(before.references[0].id);
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default(),
+        )
+        .unwrap();
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(matches!(
+        world.commit_local_assignments(stage),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), before);
+    assert!(matches!(
+        world.stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    let current = [
+        world.handle(before.instances[0].id).unwrap(),
+        world.handle(before.instances[1].id).unwrap(),
+    ];
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(current, &values),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let mut other = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.commit_local_assignments(stage),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(other.snapshot(), before);
+    world.acknowledge(1).unwrap();
+    world.acknowledge(2).unwrap();
+    world.remove_instance(current[1]).unwrap();
+    world
+        .create_instance(
+            &before.instances[1].definition,
+            owner(2),
+            Context::default(),
+        )
+        .unwrap();
+    let exact = world.snapshot();
+    assert!(matches!(
+        world.stage_local_assignments(
+            &assignment_group_requests(current, &values),
+            group::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), exact);
+}
+
+#[test]
+fn local_assignment_group_empty_write_set_preserves_revision_at_exhaustion() {
+    use fallout_runtime::state::assignment_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (world, _) = assignment_group_host(&catalogue);
+    let mut snapshot = world.snapshot();
+    snapshot.state_revision = u64::MAX - 1;
+    let mut world = World::restore(&catalogue, snapshot, Limits::default()).unwrap();
+    let handles = [
+        world.handle(world.snapshot().instances[0].id).unwrap(),
+        world.handle(world.snapshot().instances[1].id).unwrap(),
+    ];
+    let values = assignment_group_values(world.snapshot().references[0].id);
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let receipt = world.commit_local_assignments(stage).unwrap();
+    assert_eq!(receipt.after_revision(), u64::MAX);
+    let before = world.snapshot();
+    assert!(matches!(
+        world.stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default()
+        ),
+        Err(Error::Capacity("state revisions"))
+    ));
+    for requests in [
+        vec![],
+        vec![
+            group::Request {
+                instance: handles[1],
+                assignments: &[],
+            },
+            group::Request {
+                instance: handles[0],
+                assignments: &[],
+            },
+        ],
+    ] {
+        let stage = world
+            .stage_local_assignments(&requests, group::Limits::default())
+            .unwrap();
+        let receipt = world.commit_local_assignments(stage).unwrap();
+        assert_eq!(receipt.before_revision(), u64::MAX);
+        assert_eq!(receipt.after_revision(), u64::MAX);
+        assert_eq!(receipt.usage().assignments, 0);
+        assert_eq!(world.snapshot(), before);
+    }
+}
+
+#[test]
+fn local_assignment_group_native_boundaries_and_two_fresh_consumers_preserve_exact_state() {
+    use fallout_runtime::{
+        save::{Captured, Repository},
+        state::assignment_group as group,
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let retained =
+        std::env::var_os("FALLOUT_LOCAL_ASSIGNMENT_GROUP_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    assignment_group_fixture(root);
+    let source = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (mut world, handles) = assignment_group_host(&catalogue);
+    let repository = Repository::create(&root.join("saved"), &[], world.campaign()).unwrap();
+    let before = world.snapshot();
+    repository.commit(&Captured::at_boundary(&world)).unwrap();
+    let values = assignment_group_values(before.references[0].id);
+    let stage = world
+        .stage_local_assignments(
+            &assignment_group_requests(handles, &values),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let receipt = world.commit_local_assignments(stage).unwrap();
+    let current = world.snapshot();
+    let captured = Captured::at_boundary(&world);
+    world
+        .assign(handles[0], &[(2, Value::Number { bits: 17 })])
+        .unwrap();
+    repository.commit(&captured).unwrap();
+    for (name, snapshot) in [
+        ("before.snapshot.json", &before),
+        ("current.snapshot.json", &current),
+    ] {
+        std::fs::write(root.join(name), snapshot.encode(1 << 20).unwrap()).unwrap();
+    }
+    std::fs::write(
+        root.join("receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("assignments.json"),
+        serde_json::to_vec_pretty(&values).unwrap(),
+    )
+    .unwrap();
+    drop(world);
+    drop(catalogue);
+    for mode in ["previous", "current"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_local_assignment_group_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_LOCAL_ASSIGNMENT_GROUP_COLD_ROOT", root)
+            .env("FALLOUT_LOCAL_ASSIGNMENT_GROUP_COLD_MODE", mode)
+            .output()
+            .unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stdout.txt")), &result.stdout).unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stderr.txt")), &result.stderr).unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(std::fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh exact local-assignment boundary selected by parent or actual CLI proof"]
+fn cold_local_assignment_group_helper() {
+    use fallout_runtime::save::{Captured, Recovery, Repository, format};
+    let root = std::path::PathBuf::from(
+        std::env::var_os("FALLOUT_LOCAL_ASSIGNMENT_GROUP_COLD_ROOT").unwrap(),
+    );
+    let mode = std::env::var("FALLOUT_LOCAL_ASSIGNMENT_GROUP_COLD_MODE").unwrap();
+    let before = mode == "previous" || mode.ends_with("before");
+    let phase = if before { "before" } else { "current" };
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let expected = Snapshot::decode(
+        &std::fs::read(root.join(format!("{phase}.snapshot.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let native = root.join(if mode.starts_with("cli-") {
+        "cold-native"
+    } else {
+        "saved"
+    });
+    let world = if mode.starts_with("cli-save-") {
+        let world = World::restore(&catalogue, expected.clone(), Limits::default()).unwrap();
+        let repository = if before {
+            Repository::create(&native, &[], world.campaign()).unwrap()
+        } else {
+            Repository::open(&native, &[]).unwrap()
+        };
+        repository.commit(&Captured::at_boundary(&world)).unwrap();
+        world
+    } else if before {
+        World::restore(
+            &catalogue,
+            format::decode(
+                &std::fs::read(native.join("previous.frsv")).unwrap(),
+                Limits::default(),
+            )
+            .unwrap()
+            .snapshot,
+            Limits::default(),
+        )
+        .unwrap()
+    } else {
+        Repository::open(&native, &[])
+            .unwrap()
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+    };
+    assert_eq!(world.snapshot(), expected);
+    std::fs::write(
+        root.join(format!("cold-{mode}.snapshot.json")),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+}
+
+fn journal_host(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, fallout_runtime::state::InstanceHandle) {
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        fallout_runtime::identity::CampaignId::from_bytes([44; 16]).unwrap(),
+    )
+    .unwrap();
+    let reference = world.register_reference(None).unwrap();
+    let a = Context {
+        calling_reference: Some(reference),
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Content { key: form(0x300) }),
+        arguments: vec![
+            ReferenceValue::Null,
+            ReferenceValue::Content { key: form(0x300) },
+            ReferenceValue::Live { id: reference },
+        ],
+    };
+    let b = Context {
+        calling_reference: None,
+        containing_reference: Some(reference),
+        target: Some(ReferenceValue::Live { id: reference }),
+        arguments: vec![
+            ReferenceValue::Content { key: form(0x300) },
+            ReferenceValue::Null,
+            ReferenceValue::Live { id: reference },
+            ReferenceValue::Content { key: form(0x300) },
+        ],
+    };
+    let c = Context {
+        calling_reference: Some(reference),
+        containing_reference: None,
+        target: Some(ReferenceValue::Null),
+        arguments: vec![
+            ReferenceValue::Live { id: reference },
+            ReferenceValue::Content { key: form(0x300) },
+            ReferenceValue::Null,
+        ],
+    };
+    let handle = world
+        .create_instance(&definition(catalogue), owner(1), a.clone())
+        .unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 7,
+            game_nanoseconds: 100,
+            menu_nanoseconds: 200,
+            real_nanoseconds: 300,
+        })
+        .unwrap();
+    world
+        .enqueue(handle, Trigger::ObjectEvent { mask: 0x80000001 }, a.clone())
+        .unwrap();
+    world.enqueue(handle, block(), b).unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 9,
+            game_nanoseconds: 101,
+            menu_nanoseconds: 202,
+            real_nanoseconds: 303,
+        })
+        .unwrap();
+    world
+        .enqueue(handle, Trigger::ObjectEvent { mask: 0xdeadbeef }, c)
+        .unwrap();
+    world.enqueue(handle, block(), a).unwrap();
+    (world, handle)
+}
+fn collect_journal_pages(
+    world: &World<'_>,
+    rows: usize,
+) -> Vec<fallout_runtime::state::journal::Page> {
+    use fallout_runtime::state::journal;
+    let mut cursor = None;
+    let mut pages = Vec::new();
+    loop {
+        let page = world
+            .pending_page(
+                journal::Request {
+                    after: cursor.as_ref(),
+                    start_after: None,
+                    rows,
+                },
+                journal::Limits::default(),
+            )
+            .unwrap();
+        let complete = page.is_complete();
+        cursor = Some(page.cursor().clone());
+        pages.push(page);
+        if complete {
+            return pages;
+        }
+    }
+}
+
+#[test]
+fn journal_pages_retain_literal_mixed_fifo_contexts_clocks_and_owned_history() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = journal_host(&catalogue);
+    let before = world.snapshot();
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(|page| page.events().iter())
+            .cloned()
+            .collect::<Vec<_>>(),
+        before.pending_events
+    );
+    assert_eq!(pages[0].head(), Some(1));
+    assert_eq!(pages[0].start_after(), None);
+    assert_eq!(pages[1].start_after(), Some(2));
+    assert_eq!(pages[0].campaign().bytes(), [44; 16]);
+    assert_eq!(pages[0].revision(), 8);
+    assert_eq!(pages[0].boundary().tick, 9);
+    assert_eq!(
+        pages[0].events()[0].trigger,
+        Trigger::ObjectEvent { mask: 0x80000001 }
+    );
+    assert_eq!(
+        pages[1].events()[0].trigger,
+        Trigger::ObjectEvent { mask: 0xdeadbeef }
+    );
+    assert_eq!(pages[0].events()[1].trigger, block());
+    assert_eq!(pages[1].events()[1].trigger, block());
+    assert_eq!(pages[0].events()[0].arrived.tick, 7);
+    assert_eq!(pages[1].events()[0].arrived.tick, 9);
+    assert_eq!(pages[0].usage().arguments, 7);
+    assert_eq!(pages[0].usage().source_keys, 4);
+    assert_eq!(pages[0].usage().source_key_bytes, 180);
+    assert_eq!(pages[1].usage().arguments, 6);
+    assert_eq!(pages[1].usage().source_keys, 3);
+    assert_eq!(pages[1].usage().source_key_bytes, 135);
+    assert!(pages[0].next_cursor().is_some());
+    assert!(pages[1].next_cursor().is_none());
+    assert_eq!(world.snapshot(), before);
+    let serialized = serde_json::to_value(&pages).unwrap();
+    assert!(serialized[0].get("cursor").is_none());
+    world
+        .assign(handle, &[(2, Value::Number { bits: 1 })])
+        .unwrap();
+    assert_eq!(serde_json::to_value(&pages).unwrap(), serialized);
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: Some(pages[0].cursor()),
+                    start_after: None,
+                    rows: 2
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn journal_pages_admit_whole_requested_slice_and_bound_sequence_search_and_copies() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (world, _) = journal_host(&catalogue);
+    let before = world.snapshot();
+    let request = journal::Request {
+        after: None,
+        start_after: None,
+        rows: 2,
+    };
+    let first = world
+        .pending_page(request, journal::Limits::default())
+        .unwrap();
+    let usage = first.usage();
+    for limits in [
+        journal::Limits {
+            max_visited: 1,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_rows: 1,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_arguments: 6,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_source_keys: 3,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_source_key_bytes: 179,
+            ..Default::default()
+        },
+        journal::Limits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(world.pending_page(request, limits).is_err());
+        assert_eq!(world.snapshot(), before);
+    }
+    let exact = world
+        .pending_page(
+            request,
+            journal::Limits {
+                max_visited: 2,
+                max_rows: 2,
+                max_arguments: 7,
+                max_source_keys: 4,
+                max_source_key_bytes: 180,
+                max_copied_bytes: usage.copied_bytes,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&exact).unwrap(),
+        serde_json::to_value(&first).unwrap()
+    );
+    let anchored = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: Some(2),
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(anchored.events(), &before.pending_events[2..]);
+    assert_eq!(anchored.usage().visited, 4);
+    assert!(anchored.is_complete());
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: Some(2),
+                    rows: 2
+                },
+                journal::Limits {
+                    max_visited: 3,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    for sequence in [0, 5, u64::MAX] {
+        assert!(
+            world
+                .pending_page(
+                    journal::Request {
+                        after: None,
+                        start_after: Some(sequence),
+                        rows: 1
+                    },
+                    journal::Limits::default()
+                )
+                .is_err()
+        );
+    }
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: Some(first.cursor()),
+                    start_after: Some(2),
+                    rows: 1
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: None,
+                    rows: 0
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: None,
+                    rows: usize::MAX
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+    let all = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: None,
+                rows: 8,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(all.events(), before.pending_events);
+    assert_eq!(all.usage().returned, 4);
+    let tail = world
+        .pending_page(
+            journal::Request {
+                after: Some(all.cursor()),
+                start_after: None,
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert!(tail.events().is_empty());
+    assert!(tail.is_complete());
+    assert_eq!(tail.usage().visited, 0);
+    assert_eq!(tail.start_after(), Some(4));
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn journal_cursors_expire_on_every_mutation_restore_and_cross_world() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    for mutation in 0..5 {
+        let (mut world, handle) = journal_host(&catalogue);
+        let first = world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: None,
+                    rows: 2,
+                },
+                journal::Limits::default(),
+            )
+            .unwrap();
+        match mutation {
+            0 => {
+                world.acknowledge(1).unwrap();
+            }
+            1 => {
+                world
+                    .enqueue(handle, Trigger::ObjectEvent { mask: 1 }, Context::default())
+                    .unwrap();
+            }
+            2 => world
+                .advance_clocks(Clocks {
+                    tick: 10,
+                    game_nanoseconds: 101,
+                    menu_nanoseconds: 202,
+                    real_nanoseconds: 303,
+                })
+                .unwrap(),
+            3 => world
+                .assign(handle, &[(2, Value::Number { bits: 1 })])
+                .unwrap(),
+            _ => {
+                world.register_reference(None).unwrap();
+            }
+        }
+        let current = world.snapshot();
+        assert!(
+            world
+                .pending_page(
+                    journal::Request {
+                        after: Some(first.cursor()),
+                        start_after: None,
+                        rows: 2
+                    },
+                    journal::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), current);
+    }
+    let (mut world, _) = journal_host(&catalogue);
+    let before = world.snapshot();
+    let first = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: None,
+                rows: 2,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    let other = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.pending_page(
+            journal::Request {
+                after: Some(first.cursor()),
+                start_after: None,
+                rows: 2
+            },
+            journal::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(matches!(
+        world.pending_page(
+            journal::Request {
+                after: Some(first.cursor()),
+                start_after: None,
+                rows: 2
+            },
+            journal::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), before);
+    for sequence in 1..=4 {
+        world.acknowledge(sequence).unwrap();
+    }
+    let empty = world.snapshot();
+    let page = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: None,
+                rows: 1,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert!(page.events().is_empty() && page.is_complete());
+    assert_eq!(page.head(), None);
+    assert_eq!(page.start_after(), None);
+    assert_eq!(page.usage().returned, 0);
+    let tail = world
+        .pending_page(
+            journal::Request {
+                after: Some(page.cursor()),
+                start_after: None,
+                rows: 1,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert!(tail.events().is_empty());
+    assert_eq!(world.snapshot(), empty);
+}
+
+#[test]
+fn journal_pages_keep_wrapped_fifo_and_maximal_sequence_words_without_arithmetic() {
+    use fallout_runtime::state::journal;
+    let root = tempfile::tempdir().unwrap();
+    assignment_group_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = journal_host(&catalogue);
+    for sequence in 1..=3 {
+        world.acknowledge(sequence).unwrap();
+    }
+    for mask in [0x2000, 0x4000, 0x8000] {
+        world
+            .enqueue(handle, Trigger::ObjectEvent { mask }, Context::default())
+            .unwrap();
+    }
+    let before = world.snapshot();
+    assert_eq!(
+        before
+            .pending_events
+            .iter()
+            .map(|event| event.sequence)
+            .collect::<Vec<_>>(),
+        vec![4, 5, 6, 7]
+    );
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(|page| page.events())
+            .cloned()
+            .collect::<Vec<_>>(),
+        before.pending_events
+    );
+    assert_eq!(world.snapshot(), before);
+    let mut maximal = before;
+    maximal.next_event_sequence = u64::MAX;
+    for (position, event) in maximal.pending_events.iter_mut().enumerate() {
+        event.sequence = u64::MAX - 4 + position as u64;
+    }
+    let world = World::restore(&catalogue, maximal.clone(), Limits::default()).unwrap();
+    let page = world
+        .pending_page(
+            journal::Request {
+                after: None,
+                start_after: Some(u64::MAX - 2),
+                rows: 1,
+            },
+            journal::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(page.events()[0].sequence, u64::MAX - 1);
+    assert!(page.is_complete());
+    assert_eq!(world.snapshot(), maximal);
+    assert!(
+        world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: Some(u64::MAX),
+                    rows: 1
+                },
+                journal::Limits::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn journal_pages_native_and_two_fresh_readers_preserve_complete_saved_journal() {
+    use fallout_runtime::save::{Captured, Repository};
+    let temp = tempfile::tempdir().unwrap();
+    let retained = std::env::var_os("FALLOUT_JOURNAL_PAGE_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    assignment_group_fixture(root);
+    let source = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (world, _) = journal_host(&catalogue);
+    let snapshot = world.snapshot();
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(world.snapshot(), snapshot);
+    Repository::create(&root.join("saved"), &[], world.campaign())
+        .unwrap()
+        .commit(&Captured::at_boundary(&world))
+        .unwrap();
+    std::fs::write(
+        root.join("current.snapshot.json"),
+        snapshot.encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("pages.json"),
+        serde_json::to_vec_pretty(&pages).unwrap(),
+    )
+    .unwrap();
+    drop(world);
+    drop(catalogue);
+    for mode in ["unit-current", "unit-anchor"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_journal_page_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_JOURNAL_PAGE_COLD_ROOT", root)
+            .env("FALLOUT_JOURNAL_PAGE_COLD_MODE", mode)
+            .output()
+            .unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stdout.txt")), &result.stdout).unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stderr.txt")), &result.stderr).unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(std::fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh source/native exact journal observation selected by parent or CLI proof"]
+fn cold_journal_page_helper() {
+    use fallout_runtime::{
+        save::{Captured, Recovery, Repository},
+        state::journal,
+    };
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_JOURNAL_PAGE_COLD_ROOT").unwrap());
+    let mode = std::env::var("FALLOUT_JOURNAL_PAGE_COLD_MODE").unwrap();
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let expected = Snapshot::decode(
+        &std::fs::read(root.join("current.snapshot.json")).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let native = root.join(if mode.starts_with("cli-") {
+        "cold-native"
+    } else {
+        "saved"
+    });
+    let world = if mode == "cli-save" {
+        let world = World::restore(&catalogue, expected.clone(), Limits::default()).unwrap();
+        Repository::create(&native, &[], world.campaign())
+            .unwrap()
+            .commit(&Captured::at_boundary(&world))
+            .unwrap();
+        world
+    } else {
+        Repository::open(&native, &[])
+            .unwrap()
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+    };
+    let pages = collect_journal_pages(&world, 2);
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(
+        serde_json::to_value(&pages).unwrap(),
+        serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(root.join("pages.json")).unwrap()
+        )
+        .unwrap()
+    );
+    if mode == "unit-anchor" {
+        let anchored = world
+            .pending_page(
+                journal::Request {
+                    after: None,
+                    start_after: Some(2),
+                    rows: 2,
+                },
+                journal::Limits::default(),
+            )
+            .unwrap();
+        assert_eq!(anchored.events(), &expected.pending_events[2..]);
+        std::fs::write(
+            root.join("cold-anchor.page.json"),
+            serde_json::to_vec_pretty(&anchored).unwrap(),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        root.join(format!("cold-{mode}.snapshot.json")),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join(format!("cold-{mode}.pages.json")),
+        serde_json::to_vec_pretty(&pages).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(world.snapshot(), expected);
+}
+
+fn enqueue_group_host(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, [fallout_runtime::state::InstanceHandle; 2]) {
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        fallout_runtime::identity::CampaignId::from_bytes([46; 16]).unwrap(),
+    )
+    .unwrap();
+    world.register_reference(None).unwrap();
+    let handles = catalogue
+        .iter()
+        .enumerate()
+        .map(|(position, (_, script))| {
+            world
+                .create_instance(
+                    script.handle(),
+                    owner(position as u64 + 1),
+                    Context::default(),
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    world
+        .advance_clocks(Clocks {
+            tick: 11,
+            game_nanoseconds: 111,
+            menu_nanoseconds: 222,
+            real_nanoseconds: 333,
+        })
+        .unwrap();
+    world
+        .enqueue(
+            handles[0],
+            Trigger::ObjectEvent { mask: 0x40000000 },
+            Context::default(),
+        )
+        .unwrap();
+    (world, handles.try_into().unwrap())
+}
+fn enqueue_group_contexts(reference: fallout_runtime::identity::ReferenceId) -> [Context; 3] {
+    [
+        Context {
+            calling_reference: Some(reference),
+            containing_reference: None,
+            target: Some(ReferenceValue::Content { key: form(0x301) }),
+            arguments: vec![ReferenceValue::Null, ReferenceValue::Live { id: reference }],
+        },
+        Context {
+            calling_reference: None,
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Content { key: form(0x300) },
+                ReferenceValue::Null,
+            ],
+        },
+        Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Null),
+            arguments: vec![
+                ReferenceValue::Live { id: reference },
+                ReferenceValue::Content { key: form(0x301) },
+                ReferenceValue::Null,
+            ],
+        },
+    ]
+}
+fn enqueue_group_requests<'a>(
+    handles: [fallout_runtime::state::InstanceHandle; 2],
+    contexts: &'a [Context; 3],
+    triggers: &'a [Trigger; 3],
+) -> [fallout_runtime::state::enqueue_group::Request<'a>; 3] {
+    [
+        fallout_runtime::state::enqueue_group::Request {
+            instance: handles[1],
+            trigger: &triggers[0],
+            context: &contexts[0],
+        },
+        fallout_runtime::state::enqueue_group::Request {
+            instance: handles[0],
+            trigger: &triggers[1],
+            context: &contexts[1],
+        },
+        fallout_runtime::state::enqueue_group::Request {
+            instance: handles[1],
+            trigger: &triggers[2],
+            context: &contexts[2],
+        },
+    ]
+}
+
+#[test]
+fn enqueue_group_closes_partial_append_and_preserves_repeated_instances_order_and_clocks() {
+    use fallout_runtime::{events::Pending, state::enqueue_group as group};
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (mut legacy, handles) = enqueue_group_host(&catalogue);
+    let before = legacy.snapshot();
+    legacy
+        .enqueue(handles[0], block(), Context::default())
+        .unwrap();
+    assert!(
+        legacy
+            .enqueue(
+                handles[1],
+                Trigger::ObjectEvent { mask: 0 },
+                Context::default()
+            )
+            .is_err()
+    );
+    assert_eq!(legacy.pending_events().len(), 2);
+    assert_ne!(legacy.snapshot(), before);
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let contexts = enqueue_group_contexts(before.references[0].id);
+    let mut triggers = [block(), block(), Trigger::ObjectEvent { mask: 0 }];
+    assert!(
+        world
+            .stage_pending_events(
+                &enqueue_group_requests(handles, &contexts, &triggers),
+                group::Limits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    triggers[2] = Trigger::ObjectEvent { mask: 0x80000001 };
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(stage.base_revision(), 5);
+    assert_eq!(stage.boundary(), before.clocks);
+    assert_eq!(
+        stage
+            .rows()
+            .iter()
+            .map(|row| row.instance())
+            .collect::<Vec<_>>(),
+        vec![
+            before.instances[1].id,
+            before.instances[0].id,
+            before.instances[1].id
+        ]
+    );
+    assert_eq!(world.snapshot(), before);
+    let receipt = world.commit_pending_events(stage).unwrap();
+    assert_eq!(receipt.before_revision(), 5);
+    assert_eq!(receipt.after_revision(), 6);
+    assert_eq!(receipt.next_sequence_before(), 2);
+    assert_eq!(receipt.next_sequence_after(), 5);
+    assert_eq!(
+        receipt
+            .rows()
+            .iter()
+            .map(|row| row.sequence())
+            .collect::<Vec<_>>(),
+        vec![2, 3, 4]
+    );
+    let mut expected = before.clone();
+    expected.state_revision = 6;
+    expected.next_event_sequence = 5;
+    for (position, instance) in [
+        before.instances[1].id,
+        before.instances[0].id,
+        before.instances[1].id,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        expected.pending_events.push(Pending {
+            sequence: position as u64 + 2,
+            instance,
+            trigger: triggers[position].clone(),
+            context: contexts[position].clone(),
+            arrived: before.clocks,
+        });
+    }
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(receipt.boundary(), before.clocks);
+    assert_eq!(receipt.usage().events, 3);
+    assert_eq!(receipt.usage().arguments, 7);
+    assert_eq!(receipt.usage().source_keys, 6);
+    assert_eq!(receipt.usage().source_key_bytes, 270);
+}
+
+#[test]
+fn enqueue_group_bad_final_trigger_context_and_whole_budget_refuse_without_prefix() {
+    use fallout_runtime::state::enqueue_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let mut contexts = enqueue_group_contexts(before.references[0].id);
+    let mut triggers = [block(), block(), Trigger::ObjectEvent { mask: 0x80000001 }];
+    for bad in [
+        Trigger::Block {
+            event_id: 999,
+            begin_byte_offset: 0,
+        },
+        Trigger::Block {
+            event_id: 0,
+            begin_byte_offset: 1,
+        },
+        Trigger::ObjectEvent { mask: 0 },
+    ] {
+        triggers[2] = bad;
+        assert!(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    group::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    triggers[2] = Trigger::ObjectEvent { mask: 0x80000001 };
+    let valid = contexts[2].clone();
+    for bad in [
+        ReferenceValue::Live {
+            id: fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+        },
+        ReferenceValue::Content {
+            key: fallout_data::identity::FormKey {
+                origin_plugin: "BAD.ESM".into(),
+                ..form(0x301)
+            },
+        },
+    ] {
+        contexts[2].target = Some(bad);
+        assert!(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    group::Limits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    contexts[2] = valid;
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let usage = stage.usage();
+    drop(stage);
+    assert_eq!(world.snapshot(), before);
+    for limits in [
+        group::Limits {
+            max_events: 2,
+            ..Default::default()
+        },
+        group::Limits {
+            max_arguments: 6,
+            ..Default::default()
+        },
+        group::Limits {
+            max_source_keys: 5,
+            ..Default::default()
+        },
+        group::Limits {
+            max_source_key_bytes: 269,
+            ..Default::default()
+        },
+        group::Limits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    limits
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits {
+                max_events: 3,
+                max_arguments: 7,
+                max_source_keys: 6,
+                max_source_key_bytes: 270,
+                max_copied_bytes: usage.copied_bytes,
+            },
+        )
+        .unwrap();
+    contexts[0].arguments.clear();
+    world.commit_pending_events(stage).unwrap();
+    assert_eq!(
+        world.snapshot().pending_events[1].context.arguments.len(),
+        2
+    );
+    let restricted = World::restore(
+        &catalogue,
+        before.clone(),
+        Limits {
+            max_pending_events: 3,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let restricted_handles = [
+        restricted.handle(before.instances[0].id).unwrap(),
+        restricted.handle(before.instances[1].id).unwrap(),
+    ];
+    assert!(matches!(
+        restricted.stage_pending_events(
+            &enqueue_group_requests(restricted_handles, &contexts, &triggers),
+            group::Limits::default()
+        ),
+        Err(Error::Capacity("pending events"))
+    ));
+    assert_eq!(restricted.snapshot(), before);
+}
+
+#[test]
+fn enqueue_group_intervening_mutation_restore_and_stale_handles_expire_stage() {
+    use fallout_runtime::state::enqueue_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    for mutation in 0..5 {
+        let (mut world, handles) = enqueue_group_host(&catalogue);
+        let contexts = enqueue_group_contexts(world.snapshot().references[0].id);
+        let triggers = [block(), block(), Trigger::ObjectEvent { mask: 1 }];
+        let stage = world
+            .stage_pending_events(
+                &enqueue_group_requests(handles, &contexts, &triggers),
+                group::Limits::default(),
+            )
+            .unwrap();
+        match mutation {
+            0 => {
+                world.acknowledge(1).unwrap();
+            }
+            1 => {
+                world
+                    .enqueue(handles[0], block(), Context::default())
+                    .unwrap();
+            }
+            2 => world
+                .advance_clocks(Clocks {
+                    tick: 12,
+                    game_nanoseconds: 111,
+                    menu_nanoseconds: 222,
+                    real_nanoseconds: 333,
+                })
+                .unwrap(),
+            3 => world
+                .assign(handles[0], &[(2, Value::Number { bits: 1 })])
+                .unwrap(),
+            _ => {
+                world.register_reference(None).unwrap();
+            }
+        }
+        let after = world.snapshot();
+        assert!(world.commit_pending_events(stage).is_err());
+        assert_eq!(world.snapshot(), after);
+    }
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let contexts = enqueue_group_contexts(before.references[0].id);
+    let triggers = [block(), block(), Trigger::ObjectEvent { mask: 1 }];
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(matches!(
+        world.commit_pending_events(stage),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), before);
+    assert!(matches!(
+        world.stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    let fresh = [
+        world.handle(before.instances[0].id).unwrap(),
+        world.handle(before.instances[1].id).unwrap(),
+    ];
+    let stage = world
+        .stage_pending_events(
+            &enqueue_group_requests(fresh, &contexts, &triggers),
+            group::Limits::default(),
+        )
+        .unwrap();
+    let mut other = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.commit_pending_events(stage),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(other.snapshot(), before);
+    let definition = world.instance(fresh[1]).unwrap().definition().clone();
+    world.remove_instance(fresh[1]).unwrap();
+    world
+        .create_instance(
+            &definition,
+            Owner::Fragment {
+                activation: 2.try_into().unwrap(),
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let after = world.snapshot();
+    assert!(matches!(
+        world.stage_pending_events(
+            &enqueue_group_requests(fresh, &contexts, &triggers),
+            group::Limits::default()
+        ),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), after);
+}
+
+#[test]
+fn enqueue_group_sequence_revision_capacity_edges_and_empty_noop_are_exact() {
+    use fallout_runtime::state::enqueue_group as group;
+    let dir = tempfile::tempdir().unwrap();
+    assignment_group_fixture(dir.path());
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let (world, _) = enqueue_group_host(&catalogue);
+    let base = world.snapshot();
+    for (next, revision, success) in [
+        (u64::MAX - 2, 5, false),
+        (2, u64::MAX, false),
+        (u64::MAX - 3, u64::MAX - 1, true),
+    ] {
+        let mut before = base.clone();
+        before.next_event_sequence = next;
+        before.state_revision = revision;
+        let mut world = World::restore(
+            &catalogue,
+            before.clone(),
+            Limits {
+                max_pending_events: 4,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let handles = [
+            world.handle(before.instances[0].id).unwrap(),
+            world.handle(before.instances[1].id).unwrap(),
+        ];
+        let contexts = enqueue_group_contexts(before.references[0].id);
+        let triggers = [block(), block(), Trigger::ObjectEvent { mask: 1 }];
+        let stage = world.stage_pending_events(
+            &enqueue_group_requests(handles, &contexts, &triggers),
+            group::Limits::default(),
+        );
+        if success {
+            let receipt = world.commit_pending_events(stage.unwrap()).unwrap();
+            assert_eq!(receipt.next_sequence_after(), u64::MAX);
+            assert_eq!(receipt.after_revision(), u64::MAX);
+            assert_eq!(
+                world
+                    .pending_events()
+                    .map(|row| row.sequence)
+                    .collect::<Vec<_>>(),
+                vec![1, u64::MAX - 3, u64::MAX - 2, u64::MAX - 1]
+            );
+        } else {
+            assert!(stage.is_err());
+            assert_eq!(world.snapshot(), before);
+        }
+        let exact = world.snapshot();
+        let receipt = world
+            .commit_pending_events(
+                world
+                    .stage_pending_events(&[], group::Limits::default())
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(receipt.before_revision(), receipt.after_revision());
+        assert_eq!(
+            receipt.next_sequence_before(),
+            receipt.next_sequence_after()
+        );
+        assert!(receipt.rows().is_empty());
+        assert_eq!(world.snapshot(), exact);
+    }
+}
+
+#[test]
+fn enqueue_group_native_before_current_and_two_fresh_readers_preserve_exact_append() {
+    use fallout_runtime::{
+        save::{Captured, Repository},
+        state::enqueue_group as group,
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let retained = std::env::var_os("FALLOUT_ENQUEUE_GROUP_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    assignment_group_fixture(root);
+    let source = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (mut world, handles) = enqueue_group_host(&catalogue);
+    let before = world.snapshot();
+    let repository = Repository::create(&root.join("saved"), &[], world.campaign()).unwrap();
+    repository.commit(&Captured::at_boundary(&world)).unwrap();
+    let contexts = enqueue_group_contexts(before.references[0].id);
+    let triggers = [block(), block(), Trigger::ObjectEvent { mask: 0x80000001 }];
+    let receipt = world
+        .commit_pending_events(
+            world
+                .stage_pending_events(
+                    &enqueue_group_requests(handles, &contexts, &triggers),
+                    group::Limits::default(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+    let current = world.snapshot();
+    let captured = Captured::at_boundary(&world);
+    world
+        .enqueue(
+            handles[0],
+            Trigger::ObjectEvent { mask: 1 },
+            Context::default(),
+        )
+        .unwrap();
+    repository.commit(&captured).unwrap();
+    for (name, snapshot) in [
+        ("before.snapshot.json", &before),
+        ("current.snapshot.json", &current),
+    ] {
+        std::fs::write(root.join(name), snapshot.encode(1 << 20).unwrap()).unwrap();
+    }
+    std::fs::write(
+        root.join("receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("contexts.json"),
+        serde_json::to_vec_pretty(&contexts).unwrap(),
+    )
+    .unwrap();
+    drop(world);
+    drop(catalogue);
+    for mode in ["previous", "current"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_enqueue_group_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_ENQUEUE_GROUP_COLD_ROOT", root)
+            .env("FALLOUT_ENQUEUE_GROUP_COLD_MODE", mode)
+            .output()
+            .unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stdout.txt")), &result.stdout).unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stderr.txt")), &result.stderr).unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(std::fs::read(root.join("FalloutNV.esm")).unwrap(), source);
+}
+
+#[test]
+#[ignore = "fresh exact source/native event batch boundary selected by parent or CLI proof"]
+fn cold_enqueue_group_helper() {
+    use fallout_runtime::save::{Captured, Recovery, Repository, format};
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_ENQUEUE_GROUP_COLD_ROOT").unwrap());
+    let mode = std::env::var("FALLOUT_ENQUEUE_GROUP_COLD_MODE").unwrap();
+    let before = mode == "previous" || mode.ends_with("before");
+    let phase = if before { "before" } else { "current" };
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let expected = Snapshot::decode(
+        &std::fs::read(root.join(format!("{phase}.snapshot.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let native = root.join(if mode.starts_with("cli-") {
+        "cold-native"
+    } else {
+        "saved"
+    });
+    let world = if mode.starts_with("cli-save-") {
+        let world = World::restore(&catalogue, expected.clone(), Limits::default()).unwrap();
+        let repository = if before {
+            Repository::create(&native, &[], world.campaign()).unwrap()
+        } else {
+            Repository::open(&native, &[]).unwrap()
+        };
+        repository.commit(&Captured::at_boundary(&world)).unwrap();
+        world
+    } else if before {
+        World::restore(
+            &catalogue,
+            format::decode(
+                &std::fs::read(native.join("previous.frsv")).unwrap(),
+                Limits::default(),
+            )
+            .unwrap()
+            .snapshot,
+            Limits::default(),
+        )
+        .unwrap()
+    } else {
+        Repository::open(&native, &[])
+            .unwrap()
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+    };
+    assert_eq!(world.snapshot(), expected);
+    std::fs::write(
+        root.join(format!("cold-{mode}.snapshot.json")),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+}
+
 fn observation_fixture(root: &std::path::Path) {
     std::fs::create_dir_all(root).unwrap();
     std::fs::write(

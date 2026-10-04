@@ -1479,3 +1479,188 @@ output guards and the prior complete prepared-clip batch byte comparison also
 pass. No original process or inferred visibility/equipment/playback acceptance
 was used. Frozen executable, exact commands, inputs, source/evidence hashes and
 immutable receipts remain in ignored `local/v3-asset-26`.
+
+## Explicit external packet pose forest (V3-ASSET-30)
+
+`clip::evaluate_set(skeleton_bytes, clip_bytes, source, &[clip::Request],
+clip::SetLimits)` returns one simultaneous `ClipPoseSet`. Every explicit row binds
+both whole-source SHAs, a destination node ID and unique exact raw name, sequence,
+controlled-packet ordinal and finite source time. There is one destination and
+one packet per row. Repeated destinations/packets, unavailable or ambiguous names,
+unsupported packet identifiers/property/type/rotation and changed sources refuse.
+No name search, priority blending, sequence-weight blending, retargeting, implicit
+packet closure or clock mapping is added.
+
+The existing exact packet binder admits each row against one skeleton Scene and
+one KF/key catalogue. Required ancestry comes from the validated source graph.
+Every controlled ancestor needed by a selected destination must itself have an
+explicit supported packet request; a missing parent refuses. Uncontrolled
+ancestors retain their authored NiAV locals. Unrelated controlled nodes do not
+become implicit channels. Source object-controller links remain raw unapplied
+observations, as in the existing external clip producer; this does not execute
+those controllers or their clocks.
+
+The same corrected required-child CSR and root queue used by source pose sets
+propagates each required local once in parent order, including higher-ID parents
+and separate roots. The factored helper and borrowed validated maps stay private
+within animation. Local matrices come only from fresh source binding and the
+existing component sampler. No public caller matrix or receipt substitutes for
+that authority. Forward zero/reflected scales are permitted without inventing an
+inverse. Matrix overflow, unresolved/unreachable ancestry and late channel errors
+publish no complete set.
+
+Results preserve caller row order. Each channel carries its exact object,
+sequence/interpolator/data spans and digests, raw controlled packet/name,
+requested time bits, source local/flags/controller link, complete unapplied
+sequence/interpolator fields, translation/scale diagnostics and effective local.
+Its source-world matrix and ancestor observations include selected ancestors'
+effective locals. There is no invented visibility, animation-event or gameplay
+state. Existing single-packet and prepared-batch layouts/counters stay unchanged.
+
+Defaults bound each input to64 MiB and the pair to128 MiB, requests to256,
+combined request names to one MiB, depth to1024, aggregate logical elements to
+64 MiB and work to128 million. Existing pose Scene/key caps are reused, with
+declared decoder arrays/checks admitted under128 MiB/32 million. The full Scene
+payload allowance is charged before decoding; key decoding receives the remaining
+aggregate allowance. Complete decoded clip retention, source maps/spans, released
+name-matching scratch, CSR/queue storage and all output/ancestor elements are
+charged. Source index/object tables remain bounded by their existing block caps.
+
+Six combined input-byte visits, one skeleton-byte name scan per row, explicit
+name/fixed identity/type comparison work and duplicate-row visits are admitted
+before their work. Both sources are hashed once and every source block span is
+cached once. The entire shared sampler validation/request allowance is charged
+before channels run; actual sampler visits remain a separate observation.
+Each channel starts a sampler receipt with the shared remaining caps, so its
+diagnostics remain independent of row order while the aggregate limit still
+applies. These are conservative logical limits, including dropped intermediates,
+not measured process memory, frame time or original playback performance.
+
+The owned consumer is `fallout nif-clip-pose SKELETON CLIP --set --request
+REQUEST.json --output RECEIPT.json`. Strict schema1 requires both expected SHAs
+and one to256 `channels`; every row requires `object`, `node_name_bytes`,
+`sequence`, `controlled_ordinal` and `source_time`. Requests are bounded to64 KiB.
+The flag conflicts with `--batch`; output stays outside all three source/request
+input trees. Semantic refusal emits a null evaluation and nonzero exit.
+
+Five authored cases test fixed noncommuting local/world values, a higher-ID
+parent, shared required ancestor, separate roots, raw packet/source/time fields,
+zero/reflected scales, permutations, missing coverage and atomic early/late
+refusal. Input/name/count/depth/decoder/source/aggregate/sampler exact and
+one-under limits are checked. The initial permutation check exposed cumulative
+per-channel sampler counters; receipts now use individual channel visits and a
+shared remaining allowance. `check_clip_set.py` supplies a different independent
+two-source forest with fixed first/interior/last/mixed-time matrices and raw spans.
+Evidence and frozen binaries remain in ignored `local/v3-asset-30`; source sampling
+remains separate from measured retail animation, renderer adoption and saves.
+
+Validation passes142 focused skin/partition/pose/clip/attachment tests, two bounds
+arithmetic tests,39 serial CLI tests, affected all-target Clippy with warnings
+denied, formatting and the CLI build. The initial preserved101 tests passed;
+the first new permutation test caught cumulative diagnostic counters and its
+immutable failure remains preserved. Corrected20 clip tests and full checks pass.
+
+The frozen second source verifies four literal four-channel first/interior/last
+and mixed-time poses, with a moving parent, shared children, a separate root and
+zero/reflected scales. Four reversed permutations preserve every channel and
+aggregate observation. Every selected object/KF/ancestor span is independently
+computed from authored payload lengths, with raw packets and time words checked.
+Four old complete single-parent clip reports stay byte-identical and equal to
+their corresponding local observations/worlds. Sixteen semantic refusals, eight
+strict request refusals, three independently separated protected input trees and
+the conflicting batch mode all pass.
+
+Nine broader full reports remain byte-identical to frozen29: public source pose
+set, complete source pose-set skin, prepared clip batch, sampled external skin,
+sampled bounds, installed source schema3/stored pose/bounds and the earlier
+two-source first-person clip negative. Installed `3fe5a3ef...` / `9fed7a15...`
+submitted as one explicit set row refuses required ancestor10/controller11 that
+was not selected. The unchanged old single-packet report separately refuses
+active XYZ rotation. These are scoped source limitations, not original clock,
+playback or animation-transition observations. No original process was used.
+Frozen executable, exact inputs/commands and source/evidence hashes remain in
+`local/v3-asset-30`. Checkpoint45, saved state, dependencies, pins and defaults
+remain unchanged.
+
+## Reuse one compiled same-container required forest (V3-ASSET-32)
+
+`PreparedSource::prepare_set(&[ChannelBinding{object,controller}],
+SetPreparationLimits)` returns a borrowed `PreparedPoseSet`. The sealed source
+still owns its original decoded Scene, animation/key catalogues, maps, source SHA
+and block spans. The plan admits exact object/controller/interpolator/data links,
+all required controlling ancestors and one parent-before-child order. Its private
+links borrow the sealed source; no self reference, public Scene, caller matrix,
+serialized observation or arbitrary order can create a plan.
+
+`plan.sample(&[ExplicitChannelTime{expected_source_sha256,object,controller,
+source_time}], SetSampleLimits)` returns the existing complete `PoseSet`
+observation. Each time row identifies its exact object and controller. Row order
+does not choose a pose or change binding order. Missing, duplicate or foreign
+rows, a changed source SHA, wrong controller, nonfinite time, extrapolation and
+unsupported channels refuse. Equal/decreasing times and negative-zero time words
+remain explicit requests; no previous sample changes the plan or becomes a clock.
+
+The one-shot source set, internal skin set and external packet set use the same
+private required closure, CSR construction, node propagation and channel/ancestor
+observations. Existing one-shot allocations, charge order, fields and counters
+remain intact. The new plan builds its order with that CSR/root queue once, then
+uses the same forward node propagation without rebuilding its hierarchy. Higher
+source IDs can be parents. Uncontrolled required ancestors retain their stored
+locals; every controlled required ancestor needs its own explicit binding. No
+priority, blending, inferred channel closure, root inverse or quaternion repair
+enters this route. Forward zero/reflected scales remain source observations.
+
+Preparation validates the existing supported translation/scale key groups without
+inventing a source time. Every time-only sample still performs the existing full
+key validation and bounded sampling. These validation scans are charged for each
+channel and each sample; only source decoding, whole-source/block hashing, link
+admission and forest construction are reused. Preparation usage records one Scene
+decode, one animation/key decode, one source hash, cached block hashes and one
+required-forest construction over the plan's lifetime. Sampling never hashes
+source strings/bytes, reconstructs block spans or decodes keys.
+
+New default preparation caps are256 channels, depth1024,16 MiB additional storage,
+2 million work units,1 million validation/request units and64 MiB live source/plan
+storage. Source preparation retains its separately bounded existing key/Scene
+limits. Live storage conservatively includes the original source preparation,
+actual animation/key storage, the full Scene array allowance, index strings and
+separately block-bounded index/Scene tables. Map entries carry an explicit
+four-word logical node/link allowance. The plan charges binding/link/maps, all
+CSR scratch and its stored order before allocation. Discarded construction scratch
+remains charged. This is logical element accounting, not allocator/process memory.
+
+Each sample independently caps additional storage16 MiB/work2 million, sampling
+validation/request units1 million and live source/plan storage64 MiB. It admits
+time matching storage, full returned observations, all required ancestors and
+propagated matrices. `plan.sample_many(&[Vec<ExplicitChannelTime>], SetBatchLimits)`
+admits1..64 vectors,128 MiB aggregate storage/work128 million and16 million shared
+validation/request units. It charges live source/plan storage once, source/plan
+preparation work and key validation once, then every complete sample and sampling
+temporary. Per-sample limits are capped by the aggregate remainder before work.
+A late failure drops the whole new batch; earlier independently owned results and
+the plan remain unchanged. Requests cannot hide live storage or an extra key scan.
+
+The owned consumer is `fallout nif-source-pose-set INPUT --prepared --request
+REQUEST.json --output RECEIPT.json`. Strict schema1 requires `expected_sha256`,
+`bindings` with exact object/controller pairs and `time_vectors`. Each time row
+requires `expected_source_sha256`, `object`, `controller` and `source_time`.
+Requests/source stay bounded to64 KiB/64 MiB; at most256 bindings,64 vectors and256
+rows per vector are admitted. Both input-tree output guards apply before dispatch.
+A successful preparation also supplies the report's cached source hash. Structural
+refusal creates no receipt; semantic refusal publishes a null batch with nonzero
+exit. The existing command without `--prepared` keeps its original request format.
+
+Five new integration tests verify literal noncommuting parent/child matrices at
+first/interior/last/mixed vectors, higher-ID parents, reversed binding/time order,
+source ownership after caller-byte mutation/drop, exact and one-under preparation,
+sample, live, aggregate and sampler caps, charged full key scans, repeats,
+decreasing/signed-zero times and immutable results after late failure. The new
+independent CLI check uses a different authored source with reflected/zero locals,
+literal world matrices, exact packet spans, old complete one-shot comparisons and
+schema/identity/coverage/time/output-guard refusals. Its exact executable, source,
+commands, results and hashes remain in ignored `local/v3-asset-32`.
+
+These are explicit engineering samples. Playback clocks, events, actor selection,
+retail pose/normal rules and gameplay equipment acceptance remain separate.
+Checkpoint45, saved state, dependencies, source pins and existing defaults stay
+unchanged.

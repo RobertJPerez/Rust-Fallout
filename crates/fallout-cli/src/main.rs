@@ -395,7 +395,11 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
             }
             return Ok(());
         }
-        AssetsCommand::NifSourcePoseSet { input, request } => {
+        AssetsCommand::NifSourcePoseSet {
+            input,
+            request,
+            prepared,
+        } => {
             if let Some(path) = output {
                 let parent = path
                     .parent()
@@ -407,6 +411,14 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if prepared {
+                let report = nif_animation_inspection::inspect_prepared_pose_set(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("prepared source pose set refused; see report".into());
+                }
+                return Ok(());
             }
             let report = nif_animation_inspection::inspect_pose_set(&input, &request)?;
             emit(&report, output, &input)?;
@@ -457,6 +469,7 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
             clip,
             request,
             batch,
+            set,
         } => {
             if let Some(path) = output {
                 let parent = path
@@ -469,6 +482,15 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if set {
+                let report =
+                    nif_animation_inspection::inspect_clip_set(&skeleton, &clip, &request)?;
+                emit(&report, output, &skeleton)?;
+                if report.failures != 0 {
+                    return Err("explicit external clip pose set refused; see report".into());
+                }
+                return Ok(());
             }
             if batch {
                 let report =
@@ -1208,6 +1230,7 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_foreign_copy_request,
             snapshot_reference_copy_request,
             reference_boot_request,
+            snapshot_event_request,
             snapshot_native_request,
             snapshot_native_plan_request,
             snapshot_native_current,
@@ -1216,6 +1239,26 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_event_request {
+                let report = event_operand_inspection::enqueue_saved_event(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_event_request"]["status"] != "engineering_enqueued" {
+                    return Err(
+                        "Saved event enqueue remains unsupported; see engineering report".into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = reference_boot_request {
                 let report = event_operand_inspection::boot_saved_reference(
                     &install,
@@ -1437,6 +1480,10 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             initialization_root,
             effect_root,
             effect_field,
+            weapon_root,
+            ammo_root,
+            death_item_root,
+            death_item_field,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -1462,8 +1509,12 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     script_root,
                     ai_root,
                     initialization_root,
-                    effect_root,
+                    effect_root: effect_root.map(|key| *key),
                     effect_field,
+                    weapon_root: weapon_root.map(|key| *key),
+                    ammo_root: ammo_root.map(|key| *key),
+                    death_item_root: death_item_root.map(|key| *key),
+                    death_item_field,
                     creature_model_directory,
                 },
             )?;
@@ -2717,6 +2768,20 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
 
 fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        PhysicsCommand::NavigationEndpoints {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            navigation_inspection::inspect_endpoints(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+                |report| emit(report, output, &install),
+            )?;
+        }
         PhysicsCommand::NavigationCorridor {
             install,
             load_order,

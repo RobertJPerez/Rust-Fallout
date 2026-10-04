@@ -246,3 +246,52 @@ held source-file lease. Retry verifies the same explicit source identity again.
 Semantic refusal precedes report creation; a later I/O or cancellation boundary
 can leave a fresh diagnostic report without a capture. Original menu readiness,
 text/fonts, template evaluation, UI focus/actions and gameplay remain unaccepted.
+
+## Selected literal image inspection (VIEW21)
+
+`fallout-preview --install INSTALL --menu-image REQUEST.json --report REPORT.json`
+connects one exact source image tile to the existing DDS decoder and bounded draw
+queue. Add `--headless --capture CAPTURE.png` for a GPU capture. The strict
+schema-1 request supplies XML `source` and DDS `texture`, each with full member
+path, archive SHA and payload SHA. Select `image: { node, span, name }`; `name`
+may be null or omitted, but a supplied name must uniquely identify that node.
+The literal filename must normalize to the supplied full `textures/... .dds`
+member. Relative paths have no prefix or fallback.
+
+The request explicitly supplies the rectangle caller policy, viewport and parent
+described above, `uv_rect: [u0,v0,u1,v1]` in ordered finite 0..1 coordinates, and
+`sampling: "nearest-clamp-edge-mip0"`. All nine numeric layout/color fields,
+Boolean01 visibility and literal filename are required. Only an optional name
+attribute, those fields, comments and XML whitespace are admitted. Expressions,
+custom references, nested tiles and other traits refuse, including repeat,
+texture-atlas, crop, rotation and file-dimension traits even when their value is
+zero. These caller policies do not establish original image semantics.
+
+The existing adapter retains BC1/BC2/BC3 sRGB compressed mip payloads; this mode
+uses nearest filtering, clamp-to-edge and LOD zero. Reports retain the full XML
+tree, literal spans/numeric words, normalized filename, explicit UV words, actual
+camera sorting key, DDS provenance, dimensions, format, mip count and byte/texel
+counts. Instance and mesh labels share XML and DDS receipts with the scene epoch;
+stale work cannot publish and owned resources retire through the existing queue.
+The fixed viewport disables resizing and camera movement. Archive/DDS work
+starts after the window event on the preparation worker.
+
+Admission allows one 152-byte quad, 128 KiB request and 16 MiB report, at most 32
+literal rows, 4 KiB resolved filename, 16 KiB retained filename copies and 64 KiB
+logical plan metadata. Existing document, projection and viewport caps apply.
+DDS input and retained payload each have an 8 MiB ceiling; base and aggregate
+physical mip texels must fit 4,194,304 (16 MiB virtual RGBA). Before the image
+decoder runs, checked admission rounds the base dimensions to BC's 4x4 blocks,
+then rounds every mip of that Bevy image extent to whole blocks. This includes
+sub-block tail mips. The texture receipt reports this same physical count.
+Each raw DDS mip's block rows and columns must also match the corresponding mip
+of Bevy's rounded base extent, before decoding and again against the returned
+descriptor. Incompatible layouts refuse; no padding or replacement mip data is
+invented. For example, raw 9x4 BC1 with two mips retains 24+8 bytes, while the
+rounded 12x4 image upload needs 24+16; it refuses before any image or report is
+admitted. Its single-mip form and compatible unaligned/tail layouts remain valid.
+These counts describe admission rather than measured peak memory. Complete report
+serialization is admitted before creating a fresh report; later I/O or cancellation can leave a
+diagnostic report without a capture. Source receipts are preparation snapshots,
+with identity checked again on retry. Original menus, fonts, focus/actions and
+gameplay remain unaccepted.

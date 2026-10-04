@@ -156,6 +156,9 @@ pub use prepared::{
     BatchLimits, BindingRequest, ClipBatch, PreparationLimits, PreparationUsage, PreparedClipSource,
 };
 
+mod set;
+pub use set::{ClipLocalObservation, ClipPoseSet, ClipSetObjectPose, SetLimits, evaluate_set};
+
 #[derive(Clone, Copy)]
 struct Sources<'a> {
     skeleton_index: &'a crate::nif::NifIndex,
@@ -389,19 +392,8 @@ fn evaluate_bound(
         budget.charge(targets.len())?;
     }
     let mut sampling_budget = sampling::Budget::new(limits.sampling);
-    let translation = sampling::evaluate(
-        data,
-        sampling::Channel::Translation,
-        request.source_time,
-        &mut sampling_budget,
-    )?;
-    let scale = sampling::evaluate(
-        data,
-        sampling::Channel::Scale,
-        request.source_time,
-        &mut sampling_budget,
-    )?;
-    let local = component_local(object.transform, &translation, &scale);
+    let (translation, scale, local) =
+        sample_local(object, data, request.source_time, &mut sampling_budget)?;
     let (world, ancestors) = observation.compose(local, &mut budget, limits.ancestry_depth)?;
     Ok(Evaluation {
         contract: CONTRACT,
@@ -418,20 +410,7 @@ fn evaluate_bound(
         source_local: object.transform.into(),
         object_flags: object.flags,
         unapplied_object_controller: object.controller,
-        unapplied_sequence_fields: SequenceFields {
-            name: sequence.name,
-            declared_controlled_blocks: sequence.declared_controlled_blocks,
-            array_grow_by: sequence.array_grow_by,
-            weight_bits: sequence.weight_bits,
-            text_keys: sequence.text_keys,
-            cycle_type: sequence.cycle_type,
-            frequency_bits: sequence.frequency_bits,
-            start_bits: sequence.start_bits,
-            stop_bits: sequence.stop_bits,
-            manager: sequence.manager,
-            accum_root_name: sequence.accum_root_name,
-            notes: sequence.notes.clone(),
-        },
+        unapplied_sequence_fields: sequence_fields(sequence),
         unapplied_interpolator_fields: interpolator.clone(),
         translation,
         scale,
@@ -443,4 +422,33 @@ fn evaluate_bound(
         sample_work: sampling_budget.usage(),
         retail_behavior_verified: false,
     })
+}
+
+fn sample_local(
+    object: &nif_scene::Object,
+    data: &keyframe::Block,
+    time: f64,
+    budget: &mut sampling::Budget,
+) -> Result<(sampling::Diagnostic, sampling::Diagnostic, Affine)> {
+    let translation = sampling::evaluate(data, sampling::Channel::Translation, time, budget)?;
+    let scale = sampling::evaluate(data, sampling::Channel::Scale, time, budget)?;
+    let local = component_local(object.transform, &translation, &scale);
+    Ok((translation, scale, local))
+}
+
+fn sequence_fields(sequence: &super::Sequence) -> SequenceFields {
+    SequenceFields {
+        name: sequence.name,
+        declared_controlled_blocks: sequence.declared_controlled_blocks,
+        array_grow_by: sequence.array_grow_by,
+        weight_bits: sequence.weight_bits,
+        text_keys: sequence.text_keys,
+        cycle_type: sequence.cycle_type,
+        frequency_bits: sequence.frequency_bits,
+        start_bits: sequence.start_bits,
+        stop_bits: sequence.stop_bits,
+        manager: sequence.manager,
+        accum_root_name: sequence.accum_root_name,
+        notes: sequence.notes.clone(),
+    }
 }

@@ -13,8 +13,13 @@ mod prepared;
 pub use prepared::{BatchLimits, PoseBatch, PreparationUsage, PreparedSource, SampleLimits};
 
 mod set;
+pub use set::{
+    ChannelBinding, ExplicitChannelTime, LocalObservation, PoseSet, PreparedPoseSet,
+    PreparedSetBatch, SetAncestor, SetBatchLimits, SetLimits, SetObjectPose, SetPreparationLimits,
+    SetPreparationUsage, SetSampleLimits, evaluate_set,
+};
 pub(crate) use set::{EvaluatedForest, evaluate_required};
-pub use set::{LocalObservation, PoseSet, SetAncestor, SetLimits, SetObjectPose, evaluate_set};
+pub(super) use set::{ForestView, propagate_required};
 
 pub const CONTRACT: &str = "engineering-linked-source-pose-v1";
 
@@ -314,27 +319,36 @@ struct LinkedChannels<'a> {
 }
 
 fn admit_channels<'a>(
-    view: &'a SourceView<'_>,
+    view: &SourceView<'a>,
     request: Request,
     budget: &Budget<'_>,
 ) -> Result<LinkedChannels<'a>> {
     if !request.source_time.is_finite() {
         return Err(budget.fail("requested source time must be finite"));
     }
+    admit_binding(view, request.object, request.controller, budget)
+}
+
+fn admit_binding<'a>(
+    view: &SourceView<'a>,
+    object_id: u32,
+    controller_id: u32,
+    budget: &Budget<'_>,
+) -> Result<LinkedChannels<'a>> {
     let object = view
-        .object(request.object)
+        .object(object_id)
         .ok_or_else(|| budget.fail("selected object is not decoded"))?;
-    if object.controller != Some(request.controller) {
+    if object.controller != Some(controller_id) {
         return Err(budget.fail("selected object.controller differs from requested controller"));
     }
     let controller = view
-        .animation(request.controller)
+        .animation(controller_id)
         .and_then(|b| match &b.data {
             Data::TransformController { controller } => Some(controller),
             _ => None,
         })
         .ok_or_else(|| budget.fail("selected controller is not a decoded NiTransformController"))?;
-    if controller.target != Some(request.object) {
+    if controller.target != Some(object_id) {
         return Err(budget.fail("selected controller.target differs from requested object"));
     }
     if controller.next_controller.is_some() {
@@ -382,7 +396,16 @@ fn sample_channels(
     let local = component_local(linked.object.transform, &translation, &scale);
     Ok((translation, scale, local))
 }
-impl SourceView<'_> {
+impl<'a> SourceView<'a> {
+    fn prepared(prepared: &'a PreparedSource) -> Self {
+        Self {
+            source: &prepared.source,
+            index: &prepared.index,
+            decoded: &prepared.decoded,
+            scene: &prepared.scene,
+            storage: SourceStorage::Prepared(prepared),
+        }
+    }
     fn source_span(&self, block: u32) -> SourceSpan {
         match &self.storage {
             SourceStorage::Borrowed(bytes) => span(bytes, self.index, block),
@@ -395,18 +418,20 @@ impl SourceView<'_> {
             SourceStorage::Prepared(prepared) => prepared.sha256.clone(),
         }
     }
-    fn object(&self, block: u32) -> Option<&nif_scene::Object> {
+    fn object(&self, block: u32) -> Option<&'a nif_scene::Object> {
         match &self.storage {
             SourceStorage::Borrowed(_) => self.scene.objects.iter().find(|o| o.block == block),
-            SourceStorage::Prepared(p) => p
-                .objects
-                .get(block as usize)
-                .copied()
-                .flatten()
-                .map(|i| &p.scene.objects[i]),
+            SourceStorage::Prepared(p) => {
+                let p = *p;
+                p.objects
+                    .get(block as usize)
+                    .copied()
+                    .flatten()
+                    .map(|i| &p.scene.objects[i])
+            }
         }
     }
-    fn animation(&self, block: u32) -> Option<&super::Block> {
+    fn animation(&self, block: u32) -> Option<&'a super::Block> {
         match &self.storage {
             SourceStorage::Borrowed(_) => self
                 .decoded
@@ -414,25 +439,29 @@ impl SourceView<'_> {
                 .blocks
                 .iter()
                 .find(|b| b.block == block),
-            SourceStorage::Prepared(p) => p
-                .animation
-                .get(block as usize)
-                .copied()
-                .flatten()
-                .map(|i| &p.decoded.animation.blocks[i]),
+            SourceStorage::Prepared(p) => {
+                let p = *p;
+                p.animation
+                    .get(block as usize)
+                    .copied()
+                    .flatten()
+                    .map(|i| &p.decoded.animation.blocks[i])
+            }
         }
     }
-    fn keys(&self, block: u32) -> Option<&keyframe::Block> {
+    fn keys(&self, block: u32) -> Option<&'a keyframe::Block> {
         match &self.storage {
             SourceStorage::Borrowed(_) => {
                 self.decoded.keys.blocks.iter().find(|b| b.block == block)
             }
-            SourceStorage::Prepared(p) => p
-                .keys
-                .get(block as usize)
-                .copied()
-                .flatten()
-                .map(|i| &p.decoded.keys.blocks[i]),
+            SourceStorage::Prepared(p) => {
+                let p = *p;
+                p.keys
+                    .get(block as usize)
+                    .copied()
+                    .flatten()
+                    .map(|i| &p.decoded.keys.blocks[i])
+            }
         }
     }
     fn mapping(&self, object: u32, budget: &mut Budget<'_>) -> Result<SceneMapping<'_>> {

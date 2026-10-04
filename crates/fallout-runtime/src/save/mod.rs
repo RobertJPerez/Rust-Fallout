@@ -1,6 +1,7 @@
 //! Engine-native saves. Capture canonical state at a host boundary, then hand
 //! the owned request to a worker. Container integrity and filesystem publication
 //! are separate from original `.fos` compatibility and power-loss guarantees.
+mod availability_task;
 pub mod format;
 mod repository;
 mod restore;
@@ -13,6 +14,10 @@ mod worker;
 mod test_source;
 
 use crate::{Limits, World, snapshot::Snapshot};
+pub use availability_task::{
+    AvailabilityAdmission, AvailabilityCandidate, AvailabilityError, AvailabilityPoll,
+    AvailabilityRequest, AvailabilityTask,
+};
 pub use repository::{
     LoadReceipt, Recovery, Repository, Slot, SlotAvailability, SlotAvailabilityReport,
     SlotRejection, SlotRejectionCode, Stage, WriteReceipt,

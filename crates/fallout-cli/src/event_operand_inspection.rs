@@ -7,8 +7,8 @@ use fallout_data::{loaded_scripts, obscript, quest_scripts, script_reference_att
 use fallout_runtime::{
     event_operands,
     execution::{
-        attachment_boot, copy_probe, foreign_copy, local_copy, native, native_plan, pending_batch,
-        reference_attachment_boot, reference_copy,
+        attachment_boot, copy_probe, event_request, foreign_copy, local_copy, native, native_plan,
+        pending_batch, reference_attachment_boot, reference_copy,
     },
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
@@ -68,6 +68,255 @@ struct ReferenceBootContext {
     #[serde(deserialize_with = "explicit_optional_reference_value")]
     target: Option<fallout_runtime::identity::ReferenceValue>,
     arguments: Vec<fallout_runtime::identity::ReferenceValue>,
+}
+impl ReferenceBootContext {
+    fn into_context(self) -> fallout_runtime::events::Context {
+        fallout_runtime::events::Context {
+            calling_reference: self.calling_reference,
+            containing_reference: self.containing_reference,
+            target: self.target,
+            arguments: self.arguments,
+        }
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedEventRequest {
+    schema_version: u32,
+    instance: fallout_runtime::identity::InstanceId,
+    owner: fallout_runtime::identity::Owner,
+    definition: loaded_scripts::Handle,
+    begin_scda_offset: u32,
+    event_id: u16,
+    intent: SavedForeignIntent,
+    context: ReferenceBootContext,
+    maximum_source_bytes: usize,
+    maximum_source_instructions: usize,
+    maximum_context_arguments: usize,
+    maximum_variable_bytes: usize,
+    maximum_source_receipts: usize,
+    maximum_trace_bytes: usize,
+    maximum_prepared_instructions: usize,
+    maximum_prepared_operand_uses: usize,
+    maximum_prepared_tokens: usize,
+    maximum_prepared_record_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum SavedEventOutcome<'a> {
+    Unsupported {
+        reason: local_copy::Unsupported,
+        detail: &'static str,
+    },
+    EngineeringEnqueued {
+        sequence: u64,
+        trace: &'a event_request::Trace<'a>,
+        queued_event: &'a fallout_runtime::events::Pending,
+    },
+}
+#[derive(serde::Serialize)]
+struct SavedEventReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    snapshot_event_request: SavedEventOutcome<'a>,
+}
+pub(super) fn enqueue_saved_event(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedEventRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved event request byte budget exceeded",
+    )?)?;
+    let defaults = event_request::Limits::default();
+    let p = programs::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    if request.schema_version != 1
+        || request.maximum_source_bytes > defaults.maximum_source_bytes
+        || request.maximum_source_instructions > defaults.maximum_source_instructions
+        || request.maximum_context_arguments > defaults.maximum_context_arguments
+        || request.maximum_variable_bytes > defaults.maximum_variable_bytes
+        || request.maximum_source_receipts > defaults.maximum_source_receipts
+        || request.maximum_trace_bytes > defaults.maximum_trace_bytes
+        || request.maximum_prepared_instructions > p.maximum_instructions
+        || request.maximum_prepared_operand_uses > p.maximum_uses
+        || request.maximum_prepared_tokens > p.maximum_tokens
+        || request.maximum_prepared_record_bytes > p.maximum_attempted_record_bytes
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved event request schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(install, result_path, report_path, "saved event request")?;
+    let context = request.context.into_context();
+    if context.arguments.len() > request.maximum_context_arguments {
+        return Err("saved event context argument budget exceeded".into());
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    if order.names.len() > request.maximum_source_receipts {
+        return Err("saved event source receipt budget exceeded".into());
+    }
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "saved event snapshot byte budget exceeded",
+    )?;
+    let world = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let instance = world.instance(world.handle(request.instance)?)?;
+    if instance.owner() != &request.owner || instance.definition() != &request.definition {
+        return Err(
+            "saved event explicit owner or definition differs from current instance".into(),
+        );
+    }
+    let script = catalogue
+        .get_handle(&request.definition)
+        .ok_or("saved event source definition is missing")?;
+    if script.compiled().map_or(0, |bytes| bytes.len()) > request.maximum_source_bytes {
+        return Err("saved event source byte budget exceeded".into());
+    }
+    if request
+        .definition
+        .key
+        .record
+        .origin_plugin
+        .len()
+        .checked_add(request.definition.version_sha256.len())
+        .is_none_or(|bytes| bytes > request.maximum_variable_bytes)
+    {
+        return Err("saved event variable byte budget exceeded before source preparation".into());
+    }
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        std::slice::from_ref(&request.definition),
+        programs::Limits {
+            maximum_attempted_record_bytes: request.maximum_prepared_record_bytes,
+            maximum_attempted_bytes: request.maximum_source_bytes,
+            maximum_instructions: request.maximum_prepared_instructions,
+            maximum_uses: request.maximum_prepared_operand_uses,
+            maximum_expressions: request.maximum_prepared_tokens.min(p.maximum_expressions),
+            maximum_tokens: request.maximum_prepared_tokens,
+            maximum_nodes: request.maximum_prepared_tokens,
+            ..p
+        },
+    )?;
+    let campaign = world.campaign();
+    let before_revision = world.revision();
+    let clocks = world.clocks();
+    let existing_pending = world.pending_events().len();
+    let prepared = event_request::prepare(
+        &world,
+        &sources,
+        &content,
+        event_request::Selection {
+            instance: request.instance,
+            expected_owner: &request.owner,
+            definition: &request.definition,
+            begin_scda_offset: request.begin_scda_offset,
+            event_id: request.event_id,
+            intent: match request.intent {
+                SavedForeignIntent::Engineering => local_copy::Intent::Engineering,
+                SavedForeignIntent::Faithful => local_copy::Intent::Faithful,
+            },
+        },
+        &context,
+        event_request::Limits {
+            maximum_source_bytes: request.maximum_source_bytes,
+            maximum_source_instructions: request.maximum_source_instructions,
+            maximum_context_arguments: request.maximum_context_arguments,
+            maximum_variable_bytes: request.maximum_variable_bytes,
+            maximum_source_receipts: request.maximum_source_receipts,
+            maximum_trace_bytes: request.maximum_trace_bytes,
+        },
+    )?;
+    let (queued, unsupported) = match &prepared {
+        event_request::Preparation::Unsupported { reason, detail } => {
+            (None, Some((*reason, *detail)))
+        }
+        event_request::Preparation::Ready(operation) => {
+            // The admitted World is read-only; apply consumes its complete
+            // current snapshot into a separately restored private result.
+            let snapshot = world.snapshot();
+            drop(world);
+            (Some(operation.apply(snapshot, world_limits)?), None)
+        }
+    };
+    let mut artifact = Value::Null;
+    let result_bytes = if let Some(result) = &queued {
+        let bytes = result
+            .snapshot
+            .encode(request.maximum_result_snapshot_bytes)?;
+        let cold = fallout_runtime::World::restore(
+            Arc::clone(&catalogue),
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+            world_limits,
+        )?;
+        if cold.snapshot() != result.snapshot
+            || cold.instance(cold.handle(request.instance)?)?.owner() != &request.owner
+            || cold.instance(cold.handle(request.instance)?)?.definition() != &request.definition
+            || cold.clocks() != clocks
+            || cold.pending_events().len() != existing_pending + 1
+        {
+            return Err("saved event complete cold result differs".into());
+        }
+        artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":result.snapshot.schema_version,"decode_restore_equal":true,"after_revision":result.snapshot.state_revision,"pending_events":result.snapshot.pending_events.len()});
+        Some(bytes)
+    } else {
+        None
+    };
+    let outcome = match (&prepared, &queued, &unsupported) {
+        (event_request::Preparation::Ready(operation), Some(result), _) => {
+            SavedEventOutcome::EngineeringEnqueued {
+                sequence: result.sequence,
+                trace: operation.trace(),
+                queued_event: result
+                    .snapshot
+                    .pending_events
+                    .last()
+                    .ok_or("saved event result lost its appended event")?,
+            }
+        }
+        (_, _, Some((reason, detail))) => SavedEventOutcome::Unsupported {
+            reason: *reason,
+            detail,
+        },
+        _ => unreachable!("complete event request preparation"),
+    };
+    let report = SavedEventReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering enqueue of one exact source block on an existing owner","campaign":campaign,"instance":request.instance,"owner":request.owner,"before_revision":before_revision,"clocks":clocks,"existing_pending_events":existing_pending,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,"prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"private_result_discarded":queued.is_none(),"event_executed":false,"event_acknowledged":false,"clocks_advanced":false,"original_dispatch_verified":false,"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        snapshot_event_request: outcome,
+    };
+    let report =
+        admit_saved_copy_report(&report, request.maximum_report_bytes, "saved event request")?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
 }
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -176,12 +425,7 @@ pub(super) fn boot_saved_reference(
     admit_saved_copy_outputs(install, result_path, report_path, "reference boot")?;
     let initialization = attachment_boot::Request {
         campaign: request.initialization.campaign,
-        context: fallout_runtime::events::Context {
-            calling_reference: request.initialization.context.calling_reference,
-            containing_reference: request.initialization.context.containing_reference,
-            target: request.initialization.context.target,
-            arguments: request.initialization.context.arguments,
-        },
+        context: request.initialization.context.into_context(),
         initializers: request.initialization.initializers,
     };
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;

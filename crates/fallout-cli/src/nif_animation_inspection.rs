@@ -119,6 +119,105 @@ struct PoseSetRequest {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PreparedSetBinding {
+    object: u32,
+    controller: u32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedSetTime {
+    expected_source_sha256: [u8; 32],
+    object: u32,
+    controller: u32,
+    source_time: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedSetRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    bindings: Vec<PreparedSetBinding>,
+    time_vectors: Vec<Vec<PreparedSetTime>>,
+}
+
+pub fn inspect_prepared_pose_set(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::pose::PreparedSetBatch>> {
+    let request: PreparedSetRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1
+        || request.bindings.is_empty()
+        || request.bindings.len() > 256
+        || request.time_vectors.is_empty()
+        || request.time_vectors.len() > 64
+        || request.time_vectors.iter().any(|vector| vector.len() > 256)
+    {
+        return Err("prepared pose set requires schema1, 1..256 bindings and 1..64 explicit time vectors of at most256 rows".into());
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let prepared =
+        nif_animation::pose::PreparedSource::prepare(&bytes, &source, Default::default());
+    // A successful source preparation supplies its cached whole-source hash to
+    // the report too. Time vectors never hash/reparse the source or its blocks.
+    let sha256 = match &prepared {
+        Ok(value) => value.source_sha256().to_owned(),
+        Err(_) => format!("{:x}", Sha256::digest(&bytes)),
+    };
+    let expected = request
+        .expected_sha256
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let evaluated = prepared.and_then(|prepared| {
+        if prepared.source_sha256() != expected {
+            return Err(fallout_data::Error::Unsupported(format!(
+                "{source}: prepared set source SHA256 differs"
+            )));
+        }
+        let bindings = request
+            .bindings
+            .iter()
+            .map(|binding| nif_animation::pose::ChannelBinding {
+                object: binding.object,
+                controller: binding.controller,
+            })
+            .collect::<Vec<_>>();
+        let plan = prepared.prepare_set(&bindings, Default::default())?;
+        let times = request
+            .time_vectors
+            .iter()
+            .map(|vector| {
+                vector
+                    .iter()
+                    .map(|time| nif_animation::pose::ExplicitChannelTime {
+                        expected_source_sha256: time.expected_source_sha256,
+                        object: time.object,
+                        controller: time.controller,
+                        source_time: time.source_time,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        plan.sample_many(&times, Default::default())
+    });
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: "engineering-prepared-source-pose-set-batch-v1",
+        input: input.into(),
+        sha256,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VisibilityPathRequest {
     schema_version: u32,
     expected_source_sha256: [u8; 32],
@@ -410,6 +509,89 @@ struct ClipRequest {
     sequence: u32,
     controlled_ordinal: usize,
     source_time: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipSetChannelRequest {
+    object: u32,
+    node_name_bytes: Vec<u8>,
+    sequence: u32,
+    controlled_ordinal: usize,
+    source_time: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClipSetRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_clip_sha256: [u8; 32],
+    channels: Vec<ClipSetChannelRequest>,
+}
+#[derive(Serialize)]
+pub struct ClipSetReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    clip: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    clip_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::clip::ClipPoseSet>,
+    error: Option<String>,
+}
+
+pub fn inspect_clip_set(
+    skeleton: &Path,
+    clip: &Path,
+    request_path: &Path,
+) -> Result<ClipSetReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: ClipSetRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 || request.channels.is_empty() || request.channels.len() > 256 {
+        return Err("external clip pose set requires schema1 and 1..=256 explicit channels".into());
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let clip_bytes = attachment_input(clip, 64 * 1024 * 1024)?;
+    let channels: Vec<_> = request
+        .channels
+        .iter()
+        .map(|channel| nif_animation::clip::Request {
+            expected_skeleton_sha256: request.expected_skeleton_sha256,
+            expected_clip_sha256: request.expected_clip_sha256,
+            object: channel.object,
+            node_name_bytes: &channel.node_name_bytes,
+            sequence: channel.sequence,
+            controlled_ordinal: channel.controlled_ordinal,
+            source_time: channel.source_time,
+        })
+        .collect();
+    let evaluated = nif_animation::clip::evaluate_set(
+        &skeleton_bytes,
+        &clip_bytes,
+        &skeleton.display().to_string(),
+        &channels,
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(result) => (Some(result), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ClipSetReport {
+        schema_version: 1,
+        contract: "engineering-explicit-external-clip-pose-set-v1",
+        skeleton: skeleton.into(),
+        clip: clip.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        clip_sha256: format!("{:x}", Sha256::digest(&clip_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

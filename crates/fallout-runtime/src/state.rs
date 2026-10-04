@@ -19,8 +19,11 @@ use std::{
 
 static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
 
+pub mod assignment_group;
+pub mod enqueue_group;
 pub mod event_commit;
 pub mod initialization;
+pub mod journal;
 pub mod observation;
 mod readiness;
 pub use readiness::{

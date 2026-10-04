@@ -645,6 +645,456 @@ fn set_requests() -> [Request; 2] {
     ]
 }
 
+fn set_bindings(requests: &[Request]) -> Vec<pose::ChannelBinding> {
+    requests
+        .iter()
+        .map(|r| pose::ChannelBinding {
+            object: r.object,
+            controller: r.controller,
+        })
+        .collect()
+}
+fn set_times(
+    bytes: &[u8],
+    requests: &[Request],
+    parent: f64,
+    child: f64,
+) -> Vec<pose::ExplicitChannelTime> {
+    let expected_source_sha256 = Sha256::digest(bytes).into();
+    requests
+        .iter()
+        .enumerate()
+        .map(|(i, r)| pose::ExplicitChannelTime {
+            expected_source_sha256,
+            object: r.object,
+            controller: r.controller,
+            source_time: if i == 0 { parent } else { child },
+        })
+        .collect()
+}
+
+#[test]
+fn prepared_set_compiles_higher_parent_once_and_samples_literal_time_vectors() {
+    let (mut bytes, selected) = higher_parent_set_fixture();
+    let original = bytes.clone();
+    let prepared = pose::PreparedSource::prepare(&bytes, "cached", Default::default()).unwrap();
+    bytes.fill(0); // The sealed source owns its data; caller bytes are irrelevant.
+    drop(bytes);
+    let bindings = set_bindings(&selected);
+    let plan = prepared.prepare_set(&bindings, Default::default()).unwrap();
+    let reverse = prepared
+        .prepare_set(&[bindings[1], bindings[0]], Default::default())
+        .unwrap();
+    let usage = plan.usage();
+    let expected = [
+        (
+            0.,
+            0.,
+            [[-3., 0., 0., 4.], [0., -3., 0., 20.], [0., 0., 3., 42.]],
+            [[0., -6., 0., 1.], [6., 0., 0., 20.], [0., 0., 6., 48.]],
+        ),
+        (
+            1.,
+            1.,
+            [[-6., 0., 0., 1.], [0., -6., 0., 35.], [0., 0., 6., 48.]],
+            [[0., -18., 0., -11.], [18., 0., 0., 29.], [0., 0., 18., 66.]],
+        ),
+        (
+            2.,
+            2.,
+            [[-9., 0., 0., -2.], [0., -9., 0., 50.], [0., 0., 9., 54.]],
+            [[0., -36., 0., -29.], [36., 0., 0., 32.], [0., 0., 36., 90.]],
+        ),
+        (
+            2.,
+            0.,
+            [[-9., 0., 0., -2.], [0., -9., 0., 50.], [0., 0., 9., 54.]],
+            [[0., -18., 0., -11.], [18., 0., 0., 50.], [0., 0., 18., 72.]],
+        ),
+    ];
+    for (parent, child, parent_world, child_world) in expected {
+        let mut times = set_times(&original, &selected, parent, child);
+        times.reverse(); // Time rows identify objects, rather than vector position.
+        let result = plan.sample(&times, Default::default()).unwrap();
+        assert_eq!(result.objects[0].source_world, parent_world);
+        assert_eq!(result.objects[1].source_world, child_world);
+        assert_eq!(result.propagated_objects, 3);
+        let requests = [
+            Request {
+                source_time: parent,
+                ..selected[0]
+            },
+            Request {
+                source_time: child,
+                ..selected[1]
+            },
+        ];
+        let one_shot =
+            pose::evaluate_set(&original, "cached", &requests, Default::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&result.objects).unwrap(),
+            serde_json::to_value(&one_shot.objects).unwrap()
+        );
+        let permuted = reverse.sample(&times, Default::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&result.objects[0]).unwrap(),
+            serde_json::to_value(&permuted.objects[1]).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&result.objects[1]).unwrap(),
+            serde_json::to_value(&permuted.objects[0]).unwrap()
+        );
+        assert_eq!(
+            (result.retained_bytes, result.work_units),
+            (permuted.retained_bytes, permuted.work_units)
+        );
+        assert!(!result.retail_behavior_verified);
+    }
+    assert_eq!(usage.required_forest_constructions, 1);
+    assert_eq!(usage.source_preparation.animation_key_decodes, 1);
+    assert_eq!(usage.source_preparation.scene_decodes, 1);
+    assert_eq!(usage.source_preparation.source_sha256_computations, 1);
+    assert_eq!(usage.source_preparation.block_sha256_computations, 9);
+    assert_eq!(
+        serde_json::to_value(usage).unwrap(),
+        serde_json::to_value(plan.usage()).unwrap()
+    );
+    assert_eq!(plan.source_sha256(), prepared.source_sha256());
+}
+
+#[test]
+fn prepared_set_rejects_foreign_duplicate_missing_identity_and_time_without_mutation() {
+    let (bytes, selected) = higher_parent_set_fixture();
+    let prepared =
+        pose::PreparedSource::prepare(&bytes, "set refusals", Default::default()).unwrap();
+    let bindings = set_bindings(&selected);
+    let plan = prepared.prepare_set(&bindings, Default::default()).unwrap();
+    let times = set_times(&bytes, &selected, 1., 1.);
+    let earlier = plan.sample(&times, Default::default()).unwrap();
+    let saved = serde_json::to_value(&earlier).unwrap();
+    let usage = serde_json::to_value(plan.usage()).unwrap();
+    let mut invalid = Vec::new();
+    invalid.push((times[..1].to_vec(), "missing or excess"));
+    invalid.push((vec![times[0], times[0]], "duplicate"));
+    for (field, reason) in [
+        (0, "foreign"),
+        (1, "controller differs"),
+        (2, "SHA256 differs"),
+        (3, "finite"),
+        (4, "extrapolate"),
+    ] {
+        let mut changed = times.clone();
+        match field {
+            0 => changed[1].object = u32::MAX,
+            1 => changed[1].controller = 2,
+            2 => changed[1].expected_source_sha256[31] ^= 1,
+            3 => changed[1].source_time = f64::NAN,
+            _ => changed[1].source_time = 3.,
+        }
+        invalid.push((changed, reason));
+    }
+    for (times, reason) in invalid {
+        let error = plan
+            .sample(&times, Default::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(reason), "{error}");
+        assert_eq!(serde_json::to_value(&earlier).unwrap(), saved);
+        assert_eq!(serde_json::to_value(plan.usage()).unwrap(), usage);
+        assert_eq!(
+            serde_json::to_value(
+                plan.sample(&set_times(&bytes, &selected, 1., 1.), Default::default())
+                    .unwrap()
+            )
+            .unwrap(),
+            saved
+        );
+    }
+    for bindings in [
+        vec![],
+        vec![bindings[1]],
+        vec![bindings[0], bindings[0]],
+        vec![
+            pose::ChannelBinding {
+                controller: 6,
+                ..bindings[0]
+            },
+            bindings[1],
+        ],
+    ] {
+        assert!(prepared.prepare_set(&bindings, Default::default()).is_err());
+    }
+    let mut source = set_fixture();
+    source[8].1 = keys(5, true); // A supported constant group remains admitted.
+    let supported =
+        pose::PreparedSource::prepare(&container(&source), "constant", Default::default()).unwrap();
+    assert!(
+        supported
+            .prepare_set(&set_bindings(&set_requests()), Default::default())
+            .is_ok()
+    );
+    let mut rotation = words_vec(&[1, 1]);
+    floats(&mut rotation, &[0., 1., 0., 0., 0.]);
+    rotation.extend_from_slice(&source[8].1[4..]);
+    source[8].1 = rotation;
+    let unsupported =
+        pose::PreparedSource::prepare(&container(&source), "rotation", Default::default()).unwrap();
+    let error = unsupported
+        .prepare_set(&set_bindings(&set_requests()), Default::default())
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(
+        error.contains("rotation key mapping is unapplied"),
+        "{error}"
+    );
+}
+
+#[test]
+fn prepared_set_preparation_sample_live_storage_and_sampler_caps_are_exact() {
+    let (bytes, selected) = higher_parent_set_fixture();
+    let prepared = pose::PreparedSource::prepare(&bytes, "set limits", Default::default()).unwrap();
+    let bindings = set_bindings(&selected);
+    let plan = prepared.prepare_set(&bindings, Default::default()).unwrap();
+    let used = plan.usage();
+    let exact = pose::SetPreparationLimits {
+        channels: 2,
+        ancestry_depth: 3,
+        array_bytes: used.extra_retained_bytes,
+        work_units: used.work_units,
+        live_array_bytes: used.live_retained_bytes,
+        sampling: sampling::Limits {
+            validation_work: used.sample_work.validation_units,
+            sampling_work: 0,
+        },
+    };
+    assert!(prepared.prepare_set(&bindings, exact).is_ok());
+    for limits in [
+        pose::SetPreparationLimits {
+            channels: 1,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            ancestry_depth: 2,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            ancestry_depth: 0,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            array_bytes: 0,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            live_array_bytes: exact.live_array_bytes - 1,
+            ..exact
+        },
+        pose::SetPreparationLimits {
+            sampling: sampling::Limits {
+                validation_work: exact.sampling.validation_work - 1,
+                sampling_work: 0,
+            },
+            ..exact
+        },
+    ] {
+        assert!(prepared.prepare_set(&bindings, limits).is_err());
+    }
+    let times = set_times(&bytes, &selected, 1., 1.);
+    let result = plan.sample(&times, Default::default()).unwrap();
+    let exact = pose::SetSampleLimits {
+        array_bytes: result.retained_bytes,
+        work_units: result.work_units,
+        live_array_bytes: used.live_retained_bytes,
+        sampling: sampling::Limits {
+            validation_work: result.sample_work.validation_units,
+            sampling_work: result.sample_work.sampling_units,
+        },
+    };
+    assert!(plan.sample(&times, exact).is_ok());
+    for limits in [
+        pose::SetSampleLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::SetSampleLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::SetSampleLimits {
+            live_array_bytes: exact.live_array_bytes - 1,
+            ..exact
+        },
+        pose::SetSampleLimits {
+            sampling: sampling::Limits {
+                validation_work: exact.sampling.validation_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+        pose::SetSampleLimits {
+            sampling: sampling::Limits {
+                sampling_work: exact.sampling.sampling_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+    ] {
+        assert!(plan.sample(&times, limits).is_err());
+    }
+}
+
+#[test]
+fn prepared_set_batch_charges_live_plan_once_full_key_scans_and_all_outputs() {
+    let (bytes, selected) = higher_parent_set_fixture();
+    let prepared = pose::PreparedSource::prepare(&bytes, "set batch", Default::default()).unwrap();
+    let plan = prepared
+        .prepare_set(&set_bindings(&selected), Default::default())
+        .unwrap();
+    let vectors = vec![
+        set_times(&bytes, &selected, 2., 0.),
+        set_times(&bytes, &selected, 1., 2.),
+        set_times(&bytes, &selected, 1., 2.),
+        set_times(&bytes, &selected, -0., 0.),
+    ];
+    let batch = plan.sample_many(&vectors, Default::default()).unwrap();
+    assert_eq!(
+        batch.samples[3].objects[0].channel.requested_time_f64_bits,
+        (-0f64).to_bits()
+    );
+    let outputs = batch
+        .samples
+        .iter()
+        .map(|s| s.retained_bytes)
+        .sum::<usize>();
+    assert_eq!(
+        batch.retained_bytes,
+        plan.usage().live_retained_bytes
+            + std::mem::size_of::<pose::PreparedSetBatch>()
+            + 64
+            + vectors.len() * std::mem::size_of::<pose::PoseSet>()
+            + outputs
+    );
+    let validation = batch
+        .samples
+        .iter()
+        .map(|s| s.sample_work.validation_units)
+        .sum::<usize>();
+    assert_eq!(
+        batch.sample_work.validation_units,
+        plan.usage().sample_work.validation_units + validation
+    );
+    assert_eq!(plan.usage().sample_work.validation_units, 28);
+    assert_eq!(validation, vectors.len() * 28); // Every sample revalidates four full groups.
+    for (times, result) in vectors.iter().zip(&batch.samples) {
+        assert_eq!(
+            serde_json::to_value(result).unwrap(),
+            serde_json::to_value(plan.sample(times, Default::default()).unwrap()).unwrap()
+        );
+    }
+    let mut twice = vectors.clone();
+    twice.extend(vectors.clone());
+    let larger = plan.sample_many(&twice, Default::default()).unwrap();
+    assert_eq!(larger.preparation.required_forest_constructions, 1);
+    assert_eq!(
+        larger.retained_bytes - batch.retained_bytes,
+        outputs + vectors.len() * std::mem::size_of::<pose::PoseSet>()
+    );
+    assert_eq!(
+        larger.work_units - batch.work_units,
+        batch.samples.iter().map(|s| s.work_units).sum::<usize>()
+    );
+    assert_eq!(
+        larger.sample_work.validation_units - batch.sample_work.validation_units,
+        validation
+    );
+    let exact = pose::SetBatchLimits {
+        samples: vectors.len(),
+        array_bytes: batch.retained_bytes,
+        work_units: batch.work_units,
+        sampling: sampling::Limits {
+            validation_work: batch.sample_work.validation_units,
+            sampling_work: batch.sample_work.sampling_units,
+        },
+        ..Default::default()
+    };
+    assert!(plan.sample_many(&vectors, exact).is_ok());
+    for limits in [
+        pose::SetBatchLimits {
+            samples: vectors.len() - 1,
+            ..exact
+        },
+        pose::SetBatchLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::SetBatchLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::SetBatchLimits {
+            sampling: sampling::Limits {
+                validation_work: exact.sampling.validation_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+        pose::SetBatchLimits {
+            sampling: sampling::Limits {
+                sampling_work: exact.sampling.sampling_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+        pose::SetBatchLimits {
+            sample: pose::SetSampleLimits {
+                live_array_bytes: plan.usage().live_retained_bytes - 1,
+                ..exact.sample
+            },
+            ..exact
+        },
+    ] {
+        assert!(plan.sample_many(&vectors, limits).is_err());
+    }
+}
+
+#[test]
+fn prepared_set_late_vector_failure_keeps_plan_and_earlier_owned_results() {
+    let (bytes, selected) = higher_parent_set_fixture();
+    let prepared = pose::PreparedSource::prepare(&bytes, "set atomic", Default::default()).unwrap();
+    let plan = prepared
+        .prepare_set(&set_bindings(&selected), Default::default())
+        .unwrap();
+    let times = set_times(&bytes, &selected, 1., 1.);
+    let earlier = plan.sample(&times, Default::default()).unwrap();
+    let saved = serde_json::to_value(&earlier).unwrap();
+    let mut vectors = vec![times.clone(), times.clone(), times.clone()];
+    vectors[2][1].source_time = 3.;
+    let error = plan
+        .sample_many(&vectors, Default::default())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("vector 2") && error.contains("extrapolate"),
+        "{error}"
+    );
+    assert_eq!(serde_json::to_value(&earlier).unwrap(), saved);
+    assert_eq!(
+        serde_json::to_value(plan.sample(&times, Default::default()).unwrap()).unwrap(),
+        saved
+    );
+    assert_eq!(plan.usage().required_forest_constructions, 1);
+    assert!(plan.sample_many(&[], Default::default()).is_err());
+}
+
 #[test]
 fn explicit_parent_child_set_composes_noncommuting_three_node_source_once() {
     let bytes = container(&set_fixture());

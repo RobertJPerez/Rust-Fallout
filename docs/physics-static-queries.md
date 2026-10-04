@@ -95,6 +95,20 @@ subtraction residuals, refusing uncertain contact comparisons. These local
 predicates retain the declared engineering transform scope; they do not certify
 retail units or arbitrary approximately similar transforms.
 
+Triangle rays guard the determinant, three closed barycentric comparisons and
+the complete `[0,max_distance]` range using constant-size directed intervals.
+Exact sum residuals and guarded normal-range FMA product residuals retain point
+intervals for ordinary closed edge/vertex contacts. Source-edge and origin-anchor
+subtractions must retain their exact binary64 differences. An unresolved sign,
+lost subtraction, or disagreement with the original scalar evaluation refuses
+the whole query, including earlier hits. A rounded zero determinant never proves
+a clear ray. Simple exact direction/edge and source-axis certificates preserve
+parallel/coplanar and degenerate misses. Other uncertifiable parallel cases can
+refuse. Source vertices, direction words, winding and shell radius remain intact;
+no epsilon, thickness or normalized direction is substituted. Successful entries
+keep the existing scalar distance within the admitted closed range; this is not
+a certificate of exact entry distance or of the upstream approximate transforms.
+
 Scenes with at least eight certifiably enclosed primitive occurrences use a
 balanced source-bound index. Its bounds enclose supported authored core geometry;
 they only reject guaranteed misses and never produce hits. Identity frames have

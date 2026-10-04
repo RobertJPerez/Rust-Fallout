@@ -3,6 +3,17 @@ use std::path::PathBuf;
 
 #[derive(Subcommand)]
 pub(crate) enum PhysicsCommand {
+    /// Classify explicit source points against exact selected navigation triangles.
+    NavigationEndpoints {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Certify an internally generated same-cell source triangle corridor.
     NavigationCorridor {
         #[arg(long)]

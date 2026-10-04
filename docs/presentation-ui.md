@@ -105,3 +105,38 @@ and a 12 MiB streamed report, alongside existing source-document limits. Definit
 names are at most 128 bytes; source reference names are at most 256 bytes. Copies
 begin after complete preflight. This is an explicit text observation for the later
 tile consumer; layout, operators, typed traits and original display remain open.
+
+The opt-in `--menu-traits REQUEST.json` projects one exact named tile's direct
+source fields. A strict schema-1 request binds `source` as above, `tile { name,
+node, span }` and explicit `conversions [{ name, kind }]`. The name must select a
+unique existing tile and match its node/span. Conversion kinds are `string`,
+`finite-f32` and `boolean-01`; their assignment is caller input, not a guessed
+runtime type for a source trait. This flag has its own selection and conflicts
+with the other menu selector/consumer flags.
+
+All direct element rows retain source order, name and whole/inner spans, plus
+exact inner source spelling. The complete direct child index list and source
+Document retain non-element nodes too. Requested absent names follow source
+rows, with null spans/spelling and `absent` status. Tile/include/template children
+remain structural. Duplicate declarations, attributed declarations, nested
+operators, unsupplied conversions and custom entities remain unresolved. Builtin
+and numeric references reuse the entity consumer with no custom definitions;
+malformed references refuse the complete projection. No field precedence,
+template expansion, arithmetic, visibility or layout default is supplied.
+
+Strings preserve literal whitespace, including a resolved empty string. Numeric
+and boolean policies trim only XML ASCII whitespace and preserve an `empty`
+result distinct from absence. Finite numbers use Rust's f32 parser and publish
+both the value and exact f32 bits, preserving negative zero. Malformed numbers,
+nonfinite numbers, overflow and a nonzero mantissa rounded to zero have explicit
+unresolved reasons. Other finite rounding follows that parser. Boolean conversion
+admits exactly `0` or `1`; custom `&true;`/`&false;` entities require future explicit
+source values and do not select a truth value here.
+
+Limits are 128 KiB request, 128 conversions, 256 rows, 2 MiB reserved copy bytes,
+1 MiB declared logical projection metadata and 16 MiB streamed output, plus
+existing Document/entity limits. Before row/value copying, the complete plan
+reserves each copied name plus twice its inner UTF-8 bytes, conservatively covering
+raw spelling and decoded value or missing-reference names. Metadata accounts for
+the borrowed plan/maps, owned row and reference structs and complete direct child list, excluding
+allocator peak and temporary entity work already bounded by that consumer.

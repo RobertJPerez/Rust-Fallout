@@ -1440,6 +1440,387 @@ fn packed_triangle_winding_degenerate_edges_and_source_metadata() {
     );
 }
 
+fn packed_triangle_fixture(vertices: [[f32; 3]; 3]) -> Vec<(&'static str, Vec<u8>)> {
+    let mut data = Vec::new();
+    words(&mut data, &[1]);
+    for value in [0u16, 1, 2, 0xabcd] {
+        data.extend(value.to_le_bytes());
+    }
+    words(&mut data, &[3]);
+    data.push(0);
+    for vertex in vertices {
+        floats(&mut data, &vertex);
+    }
+    data.extend(1u16.to_le_bytes());
+    data.extend([7, 0x81, 0x34, 0x12]);
+    words(&mut data, &[3, 42]);
+    let mut shape = Vec::new();
+    words(&mut shape, &[0, 0]);
+    floats(&mut shape, &[0.]);
+    words(&mut shape, &[0]);
+    floats(&mut shape, &[1., 1., 1., 0., 0., 1., 1., 1., 0.]);
+    words(&mut shape, &[2]);
+    vec![
+        ("bhkRigidBody", body(1)),
+        ("bhkPackedNiTriStripsShape", shape),
+        ("hkPackedNiTriStripsData", data),
+    ]
+}
+#[test]
+fn source_thin_triangle_true_crossing_cannot_become_a_parallel_miss() {
+    // Literal f32 epsilon2^-23. Independent Fraction over these EXACT source
+    // and request words gives determinant -2^-76 and t=1, barycentric1/2,1/4,1/4.
+    let eps = f32::from_bits(0x3400_0000);
+    let scene = scene(&packed_triangle_fixture([
+        [0.; 3],
+        [1.; 3],
+        [1., 1. + eps, 1. - eps],
+    ]));
+    let q = f64::from_bits(0x3fe2_79a7_4590_331d);
+    let direction = [q, q, f64::from_bits(q.to_bits() + 1)];
+    let point = [0.5, 0.5 + f64::from(eps) / 4., 0.5 - f64::from(eps) / 4.];
+    let origin = std::array::from_fn(|i| point[i] - direction[i]);
+    let result = scene.ray_cast(ray(origin, direction, 2.), QueryBudget::default());
+    assert!(
+        matches!(result, Err(QueryError::Invalid(_))),
+        "uncertain source crossing falsely accepted: {result:?}"
+    );
+}
+
+#[test]
+fn thin_source_triangle_raw_word_family_winding_and_cyclic_axes_refuse_atomically() {
+    let eps = f32::from_bits(0x3400_0000);
+    for axis in 0..3 {
+        for reverse in [false, true] {
+            let rotate = |p: [f32; 3]| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]];
+            let mut vertices = [[0.; 3], [1.; 3], [1., 1. + eps, 1. - eps]].map(rotate);
+            if reverse {
+                vertices.swap(1, 2);
+            }
+            let scene = scene(&packed_triangle_fixture(vertices));
+            for offset in -10..=10 {
+                let bits = 0x3fe2_79a7_4590_331du64.checked_add_signed(offset).unwrap();
+                for changed in 0..3 {
+                    let mut direction = [f64::from_bits(bits); 3];
+                    direction[changed] = f64::from_bits(bits + 1);
+                    let point = [0.5, 0.5 + f64::from(eps) / 4., 0.5 - f64::from(eps) / 4.];
+                    let origin = std::array::from_fn(|i| point[i] - direction[i]);
+                    let rotate = |p: [f64; 3]| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]];
+                    let result = scene.ray_cast(
+                        ray(rotate(origin), rotate(direction), 2.),
+                        QueryBudget::default(),
+                    );
+                    assert!(
+                        matches!(result, Err(QueryError::Invalid(_))),
+                        "axis={axis} reverse={reverse} offset={offset} changed={changed}: {result:?}"
+                    );
+                }
+            }
+        }
+    }
+    let mut blocks = packed_triangle_fixture([[0.; 3], [1.; 3], [1., 1. + eps, 1. - eps]]);
+    blocks.push(("bhkRigidBody", body(4)));
+    blocks.push(("bhkSphereShape", sphere(0.1)));
+    let (_, collision) =
+        nif_collision::decode(&container(&blocks), "partial hit before uncertain source").unwrap();
+    let mut sphere_placement = placement();
+    sphere_placement.body_block = 3;
+    let scene = StaticScene::build(
+        &collision,
+        &[sphere_placement, placement()],
+        units(),
+        QueryLimits::default(),
+    )
+    .unwrap();
+    let q = f64::from_bits(0x3fe2_79a7_4590_331d);
+    let direction = [q, q, f64::from_bits(q.to_bits() + 1)];
+    let point = [0.5, 0.5 + f64::from(eps) / 4., 0.5 - f64::from(eps) / 4.];
+    let origin = std::array::from_fn(|i| point[i] - direction[i]);
+    assert!(matches!(
+        scene.ray_cast(ray(origin, direction, 2.), QueryBudget::default()),
+        Err(QueryError::Invalid(_))
+    ));
+}
+
+#[test]
+fn exact_parallel_coplanar_degenerate_and_ordinary_triangle_controls_stay_available() {
+    let ordinary = scene(&packed_triangle_fixture([
+        [0.; 3],
+        [2., 0., 0.],
+        [0., 2., 0.],
+    ]));
+    for z in [-3., 3.] {
+        let hits = ordinary
+            .ray_cast(
+                ray([0.5, 0.5, z], [0., 0., -z.signum()], 10.),
+                QueryBudget::default(),
+            )
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].distance, 3.);
+        assert_eq!(hits[0].material, 42);
+        assert_eq!(hits[0].welding, Some(0xabcd));
+        assert_eq!(hits[0].shape_filter.unwrap().flags_and_parts, 0x81);
+    }
+    for o in [[0.5, 0.5, 3.], [0.5, 0.5, 0.]] {
+        assert!(
+            ordinary
+                .ray_cast(ray(o, [1., 0., 0.], 10.), QueryBudget::default())
+                .unwrap()
+                .is_empty()
+        );
+    }
+    let eps = f32::from_bits(0x3400_0000);
+    let thin = scene(&packed_triangle_fixture([
+        [0.; 3],
+        [1.; 3],
+        [1., 1. + eps, 1. - eps],
+    ]));
+    let q = f64::from_bits(0x3fe2_79a7_4590_331d);
+    assert!(
+        thin.ray_cast(ray([0.; 3], [q; 3], 2.), QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    let degenerate = scene(&packed_triangle_fixture([[0.; 3], [1.; 3], [2.; 3]]));
+    assert!(
+        degenerate
+            .ray_cast(
+                ray([0., 0., 3.], [0., 0., -1.], 10.),
+                QueryBudget::default()
+            )
+            .unwrap()
+            .is_empty()
+    );
+    let skew_plane = scene(&packed_triangle_fixture([[0.; 3], [1.; 3], [3., 2., 2.]]));
+    assert!(
+        skew_plane
+            .ray_cast(ray([0., 3., 0.], [1., 0., 0.], 10.), QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn triangle_closed_contacts_and_range_remain_available_across_source_scales() {
+    for exponent in [-80, -40, 0, 40, 80] {
+        let scale = 2f32.powi(exponent);
+        let s = f64::from(scale);
+        let scene = scene(&packed_triangle_fixture([
+            [0.; 3],
+            [scale, 0., 0.],
+            [0., scale, 0.],
+        ]));
+        for xy in [[0., 0.], [s, 0.], [s / 2., s / 2.], [s / 4., s / 4.]] {
+            let r = ray([xy[0], xy[1], 3. * s], [0., -0., -1.], 3. * s);
+            let hits = scene.ray_cast(r, QueryBudget::default()).unwrap();
+            assert_eq!(hits.len(), 1, "exponent={exponent} xy={xy:?}");
+            assert_eq!(hits[0].distance, 3. * s);
+            assert!(
+                scene
+                    .ray_cast(
+                        Ray {
+                            max_distance: (3. * s).next_down(),
+                            ..r
+                        },
+                        QueryBudget::default()
+                    )
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        assert!(
+            scene
+                .ray_cast(
+                    ray([s, s, 3. * s], [0., 0., -1.], 4. * s),
+                    QueryBudget::default()
+                )
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn triangle_inexact_source_and_origin_subtraction_never_report_clear() {
+    let small = 2f32.powi(-100);
+    let edges = scene(&packed_triangle_fixture([
+        [small, 0., 0.],
+        [1., 0., 0.],
+        [0., 1., 0.],
+    ]));
+    assert!(matches!(
+        edges.ray_cast(
+            ray([0.25, 0.25, 1.], [0., 0., -1.], 2.),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "triangle source edge subtraction is numerically uncertain"
+        ))
+    ));
+    let origin = scene(&packed_triangle_fixture([
+        [1., 0., 0.],
+        [2., 0., 0.],
+        [1., 1., 0.],
+    ]));
+    assert!(matches!(
+        origin.ray_cast(
+            ray([2f64.powi(-60), 0.25, 1.], [0., 0., -1.], 2.),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "triangle ray origin subtraction is numerically uncertain"
+        ))
+    ));
+}
+
+#[test]
+fn indexed_triangle_uncertainty_discards_earlier_source_hits_and_keeps_budgets() {
+    let eps = f32::from_bits(0x3400_0000);
+    let mut blocks = packed_triangle_fixture([[0.; 3], [1.; 3], [1., 1. + eps, 1. - eps]]);
+    blocks.push(("bhkRigidBody", body(4)));
+    blocks.push(("bhkSphereShape", sphere(0.1)));
+    let (_, collision) =
+        nif_collision::decode(&container(&blocks), "indexed literal source crossing").unwrap();
+    let mut placements: Vec<_> = (1..=8)
+        .map(|reference| BodyPlacement {
+            reference: ReferenceId(NonZeroU64::new(reference).unwrap()),
+            ..placement()
+        })
+        .collect();
+    placements[0].body_block = 3;
+    let scene =
+        StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+    assert_eq!(scene.primitive_count(), 8);
+    let q = f64::from_bits(0x3fe2_79a7_4590_331d);
+    let d = [q, q, q.next_up()];
+    let point = [0.5, 0.5 + f64::from(eps) / 4., 0.5 - f64::from(eps) / 4.];
+    let r = ray(std::array::from_fn(|i| point[i] - d[i]), d, 2.);
+    let sphere_scene = StaticScene::build(
+        &collision,
+        &placements[..1],
+        units(),
+        QueryLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        sphere_scene
+            .ray_cast(r, QueryBudget::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(matches!(
+        scene.ray_cast(r, QueryBudget::default()),
+        Err(QueryError::Invalid(_))
+    ));
+    for budget in [
+        QueryBudget {
+            primitive_tests: 0,
+            ..QueryBudget::default()
+        },
+        QueryBudget {
+            geometry_tests: 0,
+            ..QueryBudget::default()
+        },
+    ] {
+        assert!(matches!(
+            scene.ray_cast(r, budget),
+            Err(QueryError::Budget(_))
+        ));
+    }
+    let mut scaled_placements = placements;
+    for p in &mut scaled_placements {
+        p.attachment_to_source = Affine {
+            rows: [[-2., 0., 0., 0.], [0., 2., 0., 0.], [0., 0., 2., 0.]],
+        };
+    }
+    let scaled = StaticScene::build(
+        &collision,
+        &scaled_placements,
+        units(),
+        QueryLimits::default(),
+    )
+    .unwrap();
+    assert!(matches!(
+        scaled.ray_cast(
+            ray(
+                [-2. * r.origin[0], 2. * r.origin[1], 2. * r.origin[2]],
+                [-d[0], d[1], d[2]],
+                4.
+            ),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(_))
+    ));
+}
+
+#[test]
+#[ignore = "explicit private source-triangle CLI fixture export"]
+fn triangle_ray_cli_fixture_export() {
+    use std::io::Write;
+    let root = std::path::PathBuf::from(std::env::var_os("FALLOUT_TRIANGLE_FIXTURE").unwrap());
+    std::fs::create_dir(&root).unwrap();
+    let eps = f32::from_bits(0x3400_0000);
+    for axis in 0..3 {
+        for reverse in [false, true] {
+            let mut vertices = [[0.; 3], [1.; 3], [1., 1. + eps, 1. - eps]]
+                .map(|p| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]]);
+            if reverse {
+                vertices.swap(1, 2);
+            }
+            let name = format!("thin-{axis}-{reverse}.nif");
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(root.join(name))
+                .unwrap();
+            file.write_all(&container(&packed_triangle_fixture(vertices)))
+                .unwrap();
+        }
+    }
+    let mut mixed = packed_triangle_fixture([[0.; 3], [1.; 3], [1., 1. + eps, 1. - eps]]);
+    mixed.push(("bhkRigidBody", body(4)));
+    mixed.push(("bhkSphereShape", sphere(0.1)));
+    for _ in 0..6 {
+        mixed.push(("bhkRigidBody", body(1)));
+    }
+    for (name, blocks) in [
+        ("mixed-indexed.nif", mixed),
+        (
+            "ordinary.nif",
+            packed_triangle_fixture([[0.; 3], [2., 0., 0.], [0., 2., 0.]]),
+        ),
+        (
+            "degenerate.nif",
+            packed_triangle_fixture([[0.; 3], [1.; 3], [2.; 3]]),
+        ),
+        (
+            "inexact-edge.nif",
+            packed_triangle_fixture([[2f32.powi(-100), 0., 0.], [1., 0., 0.], [0., 1., 0.]]),
+        ),
+        (
+            "inexact-origin.nif",
+            packed_triangle_fixture([[1., 0., 0.], [2., 0., 0.], [1., 1., 0.]]),
+        ),
+        (
+            "sphere.nif",
+            vec![("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))],
+        ),
+        (
+            "box.nif",
+            vec![("bhkRigidBody", body(1)), ("bhkBoxShape", bx())],
+        ),
+    ] {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(root.join(name))
+            .unwrap();
+        file.write_all(&container(&blocks)).unwrap();
+    }
+}
+
 #[test]
 fn invalid_units_queries_and_budgets_fail_without_partial_hits() {
     let (_, collision) = nif_collision::decode(

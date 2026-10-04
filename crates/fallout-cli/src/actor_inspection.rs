@@ -54,6 +54,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) actor_reference_intent: Option<&'a Path>,
     pub(super) actor_inventory_transfer: Option<&'a Path>,
     pub(super) actor_equipment_intent: Option<&'a Path>,
+    pub(super) actor_context_batch: Option<&'a Path>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -84,6 +85,7 @@ pub(super) fn package_context(
         || options.actor_reference_intent.is_some()
         || options.actor_inventory_transfer.is_some()
         || options.actor_equipment_intent.is_some()
+        || options.actor_context_batch.is_some()
         || options.inventory_boot_request.is_some())
     .then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
@@ -432,6 +434,22 @@ pub(super) fn package_context(
             report["actor_equipment_intent"] = serde_json::to_value(candidate)?;
         }
     }
+    if options.actor_context_batch.is_some() {
+        use fallout_runtime::actor_rules::context_batch;
+        let placements = actors::placements::Catalogue::load(&mut store, Default::default())?;
+        if let Some(path) = options.actor_context_batch {
+            let selected: SelectedActorReferences = read_actor_intent(path, 1024 * 1024)?;
+            let batch = context_batch::observe_batch(
+                &world,
+                &content,
+                &placements,
+                &actors,
+                &selected.0,
+                Default::default(),
+            )?;
+            report["actor_context_batch"] = serde_json::to_value(batch)?;
+        }
+    }
     if before_observation
         .as_ref()
         .is_some_and(|before| before != &world.snapshot())
@@ -439,6 +457,39 @@ pub(super) fn package_context(
         return Err("actor item/context observation changed canonical state".into());
     }
     Ok(report)
+}
+
+struct SelectedActorReferences(Vec<fallout_runtime::identity::ReferenceId>);
+impl<'de> serde::Deserialize<'de> for SelectedActorReferences {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        struct SelectedVisitor;
+        impl<'de> serde::de::Visitor<'de> for SelectedVisitor {
+            type Value = SelectedActorReferences;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("an explicit bounded array of nonzero actor reference ids")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> std::result::Result<Self::Value, A::Error> {
+                let maximum =
+                    fallout_runtime::actor_rules::context_batch::Limits::default().max_references;
+                let mut selected = Vec::new();
+                while let Some(reference) = seq.next_element()? {
+                    if selected.len() >= maximum {
+                        return Err(serde::de::Error::custom(
+                            "actor context selected reference budget exceeded",
+                        ));
+                    }
+                    selected.push(reference);
+                }
+                Ok(SelectedActorReferences(selected))
+            }
+        }
+        deserializer.deserialize_seq(SelectedVisitor)
+    }
 }
 
 fn read_actor_intent<T: serde::de::DeserializeOwned>(path: &Path, maximum: usize) -> Result<T> {

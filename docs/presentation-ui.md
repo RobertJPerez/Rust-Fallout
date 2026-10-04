@@ -140,3 +140,45 @@ reserves each copied name plus twice its inner UTF-8 bytes, conservatively cover
 raw spelling and decoded value or missing-reference names. Metadata accounts for
 the borrowed plan/maps, owned row and reference structs and complete direct child list, excluding
 allocator peak and temporary entity work already bounded by that consumer.
+
+`--menu-dependencies REQUEST.json` is a separate opt-in inspection mode with
+installation and report paths. Its strict schema-1 request lists exact `sources`
+(path/archive SHA/payload SHA), explicit `bindings`, initialized opaque `inputs`
+and ordered `changes`. Each endpoint identifies its source index, node, complete
+span and name span. A binding identifies the target's exact operator node/span,
+plus the exact `src` and `trait` attribute name/value spans. The source trait name
+must match that literal trait operand. The operator must lie inside the target
+trait, with only known operator ancestors in between. Endpoints must be direct
+traits of existing tiles. Sources can span several documents; no XML reference
+path or template relationship is inferred from the caller's binding.
+
+The session builds source-to-dependent reverse edges once. Repeated edges collapse
+while the original request retains every operand binding. Conflicting assignments
+of one operand to different endpoints refuse; identical repeated assignments
+remain allowed. Iterative DFS refuses a
+cycle with a closed source-index/node/span witness before session publication.
+Affected work uses deterministic reverse DFS postorder; ties follow ordered source
+and node identities. Each diamond descendant appears once. Changed inputs appear
+separately from downstream work, and unrelated expressions stay untouched.
+
+Each change carries the cohort SHA, expected revision and exact endpoint/value
+updates. The cohort hashes a fixed domain tag, a little-endian u64 source count,
+then each ordered path/archive SHA/payload SHA as little-endian u64 byte length plus
+UTF-8 bytes. Initial values and updates are explicit opaque caller input, including
+empty strings; they are not evaluated source expressions. No-op changes leave the
+revision and work unchanged. Full identity, value, traversal, report-row and checked
+revision admission precede value copies/state replacement. A refused change leaves
+all input values and revision intact; complete batch value sizing is independent
+of update order.
+
+Limits are 256 KiB request, existing include source-file/aggregate Document limits,
+1,024 graph nodes, 4,096 bindings, 1,024 initialized inputs, 64 KiB per input and
+1 MiB current opaque values, 128 changes and 128 updates per change. Validation is
+limited to 32,768 steps and 8 MiB source operand/name bytes. Each propagation admits
+at most 16,384 node/edge visits. Declared logical session metadata is limited to
+4 MiB; complete CLI results admit at most 16,384 changed/affected rows before
+retention, with a 32 MiB streamed report ceiling. Source Documents and bounded
+request strings have their own limits. A later report write failure can leave a
+partial immutable output; semantic batch failures create no report. This identifies
+work in the explicit graph, without arithmetic, engine defaults, original menu
+display or gameplay acceptance.

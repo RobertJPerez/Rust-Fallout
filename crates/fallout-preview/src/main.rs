@@ -40,7 +40,7 @@ use std::{
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
-#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu"])))]
+#[command(group(ArgGroup::new("mode").required(true).args(["model", "model_file", "cell", "terrain", "material_fixture", "menu", "menu_dependencies"])))]
 #[command(group(ArgGroup::new("model_source").args(["model", "model_file"])))]
 struct Options {
     #[arg(skip)]
@@ -68,6 +68,9 @@ struct Options {
     /// Exact selected tile and explicit literal conversion policies.
     #[arg(long, requires = "menu", conflicts_with_all = ["menu_includes", "menu_entities", "menu_tile"])]
     menu_traits: Option<PathBuf>,
+    /// Explicit source-qualified UI dependency session and opaque input changes.
+    #[arg(long, requires_all = ["install", "report"], conflicts_with_all = ["capture", "headless"])]
+    menu_dependencies: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -321,6 +324,30 @@ fn run() -> model::Result<AppExit> {
     }
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
+    }
+    if let Some(path) = &options.menu_dependencies {
+        let limits = ui::dependencies::Limits::default();
+        let request = ui::dependencies::read_request(path, limits)?;
+        let report = ui::dependencies::inspect(
+            options
+                .install
+                .as_deref()
+                .expect("menu dependencies require installation"),
+            &request,
+            limits,
+        )?;
+        let file = OpenOptions::new().write(true).create_new(true).open(
+            options
+                .report
+                .as_ref()
+                .expect("menu dependencies require report"),
+        )?;
+        ui::dependencies::write_report(file, &report, limits.output_bytes)?;
+        eprintln!(
+            "Menu dependency session: {} nodes, {} edges, revision {}; values remain unevaluated",
+            report.graph.graph_nodes, report.graph.unique_edges, report.final_revision
+        );
+        return Ok(AppExit::Success);
     }
     if let Some(menu) = &options.menu {
         if let Some(request) = &options.menu_traits {

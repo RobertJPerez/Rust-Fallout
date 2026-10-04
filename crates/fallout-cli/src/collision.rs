@@ -622,14 +622,14 @@ pub struct ReferenceReport {
 
 // Count the complete pretty report before emit allocates it or opens an output.
 // Failure leaves no report file and cannot publish a partial successful report.
-struct ReportCounter(usize);
+pub(super) struct ReportCounter(pub(super) usize);
 impl std::io::Write for ReportCounter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0 = self
             .0
             .checked_add(bytes.len())
             .filter(|v| *v <= 64 * 1024 * 1024)
-            .ok_or_else(|| std::io::Error::other("reference collision report exceeds 64 MiB"))?;
+            .ok_or_else(|| std::io::Error::other("inspection report exceeds 64 MiB"))?;
         Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {

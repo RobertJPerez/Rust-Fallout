@@ -25,9 +25,51 @@ fn load_one(
     at: Location,
     limits: Limits,
 ) -> Result<SourceMesh> {
+    load_one_inner(store, key, at, limits, None)
+}
+pub(super) fn load_one_bounded(
+    store: &mut RecordStore,
+    key: FormKey,
+    at: Location,
+    limits: Limits,
+    metadata: &mut usize,
+    longest_name: usize,
+) -> Result<SourceMesh> {
+    load_one_inner(store, key, at, limits, Some((metadata, longest_name)))
+}
+fn load_one_inner(
+    store: &mut RecordStore,
+    key: FormKey,
+    at: Location,
+    limits: Limits,
+    metadata: Option<(&mut usize, usize)>,
+) -> Result<SourceMesh> {
     let record = store.read_bounded(at, limits.record_bytes)?;
+    let mesh = decode_mesh(&record, store.source_name(at), limits)?;
+    if let Some((left, longest)) = metadata {
+        // Reserve source/field descriptors and every resolved target identity
+        // before allocating strings or collecting the external/door tables.
+        let count = mesh.edge_links.len().checked_add(mesh.door_links.len());
+        let target_size = longest.checked_mul(2).and_then(|n| n.checked_add(128));
+        let bytes = count
+            .zip(target_size)
+            .and_then(|(count, size)| count.checked_mul(size))
+            .and_then(|n| {
+                mesh.fields
+                    .capacity()
+                    .checked_mul(128)
+                    .and_then(|fields| n.checked_add(fields))
+            })
+            .and_then(|n| {
+                longest
+                    .checked_mul(4)
+                    .and_then(|names| n.checked_add(names))
+            })
+            .and_then(|n| n.checked_add(2048))
+            .ok_or_else(|| Error::Unsupported("navigation identity metadata overflow".into()))?;
+        super::selection::charge(left, bytes, "navigation identity metadata")?;
+    }
     let source_plugin = store.source_name(at).to_owned();
-    let mesh = decode_mesh(&record, &source_plugin, limits)?;
     let cell = store.key_for(at, mesh.cell_raw.value)?;
     let external_targets = mesh
         .edge_links

@@ -574,6 +574,17 @@ enum Command {
         #[arg(long, requires = "reconstruct_heights", value_parser = parse_cell_key)]
         neighbor_form: Option<identity::FormKey>,
     },
+    /// Inspect an explicit source CELL set under shared navigation and route limits.
+    NavigationCellSet {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Inspect source-authored selected-cell navigation; optionally request a bounded route.
     NavigationRoute {
         #[arg(long)]
@@ -1752,6 +1763,20 @@ fn run(args: Args) -> Result<()> {
             if report.failures != 0 {
                 return Err("skin decoding or independent comparison failed; see report".into());
             }
+        }
+        Command::NavigationCellSet {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect_cells(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+            )?;
+            emit(&report, output, &install)?;
         }
         Command::NavigationRoute {
             install,

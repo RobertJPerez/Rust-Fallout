@@ -4,6 +4,8 @@
 //! shared completion queue.
 use super::{Captured, Repository, WriteReceipt};
 mod admission;
+#[cfg(test)]
+mod source_context_tests;
 use admission::{Admission, Permit};
 use std::sync::{
     Arc,

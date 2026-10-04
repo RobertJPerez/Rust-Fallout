@@ -4,7 +4,7 @@ use fallout_data::{
     baseline,
     nif_collision::{self, Collision, Data},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
@@ -253,6 +253,90 @@ pub fn inspect(input: &Path, oracle_path: Option<&Path>) -> Result<Report> {
         report.files.push(row);
     }
     Ok(report)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QueryRequest {
+    reference: std::num::NonZeroU64,
+    body_blocks: Vec<u32>,
+    attachment_rows: [[f64; 4]; 3],
+    units: fallout_runtime::physics::EngineeringUnits,
+    ray: Option<fallout_runtime::physics::Ray>,
+    overlap: Option<SphereRequest>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SphereRequest {
+    center: [f64; 3],
+    radius: f64,
+}
+#[derive(Serialize)]
+pub struct QueryReport {
+    source_sha256: String,
+    request_sha256: String,
+    units: fallout_runtime::physics::EngineeringUnits,
+    primitive_count: usize,
+    ray_hits: Vec<fallout_runtime::physics::Hit>,
+    overlap_hits: Vec<fallout_runtime::physics::Hit>,
+    query_semantics: &'static str,
+    faithful_ready: bool,
+}
+
+/// One real source file, existing decoder, explicit authored attachment frame and
+/// immutable query geometry. An unsupported selected body fails the entire request.
+pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
+    use fallout_runtime::{
+        identity::ReferenceId,
+        physics::{BodyPlacement, QueryBudget, QueryLimits, StaticScene},
+    };
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: QueryRequest = serde_json::from_slice(&request_bytes)?;
+    if request.body_blocks.is_empty()
+        || request.body_blocks.len() > 10_000
+        || (request.ray.is_none() && request.overlap.is_none())
+    {
+        return Err("collision request needs 1..10000 bodies and a ray or overlap".into());
+    }
+    let digest: [u8; 32] = Sha256::digest(&bytes).into();
+    let (_, collision) = nif_collision::decode(&bytes, &input.display().to_string())?;
+    let placements: Vec<_> = request
+        .body_blocks
+        .iter()
+        .map(|&body_block| BodyPlacement {
+            reference: ReferenceId(request.reference),
+            source_sha256: digest,
+            body_block,
+            attachment_to_source: fallout_data::coordinates::Affine {
+                rows: request.attachment_rows,
+            },
+        })
+        .collect();
+    let scene = StaticScene::build(
+        &collision,
+        &placements,
+        request.units,
+        QueryLimits::default(),
+    )?;
+    Ok(QueryReport {
+        source_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        units: request.units,
+        primitive_count: scene.primitive_count(),
+        ray_hits: request
+            .ray
+            .map(|ray| scene.ray_cast(ray, QueryBudget::default()))
+            .transpose()?
+            .unwrap_or_default(),
+        overlap_hits: request
+            .overlap
+            .map(|s| scene.overlap_sphere(s.center, s.radius, QueryBudget::default()))
+            .transpose()?
+            .unwrap_or_default(),
+        query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; convex/packed shell margins excluded; source axes retained",
+        faithful_ready: scene.faithful_ready(),
+    })
 }
 
 #[cfg(test)]

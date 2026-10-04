@@ -567,6 +567,9 @@ enum Command {
         input: PathBuf,
         #[arg(long)]
         oracle_report: Option<PathBuf>,
+        /// Explicit frozen-body engineering ray/overlap request (one input file).
+        #[arg(long, conflicts_with = "oracle_report")]
+        query_request: Option<PathBuf>,
     },
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {
@@ -1599,7 +1602,13 @@ fn run(args: Args) -> Result<()> {
         Command::NifCollision {
             input,
             oracle_report,
+            query_request,
         } => {
+            if let Some(request) = query_request {
+                let report = collision::query(&input, &request)?;
+                emit(&report, output, &input)?;
+                return Ok(());
+            }
             let report = collision::inspect(&input, oracle_report.as_deref())?;
             emit(&report, output, &input)?;
             if report.failures != 0 {

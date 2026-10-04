@@ -587,3 +587,45 @@ formatting and diff checks pass. The first comparison helper put a malformed
 input beside reports and hit the output-directory guard. Its failed snapshot and
 run remain preserved; separating input and report directories fixes the evidence
 layout without changing decoder code, binary or source bytes.
+
+## Constant Boolean key source (ASSET-07D)
+
+`nif_animation::boolean::keyframes` adds a separate `NiBoolData` catalogue.
+The physical zero-count layout contains only its u32 count. Positive counts
+require the independently observed constant tag 5, followed by ordered records
+of finite binary32 time and raw uint8 value. Other tags refuse explicitly in
+this branch and stay opaque through schema5. Raw values 0 through 255, signed
+zero, duplicate times and descending times remain unchanged. No sorting,
+truth conversion, event timing or Boolean evaluation occurs.
+
+The decoder reuses the immutable index and earlier source catalogues. Selected
+block/digest storage, primitive work, the two-million-key count bound and exact
+five-byte record span are admitted before key allocation. Work charges one unit
+per selected block, one per stored count/tag, and two per key. Defaults add
+128 MiB logical storage and 16 million work units under the existing combined
+cap. Only fully decoded groups retire exact `NiBoolData` payload dependencies;
+unknown classes remain ordered and dependency vector capacity stays charged.
+
+`fallout nif-animation INPUT --include-bool-keys` selects additive source schema6,
+includes the earlier catalogues, and emits `bool_keys` with branch
+`nv-bool-constant-key-source`. The native oracle uses the same flag and requires
+`raw_bool_key_counts_checked: true`. Raw count/tag/span/work/storage preflight
+precedes its pinned uint8 key factory. Comparison checks identity, span, digest,
+declared count, tag and every ordered key exactly, without duplicating the whole
+key catalogue. One work allowance covers the inspector batch; failed combined
+decoding conservatively exhausts remaining source allowances.
+
+Private evidence is frozen in `local/asset-07d-teamv2-20261003-01`, with native
+build `local/nif-animation-oracle-build-07d-teamv2`. Seven new decoder tests and
+the existing 60 animation tests pass, along with all 25 CLI tests. Both readers
+and independent authored expectations agree on 96 files across twelve streams.
+Sixteen altered reports and seventeen malformed groups refuse for their intended
+reasons; schema5 continues to admit these opaque data payloads. All 70 originals
+compare exactly, including 40 groups and 1,787 keys. Additional work totals
+3,694 units and logical retention is 21,016 bytes. Overall dependencies total
+3,814, diagnostics zero and readiness false. A third raw header/layout audit
+matches every group identity, span/hash and source key. Fresh Rust/native builds,
+all-target Clippy with warnings denied, formatting and diff checks pass.
+Original Rust default schemas1/2/3/4/5 remain byte-exact, and their native source
+reports match frozen oracles except the actual executable digest. Source keys
+remain distinct from sampled poses, timeline events and verified retail playback.

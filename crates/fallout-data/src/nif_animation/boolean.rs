@@ -1,5 +1,6 @@
 //! Exact Boolean interpolator source bytes. The raw byte has no admitted truth
 //! meaning here; Boolean keys and timeline/event evaluation remain unsupported.
+pub mod keyframes;
 use super::{LinkStatus, spline};
 use crate::{Error, Result, nif, nif_animation, nif_scene::cursor::Reader};
 use serde::Serialize;

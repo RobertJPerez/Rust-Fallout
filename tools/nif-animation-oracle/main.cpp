@@ -62,7 +62,8 @@ static bool selected(const std::string& name) {return name=="NiTransformControll
 #include "splines.hpp"
 #include "components.hpp"
 #include "booleans.hpp"
-static void write_file(std::ostream& out,const std::filesystem::path& path,bool include_keys,bool include_splines,bool include_components,bool include_booleans) {
+#include "boolean_keys.hpp"
+static void write_file(std::ostream& out,const std::filesystem::path& path,bool include_keys,bool include_splines,bool include_components,bool include_booleans,bool include_bool_keys) {
     const auto bytes=snapshot(path);const auto raw=raw_header(bytes);
     std::istringstream input(bytes,std::ios::binary);NiHeader header;NiIStream stream(&input,&header);header.Get(stream);
     if(!input||!header.IsValid()||header.GetNumBlocks()!=raw.sizes.size()||input.tellg()!=static_cast<std::streamoff>(raw.payload_start)||header.GetStringCount()!=raw.strings.size())
@@ -79,7 +80,9 @@ static void write_file(std::ostream& out,const std::filesystem::path& path,bool 
     std::vector<KeyCounts> key_counts;
     size_t key_checks=16000000;
     if(include_keys){storage(remaining,raw.sizes.size(),sizeof(KeyCounts));key_counts.resize(raw.sizes.size());}
-    std::vector<SplineCounts> spline_counts;size_t spline_checks=16000000,component_checks=16000000,boolean_checks=16000000;
+    std::vector<SplineCounts> spline_counts;size_t spline_checks=16000000,component_checks=16000000,boolean_checks=16000000,boolean_key_checks=16000000;
+    std::vector<uint32_t> boolean_key_counts;
+    if(include_bool_keys){storage(remaining,raw.sizes.size(),sizeof(uint32_t));boolean_key_counts.resize(raw.sizes.size());}
     if(include_splines){storage(remaining,raw.sizes.size(),sizeof(SplineCounts));spline_counts.resize(raw.sizes.size());}
     for(uint32_t id=0;id<raw.sizes.size();++id) {
         const auto& name=raw.types[raw.indices[id]];
@@ -94,7 +97,9 @@ static void write_file(std::ostream& out,const std::filesystem::path& path,bool 
         if(component_data)preflight_component(payload,name,raw,remaining,component_checks);
         const bool boolean_data=include_booleans&&selected_boolean(name);
         if(boolean_data)preflight_boolean(payload,name,raw,remaining,boolean_checks);
-        if(selected(name)||key_data||spline_data||component_data||boolean_data) {
+        const bool bool_keys=include_bool_keys&&name=="NiBoolData";
+        if(bool_keys)boolean_key_counts[id]=preflight_boolean_keys(payload,remaining,boolean_key_checks);
+        if(selected(name)||key_data||spline_data||component_data||boolean_data||bool_keys) {
             std::istringstream block_input(std::string(payload),std::ios::binary);NiIStream block_stream(&block_input,&header);
             const auto factory=NiFactoryRegister::Get().GetFactoryByName(name);if(!factory)throw std::runtime_error("required animation factory missing");
             blocks.push_back(factory->Load(block_stream));
@@ -186,14 +191,26 @@ static void write_file(std::ostream& out,const std::filesystem::path& path,bool 
             if(!blocks[id])throw std::runtime_error("native selected Boolean block missing");
             project_boolean(out,*blocks[id]);out<<'}';
         }out<<']';
+    }
+    if(include_bool_keys){
+        out<<",\"bool_keys\":[";bool first_key=true;
+        for(uint32_t id=0;id<blocks.size();++id){
+            const auto& name=raw.types[raw.indices[id]];if(name!="NiBoolData")continue;
+            if(!first_key)out<<',';first_key=false;
+            out<<"{\"block\":"<<id<<",\"block_type\":\"NiBoolData\",\"offset\":"<<raw.offsets[id];
+            out<<",\"bytes\":"<<raw.sizes[id]<<",\"sha256\":";text(out,sha256(bytes.data()+raw.offsets[id],raw.sizes[id]));out<<",\"data\":";
+            if(!blocks[id])throw std::runtime_error("native selected Boolean-key block missing");
+            project_boolean_keys(out,*blocks[id],boolean_key_counts[id]);out<<'}';
+        }out<<']';
     }out<<'}';
 }
 int main(int argc,char** argv) {
-    const bool include_booleans=argc==3&&std::string_view(argv[2])=="--include-bool-interpolators";
+    const bool include_bool_keys=argc==3&&std::string_view(argv[2])=="--include-bool-keys";
+    const bool include_booleans=include_bool_keys||(argc==3&&std::string_view(argv[2])=="--include-bool-interpolators");
     const bool include_components=include_booleans||(argc==3&&std::string_view(argv[2])=="--include-spline-components");
     const bool include_splines=include_components||(argc==3&&std::string_view(argv[2])=="--include-splines");
     const bool include_keys=include_splines||(argc==3&&std::string_view(argv[2])=="--include-keyframes");
-    if(argc!=2&&!include_keys){std::cerr<<"usage: nif-animation-oracle INPUT_FILE_OR_DIRECTORY [--include-keyframes|--include-splines|--include-spline-components|--include-bool-interpolators]\n";return 2;}
+    if(argc!=2&&!include_keys){std::cerr<<"usage: nif-animation-oracle INPUT_FILE_OR_DIRECTORY [--include-keyframes|--include-splines|--include-spline-components|--include-bool-interpolators|--include-bool-keys]\n";return 2;}
     try {
         const std::filesystem::path input(argv[1]);std::vector<std::filesystem::path> paths;
         if(std::filesystem::is_directory(input)) {
@@ -203,14 +220,15 @@ int main(int argc,char** argv) {
             }
         }else paths.push_back(input);if(paths.empty())throw std::runtime_error("native animation found no inputs");std::sort(paths.begin(),paths.end());
         const auto binary=snapshot(argv[0]);
-        std::cout<<"{\"schema_version\":"<<(include_booleans?5:include_components?4:include_splines?3:include_keys?2:1)<<",\"animation_branch\":\"nv-four-source-classes\",\"float_encoding\":\"ieee754-binary32-bits\",\"string_encoding\":\"raw-byte-arrays\",\"nifly_revision\":\"cca0a770094bb962fb28ea1fec5ea903e68fda8e\",\"prepare_data_called\":false,\"raw_string_table_checked\":true,\"raw_count_fields_checked\":true,\"runtime_ready\":false";
+        std::cout<<"{\"schema_version\":"<<(include_bool_keys?6:include_booleans?5:include_components?4:include_splines?3:include_keys?2:1)<<",\"animation_branch\":\"nv-four-source-classes\",\"float_encoding\":\"ieee754-binary32-bits\",\"string_encoding\":\"raw-byte-arrays\",\"nifly_revision\":\"cca0a770094bb962fb28ea1fec5ea903e68fda8e\",\"prepare_data_called\":false,\"raw_string_table_checked\":true,\"raw_count_fields_checked\":true,\"runtime_ready\":false";
         if(include_keys)std::cout<<",\"keyframe_branch\":\"nv-transform-data-source\",\"raw_keyframe_counts_checked\":true";
         if(include_splines)std::cout<<",\"spline_branch\":\"nv-compact-transform-source\",\"raw_spline_counts_checked\":true";
         if(include_components)std::cout<<",\"spline_component_branch\":\"nv-compact-components-source\",\"raw_component_fields_checked\":true";
         if(include_booleans)std::cout<<",\"bool_interpolator_branch\":\"nv-bool-interpolator-source\",\"raw_bool_fields_checked\":true";
+        if(include_bool_keys)std::cout<<",\"bool_key_branch\":\"nv-bool-constant-key-source\",\"raw_bool_key_counts_checked\":true";
         std::cout<<",\"oracle_binary_sha256\":";text(std::cout,sha256(binary.data(),binary.size()));std::cout<<",\"files\":[";
         bool failed=false;
-        for(size_t i=0;i<paths.size();++i){if(i)std::cout<<',';try{RowBuffer buffer;std::ostream row(&buffer);row.exceptions(std::ios::badbit|std::ios::failbit);write_file(row,paths[i],include_keys,include_splines,include_components,include_booleans);std::cout<<buffer.get();}catch(const std::exception& e){failed=true;std::cout<<"{\"file\":";text(std::cout,paths[i].filename().u8string());std::cout<<",\"error\":";text(std::cout,e.what());std::cout<<'}';}}
+        for(size_t i=0;i<paths.size();++i){if(i)std::cout<<',';try{RowBuffer buffer;std::ostream row(&buffer);row.exceptions(std::ios::badbit|std::ios::failbit);write_file(row,paths[i],include_keys,include_splines,include_components,include_booleans,include_bool_keys);std::cout<<buffer.get();}catch(const std::exception& e){failed=true;std::cout<<"{\"file\":";text(std::cout,paths[i].filename().u8string());std::cout<<",\"error\":";text(std::cout,e.what());std::cout<<'}';}}
         std::cout<<"]}\n";return failed?1:0;
     }catch(const std::exception& e){std::cerr<<"animation oracle: "<<e.what()<<'\n';return 1;}
 }

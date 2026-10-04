@@ -104,6 +104,8 @@ enum Command {
         include_spline_components: bool,
         #[arg(long)]
         include_bool_interpolators: bool,
+        #[arg(long)]
+        include_bool_keys: bool,
         #[arg(long, requires_all = ["sample_block", "sample_channel"], allow_hyphen_values = true)]
         sample_time: Option<f64>,
         #[arg(long, requires = "sample_time")]
@@ -1518,6 +1520,7 @@ fn run(args: Args) -> Result<()> {
             include_splines,
             include_spline_components,
             include_bool_interpolators,
+            include_bool_keys,
             sample_time,
             sample_block,
             sample_channel,
@@ -1540,10 +1543,13 @@ fn run(args: Args) -> Result<()> {
             let report = nif_animation_inspection::inspect(
                 &input,
                 oracle_report.as_deref(),
-                include_keyframes,
-                include_splines,
-                include_spline_components,
-                include_bool_interpolators,
+                nif_animation_inspection::SourceOptions {
+                    include_keyframes,
+                    include_splines,
+                    include_spline_components,
+                    include_bool_interpolators,
+                    include_bool_keys,
+                },
                 sample,
             )?;
             emit(&report, output, &input)?;

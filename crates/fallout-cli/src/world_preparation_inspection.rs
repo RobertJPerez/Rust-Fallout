@@ -19,7 +19,10 @@ use fallout_data::{
         ownership::CellOwnershipSources,
         preparation::CellModelPlan,
         regions::CellRegionSources,
-        residency::{CellResidency, Snapshot, Stage, TerrainState, TexturePlan, TextureState},
+        residency::{
+            Admission, CellResidency, CellResidencySet, Snapshot, Stage,
+            TerrainState, TexturePlan, TextureState,
+        },
         water::CellWaterSources,
     },
 };
@@ -30,6 +33,175 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+pub(super) struct ResidencySetInput {
+    pub world: FormKey,
+    pub grids: Vec<[i32; 2]>,
+    pub include_persistent: bool,
+    pub remove_index: usize,
+    pub source_timeout_ms: u64,
+}
+/// Explicit source selection; each returned payload is borrowed from a live host.
+pub(super) fn residency_set(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: ResidencySetInput,
+) -> Result<Value> {
+    let deadline = source_deadline(input.source_timeout_ms)?;
+    let count = input.grids.len() + usize::from(input.include_persistent);
+    if count == 0
+        || count > 4
+        || input.remove_index >= count
+        || input
+            .grids
+            .iter()
+            .enumerate()
+            .any(|(i, g)| input.grids[..i].contains(g))
+    {
+        return Err(
+            "explicit residency requires 1..=4 unique CELL selections and a valid removal index"
+                .into(),
+        );
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original","requested_world":input.world,
+        "explicit_grids":input.grids,"include_persistent":input.include_persistent,"remove_index":input.remove_index,
+        "grid_directory":null,"cell_models":[],"model_payloads":[],"residency_set":null,
+        "source_error":null,"captured_sources_available":false,"current_cell_changed":false,
+        "runtime_ready":false,"lookup_precedence_verified":false,"retail_parity_accepted":false});
+    let consumed = (|| -> Result<()> {
+        let directory = CellGridSources::load(&mut store, &input.world, Default::default())?;
+        report["grid_directory"] = serde_json::to_value(directory.metadata())?;
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        let mut plans = Vec::with_capacity(count);
+        if input.include_persistent {
+            let request = directory.request_persistent()?;
+            plans.push(directory.prepare_persistent(
+                &mut store,
+                &request,
+                assets.mounts(),
+                Default::default(),
+            )?);
+        }
+        if !input.grids.is_empty() {
+            let request = directory.request_set(&input.grids)?;
+            let prepared = directory.prepare_cells(
+                &mut store,
+                &request,
+                assets.mounts(),
+                Default::default(),
+            )?;
+            for i in 0..prepared.requests().len() {
+                plans.push(prepared.plan(i).ok_or("missing sealed CELL plan")?.clone());
+            }
+        }
+        let cohort = &plans[0].receipt().source_cohort_sha256;
+        let mut owner = CellResidencySet::new(install, resource_cache, cohort, Default::default())?;
+        let requests: Vec<_> = plans
+            .iter()
+            .map(|plan| Admission {
+                root: plan.root(),
+                plan,
+            })
+            .collect();
+        let tickets = owner.admit(&requests)?;
+        let start = Instant::now();
+        loop {
+            let state = owner.poll(1)?;
+            if state
+                .slots
+                .iter()
+                .filter_map(|s| s.source.as_ref())
+                .any(|s| s.stage == Stage::Failed)
+            {
+                report["residency_set"] = serde_json::to_value(state)?;
+                return Err("one explicitly admitted CELL source failed".into());
+            }
+            if tickets.iter().all(|t| owner.sources(t).is_ok()) {
+                break;
+            }
+            if start.elapsed() >= deadline {
+                for ticket in &tickets {
+                    owner.remove(ticket)?;
+                }
+                report["residency_set"] = serde_json::to_value(owner.snapshot())?;
+                return Err(
+                    "explicit CELL set source deadline exceeded; owned requests removed".into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        let mut leases = tickets
+            .iter()
+            .map(|t| owner.sources(t))
+            .collect::<resource_jobs::JobResult<Vec<_>>>()?;
+        let mut payloads = Vec::new();
+        let mut receipts = Vec::new();
+        for (cell, lease) in leases.iter().enumerate() {
+            let plan = lease.plan()?;
+            receipts.push(serde_json::to_value(plan.receipt())?);
+            for (request, row) in plan.receipt().requests.iter().enumerate() {
+                let bytes = lease.model(request)?;
+                if bytes.len() != row.decoded_bytes {
+                    return Err("live CELL model extent differs from sealed request".into());
+                }
+                payloads.push(
+                    json!({"cell":cell,"root":lease.ticket().root(),"request":request,
+                    "identity":lease.ticket().identity(),"generation":lease.ticket().generation(),
+                    "bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(bytes))}),
+                );
+            }
+        }
+        let before = owner.snapshot();
+        report["captured_sources_available"] = json!(
+            before
+                .slots
+                .iter()
+                .filter_map(|s| s.source.as_ref())
+                .all(|s| s.complete_model_coverage)
+        );
+        report["cell_models"] = json!(receipts);
+        report["model_payloads"] = json!(payloads);
+        report["residency_set"] = serde_json::to_value(before)?;
+        let removed = &tickets[input.remove_index];
+        owner.remove(removed)?;
+        report["residency_set_after_remove"] = serde_json::to_value(owner.poll(4)?)?;
+        let other_cells_accessible = tickets
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != input.remove_index)
+            .all(|(_, t)| owner.sources(t).is_ok());
+        report["retained_source_lifetime"] = json!({"removed_ticket_rejected":removed.check().is_err(),
+            "removed_lease_access_rejected":leases[input.remove_index].plan().is_err(),
+            "other_cells_accessible":other_cells_accessible});
+        drop(leases.remove(input.remove_index));
+        let start = Instant::now();
+        loop {
+            let state = owner.poll(1)?;
+            if state.usage.retired_slots == 0 {
+                report["residency_set_after_release"] = serde_json::to_value(state)?;
+                break;
+            }
+            if start.elapsed() >= deadline {
+                return Err("removed CELL source pins did not drain within deadline".into());
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        report["scope"] = json!(
+            "Explicit persistent and exterior CELL source hosts; static shared allowances and independent ticket revocation"
+        );
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+        report["captured_sources_available"] = json!(false);
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
 
 pub(super) struct ResidencyInput {
     pub cell: FormKey,
@@ -3863,6 +4035,125 @@ mod tests {
         )
         .unwrap();
         println!("WORLD_GRID_SET_FIXTURE={}", root.display());
+    }
+    fn live_set_input(grids: Vec<[i32; 2]>) -> ResidencySetInput {
+        ResidencySetInput {
+            world: crate::parse_cell_key("Base.esm:100").unwrap(),
+            grids,
+            include_persistent: true,
+            remove_index: 1,
+            source_timeout_ms: 10_000,
+        }
+    }
+    #[test]
+    fn cli_live_set_keeps_persistent_and_two_exteriors_then_revokes_only_selected_cell() {
+        let root = directory();
+        grid_set_fixture(&root, "valid");
+        println!("WORLD_LIVE_SET_FIXTURE={}", root.display());
+        let report = residency_set(
+            &root,
+            &root.join("order.json"),
+            None,
+            None,
+            live_set_input(vec![[5, -6], [-17, 0]]),
+        )
+        .unwrap();
+        assert_eq!(report["captured_sources_available"], true);
+        assert_eq!(report["residency_set"]["usage"]["active_slots"], 3);
+        assert_eq!(report["residency_set"]["usage"]["retained_plans"], 3);
+        assert_eq!(report["model_payloads"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            report["residency_set_after_remove"]["usage"]["retired_slots"],
+            1
+        );
+        assert_eq!(
+            report["residency_set_after_remove"]["usage"]["outstanding"],
+            report["residency_set"]["usage"]["outstanding"]
+        );
+        assert_eq!(
+            report["retained_source_lifetime"]["removed_ticket_rejected"],
+            true
+        );
+        assert_eq!(
+            report["retained_source_lifetime"]["removed_lease_access_rejected"],
+            true
+        );
+        assert_eq!(
+            report["retained_source_lifetime"]["other_cells_accessible"],
+            true
+        );
+        assert_eq!(
+            report["residency_set_after_release"]["usage"]["retired_slots"],
+            0
+        );
+        assert_eq!(
+            report["residency_set_after_release"]["usage"]["active_slots"],
+            2
+        );
+        assert_eq!(
+            report["residency_set_after_release"]["usage"]["retained_plans"],
+            2
+        );
+        assert_eq!(report["runtime_ready"], false);
+        assert_eq!(report["current_cell_changed"], false);
+    }
+    #[test]
+    fn cli_live_set_last_factory_failure_returns_no_successful_prefix() {
+        let root = directory();
+        grid_set_fixture(&root, "malformed");
+        let report = residency_set(
+            &root,
+            &root.join("order.json"),
+            None,
+            None,
+            live_set_input(vec![[5, -6], [-17, 0]]),
+        )
+        .unwrap();
+        assert_eq!(report["captured_sources_available"], false);
+        assert!(report["source_error"].is_string());
+        assert!(report["residency_set"].is_null());
+        assert!(report["model_payloads"].as_array().unwrap().is_empty());
+        assert!(report["cell_models"].as_array().unwrap().is_empty());
+    }
+    #[test]
+    fn cli_live_set_rejects_selection_bounds_before_opening_sources() {
+        for (grids, remove) in [
+            (vec![[0, 0]; 2], 1),
+            (vec![[0, 0], [1, 0], [2, 0], [3, 0]], 1),
+            (vec![], 1),
+            (vec![[0, 0]], 2),
+        ] {
+            let mut input = live_set_input(grids);
+            input.remove_index = remove;
+            assert!(
+                residency_set(Path::new("absent"), Path::new("absent"), None, None, input).is_err()
+            );
+        }
+        use clap::Parser;
+        let parsed = crate::Args::try_parse_from([
+            "fallout",
+            "world-residency-set-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--world",
+            "Base.esm:100",
+            "--include-persistent",
+            "--grid=-18,0",
+            "--grid=-17,0",
+            "--remove-index",
+            "1",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            crate::Command::WorldResidencySetSources {
+                include_persistent: true,
+                remove_index: 1,
+                ..
+            }
+        ));
     }
     fn grid_set_input(grids: Vec<[i32; 2]>) -> GridSetInput {
         GridSetInput {

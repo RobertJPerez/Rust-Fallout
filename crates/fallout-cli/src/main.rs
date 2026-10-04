@@ -416,6 +416,28 @@ enum Command {
         #[arg(long)]
         index_cache: Option<PathBuf>,
     },
+    /// Hold an explicit persistent/exterior CELL source set and remove one lease.
+    WorldResidencySetSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        #[arg(long, allow_hyphen_values = true)]
+        grid: Vec<String>,
+        #[arg(long)]
+        include_persistent: bool,
+        #[arg(long, default_value_t = 0)]
+        remove_index: usize,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
+
     /// Inspect exact cell model and texture residency through bounded source jobs.
     CellResidencySources {
         #[arg(long)]
@@ -1476,6 +1498,44 @@ fn run(args: Args) -> Result<()> {
                 return Err("dialogue membership has unresolved topic links; see report".into());
             }
         }
+        Command::WorldResidencySetSources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            world,
+            grid,
+            include_persistent,
+            remove_index,
+            source_timeout_ms,
+        } => {
+            let grids = if grid.is_empty() {
+                Vec::new()
+            } else {
+                world_preparation_inspection::parse_grid_set(&grid)?
+            };
+            let report = world_preparation_inspection::residency_set(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::ResidencySetInput {
+                    world: parse_cell_key(&world)?,
+                    grids,
+                    include_persistent,
+                    remove_index,
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err(
+                    "explicit CELL set source dependencies are unavailable; see report".into(),
+                );
+            }
+        }
+
         Command::CellResidencySources {
             install,
             load_order,

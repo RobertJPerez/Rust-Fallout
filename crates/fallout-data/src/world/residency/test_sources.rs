@@ -1,0 +1,309 @@
+//! Independently authored CELL, XTEL, NIF and BSA104 bytes for connected consumers.
+use super::*;
+use crate::{archive::NvArchive, identity::ProfileId, plugin, store::RecordStore, vfs::MountIndex};
+use std::{
+    fs,
+    io::Write,
+    thread,
+    time::{Duration, Instant},
+};
+pub(super) const POSE: [u32; 6] = [
+    0x80000000, 0x41480000, 0xc1c80000, 0x3f800000, 0x40000000, 0x40400000,
+];
+pub(super) fn key(id: u32) -> FormKey {
+    FormKey {
+        profile: ProfileId::NvOriginal,
+        origin_plugin: "base.esm".into(),
+        local_id: id,
+    }
+}
+pub(super) fn field(tag: &[u8; 4], bytes: &[u8]) -> Vec<u8> {
+    [tag.as_slice(), &(bytes.len() as u16).to_le_bytes(), bytes].concat()
+}
+pub(super) fn record(tag: &[u8; 4], id: u32, flags: u32, bytes: &[u8]) -> Vec<u8> {
+    [
+        tag.as_slice(),
+        &(bytes.len() as u32).to_le_bytes(),
+        &flags.to_le_bytes(),
+        &id.to_le_bytes(),
+        &[0; 8],
+        bytes,
+    ]
+    .concat()
+}
+pub(super) fn group(label: u32, kind: i32, bytes: &[u8]) -> Vec<u8> {
+    [
+        b"GRUP".as_slice(),
+        &(bytes.len() as u32 + 24).to_le_bytes(),
+        &label.to_le_bytes(),
+        &kind.to_le_bytes(),
+        &[0; 8],
+        bytes,
+    ]
+    .concat()
+}
+pub(super) fn reference(id: u32, base: u32, flags: u32, extra: &[u8]) -> Vec<u8> {
+    let target_data: Vec<u8> = [99.0f32, 88.0, 77.0, -7.0, -8.0, -9.0]
+        .into_iter()
+        .flat_map(|v| v.to_bits().to_le_bytes())
+        .collect();
+    record(
+        b"REFR",
+        id,
+        flags,
+        &[
+            field(b"NAME", &base.to_le_bytes()),
+            field(b"DATA", &target_data),
+            extra.to_vec(),
+        ]
+        .concat(),
+    )
+}
+pub(super) fn teleport(target: u32) -> Vec<u8> {
+    field(
+        b"XTEL",
+        &[
+            target.to_le_bytes().as_slice(),
+            &POSE
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>(),
+            &0x81234567u32.to_le_bytes(),
+        ]
+        .concat(),
+    )
+}
+pub(super) fn members(cell: u32, refs: &[u8]) -> Vec<u8> {
+    group(cell, 6, &group(cell, 9, refs))
+}
+fn nif(texture: &[u8]) -> Vec<u8> {
+    let payload = [
+        1u32.to_le_bytes().as_slice(),
+        &(texture.len() as u32).to_le_bytes(),
+        texture,
+    ]
+    .concat();
+    let name = b"BSShaderTextureSet";
+    let mut out = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+    out.extend(0x14020007u32.to_le_bytes());
+    out.push(1);
+    for v in [11u32, 1, 34] {
+        out.extend(v.to_le_bytes());
+    }
+    out.extend([0; 3]);
+    out.extend(1u16.to_le_bytes());
+    out.extend((name.len() as u32).to_le_bytes());
+    out.extend(name);
+    out.extend(0u16.to_le_bytes());
+    out.extend((payload.len() as u32).to_le_bytes());
+    out.extend([0; 12]);
+    out.extend(payload);
+    out.extend([0; 4]);
+    out
+}
+fn archive(path: &Path, folder: &[u8], names: &[&[u8]], payloads: &[Vec<u8>]) {
+    let names_bytes: Vec<u8> = names
+        .iter()
+        .flat_map(|s| s.iter().copied().chain([0]))
+        .collect();
+    let table = 54 + folder.len();
+    let data_offset = table + 16 * names.len() + names_bytes.len();
+    let mut out = vec![0; data_offset];
+    out[..4].copy_from_slice(b"BSA\0");
+    for (at, v) in [
+        (4, 104),
+        (8, 36),
+        (12, 7),
+        (16, 1),
+        (20, names.len() as u32),
+        (24, folder.len() as u32 + 1),
+        (28, names_bytes.len() as u32),
+        (44, names.len() as u32),
+        (48, 52),
+    ] {
+        out[at..at + 4].copy_from_slice(&v.to_le_bytes());
+    }
+    out[52] = (folder.len() + 1) as u8;
+    out[53..53 + folder.len()].copy_from_slice(folder);
+    out[table + 16 * names.len()..].copy_from_slice(&names_bytes);
+    for (i, bytes) in payloads.iter().enumerate() {
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        z.write_all(bytes).unwrap();
+        let body = [
+            (bytes.len() as u32).to_le_bytes().as_slice(),
+            &z.finish().unwrap(),
+        ]
+        .concat();
+        let at = table + 16 * i;
+        let offset = out.len() as u32;
+        out[at..at + 8].copy_from_slice(&(i as u64 + 1).to_le_bytes());
+        out[at + 8..at + 12].copy_from_slice(&(body.len() as u32).to_le_bytes());
+        out[at + 12..at + 16].copy_from_slice(&offset.to_le_bytes());
+        out.extend(body);
+    }
+    fs::write(path, out).unwrap();
+}
+pub(super) struct Fixture {
+    pub root: tempfile::TempDir,
+    pub cache: tempfile::TempDir,
+    pub models: Vec<Vec<u8>>,
+    pub textures: Vec<Vec<u8>>,
+    pub mounts: MountIndex,
+    names: Vec<String>,
+}
+impl Fixture {
+    pub fn new() -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let data = root.path().join("Data");
+        fs::create_dir(&data).unwrap();
+        let models: Vec<_> = [b"a.dds".as_slice(), b"b.dds", b"c.dds"]
+            .into_iter()
+            .map(nif)
+            .collect();
+        let textures = vec![
+            b"persistent texture".to_vec(),
+            b"west texture".to_vec(),
+            b"east texture".to_vec(),
+        ];
+        archive(
+            &data.join("models.bsa"),
+            b"meshes",
+            &[b"p.nif", b"w.nif", b"e.nif"],
+            &models,
+        );
+        archive(
+            &data.join("textures.bsa"),
+            b"textures",
+            &[b"a.dds", b"b.dds", b"c.dds"],
+            &textures,
+        );
+        let mut mounts = MountIndex::default();
+        for label in ["models", "textures"] {
+            NvArchive::open(&data.join(format!("{label}.bsa")))
+                .unwrap()
+                .census(&mut mounts)
+                .unwrap();
+        }
+        let mut esm = record(
+            b"TES4",
+            0,
+            0,
+            &field(
+                b"HEDR",
+                &[1.34f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+            ),
+        );
+        for (i, path) in [b"p.nif\0".as_slice(), b"w.nif\0", b"e.nif\0"]
+            .into_iter()
+            .enumerate()
+        {
+            esm.extend(record(b"STAT", 0x400 + i as u32, 0, &field(b"MODL", path)));
+        }
+        esm.extend(record(b"DOOR", 0x450, 0, &field(b"MODL", b"p.nif\0")));
+        esm.extend(record(b"WRLD", 0x100, 0, &field(b"DATA", &[0])));
+        let mut cells = Vec::new();
+        for i in 0..3u32 {
+            let grid = if i == 0 {
+                Vec::new()
+            } else {
+                field(
+                    b"XCLC",
+                    &[
+                        (i as i32 - 1).to_le_bytes().as_slice(),
+                        &0i32.to_le_bytes(),
+                        &0xaabbcc00u32.to_le_bytes(),
+                    ]
+                    .concat(),
+                )
+            };
+            cells.extend(record(
+                b"CELL",
+                0x200 + i,
+                if i == 0 { 0x400 } else { 0 },
+                &[field(b"DATA", &[0]), grid].concat(),
+            ));
+            let mut refs = reference(0x300 + i, 0x400 + i, 0, &[]);
+            if i == 0 {
+                refs.extend(reference(0x311, 0x450, 0, &[]));
+            }
+            if i == 1 {
+                refs.extend(reference(0x310, 0x450, 0, &teleport(0x311)));
+            }
+            cells.extend(members(0x200 + i, &refs));
+        }
+        esm.extend(group(0x100, 1, &cells));
+        fs::write(data.join("Base.esm"), esm).unwrap();
+        fs::write(root.path().join("order.json"), b"[\"Base.esm\"]").unwrap();
+        Self {
+            root,
+            cache,
+            models,
+            textures,
+            mounts,
+            names: vec!["Base.esm".into()],
+        }
+    }
+    pub fn store(&self) -> RecordStore {
+        RecordStore::open_nv_headers(
+            &self.root.path().join("Data"),
+            &self.names,
+            plugin::Limits::default(),
+        )
+        .unwrap()
+    }
+    pub fn plans(&self) -> Vec<CellModelPlan> {
+        let mut store = self.store();
+        let directory =
+            crate::world::cells::CellGridSources::load(&mut store, &key(0x100), Default::default())
+                .unwrap();
+        let p = directory.request_persistent().unwrap();
+        let mut plans = vec![
+            directory
+                .prepare_persistent(&mut store, &p, &self.mounts, Default::default())
+                .unwrap(),
+        ];
+        let request = directory.request_set(&[[0, 0], [1, 0]]).unwrap();
+        let set = directory
+            .prepare_cells(&mut store, &request, &self.mounts, Default::default())
+            .unwrap();
+        plans.extend((0..set.requests().len()).map(|i| set.plan(i).unwrap().clone()));
+        plans
+    }
+    pub fn destination(&self, store: &mut RecordStore) -> crate::world::doors::DoorDestination {
+        crate::world::doors::DoorDestination::load(
+            store,
+            &key(0x201),
+            &key(0x310),
+            Default::default(),
+        )
+        .unwrap()
+    }
+    pub fn patch(&mut self, bytes: &[u8]) {
+        let body = [
+            field(
+                b"HEDR",
+                &[1.34f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+            ),
+            field(b"MAST", b"Base.esm\0"),
+            field(b"DATA", &[0; 8]),
+        ]
+        .concat();
+        fs::write(
+            self.root.path().join("Data/Patch.esp"),
+            [record(b"TES4", 0, 0, &body), bytes.to_vec()].concat(),
+        )
+        .unwrap();
+        self.names.push("Patch.esp".into());
+    }
+}
+pub(super) fn until(mut complete: impl FnMut() -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !complete() {
+        assert!(
+            Instant::now() < deadline,
+            "connected source operation did not finish"
+        );
+        thread::sleep(Duration::from_millis(1));
+    }
+}

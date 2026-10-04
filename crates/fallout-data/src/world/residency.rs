@@ -1,7 +1,10 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
+mod set;
 mod terrain;
+#[cfg(test)]
+mod test_sources;
 mod textures;
 use super::{
     dependencies,
@@ -15,6 +18,9 @@ use crate::{
     },
 };
 use serde::Serialize;
+pub use set::{
+    Admission, CellResidencySet, SetLimits, SetSnapshot, SetUsage, SlotSnapshot, SlotState,
+};
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},

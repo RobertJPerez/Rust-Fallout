@@ -39,6 +39,12 @@ fn precise_cross(a: V, b: V) -> V {
     cross_with_error(a, b).0
 }
 
+fn difference_error(a: f64, b: f64, difference: f64) -> f64 {
+    let virtual_b = a - difference;
+    let virtual_a = difference + virtual_b;
+    (a - virtual_a) + (virtual_b - b)
+}
+
 fn sphere_contains(p: V, radius: f64) -> QueryResult<bool> {
     let distance = length(p);
     // A one-component norm is exact, including source-axis surface points.
@@ -116,16 +122,59 @@ fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
     Ok(Some(t))
 }
 
-fn segment_distance2(p: V, a: V, b: V) -> f64 {
+fn segment_delta(p: V, a: V, b: V) -> V {
     let edge = sub(b, a);
+    let relative = sub(p, a);
     let length2 = dot(edge, edge);
     let t = if length2 == 0. {
         0.
     } else {
-        (dot(sub(p, a), edge) / length2).clamp(0., 1.)
+        (dot(relative, edge) / length2).clamp(0., 1.)
     };
-    let delta = sub(p, add(a, mul(edge, t)));
+    // Stay relative to the source endpoint, avoiding a large anchor addition
+    // followed by cancellation against p.
+    sub(relative, mul(edge, t))
+}
+fn segment_distance2(p: V, a: V, b: V) -> f64 {
+    let delta = segment_delta(p, a, b);
     dot(delta, delta)
+}
+
+fn capsule_contains(p: V, a: V, b: V, radius: f64) -> QueryResult<bool> {
+    let edge = sub(b, a);
+    let relative = sub(p, a);
+    if edge.iter().filter(|v| **v != 0.).count() <= 1 {
+        // Exact axis-clamping needs no normalized segment projection.
+        let mut delta = relative;
+        let mut error = std::array::from_fn(|i| difference_error(p[i], a[i], delta[i]));
+        if let Some(i) = edge.iter().position(|v| *v != 0.) {
+            let closest = p[i].clamp(a[i].min(b[i]), a[i].max(b[i]));
+            delta[i] = p[i] - closest;
+            error[i] = difference_error(p[i], closest, delta[i]);
+        }
+        if error.iter().any(|v| *v != 0.) {
+            let distance = length(delta);
+            let uncertainty = length(error) + 8. * f64::EPSILON * distance + f64::from_bits(1);
+            if (distance - radius).abs() <= uncertainty {
+                return Err(QueryError::Invalid(
+                    "capsule containment predicate is numerically uncertain",
+                ));
+            }
+        }
+        return sphere_contains(delta, radius).map_err(|_| {
+            QueryError::Invalid("capsule containment predicate is numerically uncertain")
+        });
+    }
+    let distance = length(segment_delta(p, a, b));
+    let uncertainty = 128. * f64::EPSILON * (length(relative) + length(edge))
+        + 8. * f64::EPSILON * distance
+        + f64::from_bits(1);
+    if (distance - radius).abs() <= uncertainty {
+        return Err(QueryError::Invalid(
+            "capsule containment predicate is numerically uncertain",
+        ));
+    }
+    Ok(distance < radius)
 }
 
 /// Closest point lies either on a triangle edge or inside its perpendicular
@@ -206,7 +255,7 @@ impl Shape {
                         "capsule projection exceeds numerical precision",
                     ));
                 }
-                if segment_distance2(o, a, b) <= radius * radius {
+                if capsule_contains(o, a, b, radius)? {
                     return Ok(Some(0.));
                 }
                 let edge = sub(b, a);

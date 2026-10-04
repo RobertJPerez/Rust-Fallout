@@ -242,6 +242,56 @@ fn near_grazing_literal_ray_matches_independent_rational_inputs() {
 }
 
 #[test]
+fn capsule_initial_inside_predicate_refuses_rounded_boundary_false_hit() {
+    let scene = scene(&[
+        ("bhkRigidBody", body(1)),
+        ("bhkCapsuleShape", capsule([0., 0., -2.], [0., 0., 2.], 1.)),
+    ]);
+    // Exact binary64 .6^2+.8^2 >1; the outward zero-distance request cannot hit.
+    assert!(matches!(
+        scene.ray_cast(
+            ray([0.6, 0.8, 0.], [0.6, 0.8, 0.], 0.),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "capsule containment predicate is numerically uncertain"
+        ))
+    ));
+    assert_eq!(
+        scene
+            .ray_cast(ray([1., 0., 0.], [1., 0., 0.], 0.), QueryBudget::default())
+            .unwrap()[0]
+            .distance,
+        0.
+    );
+    assert_eq!(
+        scene
+            .ray_cast(ray([0.; 3], [1., 0., 0.], 0.), QueryBudget::default())
+            .unwrap()[0]
+            .distance,
+        0.
+    );
+}
+
+#[test]
+fn capsule_endpoint_subtraction_cannot_round_an_outside_origin_onto_surface() {
+    let scene = scene(&[
+        ("bhkRigidBody", body(1)),
+        ("bhkCapsuleShape", capsule([1., 0., 0.], [2., 0., 0.], 1.)),
+    ]);
+    // Exact distance to endpoint 1 is 1 + 2^-1074, despite rounded subtraction.
+    assert!(matches!(
+        scene.ray_cast(
+            ray([-f64::from_bits(1), 0., 0.], [-1., 0., 0.], 0.),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "capsule containment predicate is numerically uncertain"
+        ))
+    ));
+}
+
+#[test]
 fn source_sphere_ray_units_pose_range_and_filter_bits() {
     let (_, collision) = nif_collision::decode(
         &container(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(2.))]),

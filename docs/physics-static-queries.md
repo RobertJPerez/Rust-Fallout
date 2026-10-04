@@ -62,6 +62,10 @@ component normalization would change a distant skew ray. Inconclusive grazing
 error intervals refuse. Capsule axis projection also refuses when
 `128 * EPSILON * (origin-to-first distance + axis length) > radius`. This bounds
 an engineering numerical operation and can reject valid thin/distant geometry.
+Capsule initial containment uses a guarded closest-segment distance, with exact
+axis clamping for axis-aligned source segments and recovered subtraction residuals.
+An uncertain surface comparison
+refuses instead of converting a rounded squared distance into an inside hit.
 
 ## Headless source consumer
 
@@ -85,6 +89,7 @@ The report binds both input and request SHA-256, exposes the core/frozen query
 semantics and keeps faithful readiness false.
 The `ray_numeric_input` field retains consumed binary64 words as hex strings,
 so independent predicates can bind the actual numeric inputs after JSON parsing.
+Ray refusals also include this numeric audit in stderr while producing no report.
 Unsupported bodies return the exact block/capability error. Retail reports/geometry
 stay under ignored `local/`.
 

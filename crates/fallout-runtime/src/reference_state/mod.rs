@@ -8,7 +8,9 @@ use crate::{
 use fallout_data::{identity::FormKey, world::Transform};
 use serde::{Deserialize, Serialize};
 
+mod batch;
 mod paging;
+pub use batch::{BatchChange, BatchLimits, BatchReceipt, StagedReferenceBatch};
 pub use paging::{Cursor, Page, PageLimits, PageRequest, PageUsage};
 
 pub const COMPONENT_VERSION: u32 = 1;

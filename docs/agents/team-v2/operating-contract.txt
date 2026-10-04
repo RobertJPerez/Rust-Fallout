@@ -61,8 +61,12 @@ Continue independent assigned work while waiting. The coordinator handles routin
 decisions without asking Robert. Never edit another worker's tree.
 
 CONTINUOUS WORK
-When active, work through dependency-ready assigned tasks until Robert stops or
-all defensible assigned work is blocked. Startup prompts explicitly request a
+When active, work through dependency-ready tasks until Robert stops. Take the
+next ready assignment task after a handoff; when the listed queue is exhausted,
+derive a small source-backed task within owned paths from the master brief and
+NEXT_STEPS.md, record its consumer and exit in your outbox, and proceed. If one
+dependency is blocked, record it once and continue independent owned work.
+Startup prompts explicitly request a
 persistent Goal when available. Goals support continuation/resumption but do not
 promise unlimited session/service lifetime. Never spin on identical failing checks.
 Keep one active task and at most six new unmerged handoffs. Review fixes come first.

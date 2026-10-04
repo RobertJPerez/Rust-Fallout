@@ -7,6 +7,7 @@
 #include "factions.hpp"
 #include "placements.hpp"
 #include "races.hpp"
+#include "packages.hpp"
 using namespace fallout_records;
 
 static std::string bytes_json(const Bytes& bytes, size_t first, size_t end) {
@@ -94,14 +95,15 @@ static Document decode(const Bytes& body,const std::string& kind,uint16_t versio
 }
 int wmain(int argc,wchar_t** argv) {
     try {
-        if (argc<3 || argc>8) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations] [--include-classes] [--include-factions] [--include-placements] [--include-races]");
-        bool include_associations=false,include_classes=false,include_factions=false,include_placements=false,include_races=false;
+        if (argc<3 || argc>9) throw std::runtime_error("usage: actor-oracle Data_directory FRORDER1_bundle [--include-associations] [--include-classes] [--include-factions] [--include-placements] [--include-races] [--include-packages]");
+        bool include_associations=false,include_classes=false,include_factions=false,include_placements=false,include_races=false,include_packages=false;
         for(int argument=3;argument<argc;++argument) {
             if(std::wstring(argv[argument])==L"--include-associations"&&!include_associations)include_associations=true;
             else if(std::wstring(argv[argument])==L"--include-classes"&&!include_classes)include_classes=true;
             else if(std::wstring(argv[argument])==L"--include-factions"&&!include_factions)include_factions=true;
             else if(std::wstring(argv[argument])==L"--include-placements"&&!include_placements)include_placements=true;
             else if(std::wstring(argv[argument])==L"--include-races"&&!include_races)include_races=true;
+            else if(std::wstring(argv[argument])==L"--include-packages"&&!include_packages)include_packages=true;
             else throw std::runtime_error("unknown or duplicate actor oracle option");
         }
         auto index=scan(argv[1],argv[2]); Counts counts; std::vector<std::string> definitions;
@@ -137,6 +139,7 @@ int wmain(int argc,wchar_t** argv) {
         if(include_factions)report["actor_factions"]=actor_factions::project(index);
         if(include_placements)report["actor_placements"]=actor_placements::project(index);
         if(include_races)report["actor_races"]=actor_races::project(index);
+        if(include_packages)report["actor_packages"]=actor_packages::project(index);
         std::cout<<object(report)<<'\n';
         return 0;
     } catch (const std::exception& error) { std::cerr<<"actor-oracle: "<<error.what()<<'\n'; return 1; }

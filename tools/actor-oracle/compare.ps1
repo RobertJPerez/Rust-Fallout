@@ -10,6 +10,9 @@ param(
     [switch]$IncludeFactions,
     [switch]$IncludePlacements,
     [switch]$IncludeRaces,
+    [switch]$IncludePackages,
+    [string]$TeamDirectory,
+    [string]$SessionId,
     [switch]$SkipReordered
 )
 $ErrorActionPreference = 'Stop'
@@ -29,6 +32,44 @@ $actorFallout = (Resolve-Path -LiteralPath $Fallout).Path
 $actorOracle = (Resolve-Path -LiteralPath $Oracle).Path
 $actorUtf8 = New-Object System.Text.UTF8Encoding($false)
 $actorCommands = New-Object 'System.Collections.Generic.List[object]'
+
+# Optional current-team guard. Standalone comparisons do not require mailboxes.
+# Each child is polled, so STOP does not wait for an entire source comparison.
+function Test-ActorTeam {
+    if (-not $TeamDirectory) { return }
+    $actorControl = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $TeamDirectory) 'team\control.json') -Raw | ConvertFrom-Json
+    $actorAssignment = Get-Content -LiteralPath (Join-Path $TeamDirectory 'actors.assignment.json') -Raw | ConvertFrom-Json
+    $actorLease = Get-Content -LiteralPath (Join-Path $TeamDirectory 'leases\actors.json') -Raw | ConvertFrom-Json
+    if (-not $SessionId -or $actorLease.session_uuid -ne $SessionId -or
+        $actorControl.mode -ne 'active' -or $actorControl.stop_requested -or
+        $actorControl.generation -ne $actorAssignment.generation -or
+        $actorControl.run_id -ne $actorAssignment.run_id -or
+        $actorLease.run_id -ne $actorControl.run_id -or
+        $actorAssignment.state -ne 'active' -or -not $actorAssignment.implementation_authorized) {
+        throw 'Actor comparison team authorization changed'
+    }
+    foreach ($actorMailbox in Get-ChildItem -LiteralPath $TeamDirectory -Filter '*.outbox.jsonl') {
+        foreach ($actorLine in Get-Content -LiteralPath $actorMailbox.FullName) {
+            if ($actorLine.Trim()) {
+                $actorRow = $actorLine | ConvertFrom-Json
+                if ($actorRow.run_id -eq $actorControl.run_id -and $actorRow.type -eq 'stop_requested') {
+                    throw 'Actor comparison observed current-run STOP'
+                }
+            }
+        }
+    }
+}
+Test-ActorTeam
+
+function Wait-ActorProcess([Diagnostics.Process]$Process) {
+    try {
+        while (-not $Process.WaitForExit(1000)) { Test-ActorTeam }
+        Test-ActorTeam
+    } catch {
+        if (-not $Process.HasExited) { $Process.Kill(); $Process.WaitForExit() }
+        throw
+    }
+}
 
 function Get-ActorSourceSnapshot {
     $actorSourceRoot = (git rev-parse --show-toplevel).Trim()
@@ -81,6 +122,7 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     if ($IncludeFactions) { $actorStart.Arguments += ' --include-factions' }
     if ($IncludePlacements) { $actorStart.Arguments += ' --include-placements' }
     if ($IncludeRaces) { $actorStart.Arguments += ' --include-races' }
+    if ($IncludePackages) { $actorStart.Arguments += ' --include-packages' }
     $actorStart.UseShellExecute = $false
     $actorStart.CreateNoWindow = $true
     $actorStart.RedirectStandardOutput = $true
@@ -92,8 +134,8 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
         $null = $actorProcess.Start()
         $actorErrorTask = $actorProcess.StandardError.ReadToEndAsync()
         $actorCopyTask = $actorProcess.StandardOutput.BaseStream.CopyToAsync($actorOutputStream)
+        Wait-ActorProcess $actorProcess
         $null = $actorCopyTask.GetAwaiter().GetResult()
-        $actorProcess.WaitForExit()
         [IO.File]::WriteAllText($Log, $actorErrorTask.GetAwaiter().GetResult(), $actorUtf8)
         if ($actorProcess.ExitCode -ne 0) { throw 'Independent actor reader failed; see its log' }
     } finally { $actorOutputStream.Dispose(); $actorProcess.Dispose() }
@@ -102,6 +144,8 @@ function Invoke-ActorOracle([string]$Order, [string]$Output, [string]$Log) {
     if ($IncludeClasses) { $actorOracleArguments += '--include-classes' }
     if ($IncludeFactions) { $actorOracleArguments += '--include-factions' }
     if ($IncludePlacements) { $actorOracleArguments += '--include-placements' }
+    if ($IncludeRaces) { $actorOracleArguments += '--include-races' }
+    if ($IncludePackages) { $actorOracleArguments += '--include-packages' }
     $actorCommands.Add($actorOracleArguments)
 }
 $actorOrderJson = Join-Path $actorRun 'order.json'
@@ -136,14 +180,31 @@ foreach ($actorPhase in @('cold','warm','reordered')) {
     if ($IncludeFactions) { $actorArguments += '--include-factions' }
     if ($IncludePlacements) { $actorArguments += '--include-placements' }
     if ($IncludeRaces) { $actorArguments += '--include-races' }
-    # Windows PowerShell presents native stderr (including the CLI's normal
-    # "Wrote ..." notice) as an error record. Exit status determines success.
-    $actorPriorPreference = $ErrorActionPreference
+    if ($IncludePackages) { $actorArguments += '--include-packages' }
+    Test-ActorTeam
+    $actorStart = New-Object Diagnostics.ProcessStartInfo
+    $actorStart.FileName = $actorFallout
+    # Arguments here are fixed option names and absolute paths. Escape the Windows
+    # trailing-backslash/quote cases rather than using shell command composition.
+    $actorQuoted = @(foreach ($actorArgument in $actorArguments) {
+        '"' + ([string]$actorArgument -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+    })
+    $actorStart.Arguments = $actorQuoted -join ' '
+    $actorStart.UseShellExecute = $false
+    $actorStart.CreateNoWindow = $true
+    $actorStart.RedirectStandardOutput = $true
+    $actorStart.RedirectStandardError = $true
+    $actorProcess = New-Object Diagnostics.Process
+    $actorProcess.StartInfo = $actorStart
     try {
-        $ErrorActionPreference = 'Continue'
-        & $actorFallout @actorArguments 2> (Join-Path $actorRun ($actorPhase + '.log'))
-        $actorExit = $LASTEXITCODE
-    } finally { $ErrorActionPreference = $actorPriorPreference }
+        $null = $actorProcess.Start()
+        $actorErrorTask = $actorProcess.StandardError.ReadToEndAsync()
+        $actorOutputTask = $actorProcess.StandardOutput.ReadToEndAsync()
+        Wait-ActorProcess $actorProcess
+        [IO.File]::WriteAllText((Join-Path $actorRun ($actorPhase + '.log')), $actorErrorTask.GetAwaiter().GetResult(), $actorUtf8)
+        [IO.File]::WriteAllText((Join-Path $actorRun ($actorPhase + '.stdout')), $actorOutputTask.GetAwaiter().GetResult(), $actorUtf8)
+        $actorExit = $actorProcess.ExitCode
+    } finally { $actorProcess.Dispose() }
     if ($actorExit -ne 0 -and -not ($AllowSourceFindings -and $actorExit -eq 1 -and (Test-Path -LiteralPath $actorOutput))) {
         throw "Actor $actorPhase comparison failed; see its log"
     }
@@ -151,6 +212,7 @@ foreach ($actorPhase in @('cold','warm','reordered')) {
     $actorPhases.Add([ordered]@{name=$actorPhase; exit_code=$actorExit; rust_report_sha256=(Get-FileHash -LiteralPath $actorOutput).Hash.ToLowerInvariant(); oracle_report_sha256=(Get-FileHash -LiteralPath $actorOracleJson).Hash.ToLowerInvariant()})
 }
 $actorFinalSource = Get-ActorSourceSnapshot
+Test-ActorTeam
 $actorFinalEngineSha = (Get-FileHash -LiteralPath $actorFallout).Hash.ToLowerInvariant()
 $actorFinalOracleSha = (Get-FileHash -LiteralPath $actorOracle).Hash.ToLowerInvariant()
 if ($actorInitialSource.head_revision -ne $actorFinalSource.head_revision -or
@@ -162,7 +224,7 @@ if ($actorInitialSource.head_revision -ne $actorFinalSource.head_revision -or
 [IO.File]::WriteAllText((Join-Path $actorRun 'source-finish.json'), (ConvertTo-Json -InputObject $actorFinalSource -Depth 8), $actorUtf8)
 $actorReceipt = [ordered]@{
     schema_version=1
-    task_id= $(if ($IncludeRaces) { 'ACT-05-RACE' } elseif ($IncludePlacements) { 'ACT-03-core-extras' } elseif ($IncludeFactions) { 'ACT-05-FACT' } elseif ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
+    task_id= $(if ($IncludePackages) { 'ACT-06-PACK' } elseif ($IncludeRaces) { 'ACT-05-RACE' } elseif ($IncludePlacements) { 'ACT-03-core-extras' } elseif ($IncludeFactions) { 'ACT-05-FACT' } elseif ($IncludeClasses) { 'ACT-05-CLAS' } elseif ($IncludeAssociations) { 'ACT-02' } else { 'ACT-01' })
     scope='Private worker source-field comparisons; not an integrated checkpoint or retail acceptance receipt'
     started_source_revision=$actorInitialSource.head_revision
     source_snapshot_sha256=$actorInitialSource.manifest_sha256

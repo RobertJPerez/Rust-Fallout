@@ -11,6 +11,7 @@ pub(super) struct Options {
     pub(super) include_factions: bool,
     pub(super) include_placements: bool,
     pub(super) include_races: bool,
+    pub(super) include_packages: bool,
 }
 
 pub(super) fn inspect(
@@ -79,6 +80,15 @@ pub(super) fn inspect(
             report["scope"].as_str().unwrap_or_default()
         ));
     }
+    if options.include_packages {
+        let packages =
+            actors::packages::Catalogue::load(&mut store, actors::packages::Limits::default())?;
+        report["actor_packages"] = json!({"counts":packages.counts(),"definitions":packages.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
+        report["scope"] = json!(format!(
+            "{}; authored PACK scalar inputs, no scheduling, conditions or AI execution",
+            report["scope"].as_str().unwrap_or_default()
+        ));
+    }
     Ok(report)
 }
 
@@ -131,6 +141,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err("independent actor source comparison differs in actor_races".into());
     }
+    if report.get("actor_packages").is_some()
+        && report.get("actor_packages") != oracle.get("actor_packages")
+    {
+        return Err("independent actor source comparison differs in actor_packages".into());
+    }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,
         "oracle_sha256":oracle_sha256,"records_checked":report["counts"]["records"],
@@ -155,6 +170,10 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     if report.get("actor_races").is_some() {
         report["independent_comparison"]["races_checked"] =
             report["actor_races"]["counts"]["records"].clone();
+    }
+    if report.get("actor_packages").is_some() {
+        report["independent_comparison"]["packages_checked"] =
+            report["actor_packages"]["counts"]["records"].clone();
     }
     Ok(())
 }

@@ -5,6 +5,7 @@ pub mod associations;
 pub mod classes;
 pub mod factions;
 pub mod fields;
+pub mod packages;
 pub mod placements;
 pub mod races;
 use crate::{Result, identity::FormKey, inventory, plugin, store::SourceReceipt};

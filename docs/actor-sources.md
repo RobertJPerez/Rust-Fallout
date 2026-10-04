@@ -559,3 +559,73 @@ Evidence is at `local\act05-race-comparison-20261003-01`,
 their actual source/head/dirty manifests and executable hashes unchanged. This
 is an immutable source slice; race application, actor/player initialization and
 gameplay remain separate.
+
+## Package scalar sources (ACT-06 first PACK slice)
+
+The team-v2 coordinator approved `ACT-06-PACK-source-contract` on October 3,
+2026. `actors::packages::Catalogue::load(&mut RecordStore, Limits)` owns each
+winning PACK header, source receipt, body and ordered physical fields. The
+optional `actor-sources --include-packages` inspector section and independent
+direct-source reader expose `actor_packages`. Minimal CLI flag, dispatch and
+finding wiring in `main.rs` is declared for integration.
+
+| Field | Exact source layout |
+| --- | --- |
+| PKDT8 | General flags u32 at 0, raw type u8 at 4, unused byte at 5, behavior flags u16 at 6 |
+| PKDT12 | PKDT8 prefix plus type-specific flags u16 at 8 and two unused bytes at 10 |
+| PSDT8 | Signed i8 month/weekday/date/hour at 0/1/2/3, unsigned duration u32 at 4 |
+
+All multibyte words are little-endian. PKDT8 has an explicitly absent tail;
+unknown raw types, flags and negative schedule bytes remain intact. No masks,
+enum coercion, editor defaults, date conversion or calendar rules are applied.
+The pinned xEdit FNV declaration is lines 6990-7074 and 7124-7135, with deciders
+at 2813-2826; its revision and file hash remain those listed above. Width selection
+follows physical size independently of the admitted record version.
+
+Observed PACK versions 1/2/3/9/10/11/13/14/15 are admitted. Other nondeleted
+versions and other PKDT/PSDT widths fail with source context. Tombstones retain
+their winning header without reading or migrating their bodies. Candidate,
+stored/inflated-body, cumulative decoded-byte and field limits apply before the
+corresponding allocation. Every selected physical occurrence remains ordered;
+missing required fields and each later duplicate receive explicit findings.
+Other fields, including CTDA and embedded scripts, remain opaque and body-retained;
+later slices must use the scripts lane's decoders.
+
+The comparison wrapper optionally checks team authorization and all current-run
+STOP mailboxes while polling its own native/Rust child processes. A cancellation
+stops those owned children and leaves the attempt incomplete. Standalone use
+does not require team files. Earlier completed evidence and frozen tools remain
+unchanged. A private guard test verifies current-run cancellation of the launched
+child, rejection of a changed lease, and preservation of old-run STOP rows.
+
+All 46 actor tests, including six PACK tests, pass. Formatting and affected-package
+all-target Clippy with warnings denied pass. The private native build passes six
+allocation-order checks. Builds used the team-v2 automatic focused mutex and the
+actor worktree's private target. Frozen executables are retained under
+`local\act06-pack-frozen-tools-20261004-01` for subsequent coordinator review.
+
+Original comparisons agree in cold, warm and reordered phases on 4,885 winning
+packages, 88,491 fields, 9,770 scalar occurrences and 1,455,709 decoded bytes with
+zero package findings. These include 13 PKDT8, 4,872 PKDT12 and 4,885 PSDT8 fields.
+An additional complete-projection audit checks every earlier source section against
+the preserved committed RACE comparison; the XLKR/RACE projections and known
+deleted voice finding remain unchanged.
+
+Independently authored comparisons agree in all phases on 14 winners, including
+an unread version-99 tombstone, 27 fields, 24 scalars, 438 decoded bytes and six
+findings. They exercise both layouts, signed extremes, raw unknown types/flags,
+unused bytes, absent tails, physical order, duplicates/missing fields, extended
+opaque fields and master/self winner identity. Both readers reject 17 malformed,
+unsupported-version or hostile compressed inputs for their intended diagnostics.
+Five altered reports (schedule byte, fabricated legacy tail, unused tail byte,
+winning header and field offset) fail the complete comparison. The default
+scalar-only projection remains equal without the optional package section.
+
+Evidence is at `local\act06-pack-comparison-20261003-01`,
+`local\act06-pack-authored-comparison-20261003-01`,
+`local\act06-pack-authored-inputs-20261003\negative-results` and
+`local\act06-pack-validation-20261003-01`. Completed comparisons bind the actual
+dirty source manifests and frozen executable hashes before and after execution.
+The handoff maps that tested code to the resulting commit; this documentation's
+validation results were filled after comparison. These worker source checks do
+not initialize actors, implement scheduling or accept gameplay parity.

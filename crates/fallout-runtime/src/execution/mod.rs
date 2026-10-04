@@ -6,6 +6,7 @@ pub mod copy_probe;
 pub mod event_request;
 pub mod fixture;
 pub mod foreign_copy;
+pub mod literal_assignment;
 pub mod local_copy;
 pub mod native;
 pub mod native_plan;

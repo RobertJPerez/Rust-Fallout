@@ -404,8 +404,8 @@ enum Command {
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
         /// Consume a saved journal head using explicit engineering activation/intent.
-        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
-        snapshot_copy_request: Option<PathBuf>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_copy_request: Option<Box<PathBuf>>,
         /// Consume an explicit existing saved journal prefix with engineering copies.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_batch_request: Option<PathBuf>,
@@ -421,6 +421,9 @@ enum Command {
         /// Queue one explicitly selected source block on an existing saved instance.
         #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "reference_boot_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_event_request: Option<Box<PathBuf>>,
+        /// Assign one exactly representable integral source token at the saved head.
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "reference_boot_request", "snapshot_event_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_literal_assignment_request: Option<Box<PathBuf>>,
         /// Observe explicitly selected native occurrences from saved state.
         #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,
@@ -1251,6 +1254,7 @@ fn run(args: Args) -> Result<()> {
             snapshot_reference_copy_request,
             reference_boot_request,
             snapshot_event_request,
+            snapshot_literal_assignment_request,
             snapshot_native_request,
             snapshot_native_plan_request,
             snapshot_native_current,
@@ -1259,6 +1263,27 @@ fn run(args: Args) -> Result<()> {
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_literal_assignment_request {
+                let report = event_operand_inspection::assign_saved_literal(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_literal_assignment"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved literal assignment remains unsupported; see engineering report"
+                            .into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_event_request {
                 let report = event_operand_inspection::enqueue_saved_event(
                     &install,

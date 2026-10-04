@@ -1,0 +1,24 @@
+RUST FALLOUT - EIGHT AGENTS
+
+Start Agent1 first in G:\Rust-Fallout. Paste 01-coordinator.txt. That submitted
+prompt authorizes the coordinator to activate a new run after verification.
+Then open seven separate sessions with the matching prompt and VS Code folder:
+
+01 coordinator  G:\Rust-Fallout
+02 scripts      G:\Rust-Fallout-worktrees\v3-scripts
+03 runtime      G:\Rust-Fallout-worktrees\v3-runtime
+04 actors       G:\Rust-Fallout-worktrees\v3-actors
+05 assets       G:\Rust-Fallout-worktrees\v3-assets
+06 world        G:\Rust-Fallout-worktrees\v3-world
+07 presentation G:\Rust-Fallout-worktrees\v3-presentation
+08 physics      G:\Rust-Fallout-worktrees\v3-physics
+
+Full prompts: G:\Rust-Fallout\docs\agents\team-v3\ALL-EIGHT-PROMPTS.txt
+Download copy: C:\Users\robjp\Downloads\Rust-Fallout-Eight-Agent-Team\ALL-EIGHT-PROMPTS.txt
+Web: https://github.com/RobertJPerez/Rust-Fallout/tree/main/docs/agents/team-v3
+Raw: https://raw.githubusercontent.com/RobertJPerez/Rust-Fallout/main/docs/agents/team-v3/ALL-EIGHT-PROMPTS.txt
+
+Do not restart old v2 workers or create another integrator. Their worktrees,
+branches and evidence remain preserved. Coordinator owns integration as well.
+Each worker selects ready tasks automatically and has independent fallbacks.
+STOP overrides all queues and goals. Setup itself does not start engine work.

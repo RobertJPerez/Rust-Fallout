@@ -1,0 +1,480 @@
+{
+  "schema_version": 1,
+  "generation": "team-v3-20261004",
+  "tasks": {
+    "coordinator": [
+      {
+        "id": "V3-COORD-01",
+        "state": "ready",
+        "title": "Adopt reviewed base and fix combined integration regressions",
+        "depends_on": [],
+        "consumer": "All seven development lanes start from the same preserved source base.",
+        "acceptance": "Verify base check receipt and six-commit map; repair demonstrated cross-lane failures in candidate; never replay prior prerequisites.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-02",
+        "state": "ready",
+        "title": "Implement isolated original-profile capture and launch automation",
+        "depends_on": [],
+        "consumer": "Scripts numeric probes, world lookup precedence, physics units and presentation camera comparisons.",
+        "acceptance": "Read effective executable/data/config profile; create separate test user-data roots and capture receipt. Prove original installation/saves/settings unchanged. If GUI launch cannot be isolated, record exact failing operation and finish independent trace/import automation.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-03",
+        "state": "ready",
+        "title": "Wire persistent reference and pose consumers across crates",
+        "depends_on": [],
+        "consumer": "Runtime reference state -> world lifecycle -> presentation; assets pose -> visible actor.",
+        "acceptance": "Implement only shared dependency/export/host wiring from contracts.json; jointly validate source identity, stale generation and save/restore. Lane owners implement their modules.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-04",
+        "state": "ready",
+        "title": "Integrate small tested handoffs continuously",
+        "depends_on": [],
+        "consumer": "A usable combined engine branch instead of seven unmerged stacks.",
+        "acceptance": "Read receipts, map commits once, resolve interfaces/conflicts, run changed-package checks. Publish exact development base immediately after combined validation; no checkpoint wait for dependencies.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-05",
+        "state": "ready",
+        "title": "Freeze and prove a reviewed feature batch",
+        "depends_on": [],
+        "consumer": "Reliable main promotion and honest public checkpoint.",
+        "acceptance": "Use new private frozen tree/target/evidence. Existing checkpoint45 verifier proves only its scope; add acceptance for new behavior, preserve old proofs. Review next batch in integration during long proof.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-COORD-06",
+        "state": "ready",
+        "title": "Fix shared load/store failures on the selected player route",
+        "depends_on": [],
+        "consumer": "Strict content store/index/source joins used by first source-driven route.",
+        "acceptance": "Reproduce a concrete failing dependency from worker diagnostics; fix within shared ownership with independent expectation, no blanket exception or second importer.",
+        "fallback_task_id": null
+      }
+    ],
+    "scripts": [
+      {
+        "id": "V3-VM-01",
+        "state": "ready",
+        "title": "Build executable original/replacement microfixture trace runner",
+        "depends_on": [],
+        "consumer": "Existing prepared programs, native dispatch and local-copy execution.",
+        "acceptance": "Use bounded original authored fixtures and real trace inputs for assignment/conversion/branch/GetItemCount. Altered trace must fail. Implement runner in Rust; native retail glue isolated and disclosed. Missing capture is blocked, never pass.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-VM-02",
+        "state": "ready",
+        "title": "Capture one source-less original-script semantic",
+        "depends_on": [],
+        "consumer": "First faithful expression/native primitive through existing execution APIs.",
+        "acceptance": "Pin exact profile and compiled fixture; capture caller, operand bits, return and event order in isolated profile. Share receipts without modifying retail install or normal saves.",
+        "fallback_task_id": "V3-VM-03"
+      },
+      {
+        "id": "V3-VM-03",
+        "state": "ready",
+        "title": "Implement first-route execution capability admission",
+        "depends_on": [],
+        "consumer": "Prepared source plan used to enter Doc Mitchell/first Goodsprings route.",
+        "acceptance": "Use existing winning scripts and plans to return exact first unsupported operation/context with source offsets; bounded dependency cycles and deterministic priority. No new whole-corpus parser, fabricated stage changes or no-ops.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-VM-04",
+        "state": "blocked",
+        "title": "Execute the first measured primitive end to end",
+        "depends_on": [
+          "V3-VM-02"
+        ],
+        "consumer": "Source-less bytecode -> canonical staged effect -> saved outcome.",
+        "acceptance": "Match captured numeric/conversion/error cases; interruption does not acknowledge incomplete event or duplicate mutation.",
+        "fallback_task_id": "V3-VM-03"
+      },
+      {
+        "id": "V3-VM-05",
+        "state": "blocked",
+        "title": "Evaluate measured CTDA subject/group/comparison slice",
+        "depends_on": [
+          "V3-VM-04"
+        ],
+        "consumer": "Actor package and future dialogue selection through shared conditions.",
+        "acceptance": "Reuse condition query adapter and exact source provenance; independently observed truth/group ordering, wrong-context cases and unsupported functions remain explicit.",
+        "fallback_task_id": "V3-VM-01"
+      },
+      {
+        "id": "V3-VM-06",
+        "state": "blocked",
+        "title": "Add resumable bounded execution with canonical commits",
+        "depends_on": [
+          "V3-VM-04"
+        ],
+        "consumer": "Measured route survives budget yield and cold Continue.",
+        "acceptance": "Coordinate continuation schema with runtime; preserve current PC/context/locals and exactly-once effects, no invented retail schedule.",
+        "fallback_task_id": "V3-VM-03"
+      }
+    ],
+    "runtime": [
+      {
+        "id": "V3-STATE-01",
+        "state": "ready",
+        "title": "Reproduce and close remaining schema-invalid backup rotation",
+        "depends_on": [],
+        "consumer": "NativeSaveRepository current/previous recovery after STATE04K.",
+        "acceptance": "Checksum-valid numeric-local replaced by reference null must fail source-bound validation before rotating valid previous. Preserve bytes on refusal, bounded validation context, cold restore and no silent recovery change.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-STATE-02",
+        "state": "ready",
+        "title": "Add canonical explicit reference transform/enable state",
+        "depends_on": [],
+        "consumer": "World cell residency and presentation snapshot adapter under REF-STATE contract.",
+        "acceptance": "Persistent source identity, finite original-unit pose, explicit enable value, revision-checked mutation; same identity after unload/reload; no ECS IDs or fabricated initialization.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-STATE-03",
+        "state": "ready",
+        "title": "Expose save-ticket lifecycle for a real application consumer",
+        "depends_on": [],
+        "consumer": "Presentation save progress, errors and orderly host shutdown.",
+        "acceptance": "Read-only nonblocking status adapter over existing SaveTicket worker; failed publication never displays saved; no duplicate writer/event journal or changed durability promises.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-STATE-04",
+        "state": "blocked",
+        "title": "Persist and cold-restore reference state",
+        "depends_on": [
+          "V3-STATE-02"
+        ],
+        "consumer": "Displayed source object keeps an explicit changed transform/enable state after restart.",
+        "acceptance": "Versioned migration preserves existing saves; shared links before callbacks; exact headless/cold host state with preview consumer.",
+        "fallback_task_id": "V3-STATE-01"
+      },
+      {
+        "id": "V3-STATE-05",
+        "state": "blocked",
+        "title": "Add one consumer-backed actor or quest component",
+        "depends_on": [
+          "V3-STATE-04"
+        ],
+        "consumer": "Actor rules or measured quest execution requests canonical state.",
+        "acceptance": "Explicit field schema and evidence, atomic mutation and save/restore; add only fields exercised by named consumer, no guessed default actor values.",
+        "fallback_task_id": "V3-STATE-03"
+      }
+    ],
+    "actors": [
+      {
+        "id": "V3-ACT-01",
+        "state": "ready",
+        "title": "Resolve actor render dependencies from winning records",
+        "depends_on": [],
+        "consumer": "Presentation selected placed actor -> skeleton/body/equipment resource requests.",
+        "acceptance": "Reuse existing actor manifest, do not replace it. Add only missing model-role resolution demonstrated by chosen NPC/creature, source identity and explicit missing/ambiguous assets; installed and authored cases.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-ACT-02",
+        "state": "ready",
+        "title": "Build authored package eligibility requests for live context",
+        "depends_on": [],
+        "consumer": "Existing PACK dependencies -> scripts condition-query adapter.",
+        "acceptance": "Preserve authored package order and exact CTDA context requests without deciding unmeasured truth/schedule. Reachable headless consumer; no private CTDA or embedded-script parser.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-ACT-03",
+        "state": "ready",
+        "title": "Implement bounded template dependency selection for chosen actor",
+        "depends_on": [],
+        "consumer": "First visible actor initialization receives exact field origins.",
+        "acceptance": "Find current closure first; extend only missing TPLT/category selection grounded in pinned source or measurement; cycles/missing winners precise. Unproven inheritance stays unsupported, not defaulted.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-ACT-04",
+        "state": "blocked",
+        "title": "Initialize one measured actor state through canonical APIs",
+        "depends_on": [
+          "V3-STATE-02",
+          "V3-ACT-03"
+        ],
+        "consumer": "Visible actor rules with persistent state, not inspector-only roster.",
+        "acceptance": "Measure chosen fields; use runtime state contract, source->rules->state->save test; no second mutable World.",
+        "fallback_task_id": "V3-ACT-02"
+      },
+      {
+        "id": "V3-ACT-05",
+        "state": "blocked",
+        "title": "Connect one authored travel package to navigation",
+        "depends_on": [
+          "V3-ACT-04",
+          "V3-PHYS-03",
+          "V3-VM-05"
+        ],
+        "consumer": "Selected actor requests path/movement through physics and world residency.",
+        "acceptance": "Observed package conditions/order, supported route failure and interrupt behavior; no generic behavior tree replacement.",
+        "fallback_task_id": "V3-ACT-01"
+      },
+      {
+        "id": "V3-ACT-06",
+        "state": "blocked",
+        "title": "Implement one measured combat/item rule used by route",
+        "depends_on": [
+          "V3-ACT-04"
+        ],
+        "consumer": "Actual player/enemy encounter and equipment, after required state/query inputs exist.",
+        "acceptance": "Pinned formula/rounding thresholds, explicit unsupported modifiers and source record provenance; no guessed damage constants.",
+        "fallback_task_id": "V3-ACT-02"
+      }
+    ],
+    "assets": [
+      {
+        "id": "V3-ASSET-01",
+        "state": "ready",
+        "title": "Deliver bind-pose and palette evaluator to presentation",
+        "depends_on": [],
+        "consumer": "Existing decoded skin/source forest becomes selected actor geometry.",
+        "acceptance": "Reuse ASSET06/09. Bounded skeleton mapping and hierarchy transforms, authored independent numeric fixtures; reject unresolved ancestry/weights, never normalize or invent bind transforms silently.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-ASSET-02",
+        "state": "ready",
+        "title": "Cover the next actual first-person or creature asset gap",
+        "depends_on": [],
+        "consumer": "Actor-selected missing asset capability in the same pose consumer.",
+        "acceptance": "Select input from existing manifest/census, inspect pinned format, implement bounded required branch and independent comparison. Do not repeat whole corpus inventories.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-ASSET-03",
+        "state": "ready",
+        "title": "Connect explicit-time channels to a bounded pose request",
+        "depends_on": [],
+        "consumer": "Transferred WORLD03C presentation consumer.",
+        "acceptance": "Existing sampler with exact source/controller links, explicit finite time and raw quaternion contract; independent pose expectation. Separate engineering sample from faithful playback/events.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-ASSET-04",
+        "state": "blocked",
+        "title": "Implement first measured animation transition/event",
+        "depends_on": [
+          "V3-ASSET-01",
+          "V3-ASSET-03"
+        ],
+        "consumer": "Presentation playback and actor action event consumer.",
+        "acceptance": "Capture clip/controller boundary timing, interrupt/repeat behavior, source annotations and tolerances; unsupported graph remains explicit.",
+        "fallback_task_id": "V3-ASSET-02"
+      },
+      {
+        "id": "V3-ASSET-05",
+        "state": "blocked",
+        "title": "Add equipment attachment and rig coverage",
+        "depends_on": [
+          "V3-ASSET-01"
+        ],
+        "consumer": "Actor equipment produces correct visible attachment across pose changes.",
+        "acceptance": "Identity-bound attachment transforms, first/third person cases and missing bones; saved authority stays with runtime.",
+        "fallback_task_id": "V3-ASSET-02"
+      }
+    ],
+    "world": [
+      {
+        "id": "V3-WORLD-01",
+        "state": "ready",
+        "title": "Connect existing jobs to bounded cell residency lifecycle",
+        "depends_on": [],
+        "consumer": "Presentation requests scene data; physics reports readiness; runtime owns persistent instances.",
+        "acceptance": "Explicit IO/decode/dependency/render/unload stages, generation rejection, bounded memory/pins and unload/retry. Simulation-ready requires collision; no second cache/importer.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-WORLD-02",
+        "state": "ready",
+        "title": "Implement profile-bound lookup precedence from evidence",
+        "depends_on": [],
+        "consumer": "Real model/texture resolution used by scene preparation.",
+        "acceptance": "Reuse explicit-root source evidence. Capture effective profile/order or pinned justified behavior for loose/archive collisions; deterministic fixtures and actionable ambiguity. No blanket last-wins.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-WORLD-03",
+        "state": "ready",
+        "title": "Close one documented strict-source admission exception",
+        "depends_on": [],
+        "consumer": "M1 source corpus loading with exact retained provenance.",
+        "acceptance": "Investigate known LAND/two archive mismatches using retained independent outputs, then original handling. World may implement verified digest-scoped archive.rs changes; shared LAND/plugin/store policy fixes go to V3-COORD-06 with exact reproduction/evidence. Otherwise preserve strict refusal and take another ready task.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-WORLD-04",
+        "state": "blocked",
+        "title": "Resolve original door destination and cell transition plan",
+        "depends_on": [
+          "V3-WORLD-01"
+        ],
+        "consumer": "Player-requested interior/exterior transition with exact reference identity.",
+        "acceptance": "Source-selected links and orientation, bounded missing/cycle diagnostics; connect residency/collision/explicit state, no teleport claim for unsupported script effects.",
+        "fallback_task_id": "V3-WORLD-02"
+      },
+      {
+        "id": "V3-WORLD-05",
+        "state": "ready",
+        "title": "Connect winning dialogue sources to conversation requests",
+        "depends_on": [],
+        "consumer": "Presentation original dialogue UI -> scripts conditions/result fragments.",
+        "acceptance": "Reuse existing narrative/dialogue-membership parsers; enumerate source ordering uncertainty and actual voice/subtitle paths; no authored topic substitution or hardcoded quest.",
+        "fallback_task_id": "V3-WORLD-03"
+      },
+      {
+        "id": "V3-WORLD-06",
+        "state": "blocked",
+        "title": "Implement persistent loaded/unloaded cell transitions",
+        "depends_on": [
+          "V3-WORLD-04",
+          "V3-STATE-04",
+          "V3-PHYS-04"
+        ],
+        "consumer": "One supported house/exterior route retains explicit source object changes.",
+        "acceptance": "Use STATE04 snapshot consumer and PHYS04 readiness, stale completion and cold resume tested; faithful traversal only after measured units/activation.",
+        "fallback_task_id": "V3-WORLD-05"
+      }
+    ],
+    "presentation": [
+      {
+        "id": "V3-VIEW-01",
+        "state": "ready",
+        "title": "Fix finite camera overflow and add input action boundaries",
+        "depends_on": [],
+        "consumer": "Existing model/interior/terrain inspection application.",
+        "acceptance": "Reject overflowing/zero source look direction before Bevy fallback; mouse/keyboard/controller, focus loss/disconnect and held-action leakage. Use pinned Bevy API, headless action tests and separate manual feel check.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-VIEW-02",
+        "state": "ready",
+        "title": "Implement selected source pose consumer",
+        "depends_on": [],
+        "consumer": "Transferred WORLD03C proposal and existing ASSET06/09 sampling.",
+        "acceptance": "Explicit finite source-time request, correct source link selection, bounded hierarchy assembly; begin currently supported channels, add ASSET01 palette when available. Preserve unsupported branches, no retail animation claim.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-VIEW-03",
+        "state": "ready",
+        "title": "Open responsive window while preparing source scene",
+        "depends_on": [],
+        "consumer": "Existing startup progress and world resource jobs.",
+        "acceptance": "Window/status appears before costly preparation, loading/error/cancel visible, GPU upload bounded and stale generation discarded; working terrain/material fixtures preserved.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-VIEW-04",
+        "state": "blocked",
+        "title": "Display canonical reference snapshots and save status",
+        "depends_on": [
+          "V3-STATE-02",
+          "V3-STATE-03"
+        ],
+        "consumer": "STATE02/03 adapters -> actual host render/input/Continue surface.",
+        "acceptance": "Rendering never mutates canonical storage, stable identity across unload; completed/failed save truthful and source-defined view state after cold restart.",
+        "fallback_task_id": "V3-VIEW-01"
+      },
+      {
+        "id": "V3-VIEW-05",
+        "state": "ready",
+        "title": "Implement first original XML/tile menu slice",
+        "depends_on": [],
+        "consumer": "Source-defined menu input/visibility/text consumer, then dialogue and inventory.",
+        "acceptance": "Read actual template/operator/font inputs, bounded graph invalidation and explicit unsupported operators; independent source/operator fixture; debug widgets cannot claim original UI.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-VIEW-06",
+        "state": "blocked",
+        "title": "Resolve and play one original dialogue/audio path",
+        "depends_on": [
+          "V3-WORLD-05"
+        ],
+        "consumer": "WORLD05 selected voice/subtitle request.",
+        "acceptance": "Codec/provenance audit, explicit localization/priority and measured timing; actual local cue, missing file clear, raw voice stays local.",
+        "fallback_task_id": "V3-VIEW-05"
+      }
+    ],
+    "physics": [
+      {
+        "id": "V3-PHYS-01",
+        "state": "ready",
+        "title": "Turn existing collision shapes into a bounded static query scene",
+        "depends_on": [],
+        "consumer": "Headless house ray/overlap query and later preview movement.",
+        "acceptance": "Use existing 16-type decoder and authored shapes, no visual-mesh stand-ins. Explicit engineering unit transform, measured faithful units remain gated; analytic shape fixtures, shared DAG, source IDs and budgets.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-PHYS-02",
+        "state": "ready",
+        "title": "Implement needed collision transform/filter source branch",
+        "depends_on": [],
+        "consumer": "PHYS01 selected house body conversion and exact unsupported diagnosis.",
+        "acceptance": "Choose actual missing branch from existing corpus, inspect pinned source, preserve body/shape transforms and filter bits; independent known geometry including finite/degenerate/reflection cases.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-PHYS-03",
+        "state": "ready",
+        "title": "Load source navigation into bounded route queries",
+        "depends_on": [],
+        "consumer": "Headless selected cell path request -> later authored actor travel.",
+        "acceptance": "Verify NAVM/NAVI layouts at pinned source, preserve triangles/doors/special links and missing neighbors; indexed graph/A* with justified heuristic and authored unreachable/cycle tests; no fabricated navmesh.",
+        "fallback_task_id": null
+      },
+      {
+        "id": "V3-PHYS-04",
+        "state": "blocked",
+        "title": "Publish collision readiness and release by cell generation",
+        "depends_on": [
+          "V3-PHYS-01"
+        ],
+        "consumer": "World lifecycle cannot activate missing collision.",
+        "acceptance": "Consume generation-tagged source batches, reject stale results, release own resources on unload, return exact unsupported capability; no parallel authoritative entity state.",
+        "fallback_task_id": "V3-PHYS-03"
+      },
+      {
+        "id": "V3-PHYS-05",
+        "state": "blocked",
+        "title": "Implement measured character sweep/step movement",
+        "depends_on": [
+          "V3-PHYS-01",
+          "V3-STATE-02"
+        ],
+        "consumer": "Presentation movement intent -> collision query -> runtime transform.",
+        "acceptance": "Measure original units/step/slope/contact with isolated fixtures; bounded iterations, walls/steps/doorway tests and no silent teleport or penetration fix.",
+        "fallback_task_id": "V3-PHYS-02"
+      },
+      {
+        "id": "V3-PHYS-06",
+        "state": "blocked",
+        "title": "Connect authored route to actor movement",
+        "depends_on": [
+          "V3-PHYS-03",
+          "V3-PHYS-05"
+        ],
+        "consumer": "ACT05 package travel through real cell links.",
+        "acceptance": "Portal/special-link preservation, appropriate funnel only on valid corridors, explicit unreachable paths and dynamic obstacle behavior.",
+        "fallback_task_id": "V3-PHYS-02"
+      }
+    ]
+  },
+  "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list."
+}

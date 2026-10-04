@@ -39,10 +39,10 @@ execute bytecode or establish original numeric or native behavior.
 M1 remains the first unmet brief milestone, with zero accepted gameplay scenarios.
 Original activation order, actor initialization/inheritance, evaluated skinning,
 VM semantics and effects, complete world persistence and retail comparisons remain
-open. The six-agent team is active under the current control file. Tested source-cache,
-save, actor and animation handoffs remain outside this checkpoint and are being
-reviewed for later integration. Workers follow owned task queues and take the
-automatic focused build slot without a coordinator grant.
+open. The eight-agent setup is prepared and paused; see the
+[current team plan](../docs/agents/team-v3/team-plan.md). Later reviewed handoffs
+form a separate development base and remain outside this checkpoint acceptance.
+The original checkpoint45 proof and historical reports are preserved.
 
 See [source lanes](checkpoint-45-source-lanes.json),
 [verification](checkpoint-45-verification.json),

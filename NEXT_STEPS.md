@@ -4,7 +4,11 @@ The next unmet gate is **M1: trustworthy, semantically useful content loading**.
 The current tools build and run; the original games have not been recreated yet.
 Keep the entire master brief in scope and progress through its dependency gates.
 
-The [six-agent team](docs/agents/team-v2/team-plan.md) is active. Workers advance owned task queues and claim the shared focused build slot automatically; the coordinator reviews, integrates and publishes.
+The [eight-agent setup](docs/agents/team-v3/team-plan.md) is prepared and paused.
+Start its coordinator prompt first to activate a fresh run, then the seven workers.
+Use the reviewed common development base and
+[concrete lane backlogs](docs/agents/team-v3/backlog.json); do not redo the historical
+tasks below. Current run status lives in local/team/control.json.
 [Checkpoint 45](reports/checkpoint-45.md) is the latest verified implementation. Later worker handoffs stay outside its frozen proof until separately reviewed and integrated.
 
 Checkpoint 14 is ready for a direct visual/input comparison. Run the verified build
@@ -329,5 +333,15 @@ The combined build passes 423 Rust tests, five publication checks, formatting,
 Clippy and the full runtime/source regression. All 464 original installation
 files match baseline. M1 and original gameplay acceptance remain open.
 See [source-lane verification](docs/source-lane-verification.md) and
-[integration instructions](docs/agents/integration.md). The six-agent team is active;
-workers advance their owned queues without waiting for a coordinator grant.
+[current integration instructions](docs/agents/team-v3/01-coordinator.txt).
+The eight-agent setup preserves later reviewed development work separately;
+workers select ready tasks automatically once the coordinator activates the new run.
+
+
+The v3 review identifies the next consumer gaps: measured VM behavior, persistent
+reference state, visible source poses, actual cell residency, collision queries
+and original input/UI. See [review](docs/agents/team-v3/review.md) and
+[interfaces](docs/agents/team-v3/contracts.json). STATE04K/VM03E fixes and
+ACT07B/ASSET09/VM05 handoffs are mapped in
+[preserved-work.json](docs/agents/team-v3/preserved-work.json), not accepted by the
+old checkpoint45 proof.

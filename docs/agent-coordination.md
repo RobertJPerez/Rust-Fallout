@@ -1,18 +1,22 @@
-# Six-agent coordination
+# Eight-agent coordination
 
-Robert requested a new team on October 3, 2026: one primary coordinator and five
-implementation workers. Coordinator now owns review, integration, shared contracts
-and cross-system fixes. The former separate integration worker is retired.
+The current setup is [team v3](agents/team-v3/team-plan.md): one coordinator and
+seven workers for scripts, runtime, actors, assets, world, presentation and physics.
+Read its [operating contract](agents/team-v3/operating-contract.txt),
+[ownership](agents/team-v3/ownership.json), [interfaces](agents/team-v3/contracts.json)
+and [backlog](agents/team-v3/backlog.json). Copyable startup prompts are in
+[ALL-EIGHT-PROMPTS.txt](agents/team-v3/ALL-EIGHT-PROMPTS.txt).
 
-Read [the team plan](agents/team-v2/team-plan.md),
-[the operating contract](agents/team-v2/operating-contract.txt) and
-[the ownership map](agents/team-v2/ownership.json). Copyable startup prompts are
-`01-coordinator.txt` through `06-world-content.txt` in `docs/agents/team-v2`.
+Setup is paused. Submit Agent1's startup prompt first; it authorizes a fresh run
+activation after preservation/lease checks. Start the seven workers afterward.
+Current local control is authoritative subject to Robert's latest instruction;
+this setup document is not a live status dashboard. Old v2 sessions stay stopped.
 
-The team is active under the current control and assignments. Workers advance small owned tasks and claim the shared focused build slot automatically. The coordinator owns review, integration and publication. Existing branches, drafts and raw evidence remain preserved.
+Coordinator exclusively owns main and the integration worktree. Every worker has
+a new v3 worktree at the same reviewed development base. Existing trees and raw
+proofs remain intact; see [preserved work](agents/team-v3/preserved-work.json).
 
-Checkpoint 45 verifies actor associations/class/faction/placement sources, skin partitions and decoded bindings, and live operand observations against engineering state with a fresh full runtime/source regression. M1 remains unmet and zero gameplay scenarios are accepted.
-
-Older worktrees may retain four-agent instructions in their historical commits.
-New prompts explicitly select current instructions under `G:\Rust-Fallout`.
-Do not resurrect old assignments or start a seventh integration worker.
+[The review](agents/team-v3/review.md) explains actual gaps and the new split.
+Checkpoint45 remains the latest published verification. M1 is unmet and zero
+original gameplay scenarios are accepted. New development tests are not a new
+checkpoint or a completion percentage.

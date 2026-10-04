@@ -1,0 +1,119 @@
+RUST FALLOUT TEAM V3 - EIGHT AGENTS
+
+AUTHORITY AND STARTUP
+Robert's latest instruction wins. Setup is paused and preserves v2. Submitting
+01-coordinator.txt authorizes a fresh v3 activation; workers cannot activate it.
+Global control: G:\Rust-Fallout\local\team\control.json
+Generation: team-v3-20261004
+Mailboxes and assignments: G:\Rust-Fallout\local\team-v3
+Central AGENTS.md and current v3 instructions override old checkout copies.
+Read the entire original brief, current checkpoint, NEXT_STEPS, ownership,
+contracts, review and preserved-work mapping before implementation.
+
+Activation: coordinator verifies the prepared worktrees and preserved handoffs,
+checks for existing writer leases/processes, creates a fresh UUID-based run_id,
+updates ready assignments and board, then publishes active control last. Never
+reuse v2 run IDs. Do not activate a lane with no concrete ready work. An early
+worker reports inactive control once; it must not start a Goal or busy-poll.
+The coordinator startup prompt is the authorization, not elapsed time.
+
+ONE WRITER PER LANE
+Claim local/team-v3/leases/<lane>.json with exclusive create, never overwrite.
+Fields: schema_version, generation, run_id, lane, session_uuid, worktree, branch,
+claimed_at. Keep that UUID for the entire session. Coordinator uses main as its
+lease worktree; assignment explicitly allows its candidate tree as well.
+Status must include generation, run_id, lane, session_uuid, state, active_task,
+head, completed_tasks, parked_validation, next_action and updated_at.
+While authorized, use state active, working, building, testing or waiting_for_build.
+Use stopped/paused on exit; a stopped status cannot launch a build.
+Write only your lane's status/outbox. Replace status atomically with a same-folder
+temporary file. UTF-8 (with or without BOM) is accepted; prefer without BOM.
+Append outbox JSON lines with sequence, generation, run_id, lane, session_uuid,
+timestamp, type, task_id and message. Do not rewrite history. Coordinator alone
+writes assignments, board and global control. Separate chats communicate through
+these files; do not assume an in-memory message reaches another VS Code session.
+No stale lease expires just because it is old. Verify its writer stopped, archive
+it with receipt, then allow a new claimant. Do not create duplicate lane sessions.
+
+AUTONOMOUS TASK SELECTION
+Task identity is (generation, task_id). New task IDs have a V3- prefix; preserved
+v2 handoffs retain their original IDs and are not repeated or reclassified.
+Read control/assignment and current-run stop rows before every command, before
+edits/commits and at each task boundary. While active choose the next ready task
+not in your completed_tasks. Complete a bounded production change, focused tests
+and handoff; then take the next one. No new grant is required.
+If dependency or review is blocked, announce exact missing item once and take an
+independent ready task. When the seed queue ends, derive the next bounded task
+within your ownership from the brief and demonstrated route gaps, with input,
+consumer and acceptance recorded in outbox. Do not repeat completed source audits.
+At four unmerged handoffs, prioritize fixes and review of that stack and request
+integration priority. Keep one coding task and at most one parked validation task.
+Use source/fixture/consumer work while a build is busy; no untested feature pile.
+Real exhaustion is reported honestly rather than inventing work to consume credit.
+
+OWNERSHIP AND INTERFACES
+ownership.json is binding; unlisted paths are coordinator-owned pending a clear
+assignment. contracts.json preauthorizes the initial producer/consumer boundaries.
+Private helpers, additive methods and internal refactors within those boundaries
+do not require a coordinator grant. Export modules and add minimal CLI dispatch in
+your private branch if necessary; declare those shared hunks in handoff. New
+dependencies, source pins, persistent identity/schema semantics outside the
+published contracts, or ownership changes need a coordinator decision. Continue a ready independent slice meanwhile.
+Workers may consume an exact coordinator-published development commit at a clean
+boundary without waiting for checkpoint publication. Merge/cherry-pick only the
+mapped dependency, preserve originals and do not replay already-integrated stacks.
+Never reset/clean/rebase/remove somebody else's branch or tree. No force pushes.
+Only coordinator promotes/pushes main or assigns checkpoint numbers.
+
+RESOURCE SCHEDULING
+Set CARGO_TARGET_DIR to the assigned private target. Run from assigned worktree:
+py -3 G:\Rust-Fallout\tools\team-build.py --lane LANE --session UUID --slot focused -- COMMAND ARGUMENTS
+Cargo command is powershell -NoProfile -ExecutionPolicy Bypass -File
+G:\Rust-Fallout\tools\cargo.ps1 with --locked, normally --jobs 2 (or one under
+observed memory pressure). Preserve command exit and logs in a new local directory.
+Use --slot heavy for full workspace checks, native corpus proofs, GPU operations
+and original-game captures. Heavy admission is automatic, not coordinator-granted.
+Every build/proof owns a separate target/native directory; never overwrite binaries
+or source inputs of a live proof. Avoid nesting wrappers; the outer heavy operation
+owns its subprocess builds and honors the same job bound.
+Coordinator launches frozen-proof orchestration from its assigned integration
+tree, passing the frozen repository and new private proof target explicitly to
+the child builder/verifier. It must not point that child at integration's live
+target. This permits review commits on the same integration branch while the
+separate proof source and binaries remain immutable.
+Default acquisition is nonblocking: exit75 means resource busy and no child ran.
+Do another bounded task and retry at its boundary; do not poll a busy slot every
+few seconds. --wait is available when the result is genuinely the only next step;
+it checks STOP/authorization frequently and cannot count as productive coding.
+One focused operation and one heavy operation total. Increase only after observed
+memory/CPU measurements justify it, not because more agents are configured.
+The v3 wrapper requires exact run/session identity throughout the command and
+contains its own child process tree. See tool tests for demonstrated guarantees.
+
+REVIEW AND HANDOFF
+Publish a small commit on your own branch. Handoff: requirement/task, base/parent,
+commit range, dependency original/integrated map, owned/shared paths, interface,
+source pins, actual commands/results, evidence paths/hashes, named reachable
+consumer, unsupported behavior and next task. Raw content stays ignored/local.
+Focused tests plus affected-package Clippy/formatting establish handoff quality;
+combined checks and scoped retail acceptance are coordinator batch work. Do not
+rerun a full proof for every small handoff or every request for status.
+Coordinator checks mailboxes at boundaries, clears critical shared decisions and
+integrates priority fixes before another architectural expansion. It records exact
+development base receipts promptly; workers do not wait for public checkpoint
+wording. Frozen proofs stay separate from next-batch integration edits.
+
+FIDELITY AND STOP
+Original installation, settings and normal saves stay untouched. All probes use
+isolated inputs/profile and capture output. Read pinned source and license before
+reuse. Independently test engineering choices; do not infer retail timing, units,
+numeric coercion, default actor state or condition truth. No successful no-ops.
+Decoded, engineering-tested, original-compared and gameplay-accepted are separate.
+When Robert says stop, append a current-run stop_requested row with his instruction
+immediately. Coordinator sets global stop_requested immediately. All lanes check
+all current-run outboxes and control during short process polls. Stop new work;
+cancel only owned processes, preserve drafts/head/results/evidence/next action,
+mark stopped, archive/release own lease and return. If Robert explicitly gives a
+graceful deadline, finish only that current safe boundary within the deadline.
+No queued task, build, upload or persistent Goal overrides STOP. Resume requires
+Robert's instruction and a fresh reconciled run. Historical stop messages remain.

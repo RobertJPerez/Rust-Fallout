@@ -1,4 +1,5 @@
 //! Source-bound actor model dependencies. No inheritance or part/clip selection.
+pub mod equipment;
 mod fields;
 mod manifest;
 mod render;
@@ -355,7 +356,7 @@ impl<'a> Catalogue<'a> {
                             strings.iter().filter(|s| s.raw.is_empty()).count();
                     }
                     Value::Links { .. } => result.counts.link_fields += 1,
-                    Value::Opaque => {}
+                    Value::Opaque | Value::BipedSlots { .. } | Value::EquipmentType { .. } => {}
                 }
             }
             result.counts.records += 1;

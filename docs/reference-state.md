@@ -72,3 +72,62 @@ both kinds of stage. Restore, other campaigns and changed whole source cohorts
 also refuse old authority. Winner snapshots pass existing native publication and
 source-bound restoration. Original assignment conversion and callback behavior
 remain unverified; these are explicit engineering transactions.
+
+`World::reference_state_page(PageRequest { cell, after }, PageLimits)` supplies
+bounded immutable scene observations in stable `ReferenceId` order. `cell: None`
+includes the whole registered population, including unavailable components;
+`Some(cell)` matches only an explicitly stored component naming that exact key.
+The page exposes campaign, cohort, revision, filter, existing `View` rows,
+`PageUsage` and an optional opaque continuation. `into_parts()` transfers rows
+and cursor to the consumer. It traverses the registry directly without making a
+whole-world snapshot. Source cell membership and source defaults remain caller
+inputs, as in the single-reference API.
+
+`max_visited` bounds inspected registry entries independently of matches, and
+`max_rows` bounds returned rows. Both must be positive. A zero-match page can
+still advance its cursor. `max_copied_bytes` admits a conservative charge for
+fixed owned page/view values and their UTF-8 strings before copying them,
+including reserved continuation metadata when entries remain at page start.
+This charge excludes allocator overhead and spare vector capacity; it is not a
+process memory ceiling. A matching row that cannot fit remains unconsumed for
+the next page. If the first candidate cannot fit, the call refuses instead of
+returning a continuation without progress. Limits do not cause proportional
+preallocation; empty registries return a complete empty page.
+
+The cursor binds its producing World epoch, campaign, cohort, global revision,
+exact filter and last consumed reference. Mutation, equal-state restore, other
+Worlds and changed filters refuse before copy admission. Cursor fields are
+private and cannot deserialize; cursors are never saved or used as render IDs.
+`tests/reference_state_paging.rs` runs a real headless multi-cell reconciliation
+consumer, verifies zero-match progress and byte-limited coverage, then publishes
+changed pose/enable through the native worker and reconciles exact retained
+state in a fresh child process. This adds an immediately runnable producer
+consumer; completion of the presentation lane's preview remains separate.
+
+For one explicit host group, call
+`World::stage_reference_batch(&[(View, State)], BatchLimits)`, then consume its
+opaque `StagedReferenceBatch` with `World::commit_reference_batch(stage)`.
+Every view must describe the same current World revision, source cohort,
+campaign and epoch. Empty batches and duplicate reference IDs refuse. Staging
+validates every state and aggregate row/copy limits before copying proposals;
+dropping the stage has no effect. Its immutable `rows()` and `charged_bytes()`
+let the caller inspect the admitted request. The byte charge covers fixed
+staged values, their owned UTF-8 strings, batch metadata and temporary
+duplicate-check IDs; allocator overhead and commit peak memory are excluded.
+
+Commit revalidates all observations and checks revision capacity before any
+canonical mutation. All rows then commit together with one global revision.
+`BatchReceipt` exposes campaign, cohort, before/after revision and `BatchChange`
+values in explicit request order. Each change exposes reference, optional
+authored origin and committed state. Receipt serialization is a report, not
+deserializable mutation authority. Repeating identical explicit writes still
+commits one revision, matching the existing single-reference operation; there
+is no successful empty batch. No persisted batch, authored relationship,
+source membership or enable default is added.
+
+`tests/reference_state_batch.rs` supplies the immediately runnable source-selected
+host initialization/group-change consumer. It checks exact snapshot atomicity
+for an invalid last row, duplicates, stale peers, competing groups, unrelated
+canonical mutations, exhausted revision, restored Worlds and other campaigns
+or cohorts. Native worker publication and a fresh child then preserve the
+complete group state alongside inventory, script locals/contexts and events.

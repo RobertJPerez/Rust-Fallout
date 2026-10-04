@@ -1049,3 +1049,68 @@ The first frozen binary/proofs and initial Clippy loop-style failure remain
 preserved; a fixed-scratch iterator change passes fresh tests, Clippy and the
 full numerical comparisons on a separately frozen final binary. No native
 decoder, shared main dispatch, World, Runtime or persistent format changes.
+
+## Source-linked text-key interval observations
+
+`markers::query(bytes, source, Request, Limits)` follows only the selected exact
+`NiControllerSequence.text_keys` link through the existing animation decoder.
+The request requires the expected 32-byte source SHA, exact sequence block and
+finite binary64 `source_start`/`source_end` with start <= end. The read-only query
+defines a closed interval in direct source time. Sequence clocks, weight and
+cycle remain raw observations; the interval is independent of those fields.
+
+The `engineering-source-text-key-interval-v1` observation records whole source
+SHA, sequence/text-key block spans and digests, exact request time words, raw
+clock fields and the selected text-key declaration. Entries preserve physical
+key ordinal, binary32 time bits, exact string-table index and raw string bytes.
+No sorting or duplicate removal occurs. Nonmonotonic source order, repeated
+times, authored empty strings/arrays and an empty query result are supported.
+Binary32 source times are promoted exactly for comparison with binary64 request
+bounds; +0 and -0 compare equal while their source/request words remain distinct.
+
+Missing sequence/text link, wrong link class, invalid source/string references,
+malformed input and nonfinite request bounds refuse. The existing decoder rejects
+nonfinite source floats anywhere in its decoded source blocks with exact byte
+offsets, including unselected blocks. Every key of the selected linked text block
+must additionally have an authored string, even outside the requested interval.
+Unlinked text blocks are never merged or substituted for the selected link.
+
+The two-pass query validates and counts entries/raw copied bytes before allocating
+output vectors or strings. Per-entry storage errors identify exact text-key block,
+key ordinal and, for string copies, string index. Default extra output is 4 MiB,
+work one million catalogue/key/copy units, source arrays 32 MiB and blocks 16,384,
+with source+output charged storage capped together at 36 MiB. The existing source
+decoder's check/input limits also remain active. The usage receipt separates
+decoded source and output logical storage; allocator overhead, vector capacity
+and decoder scratch excluded by the existing source contract are not process
+memory claims. Failure emits no partial observation.
+
+The headless consumer is:
+
+```text
+fallout nif-animation INPUT --markers-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 JSON requires `expected_sha256` as 32 byte integers, `sequence`,
+`source_start` and `source_end`. Request JSON is capped at 64 KiB and source at
+64 MiB; output must be outside both directories. Source-report/sampling options
+conflict with the selected query. Unsupported evaluation returns `evaluation:
+null`, an exact error and nonzero exit. Existing source-report schemas remain
+unchanged. `tools/nif-animation-oracle/check_markers.py` checks a second authored
+source and the preserved native-decoded first-person `1gtaim.kf` source. Marker
+strings are source observations only: no weapon damage, sound dispatch, event
+cursor, repeat/cycle, transition timing or measured retail playback is established.
+
+Focused validation passes 31 data tests (eight new interval cases), 38 CLI tests,
+affected all-target Clippy with warnings denied, formatting and the CLI build.
+The frozen consumer passes four second-source interval observations and ten
+intended refusals, plus three native comparisons against original sequence0's
+text-key block64 (whole selected interval, exact zero and exact last time).
+Raw key/string ordinals, bytes, time words and both source-block spans/hashes
+match the independent native projection; source schemas1..6 remain byte-identical
+to the preceding frozen binary. Initial tests incorrectly expected nonfinite
+floats to reach the query and permitted a nonfinite unlinked block; the decoder's
+stricter existing refusals were retained, with corrected exact-offset expectations
+passing. One prematurely queued validation was cancelled before any child build;
+its empty log/cancellation receipt and all first-run failures stay preserved.
+Evidence and frozen executable remain in ignored `local/v3-asset-19`.

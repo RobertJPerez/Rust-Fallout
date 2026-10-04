@@ -777,12 +777,16 @@ def main():
         help="independently resolve an NPC_/CREA winner from its original EDID")
     parser.add_argument("--include-render-dependencies", action="store_true")
     parser.add_argument("--include-template-dependencies", action="store_true")
+    parser.add_argument("--equipment-source")
+    parser.add_argument("--equipment-role")
     parser.add_argument("--team-directory", type=pathlib.Path)
     parser.add_argument("--session-id")
     args = parser.parse_args()
     require(len(args.root) + len(args.root_editor_id) <= 64, "actor dependency root budget")
     require(not args.include_render_dependencies or args.root or args.root_editor_id, "render dependencies require explicit roots")
     require(not args.include_template_dependencies or args.root or args.root_editor_id, "template dependencies require explicit roots")
+    require(bool(args.equipment_source) == bool(args.equipment_role), "equipment source and role required together")
+    require(not args.equipment_source or len(args.root) + len(args.root_editor_id) == 1, "equipment requires one actor root")
 
     def guard():
         if args.team_directory is None:
@@ -843,6 +847,12 @@ def main():
                 graph, manifest['inventory_closure'], template_remaining, native['winning_content_sha256'])
                 for root, manifest in zip(roots, manifests)])
         native["actor_dependencies"] = {"counts": counts, "definitions": list(definitions.values()), "inventory_graph": graph, "manifests": [] if args.include_render_dependencies else manifests}
+        if args.equipment_source:
+            from equipment import manifest as equipment_manifest
+            origin, local = args.equipment_source.split(":")
+            equipment_key = (plugin_name(origin), int(local, 16))
+            require(0 < equipment_key[1] <= 0xFFFFFF, "equipment key")
+            native["actor_equipment_dependencies"] = dict(manifest=equipment_manifest(reader, roots[0], equipment_key, args.equipment_role, native["winning_content_sha256"]))
         guard()
         with args.output.open("x", encoding="utf-8") as output:
             json.dump(native, output, separators=(",", ":"), ensure_ascii=True)

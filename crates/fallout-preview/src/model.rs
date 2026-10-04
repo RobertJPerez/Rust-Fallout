@@ -22,6 +22,7 @@ use fallout_data::{
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -52,6 +53,10 @@ pub struct Report {
     pub retail_parity_accepted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_skin_pose: Option<Box<crate::pose::SkinSummary>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_object_pose: Option<Box<crate::pose::ObjectSummary>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_file: Option<Box<PathBuf>>,
 }
 
 #[derive(Serialize)]
@@ -176,17 +181,11 @@ pub fn load(
     assets: &ArchiveAssets,
     path: &AssetPath,
     textures: &mut Textures,
-    skin: Option<crate::pose::SkinRequest>,
+    pose: Option<crate::pose::Request>,
 ) -> Result<(Model, Report)> {
     let (_, bytes) = assets.read_unique(path)?;
-    if let Some(request) = skin {
-        from_texture_source(
-            TextureInput::Archive(assets),
-            path,
-            &bytes,
-            textures,
-            Some(request),
-        )
+    if let Some(request) = pose {
+        from_bytes_with_pose(assets, path, &bytes, textures, Some(request))
     } else {
         from_bytes(assets, path, &bytes, textures)
     }
@@ -201,6 +200,17 @@ pub fn from_bytes(
     textures: &mut Textures,
 ) -> Result<(Model, Report)> {
     from_texture_source(TextureInput::Archive(assets), path, bytes, textures, None)
+}
+
+/// An explicit standalone pose shares the same model and diffuse adapters.
+pub fn from_bytes_with_pose(
+    assets: &ArchiveAssets,
+    path: &AssetPath,
+    bytes: &[u8],
+    textures: &mut Textures,
+    pose: Option<crate::pose::Request>,
+) -> Result<(Model, Report)> {
+    from_texture_source(TextureInput::Archive(assets), path, bytes, textures, pose)
 }
 
 /// CELL adaptation borrows both payloads from this generation's sealed leases.
@@ -234,12 +244,26 @@ fn from_texture_source(
     path: &AssetPath,
     bytes: &[u8],
     textures: &mut Textures,
-    skin: Option<crate::pose::SkinRequest>,
+    pose: Option<crate::pose::Request>,
 ) -> Result<(Model, Report)> {
-    let selected_skin = skin
-        .map(|request| crate::pose::skin(bytes, &String::from_utf8_lossy(path.bytes()), request))
-        .transpose()?;
+    let selected_skin = match pose {
+        Some(crate::pose::Request::Skin(request)) => Some(crate::pose::skin(
+            bytes,
+            &String::from_utf8_lossy(path.bytes()),
+            request,
+        )?),
+        _ => None,
+    };
     let (index, scene) = nif_scene::decode(bytes, &String::from_utf8_lossy(path.bytes()))?;
+    let mut selected_object = match pose {
+        Some(crate::pose::Request::Object(request)) => Some(crate::pose::object(
+            bytes,
+            &String::from_utf8_lossy(path.bytes()),
+            request,
+            &scene,
+        )?),
+        _ => None,
+    };
     let objects: BTreeMap<_, _> = scene.objects.iter().map(|v| (v.block, v)).collect();
     let worlds: BTreeMap<_, _> = scene
         .world_transforms
@@ -263,17 +287,31 @@ fn from_texture_source(
         rendering: "unlit diffuse/vertex-color inspection with source alpha, culling and depth states; no retail lighting, effects, animation or collision parity",
         retail_parity_accepted: false,
         source_skin_pose: None,
+        source_object_pose: None,
+        source_file: None,
     };
     for (kind, blocks) in &scene.unsupported_blocks {
-        report
-            .warnings
-            .push(format!("{} unsupported {kind} blocks", blocks.len()));
+        report.warnings.push(if pose.is_some() {
+            format!(
+                "{} {kind} blocks outside static scene projection; selected pose capabilities recorded separately",
+                blocks.len()
+            )
+        } else {
+            format!("{} unsupported {kind} blocks", blocks.len())
+        });
     }
     let mut parts = Vec::new();
     let mut used_textures = BTreeSet::new();
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = Vec3::splat(f32::NEG_INFINITY);
     for object in &scene.objects {
+        let object_world = selected_object
+            .as_ref()
+            .and_then(|pose| pose.worlds.get(&object.block))
+            .copied();
+        if selected_object.is_some() && object_world.is_none() {
+            continue;
+        }
         if selected_skin
             .as_ref()
             .is_some_and(|skin| skin.summary.geometry != object.block)
@@ -357,12 +395,16 @@ fn from_texture_source(
         {
             return Err("Selected skin arrays differ from the exact source geometry".into());
         }
-        // The pose adapter already applied palette deformation, source-world
-        // mapping and the view basis. Copy its arrays without applying the
-        // geometry owner's stored matrix again.
-        let matrix = selected_skin
-            .as_ref()
-            .map_or_else(|| affine(world.matrix), |skin| skin.world);
+        // The skin adapter already applied its world map and view basis.
+        // Object descendants carry their freshly composed source world below;
+        // neither path reapplies the geometry owner's stored world matrix.
+        let matrix = if let Some(posed_world) = object_world {
+            affine(posed_world)
+        } else {
+            selected_skin
+                .as_ref()
+                .map_or_else(|| affine(world.matrix), |skin| skin.world)
+        };
         let determinant = matrix.determinant();
         if !matrix.is_finite() || !determinant.is_finite() || determinant.abs() < 1e-12 {
             return Err(format!(
@@ -371,7 +413,9 @@ fn from_texture_source(
             )
             .into());
         }
-        let positions: Vec<[f32; 3]> = if let Some(skin) = &selected_skin {
+        let positions: Vec<[f32; 3]> = if let Some(posed_world) = object_world {
+            crate::pose::object_vectors(posed_world, &source.vertices, false)?
+        } else if let Some(skin) = &selected_skin {
             skin.positions.clone()
         } else {
             source
@@ -405,7 +449,14 @@ fn from_texture_source(
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
         .with_inserted_indices(Indices::U32(indices));
-        if let Some(skin) = &selected_skin {
+        if let Some(posed_world) = object_world {
+            if !source.normals.is_empty() {
+                mesh.insert_attribute(
+                    Mesh::ATTRIBUTE_NORMAL,
+                    crate::pose::object_vectors(posed_world, &source.normals, true)?,
+                );
+            }
+        } else if let Some(skin) = &selected_skin {
             if !skin.normals.is_empty() {
                 mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, skin.normals.clone());
             }
@@ -440,6 +491,30 @@ fn from_texture_source(
             {
                 return Err("Selected skin draw attributes differ from the source pose".into());
             }
+        }
+        if let Some(posed_world) = object_world {
+            let Some(VertexAttributeValues::Float32x3(positions)) =
+                mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            else {
+                return Err("Selected object draw positions are unavailable".into());
+            };
+            let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL) {
+                Some(VertexAttributeValues::Float32x3(normals)) => normals.as_slice(),
+                None if source.normals.is_empty() => &[],
+                _ => return Err("Selected object draw normals are unavailable".into()),
+            };
+            selected_object
+                .as_mut()
+                .expect("object world came from selected pose")
+                .summary
+                .draw_meshes
+                .push(crate::pose::ObjectMesh {
+                    geometry: object.block,
+                    geometry_data: data,
+                    source_world: posed_world,
+                    positions_sha256: crate::pose::draw_hash(positions),
+                    normals_sha256: crate::pose::draw_hash(normals),
+                });
         }
         if let Some(uvs) = source.uv_sets.first() {
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs.clone());
@@ -574,6 +649,11 @@ fn from_texture_source(
         report.triangles += source.triangles.len();
     }
     if parts.is_empty() {
+        if selected_object.is_some() {
+            return Err(
+                "selected source object pose has no supported visible triangle mesh".into(),
+            );
+        }
         if selected_skin.is_some() {
             return Err("selected source skin has no supported visible triangle mesh".into());
         }
@@ -583,6 +663,11 @@ fn from_texture_source(
         report.schema_version = 3;
         report.source_skin_pose = Some(Box::new(skin.summary));
         report.rendering = "unlit exact selected source-local skin; source-world map once; raw weights/linear normals, controllers and original playback unapplied; no retail parity";
+    }
+    if let Some(pose) = selected_object {
+        report.schema_version = 3;
+        report.source_object_pose = Some(Box::new(pose.summary));
+        report.rendering = "unlit exact source-time translation/scale pose of selected object/static descendants; source world and basis once; raw linear normal directions; clock/rotation-key/playback fields unapplied, no retail parity";
     }
     report.bounds = [min.to_array(), max.to_array()];
     report.textures = used_textures
@@ -668,6 +753,97 @@ pub fn decode_diffuse(bytes: &[u8], clamp: u32) -> Result<Image> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn authored_sources() -> ArchiveAssets {
+        let install = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/preview-pose-test-install");
+        std::fs::create_dir_all(install.join("Data")).unwrap();
+        ArchiveAssets::open_nv(&install).unwrap()
+    }
+
+    #[test]
+    fn exact_source_time_reaches_actual_mesh_without_reapplying_owner_world() {
+        let bytes = include_bytes!("testdata/source-pose-triangle.packet");
+        let assets = authored_sources();
+        let path = AssetPath::new(b"authored/source-pose-triangle.nif").unwrap();
+        for (time, positions, normals, world, indices) in [
+            (
+                0.,
+                [[-6., -1., -5.], [-6., -1., -7.], [-6., -3., -5.]],
+                [[2., 0., 0.]; 3],
+                [[0., 0., 1., -6.], [1., 0., 0., 5.], [0., -1., 0., -1.]],
+                [0, 2, 1],
+            ),
+            (
+                3.,
+                [[-6., 29., 7.], [-6., 29., 11.], [-6., 33., 7.]],
+                [[-4., 0., 0.]; 3],
+                [[0., 0., -2., -6.], [-2., 0., 0., -7.], [0., 2., 0., 29.]],
+                [0, 1, 2],
+            ),
+        ] {
+            let (model, report) = from_bytes_with_pose(
+                &assets,
+                &path,
+                bytes,
+                &mut Textures::default(),
+                Some(crate::pose::Request::Object(crate::pose::ObjectRequest {
+                    object: 1,
+                    controller: 2,
+                    source_time: time,
+                })),
+            )
+            .unwrap();
+            assert_eq!(model.parts.len(), 1);
+            let mesh = &model.parts[0].mesh;
+            assert!(matches!(mesh.attribute(Mesh::ATTRIBUTE_POSITION),
+                Some(VertexAttributeValues::Float32x3(values)) if values == &positions));
+            assert!(matches!(mesh.attribute(Mesh::ATTRIBUTE_NORMAL),
+                Some(VertexAttributeValues::Float32x3(values)) if values == &normals));
+            assert!(matches!(mesh.indices(), Some(Indices::U32(values)) if values == &indices));
+            let pose = report.source_object_pose.unwrap();
+            assert_eq!(pose.draw_meshes[0].source_world, world);
+            assert_eq!(pose.evaluation.requested_time_f64_bits, time.to_bits());
+            assert_eq!(pose.evaluation.unapplied_controller_fields.flags, 0xffff);
+            assert!(!pose.evaluation.retail_behavior_verified);
+            assert_eq!(report.bindings[0].diffuse_mode, "authored-untextured");
+            assert_eq!(report.bindings[0].raster.draw_mode, 3);
+            assert_eq!(report.schema_version, 3);
+        }
+    }
+
+    #[test]
+    fn source_pose_draw_refuses_unapplied_descendant_and_singular_sample() {
+        let assets = authored_sources();
+        let path = AssetPath::new(b"authored/source-pose-triangle.nif").unwrap();
+        for (bytes, time, expected) in [
+            (
+                include_bytes!("testdata/source-pose-controlled-descendant.packet").as_slice(),
+                0.,
+                "descendant 5 has an unapplied controller",
+            ),
+            (
+                include_bytes!("testdata/source-pose-triangle.packet").as_slice(),
+                1.,
+                "singular or unrepresentable transform",
+            ),
+        ] {
+            let error = from_bytes_with_pose(
+                &assets,
+                &path,
+                bytes,
+                &mut Textures::default(),
+                Some(crate::pose::Request::Object(crate::pose::ObjectRequest {
+                    object: 1,
+                    controller: 2,
+                    source_time: time,
+                })),
+            )
+            .err()
+            .expect("Unsupported source pose must not yield a model");
+            assert!(error.to_string().contains(expected), "{error}");
+        }
+    }
 
     fn dds(four_cc: &[u8; 4], payload_bytes: usize) -> Vec<u8> {
         let mut bytes = vec![0; 128 + payload_bytes];

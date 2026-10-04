@@ -34,7 +34,7 @@ geometry omitted by the existing visibility/material adapter produce explicit
 loading failures. They cannot become a ready capture. Missing command arguments
 fail command parsing. Stored controller fields remain unapplied; this slice does
 not establish a retail bind pose, playback, actor equipment assembly or a whole
-animated palette. Explicit finite-time object poses are a subsequent consumer.
+animated palette. Explicit finite-time object inspection is described below.
 
 Independent analytic tests cover transformed points versus directions, one world
 and basis application, cancellation in binary64 before narrowing and overflow
@@ -42,3 +42,43 @@ refusal. The tested handoff retains a separate frozen producer report, an
 independent draw-array calculation, selected-source GPU capture, intentional
 refusals and default report compatibility. Engineering rendering and original
 gameplay acceptance remain separate.
+
+## Explicit source-time object inspection
+
+`--pose-object BLOCK --pose-controller BLOCK --pose-time TIME` supplies an exact
+same-container request to the existing `nif_animation::pose::evaluate` producer.
+All three arguments and one model source are required. Skin selection and object
+selection are mutually exclusive. Time is binary64 in the source key domain;
+the host supplies no animation clock or frame-time substitution.
+
+The selected object's returned `source_world` already includes its source static
+ancestors. Its static descendants compose their declared local transforms after
+that matrix using the renderer's binary64 matrix transport, without applying
+the old selected-object world matrix. Additional
+descendant controllers and skin palettes refuse. Draw hierarchy admission limits
+are 16,384 objects, 32,768 work units and depth 1,024. Singular or unrepresentable
+draw matrices also refuse even when the producer accepts a zero forward scale.
+
+Positions and raw normal directions use the same binary64 world/basis transport
+as selected skins. The opt-in schema-3 `source_object_pose` keeps the producer's
+exact identity, spans, time bits, raw controller/interpolator fields, channels and
+static ancestry, plus each admitted mesh's final world matrix and draw hashes.
+Stored NiAV visibility and existing material inspection remain in effect.
+There is no claim of original rotation-key, clock, event or playback behavior.
+
+`--model-file PATH --install PATH` admits an explicit NIF file, capped at 64 MiB,
+through the same production decoder and model adapter. Its diffuse paths still
+resolve through the existing archive lookup. The report explicitly names the
+source file; its `local-source/...` model label is not an archive entry. Archived
+model mode and default schema 2 remain unchanged. This also makes bounded authored
+fixtures reachable through the actual loading, draw and GPU capture path.
+Capture and report paths must be outside both the installation and the explicit
+source-file directory; existing outputs are refused.
+
+`tools/presentation-oracle/pose_draw.py` authors two tiny source packets without
+game bytes. The checked-in `.packet` fixtures include a static quarter-turn
+parent, explicitly sampled half-turn object, transformed triangle child, colors
+and an authored two-sided material. Literal expected matrices and vertices expose
+transform ordering, signed-scale winding and raw normal length. The second packet
+adds a descendant controller that the renderer must refuse. All retail-derived
+inputs, captures and per-source reports remain under ignored local evidence.

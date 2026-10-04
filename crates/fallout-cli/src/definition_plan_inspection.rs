@@ -7,7 +7,11 @@ use fallout_data::{
         operand_binding,
     },
 };
-use fallout_runtime::{execution::admission, programs::PreparedSources};
+use fallout_runtime::{
+    execution::admission,
+    programs::{LookupError, PreparationJob, PreparationStatus, PreparedSources, StepBudget},
+};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -40,10 +44,17 @@ pub(super) fn inspect(
     cache: Option<&Path>,
     bundle_path: Option<&Path>,
     admission_path: Option<&Path>,
+    cooperative_path: Option<&Path>,
+    selected_path: Option<&Path>,
 ) -> Result<Value> {
-    if admission_path.is_some() && bundle_path.is_some() {
+    if [admission_path, bundle_path, cooperative_path, selected_path]
+        .iter()
+        .filter(|path| path.is_some())
+        .count()
+        > 1
+    {
         return Err(
-            "execution admission and comparison bundle are separate source-plan requests".into(),
+            "execution admission, cooperative/selected preparation and comparison bundle are separate source-plan requests".into(),
         );
     }
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
@@ -56,6 +67,20 @@ pub(super) fn inspect(
         loaded_scripts::Catalogue::load(&mut store, loaded_scripts::Limits::default(), |_, _| {
             Ok(())
         })?;
+    let provenance = || {
+        json!({
+            "explicit_load_order": order.names,
+            "load_order_sha256": order.sha256,
+            "executable_source_sha256": descriptors.source_sha256,
+            "index_cache": store.index_cache_report(),
+        })
+    };
+    if let Some(path) = selected_path {
+        return selected(path, &catalogue, &model, &signatures, provenance());
+    }
+    if let Some(path) = cooperative_path {
+        return cooperative(path, &catalogue, &model, &signatures, provenance());
+    }
     if let Some(path) = admission_path {
         let mut bytes = Vec::new();
         File::open(path)?
@@ -212,6 +237,184 @@ pub(super) fn inspect(
         "definitions":rows,"comparison_bundle":bundle_receipt,"index_cache":store.index_cache_report(),
         "execution_ready":false,"retail_parity_accepted":false}),
     )
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SelectedRequest {
+    schema_version: u32,
+    source_cohort_sha256: String,
+    definitions: Vec<loaded_scripts::Handle>,
+}
+
+fn selected(
+    path: &Path,
+    catalogue: &loaded_scripts::Catalogue,
+    model: &expression_plan::Model<'_>,
+    signatures: &fallout_data::obscript::argument_census::Signatures,
+    provenance: Value,
+) -> Result<Value> {
+    let mut bytes = Vec::new();
+    File::open(path)?.take(65_536 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > 65_536 {
+        return Err("selected source request byte budget exceeded".into());
+    }
+    let request: SelectedRequest = serde_json::from_slice(&bytes)?;
+    if request.schema_version != 1 || request.definitions.len() > 128 {
+        return Err("invalid selected source request version/definition allowance".into());
+    }
+    let sources = PreparedSources::load_selected(
+        catalogue,
+        model,
+        signatures,
+        &request.definitions,
+        Default::default(),
+    )?;
+    if request.source_cohort_sha256 != sources.source_cohort_sha256() {
+        return Err("selected source request has a different source receipt cohort".into());
+    }
+    let mut rows = Vec::with_capacity(request.definitions.len());
+    let mut unavailable = 0;
+    for handle in &request.definitions {
+        let source = catalogue
+            .get_handle(handle)
+            .ok_or("validated source disappeared")?;
+        let compiled = source.compiled().map(|bytes| {
+            json!({
+                "bytes": bytes.len(), "sha256": format!("{:x}", sha2::Sha256::digest(bytes)),
+            })
+        });
+        rows.push(match sources.get(handle) {
+            Ok(prepared) => json!({
+                "handle": handle,
+                "status": "prepared_source_structure",
+                "compiled": compiled,
+                "binding_sha256": prepared.binding_sha256(),
+                "instructions": prepared.plan().control().instructions().len(),
+                "expressions": prepared.plan().statements().len(),
+                "nodes": prepared.plan().nodes(),
+                "finding": null,
+            }),
+            Err(LookupError::Source(error)) => {
+                unavailable += 1;
+                json!({"handle":handle,"status":"source_finding","compiled":compiled,"finding":finding(error)})
+            }
+            Err(error) => return Err(error.into()),
+        });
+    }
+    Ok(json!({
+        "schema_version": 1,
+        "scope": "explicit_selected_immutable_source_preparation",
+        "request_sha256": format!("{:x}", sha2::Sha256::digest(&bytes)),
+        "provenance": provenance,
+        "selected_source": {
+            "cache": {
+                "counts": sources.counts(),
+                "source_cohort_sha256": sources.source_cohort_sha256(),
+                "decoder_sha256": sources.decoder_sha256(),
+            },
+            "definitions": rows,
+            "unavailable_definitions": unavailable,
+            "inferred_dependency_closure": false,
+        },
+        "execution_ready": false,
+        "retail_parity_accepted": false,
+    }))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CooperativeRequest {
+    schema_version: u32,
+    maximum_definitions_per_advance: usize,
+    maximum_source_bytes_per_advance: usize,
+    maximum_advances: usize,
+    cancel_after_advances: Option<usize>,
+}
+
+fn cooperative(
+    path: &Path,
+    catalogue: &loaded_scripts::Catalogue,
+    model: &expression_plan::Model<'_>,
+    signatures: &fallout_data::obscript::argument_census::Signatures,
+    provenance: Value,
+) -> Result<Value> {
+    let mut bytes = Vec::new();
+    File::open(path)?.take(16_384 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > 16_384 {
+        return Err("cooperative preparation request byte budget exceeded".into());
+    }
+    let request: CooperativeRequest = serde_json::from_slice(&bytes)?;
+    if request.schema_version != 1
+        || request.maximum_advances == 0
+        || request.maximum_advances > 4096
+        || request.maximum_definitions_per_advance == 0
+        || request.maximum_source_bytes_per_advance == 0
+        || request
+            .cancel_after_advances
+            .is_some_and(|count| count > request.maximum_advances)
+    {
+        return Err("invalid cooperative preparation request/version/budgets".into());
+    }
+    let mut job = PreparationJob::new(catalogue, model, signatures, Default::default())?;
+    let budget = StepBudget {
+        maximum_definitions: request.maximum_definitions_per_advance,
+        maximum_source_bytes: request.maximum_source_bytes_per_advance,
+    };
+    let mut advances = Vec::new();
+    let mut cache = None;
+    let (outcome, failure) = loop {
+        if request.cancel_after_advances == Some(advances.len()) {
+            drop(job);
+            break ("cancelled", None);
+        }
+        if advances.len() == request.maximum_advances {
+            drop(job);
+            break ("advance_budget", None);
+        }
+        let progress = job.advance(budget);
+        let status = progress.status;
+        let stalled = status == PreparationStatus::Pending && progress.step_definitions == 0;
+        advances.push(progress);
+        match status {
+            PreparationStatus::Complete => {
+                let sources = job.finish()?;
+                cache = Some(json!({
+                    "counts": sources.counts(),
+                    "source_cohort_sha256": sources.source_cohort_sha256(),
+                    "decoder_sha256": sources.decoder_sha256(),
+                }));
+                break ("complete", None);
+            }
+            PreparationStatus::Failed => {
+                let error = job.finish().err().ok_or("missing preparation failure")?;
+                break ("failed", Some(error.to_string()));
+            }
+            PreparationStatus::Pending if stalled => {
+                drop(job);
+                break ("step_budget", None);
+            }
+            PreparationStatus::Pending => {}
+        }
+    };
+    Ok(json!({
+        "schema_version": 1,
+        "scope": "cooperative_immutable_source_preparation",
+        "request_sha256": format!("{:x}", sha2::Sha256::digest(&bytes)),
+        "provenance": provenance,
+        "cooperative_preparation": {
+            "outcome": outcome,
+            "failure": failure,
+            "advances": advances,
+            "cache": cache,
+            "prepared_sources_published": cache.is_some(),
+            "indivisible_unit": "one_definition_with_existing_source_limits",
+            "setup": "bounded_catalogue_and_decoder_identity_before_first_advance",
+            "hard_time_slice": false,
+        },
+        "execution_ready": false,
+        "retail_parity_accepted": false,
+    }))
 }
 
 use sha2::Digest;

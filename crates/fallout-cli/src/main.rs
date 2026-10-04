@@ -144,6 +144,9 @@ enum Command {
         sample_block: Option<u32>,
         #[arg(long, value_enum, requires = "sample_time")]
         sample_channel: Option<nif_animation_inspection::SampleChannel>,
+        /// Observe exact physical text keys over an explicit source-time interval.
+        #[arg(long, conflicts_with_all = ["oracle_report", "include_keyframes", "include_splines", "include_spline_components", "include_bool_interpolators", "include_bool_keys", "sample_time", "sample_block", "sample_channel"])]
+        markers_request: Option<PathBuf>,
     },
     /// Decode exact NV skin source fields and optionally compare an independent oracle.
     NifSkin {
@@ -160,6 +163,9 @@ enum Command {
         /// Admit the raw weight sum within this absolute tolerance; never normalize.
         #[arg(long, requires = "pose_geometry", allow_hyphen_values = true)]
         pose_weight_tolerance: Option<f64>,
+        /// Deform one skin with an exact same-container, explicit-time channel.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings"])]
+        sampled_pose_request: Option<PathBuf>,
     },
     /// Compare shared native/condition entry routing over explicit host state.
     PrimitiveQueryState {
@@ -253,6 +259,11 @@ enum Command {
         include_render_dependencies: bool,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
         include_template_dependencies: bool,
+        /// Explicit caller-selected equipment winner; requires one actor root and a role.
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots", "equipment_role"], value_parser = actor_inspection::parse_root)]
+        equipment_source: Option<identity::FormKey>,
+        #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
+        equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
     },
     /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
     ActorPackageContext {
@@ -276,6 +287,9 @@ enum Command {
         /// Preserve authored SNAM/FACT relationship requests without live faction rules.
         #[arg(long)]
         include_faction_requests: bool,
+        /// Join raw actor scalars to source template categories; evaluated values remain unavailable.
+        #[arg(long)]
+        include_stat_requests: bool,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -454,6 +468,15 @@ enum Command {
         /// Exercise one source-bound local copy over explicit engineering inputs.
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
+        /// Consume a saved journal head using explicit engineering activation/intent.
+        #[arg(long, requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_copy_request: Option<PathBuf>,
+        /// Strict current canonical snapshot; no migration or engineering seeding.
+        #[arg(long, requires = "snapshot_copy_request")]
+        snapshot_input: Option<PathBuf>,
+        /// Fresh snapshot artifact, written only after canonical copy commit.
+        #[arg(long, requires = "snapshot_copy_request")]
+        snapshot_output: Option<PathBuf>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -522,6 +545,41 @@ enum Command {
         #[arg(long)]
         index_cache: Option<PathBuf>,
     },
+    /// Inspect exact cell model and texture residency through bounded source jobs.
+    CellResidencySources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        /// Private decoded-member cache outside the source installation.
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+        /// Per-stage worker polling deadline; planning/fingerprinting is separate.
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
+    /// Inspect source-selected door destination CELL model/texture residency.
+    DoorResidencySources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        /// Explicit source CELL, not a changed runtime current cell.
+        #[arg(long)]
+        cell: String,
+        #[arg(long)]
+        door: String,
+        #[arg(long, default_value_t = 30_000)]
+        source_timeout_ms: u64,
+    },
     /// Prepare an explicitly requested winning topic/INFO for source consumers.
     ConversationSources {
         #[arg(long)]
@@ -589,6 +647,12 @@ enum Command {
         /// Exact source roots/cohort for bounded execution capability diagnostics.
         #[arg(long)]
         execution_admission: Option<PathBuf>,
+        /// Bounded cooperative cache preparation; optional cancellation-by-drop.
+        #[arg(long)]
+        cooperative_preparation: Option<PathBuf>,
+        /// Prepare only explicit exact script handles; infers no dependencies.
+        #[arg(long)]
+        selected_source: Option<PathBuf>,
     },
     /// Match source delimiters and raw distances in an offline SCDA bundle.
     ControlFlow {
@@ -1073,6 +1137,8 @@ fn run(args: Args) -> Result<()> {
             dependency_roots,
             include_render_dependencies,
             include_template_dependencies,
+            equipment_source,
+            equipment_role,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -1090,6 +1156,8 @@ fn run(args: Args) -> Result<()> {
                     dependency_roots,
                     include_render_dependencies,
                     include_template_dependencies,
+                    equipment_source,
+                    equipment_role,
                 },
             )?;
             if let Some(oracle) = compare_oracle {
@@ -1143,6 +1211,7 @@ fn run(args: Args) -> Result<()> {
             engineering_observation,
             condition_executable,
             include_faction_requests,
+            include_stat_requests,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1155,6 +1224,7 @@ fn run(args: Args) -> Result<()> {
                     engineering_observation,
                     condition_executable: condition_executable.as_deref(),
                     include_faction_requests,
+                    include_stat_requests,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
@@ -1362,7 +1432,29 @@ fn run(args: Args) -> Result<()> {
             prepared_sources,
             native_capabilities,
             engineering_local_copy,
+            snapshot_copy_request,
+            snapshot_input,
+            snapshot_output,
         } => {
+            if let Some(request) = snapshot_copy_request {
+                let report = event_operand_inspection::copy_saved(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_copy"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved source copy remains unsupported; see engineering report".into(),
+                    );
+                }
+                return Ok(());
+            }
             let report = event_operand_inspection::inspect(
                 &install,
                 &load_order,
@@ -1516,6 +1608,60 @@ fn run(args: Args) -> Result<()> {
                 return Err("dialogue membership has unresolved topic links; see report".into());
             }
         }
+        Command::CellResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::ResidencyInput {
+                    cell: parse_cell_key(&cell)?,
+                    source_timeout_ms,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err("cell source dependencies are unavailable; see report".into());
+            }
+        }
+        Command::DoorResidencySources {
+            install,
+            load_order,
+            index_cache,
+            cache,
+            cell,
+            door,
+            source_timeout_ms,
+        } => {
+            let report = world_preparation_inspection::door_residency(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                cache.as_deref(),
+                world_preparation_inspection::DoorInput {
+                    source: world_preparation_inspection::ResidencyInput {
+                        cell: parse_cell_key(&cell)?,
+                        source_timeout_ms,
+                    },
+                    door: parse_cell_key(&door)?,
+                },
+            )?;
+            let available = report["captured_sources_available"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !available {
+                return Err(
+                    "door destination source dependencies are unavailable; see report".into(),
+                );
+            }
+        }
         Command::ConversationSources {
             install,
             load_order,
@@ -1618,6 +1764,8 @@ fn run(args: Args) -> Result<()> {
             index_cache,
             comparison_bundle,
             execution_admission,
+            cooperative_preparation,
+            selected_source,
         } => {
             let report = definition_plan_inspection::inspect(
                 &install,
@@ -1625,8 +1773,15 @@ fn run(args: Args) -> Result<()> {
                 index_cache.as_deref(),
                 comparison_bundle.as_deref(),
                 execution_admission.as_deref(),
+                cooperative_preparation.as_deref(),
+                selected_source.as_deref(),
             )?;
-            let failed = if execution_admission.is_some() {
+            let failed = if selected_source.is_some() {
+                report["selected_source"]["unavailable_definitions"] != 0
+            } else if cooperative_preparation.is_some() {
+                report["cooperative_preparation"]["outcome"] != "complete"
+                    || report["cooperative_preparation"]["cache"]["counts"]["rejected"] != 0
+            } else if execution_admission.is_some() {
                 !report["execution_admission"]["faithful_execution_admitted"]
                     .as_bool()
                     .unwrap_or(false)
@@ -1946,7 +2101,30 @@ fn run(args: Args) -> Result<()> {
             sample_time,
             sample_block,
             sample_channel,
+            markers_request,
         } => {
+            if let Some(request) = markers_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_animation_inspection::inspect_markers(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source text-key interval refused; see report".into());
+                }
+                return Ok(());
+            }
             let sample = match (sample_time, sample_block, sample_channel) {
                 (Some(time), Some(block), Some(channel)) => {
                     Some(nif_animation_inspection::SampleRequest {
@@ -1988,7 +2166,30 @@ fn run(args: Args) -> Result<()> {
             include_bindings,
             pose_geometry,
             pose_weight_tolerance,
+            sampled_pose_request,
         } => {
+            if let Some(request) = sampled_pose_request {
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_sampled_pose(&input, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("source-linked sampled skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
             if let Some(geometry) = pose_geometry {
                 let tolerance = pose_weight_tolerance.ok_or("pose weight tolerance missing")?;
                 let report = nif_skin_inspection::inspect_pose(&input, geometry, tolerance)?;

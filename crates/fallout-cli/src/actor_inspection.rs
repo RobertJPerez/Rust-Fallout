@@ -42,6 +42,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) engineering_observation: bool,
     pub(super) condition_executable: Option<&'a Path>,
     pub(super) include_faction_requests: bool,
+    pub(super) include_stat_requests: bool,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -131,6 +132,26 @@ pub(super) fn package_context(
             )?,
         )?;
     }
+    if options.include_stat_requests {
+        use fallout_runtime::actor_rules::stats;
+        let lists = leveled::Catalogue::load(&mut store, Default::default())?;
+        let sources = actors::dependencies::Catalogue::load(
+            &mut store,
+            &actors,
+            &associations,
+            &lists,
+            Default::default(),
+        )?;
+        let requests = stats::Requests::prepare(
+            &world,
+            &actors,
+            &sources,
+            options.actor_root,
+            stats::Limits::default(),
+        )?;
+        report["stat_requests"] =
+            serde_json::to_value(requests.observe(&world, stats::Limits::default())?)?;
+    }
     Ok(report)
 }
 
@@ -147,6 +168,36 @@ pub(super) struct Options {
     pub(super) include_render_dependencies: bool,
     pub(super) include_template_dependencies: bool,
     pub(super) dependency_roots: Vec<FormKey>,
+    pub(super) equipment_source: Option<FormKey>,
+    pub(super) equipment_role: Option<actors::dependencies::equipment::Role>,
+}
+
+pub(super) fn parse_equipment_role(
+    raw: &str,
+) -> std::result::Result<actors::dependencies::equipment::Role, String> {
+    use actors::dependencies::{Sex, equipment::Role};
+    Ok(match raw {
+        "armor-male-biped" => Role::ArmorBiped { sex: Sex::Male },
+        "armor-female-biped" => Role::ArmorBiped { sex: Sex::Female },
+        "armor-male-world" => Role::ArmorWorld { sex: Sex::Male },
+        "armor-female-world" => Role::ArmorWorld { sex: Sex::Female },
+        "weapon-shell" => Role::WeaponShell,
+        "weapon-scope" => Role::WeaponScope,
+        "weapon-world" => Role::WeaponWorld,
+        _ => {
+            let (role, mask)=raw.split_once(':').ok_or("expected armor-sex-biped/world, weapon-shell/scope/world or weapon-model/first-person:0..7")?;
+            let mod_mask = mask
+                .parse::<u8>()
+                .ok()
+                .filter(|mask| *mask <= 7)
+                .ok_or("weapon source mask requires 0..7")?;
+            match role {
+                "weapon-model" => Role::WeaponModel { mod_mask },
+                "weapon-first-person" => Role::WeaponFirstPerson { mod_mask },
+                _ => return Err("unknown equipment source role".into()),
+            }
+        }
+    })
 }
 
 pub(super) fn parse_root(raw: &str) -> std::result::Result<FormKey, String> {
@@ -175,6 +226,17 @@ pub(super) fn inspect(
 ) -> Result<Value> {
     if options.include_package_dependencies && !options.include_packages {
         return Err("package dependencies require --include-packages".into());
+    }
+    if (options.equipment_source.is_some() || options.equipment_role.is_some())
+        && (!options.include_dependencies
+            || options.dependency_roots.len() != 1
+            || options.equipment_source.is_none()
+            || options.equipment_role.is_none())
+    {
+        return Err(
+            "equipment requests require both source and role and exactly one dependency root"
+                .into(),
+        );
     }
     if options.dependency_roots.len() > 64 {
         return Err("actor dependency root budget exceeds 64".into());
@@ -317,6 +379,20 @@ pub(super) fn inspect(
             Default::default(),
         )?;
         let assets = ArchiveAssets::open_nv(install)?;
+        if let (Some(equipment), Some(role)) = (&options.equipment_source, options.equipment_role) {
+            let selected = actors::dependencies::equipment::request(
+                &mut store,
+                &catalogue,
+                &options.dependency_roots[0],
+                actors::dependencies::equipment::Choice {
+                    equipment: equipment.clone(),
+                    role,
+                },
+                &assets,
+                Default::default(),
+            )?;
+            report["actor_equipment_dependencies"] = json!({"manifest":selected});
+        }
         // One aggregate admission budget covers every requested root report.
         let mut remaining = actors::dependencies::ManifestLimits::default();
         let mut manifests = Vec::new();
@@ -466,6 +542,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
     {
         return Err(
             "independent actor source comparison differs in actor_template_dependencies".into(),
+        );
+    }
+    if report.get("actor_equipment_dependencies").is_some()
+        && report.get("actor_equipment_dependencies") != oracle.get("actor_equipment_dependencies")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_equipment_dependencies".into(),
         );
     }
     if report.get("actor_package_dependencies").is_some()

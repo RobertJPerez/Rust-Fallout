@@ -30,11 +30,11 @@ fn close_and_pending_shutdown_keep_both_accepted_fifo_writes_and_refuse_third_in
     assert!(worker.close_admission());
     assert!(!worker.close_admission());
     let third = bounded_capture(3, 4096);
-    let expected = third.snapshot.clone();
+    let expected = third.snapshot().clone();
     let returned = worker.try_submit(third).unwrap_err();
     assert_eq!(returned.reason, Rejection::WorkerStopped);
-    assert_eq!(returned.capture.snapshot, expected);
-    assert_eq!(returned.capture.limits.max_snapshot_bytes, 4096);
+    assert_eq!(returned.capture.snapshot(), &expected);
+    assert_eq!(returned.capture.limits().max_snapshot_bytes, 4096);
     drop(returned);
     assert_eq!(admission.usage(), (2, 8192));
     for _ in 0..2 {
@@ -48,7 +48,7 @@ fn close_and_pending_shutdown_keep_both_accepted_fifo_writes_and_refuse_third_in
     assert!(!worker.try_shutdown().unwrap());
     assert_eq!(
         slot(&repository, "current.frsv").snapshot,
-        capture(1).snapshot
+        capture(1).snapshot().clone()
     );
     release.send(()).unwrap();
     assert!(joined(&mut worker).unwrap());
@@ -71,11 +71,11 @@ fn close_and_pending_shutdown_keep_both_accepted_fifo_writes_and_refuse_third_in
     );
     assert_eq!(
         slot(&repository, "current.frsv").snapshot,
-        capture(2).snapshot
+        capture(2).snapshot().clone()
     );
     assert_eq!(
         slot(&repository, "previous.frsv").snapshot,
-        capture(1).snapshot
+        capture(1).snapshot().clone()
     );
 }
 #[test]
@@ -182,10 +182,28 @@ fn close_before_work_joins_cleanly_and_drop_after_pending_poll_still_drains_acce
     shutdown.join().unwrap();
     assert_eq!(
         slot(&repository, "current.frsv").snapshot,
-        capture(2).snapshot
+        capture(2).snapshot().clone()
     );
     assert_eq!(
         slot(&repository, "previous.frsv").snapshot,
-        capture(1).snapshot
+        capture(1).snapshot().clone()
     );
+}
+
+#[test]
+fn queued_capture_retains_one_shared_payload_until_result_delivery() {
+    let directory = tempfile::tempdir().unwrap();
+    let repository = repository(&directory.path().join("native"));
+    let (mut worker, entered, release) = gated(repository, 1);
+    let capture = bounded_capture(1, 4096);
+    let payload = Arc::downgrade(&capture.payload);
+    let ticket = worker.try_submit(capture).unwrap();
+    entered.recv_timeout(Duration::from_secs(10)).unwrap();
+
+    assert_eq!(payload.strong_count(), 1);
+    assert!(payload.upgrade().is_some());
+    release.send(()).unwrap();
+    worker.finish().unwrap();
+    assert_eq!(ticket.wait().unwrap().metadata.generation, 1);
+    assert!(payload.upgrade().is_none());
 }

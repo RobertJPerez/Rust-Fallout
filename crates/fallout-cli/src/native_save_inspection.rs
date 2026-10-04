@@ -9,8 +9,9 @@ use fallout_runtime::{
     identity::Value as LocalValue,
     save::{
         AvailabilityError, AvailabilityPoll, AvailabilityRequest, AvailabilityTask, Captured,
-        Recovery, Rejection, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask,
-        SaveState, SaveStatus, SaveWorker, Stage, format,
+        ForkLimits, ForkReceipt, ForkRequest, ForkSelection, ForkStage, LoadReceipt, Recovery,
+        Rejection, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask, SaveState,
+        SaveStatus, SaveWorker, Slot, SlotRejectionCode, Stage, format,
     },
 };
 use serde_json::{Value, json};
@@ -19,10 +20,48 @@ use std::{
     fs::{self, OpenOptions},
     io::{Read, Write},
     num::NonZeroU64,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, mpsc},
     time::{Duration, Instant},
 };
+
+fn sibling_path(path: &Path, suffix: &str) -> Result<PathBuf> {
+    let name = path
+        .file_name()
+        .ok_or("Native save probe repository needs a leaf name")?;
+    let mut sibling = name.to_os_string();
+    sibling.push(format!("-{suffix}"));
+    Ok(path.with_file_name(sibling))
+}
+
+fn cold_fork(
+    source: &Repository,
+    catalogue: &loaded_scripts::Catalogue,
+    install: &Path,
+    destination: &Path,
+    recovery: Recovery,
+    expected: &ForkSelection,
+) -> Result<(
+    ForkReceipt,
+    fallout_runtime::snapshot::Snapshot,
+    LoadReceipt,
+)> {
+    let protected = [install.to_path_buf()];
+    let receipt = source.fork_boundary(
+        catalogue,
+        ForkRequest {
+            destination,
+            protected: &protected,
+            recovery,
+            expected,
+            world_limits: Limits::default(),
+            limits: ForkLimits::default(),
+        },
+    )?;
+    let forked = Repository::open(destination, &protected)?;
+    let (world, cold_receipt) = forked.load(catalogue, Limits::default(), Recovery::Strict)?;
+    Ok((receipt, world.snapshot(), cold_receipt))
+}
 
 fn save_new(path: &Path, bytes: &[u8]) -> Result<()> {
     let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
@@ -471,6 +510,146 @@ pub(super) fn probe(
     }
     // Publish the later explicit host snapshot again for the cold-process proof.
     let final_receipt = repository.commit(&Captured::at_boundary(&engineering.world))?;
+    let final_current = fs::read(&current_path)?;
+    let final_previous = fs::read(&previous_path)?;
+    let final_current_metadata = format::decode(&final_current, Limits::default())?.metadata;
+    let final_previous_metadata = format::decode(&final_previous, Limits::default())?.metadata;
+    let current_selection = ForkSelection::new(
+        final_current_metadata.campaign,
+        &final_current_metadata.catalogue_sha256,
+        &final_current_metadata.snapshot_sha256,
+    )?;
+    let current_fork_path = sibling_path(root, "fork-current")?;
+    let (current_fork, current_fork_snapshot, current_cold_receipt) = cold_fork(
+        &repository,
+        &catalogue,
+        install,
+        &current_fork_path,
+        Recovery::Strict,
+        &current_selection,
+    )?;
+    if current_fork.source().slot != Slot::Current
+        || current_fork.source().metadata != final_current_metadata
+        || current_fork.destination().metadata.generation != 1
+        || current_fork.destination().metadata.snapshot_sha256
+            != final_current_metadata.snapshot_sha256
+        || current_fork_snapshot != second
+        || current_cold_receipt.metadata != current_fork.destination().metadata
+    {
+        return Err(
+            "Current-slot fork did not preserve and cold-restore its selected boundary".into(),
+        );
+    }
+
+    // This explicit recovery fork must select the older valid slot, then leave
+    // the source's damaged current bytes exactly as they were.
+    let previous_selection = ForkSelection::new(
+        final_previous_metadata.campaign,
+        &final_previous_metadata.catalogue_sha256,
+        &final_previous_metadata.snapshot_sha256,
+    )?;
+    let previous_fork_path = sibling_path(root, "fork-previous")?;
+    fs::write(&current_path, b"deliberately truncated native fork source")?;
+    let previous_fork_result = cold_fork(
+        &repository,
+        &catalogue,
+        install,
+        &previous_fork_path,
+        Recovery::PreviousIfCurrentInvalid,
+        &previous_selection,
+    );
+    let restore_current_result = fs::write(&current_path, &final_current);
+    restore_current_result?;
+    let (previous_fork, previous_fork_snapshot, previous_cold_receipt) = previous_fork_result?;
+    if previous_fork.source().slot != Slot::Previous
+        || previous_fork.source().metadata != final_previous_metadata
+        || previous_fork.source().current_failure.is_none()
+        || previous_fork.source().current_repaired
+        || previous_fork.destination().metadata.generation != 1
+        || previous_fork_snapshot != first
+        || previous_cold_receipt.metadata != previous_fork.destination().metadata
+    {
+        return Err(
+            "Previous-slot fork did not preserve and cold-restore its selected ancestor".into(),
+        );
+    }
+    if fs::read(&current_path)? != final_current || fs::read(&previous_path)? != final_previous {
+        return Err("Successful fork changed the source repository bytes".into());
+    }
+
+    // Block only the fork destination after it has been created and its first
+    // temporary file written. Publication must report failure without rotating
+    // either source slot; its own diagnostic obstruction stays in the child.
+    let failed_fork_path = sibling_path(root, "fork-publication-failure")?;
+    let mut obstruction_created = false;
+    let mut obstruction_error = None;
+    let failed_fork_result = repository.fork_boundary_observing(
+        &catalogue,
+        ForkRequest {
+            destination: &failed_fork_path,
+            protected: &[install.to_path_buf()],
+            recovery: Recovery::Strict,
+            expected: &current_selection,
+            world_limits: Limits::default(),
+            limits: ForkLimits::default(),
+        },
+        |stage| {
+            if stage == Stage::CurrentTempWritten {
+                match fs::create_dir(failed_fork_path.join("current.frsv")) {
+                    Ok(()) => obstruction_created = true,
+                    Err(error) => obstruction_error = Some(error.to_string()),
+                }
+            }
+        },
+    );
+    if let Some(error) = obstruction_error {
+        return Err(
+            format!("Could not install isolated fork publication obstruction: {error}").into(),
+        );
+    }
+    let failed_fork = match failed_fork_result {
+        Err(failure)
+            if failure.stage() == ForkStage::Publication
+                && failure.reason().code() == SlotRejectionCode::NativeFormat =>
+        {
+            failure
+        }
+        Err(failure) => {
+            return Err(format!("Fork publication failed at the wrong boundary: {failure}").into());
+        }
+        Ok(_) => return Err("Injected fork publication failure was accepted".into()),
+    };
+    if !obstruction_created
+        || fs::read(&current_path)? != final_current
+        || fs::read(&previous_path)? != final_previous
+        || !failed_fork_path.join(".rust-fallout-saves").is_file()
+        || !failed_fork_path.join("writer.lock").is_file()
+        || !failed_fork_path.join("current.frsv").is_dir()
+        || fs::read_dir(&failed_fork_path)?.any(|entry| {
+            entry
+                .map(|entry| entry.file_name().to_string_lossy().starts_with(".pending-"))
+                .unwrap_or(true)
+        })
+    {
+        return Err(
+            "Failed fork publication changed the source or left a temporary child file".into(),
+        );
+    }
+    let current_fork_report = serde_json::to_value(&current_fork)?;
+    let previous_fork_report = serde_json::to_value(&previous_fork)?;
+    let failed_fork_report = serde_json::to_value(&failed_fork)?;
+    let fork_probe = json!({
+        "current_fork": current_fork_report,
+        "current_cold_restore_equal": true,
+        "previous_recovery_fork": previous_fork_report,
+        "previous_cold_restore_equal": true,
+        "source_bytes_unchanged_after_successful_forks": true,
+        "failed_publication": failed_fork_report,
+        "failed_publication_stage": "publication",
+        "source_bytes_unchanged_after_failed_publication": true,
+        "destination_artifacts_retained": true,
+        "pending_temporary_files_removed": true,
+    });
     let mut report = json!({"schema_version":1,"profile":"nv-original","scope":"Filesystem engineering probe on explicit values using original compiled schemas; no original live-state capture",
         "sources":catalogue.sources,"instances":engineering.world.instance_count(),"pending_events":engineering.world.pending_events().len(),
         "current":current_metadata,"previous":previous_metadata,"first_write":first_receipt,"second_write":second_receipt,"final_write":final_receipt,
@@ -481,6 +660,7 @@ pub(super) fn probe(
             "joined_clean_stable":true,"individual_tickets_published":true,"blocking_finish_compatible":true},
         "previous_round_trip_equal":true,"canonical_snapshot_sha256":format!("{:x}",Sha256::digest(second.encode(Limits::default().max_snapshot_bytes)?)),
         "original_live_state_captured":false,"retail_save_compatibility":false,"retail_parity_accepted":false});
+    report["fork_probe"] = fork_probe;
     if let Some(mut event_commit) = event_commit {
         event_commit["strict_current_failure"] = json!(current_failure);
         event_commit["worker_pre_post_boundaries_equal"] = json!(true);

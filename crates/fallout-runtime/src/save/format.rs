@@ -62,16 +62,18 @@ pub fn encode(capture: &Captured, generation: u64) -> Result<Vec<u8>> {
     if generation == 0 {
         return Err(fail("zero save generation"));
     }
-    let snapshot = capture.snapshot.encode(capture.limits.max_snapshot_bytes)?;
+    let snapshot = capture
+        .snapshot()
+        .encode(capture.limits().max_snapshot_bytes)?;
     let mut meta = Vec::with_capacity(88);
     meta.extend(1_u32.to_le_bytes()); // Profile adapter 1 is original NV only.
     meta.extend(snapshot::SCHEMA_VERSION.to_le_bytes());
     meta.extend(generation.to_le_bytes());
-    meta.extend(capture.snapshot.clocks.tick.to_le_bytes());
-    meta.extend(from_hex(&capture.snapshot.catalogue_sha256)?);
+    meta.extend(capture.snapshot().clocks.tick.to_le_bytes());
+    meta.extend(from_hex(&capture.snapshot().catalogue_sha256)?);
     meta.extend((snapshot.len() as u64).to_le_bytes());
-    meta.extend(capture.snapshot.campaign.bytes());
-    meta.extend(capture.snapshot.state_revision.to_le_bytes());
+    meta.extend(capture.snapshot().campaign.bytes());
+    meta.extend(capture.snapshot().state_revision.to_le_bytes());
     let size = snapshot
         .len()
         .checked_add(OVERHEAD)

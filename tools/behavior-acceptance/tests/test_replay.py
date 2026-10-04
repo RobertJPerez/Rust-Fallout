@@ -208,7 +208,7 @@ class ReplayTests(unittest.TestCase):
             "/timeline/2/event_sequence",
         )
 
-    def test_reordered_effects_and_input_actions_fail(self):
+    def test_reordered_timeline_and_input_actions_fail(self):
         self._assert_mutation_fails(
             lambda c: c["timeline"].reverse(),
             "/",
@@ -216,6 +216,46 @@ class ReplayTests(unittest.TestCase):
         self._assert_mutation_fails(
             lambda c: c["timeline"][0].update(action="wait"),
             "/timeline/0/action",
+        )
+
+    def test_missing_duplicate_and_reordered_effects_fail(self):
+        self._assert_mutation_fails(
+            lambda c: c["timeline"][1]["effects"].pop(),
+            "/timeline/1/effects",
+        )
+        self._assert_mutation_fails(
+            lambda c: c["timeline"][1]["effects"].append(
+                copy.deepcopy(c["timeline"][1]["effects"][0])
+            ),
+            "/timeline/1/effects",
+        )
+        self._assert_mutation_fails(
+            lambda c: c["timeline"][1]["effects"].reverse(),
+            "/timeline/1/effects",
+        )
+
+    def test_wrong_event_owner_and_unsupported_success_fail(self):
+        self._assert_mutation_fails(
+            lambda c: c["timeline"][1]["owner"]["key"].update(local_id=769),
+            "/timeline/1/owner/key/local_id",
+        )
+
+        capture = fixture_capture()
+        capture["timeline"][1]["status"] = "success"
+        resign_timeline(capture)
+        result = replay.compare(capture, fixture_expectation())
+        self.assertEqual(result["classification"], "invalid_receipt")
+
+        capture = fixture_capture()
+        expectation = fixture_expectation()
+        expected_event = expectation["expected_timeline"][1]
+        expected_event["status"] = "unsupported"
+        expected_event["error"] = "unsupported opcode"
+        expectation["oracle"]["sha256"] = replay._sha256(expectation["expected_timeline"])
+        result = replay.compare(capture, expectation)
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(
+            any(m.get("path") == "/timeline/1/status" for m in result["mismatches"])
         )
 
     def test_missing_quest_state_does_not_default_to_success(self):

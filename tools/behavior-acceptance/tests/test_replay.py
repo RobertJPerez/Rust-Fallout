@@ -1,9 +1,11 @@
 import copy
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import replay
@@ -221,6 +223,98 @@ class ReplayTests(unittest.TestCase):
             expectation["schema_version"] = invalid_version
             result = replay.compare(fixture_capture(), expectation)
             self.assertEqual(result["classification"], "invalid_receipt")
+
+    def test_wrong_typed_enums_return_structured_invalid_receipt(self):
+        save = {
+            "ordinal": 5,
+            "tick": 2,
+            "kind": "save",
+            "operation": "save",
+            "request_id": "save-1",
+            "status": "saved",
+            "generation": 1,
+            "state_revision": 2,
+            "receipt_sha256": "c" * 64,
+            "process_id": "pid:1",
+        }
+        capture_mutations = [
+            lambda c: c.update(evidence_class=[]),
+            lambda c: c["timeline"][0]["source"].update(kind=[]),
+            lambda c: c["timeline"][0].update(outcome=[]),
+            lambda c: c["timeline"][1].update(status=[]),
+            lambda c: c["timeline"][2].update(status=[]),
+            lambda c: c["timeline"].append({**save, "operation": []}),
+            lambda c: c["timeline"].append({**save, "status": []}),
+        ]
+        for mutate in capture_mutations:
+            capture = fixture_capture()
+            mutate(capture)
+            resign_timeline(capture)
+            result = replay.compare(capture, fixture_expectation())
+            self.assertEqual(result["classification"], "invalid_receipt")
+            self.assertEqual(result["status"], "failed")
+
+        expectation = fixture_expectation()
+        expectation["evidence_class"] = []
+        result = replay.compare(fixture_capture(), expectation)
+        self.assertEqual(result["classification"], "invalid_receipt")
+
+    def test_cli_maps_array_enum_to_structured_exit_two(self):
+        capture = fixture_capture()
+        capture["timeline"][1]["status"] = []
+        resign_timeline(capture)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture_path = root / "capture.json"
+            expectation_path = root / "expectation.json"
+            capture_path.write_text(json.dumps(capture), encoding="utf-8")
+            expectation_path.write_text(json.dumps(fixture_expectation()), encoding="utf-8")
+            output = io.StringIO()
+            with patch.object(
+                sys,
+                "argv",
+                ["replay.py", "replay", str(capture_path), str(expectation_path)],
+            ), patch.object(sys, "stdout", output):
+                exit_code = replay._cli()
+        self.assertEqual(exit_code, 2)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["classification"], "invalid_receipt")
+        self.assertEqual(result["status"], "failed")
+
+    def test_input_readers_bound_read_before_loading_oversized_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            oversized = Path(directory) / "oversized.bin"
+            oversized.write_bytes(b"x" * (replay.MAX_ARTIFACT_BYTES + 4096))
+            original_open = Path.open
+
+            class RecordingReader:
+                def __init__(self, stream, requests):
+                    self.stream = stream
+                    self.requests = requests
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_):
+                    self.stream.close()
+
+                def read(self, size=-1):
+                    self.requests.append(size)
+                    return self.stream.read(size)
+
+            for reader in (replay.load_json, replay._read_jsonl):
+                requests = []
+
+                def bounded_open(path, *args, **kwargs):
+                    stream = original_open(path, *args, **kwargs)
+                    return RecordingReader(stream, requests)
+
+                with patch.object(Path, "open", new=bounded_open), patch.object(
+                    Path, "read_bytes", side_effect=AssertionError("unbounded read")
+                ):
+                    with self.assertRaisesRegex(replay.ReceiptError, "byte limit"):
+                        reader(oversized)
+                self.assertEqual(requests, [replay.MAX_ARTIFACT_BYTES + 1])
 
     def test_missing_or_wrong_acknowledgement_fails(self):
         capture = fixture_capture()

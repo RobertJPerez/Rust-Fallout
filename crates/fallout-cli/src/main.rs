@@ -414,6 +414,20 @@ enum Command {
         /// Explicit bounded engineering inputs for a staged local/event-head commit.
         #[arg(long)]
         engineering_event_commit: Option<PathBuf>,
+        /// Source-bound canonical snapshot for a read-only host input check.
+        #[arg(
+            long,
+            requires = "host_requirements",
+            conflicts_with = "engineering_event_commit"
+        )]
+        host_snapshot: Option<PathBuf>,
+        /// Explicit canonical data requirements; grants no execution authority.
+        #[arg(
+            long,
+            requires = "host_snapshot",
+            conflicts_with = "engineering_event_commit"
+        )]
+        host_requirements: Option<PathBuf>,
     },
     /// Prepare bounded source windows for explicit engineering pending events.
     EventFrames {
@@ -1387,12 +1401,15 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             engineering_event_commit,
+            host_snapshot,
+            host_requirements,
         } => {
             let report = script_state_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 engineering_event_commit.as_deref(),
+                host_snapshot.as_deref().zip(host_requirements.as_deref()),
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }

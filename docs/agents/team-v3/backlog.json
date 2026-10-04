@@ -2826,13 +2826,15 @@
       },
       {
         "id": "V3-ASSET-11",
-        "state": "ready",
+        "state": "refined_umbrella",
         "title": "Cover next supported real animation controller needed by route",
         "depends_on": [],
         "consumer": "Existing decoded NIF animation and explicit-time evaluator.",
         "acceptance": "Choose actual first-person/creature diagnostic, implement one bounded controller source branch with fresh independent expectation; measured playback remains separately gated.",
         "fallback_task_id": null,
-        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+        "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work.",
+        "refined_into": "V3-ASSET-36",
+        "scope_note": "Concrete named engineering compact-spline pose adapter replaces this seed; no completion claimed."
       },
       {
         "id": "V3-ASSET-12",
@@ -3141,7 +3143,7 @@
       },
       {
         "id": "V3-ASSET-22",
-        "state": "ready",
+        "state": "handed_off_review_pending",
         "depends_on": [],
         "title": "Produce source-bound partition draw and influence streams",
         "gap": "NiSkinPartition is already decoded into palette, vertex map, flat weight words, raw local bone indices, triangle/strip arrays and presence fields. There is no source-qualified draw/influence stream producer for presentation; ASSET18 CSR derives SkinData weights, which is a distinct source stream.",
@@ -3176,11 +3178,12 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "scope_note": "Tested source producer handoff exists; independent review in progress. Do not repeat as new task; correctness corrections remain allowed."
       },
       {
         "id": "V3-ASSET-23",
-        "state": "ready",
+        "state": "handed_off_review_pending",
         "depends_on": [],
         "title": "Evaluate an explicitly selected partition mesh from the existing palette",
         "gap": "Current skin pose evaluates the geometry arrays as a whole, while partition decoder exposes source vertex maps and faces separately. There is no actual selected partition deformation output for a body-part draw consumer.",
@@ -3215,7 +3218,8 @@
         ],
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
-        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "scope_note": "Tested source producer handoff exists; independent review in progress. Do not repeat as new task; correctness corrections remain allowed."
       },
       {
         "id": "V3-ASSET-24",
@@ -3486,6 +3490,336 @@
         "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
         "boundary_authorized_by": "coordinator; source-backed rolling refill07",
         "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment."
+      },
+      {
+        "id": "V3-ASSET-30",
+        "state": "ready",
+        "title": "Compose explicitly mapped external clip channels over one required skeleton forest",
+        "depends_on": [],
+        "gap": "clip::evaluate accepts exactly one controlled packet and composes it through static ancestors. Its output cannot combine an explicitly selected moving parent and moving child from the same KF. Same-container pose::evaluate_set cannot bind external packet ordinals/raw names.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_animation/clip.rs:14",
+          "crates/fallout-data/src/nif_animation/clip.rs:81",
+          "crates/fallout-data/src/nif_animation/pose/set.rs:89"
+        ],
+        "consumer": "An owned clip inspector request supplies skeleton/KF SHAs plus explicit destination-node/packet/time rows; returns a complete simultaneous source-world pose set for those nodes. This is the producer needed for whole-rig motion, with a directly executable headless consumer now.",
+        "proposed_additive_boundary": "Add clip::evaluate_set(skeleton_bytes, clip_bytes, source, &[Request], SetLimits)->ClipPoseSet. Factor existing exact packet admission and sampled-local helpers; reuse the corrected private required-forest propagation. One exact packet per destination node; both source SHAs bind every row. Require every selected controlled required ancestor to have an explicit supported request. Preserve stored NiAV locals for uncontrolled ancestors. Existing single packet entry point and receipt stay unchanged.",
+        "acceptance": [
+          "Derive literal noncommuting parent/child matrices from two supported key packets; include higher-ID parent, reversed request order, separate roots and a shared required ancestor. Results cannot depend on block-ID order.",
+          "Reject duplicate destination/packet ambiguity, absent or repeated raw node names, missing required controlled ancestor, incompatible property/controller identifiers, unsupported rotation, changed SHA and nonfinite time. No priority or sequence-weight blending; no implicit packet closure or best-match name selection.",
+          "Count/hash/decode each source once; precharge combined input, raw-name comparisons, required-forest arrays, sampling work, ancestry and complete result retention. A later failure exposes no completed set.",
+          "Actual owned CLI must consume the literal request file; compare every matrix, raw packet and source span. Original samples are optional evidence only when the selected packet subset is supported."
+        ],
+        "non_overlap": "ASSET17 is same-container controllers. ASSET25 prepares one external packet repeatedly. ASSET28 feeds one sample into an external skin. This task is explicit multi-packet composition, and depends on none of those queued tasks.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add clip::evaluate_set(skeleton_bytes, clip_bytes, source, &[Request], SetLimits)->ClipPoseSet. Factor existing exact packet admission and sampled-local helpers; reuse the corrected private required-forest propagation. One exact packet per destination node; both source SHAs bind every row. Require every selected controlled required ancestor to have an explicit supported request. Preserve stored NiAV locals for uncontrolled ancestors. Existing single packet entry point and receipt stay unchanged.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-32",
+        "state": "ready",
+        "title": "Compile a reusable required-forest plan for an explicit same-container pose set",
+        "depends_on": [],
+        "gap": "pose::evaluate_set prepares the immutable source and reconstructs selected/required maps and child CSR on every call. PreparedSource::sample_many samples independent single-object requests and cannot substitute for a simultaneous parent/child pose set.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_animation/pose/set.rs:89",
+          "crates/fallout-data/src/nif_animation/pose/set.rs:108",
+          "crates/fallout-data/src/nif_animation/pose/prepared.rs:183"
+        ],
+        "consumer": "Owned pose-set inspector binds an exact controller set once, then evaluates a bounded list of explicit time vectors. A host can advance a complete supported rig without re-decoding or reconstructing its hierarchy.",
+        "proposed_additive_boundary": "Add PreparedSource::prepare_set(&self, &[ChannelBinding{object,controller}], SetPreparationLimits) ->PreparedPoseSet borrowing the sealed source; sample(&self, &[ExplicitChannelTime], SetSampleLimits) ->PoseSet. Bind each time to its exact selected object, not only vector position. Private plan retains admitted channel links, required forest and validated parent-before-child order; no self-referential storage or arbitrary PoseSet constructor. Existing evaluate_set wraps the same private implementation.",
+        "acceptance": [
+          "Literal parent/child fixture at three different time vectors produces complete independently derived matrices; reversed binding order and higher-ID parents agree. Equal/decreasing explicit times remain requests, not clocks.",
+          "Source parsing and required-forest construction counters remain one across samples. No repeated source-string hash or key decoding occurs inside a time-only sample. Existing validation of supported key data remains intact.",
+          "Missing/duplicate/foreign time binding, unsupported channel, changed expected SHA and incomplete controlling ancestry refuse. A failed sample cannot alter the immutable plan or earlier owned results.",
+          "Bound source preparation, selected closure, per-sample sampling/retention and aggregate CLI output. Demonstrate that requesting many times cannot hide live plan memory or multiply an uncharged key scan."
+        ],
+        "non_overlap": "This reuses corrected ASSET17. It is distinct from ASSET15 independent samples and ASSET27 skin consumption. It requires no external clip, new channel type or sibling task.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add PreparedSource::prepare_set(&self, &[ChannelBinding{object,controller}], SetPreparationLimits) ->PreparedPoseSet borrowing the sealed source; sample(&self, &[ExplicitChannelTime], SetSampleLimits) ->PoseSet. Bind each time to its exact selected object, not only vector position. Private plan retains admitted channel links, required forest and validated parent-before-child order; no self-referential storage or arbitrary PoseSet constructor. Existing evaluate_set wraps the same private implementation.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-34",
+        "state": "ready",
+        "title": "Evaluate an existing raw influence table against a sealed prepared skin source",
+        "depends_on": [],
+        "gap": "influences::Table owns CSR but Table::evaluate requires original bytes and calls pose::evaluate_table, which re-decodes the complete binding/Scene. PreparedSkinSource cannot consume a validated Table; render consumers must choose either source reuse or CSR reuse.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_skin/influences.rs:103",
+          "crates/fallout-data/src/nif_skin/pose.rs:354",
+          "crates/fallout-data/src/nif_skin/pose.rs:378",
+          "crates/fallout-data/src/nif_skin/pose/batch.rs:44"
+        ],
+        "consumer": "Owned influence inspector prepares source and CSR once and evaluates explicit stored-weight-policy requests against them without retaining or re-reading the original input buffer. This joins the existing renderer-oriented influence representation with immutable source reuse.",
+        "proposed_additive_boundary": "Add PreparedSkinSource::evaluate_table(&self, expected_sha, request, &influences::Table, GeometryLimits) ->Evaluation. Compare private digest, exact geometry/data/instance/skin-data, bone cardinality and CSR extent before calling the existing evaluate_decoded view with Some(table). No exposure of mutable prepared internals and no deserialization into Table. Optional private decoded preparation helper may avoid a second initial decode; do not require that optimization to change either public producer contract.",
+        "acceptance": [
+          "Use sparse/repeated more-than-four influences and nonunit weights; derive every vertex and normal accumulation in original per-vertex bone/weight order, preserving raw signed-zero and weight words.",
+          "Input mutation/drop after both preparations must not affect results. Per-call counters show zero decoding, source rehash and CSR reconstruction. Cold one-shot and prepared results have equivalent source fields and math.",
+          "A table from another source with identical geometry numbers must refuse, as must another geometry or altered expected digest. Existing raw-weight and RequireUnitSum validation behavior stays unchanged.",
+          "Charge concurrently live preparation, CSR and output, plus evaluation work. Actual CLI proves the reusable consumer, not merely a new getter or another table report."
+        ],
+        "non_overlap": "ASSET18 builds/uses CSR through a one-shot source route; ASSET13/21 prepares shared sources without CSR. This bridges those accepted producers. ASSET22/23 partitions and sampled skin27/28 remain separate.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add PreparedSkinSource::evaluate_table(&self, expected_sha, request, &influences::Table, GeometryLimits) ->Evaluation. Compare private digest, exact geometry/data/instance/skin-data, bone cardinality and CSR extent before calling the existing evaluate_decoded view with Some(table). No exposure of mutable prepared internals and no deserialization into Table. Optional private decoded preparation helper may avoid a second initial decode; do not require that optimization to change either public producer contract.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-33",
+        "state": "ready",
+        "title": "Advance prepared skin batches cooperatively with terminal cancellation",
+        "depends_on": [],
+        "gap": "PreparedSkinSource::evaluate_many runs the complete requested geometry loop synchronously. A caller cannot yield between skin geometries or cancel without waiting for the complete batch, despite bounded individual geometry work.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_skin/pose/batch.rs:149",
+          "crates/fallout-data/src/nif_skin/pose/batch.rs:202"
+        ],
+        "consumer": "Owned shared-skin inspector drives a job with explicit step caps and optional cancellation after a selected progress boundary. The same producer allows a loading/frame host to interleave other work while preparing character parts.",
+        "proposed_additive_boundary": "Add PreparedSkinSource::begin_evaluation(expected_sha, requests, BatchEvaluationLimits)->EvaluationJob borrowing the sealed source and owning a prevalidated bounded request copy. advance(GeometryStepBudget)->Progress, cancel()->terminal state, finish(self)->Result<GeometryBatch>. Reuse evaluate_decoded; one geometry is explicitly indivisible and retains its existing per-geometry cap. Progress exposes counts only, never partial usable arrays. No worker thread, new executor, generation authority or cache owner.",
+        "acceptance": [
+          "Drive one identical authored request set with one/two/all geometry step limits and independently compare every result; each poll must respect the count cap and aggregate actual work/retention.",
+          "Cancel before first geometry, after a successful geometry and after a later refused geometry. No finish result or continuation is possible after terminal cancel/failure; drop releases owned partial outputs.",
+          "A zero step budget performs no work. Validation/preparation costs are reported separately, and indivisible geometry latency is documented honestly. Do not describe this as preemptible per-vertex decoding.",
+          "Wrong source, duplicate geometry and full input admission are checked before successful result publication. Actual CLI progress and cancellation receipts must show no completed packet/output on the negative path."
+        ],
+        "non_overlap": "ASSET13/21 prepared source already exists; this adds cooperative execution and cancellation, not another source preparer or repeated retention audit. Does not depend on new tasks30-32.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add PreparedSkinSource::begin_evaluation(expected_sha, requests, BatchEvaluationLimits)->EvaluationJob borrowing the sealed source and owning a prevalidated bounded request copy. advance(GeometryStepBudget)->Progress, cancel()->terminal state, finish(self)->Result<GeometryBatch>. Reuse evaluate_decoded; one geometry is explicitly indivisible and retains its existing per-geometry cap. Progress exposes counts only, never partial usable arrays. No worker thread, new executor, generation authority or cache owner.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-31",
+        "state": "ready",
+        "title": "Reuse two exact sources while evaluating several external-rig skin geometries",
+        "depends_on": [],
+        "gap": "external::evaluate rehashes and decodes the skin container and rig Scene for each geometry. PreparedSkinSource only covers a single container; a character with several skinned parts cannot share an admitted external rig.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_skin/external.rs:202",
+          "crates/fallout-data/src/nif_skin/external.rs:256",
+          "crates/fallout-data/src/nif_skin/external.rs:284",
+          "crates/fallout-data/src/nif_skin/pose/batch.rs:44"
+        ],
+        "consumer": "Owned external-skin inspector evaluates an explicit geometry/request list against one skin NIF and one rig NIF, producing independent source-qualified palettes and positions for body and clothing parts in one admission.",
+        "proposed_additive_boundary": "Add external::PreparedRigSource::prepare(skin_bytes, rig_bytes, source, PreparationLimits)->Self with private decoded sources, digests, block spans and node/owner indexes; evaluate_many(&self, &[external::Request], BatchLimits)->ExternalGeometryBatch. Reuse existing explicit mapping/name/ancestry/determinant checks and palette math. Requests retain exact per-geometry mapping, root and root-space matrix. No automatic retargeting or public decoded catalogue constructor. Existing evaluate remains equivalent.",
+        "acceptance": [
+          "Author two geometries with different bone orders and bind transforms sharing a rig. Independently compute every S*X*RigBoneToRoot*SkinToBone matrix and deformed vertex; request permutation changes report order only.",
+          "Preparation shows one skin/binding and one rig Scene decode. Dropped/mutated original input buffers do not affect future evaluations. Reject cross-source SHA, duplicate geometry, incomplete mapping and late singular or uncertifiable root-space matrix without yielding a complete batch.",
+          "Preserve all corrected external determinant refusal cases; full source admission, persistent preparation, per-geometry work and simultaneous aggregate output have separate checked bounds.",
+          "Actual CLI uses two geometry requests with independent expected arrays, plus altered rig and mapping refusals. No animated rig, rig alignment default, equipped-state choice or new cache format."
+        ],
+        "non_overlap": "ASSET13/21 shares one-container skin state. ASSET25 prepares clip sources, not external skin sources. ASSET28 is one sampled external rig and is not a prerequisite.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add external::PreparedRigSource::prepare(skin_bytes, rig_bytes, source, PreparationLimits)->Self with private decoded sources, digests, block spans and node/owner indexes; evaluate_many(&self, &[external::Request], BatchLimits)->ExternalGeometryBatch. Reuse existing explicit mapping/name/ancestry/determinant checks and palette math. Requests retain exact per-geometry mapping, root and root-space matrix. No automatic retargeting or public decoded catalogue constructor. Existing evaluate remains equivalent.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-37",
+        "state": "ready",
+        "title": "Prepare a source-qualified whole-geometry skin stream packet",
+        "depends_on": [],
+        "gap": "pose::Evaluation exposes deformed positions/normals/palette, while influences::Table exposes only CSR and Scene::MeshData separately owns rest positions, UV sets, colors and topology. There is no sealed selected geometry packet proving these streams share the same exact skin owner/data/vertex ordering for a renderer.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_skin/pose.rs:219",
+          "crates/fallout-data/src/nif_skin/influences.rs:60",
+          "crates/fallout-data/src/nif_scene/mesh.rs:22",
+          "crates/fallout-data/src/nif_skin/partition/streams.rs"
+        ],
+        "consumer": "Owned skin inspector prepares a selected whole-geometry packet and reconstructs its stored-pose result through existing skin math. Presentation can later borrow exact rest/attribute/index/influence streams instead of rejoining unrelated public JSON or rebuilding source parsing.",
+        "proposed_additive_boundary": "Add nif_skin::streams::prepare(bytes, source, Request{expected_sha, geometry}, Limits)->PreparedGeometryStreams. Private authority is created only from the existing binding-with-Scene decoder and existing CSR construction helpers. Read-only accessors expose source-qualified raw f32 words, absent/present flags, every UV set/color stream, original triangle/strip topology and the existing validated triangles, plus CSR and exact owner/data spans. Keep palette/deformation in the existing evaluator through an owned CLI consumer; no public arbitrary Scene/mesh/table constructor. Reuse private decode helpers; do not edit coordinator-owned nif_scene.",
+        "acceptance": [
+          "Independently author a whole skin with two UV sets, absent versus present normals/colors, signed-zero values, strip degenerate connectors and more-than-four repeated influences. Check every raw stream word, source vertex index and physical topology ordinal against literal input bytes.",
+          "Reconstruct CPU positions with the admitted CSR and existing palette; independently verify literal vertices. Preserve winding, all UV sets and absence: no fabricated normals/colors, UV flip, tangent recompute, palette truncation or strip/triangle ordering change.",
+          "Geometry sharing a data block must retain its own skin-instance identity; other-source same block IDs or another instance cannot be substituted. Unsupported additional geometry data is surfaced and cannot grant faithful renderer readiness.",
+          "Precharge concurrently retained decoded source, selected stream copies/references, CSR and proof output. No GPU upload/layout policy, material/shader choice, runtime readiness or source format conversion."
+        ],
+        "non_overlap": "ASSET18 is influence-only;22 partition-local streams and23 deformed partition subsets preserve different index domains. This whole geometry packet retains rest attributes for renderer reuse. VIEW23 remains the actual sampled drawing owner; this task does not edit or duplicate that renderer.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/**",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "tools/nif-skin-oracle/**",
+          "docs/nif-skin.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add nif_skin::streams::prepare(bytes, source, Request{expected_sha, geometry}, Limits)->PreparedGeometryStreams. Private authority is created only from the existing binding-with-Scene decoder and existing CSR construction helpers. Read-only accessors expose source-qualified raw f32 words, absent/present flags, every UV set/color stream, original triangle/strip topology and the existing validated triangles, plus CSR and exact owner/data spans. Keep palette/deformation in the existing evaluator through an owned CLI consumer; no public arbitrary Scene/mesh/table constructor. Reuse private decode helpers; do not edit coordinator-owned nif_scene.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-35",
+        "state": "ready",
+        "title": "Prepare an exact sequence text-key index for repeated interval queries",
+        "depends_on": [],
+        "gap": "markers::query decodes the whole animation source, scans and validates every selected text key, then scans again and clones matching strings on every interval. A source timeline consumer cannot reuse source admission or bound a small query to its matching keys.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_animation/markers.rs:108",
+          "crates/fallout-data/src/nif_animation/markers.rs:189"
+        ],
+        "consumer": "Owned marker inspector admits one exact sequence once and queries a bounded explicit interval list, preserving each result in physical source order. Later event planning can reuse this read-only index without learning NIF links.",
+        "proposed_additive_boundary": "Add markers::PreparedSequence::prepare(bytes, source, expected_sha, sequence, PreparationLimits)->Self and query(IntervalRequest, QueryLimits)->Observation; query_many(..., BatchLimits) for the existing inspector. Private storage retains exact sequence/text-key/string identities, validated finite key times and an index of time/physical ordinal. Binary-search interval boundaries, then restore physical order among matches. Existing closed [start,end] contract, duplicates and all outside-interval invalid-key refusals are preserved.",
+        "acceptance": [
+          "Authored unsorted times, duplicate equal times, -0/+0 and repeated raw non-UTF8 strings yield independent literal physical-ordinal results for overlapping, empty and zero-width queries. Signed-zero words are preserved even though interval membership uses the existing numeric equality.",
+          "Preparation validates every key once and owns its source data. Query counters demonstrate no repeated decoding or full key validation; bound binary search, selected-ordinal sorting, cloned bytes and total batch output.",
+          "Changed SHA/sequence, nonfinite or reversed intervals, absent text link and invalid out-of-window key refuse. No implicit cursor, deduplication, trigger firing, sequence clock mapping or playback semantics.",
+          "Actual CLI input is a strict explicit interval list; one late refusal prevents a completed batch. Keep the old single-query observation semantics equivalent and report preparation memory separately."
+        ],
+        "non_overlap": "ASSET19 supplies a one-shot source interval query. This supplies reusable indexed interval execution for a real timeline consumer; it does not duplicate blocked measured-event seed04 or timing-domain seed12.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add markers::PreparedSequence::prepare(bytes, source, expected_sha, sequence, PreparationLimits)->Self and query(IntervalRequest, QueryLimits)->Observation; query_many(..., BatchLimits) for the existing inspector. Private storage retains exact sequence/text-key/string identities, validated finite key times and an index of time/physical ordinal. Binary-search interval boundaries, then restore physical order among matches. Existing closed [start,end] contract, duplicates and all outside-interval invalid-key refusals are preserved.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
+      },
+      {
+        "id": "V3-ASSET-36",
+        "state": "ready",
+        "title": "Apply explicitly selected engineering compact-spline translation and scale to a source node",
+        "depends_on": [],
+        "gap": "The compact spline decoder and sampling::Window already evaluate translation/scale components under a named engineering cubic contract, but pose admission only supports NiTransformInterpolator plus NiTransformData. No source-linked node pose consumer reaches the existing compact transform sampler.",
+        "source_evidence": [
+          "crates/fallout-data/src/nif_animation/spline/sampling.rs:8",
+          "crates/fallout-data/src/nif_animation/spline/sampling.rs:348",
+          "crates/fallout-data/src/nif_animation/spline/sampling.rs:462",
+          "crates/fallout-data/src/nif_animation/pose.rs"
+        ],
+        "consumer": "Owned pose inspector accepts an explicit engineering-contract request for one exact direct NiTransformController target and its NiBSplineCompTransformInterpolator. Outputs the resulting node local/world affine and exact source window observations, without claiming faithful rotation or playback.",
+        "proposed_additive_boundary": "Add an owned pose::spline adapter with Request{expected_sha, object, controller, explicit_source_time, contract:EngineeringOpenUniformCubicComponentsV1, local_policy:ReplaceTranslationScaleKeepStoredNiAvRotation}. Internally decode through existing spline::components and Scene readers and validate exact direct target links. Reuse spline::sampling::prepare/sample plus existing affine/ancestry helpers. Require both admitted translation and scale handles and an absent rotation handle; reject any active rotation channel, unsupported ancestor or chained controller. Retained raw interpolator rotation/clock fields stay unapplied. No changed faithful default.",
+        "acceptance": [
+          "Use literal four-control cubic translation and scale curves with rational endpoint/midpoint expectations, non-identity stored NiAV rotation and noncommuting static parent; independently derive complete matrices.",
+          "Reconcile exact compact i16 words/window SHA, handle/basis/count/offset/half-range words, selected object controller/interpolator links and finite time. Wrong target/name is not repaired; source order does not select a controller.",
+          "Reject active rotation handle, absent translation/scale, wrong data/basis, extrapolation, source mismatch, unresolved controlled ancestor and output overflow. Raw quaternion component sampling remains separate.",
+          "Aggregate all decoder allowances, compact validation and sampling, ancestry and outputs. Actual CLI must require the named engineering policy; original interpolation and animation completion remain explicitly unsupported."
+        ],
+        "non_overlap": "Concrete refinement of unfinished seed11, replacing that vague ready item when published rather than counting both as independent. Existing scalar diagnostic is not a source-linked pose; queued24-29 do not add this branch. No new format parsing or retail interpolation rule is authorized.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "tools/nif-animation-oracle/**",
+          "docs/nif-animation.md"
+        ],
+        "original_capture_dependency": false,
+        "new_dependency_or_save_schema": false,
+        "boundary_proposal": "Add an owned pose::spline adapter with Request{expected_sha, object, controller, explicit_source_time, contract:EngineeringOpenUniformCubicComponentsV1, local_policy:ReplaceTranslationScaleKeepStoredNiAvRotation}. Internally decode through existing spline::components and Scene readers and validate exact direct target links. Reuse spline::sampling::prepare/sample plus existing affine/ancestry helpers. Require both admitted translation and scale handles and an absent rotation handle; reject any active rotation channel, unsupported ancestor or chained controller. Retained raw interpolator rotation/clock fields stay unapplied. No changed faithful default.",
+        "boundary_status": "Coordinator approved this existing owned-path consumer boundary. Declare exact additive signatures and minimal shared exports/CLI dispatch before implementation; preserve current API/default/dependency/save contracts.",
+        "delivery": "Small tested handoff; then next ready task without ending the full-vision Goal or awaiting acknowledgment.",
+        "common_conditions": [
+          "All tasks independently build on committed producers at the pinned source; no new task depends on another proposed task or on original-process capture. Exclude the active task and unreviewed draft API from prerequisites.",
+          "Preserve source bytes, defaults, prior receipts and APIs. No dependency, source-pin, persisted format, shader semantics, clock mapping, quaternion repair, missing value default or gameplay truth change.",
+          "Only assets-owned paths plus declared minimal coordinator-reviewed CLI/module wiring. Current main CLI uses command-family files; workers must declare the logical flag and inspector dispatch rather than replace old main wholesale.",
+          "One real headless CLI consumer and independent source/literal expectation are required. Use focused admission, existing locks and fresh outputs. Unsupported installed branches are findings, never successful animation parity.",
+          "If a listed gap closes before selection, skip/refine rather than duplicate. ASSET36 replaces the vague seed11; do not count both. Existing21 aliases13, and22/23 completed after the older central seed state must not be rerun."
+        ],
+        "boundary_authorized_by": "coordinator; source-backed rolling refill10"
       }
     ],
     "world": [
@@ -5671,7 +6005,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T10:23:17.016387+00:00",
+  "updated_at": "2026-10-04T10:33:59.895875+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

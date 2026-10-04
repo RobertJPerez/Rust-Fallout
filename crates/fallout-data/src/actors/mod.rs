@@ -3,6 +3,7 @@
 //! and winning-content identity. No live actor state is initialized.
 pub mod associations;
 pub mod classes;
+pub mod dependencies;
 pub mod factions;
 pub mod fields;
 pub mod packages;

@@ -1099,11 +1099,35 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_copy_request,
             snapshot_copy_batch_request,
             snapshot_native_request,
+            snapshot_native_plan_request,
+            snapshot_native_current,
             quest_boot_request,
             quest_boot_output,
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_native_plan_request {
+                let report = event_operand_inspection::observe_saved_native_plan(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input
+                        .as_deref()
+                        .ok_or("Missing initial snapshot input")?,
+                    snapshot_native_current
+                        .as_deref()
+                        .ok_or("Missing current snapshot input")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["outcome"]["status"] != "engineering_observation" {
+                    return Err(
+                        "Saved native plan retains unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_copy_batch_request {
                 let report = event_operand_inspection::copy_saved_batch(
                     &install,

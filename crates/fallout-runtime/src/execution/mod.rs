@@ -6,5 +6,6 @@ pub mod copy_probe;
 pub mod fixture;
 pub mod local_copy;
 pub mod native;
+pub mod native_plan;
 pub mod pending_batch;
 pub mod trace;

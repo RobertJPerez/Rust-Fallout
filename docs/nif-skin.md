@@ -1486,3 +1486,24 @@ subnormal underflow, halfway even rounding and a late placement overflow.
 All three contracts remain engineering source observations. Presentation drawing,
 material/shader selection, animation clocks, gameplay events, GPU skinning and
 measured original playback retain their own acceptance.
+
+## Complete sampled palette transport
+
+`pose::palette_packet::prepare_sampled_set(bytes, source, SampledRequest,
+channels, SampledLimits)` runs the existing `evaluate_set_sampled` producer and
+then converts its validated palette to finite row-major binary32 words. The
+packet carries the whole source SHA256, the exact geometry/data/instance/
+skin-data/root binding, every explicit object/controller/time binding, ordered
+bone ordinal and node IDs, and separate `skin_to_source_world` placement. It
+cannot accept caller matrices, reorder joints, or replace a missing required
+controller with identity. Incomplete pose sets, stale hashes, missing bone
+links, nonfinite/overflowing matrices, precision failures, and transport bounds
+return no packet.
+
+The source evaluator charges decoder admission and the complete pose set. The
+transport adds bounded channel and palette storage/work accounting and checks
+the source, pose, and packet against a combined live-retention ceiling before
+allocating the output arrays. `SampledPacket` preserves NIF row order and source
+coordinate frame; the consumer adapts those rows to its renderer convention.
+This is a producer interface, not a GPU upload path or a gameplay/retail
+animation claim.

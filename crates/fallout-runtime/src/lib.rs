@@ -10,6 +10,7 @@ pub mod execution;
 pub mod foreign;
 pub mod identity;
 pub mod inventory;
+pub mod physics;
 pub mod preparation;
 pub mod programs;
 pub mod query;

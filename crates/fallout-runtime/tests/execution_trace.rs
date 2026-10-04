@@ -182,6 +182,87 @@ fn output() -> StepOutput {
 }
 
 #[test]
+fn imported_word_budget_includes_outputs_and_returns_even_without_the_other_capture() {
+    let (_directory, catalogue, _) = fixture(&event(&copy()));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let case = manifest(
+        plan,
+        sources.source_cohort_sha256(),
+        Operation::Assignment,
+        10,
+    );
+    let original = capture(&case, Producer::Original, output());
+    let replacement = capture(&case, Producer::Replacement, output());
+    let limits = Limits {
+        maximum_words: 1,
+        ..Default::default()
+    };
+    for (original, replacement) in [
+        (Some(&original), Some(&replacement)),
+        (Some(&original), None),
+        (None, Some(&replacement)),
+    ] {
+        assert!(matches!(
+            compare(&sources, &case, original, replacement, limits),
+            Err(Error::Capacity("observation words"))
+        ));
+    }
+    assert_eq!(
+        compare(
+            &sources,
+            &case,
+            Some(&original),
+            Some(&replacement),
+            Limits {
+                maximum_words: 2,
+                ..limits
+            }
+        )
+        .unwrap()
+        .status,
+        Status::Matched
+    );
+    let mut original = original;
+    let mut replacement = replacement;
+    // Comparison/import mechanics only: no assignment return semantics claim.
+    for capture in [&mut original, &mut replacement] {
+        capture.steps[0].output.return_value = Some(Word {
+            format: Format::Signed32,
+            bits: "80000000".into(),
+        });
+    }
+    assert!(matches!(
+        compare(
+            &sources,
+            &case,
+            Some(&original),
+            Some(&replacement),
+            Limits {
+                maximum_words: 2,
+                ..limits
+            }
+        ),
+        Err(Error::Capacity("observation words"))
+    ));
+    assert_eq!(
+        compare(
+            &sources,
+            &case,
+            Some(&original),
+            Some(&replacement),
+            Limits {
+                maximum_words: 3,
+                ..limits
+            }
+        )
+        .unwrap()
+        .status,
+        Status::Matched
+    );
+}
+
+#[test]
 fn all_four_probe_purposes_use_prepared_positions_and_altered_outputs_fail() {
     // These bytes reuse the existing authored framing fixtures. This test proves
     // comparison mechanics, not original numeric, branch or command semantics.
@@ -384,7 +465,7 @@ fn malformed_source_words_schemas_and_exact_limits_have_precise_refusals() {
     let replacement = capture(&manifest, Producer::Replacement, output());
     let limits = Limits {
         maximum_steps: 1,
-        maximum_words: 1,
+        maximum_words: 2,
         maximum_writes: 1,
     };
     assert_eq!(
@@ -1360,6 +1441,74 @@ fn standalone_copy_discards_an_earlier_preview_effect_when_a_later_source_operat
             bits: 0xc010000000000000
         }
     );
+}
+
+#[test]
+#[ignore = "requires built CLI and authored metadata evidence; synthetic import limits only"]
+fn cli_capture_word_limit_helper() {
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_COPY_INPUT").expect("input"));
+    let evidence =
+        std::path::PathBuf::from(std::env::var_os("RF_SCRIPT_WORD_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let source: Manifest =
+        serde_json::from_slice(&fs::read(input.join("manifest.json")).unwrap()).unwrap();
+    for (name, count) in [("exact", 65_535), ("one-over", 65_536)] {
+        let mut case = source.clone();
+        case.steps[0].operands = vec![Word::binary64(0x8000000000000000); count];
+        let mut original = capture(&case, Producer::Original, output());
+        original.producer_executable_sha256 = case.identity.executable_sha256.clone();
+        original.instrumentation =
+            "Synthetic aggregate-word budget regression; never original game output".into();
+        let replacement = capture(&case, Producer::Replacement, output());
+        let manifest_path = evidence.join(format!("{name}-manifest.json"));
+        let original_path = evidence.join(format!("{name}-original-synthetic.json"));
+        let replacement_path = evidence.join(format!("{name}-replacement-synthetic.json"));
+        for (path, bytes) in [
+            (&manifest_path, serde_json::to_vec(&case).unwrap()),
+            (&original_path, serde_json::to_vec(&original).unwrap()),
+            (&replacement_path, serde_json::to_vec(&replacement).unwrap()),
+        ] {
+            assert!(bytes.len() < 4 * 1024 * 1024); // numeric bound, not JSON bound
+            fs::write(path, bytes).unwrap();
+        }
+        let report_path = evidence.join(format!("{name}-report.json"));
+        let output = std::process::Command::new(&cli)
+            .args(["script-trace", "--install"])
+            .arg(input.join("authored-source-copy"))
+            .arg("--load-order")
+            .arg(input.join("order.json"))
+            .arg("--manifest")
+            .arg(&manifest_path)
+            .arg("--profile-receipt")
+            .arg(input.join("profile-receipt.txt"))
+            .arg("--original-trace")
+            .arg(&original_path)
+            .arg("--replacement-trace")
+            .arg(&replacement_path)
+            .arg("--output")
+            .arg(&report_path)
+            .output()
+            .unwrap();
+        fs::write(evidence.join(format!("{name}-stdout.txt")), &output.stdout).unwrap();
+        fs::write(evidence.join(format!("{name}-stderr.txt")), &output.stderr).unwrap();
+        if name == "one-over" {
+            assert!(!output.status.success());
+            assert!(!report_path.exists());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("observation words"));
+        } else {
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let report: serde_json::Value =
+                serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+            assert_eq!(report["comparison"]["status"], "matched");
+            assert_eq!(report["faithful_execution_admitted"], false);
+            assert_eq!(report["capture_transport_authenticated"], false);
+        }
+    }
 }
 
 #[test]

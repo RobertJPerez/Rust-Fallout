@@ -9,6 +9,23 @@ worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
+Development batch 12 proves source `d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc`:
+1,636 Rust passing results, 63 ignored helpers, Clippy, formatting and actual CLI/
+preview builds. Fresh frozen consumers passed 24 headless cases and 4 GPU cases:
+two authored DDS captures checked across 6,144 pixels each and two preupload
+refusals. Complete canonical/native state, typed reports, source identities,
+pose float words and refusal outputs were independently reconciled.
+
+The 15 new source deltas cover explicit local/event groups and journal views,
+native availability and cold restore, saved event enqueueing, weapon/death-item
+source inputs, clip/prepared pose sets, bounded navigation/triangle predicates,
+and source-bound DDS image admission. Prior failed checks and the authored
+save-directory layout failure remain preserved alongside their narrow fixes.
+
+This accepts only source 40. Later actor/world/script work and pending sphere/
+capsule corrections remain outside this proof. M1 is unmet; checkpoint 45 is
+unchanged. These engineering results do not establish original gameplay parity.
+
 [Development batch 11](docs/integration/team-v3-development-11.json) passed 1,550
 data/runtime/CLI/preview Rust results, Clippy, formatting and executable builds;
 56 helpers remained ignored. The result total includes one explicitly launched

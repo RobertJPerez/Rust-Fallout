@@ -70,15 +70,20 @@ unchanged failing experiment or manufacture a new inspector just to stay busy.
    when busy, allowing useful source work instead of a session waiting on a lock.
    Keep one coding slice plus at most one slice awaiting validation. Test before
    handing off; never call a busy response a passing or failing test.
-5. Send small tested commits early. Coordinator reviews actionable handoffs at
+5. Group two or three connected ready tasks into a tested package with separate
+   task commits and one complete handoff. Run affected checks once on its final
+   source and retain complete consumer and late-refusal evidence. Coordinator
+   reviews actionable handoffs at
    task/command boundaries and before starting another long proof. Publish
    reviewed development bases after combined checks; workers need not wait for a
    numbered checkpoint to consume a reviewed dependency. Preserve original-to-
    integrated commit mapping so prerequisite stacks are not replayed.
-6. If four unmerged handoffs accumulate, finish fixes/review in that stack and
-   send an integration-priority message. Coordinator handles that lane next.
-   Independent measured consumer work may continue; do not grow an unlimited
-   dependent branch. There is no instruction to waste credits polling.
+6. Keep at most six independent unmerged source features; count each task in a
+   package separately. Correctness replacements consume no extra slot. At six,
+   finish fixes and prepare portable integration patches or a scoped review of
+   that held stack. Coordinator maps it promptly. Select the next ready package
+   without a grant or acknowledgment when capacity clears. Do not repeat audits
+   or poll while meaningful owned implementation is available.
 7. A handoff finishes a slice. It never finishes the continuous authorized Goal
    or requires Robert to restart the session. Select the next ready task or a
    bounded independent task within ownership. Leave the Goal active across normal

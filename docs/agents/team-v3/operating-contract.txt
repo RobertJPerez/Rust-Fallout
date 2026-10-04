@@ -54,11 +54,15 @@ If dependency or review is blocked, announce exact missing item once and take an
 independent ready task. When the seed queue ends, derive the next bounded task
 within your ownership from the brief and demonstrated route gaps, with input,
 consumer and acceptance recorded in outbox. Do not repeat completed source audits.
-At four independent unmerged feature slices, prioritize fixes and review of that
-stack and request integration priority. A correctness correction to a held slice
-replaces its acceptance; it does not consume another feature slot or require a
-new grant. Preserve all prior commits and receipts. Keep one coding task and at
-most one parked validation task.
+Use packages of two or three connected ready tasks. Keep a separate commit for
+each task and one complete package handoff. Run affected checks against the final
+package once, with complete consumer and late-refusal coverage. Each source task
+still counts toward the limit of six independent unmerged feature slices. At six,
+finish fixes and prepare the held stack for integration; do not repeat old audits
+or wait for an acknowledgment. Correctness replacements consume no extra slot.
+Keep one coding package and at most one parked validation package. Preserve all
+prior commits, drafts and evidence. Existing task acceptance, source contracts,
+ownership, resource limits and STOP requirements still apply.
 Use source/fixture/consumer work while a build is busy; no untested feature pile.
 Real exhaustion is reported honestly rather than inventing work to consume credit.
 

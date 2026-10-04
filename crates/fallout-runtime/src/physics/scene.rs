@@ -29,6 +29,8 @@ struct Leaf {
     source: SourceId,
     body_filter: SourceFilter,
     shell: f32,
+    // Extra engineering sweep admission. No change to old query transforms.
+    sweep_frame: Option<Affine>,
 }
 
 /// Units are immutable after construction, including the validated tolerance.
@@ -402,13 +404,18 @@ impl StaticScene {
                 havok.rows[i][i] = units.havok_to_source;
                 output.rows[i][i] = units.source_to_query;
             }
-            let frame = compose(
-                output,
-                compose(placement.attachment_to_source, compose(havok, pose)),
-            );
-            let mut stack = vec![(shape, frame, 0f32)];
+            let (inner, inner_exact) = exact_compose(havok, pose);
+            let (attached, attached_exact) = exact_compose(placement.attachment_to_source, inner);
+            let (frame, output_exact) = exact_compose(output, attached);
+            let exact = inner_exact
+                && attached_exact
+                && output_exact
+                && sweep::profile(body)
+                && (!body.transform_active
+                    || (body.rotation[..3] == [0.; 3] && body.rotation[3].abs() == 1.));
+            let mut stack = vec![(shape, frame, 0f32, exact)];
             let mut occurrence = 0;
-            while let Some((id, frame, shell)) = stack.pop() {
+            while let Some((id, frame, shell, exact)) = stack.pop() {
                 charge(
                     &mut visits,
                     1,
@@ -418,7 +425,12 @@ impl StaticScene {
                     .get(&id)
                     .ok_or(unsupported(id, "shape target was not decoded"))?;
                 match &block.data {
-                    Data::Transform { shape, matrix, .. } => {
+                    Data::Transform {
+                        shape,
+                        matrix,
+                        radius,
+                        ..
+                    } => {
                         if [matrix[0][3], matrix[1][3], matrix[2][3], matrix[3][3]]
                             != [0., 0., 0., 1.]
                         {
@@ -431,10 +443,12 @@ impl StaticScene {
                                 std::array::from_fn(|j| f64::from(matrix[j][i]))
                             }),
                         };
+                        let (composed, local_exact) = exact_compose(frame, local);
                         stack.push((
                             shape.ok_or(unsupported(id, "null transformed shape"))?,
-                            compose(frame, local),
+                            composed,
                             shell,
+                            exact && local_exact && *radius == 0.,
                         ));
                     }
                     Data::List {
@@ -458,6 +472,7 @@ impl StaticScene {
                                 shape.ok_or(unsupported(id, "null list child"))?,
                                 frame,
                                 shell,
+                                exact,
                             ));
                         }
                     }
@@ -474,6 +489,7 @@ impl StaticScene {
                             shape.ok_or(unsupported(id, "null MOPP child"))?,
                             frame,
                             shell,
+                            exact,
                         ));
                     }
                     Data::PackedShape {
@@ -496,6 +512,7 @@ impl StaticScene {
                             data.ok_or(unsupported(id, "null packed data"))?,
                             compose(frame, local),
                             *r,
+                            false,
                         ));
                     }
                     data => {
@@ -522,6 +539,7 @@ impl StaticScene {
                                 },
                                 body_filter: (&body.world.filter).into(),
                                 shell: if shell != 0. { shell } else { value.shell },
+                                sweep_frame: exact.then_some(frame),
                             });
                         }
                         occurrence += 1;
@@ -604,6 +622,145 @@ impl StaticScene {
     }
     pub fn primitive_count(&self) -> usize {
         self.leaves.len()
+    }
+    /// Check every selected leaf. This explicit fixture scope never skips an
+    /// unsupported obstacle through the spatial index or a filter assumption.
+    pub fn sweep_sphere(
+        &self,
+        request: sweep::SphereSweep,
+        limits: sweep::SweepLimits,
+    ) -> QueryResult<sweep::SweepProposal> {
+        use sweep::{SweepContact, SweepProposal, SweepState};
+        limits.validate()?;
+        let delta = sweep::trajectory(request)?;
+        let mut left = limits;
+        let mut candidates = Vec::new();
+        for (ordinal, leaf) in self.leaves.iter().enumerate() {
+            charge(&mut left.primitive_tests, 1, "sweep primitive tests")?;
+            charge(&mut left.iterations, 1, "sweep iterations")?;
+            // A fixed reservation bounds the profile, transform, quadratic,
+            // estimate and final witness arithmetic per admitted leaf.
+            charge(
+                &mut left.predicate_tests,
+                1024,
+                "sweep predicate reservation",
+            )?;
+            let Shape::Sphere(radius) = leaf.geometry.shape else {
+                return Err(unsupported(
+                    leaf.source.shape_block,
+                    "sweep supports source sphere cores only",
+                ));
+            };
+            if leaf.shell != 0. || leaf.geometry.filter.is_some() {
+                return Err(unsupported(
+                    leaf.source.shape_block,
+                    "sweep margin/filter profile unsupported",
+                ));
+            }
+            let frame = leaf.sweep_frame.ok_or(unsupported(
+                leaf.source.body_block,
+                "sweep requires zero-tagged frozen fixture profile and exact transform composition",
+            ))?;
+            let (center, radius) = sweep::sphere_frame(frame, radius)?;
+            if let Some(crossing) = sweep::crossing(request, delta, center, radius)? {
+                charge(&mut left.contacts, 1, "sweep contact candidates")?;
+                candidates.push((ordinal, crossing, center, radius));
+            }
+        }
+        candidates.sort_by(|a, b| {
+            a.1.bounds
+                .lower
+                .total_cmp(&b.1.bounds.lower)
+                .then(self.leaves[a.0].source.cmp(&self.leaves[b.0].source))
+        });
+        let work = sweep::SweepLimits {
+            primitive_tests: limits.primitive_tests - left.primitive_tests,
+            predicate_tests: limits.predicate_tests - left.predicate_tests,
+            iterations: limits.iterations - left.iterations,
+            contacts: limits.contacts - left.contacts,
+        };
+        let Some(first) = candidates.first() else {
+            return Ok(SweepProposal {
+                state: SweepState::Clear,
+                parameter: 1.,
+                proposed_center: request.end,
+                center_error_bounds: [0.; 3],
+                contacts: Vec::new(),
+                work,
+            });
+        };
+        let bounds = first.1.bounds;
+        let first_geometry = (first.2, first.1.expanded_radius);
+        let parameter = bounds.lower + (bounds.upper - bounds.lower) * 0.5;
+        let (proposed_center, center_error_bounds) = sweep::witness(request, delta, parameter)?;
+        let mut state = first.1.state;
+        let mut contacts = Vec::new();
+        for (ordinal, crossing, center, radius) in candidates {
+            if crossing.bounds.lower > bounds.upper {
+                break;
+            }
+            // Overlapping uncertain root intervals do not identify an exact first
+            // source. Exact coincident contacts and initial overlaps are retained.
+            if crossing.bounds.lower != bounds.lower
+                || crossing.bounds.upper != bounds.upper
+                || (bounds.lower != bounds.upper
+                    && (center, crossing.expanded_radius) != first_geometry)
+            {
+                return Err(QueryError::Invalid(
+                    "sweep first-contact ordering is uncertain",
+                ));
+            }
+            if crossing.state == SweepState::StartOverlap {
+                state = SweepState::StartOverlap;
+            }
+            let mut separation =
+                sweep::separation(request, delta, parameter, center, crossing.expanded_radius)?;
+            let rounded_request = sweep::SphereSweep {
+                start: proposed_center,
+                ..request
+            };
+            let rounded_separation = sweep::separation(
+                rounded_request,
+                [0.; 3],
+                0.,
+                center,
+                crossing.expanded_radius,
+            )?;
+            separation.lower = separation.lower.min(rounded_separation.lower);
+            separation.upper = separation.upper.max(rounded_separation.upper);
+            if crossing.state == SweepState::StartOverlap && separation.upper >= 0. {
+                return Err(QueryError::Invalid(
+                    "sweep start-overlap witness is uncertain",
+                ));
+            }
+            if crossing.state != SweepState::StartOverlap
+                && (separation.lower < -request.contact_tolerance
+                    || separation.upper > request.contact_tolerance)
+            {
+                return Err(QueryError::Invalid(
+                    "sweep contact witness exceeds explicit tolerance",
+                ));
+            }
+            let distance = delta[0].hypot(delta[1]).hypot(delta[2]) * parameter;
+            let distance_bounds = sweep::distance_bounds(delta, parameter)?;
+            contacts.push(SweepContact {
+                provenance: Self::hit(&self.leaves[ordinal], distance, proposed_center),
+                parameter_bounds: [bounds.lower, bounds.upper],
+                source_center: center,
+                source_radius: radius,
+                expanded_radius: crossing.expanded_radius,
+                separation_bounds: [separation.lower, separation.upper],
+                distance_bounds: [distance_bounds.lower, distance_bounds.upper],
+            });
+        }
+        Ok(SweepProposal {
+            state,
+            parameter,
+            proposed_center,
+            center_error_bounds,
+            contacts,
+            work,
+        })
     }
     /// Shell margins, runtime filters, activation and dynamics remain unavailable.
     pub fn faithful_ready(&self) -> bool {

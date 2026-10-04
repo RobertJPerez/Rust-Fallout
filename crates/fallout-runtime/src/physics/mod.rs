@@ -9,6 +9,7 @@ pub mod multi;
 pub mod reference;
 mod scene;
 mod shape;
+pub mod sweep;
 
 use crate::identity::ReferenceId;
 use fallout_data::coordinates::Affine;

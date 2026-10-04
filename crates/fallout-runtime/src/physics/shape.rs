@@ -67,7 +67,7 @@ fn sphere_contains(p: V, radius: f64) -> QueryResult<bool> {
     Ok(distance < radius)
 }
 
-fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
+pub(super) fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
     let relative = sub(o, center);
     if sphere_contains(relative, radius)? {
         return Ok(Some(0.));

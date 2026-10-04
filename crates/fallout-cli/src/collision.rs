@@ -387,6 +387,86 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SweepRequest {
+    reference: std::num::NonZeroU64,
+    body_blocks: Vec<u32>,
+    attachment_rows: [[f64; 4]; 3],
+    units: fallout_runtime::physics::EngineeringUnits,
+    sweep: fallout_runtime::physics::sweep::SphereSweep,
+    limits: fallout_runtime::physics::sweep::SweepLimits,
+}
+#[derive(Serialize)]
+pub struct SweepReport {
+    schema_version: u32,
+    source_sha256: String,
+    request_sha256: String,
+    units: fallout_runtime::physics::EngineeringUnits,
+    input: fallout_runtime::physics::sweep::SphereSweep,
+    start_binary64_hex: [String; 3],
+    end_binary64_hex: [String; 3],
+    radius_binary64_hex: String,
+    tolerance_binary64_hex: String,
+    limits: fallout_runtime::physics::sweep::SweepLimits,
+    primitive_count: usize,
+    proposal: fallout_runtime::physics::sweep::SweepProposal,
+    query_semantics: &'static str,
+    faithful_ready: bool,
+}
+/// One decoder/build/query cohort, then count the complete report before emit.
+pub fn sweep_query(input: &Path, request_path: &Path) -> Result<SweepReport> {
+    use fallout_runtime::{
+        identity::ReferenceId,
+        physics::{BodyPlacement, QueryLimits, StaticScene},
+    };
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: SweepRequest = serde_json::from_slice(&request_bytes)?;
+    if request.body_blocks.is_empty() || request.body_blocks.len() > 10_000 {
+        return Err("sweep requires 1..10000 selected source bodies".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let digest: [u8; 32] = Sha256::digest(&bytes).into();
+    let (_, collision) = nif_collision::decode(&bytes, &input.display().to_string())?;
+    let placements: Vec<_> = request
+        .body_blocks
+        .iter()
+        .map(|&body_block| BodyPlacement {
+            reference: ReferenceId(request.reference),
+            source_sha256: digest,
+            body_block,
+            attachment_to_source: fallout_data::coordinates::Affine {
+                rows: request.attachment_rows,
+            },
+        })
+        .collect();
+    let scene = StaticScene::build(
+        &collision,
+        &placements,
+        request.units,
+        QueryLimits::default(),
+    )?;
+    let proposal = scene.sweep_sphere(request.sweep, request.limits)?;
+    let report = SweepReport {
+        schema_version: 1,
+        source_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        units: request.units,
+        input: request.sweep,
+        start_binary64_hex: request.sweep.start.map(|v| format!("{:016x}", v.to_bits())),
+        end_binary64_hex: request.sweep.end.map(|v| format!("{:016x}", v.to_bits())),
+        radius_binary64_hex: format!("{:016x}", request.sweep.radius.to_bits()),
+        tolerance_binary64_hex: format!("{:016x}", request.sweep.contact_tolerance.to_bits()),
+        limits: request.limits,
+        primitive_count: scene.primitive_count(),
+        proposal,
+        query_semantics: "explicit zero-tagged frozen sphere-core fixture profile; exact composed signed-axis/power-of-two frames; exact Minkowski sum; original endpoint segment, no normalization; outward-rounded range/contact/center certificates; every selected obstacle checked; approximate source/dynamics/filter/margin semantics refuse; immutable engineering proposal only",
+        faithful_ready: scene.faithful_ready(),
+    };
+    serde_json::to_writer_pretty(&mut ReportCounter(1), &report)?;
+    Ok(report)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CellRequest {
     model_index: usize,
     source_sha256: String,

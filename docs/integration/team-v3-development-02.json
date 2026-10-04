@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "revision": "94ed4d17ad9e757d1596ff6b9d6873eef0feb4f2",
+  "scope": "Changed-package asset-free development checks; no original or gameplay acceptance",
+  "rust_passing_results": 749,
+  "ignored_helpers": 10,
+  "commands": [
+    {
+      "arguments": [
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "63d72d25a98495d9a6513edf096811a59acadedaf5f69a0bf4cbd5f8b41de4a9"
+    },
+    {
+      "arguments": [
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "a700e3dd7587d5a28979e01734e65d3b7744ddf00070239215e6a8c63995e4c5"
+    },
+    {
+      "arguments": [
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "receipt_sha256": "7de05f0084f5c5f8383b20ea272354b52c5c47f4fae70f191622b4ef318d705b",
+  "original_to_integrated": {
+    "aa02f60bd3f9a9266ca1bc0cbe10017ec996eedc": "9e88209befc0771c904179db85fbe4f2425e0796",
+    "8d0b9ce6f870c38935b47b2f0e2e77502e0112e8": "cc29f82837f7c757150d334b3af4ac14410a89a8",
+    "c3b7f5b47a21ef206da938f1d19d9b2556b14e81": "94ed4d17ad9e757d1596ff6b9d6873eef0feb4f2"
+  },
+  "limitations": [
+    "World source retention accessor, repeated publication and two-worker cap require follow-up WORLD15; approved consumers retain the source Arc and publish once.",
+    "Controller dependency audit is complete; preview backend compile/hardware checks remain pending.",
+    "Semantic trace agreement does not authenticate an original recorder or permit faithful execution.",
+    "Checkpoint45 remains the latest verified checkpoint; no original gameplay scenario accepted."
+  ]
+}

@@ -562,3 +562,357 @@ fn malformed_snapshots_never_replace_the_existing_world() {
     json["instances"][0]["id"] = 0.into();
     assert!(Snapshot::decode(&serde_json::to_vec(&json).unwrap(), Limits::default()).is_err());
 }
+
+fn staged_world(catalogue: &fallout_data::loaded_scripts::Catalogue) -> World<'_> {
+    let mut world = World::new(catalogue, Limits::default()).unwrap();
+    let reference = world.register_reference(Some(form(0x100))).unwrap();
+    let context = Context {
+        calling_reference: Some(reference),
+        target: Some(ReferenceValue::Live { id: reference }),
+        arguments: vec![ReferenceValue::Live { id: reference }],
+        ..Context::default()
+    };
+    let handle = world
+        .create_instance(&definition(catalogue), owner(1), context.clone())
+        .unwrap();
+    world
+        .assign(handle, &[(42, Value::Number { bits: 1 })])
+        .unwrap();
+    world.enqueue(handle, block(), context).unwrap();
+    world
+}
+
+#[test]
+fn staged_changes_are_owned_and_dropping_or_staging_has_no_effect() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let mut world = staged_world(&catalogue);
+    let before = world.snapshot();
+    let mut inputs = vec![
+        (42, Value::Number { bits: u64::MAX }),
+        (
+            90,
+            Value::Reference {
+                value: ReferenceValue::Content { key: form(0x100) },
+            },
+        ),
+    ];
+    let discarded = world.stage_event_changes(1, &inputs, true).unwrap();
+    assert_eq!(discarded.base_revision(), before.state_revision);
+    assert_eq!(discarded.sequence(), 1);
+    assert_eq!(discarded.instance(), before.instances[0].id);
+    assert_eq!(discarded.definition(), &before.instances[0].definition);
+    assert_eq!(discarded.assignments(), inputs);
+    assert!(discarded.acknowledges());
+    assert_eq!(world.snapshot(), before);
+    drop(discarded);
+    assert_eq!(world.snapshot(), before);
+    let stage = world.stage_event_changes(1, &inputs, false).unwrap();
+    inputs[0].1 = Value::Number { bits: 0 };
+    if let Value::Reference {
+        value: ReferenceValue::Content { key },
+    } = &mut inputs[1].1
+    {
+        key.origin_plugin = "changed.esm".into();
+    }
+    let receipt = world.commit_event_changes(stage).unwrap();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number { bits: u64::MAX };
+    expected.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 90)
+        .unwrap()
+        .value = Value::Reference {
+        value: ReferenceValue::Content { key: form(0x100) },
+    };
+    assert_eq!(world.snapshot(), expected);
+    assert!(receipt.acknowledged.is_none());
+    assert_eq!(receipt.assignments, 2);
+}
+
+#[test]
+fn staged_locals_and_exact_head_acknowledge_commit_in_one_revision() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let mut world = staged_world(&catalogue);
+    let other = world
+        .create_instance(&definition(&catalogue), owner(2), Context::default())
+        .unwrap();
+    world.enqueue(other, block(), Context::default()).unwrap();
+    let before = world.snapshot();
+    let stage = world
+        .stage_event_changes(
+            1,
+            &[(
+                42,
+                Value::Number {
+                    bits: 0x7ff8_1234_5678_9abc,
+                },
+            )],
+            true,
+        )
+        .unwrap();
+    let receipt = world.commit_event_changes(stage).unwrap();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number {
+        bits: 0x7ff8_1234_5678_9abc,
+    };
+    let acknowledged = expected.pending_events.remove(0);
+    assert_eq!(world.snapshot(), expected);
+    assert_eq!(receipt.acknowledged, Some(acknowledged));
+    assert_eq!(receipt.campaign, before.campaign);
+    assert_eq!(receipt.catalogue_sha256, before.catalogue_sha256);
+    assert_eq!(receipt.definition, before.instances[0].definition);
+    assert_eq!(receipt.instance, before.instances[0].id);
+    assert_eq!(receipt.sequence, 1);
+    assert_eq!(receipt.before_revision, before.state_revision);
+    assert_eq!(receipt.after_revision, before.state_revision + 1);
+    assert_eq!(receipt.boundary, before.clocks);
+    assert_eq!(receipt.assignments, 1);
+    assert_eq!(world.pending_events().next().unwrap().sequence, 2);
+}
+
+#[test]
+fn staged_empty_commits_count_once_and_replay_always_rejects() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    for acknowledge in [false, true] {
+        let mut world = staged_world(&catalogue);
+        let before = world.snapshot();
+        let stage = world.stage_event_changes(1, &[], acknowledge).unwrap();
+        let equivalent = world.stage_event_changes(1, &[], acknowledge).unwrap();
+        let receipt = world.commit_event_changes(stage).unwrap();
+        let mut expected = before.clone();
+        expected.state_revision += 1;
+        if acknowledge {
+            expected.pending_events.remove(0);
+        }
+        assert_eq!(world.snapshot(), expected);
+        assert_eq!(receipt.assignments, 0);
+        assert_eq!(receipt.acknowledged.is_some(), acknowledge);
+        assert!(
+            matches!(world.commit_event_changes(equivalent), Err(Error::Invalid(message)) if message == "staged event revision changed")
+        );
+        assert_eq!(world.snapshot(), expected);
+    }
+}
+
+#[test]
+fn staged_invalid_batches_and_nonhead_requests_preserve_all_state() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), true);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let mut world = staged_world(&catalogue);
+    let handle = world.handle(world.snapshot().instances[0].id).unwrap();
+    world.enqueue(handle, block(), Context::default()).unwrap();
+    let before = world.snapshot();
+    for sequence in [0, 2, u64::MAX] {
+        assert!(
+            matches!(world.stage_event_changes(sequence, &[], true), Err(Error::Invalid(message)) if message == "staging must name the first pending event")
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let good = (42, Value::Number { bits: 7 });
+    for (batch, expected) in [
+        (vec![good.clone(), (90, Value::Number { bits: 8 })], "kind"),
+        (vec![good.clone(), good.clone()], "duplicate"),
+        (
+            vec![good.clone(), (500, Value::Number { bits: 1 })],
+            "missing",
+        ),
+        (
+            vec![good.clone(), (99, Value::Number { bits: 1 })],
+            "unsupported",
+        ),
+        (
+            vec![
+                good.clone(),
+                (
+                    90,
+                    Value::Reference {
+                        value: ReferenceValue::Live {
+                            id: fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+                        },
+                    },
+                ),
+            ],
+            "reference",
+        ),
+        (vec![good.clone(); 6], "capacity"),
+    ] {
+        let error = world.stage_event_changes(1, &batch, true).unwrap_err();
+        match expected {
+            "kind" => assert!(matches!(error, Error::IncompatibleLocal(90))),
+            "duplicate" => assert!(
+                matches!(error, Error::Invalid(message) if message == "duplicate local assignment")
+            ),
+            "missing" => assert!(matches!(error, Error::MissingLocal(500))),
+            "unsupported" => assert!(matches!(error, Error::UnsupportedLocal(99))),
+            "reference" => assert!(matches!(error, Error::MissingReference)),
+            "capacity" => assert!(matches!(error, Error::Capacity("assignment batch"))),
+            _ => unreachable!(),
+        }
+        assert_eq!(world.snapshot(), before);
+    }
+}
+
+#[test]
+fn staged_changes_reject_every_intervening_mutation_without_overwriting_it() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    for mutation in 0..6 {
+        let mut world = staged_world(&catalogue);
+        let handle = world.handle(world.snapshot().instances[0].id).unwrap();
+        let stage = world
+            .stage_event_changes(1, &[(42, Value::Number { bits: 8 })], true)
+            .unwrap();
+        match mutation {
+            0 => {
+                world
+                    .assign(handle, &[(42, Value::Number { bits: 2 })])
+                    .unwrap();
+            }
+            1 => {
+                world.enqueue(handle, block(), Context::default()).unwrap();
+            }
+            2 => {
+                world
+                    .advance_clocks(Clocks {
+                        tick: 1,
+                        ..Clocks::default()
+                    })
+                    .unwrap();
+            }
+            3 => {
+                world.register_reference(None).unwrap();
+            }
+            4 => {
+                world.acknowledge(1).unwrap();
+            }
+            5 => {
+                world
+                    .initialize_inventory(world.snapshot().references[0].id)
+                    .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let after_mutation = world.snapshot();
+        assert!(
+            matches!(world.commit_event_changes(stage), Err(Error::Invalid(message)) if message == "staged event revision changed")
+        );
+        assert_eq!(world.snapshot(), after_mutation);
+    }
+}
+
+#[test]
+fn staged_changes_reject_an_equal_restored_or_other_world_epoch() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let mut world = staged_world(&catalogue);
+    let before = world.snapshot();
+    let for_other = world.stage_event_changes(1, &[], true).unwrap();
+    let mut other = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    assert!(matches!(
+        other.commit_event_changes(for_other),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(other.snapshot(), before);
+    let for_restore = world.stage_event_changes(1, &[], true).unwrap();
+    world.replace_from_snapshot(before.clone()).unwrap();
+    assert!(matches!(
+        world.commit_event_changes(for_restore),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), before);
+    world
+        .commit_event_changes(world.stage_event_changes(1, &[], true).unwrap())
+        .unwrap();
+    assert!(world.pending_events().next().is_none());
+}
+
+#[test]
+fn staged_revision_exhaustion_fails_before_locals_or_acknowledgment() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let world = staged_world(&catalogue);
+    let mut before = world.snapshot();
+    before.state_revision = u64::MAX;
+    let mut exhausted = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    let stage = exhausted
+        .stage_event_changes(1, &[(42, Value::Number { bits: 2 })], true)
+        .unwrap();
+    assert!(matches!(
+        exhausted.commit_event_changes(stage),
+        Err(Error::Capacity("state revisions"))
+    ));
+    assert_eq!(exhausted.snapshot(), before);
+}
+
+#[test]
+fn staged_exact_numeric_and_reference_values_restore_with_pending_head_retained() {
+    let dir = tempfile::tempdir().unwrap();
+    write_fixture(dir.path(), false);
+    let catalogue = load(dir.path(), &["FalloutNV.esm"]);
+    let mut world = staged_world(&catalogue);
+    let reference = world.snapshot().references[0].id;
+    for bits in [0, u64::MAX, 0x8000_0000_0000_0000, 0x7ff8_1234_5678_9abc] {
+        let stage = world
+            .stage_event_changes(
+                1,
+                &[
+                    (42, Value::Number { bits }),
+                    (
+                        90,
+                        Value::Reference {
+                            value: ReferenceValue::Live { id: reference },
+                        },
+                    ),
+                ],
+                false,
+            )
+            .unwrap();
+        world.commit_event_changes(stage).unwrap();
+        let snapshot = world.snapshot();
+        let bytes = snapshot
+            .encode(Limits::default().max_snapshot_bytes)
+            .unwrap();
+        world = World::restore(
+            &catalogue,
+            Snapshot::decode(&bytes, Limits::default()).unwrap(),
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(world.snapshot(), snapshot);
+        assert_eq!(world.pending_events().next().unwrap().sequence, 1);
+        let handle = world.handle(snapshot.instances[0].id).unwrap();
+        assert_eq!(
+            world.instance(handle).unwrap().local(42).unwrap(),
+            &Value::Number { bits }
+        );
+        assert_eq!(
+            world.instance(handle).unwrap().local(90).unwrap(),
+            &Value::Reference {
+                value: ReferenceValue::Live { id: reference }
+            }
+        );
+    }
+}

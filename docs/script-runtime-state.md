@@ -68,6 +68,48 @@ journal policy; original dispatch order, delay, suspension and pause behavior
 remain unmeasured. Acknowledgment is explicit and does not execute bytecode.
 Pending events prevent implicit instance removal.
 
+`World::stage_event_changes(sequence, assignments, acknowledge)` proposes a
+bounded batch for the exact pending head's own instance. It reuses assignment
+validation and owns its explicit typed values. Staging or dropping the opaque
+`state::event_commit::StagedEventChanges` changes no state. It is ephemeral,
+cannot be forged or edited by callers, and never enters a save.
+
+`World::commit_event_changes(stage)` requires the same world epoch, campaign,
+cohort, exact state revision, owning instance/source and complete pending head.
+It validates all locals/references and revision capacity before moving values
+into existing slots and optionally removing that head. The commit returns a
+typed receipt and increments revision exactly once, including an empty explicit
+commit. Dropping the stage is the no-op path. Intervening mutations, equal-revision
+restoration to a fresh world, replay, invalid batches and revision exhaustion
+reject before any effect. Other instances and the remaining journal are unchanged.
+
+The existing inspector has an opt-in `--engineering-event-commit FILE` consumer.
+Its read-only input is limited to 64 KiB and must supply all three fields:
+
+```json
+{
+  "sequence": 1,
+  "assignments": [{"index": 42, "value": {"kind": "number", "bits": 9223372036854775808}}],
+  "acknowledge": true
+}
+```
+
+These sequence/index examples belong to authored fixtures; select real inputs
+from the inspector's pending head and compiled local declarations. Numeric bits
+are exact storage values, not arithmetic/coercion rules. `value` also accepts
+the existing typed reference/uninitialized forms with normal validation. Default
+output remains unchanged. The opt-in report adds the receipt, requested values,
+before/after snapshot hashes and exact-change/restoration checks. It does not
+execute bytecode, infer scheduling, or initialize retail state. The public
+boundary is also the agreed consumer dependency for scripting VM-02.
+
+Focused tests cover stage ownership/drop, one-revision atomic effects, optional
+acknowledgment, empty commits, replay, wrong/restored worlds, intervening mutations,
+invalid/missing/duplicate/unsupported locals, capacity and exact bit/reference
+restoration. Separate cold native processes verify pending precommit and
+committed postcommit snapshots, including live reference links. Save schemas,
+identity allocation and the single journal remain unchanged.
+
 Schema version 3 snapshots retain campaign identity, state revision, allocators,
 references, instances, local banks, clocks, pending events and explicit item banks.
 Explicit migration from schema 1 requires a campaign identity; schema 2 migration

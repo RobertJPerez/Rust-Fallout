@@ -287,6 +287,9 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         index_cache: Option<PathBuf>,
+        /// Explicit bounded engineering inputs for a staged local/event-head commit.
+        #[arg(long)]
+        engineering_event_commit: Option<PathBuf>,
     },
     /// Prepare bounded source windows for explicit engineering pending events.
     EventFrames {
@@ -955,9 +958,14 @@ fn run(args: Args) -> Result<()> {
             install,
             load_order,
             index_cache,
+            engineering_event_commit,
         } => {
-            let report =
-                script_state_inspection::inspect(&install, &load_order, index_cache.as_deref())?;
+            let report = script_state_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                engineering_event_commit.as_deref(),
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::EventFrames {

@@ -19,6 +19,8 @@ use std::{
 
 static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
 
+pub mod event_commit;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_instances: usize,
@@ -435,9 +437,11 @@ impl<'a> World<'a> {
             _ => Err(Error::IncompatibleLocal(local.index)),
         }
     }
-    /// Validate the entire batch before touching state. Duplicate assignments
-    /// are rejected instead of introducing an undocumented last-write rule.
-    pub fn assign(&mut self, handle: InstanceHandle, assignments: &[(u32, Value)]) -> Result<()> {
+    fn validate_assignments(
+        &self,
+        handle: InstanceHandle,
+        assignments: &[(u32, Value)],
+    ) -> Result<()> {
         let instance = self.instance(handle)?;
         if assignments.len() > instance.locals.len() {
             return Err(Error::Capacity("assignment batch"));
@@ -456,6 +460,12 @@ impl<'a> World<'a> {
                 value,
             )?;
         }
+        Ok(())
+    }
+    /// Validate the entire batch before touching state. Duplicate assignments
+    /// are rejected instead of introducing an undocumented last-write rule.
+    pub fn assign(&mut self, handle: InstanceHandle, assignments: &[(u32, Value)]) -> Result<()> {
+        self.validate_assignments(handle, assignments)?;
         if assignments.is_empty() {
             return Ok(());
         }

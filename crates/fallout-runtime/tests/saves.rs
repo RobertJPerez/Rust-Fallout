@@ -560,6 +560,78 @@ fn cold_process_reopens_snapshot_with_context_and_exact_values() {
     assert!(reader.0.wait().unwrap().success());
 }
 
+fn staged_cold_seed(catalogue: &fallout_data::loaded_scripts::Catalogue) -> World<'_> {
+    let mut world = seed(catalogue);
+    let reference = world.register_reference(Some(form(0x100))).unwrap();
+    let handle = world.handle(world.snapshot().instances[0].id).unwrap();
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: fallout_runtime::identity::ReferenceValue::Live { id: reference },
+                },
+            )],
+        )
+        .unwrap();
+    world.acknowledge(1).unwrap();
+    world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context {
+                calling_reference: Some(reference),
+                target: Some(fallout_runtime::identity::ReferenceValue::Live { id: reference }),
+                arguments: vec![fallout_runtime::identity::ReferenceValue::Live { id: reference }],
+                ..Context::default()
+            },
+        )
+        .unwrap();
+    world
+}
+
+#[test]
+fn staged_commit_cold_boundaries_preserve_pending_work_and_reference_links() {
+    let directory = tempfile::tempdir().unwrap();
+    write_fixture(directory.path(), false);
+    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    let mut world = staged_cold_seed(&catalogue);
+    let before = world.snapshot();
+    let stage = world
+        .stage_event_changes(
+            2,
+            &[(
+                42,
+                Value::Number {
+                    bits: 0x7ff8_1234_5678_9abc,
+                },
+            )],
+            true,
+        )
+        .unwrap();
+    let before_repository = repo(&directory.path().join("native-stage-before"), &world);
+    before_repository
+        .commit(&Captured::at_boundary(&world))
+        .unwrap();
+    assert_eq!(world.snapshot(), before);
+    let receipt = world.commit_event_changes(stage).unwrap();
+    assert_eq!(receipt.after_revision, before.state_revision + 1);
+    let after_repository = repo(&directory.path().join("native-stage-after"), &world);
+    after_repository
+        .commit(&Captured::at_boundary(&world))
+        .unwrap();
+    for mode in ["before", "after"] {
+        let ready = directory.path().join(format!("stage-{mode}-success"));
+        let mut reader = child(directory.path(), &format!("cold-stage:{mode}"), &ready);
+        await_ready(&ready, &mut reader);
+        assert!(reader.0.wait().unwrap().success());
+    }
+}
+
 #[test]
 #[ignore = "helper launched only by native save process tests"]
 fn native_save_child() {
@@ -575,6 +647,40 @@ fn native_save_child() {
         assert_eq!(world.snapshot(), seed(&catalogue).snapshot());
         assert_eq!(world.pending_events().len(), 1);
         fs::write(ready, b"verified").unwrap();
+        return;
+    }
+    if let Some(boundary) = mode.strip_prefix("cold-stage:") {
+        let repository =
+            Repository::open(&root.join(format!("native-stage-{boundary}")), &[]).unwrap();
+        let (world, _) = repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap();
+        let mut expected = staged_cold_seed(&catalogue).snapshot();
+        if boundary == "after" {
+            expected.state_revision += 1;
+            expected.pending_events.remove(0);
+            expected.instances[0]
+                .locals
+                .iter_mut()
+                .find(|local| local.index == 42)
+                .unwrap()
+                .value = Value::Number {
+                bits: 0x7ff8_1234_5678_9abc,
+            };
+        } else {
+            assert_eq!(boundary, "before");
+        }
+        assert_eq!(world.snapshot(), expected);
+        let handle = world.handle(expected.instances[0].id).unwrap();
+        assert_eq!(
+            world.instance(handle).unwrap().local(90).unwrap(),
+            &Value::Reference {
+                value: fallout_runtime::identity::ReferenceValue::Live {
+                    id: expected.references[0].id
+                }
+            }
+        );
+        fs::write(ready, b"verified staged boundary").unwrap();
         return;
     }
     let index = mode

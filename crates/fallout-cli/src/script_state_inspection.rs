@@ -12,9 +12,34 @@ use fallout_runtime::{
     schema::{self, Kind},
     snapshot::Snapshot,
 };
+use serde::Deserialize;
 use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, io::Read, path::Path};
+
+/// A bounded explicit inspector request, not a persisted script continuation.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct EngineeringCommit {
+    sequence: u64,
+    assignments: Vec<fallout_runtime::snapshot::Local>,
+    acknowledge: bool,
+}
+impl EngineeringCommit {
+    pub(super) fn read(path: &Path) -> Result<Self> {
+        const MAXIMUM_BYTES: u64 = 64 * 1024;
+        let file = fallout_data::baseline::open_source(path)?;
+        if file.metadata()?.len() > MAXIMUM_BYTES {
+            return Err("Engineering event-commit input byte budget exceeded".into());
+        }
+        let mut bytes = Vec::new();
+        file.take(MAXIMUM_BYTES + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > MAXIMUM_BYTES {
+            return Err("Engineering event-commit input byte budget exceeded".into());
+        }
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+}
 
 pub(super) struct EngineeringWorld<'a> {
     pub world: World<'a>,
@@ -151,7 +176,75 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
     )
 }
 
-pub(super) fn inspect(install: &Path, order_path: &Path, cache: Option<&Path>) -> Result<Json> {
+fn event_commit_probe(catalogue: &Catalogue, request: EngineeringCommit) -> Result<Json> {
+    let mut harness = engineering_world(catalogue)?;
+    let world = &mut harness.world;
+    let before = world.snapshot();
+    let assignments: Vec<_> = request
+        .assignments
+        .into_iter()
+        .map(|local| (local.index, local.value))
+        .collect();
+    let stage = world.stage_event_changes(request.sequence, &assignments, request.acknowledge)?;
+    if world.snapshot() != before {
+        return Err("Staging changed canonical state".into());
+    }
+    let instance_id = stage.instance();
+    let mut expected = before.clone();
+    let instance = expected
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == instance_id)
+        .ok_or("Staged instance missing from snapshot")?;
+    for (index, value) in &assignments {
+        instance
+            .locals
+            .iter_mut()
+            .find(|local| local.index == *index)
+            .ok_or("Staged local missing from snapshot")?
+            .value = value.clone();
+    }
+    expected.state_revision = expected
+        .state_revision
+        .checked_add(1)
+        .ok_or("State revision exhausted")?;
+    if request.acknowledge {
+        expected.pending_events.remove(0);
+    }
+    let receipt = world.commit_event_changes(stage)?;
+    let after = world.snapshot();
+    if after != expected {
+        return Err("Staged event commit differs from requested canonical changes".into());
+    }
+    let limits = Limits::default();
+    for snapshot in [&before, &after] {
+        let bytes = snapshot.encode(limits.max_snapshot_bytes)?;
+        let restored = World::restore(catalogue, Snapshot::decode(&bytes, limits)?, limits)?;
+        if restored.snapshot() != *snapshot {
+            return Err("Staged event boundary restoration differs".into());
+        }
+    }
+    Ok(json!({
+        "scope":"Explicit engineering typed-local/head transaction; no bytecode execution or original timing claim",
+        "receipt":receipt,"requested_assignments":assignments,
+        "before_snapshot_sha256":format!("{:x}",Sha256::digest(before.encode(limits.max_snapshot_bytes)?)),
+        "after_snapshot_sha256":format!("{:x}",Sha256::digest(after.encode(limits.max_snapshot_bytes)?)),
+        "pending_before":before.pending_events.len(),"pending_after":after.pending_events.len(),
+        "staging_changed_state":false,"only_requested_changes":true,
+        "before_after_restoration_equal":true,"bytecode_executed":false,"retail_parity_accepted":false
+    }))
+}
+
+pub(super) fn inspect(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    engineering_event_commit: Option<&Path>,
+) -> Result<Json> {
+    // Bound and validate the opt-in request before loading the content corpus.
+    let request = engineering_event_commit
+        .map(EngineeringCommit::read)
+        .transpose()?;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, cache)?;
     let metadata = record_metadata::inspect(&store)?;
@@ -204,13 +297,88 @@ pub(super) fn inspect(install: &Path, order_path: &Path, cache: Option<&Path>) -
         }
     }
     let state_probe = probe(&catalogue)?;
-    Ok(
-        json!({"schema_version":1,"profile":"nv-original","sources":catalogue.sources,"metadata":metadata,
+    let mut report = json!({"schema_version":1,"profile":"nv-original","sources":catalogue.sources,"metadata":metadata,
         "counts":{"candidate_records":catalogue.counts.candidate_records_read+catalogue.counts.deleted_candidates_skipped,
             "deleted_candidate_records":catalogue.counts.deleted_candidates_skipped,"decoded_candidate_bytes":catalogue.counts.payload_bytes_scanned,
             "scripts":catalogue.counts.scripts,"unique_locals":count,"duplicate_declarations":catalogue.counts.duplicate_variable_indices,"local_kinds":kinds},
         "records":records,"state_probe":state_probe,"explicit_load_order":order.names,"load_order_sha256":order.sha256,
         "index_cache":store.index_cache_report(),"catalogue_source_findings":catalogue.counts.scripts_with_issues,
-        "constructor_defaults_verified":false,"retail_parity_accepted":false}),
-    )
+        "constructor_defaults_verified":false,"retail_parity_accepted":false});
+    if let Some(request) = request {
+        report["engineering_event_commit"] = event_commit_probe(&catalogue, request)?;
+    }
+    Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        path::PathBuf,
+        sync::atomic::{AtomicU64, Ordering},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    static NEXT_INPUT: AtomicU64 = AtomicU64::new(1);
+    struct InputFile(PathBuf);
+    impl InputFile {
+        fn new() -> Self {
+            let root = std::env::var_os("CARGO_TARGET_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("target"));
+            std::fs::create_dir_all(&root).unwrap();
+            let path = root.join(format!(
+                "runtime-event-commit-input-{}-{}-{}.json",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+                NEXT_INPUT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .unwrap();
+            Self(path)
+        }
+    }
+    impl Drop for InputFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn explicit_event_commit_input_preserves_bits_and_requires_every_field() {
+        let file = InputFile::new();
+        let path = &file.0;
+        std::fs::write(path, br#"{"sequence":1,"assignments":[{"index":42,"value":{"kind":"number","bits":18446744073709551615}}],"acknowledge":true}"#).unwrap();
+        let input = EngineeringCommit::read(path).unwrap();
+        assert_eq!(input.sequence, 1);
+        assert_eq!(input.assignments[0].value, Value::Number { bits: u64::MAX });
+        assert!(input.acknowledge);
+        for bytes in [
+            br#"{"sequence":1,"assignments":[],"acknowledge":false,"unknown":true}"#.as_slice(),
+            br#"{"sequence":1,"sequence":2,"assignments":[],"acknowledge":false}"#,
+            br#"{"sequence":1,"assignments":[]}"#,
+            br#"{"sequence":1,"assignments":[],"acknowledge":null}"#,
+            br#"{"sequence":1,"assignments":[{"index":42,"value":{"kind":"number","bits":18446744073709551616}}],"acknowledge":true}"#,
+        ] {
+            std::fs::write(path, bytes).unwrap();
+            assert!(EngineeringCommit::read(path).is_err());
+        }
+    }
+
+    #[test]
+    fn explicit_event_commit_input_byte_budget_fails_for_the_intended_reason() {
+        let file = InputFile::new();
+        let path = &file.0;
+        std::fs::write(path, vec![b' '; 65_537]).unwrap();
+        assert_eq!(
+            EngineeringCommit::read(path).err().unwrap().to_string(),
+            "Engineering event-commit input byte budget exceeded"
+        );
+    }
 }

@@ -240,28 +240,49 @@ pub fn project(
     includes::path(&request.source.path)?;
     includes::hash(&request.source.archive_sha256)?;
     includes::hash(expected_payload)?;
-    if document.source_utf8.len() > limits.document.source_bytes {
-        return Err("Menu literal-trait source byte budget exceeded".into());
-    }
-    if format!("{:x}", Sha256::digest(document.source_utf8.as_bytes())) != expected_payload {
-        return Err("Menu literal-trait payload SHA differs from selected source".into());
-    }
     if request.tile.name.is_empty() || request.tile.name.len() > 256 {
         return Err("Menu literal-trait tile name requires 1..256 bytes".into());
     }
     if document.named_element(&request.tile.name)? != request.tile.node {
         return Err("Menu literal-trait selected name/node differs".into());
     }
+    project_exact(
+        document,
+        expected_payload,
+        request.tile.node,
+        request.tile.span,
+        &request.conversions,
+        limits,
+    )
+}
+
+/// Exact source identity for an already selected subtree's children. The named
+/// request entry point still requires a globally unique selected name.
+pub(super) fn project_exact(
+    document: &Document,
+    expected_payload: &str,
+    tile_node: usize,
+    tile_span: Span,
+    requested_conversions: &[Conversion],
+    limits: Limits,
+) -> Result<Projection> {
+    includes::hash(expected_payload)?;
+    if document.source_utf8.len() > limits.document.source_bytes {
+        return Err("Menu literal-trait source byte budget exceeded".into());
+    }
+    if format!("{:x}", Sha256::digest(document.source_utf8.as_bytes())) != expected_payload {
+        return Err("Menu literal-trait payload SHA differs from selected source".into());
+    }
     let tile = document
         .nodes
-        .get(request.tile.node)
-        .filter(|node| node.kind == Kind::Element && node.span == request.tile.span)
+        .get(tile_node)
+        .filter(|node| node.kind == Kind::Element && node.span == tile_span)
         .ok_or("Menu literal-trait selected tile span differs")?;
     let tile_kind = document.text(tile.name.ok_or("Menu tile tag name missing")?);
     if !structural(tile_kind) || matches!(tile_kind, "include" | "template") {
         return Err("Menu literal-trait selection is not a supported tile tag".into());
     }
-    if request.conversions.len() > limits.conversions {
+    if requested_conversions.len() > limits.conversions {
         return Err("Menu literal-trait conversion budget exceeded".into());
     }
     let mut usage = Usage::default();
@@ -272,7 +293,7 @@ pub fn project(
         "metadata",
     )?;
     let mut conversions = BTreeMap::new();
-    for conversion in &request.conversions {
+    for conversion in requested_conversions {
         if conversion.name.is_empty()
             || conversion.name.len() > 128
             || conversion.name.chars().any(char::is_whitespace)
@@ -356,7 +377,7 @@ pub fn project(
             kind: conversions.get(name).copied(),
         });
     }
-    for conversion in &request.conversions {
+    for conversion in requested_conversions {
         if counts.contains_key(conversion.name.as_str()) {
             continue;
         }
@@ -437,7 +458,7 @@ pub fn project(
         });
     }
     Ok(Projection {
-        tile_node: request.tile.node,
+        tile_node,
         direct_children: tile.children.clone(),
         rows,
         usage,

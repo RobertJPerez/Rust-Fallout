@@ -17,6 +17,253 @@ use fallout_runtime::{
     state::initialization,
 };
 use std::num::NonZeroU32;
+
+#[test]
+fn source_additions_preserve_original_lots_and_publish_distinct_same_base_ids_once() {
+    let (_dir, catalogue, content) = initialization_fixture();
+    let (mut world, owner, lots) = initialization_world(&catalogue, Limits::default());
+    world.initialize_inventory(owner).unwrap();
+    let (original, _) = world
+        .add_source_item(&content, &policy(), owner, lots[0].0.clone(), lots[0].1)
+        .unwrap();
+    let before = world.snapshot();
+    let stage = world
+        .stage_source_inventory_additions(
+            &content,
+            &policy(),
+            owner,
+            &lots,
+            SourceInventoryLimits::default(),
+        )
+        .unwrap();
+    assert_eq!(stage.owner(), owner);
+    assert_eq!(stage.lots(), lots.as_slice());
+    assert_eq!(stage.usage().lots, 2);
+    assert_eq!(stage.usage().source_checks, 10);
+    assert_eq!(world.snapshot(), before);
+    let receipt = world
+        .commit_source_inventory_additions(&content, &policy(), stage)
+        .unwrap();
+    assert_eq!(receipt.before_revision(), before.state_revision);
+    assert_eq!(receipt.after_revision(), before.state_revision + 1);
+    assert_eq!(
+        receipt
+            .item_ids()
+            .iter()
+            .map(|id| id.0.get())
+            .collect::<Vec<_>>(),
+        [2, 3]
+    );
+    assert_eq!(world.item(original).unwrap().facts(), &lots[0].0);
+    assert_eq!(world.item(original).unwrap().count(), 11);
+    for (id, (facts, count)) in receipt.item_ids().iter().zip(&lots) {
+        assert_eq!(world.item(*id).unwrap().facts(), facts);
+        assert_eq!(world.item(*id).unwrap().count(), count.get());
+    }
+    assert_eq!(world.inventory_count(owner, &form(0x100)).unwrap(), 24);
+    let after = world.snapshot();
+    assert_eq!(after.next_item, 4);
+    assert_eq!(after.references, before.references);
+    assert_eq!(after.instances, before.instances);
+    assert_eq!(after.pending_events, before.pending_events);
+    assert_eq!(after.clocks, before.clocks);
+    let empty = world
+        .stage_source_inventory_additions(
+            &content,
+            &policy(),
+            owner,
+            &[],
+            SourceInventoryLimits::default(),
+        )
+        .unwrap();
+    let receipt = world
+        .commit_source_inventory_additions(&content, &policy(), empty)
+        .unwrap();
+    assert!(receipt.item_ids().is_empty());
+    assert_eq!(receipt.before_revision(), receipt.after_revision());
+    assert_eq!(world.snapshot(), after);
+}
+#[test]
+fn source_additions_bad_last_source_role_live_link_and_equipment_leave_existing_bank_exact() {
+    let (_dir, catalogue, content) = initialization_fixture();
+    let (mut world, owner, lots) = initialization_world(&catalogue, Limits::default());
+    let unknown = world.snapshot();
+    assert!(
+        world
+            .stage_source_inventory_additions(
+                &content,
+                &policy(),
+                owner,
+                &lots,
+                SourceInventoryLimits::default()
+            )
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), unknown);
+    world.initialize_inventory(owner).unwrap();
+    world
+        .add_source_item(&content, &policy(), owner, lots[0].0.clone(), lots[0].1)
+        .unwrap();
+    let before = world.snapshot();
+    let mut variants = Vec::new();
+    let mut legacy = World::restore(&catalogue, before.clone(), Limits::default()).unwrap();
+    legacy
+        .add_source_item(&content, &policy(), owner, lots[0].0.clone(), lots[0].1)
+        .unwrap();
+    assert!(
+        legacy
+            .add_source_item(
+                &content,
+                &policy(),
+                owner,
+                Facts::unknown(form(0x777)),
+                lots[1].1
+            )
+            .is_err()
+    );
+    assert_ne!(legacy.snapshot(), before);
+    for key in [form(0x777), form(0x110), form(0x200)] {
+        let mut row = lots[1].0.clone();
+        row.base = key;
+        variants.push(row);
+    }
+    let mut row = lots[1].0.clone();
+    row.modifications = Some(vec![form(0x113), form(0x777)]);
+    variants.push(row);
+    let mut row = lots[1].0.clone();
+    row.ownership = Some(Ownership::Live {
+        reference: ReferenceId(999.try_into().unwrap()),
+    });
+    variants.push(row);
+    let mut row = lots[1].0.clone();
+    row.equipped_slots = Some(vec![7, 7]);
+    variants.push(row);
+    for facts in variants {
+        let bad = [lots[0].clone(), (facts, lots[1].1)];
+        assert!(
+            world
+                .stage_source_inventory_additions(
+                    &content,
+                    &policy(),
+                    owner,
+                    &bad,
+                    SourceInventoryLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_source_inventory_additions(
+            &content,
+            &policy(),
+            owner,
+            &lots,
+            SourceInventoryLimits::default(),
+        )
+        .unwrap();
+    world
+        .advance_clocks(Clocks {
+            tick: 3,
+            ..world.clocks()
+        })
+        .unwrap();
+    let changed = world.snapshot();
+    assert!(
+        world
+            .commit_source_inventory_additions(&content, &policy(), stage)
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), changed);
+}
+#[test]
+fn source_additions_aggregate_limits_and_policy_bindings_refuse_before_publication() {
+    let (_dir, catalogue, content) = initialization_fixture();
+    let (mut world, owner, lots) = initialization_world(&catalogue, Limits::default());
+    world.initialize_inventory(owner).unwrap();
+    world
+        .add_source_item(&content, &policy(), owner, lots[0].0.clone(), lots[0].1)
+        .unwrap();
+    let before = world.snapshot();
+    let usage = world
+        .stage_source_inventory_additions(
+            &content,
+            &policy(),
+            owner,
+            &lots,
+            SourceInventoryLimits::default(),
+        )
+        .unwrap()
+        .usage();
+    let exact = SourceInventoryLimits {
+        max_lots: usage.lots,
+        max_source_checks: usage.source_checks,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    assert!(
+        world
+            .stage_source_inventory_additions(&content, &policy(), owner, &lots, exact)
+            .is_ok()
+    );
+    for limits in [
+        SourceInventoryLimits {
+            max_lots: 1,
+            ..exact
+        },
+        SourceInventoryLimits {
+            max_source_checks: usage.source_checks - 1,
+            ..exact
+        },
+        SourceInventoryLimits {
+            max_copied_bytes: usage.copied_bytes - 1,
+            ..exact
+        },
+    ] {
+        assert!(
+            world
+                .stage_source_inventory_additions(&content, &policy(), owner, &lots, limits)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let stage = world
+        .stage_source_inventory_additions(&content, &policy(), owner, &lots, exact)
+        .unwrap();
+    let other = Policy::new(&[(Role::Base, &[*b"ACTI"])]).unwrap();
+    assert!(
+        world
+            .commit_source_inventory_additions(&content, &other, stage)
+            .is_err()
+    );
+    assert_eq!(world.snapshot(), before);
+    for limits in [
+        Limits {
+            max_item_instances: 2,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_links: 23,
+            ..Limits::default()
+        },
+        Limits {
+            max_total_item_bytes: 8,
+            ..Limits::default()
+        },
+    ] {
+        let (mut world, owner, lots) = initialization_world(&catalogue, limits);
+        world.initialize_inventory(owner).unwrap();
+        world
+            .add_source_item(&content, &policy(), owner, lots[0].0.clone(), lots[0].1)
+            .unwrap();
+        let before = world.snapshot();
+        assert!(
+            world
+                .stage_source_inventory_additions(&content, &policy(), owner, &lots, exact)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+}
 fn load_fixture() -> (tempfile::TempDir, Catalogue, Content) {
     let dir = tempfile::tempdir().unwrap();
     write_fixture(dir.path(), false);

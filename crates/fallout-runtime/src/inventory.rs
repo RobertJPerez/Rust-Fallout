@@ -613,6 +613,663 @@ fn source_fact_copies(
     Ok(())
 }
 
+// Source publications reuse the single-owner initializer's source/copy authority.
+// Counts remain distinct per owner/base; lots are never inferred or merged.
+#[derive(Debug)]
+struct SourcePublicationOwner {
+    owner: ReferenceId,
+    authored: Option<FormKey>,
+    lots: Vec<(Facts, NonZeroU32)>,
+    proofs: Vec<crate::source_items::Proof>,
+}
+#[derive(Debug)]
+struct SourcePublication {
+    epoch: u64,
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    revision: u64,
+    next_item: u64,
+    final_next_item: u64,
+    original_banks: usize,
+    original_items: usize,
+    original_links: usize,
+    original_bytes: usize,
+    initialize: bool,
+    owners: Vec<SourcePublicationOwner>,
+    counts: Vec<SourceFactsCountChange>,
+    usage: SourceInventoryUsage,
+}
+#[derive(Debug)]
+#[must_use = "staging appends no lots; commit additions or drop them"]
+pub struct StagedSourceInventoryAdditions(SourcePublication);
+impl StagedSourceInventoryAdditions {
+    pub fn owner(&self) -> ReferenceId {
+        self.0.owners[0].owner
+    }
+    pub fn lots(&self) -> &[(Facts, NonZeroU32)] {
+        &self.0.owners[0].lots
+    }
+    pub fn usage(&self) -> SourceInventoryUsage {
+        self.0.usage
+    }
+}
+#[cfg(test)]
+mod source_publication_tests {
+    use super::*;
+    use crate::save::test_source as common;
+    fn fixture() -> (
+        tempfile::TempDir,
+        fallout_data::loaded_scripts::Catalogue,
+        crate::foreign::Content,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        common::write_fixture(dir.path(), false);
+        let mut store = fallout_data::store::RecordStore::open_nv_headers(
+            dir.path(),
+            &["FalloutNV.esm".into()],
+            fallout_data::plugin::Limits::default(),
+        )
+        .unwrap();
+        let catalogue = fallout_data::loaded_scripts::Catalogue::load(
+            &mut store,
+            fallout_data::loaded_scripts::Limits::default(),
+            |_, _| Ok(()),
+        )
+        .unwrap();
+        let content = crate::foreign::Content::load(&mut store, &catalogue, 100).unwrap();
+        (dir, catalogue, content)
+    }
+    fn policy() -> crate::source_items::Policy {
+        crate::source_items::Policy::new(&[(crate::source_items::Role::Base, &[*b"ACTI"])]).unwrap()
+    }
+    #[test]
+    fn additions_private_bindings_and_last_identity_collision_refuse_without_a_prefix() {
+        let (_dir, catalogue, content) = fixture();
+        let mut world = World::new(&catalogue, crate::Limits::default()).unwrap();
+        let owner = world.register_reference(None).unwrap();
+        world.initialize_inventory(owner).unwrap();
+        let facts = Facts::unknown(common::form(0x100));
+        world
+            .add_item(owner, facts.clone(), 1.try_into().unwrap())
+            .unwrap();
+        let lots = [
+            (facts.clone(), 2.try_into().unwrap()),
+            (facts, 3.try_into().unwrap()),
+        ];
+        let before = world.snapshot();
+        let counts = world.item_counts.clone();
+        let links = world.item_links;
+        let bytes = world.item_bytes;
+        for fault in 0..13 {
+            let mut stage = world
+                .stage_source_inventory_additions(
+                    &content,
+                    &policy(),
+                    owner,
+                    &lots,
+                    SourceInventoryLimits::default(),
+                )
+                .unwrap();
+            match fault {
+                0 => stage.0.epoch += 1,
+                1 => stage.0.campaign = CampaignId::from_bytes([99; 16]).unwrap(),
+                2 => stage.0.catalogue_sha256 = "b".repeat(64),
+                3 => stage.0.revision += 1,
+                4 => stage.0.next_item += 1,
+                5 => stage.0.final_next_item += 1,
+                6 => stage.0.original_banks += 1,
+                7 => stage.0.original_items += 1,
+                8 => stage.0.original_links += 1,
+                9 => stage.0.original_bytes += 1,
+                10 => stage.0.counts[0].before += 1,
+                11 => stage.0.owners[0].authored = Some(common::form(0x100)),
+                _ => stage.0.usage.links += 1,
+            }
+            assert!(
+                world
+                    .commit_source_inventory_additions(&content, &policy(), stage)
+                    .is_err()
+            );
+            assert_eq!(world.snapshot(), before);
+            assert_eq!(world.item_counts, counts);
+            assert_eq!((world.item_links, world.item_bytes), (links, bytes));
+        }
+        // A corrupt allocator intersects the final existing ID only after a
+        // valid first row. Admission still publishes no earlier item.
+        let existing = world.items.remove(&ItemId(1.try_into().unwrap())).unwrap();
+        let id = ItemId(3.try_into().unwrap());
+        world.items.insert(id, Item { id, ..existing });
+        let bank = world.inventory_banks.get_mut(&owner).unwrap();
+        bank.remove(&ItemId(1.try_into().unwrap()));
+        bank.insert(id);
+        let before = world.snapshot();
+        let stage = world
+            .stage_source_inventory_additions(
+                &content,
+                &policy(),
+                owner,
+                &lots,
+                SourceInventoryLimits::default(),
+            )
+            .unwrap();
+        assert!(
+            world
+                .commit_source_inventory_additions(&content, &policy(), stage)
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    #[test]
+    fn additions_allocator_count_revision_and_copy_arithmetic_never_wrap() {
+        let (_dir, catalogue, content) = fixture();
+        let mut world = World::new(&catalogue, crate::Limits::default()).unwrap();
+        let owner = world.register_reference(None).unwrap();
+        world.initialize_inventory(owner).unwrap();
+        let key = common::form(0x100);
+        let lots = [
+            (Facts::unknown(key.clone()), 1.try_into().unwrap()),
+            (Facts::unknown(key.clone()), 1.try_into().unwrap()),
+        ];
+        world.next_item = u64::MAX - 1;
+        let before = world.snapshot();
+        assert!(
+            world
+                .stage_source_inventory_additions(
+                    &content,
+                    &policy(),
+                    owner,
+                    &lots,
+                    SourceInventoryLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        world.next_item = 1;
+        world.item_counts.insert((owner, key.clone()), u64::MAX - 1);
+        let before = world.snapshot();
+        assert!(
+            world
+                .stage_source_inventory_additions(
+                    &content,
+                    &policy(),
+                    owner,
+                    &lots,
+                    SourceInventoryLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        world.item_counts.clear();
+        world.revision = u64::MAX;
+        let before = world.snapshot();
+        assert!(
+            world
+                .stage_source_inventory_additions(
+                    &content,
+                    &policy(),
+                    owner,
+                    &lots,
+                    SourceInventoryLimits::default()
+                )
+                .is_err()
+        );
+        assert_eq!(world.snapshot(), before);
+        let empty = world
+            .stage_source_inventory_additions(
+                &content,
+                &policy(),
+                owner,
+                &[],
+                SourceInventoryLimits::default(),
+            )
+            .unwrap();
+        world
+            .commit_source_inventory_additions(&content, &policy(), empty)
+            .unwrap();
+        assert_eq!(world.snapshot(), before);
+        let mut usage = SourceInventoryUsage {
+            copied_bytes: usize::MAX,
+            ..Default::default()
+        };
+        assert!(
+            initialization_charge(
+                &mut usage,
+                1,
+                SourceInventoryLimits {
+                    max_copied_bytes: usize::MAX,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct SourceInventoryOwnerReceipt {
+    owner: ReferenceId,
+    item_ids: Vec<ItemId>,
+    proofs: Vec<crate::source_items::Proof>,
+}
+impl SourceInventoryOwnerReceipt {
+    pub fn owner(&self) -> ReferenceId {
+        self.owner
+    }
+    pub fn item_ids(&self) -> &[ItemId] {
+        &self.item_ids
+    }
+    pub fn proofs(&self) -> &[crate::source_items::Proof] {
+        &self.proofs
+    }
+}
+struct SourcePublicationReceipt {
+    campaign: CampaignId,
+    catalogue_sha256: String,
+    policy_sha256: String,
+    before_revision: u64,
+    after_revision: u64,
+    owners: Vec<SourceInventoryOwnerReceipt>,
+    usage: SourceInventoryUsage,
+}
+impl World<'_> {
+    fn source_publication_capacity(
+        &self,
+        owners: usize,
+        initialize: bool,
+        usage: SourceInventoryUsage,
+    ) -> Result<(usize, usize, u64, u64)> {
+        let banks = self
+            .inventory_banks
+            .len()
+            .checked_add(if initialize { owners } else { 0 })
+            .ok_or(Error::Capacity("inventory banks"))?;
+        if banks > self.limits.max_inventory_banks {
+            return Err(Error::Capacity("inventory banks"));
+        }
+        let items = self
+            .items
+            .len()
+            .checked_add(usage.lots)
+            .ok_or(Error::Capacity("item instances"))?;
+        if items > self.limits.max_item_instances {
+            return Err(Error::Capacity("item instances"));
+        }
+        let next = initialization_next_item(self.next_item, usage.lots)?;
+        let (links, bytes) = self.item_capacity_changes(usage.links, usage.extra_bytes, 0, 0)?;
+        let changes = if initialize {
+            owners != 0
+        } else {
+            usage.lots != 0
+        };
+        let revision = if changes {
+            self.next_revision()?
+        } else {
+            self.revision
+        };
+        Ok((links, bytes, next, revision))
+    }
+    fn stage_source_publication<'a, I>(
+        &self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        requests: I,
+        admission: (bool, usize, usize),
+        limits: SourceInventoryLimits,
+    ) -> crate::source_items::Result<SourcePublication>
+    where
+        I: ExactSizeIterator<Item = (ReferenceId, &'a [(Facts, NonZeroU32)])> + Clone,
+    {
+        let (initialize, max_owners, wrapper_bytes) = admission;
+        content.validate_world(self)?;
+        let owners = requests.len();
+        if owners > max_owners {
+            return Err(Error::Capacity("source inventory owners").into());
+        }
+        let mut usage = SourceInventoryUsage::default();
+        for bytes in [
+            size_of::<SourcePublication>(),
+            wrapper_bytes,
+            size_of::<SourcePublicationReceipt>(),
+            2 * size_of::<BTreeSet<ReferenceId>>(),
+            size_of::<BTreeMap<(ReferenceId, &FormKey), (u64, u64)>>(),
+            self.cohort.len(),
+            policy.sha256().len(),
+        ] {
+            initialization_charge(&mut usage, bytes, limits)?;
+        }
+        initialization_table(&mut usage, owners, 2 * size_of::<ReferenceId>(), limits)?;
+        let mut selected = BTreeSet::new();
+        // All logical bounds and cumulative canonical capacity precede source
+        // diagnostics or retained Facts/key copies, including the last owner.
+        for (owner, lots) in requests.clone() {
+            let authored = self.reference_origin(owner)?;
+            if !selected.insert(owner) {
+                return Err(Error::Invalid("duplicate inventory owner".into()).into());
+            }
+            if initialize {
+                if self.inventory_banks.contains_key(&owner) {
+                    return Err(Error::Invalid("inventory already initialized".into()).into());
+                }
+            } else {
+                self.inventory_owner(owner)?;
+            }
+            usage.lots = usage
+                .lots
+                .checked_add(lots.len())
+                .ok_or(Error::Capacity("source inventory lots"))?;
+            if usage.lots > limits.max_lots {
+                return Err(Error::Capacity("source inventory lots").into());
+            }
+            for bytes in [
+                size_of::<SourcePublicationOwner>(),
+                size_of::<SourceInventoryOwnerReceipt>(),
+                size_of::<(ReferenceId, BTreeSet<ItemId>)>(),
+                authored.map_or(0, |key| key.origin_plugin.len()),
+            ] {
+                initialization_charge(&mut usage, bytes, limits)?;
+            }
+            for (facts, _) in lots {
+                for bytes in [
+                    size_of::<(Facts, NonZeroU32)>(),
+                    size_of::<Item>(),
+                    2 * size_of::<ItemId>(),
+                ] {
+                    initialization_charge(&mut usage, bytes, limits)?;
+                }
+                source_fact_copies(
+                    facts,
+                    self.cohort.len(),
+                    policy.sha256().len(),
+                    &mut usage,
+                    limits,
+                )?;
+                // Commit revalidates canonical key syntax and equipment slots;
+                // source proofs themselves move without another source clone.
+                initialization_charge(&mut usage, size_of::<BTreeSet<u16>>(), limits)?;
+                initialization_table(
+                    &mut usage,
+                    facts.equipped_slots.as_ref().map_or(0, Vec::len),
+                    size_of::<u16>(),
+                    limits,
+                )?;
+                let ownership = match &facts.ownership {
+                    Some(Ownership::Actor { key } | Ownership::Faction { key, .. }) => Some(key),
+                    _ => None,
+                };
+                for key in std::iter::once(&facts.base)
+                    .chain(ownership)
+                    .chain(facts.ammo.as_ref().map(|ammo| &ammo.base))
+                    .chain(facts.modifications.iter().flatten())
+                {
+                    initialization_charge(&mut usage, size_of::<String>(), limits)?;
+                    initialization_charge(&mut usage, key.origin_plugin.len(), limits)?;
+                }
+            }
+        }
+        let (_, _, final_next_item, _) =
+            self.source_publication_capacity(owners, initialize, usage)?;
+        let mut totals = BTreeMap::<(ReferenceId, &FormKey), (u64, u64)>::new();
+        for (owner, lots) in requests.clone() {
+            for (facts, count) in lots {
+                let (_, after) = match totals.entry((owner, &facts.base)) {
+                    Entry::Vacant(entry) => {
+                        for bytes in [
+                            size_of::<((ReferenceId, &FormKey), (u64, u64))>(),
+                            size_of::<SourceFactsCountChange>(),
+                            facts.base.origin_plugin.len(),
+                            // Stage and commit each use the existing owned-key lookup.
+                            2 * size_of::<(ReferenceId, FormKey)>(),
+                            2 * facts.base.origin_plugin.len(),
+                        ] {
+                            initialization_charge(&mut usage, bytes, limits)?;
+                        }
+                        let before = self.count_total(owner, &facts.base);
+                        if initialize && before != 0 {
+                            return Err(Error::Invalid(
+                                "uninitialized inventory count index inconsistent".into(),
+                            )
+                            .into());
+                        }
+                        entry.insert((before, before))
+                    }
+                    Entry::Occupied(entry) => entry.into_mut(),
+                };
+                *after = initialization_count(*after, u64::from(count.get()))?;
+            }
+        }
+        let mut retained = Vec::with_capacity(owners);
+        for (owner, lots) in requests {
+            let mut proofs = Vec::with_capacity(lots.len());
+            for (facts, _) in lots {
+                proofs.push(crate::source_items::validate(self, content, policy, facts)?);
+            }
+            retained.push(SourcePublicationOwner {
+                owner,
+                authored: self.reference_origin(owner)?.cloned(),
+                lots: lots.to_vec(),
+                proofs,
+            });
+        }
+        Ok(SourcePublication {
+            epoch: self.epoch,
+            campaign: self.campaign,
+            catalogue_sha256: self.cohort.clone(),
+            policy_sha256: policy.sha256().into(),
+            revision: self.revision,
+            next_item: self.next_item,
+            final_next_item,
+            original_banks: self.inventory_banks.len(),
+            original_items: self.items.len(),
+            original_links: self.item_links,
+            original_bytes: self.item_bytes,
+            initialize,
+            owners: retained,
+            counts: totals
+                .into_iter()
+                .map(|((owner, base), (before, after))| SourceFactsCountChange {
+                    owner,
+                    base: base.clone(),
+                    before,
+                    after,
+                })
+                .collect(),
+            usage,
+        })
+    }
+    fn commit_source_publication(
+        &mut self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        stage: SourcePublication,
+    ) -> crate::source_items::Result<SourcePublicationReceipt> {
+        if stage.epoch != self.epoch {
+            return Err(Error::StaleHandle.into());
+        }
+        content.validate_world(self)?;
+        if stage.campaign != self.campaign || stage.catalogue_sha256 != self.cohort {
+            return Err(Error::DefinitionChanged.into());
+        }
+        if stage.policy_sha256 != policy.sha256() {
+            return Err(crate::source_items::Failure::Policy(
+                "inventory publication policy changed",
+            ));
+        }
+        if stage.revision != self.revision
+            || stage.next_item != self.next_item
+            || stage.original_banks != self.inventory_banks.len()
+            || stage.original_items != self.items.len()
+            || stage.original_links != self.item_links
+            || stage.original_bytes != self.item_bytes
+        {
+            return Err(
+                Error::Invalid("source inventory publication boundary changed".into()).into(),
+            );
+        }
+        let mut selected = BTreeSet::new();
+        let mut lots = 0usize;
+        let mut added_links = 0usize;
+        let mut added_bytes = 0usize;
+        for row in &stage.owners {
+            if self.reference_origin(row.owner)? != row.authored.as_ref()
+                || !selected.insert(row.owner)
+            {
+                return Err(
+                    Error::Invalid("source inventory owner observation changed".into()).into(),
+                );
+            }
+            if stage.initialize {
+                if self.inventory_banks.contains_key(&row.owner) {
+                    return Err(Error::Invalid("inventory already initialized".into()).into());
+                }
+            } else {
+                self.inventory_owner(row.owner)?;
+            }
+            if row.proofs.len() != row.lots.len() {
+                return Err(Error::Invalid("source inventory proof count changed".into()).into());
+            }
+            lots = lots
+                .checked_add(row.lots.len())
+                .ok_or(Error::Capacity("source inventory lots"))?;
+            for (facts, _) in &row.lots {
+                // The retained proof binds immutable Content+Policy+Facts. Live
+                // identity checks run again without cloning source metadata.
+                self.validate_item_facts(facts)?;
+                added_links = added_links
+                    .checked_add(facts.links())
+                    .ok_or(Error::Capacity("total item links"))?;
+                added_bytes = added_bytes
+                    .checked_add(facts.extra_bytes()?)
+                    .ok_or(Error::Capacity("total item extra bytes"))?;
+            }
+        }
+        if (lots, added_links, added_bytes)
+            != (stage.usage.lots, stage.usage.links, stage.usage.extra_bytes)
+        {
+            return Err(Error::Invalid("source inventory usage changed".into()).into());
+        }
+        let (links, bytes, next_item, revision) =
+            self.source_publication_capacity(stage.owners.len(), stage.initialize, stage.usage)?;
+        if next_item != stage.final_next_item {
+            return Err(Error::Invalid("source inventory allocator changed".into()).into());
+        }
+        for count in &stage.counts {
+            if self.count_total(count.owner, &count.base) != count.before {
+                return Err(Error::Invalid("source inventory count changed".into()).into());
+            }
+        }
+        let mut items = Vec::with_capacity(lots);
+        let mut receipts = Vec::with_capacity(stage.owners.len());
+        let mut banks = Vec::with_capacity(stage.owners.len());
+        let mut next = stage.next_item;
+        for row in stage.owners {
+            let mut item_ids = Vec::with_capacity(row.lots.len());
+            for (facts, count) in row.lots {
+                let id = ItemId(
+                    NonZeroU64::new(next)
+                        .ok_or_else(|| Error::Invalid("zero item allocator".into()))?,
+                );
+                next = next
+                    .checked_add(1)
+                    .ok_or(Error::Capacity("item identities"))?;
+                if self.items.contains_key(&id) {
+                    return Err(
+                        Error::Invalid("source inventory item identity occupied".into()).into(),
+                    );
+                }
+                items.push(Item {
+                    id,
+                    owner: row.owner,
+                    count,
+                    facts,
+                });
+                item_ids.push(id);
+            }
+            if stage.initialize {
+                banks.push((row.owner, item_ids.iter().copied().collect::<BTreeSet<_>>()));
+            }
+            receipts.push(SourceInventoryOwnerReceipt {
+                owner: row.owner,
+                item_ids,
+                proofs: row.proofs,
+            });
+        }
+        let receipt = SourcePublicationReceipt {
+            campaign: stage.campaign,
+            catalogue_sha256: stage.catalogue_sha256,
+            policy_sha256: stage.policy_sha256,
+            before_revision: self.revision,
+            after_revision: revision,
+            owners: receipts,
+            usage: stage.usage,
+        };
+        // Every fallible admission, identity calculation and owned receipt/key
+        // preparation is complete. Move the admitted records into canonical state.
+        for (owner, bank) in banks {
+            self.inventory_banks.insert(owner, bank);
+        }
+        for item in items {
+            if !stage.initialize {
+                self.inventory_banks
+                    .get_mut(&item.owner)
+                    .expect("admitted bank")
+                    .insert(item.id);
+            }
+            self.items.insert(item.id, item);
+        }
+        for count in stage.counts {
+            self.set_count_total(count.owner, count.base, count.after);
+        }
+        self.next_item = next_item;
+        self.item_links = links;
+        self.item_bytes = bytes;
+        self.revision = revision;
+        Ok(receipt)
+    }
+    /// Append explicit distinct lots to one already initialized bank. An empty
+    /// list changes neither revision nor allocator; existing lots stay untouched.
+    pub fn stage_source_inventory_additions(
+        &self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        owner: ReferenceId,
+        lots: &[(Facts, NonZeroU32)],
+        limits: SourceInventoryLimits,
+    ) -> crate::source_items::Result<StagedSourceInventoryAdditions> {
+        self.stage_source_publication(
+            content,
+            policy,
+            std::iter::once((owner, lots)),
+            (false, 1, size_of::<StagedSourceInventoryAdditions>()),
+            limits,
+        )
+        .map(StagedSourceInventoryAdditions)
+    }
+    pub fn commit_source_inventory_additions(
+        &mut self,
+        content: &crate::foreign::Content,
+        policy: &crate::source_items::Policy,
+        stage: StagedSourceInventoryAdditions,
+    ) -> crate::source_items::Result<SourceInventoryReceipt> {
+        let receipt = self.commit_source_publication(content, policy, stage.0)?;
+        let row = receipt
+            .owners
+            .into_iter()
+            .next()
+            .expect("one admitted owner");
+        Ok(SourceInventoryReceipt {
+            campaign: receipt.campaign,
+            catalogue_sha256: receipt.catalogue_sha256,
+            policy_sha256: receipt.policy_sha256,
+            before_revision: receipt.before_revision,
+            after_revision: receipt.after_revision,
+            owner: row.owner,
+            item_ids: row.item_ids,
+            proofs: row.proofs,
+            usage: receipt.usage,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SourceFactsLimits {
     pub max_lots: usize,

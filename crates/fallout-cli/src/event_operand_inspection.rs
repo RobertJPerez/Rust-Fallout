@@ -3,12 +3,12 @@ use super::{
     Result, command_catalogue, definition_plan_inspection, inspection_input::Order, script_profile,
     script_state_inspection,
 };
-use fallout_data::{loaded_scripts, obscript, quest_scripts};
+use fallout_data::{loaded_scripts, obscript, quest_scripts, script_reference_attachment};
 use fallout_runtime::{
     event_operands,
     execution::{
         attachment_boot, copy_probe, foreign_copy, local_copy, native, native_plan, pending_batch,
-        reference_copy,
+        reference_attachment_boot, reference_copy,
     },
     foreign::Content,
     identity::{ReferenceId, Value as RuntimeValue},
@@ -30,6 +30,308 @@ struct SavedQuestBootRequest {
     schema_version: u32,
     quest: fallout_data::identity::FormKey,
     initialization: attachment_boot::Request,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(remote = "script_reference_attachment::Limits", deny_unknown_fields)]
+struct ReferenceSourceLimits {
+    maximum_sources: usize,
+    maximum_source_bytes: u64,
+    maximum_header_visits: usize,
+    maximum_catalogue_scripts: usize,
+    maximum_variable_bytes: usize,
+    maximum_record_bytes: usize,
+    maximum_read_bytes: usize,
+    maximum_field_visits: usize,
+}
+#[derive(serde::Deserialize)]
+#[serde(remote = "attachment_boot::Limits", deny_unknown_fields)]
+struct ReferenceInitializationLimits {
+    maximum_initializers: usize,
+    maximum_context_arguments: usize,
+    maximum_variable_bytes: usize,
+    maximum_source_receipt_bytes: usize,
+    maximum_declarations: usize,
+}
+fn explicit_optional_reference_value<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<Option<fallout_runtime::identity::ReferenceValue>, D::Error> {
+    <Option<fallout_runtime::identity::ReferenceValue> as serde::Deserialize>::deserialize(d)
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReferenceBootContext {
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    calling_reference: Option<ReferenceId>,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    containing_reference: Option<ReferenceId>,
+    #[serde(deserialize_with = "explicit_optional_reference_value")]
+    target: Option<fallout_runtime::identity::ReferenceValue>,
+    arguments: Vec<fallout_runtime::identity::ReferenceValue>,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReferenceBootInitialization {
+    campaign: fallout_runtime::identity::CampaignId,
+    context: ReferenceBootContext,
+    initializers: Vec<copy_probe::Initializer>,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedReferenceBootRequest {
+    schema_version: u32,
+    reference: ReferenceId,
+    expected_authored_key: fallout_data::identity::FormKey,
+    intent: SavedForeignIntent,
+    initialization: ReferenceBootInitialization,
+    #[serde(with = "ReferenceSourceLimits")]
+    source_limits: script_reference_attachment::Limits,
+    #[serde(with = "ReferenceInitializationLimits")]
+    initialization_limits: attachment_boot::Limits,
+    maximum_source_instructions: usize,
+    maximum_source_operand_uses: usize,
+    maximum_source_tokens: usize,
+    maximum_trace_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+struct ReferenceBootTrace<'a> {
+    reference: ReferenceId,
+    expected_authored_key: &'a fallout_data::identity::FormKey,
+    definition: &'a loaded_scripts::Handle,
+    script_source: &'a loaded_scripts::Version,
+    attachment: &'a script_reference_attachment::Proof,
+    source_receipts: &'a [fallout_data::store::SourceReceipt],
+    source_counts: script_reference_attachment::Counts,
+    initialization: &'a attachment_boot::Request,
+    initialization_counts: Option<attachment_boot::Counts>,
+    source_cohort_sha256: &'a str,
+    decoder_sha256: &'a str,
+}
+#[derive(serde::Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum ReferenceBootOutcome {
+    Unsupported {
+        reason: local_copy::Unsupported,
+        detail: &'static str,
+    },
+    EngineeringBooted {
+        instance: fallout_runtime::identity::InstanceId,
+    },
+}
+#[derive(serde::Serialize)]
+struct ReferenceBootReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    trace: &'a ReferenceBootTrace<'a>,
+    reference_boot: ReferenceBootOutcome,
+}
+pub(super) fn boot_saved_reference(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedReferenceBootRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "reference boot request byte budget exceeded",
+    )?)?;
+    let s = request.source_limits;
+    let d = script_reference_attachment::Limits::default();
+    let i = request.initialization_limits;
+    let j = attachment_boot::Limits::default();
+    let p = programs::Limits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    if request.schema_version != 1
+        || s.maximum_sources > d.maximum_sources
+        || s.maximum_source_bytes > d.maximum_source_bytes
+        || s.maximum_header_visits > d.maximum_header_visits
+        || s.maximum_catalogue_scripts > d.maximum_catalogue_scripts
+        || s.maximum_variable_bytes > d.maximum_variable_bytes
+        || s.maximum_record_bytes > d.maximum_record_bytes
+        || s.maximum_read_bytes > d.maximum_read_bytes
+        || s.maximum_field_visits > d.maximum_field_visits
+        || i.maximum_initializers > j.maximum_initializers
+        || i.maximum_context_arguments > j.maximum_context_arguments
+        || i.maximum_variable_bytes > j.maximum_variable_bytes
+        || i.maximum_source_receipt_bytes > j.maximum_source_receipt_bytes
+        || i.maximum_declarations > j.maximum_declarations
+        || request.maximum_source_instructions > p.maximum_instructions
+        || request.maximum_source_operand_uses > p.maximum_uses
+        || request.maximum_source_tokens > p.maximum_tokens
+        || request.maximum_trace_bytes > 2 * 1024 * 1024
+        || request.maximum_trace_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+        || request.maximum_report_bytes == 0
+    {
+        return Err("unsupported reference boot schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(install, result_path, report_path, "reference boot")?;
+    let initialization = attachment_boot::Request {
+        campaign: request.initialization.campaign,
+        context: fallout_runtime::events::Context {
+            calling_reference: request.initialization.context.calling_reference,
+            containing_reference: request.initialization.context.containing_reference,
+            target: request.initialization.context.target,
+            arguments: request.initialization.context.arguments,
+        },
+        initializers: request.initialization.initializers,
+    };
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    if order.names.len() > s.maximum_sources {
+        return Err("reference boot source count budget exceeded".into());
+    }
+    let mut store = order.store(install, cache)?;
+    script_reference_attachment::preflight(&store, &request.expected_authored_key, s)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits {
+            max_candidate_records: s.maximum_header_visits.min(1_000_000),
+            max_candidate_read_bytes: s.maximum_read_bytes,
+            max_candidate_record_bytes: s.maximum_record_bytes,
+            max_scripts: s.maximum_catalogue_scripts,
+            max_retained_bytes: s.maximum_read_bytes,
+            max_variables: s.maximum_field_visits,
+            max_references: s.maximum_field_visits,
+        },
+        |_, _| Ok(()),
+    )?);
+    let attachment = script_reference_attachment::request(
+        &mut store,
+        &catalogue,
+        &request.expected_authored_key,
+        s,
+    )?;
+    let content = Content::load(
+        &mut store,
+        &catalogue,
+        s.maximum_header_visits.min(1_000_000),
+    )?;
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &[attachment.definition().clone()],
+        programs::Limits {
+            maximum_attempted_record_bytes: s.maximum_read_bytes,
+            maximum_attempted_bytes: s.maximum_read_bytes,
+            maximum_instructions: request.maximum_source_instructions,
+            maximum_expressions: request.maximum_source_tokens.min(p.maximum_expressions),
+            maximum_tokens: request.maximum_source_tokens,
+            maximum_nodes: request.maximum_source_tokens,
+            maximum_uses: request.maximum_source_operand_uses,
+            ..p
+        },
+    )?;
+    let prepared = reference_attachment_boot::prepare(
+        &sources,
+        &attachment,
+        &content,
+        reference_attachment_boot::Selection {
+            reference: request.reference,
+            expected_authored_key: &request.expected_authored_key,
+            intent: match request.intent {
+                SavedForeignIntent::Engineering => local_copy::Intent::Engineering,
+                SavedForeignIntent::Faithful => local_copy::Intent::Faithful,
+            },
+        },
+        &initialization,
+        i,
+    )?;
+    let trace = ReferenceBootTrace {
+        reference: request.reference,
+        expected_authored_key: &request.expected_authored_key,
+        definition: attachment.definition(),
+        script_source: attachment.script_version(),
+        attachment: attachment.proof(),
+        source_receipts: attachment.source_receipts(),
+        source_counts: attachment.counts(),
+        initialization: &initialization,
+        initialization_counts: match &prepared {
+            reference_attachment_boot::Preparation::Ready(plan) => Some(plan.counts()),
+            _ => None,
+        },
+        source_cohort_sha256: sources.source_cohort_sha256(),
+        decoder_sha256: sources.decoder_sha256(),
+    };
+    let mut trace_bytes = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_trace_bytes,
+    };
+    serde_json::to_writer(&mut trace_bytes, &trace)
+        .map_err(|_| "reference boot trace byte budget exceeded")?;
+    let trace_size = trace_bytes.bytes.len();
+    drop(trace_bytes);
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "reference boot snapshot byte budget exceeded",
+    )?;
+    let input = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?;
+    let before_revision = input.state_revision;
+    let (outcome, result_bytes, artifact) = match prepared {
+        reference_attachment_boot::Preparation::Unsupported { reason, detail } => {
+            // Faithful still admits only a valid strict current snapshot.
+            let world =
+                fallout_runtime::World::restore(Arc::clone(&catalogue), input, world_limits)?;
+            sources.validate_world(&world)?;
+            (
+                ReferenceBootOutcome::Unsupported { reason, detail },
+                None,
+                Value::Null,
+            )
+        }
+        reference_attachment_boot::Preparation::Ready(plan) => {
+            let result = plan.apply(input, world_limits)?;
+            let bytes = result
+                .snapshot
+                .encode(request.maximum_result_snapshot_bytes)?;
+            let cold = fallout_runtime::World::restore(
+                Arc::clone(&catalogue),
+                fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+                world_limits,
+            )?;
+            let owner = fallout_runtime::identity::Owner::Placed {
+                reference: request.reference,
+            };
+            if cold.snapshot() != result.snapshot
+                || cold.owner_instance(&owner) != Some(result.instance)
+                || cold.instance(cold.handle(result.instance)?)?.definition() != plan.definition()
+                || cold.reference_origin(request.reference)? != Some(&request.expected_authored_key)
+                || cold.authored_reference(&request.expected_authored_key)
+                    != Some(request.reference)
+            {
+                return Err("reference boot complete cold result differs".into());
+            }
+            let artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":result.snapshot.schema_version,"decode_restore_equal":true,"after_revision":result.snapshot.state_revision});
+            (
+                ReferenceBootOutcome::EngineeringBooted {
+                    instance: result.instance,
+                },
+                Some(bytes),
+                artifact,
+            )
+        }
+    };
+    let report = ReferenceBootReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering boot of one existing source-attached reference owner","campaign":initialization.campaign,"before_revision":before_revision,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,"trace_bytes":trace_size,"prepared_sources":{"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"event_enqueued":false,"reference_created":false,"original_activation_verified":false,"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        trace: &trace,
+        reference_boot: outcome,
+    };
+    let report = admit_saved_copy_report(&report, request.maximum_report_bytes, "reference boot")?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
 }
 
 pub(super) fn boot_saved_quest(

@@ -42,6 +42,7 @@ pub mod record_metadata;
 pub mod resource_jobs;
 pub mod script_bindings;
 pub mod script_inventory;
+pub mod script_reference_attachment;
 pub mod script_units;
 pub mod store;
 pub mod terrain;

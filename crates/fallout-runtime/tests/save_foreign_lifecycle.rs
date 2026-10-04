@@ -420,20 +420,27 @@ fn foreign_owner_guards_unload_reattachment_and_cold_banks_preserve_exact_identi
 }
 
 fn legacy_foreign_envelope(snapshot: &Snapshot) -> Vec<u8> {
-    // Existing documented schema 2 has no item banks; never discard current items.
-    assert!(snapshot.inventory_banks.is_empty());
-    assert_eq!(snapshot.next_item, 1);
+    legacy_foreign_envelope_at(snapshot, 2)
+}
+fn legacy_foreign_envelope_at(snapshot: &Snapshot, schema_version: u32) -> Vec<u8> {
+    assert!(matches!(schema_version, 2 | 3));
+    assert!(snapshot.reference_states.is_empty());
     let mut value = serde_json::to_value(snapshot).unwrap();
     let object = value.as_object_mut().unwrap();
-    object.remove("inventory_banks");
+    if schema_version == 2 {
+        // Existing documented schema 2 has no item banks; never discard items.
+        assert!(snapshot.inventory_banks.is_empty());
+        assert_eq!(snapshot.next_item, 1);
+        object.remove("inventory_banks");
+        object.remove("next_item");
+    }
     object.remove("reference_states");
-    object.remove("next_item");
-    object.insert("schema_version".into(), 2.into());
+    object.insert("schema_version".into(), schema_version.into());
     let body = serde_json::to_vec(&value).unwrap();
     assert!(body.len() < BUDGET);
     let mut metadata = Vec::new();
     metadata.extend(1_u32.to_le_bytes());
-    metadata.extend(2_u32.to_le_bytes());
+    metadata.extend(schema_version.to_le_bytes());
     metadata.extend(9_u64.to_le_bytes());
     metadata.extend(snapshot.clocks.tick.to_le_bytes());
     for index in (0..64).step_by(2) {
@@ -458,10 +465,15 @@ fn legacy_foreign_envelope(snapshot: &Snapshot) -> Vec<u8> {
     bytes
 }
 
-#[test]
-fn legacy_foreign_migration_preserves_typed_identity_before_explicit_item_initialization() {
-    let (_temporary, root) = fixture_with_evidence("FALLOUT_FOREIGN_MIGRATION_EVIDENCE");
-    let (catalogue, content) = load_content(&root);
+fn migration_world(
+    catalogue: Arc<Catalogue>,
+) -> (
+    World<'static>,
+    InstanceHandle,
+    InstanceHandle,
+    ReferenceId,
+    ReferenceId,
+) {
     let mut world = World::with_campaign(
         Arc::clone(&catalogue),
         limits(),
@@ -545,6 +557,14 @@ fn legacy_foreign_migration_preserves_typed_identity_before_explicit_item_initia
             )
             .unwrap();
     }
+    (world, source, target, reference, player)
+}
+
+#[test]
+fn legacy_foreign_migration_preserves_typed_identity_before_explicit_item_initialization() {
+    let (_temporary, root) = fixture_with_evidence("FALLOUT_FOREIGN_MIGRATION_EVIDENCE");
+    let (catalogue, content) = load_content(&root);
+    let (world, source, target, reference, player) = migration_world(Arc::clone(&catalogue));
     let source_id = world.instance(source).unwrap().id();
     let target_id = world.instance(target).unwrap().id();
     let before = world.snapshot();
@@ -676,6 +696,254 @@ fn legacy_foreign_migration_preserves_typed_identity_before_explicit_item_initia
 }
 
 #[test]
+fn schema_three_foreign_migration_retains_existing_item_links_and_refuses_other_identity() {
+    let (_temporary, root) = fixture_with_evidence("FALLOUT_FOREIGN_MIGRATION_V3_EVIDENCE");
+    let (catalogue, content) = load_content(&root);
+    let (mut world, source, target, reference, player) = migration_world(Arc::clone(&catalogue));
+    let source_id = world.instance(source).unwrap().id();
+    let target_id = world.instance(target).unwrap().id();
+    world.initialize_inventory(reference).unwrap();
+    world.initialize_inventory(player).unwrap();
+    let unknown = world.register_reference(None).unwrap();
+    let mut facts = Facts::unknown(form(0x102));
+    facts.ownership = Some(fallout_runtime::inventory::Ownership::Live { reference: player });
+    facts.condition = Some(fallout_runtime::inventory::Condition::Float64 { bits: NEW_BITS });
+    facts.script_instance = Some(target_id);
+    facts.extra_fields.push(OpaqueExtra {
+        tag: *b"HOST",
+        bytes: vec![0, 255, 1],
+    });
+    let item_id = world
+        .add_item(reference, facts.clone(), 17.try_into().unwrap())
+        .unwrap();
+    let old_item = world.item_handle(item_id).unwrap();
+    let before = world.snapshot();
+    let original_reads = reads(&world, &content, source, player);
+    let legacy = legacy_foreign_envelope_at(&before, 3);
+    let legacy_path = root.join("legacy-schema3.frsv");
+    fs::write(&legacy_path, &legacy).unwrap();
+    assert!(format::decode(&legacy, limits()).is_err());
+    assert!(format::migrate_v2(&legacy, limits()).is_err());
+    let migration = format::migrate_v3(&legacy, limits()).unwrap();
+    assert_eq!(migration.source_state_schema, 3);
+    assert_eq!(migration.source_metadata.generation, 9);
+    assert_eq!(
+        migration.source_metadata.container_sha256,
+        format!("{:x}", Sha256::digest(&legacy))
+    );
+    assert_eq!(migration.snapshot, before);
+    let mut restored =
+        World::restore(Arc::clone(&catalogue), migration.snapshot, limits()).unwrap();
+    let restored_source = restored.handle(source_id).unwrap();
+    assert_eq!(
+        reads(&restored, &content, restored_source, player),
+        original_reads
+    );
+    for handle in [source, target] {
+        assert!(matches!(restored.instance(handle), Err(Error::StaleHandle)));
+    }
+    assert!(matches!(
+        restored.read_foreign(&content, request(source, 1, player)),
+        Err(Failure::State(Error::StaleHandle))
+    ));
+    assert!(restored.item_by_handle(old_item).is_err());
+    assert_eq!(restored.item(item_id).unwrap().facts(), &facts);
+    assert_eq!(
+        restored.inventory_count(reference, &form(0x102)).unwrap(),
+        17
+    );
+    assert_eq!(restored.inventory_count(player, &form(0x102)).unwrap(), 0);
+    assert!(restored.inventory_count(unknown, &form(0x102)).is_err());
+    for id in [reference, player, unknown] {
+        assert!(restored.reference_view(id).unwrap().state().is_none());
+    }
+    let repository = Repository::create(
+        &root.join("native-schema3-migration"),
+        &[],
+        restored.campaign(),
+    )
+    .unwrap();
+    let mut worker = SaveWorker::start_with_budget(repository.clone(), 2, 2 * BUDGET).unwrap();
+    let prewrite = worker
+        .try_submit(Captured::at_boundary(&restored))
+        .unwrap()
+        .wait()
+        .unwrap();
+    let migrated_cold = phase(&root, "schema3-current", &repository, &before);
+    restored
+        .assign(restored_source, &[(42, Value::Number { bits: 99 })])
+        .unwrap();
+    let after = restored.snapshot();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == source_id)
+        .unwrap()
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number { bits: 99 };
+    assert_eq!(after, expected);
+    let postwrite = worker.try_submit(Captured::at_boundary(&restored)).unwrap();
+    restored
+        .assign(restored_source, &[(42, Value::Number { bits: 100 })])
+        .unwrap();
+    drop(restored);
+    drop(world);
+    worker.finish().unwrap();
+    let postwrite = postwrite.wait().unwrap();
+    assert_eq!(prewrite.metadata.generation, 1);
+    assert_eq!(postwrite.metadata.generation, 2);
+    let changed_cold = phase(&root, "schema3-changed", &repository, &after);
+    let previous = fs::read(repository.path().join("previous.frsv")).unwrap();
+    assert_eq!(
+        previous,
+        fs::read(root.join("schema3-current.frsv")).unwrap()
+    );
+    let selected = Repository::create(
+        &root.join("schema3-previous-selection"),
+        &[],
+        before.campaign,
+    )
+    .unwrap();
+    fs::write(selected.path().join("current.frsv"), &previous).unwrap();
+    let previous_cold = phase(&root, "schema3-previous", &selected, &before);
+    let current_bytes = fs::read(repository.path().join("current.frsv")).unwrap();
+    let current = repository
+        .load(catalogue.as_ref(), limits(), Recovery::Strict)
+        .unwrap()
+        .0;
+    assert_eq!(current.snapshot(), after);
+    assert_eq!(current.item(item_id).unwrap().facts(), &facts);
+    assert!(current.item_by_handle(old_item).is_err());
+    let current_source = current.handle(source_id).unwrap();
+    let mut current_reads = original_reads.clone();
+    for read in current_reads.as_array_mut().unwrap() {
+        read["target"]["state_revision"] = after.state_revision.into();
+    }
+    assert_eq!(
+        reads(&current, &content, current_source, player),
+        current_reads
+    );
+
+    // A copied canonical state can be deliberately given a new campaign, but
+    // old foreign handles and an existing campaign's repository cannot accept it.
+    let mut other_snapshot = after.clone();
+    other_snapshot.campaign = CampaignId::from_bytes([0x50; 16]).unwrap();
+    let other = World::restore(Arc::clone(&catalogue), other_snapshot.clone(), limits()).unwrap();
+    assert!(matches!(
+        other.read_foreign(&content, request(current_source, 1, player)),
+        Err(Failure::State(Error::StaleHandle))
+    ));
+    assert_eq!(other.snapshot(), other_snapshot);
+    let mut stages = Vec::new();
+    assert!(
+        matches!(repository.commit_observing(&Captured::at_boundary(&other), |stage| stages.push(stage)),
+        Err(fallout_runtime::save::Error::Format(reason)) if reason == "captured campaign differs from repository identity")
+    );
+    assert!(stages.is_empty());
+
+    let original_source = fs::read(root.join("Data/FalloutNV.esm")).unwrap();
+    for changed_body in [true, false] {
+        let changed = root.join(if changed_body {
+            "changed-body"
+        } else {
+            "changed-plugins"
+        });
+        fs::create_dir(&changed).unwrap();
+        fs::create_dir(changed.join("Data")).unwrap();
+        let mut bytes = original_source.clone();
+        let order = if changed_body {
+            // Change only the final ACTI SCRI payload, preserving all winning
+            // headers and compiled script records. Exact version handles also
+            // bind the whole-source hash and must change with this payload.
+            let end = bytes.len();
+            assert_eq!(&bytes[end - 4..], &0x301_u32.to_le_bytes());
+            bytes[end - 4..].copy_from_slice(&0x302_u32.to_le_bytes());
+            vec!["FalloutNV.esm"]
+        } else {
+            fs::write(changed.join("Data/Other.esm"), header(&[])).unwrap();
+            vec!["FalloutNV.esm", "Other.esm"]
+        };
+        fs::write(changed.join("Data/FalloutNV.esm"), bytes).unwrap();
+        let mut store = fallout_data::store::RecordStore::open_nv_headers(
+            &changed.join("Data"),
+            &order.iter().map(|name| (*name).into()).collect::<Vec<_>>(),
+            Default::default(),
+        )
+        .unwrap();
+        let changed_catalogue =
+            Catalogue::load(&mut store, Default::default(), |_, _| Ok(())).unwrap();
+        let changed_content = Content::load(&mut store, &changed_catalogue, 100).unwrap();
+        for instance in &after.instances {
+            let original = catalogue.get_handle(&instance.definition).unwrap();
+            let changed_script = changed_catalogue.get(&instance.definition.key).unwrap();
+            assert_eq!(changed_script.compiled(), original.compiled());
+            assert_eq!(
+                changed_script.version().decoded_record_sha256,
+                original.version().decoded_record_sha256
+            );
+            assert_eq!(
+                changed_script.version().metadata_sha256,
+                original.version().metadata_sha256
+            );
+            if changed_body {
+                assert_ne!(
+                    changed_script.version().source_sha256,
+                    original.version().source_sha256
+                );
+                assert!(changed_catalogue.get_handle(&instance.definition).is_none());
+            } else {
+                assert!(changed_catalogue.get_handle(&instance.definition).is_some());
+            }
+        }
+        if changed_body {
+            assert_eq!(
+                changed_content.report().winning_headers_sha256,
+                content.report().winning_headers_sha256
+            );
+        }
+        assert!(matches!(
+            current.read_foreign(&changed_content, request(current_source, 1, player)),
+            Err(Failure::ContentChanged)
+        ));
+        assert!(matches!(
+            repository.load(&changed_catalogue, limits(), Recovery::Strict),
+            Err(fallout_runtime::save::Error::State(
+                Error::DefinitionChanged
+            ))
+        ));
+        assert_eq!(current.snapshot(), after);
+    }
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        current_bytes
+    );
+    assert_eq!(
+        fs::read(repository.path().join("previous.frsv")).unwrap(),
+        previous
+    );
+    assert_eq!(
+        fs::read(root.join("Data/FalloutNV.esm")).unwrap(),
+        original_source
+    );
+    assert_eq!(fs::read(&legacy_path).unwrap(), legacy);
+    fs::write(root.join("schema3-migration-identity-receipt.json"), serde_json::to_vec_pretty(&json!({
+        "source_instance": source_id, "target_instance": target_id, "reference": reference,
+        "player_reference": player, "unknown_reference": unknown, "item": item_id,
+        "legacy_metadata": migration.source_metadata, "prewrite": prewrite, "postwrite": postwrite,
+        "migrated_cold": migrated_cold, "changed_cold": changed_cold, "previous_cold": previous_cold,
+        "reads": original_reads, "current_reads": current_reads, "full_migration_fields_equal": true,
+        "unknown_and_empty_banks_distinct": true, "reference_components_unavailable": true,
+        "old_handles_other_campaign_and_changed_content_refused": true, "input_files_unchanged": true,
+        "engineering_only": true
+    })).unwrap()).unwrap();
+}
+
+#[test]
 #[ignore = "parent launches fresh native phase restoration with authored inputs"]
 fn cold_foreign_lifecycle_helper() {
     let root = PathBuf::from(std::env::var_os("FALLOUT_FOREIGN_LIFECYCLE_COLD_ROOT").unwrap());
@@ -717,6 +985,24 @@ fn cold_foreign_lifecycle_helper() {
     assert_eq!(reference.0.get(), 1);
     let player = ReferenceId(2.try_into().unwrap());
     world.reference_origin(player).unwrap();
+    if phase.starts_with("schema3-") {
+        for reference in &expected.references {
+            assert!(
+                world
+                    .reference_view(reference.id)
+                    .unwrap()
+                    .state()
+                    .is_none()
+            );
+        }
+        assert_eq!(world.inventory_count(reference, &form(0x102)).unwrap(), 17);
+        assert_eq!(world.inventory_count(player, &form(0x102)).unwrap(), 0);
+        assert!(
+            world
+                .inventory_count(ReferenceId(3.try_into().unwrap()), &form(0x102))
+                .is_err()
+        );
+    }
     let mut outcomes = Vec::new();
     for index in 1..=2 {
         if phase == "unloaded" {

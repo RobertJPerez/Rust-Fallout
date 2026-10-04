@@ -3,6 +3,7 @@ mod creature_parts;
 pub mod equipment;
 mod fields;
 mod manifest;
+pub mod material_overrides;
 mod render;
 mod templates;
 use super::{Catalogue as Actors, associations, fields::Finding};

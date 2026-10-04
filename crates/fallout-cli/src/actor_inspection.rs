@@ -298,6 +298,7 @@ pub(super) struct Options {
     pub(super) dependency_roots: Vec<FormKey>,
     pub(super) equipment_source: Option<FormKey>,
     pub(super) equipment_role: Option<actors::dependencies::equipment::Role>,
+    pub(super) include_material_overrides: bool,
     pub(super) voice_root: Option<FormKey>,
     pub(super) script_root: Option<FormKey>,
     pub(super) ai_root: Option<FormKey>,
@@ -660,18 +661,34 @@ pub(super) fn inspect(
             report["actor_creature_parts"] = json!({"manifest":dependencies.creature_parts_manifest(&options.dependency_roots[0], directory, &assets, Default::default())?});
         }
         if let (Some(equipment), Some(role)) = (&options.equipment_source, options.equipment_role) {
-            let selected = actors::dependencies::equipment::request(
-                &mut store,
-                &catalogue,
-                &options.dependency_roots[0],
-                actors::dependencies::equipment::Choice {
-                    equipment: equipment.clone(),
-                    role,
-                },
-                &assets,
-                Default::default(),
-            )?;
-            report["actor_equipment_dependencies"] = json!({"manifest":selected});
+            if options.include_material_overrides {
+                let selected = actors::dependencies::material_overrides::request(
+                    &mut store,
+                    &catalogue,
+                    &options.dependency_roots[0],
+                    actors::dependencies::equipment::Choice {
+                        equipment: equipment.clone(),
+                        role,
+                    },
+                    &assets,
+                    Default::default(),
+                )?;
+                report["actor_equipment_dependencies"] = json!({"manifest":selected.equipment()});
+                report["actor_material_overrides"] = json!({"manifest":selected});
+            } else {
+                let selected = actors::dependencies::equipment::request(
+                    &mut store,
+                    &catalogue,
+                    &options.dependency_roots[0],
+                    actors::dependencies::equipment::Choice {
+                        equipment: equipment.clone(),
+                        role,
+                    },
+                    &assets,
+                    Default::default(),
+                )?;
+                report["actor_equipment_dependencies"] = json!({"manifest":selected});
+            }
         }
         // One aggregate admission budget covers every requested root report.
         let mut remaining = actors::dependencies::ManifestLimits::default();
@@ -885,6 +902,13 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         return Err("independent actor source comparison differs in actor_attack_inputs".into());
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
+    if report.get("actor_material_overrides").is_some()
+        && report.get("actor_material_overrides") != oracle.get("actor_material_overrides")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_material_overrides".into(),
+        );
+    }
     if report.get("actor_death_item_inputs").is_some()
         && report.get("actor_death_item_inputs") != oracle.get("actor_death_item_inputs")
     {

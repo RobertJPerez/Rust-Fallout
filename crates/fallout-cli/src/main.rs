@@ -222,6 +222,8 @@ enum Command {
         equipment_source: Option<identity::FormKey>,
         #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
         equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, requires_all = ["equipment_source", "equipment_role", "include_dependencies", "dependency_roots"])]
+        include_material_overrides: bool,
         #[arg(long, value_parser = actor_inspection::parse_root)]
         voice_root: Option<identity::FormKey>,
         #[arg(long, value_parser = actor_inspection::parse_root)]
@@ -953,6 +955,7 @@ fn run(args: Args) -> Result<()> {
             include_template_dependencies,
             equipment_source,
             equipment_role,
+            include_material_overrides,
             voice_root,
             script_root,
             ai_root,
@@ -984,6 +987,7 @@ fn run(args: Args) -> Result<()> {
                     include_template_dependencies,
                     equipment_source,
                     equipment_role,
+                    include_material_overrides,
                     voice_root,
                     script_root,
                     ai_root,

@@ -17,6 +17,7 @@ use fallout_runtime::{
     save::{Captured, Recovery, Repository},
     schema::{self, Kind},
     snapshot::Snapshot,
+    state::observation,
     state::{HostLimits, HostRequirements, initialization},
 };
 use serde::Deserialize;
@@ -332,6 +333,93 @@ pub(super) fn engineering_world(catalogue: &Catalogue) -> Result<EngineeringWorl
         initializations,
     })
 }
+fn selected_local_probe(catalogue: &Catalogue) -> Result<Option<Json>> {
+    for (_, script) in catalogue.iter() {
+        let indices = schema::locals(script)
+            .into_values()
+            .filter(|local| matches!(local.kind, Kind::Float | Kind::Integer | Kind::Reference))
+            .take(7)
+            .map(|local| local.index)
+            .collect::<Vec<_>>();
+        let Some(&unset_index) = indices.last() else {
+            continue;
+        };
+        let mut world = World::with_campaign(
+            catalogue,
+            Limits::default(),
+            CampaignId::from_bytes([0x29; 16])?,
+        )?;
+        let reference = world.register_reference(None)?;
+        let context = Context {
+            calling_reference: Some(reference),
+            containing_reference: Some(reference),
+            target: Some(ReferenceValue::Live { id: reference }),
+            arguments: vec![
+                ReferenceValue::Null,
+                ReferenceValue::Content {
+                    key: script.handle().key.record.clone(),
+                },
+                ReferenceValue::Live { id: reference },
+            ],
+        };
+        let handle = world.create_instance(
+            script.handle(),
+            Owner::Fragment {
+                activation: 1.try_into()?,
+            },
+            context,
+        )?;
+        let mut assignments = Vec::new();
+        let mut numbers = 0;
+        let mut references = 0;
+        let declarations = schema::locals(script);
+        for &index in indices.iter().filter(|&&index| index != unset_index) {
+            let value = match declarations[&index].kind {
+                Kind::Float | Kind::Integer => {
+                    let bits = [0x8000000000000000_u64, 0x7ff8123456789abc][numbers % 2];
+                    numbers += 1;
+                    Value::Number { bits }
+                }
+                Kind::Reference => {
+                    let value = match references % 3 {
+                        0 => ReferenceValue::Null,
+                        1 => ReferenceValue::Content {
+                            key: script.handle().key.record.clone(),
+                        },
+                        _ => ReferenceValue::Live { id: reference },
+                    };
+                    references += 1;
+                    Value::Reference { value }
+                }
+                _ => return Err("Selected observation declaration changed".into()),
+            };
+            assignments.push((index, value));
+        }
+        world.assign(handle, &assignments)?;
+        let indices = indices.into_iter().rev().collect::<Vec<_>>();
+        let before = world.snapshot();
+        let observed = world.observe_locals(handle, &indices, observation::Limits::default())?;
+        if world.snapshot() != before {
+            return Err("Local observation changed canonical state".into());
+        }
+        let restored = World::restore(catalogue, before.clone(), Limits::default())?;
+        let cold = restored.observe_locals(
+            restored.handle(observed.instance())?,
+            &indices,
+            observation::Limits::default(),
+        )?;
+        if observed != cold || restored.snapshot() != before {
+            return Err("Local observation differs after restore".into());
+        }
+        return Ok(Some(
+            json!({"scope":"Explicit isolated source-loaded engineering instance; no inferred local defaults",
+            "indices":indices,"assignments":assignments,"retained_uninitialized_index":unset_index,
+            "observation":observed,"restored_observation":cold,"snapshot":before,
+            "read_preserved_state":true,"persistent_observations_equal":true,"bytecode_executed":false,"retail_parity_accepted":false}),
+        ));
+    }
+    Ok(None)
+}
 fn probe(catalogue: &Catalogue) -> Result<Json> {
     let EngineeringWorld {
         world,
@@ -356,16 +444,18 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
             return Err("Restored runtime handle identity checks failed".into());
         }
     }
-    Ok(
-        json!({"scope":"Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
+    let mut report = json!({"scope":"Engineering inputs on original compiled declaration schemas; no original running event lists or initialization defaults",
         "instances":world.instance_count(),"numeric_values":numbers,"typed_reference_values":references,
         "unsupported_slots_retained_uninitialized":unknown,"pending_events":world.pending_events().len(),
         "initializations":initializations,"initialization_is_one_revision":true,
         "snapshot_bytes":bytes.len(),"snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),
         "catalogue_sha256":world.catalogue_fingerprint(),"canonical_bytes_equal":true,
         "old_handles_rejected":true,"persistent_ids_preserved":true,
-        "original_state_captured":false,"bytecode_executed":false,"retail_parity_accepted":false}),
-    )
+        "original_state_captured":false,"bytecode_executed":false,"retail_parity_accepted":false});
+    if let Some(observation) = selected_local_probe(catalogue)? {
+        report["selected_local_probe"] = observation;
+    }
+    Ok(report)
 }
 
 pub(super) fn event_commit_probe(

@@ -21,6 +21,7 @@ static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
 
 pub mod event_commit;
 pub mod initialization;
+pub mod observation;
 mod readiness;
 pub use readiness::{
     ComponentUnavailable, HostLimits, HostReadiness, HostRequirements, HostUnavailable,

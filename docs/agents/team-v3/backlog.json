@@ -950,6 +950,231 @@
         "acceptance": "Select one actual creature dependency diagnostic, implement needed supported model role with independent source oracle/fixture; no second NIF decoder or rig timing guess.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ACT-15",
+        "state": "ready",
+        "title": "Bind one canonical actor reference to its exact authored placement and base",
+        "depends_on": [],
+        "gap": "actor_rules/packages.rs currently reports explicit_subject_origin but deliberately does not join that origin to the actor base. actors/placements.rs already exposes ACHR/ACRE source, base Binding and exact transform, while runtime reference_state::View carries canonical authored origin and optional state. There is no actor-owned typed join for a host to establish that its selected placed actor matches its selected base.",
+        "source_evidence": [
+          "58d759b:crates/fallout-runtime/src/actor_rules/packages.rs:104",
+          "58d759b:crates/fallout-data/src/actors/placements.rs:78",
+          "crates/fallout-runtime/src/reference_state/mod.rs:114"
+        ],
+        "consumer": "A new optional actor-context inspector path loads a strict source-bound current snapshot, selects one canonical ReferenceId and returns its source placement/base and existing canonical pose/enable observation. Presentation and package hosts can consume the same owned read-only request.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/context.rs",
+          "crates/fallout-data/src/actors/**",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Authored NPC and creature placements with shared and overridden bases bind to independently expected keys/offsets.",
+          "Unknown/unregistered/dynamic-without-authored-origin, deleted/wrong-kind/mismatched base and changed cohort return explicit unavailable/refusal; no inferred actor origin.",
+          "Cold-restored explicit pose remains distinct from the authored transform; missing canonical component stays unavailable. No default enable or placement registration occurs.",
+          "Bounded one-selected-reference consumer and byte/visit ceilings; snapshot before/after stays identical."
+        ],
+        "non_overlap": "ACT10 hardens package caller handles; this adds the missing placement-to-base join. ACT04 remains measured initialization; STATE15 pages references and does not resolve actor bases.",
+        "preauthorize_boundary": "Add actor_rules::context::observe(&World, &foreign::Content, &actors::placements::Catalogue, &actors::Catalogue, ReferenceId, Limits)->Observation. Acquire a fresh canonical reference view inside the call; match exact source receipts/cohort and winning placement origin, uniquely resolved nondeleted NPC_/CREA base. Observation is non-deserializable as authority and contains no mutation method. Source placement and current canonical state remain separate fields.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ACT-16",
+        "state": "ready",
+        "title": "Admit an explicit canonical item lot as a read-only equipment request",
+        "depends_on": [],
+        "gap": "Runtime ItemId/Facts and InventoryView retain distinct lots, explicit equipped_slots and modifications, but the actor lane accepts only source FormKey model choices. There is no actor adapter binding the user's selected lot to its canonical owner/base without treating inventory presence as equipped state.",
+        "source_evidence": [
+          "crates/fallout-runtime/src/inventory.rs:52",
+          "crates/fallout-runtime/src/inventory.rs:151",
+          "actors outbox sequence 15 active ACT08 signature"
+        ],
+        "consumer": "Actor inspector accepts a strict current snapshot, owner ReferenceId and explicit ItemId, and emits a source-model selection input plus the unchanged observed lot facts. A presentation inventory/equipment choice can later consume it directly.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/equipment.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Two same-base lots with different condition/modification/equipped metadata remain distinct and select the exact supplied ItemId.",
+          "Unknown inventory differs from initialized empty inventory; wrong owner, removed lot and stale campaign/item handle cannot silently select another item.",
+          "None/Some(empty)/Some(slots) remain distinct; raw slots and modification keys are not decoded into retail equip rules or an ACT08 modmask.",
+          "Actual CLI cold snapshot consumer, bounded retained facts and unchanged authoritative snapshot."
+        ],
+        "non_overlap": "ACT08 resolves equipment source model roles. This adapter binds an already existing canonical lot and never implements roles, equipping, slot conflict or attachment math. STATE10 delivered generic inventory observations, not this actor consumer.",
+        "preauthorize_boundary": "Add actor_rules::equipment::observe(&World, &foreign::Content, owner: ReferenceId, item: ItemId, Limits)->Selection. Read the canonical owner inventory under existing ViewLimits, confirm the selected lot and source item base, preserve campaign/cohort/revision and exact optional facts. Selection is an immutable observation; it has no equip/unequip/commit operation. No dependency on the active ACT08 model request API is required; an optional future caller passes Selection.base to it.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ACT-17",
+        "state": "ready",
+        "title": "Resolve authored package destination and target operands into bounded requests",
+        "depends_on": [],
+        "gap": "actors/packages.rs Value currently decodes General and Schedule only. Source location/target fields therefore remain Opaque; package_dependencies joins CTDA and embedded scripts but cannot give a navigation host an exact authored destination operand request.",
+        "source_evidence": [
+          "58d759b:crates/fallout-data/src/actors/packages.rs:37",
+          "58d759b:crates/fallout-data/src/actors/package_dependencies.rs:90"
+        ],
+        "consumer": "Existing actor-sources package projection gains an explicit selected PACK destination request. A headless actor package consumer can inspect exact location/target alternatives before physics path selection is available.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/packages/**",
+          "crates/fallout-data/src/actors/packages.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md"
+        ],
+        "acceptance": [
+          "An independent original-byte reader confirms discriminant, raw payload, bound destination key and source offset for authored reference/cell and non-reference alternatives supported by the pin.",
+          "Repeated, unknown, null, missing and wrong-kind alternatives stay visible and cannot become a chosen path target.",
+          "Selected real PACK request uses the existing store and declared budgets; no schedule evaluation, radius fallback, nearest-target search or pathfinding occurs."
+        ],
+        "non_overlap": "ACT02/10/13 concern conditions/context/capability; ACT05 waits for measured package execution and navigation. This new producer supplies missing source operands without claiming that acceptance.",
+        "preauthorize_boundary": "Add actors::packages::destinations::request(&mut RecordStore, &packages::Catalogue, &FormKey, Limits)->Manifest. Read the complete already-pinned FNV schema for actual location/target fields such as PLDT/PTDT before implementing the admitted discriminants. Preserve every physical occurrence, raw union words, signed values and source spans; use existing RecordStore bindings only for schema-confirmed FormID alternatives. Unknown alternatives remain opaque unavailable requests. No second plugin decoder.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ACT-18",
+        "state": "ready",
+        "title": "Turn explicit direct actor inventory declarations into an engineering initialization plan",
+        "depends_on": [],
+        "gap": "inventory::Definition already preserves physical CNTO/COED, signed counts and exact optional ownership/condition words; actors expose that data and template closure but there is no bounded actor-owned plan that a boot harness can apply using canonical lot APIs. Canonical add_item exists but callers currently must independently hand-assemble all lots.",
+        "source_evidence": [
+          "crates/fallout-data/src/inventory/mod.rs:63",
+          "crates/fallout-data/src/inventory/mod.rs:106",
+          "crates/fallout-runtime/src/inventory.rs:282",
+          "crates/fallout-runtime/src/inventory.rs:355"
+        ],
+        "consumer": "Opt-in engineering actor-inventory boot CLI takes an existing strict snapshot, explicit actor base/owner and explicit selection of direct source occurrences, emits a fresh candidate snapshot through canonical initialize_inventory/add_item and reports exact source-to-lot mapping.",
+        "owned_paths": [
+          "crates/fallout-runtime/src/actor_rules/inventory_boot.rs",
+          "crates/fallout-runtime/tests/actor_rules*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "docs/actor-rules.md"
+        ],
+        "acceptance": [
+          "Two duplicate physical source entries become two nonmerged canonical lots; an independent fixture expects the exact source index-to-ItemId mapping.",
+          "Caller count/facts are labeled engineering inputs and checked against any claimed source word; no template inheritance, leveled roll, respawn or default ammo/equipment is inferred.",
+          "Missing/deleted/leveled/unsupported source and late lot capacity failure produce no output snapshot and do not alter input snapshot or installed data.",
+          "Successful cold reload preserves explicit source identity, lot count and supplied opaque facts. Use existing native snapshot consumer rather than a second save format."
+        ],
+        "non_overlap": "Runtime STATE22 atomically transfers existing lots; this explicitly constructs a private engineering boot result from selected source declarations. ACT09 handles scalar actor stats and ACT08 handles selected model roles.",
+        "preauthorize_boundary": "Add actor_rules::inventory_boot::prepare(content, actor_definition, explicit_physical_item_indices, explicit_per_lot_facts, Limits)->private Plan. Admit only uniquely resolved direct nonleveled item forms with explicitly supplied positive host counts; retain and compare source signed counts separately, do not interpret negative/leveled semantics. Applying consumes a private newly restored candidate World; return its new snapshot only if every lot operation succeeds. An existing initialized bank refuses to avoid accidental duplicate boot. Unknown optional facts stay None; callers must explicitly supply facts not established by source parsing.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+          "Input/live canonical World remains unchanged; only a newly restored private result may be initialized. No live partial boot API."
+        ]
+      },
+      {
+        "id": "V3-ACT-19",
+        "state": "ready",
+        "title": "Bind an actor's authored object script to an existing compiled definition",
+        "depends_on": [],
+        "gap": "quest_scripts::Attachments only scans QUST. actors::associations::Role excludes script attachments. An actor source inspector therefore cannot supply an exact NPC_/CREA SCRI-to-loaded_scripts::Handle boot request even though the compiled catalogue and FormID binder already exist.",
+        "source_evidence": [
+          "crates/fallout-data/src/quest_scripts.rs:77",
+          "58d759b:crates/fallout-data/src/actors/associations.rs:30",
+          "58d759b:crates/fallout-data/src/actors/mod.rs:38"
+        ],
+        "consumer": "Selected actor-sources gains a script-attachment request with existing compiled handle/version, owner kind, declarations and exact source offsets. Later host boot can consume it without guessing the actor's event list.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/script_attachment.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md"
+        ],
+        "acceptance": [
+          "Independent authored fixture matches SCRI source offset/raw FormID and the existing loaded handle/version, including winning override changes.",
+          "Missing/repeated/null/deleted/wrong-kind/multiple compiled units produce exact unavailable states; no first-wins attachment or source text dependency.",
+          "Explicit selected actor headless consumer works without original game launch. Template-inherited scripts and dynamic event-list replacement remain unsupported."
+        ],
+        "non_overlap": "VM21 bootstraps an explicitly chosen quest using existing QUST attachments; this actor-owned producer covers NPC_/CREA source attachment only. No scripts-owned implementation or live lifecycle change.",
+        "preauthorize_boundary": "Add actors::script_attachment::request(&RecordStore, &actors::Catalogue, &loaded_scripts::Catalogue, actor: &FormKey, Limits)->Request. Reuse existing record bytes, physical subrecord visitor and store key binding; validate exact source cohort and a single nondeleted SCPT target with one existing standalone loaded unit. Do not modify quest_scripts or scripts-owned parser/admission. Actor request remains source-only and does not create a runtime instance or queue an event.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ACT-20",
+        "state": "ready",
+        "title": "Provide authored AI behavior inputs and explicit combat-style source linkage",
+        "depends_on": [],
+        "gap": "actors/fields.rs handles ACBS, DATA and DNAM; all other actor fields remain Opaque. The associations Role also lacks combat style. There is no selected actor host input for authored AIDT fields or an explicitly authored combat-style reference, distinct from effective actor values and AI behavior.",
+        "source_evidence": [
+          "58d759b:crates/fallout-data/src/actors/fields.rs:25",
+          "58d759b:crates/fallout-data/src/actors/fields.rs:176",
+          "58d759b:crates/fallout-data/src/actors/associations.rs:30"
+        ],
+        "consumer": "One selected actor-sources AI-input request exposes the exact authored fields and optional source-bound combat-style target to the future package/combat host; unavailable inherited/current behavior remains explicit.",
+        "owned_paths": [
+          "crates/fallout-data/src/actors/ai_inputs.rs",
+          "crates/fallout-data/tests/actors*.rs",
+          "crates/fallout-cli/src/actor_inspection.rs",
+          "tools/actor-oracle/**",
+          "docs/actor-sources.md"
+        ],
+        "acceptance": [
+          "Independent authored byte reader matches complete supported AIDT words and exact explicit target binding; selected installed source exercises the same path.",
+          "Missing/repeated/unknown-version/unsupported enum words and target kind keep precise diagnostics; no aggression/confidence/service defaults or hostility truth.",
+          "Actor report keeps authored AI source inputs distinct from ACT09 effective-stat unavailability and ACT07 faction requests; bounded selected-source reads."
+        ],
+        "non_overlap": "ACT09 is the existing ACBS/DATA/DNAM scalar input consumer. This task adds missing AI declarations and a combat-style link, not current health/stats, faction reactions or measured combat execution.",
+        "preauthorize_boundary": "Add actors::ai_inputs::request(&RecordStore, &actors::Catalogue, &FormKey, Limits)->Manifest. Read complete existing pinned FNV AIDT and actor combat-style field definitions before decoding version-specific layouts. Preserve repeated fields, raw words/enums/flags and template-category requirement; bind the explicit target through RecordStore and expose record identity only. Do not decode combat formulas, evaluate template inheritance or map source fields to live actor values.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
       }
     ],
     "assets": [
@@ -1092,6 +1317,231 @@
         "acceptance": "Real failing source geometry returns exact offending block/link/array and retained capability result; fix supported branch with independent fixture, do not mark visible playback accepted.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-ASSET-15",
+        "state": "ready",
+        "title": "Prepare an immutable reusable same-container pose source",
+        "depends_on": [],
+        "gap": "nif_animation::pose::evaluate decodes keys and scene and scans maps on every sample call. A presentation consumer changing only explicit sample time repeats source parsing and SHA work each frame despite immutable input.",
+        "source_evidence": [
+          "cec6866:crates/fallout-data/src/nif_animation/pose.rs:162",
+          "cec6866:crates/fallout-data/src/nif_animation/pose.rs:182"
+        ],
+        "consumer": "Owned pose CLI adds a bounded list-of-times request and prepares the selected immutable source once, then emits equivalent existing ObjectPose observations at each explicit time. Presentation may reuse the same producer later.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/pose.rs",
+          "crates/fallout-data/src/nif_animation/pose/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "acceptance": [
+          "Prepare once and sample several exact times; independent expected transforms and all previous source-link/refusal behavior match one-shot output.",
+          "A deterministic preparation counter or separated usage record demonstrates source parsing/index construction is not repeated; do not use noisy wall time as the only acceptance.",
+          "Output order preserves request order; one unsupported request produces no successful complete batch. Source bytes and SHA remain immutable and borrowed input lifetime does not leak into a forged authority object.",
+          "Exact ceilings/one-over for retained prepared arrays and total batch results; CLI remains headless."
+        ],
+        "non_overlap": "ASSET08 fixes retention bounds, not repeated immutable decoding. ASSET12 defines timing-domain boundaries; this task keeps those semantics unchanged.",
+        "preauthorize_boundary": "Add pose::PreparedSource::prepare(bytes, source, Limits)->PreparedSource and sample(&self, Request, SampleLimits)->ObjectPose. Private fields own admitted decoded catalogues, source SHA/spans and maps; constructors never accept arbitrary public predecoded catalogues. Existing evaluate remains a backward-compatible one-shot wrapper. Budget preparation retention separately from each sample's work/output and an aggregate CLI output budget; no global cache or filesystem cache format.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ASSET-16",
+        "state": "ready",
+        "title": "Feed one validated explicit-time bone pose into the existing skin evaluator",
+        "depends_on": [],
+        "gap": "nif_skin::pose computes palettes entirely from stored NiAV locals and only reports unapplied controllers. nif_animation::pose returns a sampled ObjectPose separately. There is no production bridge from the supported source-linked sample to deformed skin vertices.",
+        "source_evidence": [
+          "cec6866:crates/fallout-data/src/nif_skin/pose.rs:390",
+          "cec6866:crates/fallout-data/src/nif_animation/pose.rs:96"
+        ],
+        "consumer": "Owned skin CLI accepts one explicit same-container animation Request plus geometry and weight policy; actual CPU deformation changes at a sampled source time and returns the existing skin arrays suitable for the presentation boundary.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/pose.rs",
+          "crates/fallout-data/src/nif_skin/pose/**",
+          "crates/fallout-data/src/nif_animation/pose.rs",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "acceptance": [
+          "Independent two-bone fixture with noncommuting source transforms verifies changed palette/vertex positions and unchanged unselected bone behavior.",
+          "Geometry root and sampled-node relationships are explicit; a node outside the selected skin ancestry cannot silently influence the skin.",
+          "Wrong source SHA/link, unsupported rotation/channel, missing ancestor and total work/storage overflow refuse atomically; no partial palette escapes.",
+          "Normals retain the existing declared engineering policy; no ASSET09 normalization change, playback timing, GPU or original parity claim."
+        ],
+        "non_overlap": "ASSET01 was stored-local skin; ASSET03 sampled one object. ASSET05 concerns equipment attachment across poses and does not implement skinned vertex deformation. No dependency on current external clip ASSET02.",
+        "preauthorize_boundary": "Add nif_skin::pose::evaluate_sampled(bytes, source, skin_request, animation_request, combined_limits)->EvaluationWithSample. Invoke the existing source-linked pose evaluator internally; do not trust a caller-mutated ObjectPose or JSON matrix as validated authority. Substitute only its exact validated node-local transform while rebuilding affected bone/root ancestry through existing skin math. Preserve an exact sample receipt and report/refuse all other unapplied controlled ancestry according to an explicit engineering request policy; default stored-local API unchanged.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ASSET-17",
+        "state": "ready",
+        "title": "Evaluate an explicit set of supported parent and child pose channels together",
+        "depends_on": [],
+        "gap": "pose::evaluate rejects any controlled ancestor at line 318. Two individually supported translation/scale channels on parent and child cannot be composed, even when both are explicitly selected and their source time is supplied.",
+        "source_evidence": [
+          "cec6866:crates/fallout-data/src/nif_animation/pose.rs:302",
+          "cec6866:crates/fallout-data/src/nif_animation/pose.rs:318"
+        ],
+        "consumer": "Owned pose CLI gets an explicit multi-object/controller/time request and returns one bounded hierarchy result. This enables headless validation of a moving parent and child before whole rig playback.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/pose.rs",
+          "crates/fallout-data/src/nif_animation/pose/**",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "acceptance": [
+          "Independent three-node noncommuting fixture confirms parent and child channels affect descendants in exact composition order.",
+          "Request permutation changes only report order, not evaluated transforms; duplicate object requests, missing controlled ancestor, unsupported channel and cycles refuse rather than first-wins or static fallback.",
+          "Aggregate key/map/sample/output bounds checked before retention; later failure returns no usable completed PoseSet.",
+          "No blending, event timing, implicit clock or quaternion repair. Existing source checks remain valid."
+        ],
+        "non_overlap": "ASSET07 checks invalid ancestry links and ASSET11 adds a controller type. This task supports simultaneous existing channel types through a controlled ancestor. ASSET13 covers multiple skin geometries rather than animation-channel composition.",
+        "preauthorize_boundary": "Add pose::evaluate_set(bytes, source, &[Request], SetLimits)->PoseSet using private shared existing decoder/sampler/link-validation helpers. Exactly one request per affected object; require every controlled ancestor needed by a requested result to be explicitly selected and supported. Evaluate admitted local channels first, then propagate parent-before-child once over the validated forest. No priority/blend/sequence selection; existing single-request API and faithful refusal remain unchanged.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+          "Unselected controlling channels cannot be overwritten or blended implicitly; require a complete explicit admitted channel set or refuse."
+        ]
+      },
+      {
+        "id": "V3-ASSET-18",
+        "state": "ready",
+        "title": "Build a compact exact raw influence table for one source skin",
+        "depends_on": [],
+        "gap": "Skin evaluation traverses bone-owned weight arrays and immediately accumulates deformed positions. It exposes palette and evaluated arrays, but no bounded per-vertex influence representation that presentation can upload/reuse without rescanning all bones or inventing a four-weight truncation policy.",
+        "source_evidence": [
+          "cec6866:crates/fallout-data/src/nif_skin/pose.rs:402",
+          "cec6866:crates/fallout-data/src/nif_skin/mod.rs:41",
+          "cec6866:crates/fallout-data/src/nif_skin/pose.rs:64"
+        ],
+        "consumer": "An owned skin CLI option exports a selected source-bound compact table and reconstructs a CPU deformation through it. Presentation later decides GPU storage/upload without owning skin import logic.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/influences.rs",
+          "crates/fallout-data/src/nif_skin/mod.rs",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "acceptance": [
+          "Independent sparse fixture covers repeated influences, more than four weights, nonunit raw sums and zero entries; reconstruction preserves declared accumulation order and agrees with existing source-local evaluation.",
+          "Missing vertices/out-of-range bone or vertex IDs, nonfinite/negative weights and prefix-sum overflow refuse; exact total entries and storage ceilings are exercised.",
+          "Changing geometry/instance/source cannot reuse the table as another skin. CLI reports source/provenance and complete usage, not GPU or original-game readiness."
+        ],
+        "non_overlap": "ASSET08 retention ceilings and ASSET09 normal math remain unchanged. ASSET13 is shared skeleton/multiple geometries; this produces a new selected-geometry influence representation.",
+        "preauthorize_boundary": "Add nif_skin::influences::prepare(bytes, source, geometry, Limits)->Table with private source/geometry/instance identity, vertex_offsets (CSR), and entries {bone_ordinal, weight_bits, source_weight_ordinal}. Reuse binding decode and existing weight-policy validation. Count before allocating, prefix-sum with checked arithmetic, preserve all raw repeated influences and stable original bone/weight order per vertex. No fixed four/eight influence cap, merging, sorting by magnitude or normalization.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ASSET-19",
+        "state": "ready",
+        "title": "Query source-linked text keys over an explicit source-time interval",
+        "depends_on": [],
+        "gap": "nif_animation::Sequence.text_keys and TextKeyExtraData are decoded, but there is no selected-sequence source-bound interval consumer for animation markers. Playback work would otherwise reinterpret raw block links and string indices in presentation.",
+        "source_evidence": [
+          "cec6866:crates/fallout-data/src/nif_animation/mod.rs:72",
+          "cec6866:crates/fallout-data/src/nif_animation/mod.rs:96"
+        ],
+        "consumer": "Owned animation CLI selects exact sequence, expected source SHA and an explicit inclusive source-time interval; it reports matching physical text-key entries and exact raw strings for headless inspection and future event planning.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_animation/markers.rs",
+          "crates/fallout-data/src/nif_animation/mod.rs",
+          "crates/fallout-data/tests/nif_animation*.rs",
+          "crates/fallout-cli/src/nif_animation_inspection.rs",
+          "docs/nif-animation.md"
+        ],
+        "acceptance": [
+          "Independent source fixture confirms exact key ordinals/strings for interior endpoints, equal-time duplicates, nonmonotonic physical order and empty interval result.",
+          "Wrong sequence/link type, missing string, NaN time, malformed source and aggregate raw string/output ceiling refuse with exact offending source index.",
+          "Selected real clip runs the same headless query; reports state that markers are observations only and never weapon damage, sound dispatch or measured event timing."
+        ],
+        "non_overlap": "ASSET04 waits for measured transition/event behavior and ASSET12 concerns sampling-clock domains. This source-key query adds no playback lifecycle and is independently executable now.",
+        "preauthorize_boundary": "Add nif_animation::markers::query(bytes, source, Request {expected_sha256, sequence, source_start, source_end}, Limits)->Observation. Follow only the selected sequence's exact text_keys link through the existing animation decoder. Require finite ordered request bounds and finite authored key times; preserve original physical order/repeated times/raw string bytes/source spans. Define the query as closed interval [start,end] solely for this read-only API; no dispatch, cursor, repeat/cycle or event-name semantics.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
+      },
+      {
+        "id": "V3-ASSET-20",
+        "state": "ready",
+        "title": "Bind a selected skin to an explicitly mapped external skeleton",
+        "depends_on": [],
+        "gap": "nif_skin::pose currently admits bone-to-root transforms only inside one NIF and describes external rigs as separate. Actors already resolve separate body and skeleton model roles; a presentation consumer has no source-bound palette producer for that two-file case.",
+        "source_evidence": [
+          "cec6866:crates/fallout-data/src/nif_skin/pose.rs:1",
+          "cec6866:crates/fallout-data/src/nif_skin/pose.rs:369",
+          "58d759b:crates/fallout-data/src/actors/dependencies/render.rs:46"
+        ],
+        "consumer": "Owned skin CLI accepts skin NIF, rig NIF and an explicit bounded mapping request and emits a stored-local engineering palette/deformed geometry. No actor/gender/socket choice is made by the asset producer.",
+        "owned_paths": [
+          "crates/fallout-data/src/nif_skin/external.rs",
+          "crates/fallout-data/src/nif_skin/mod.rs",
+          "crates/fallout-data/src/nif_skin/pose.rs",
+          "crates/fallout-data/tests/nif_skin*.rs",
+          "crates/fallout-cli/src/nif_skin_inspection.rs",
+          "docs/nif-skin.md"
+        ],
+        "acceptance": [
+          "Independent two-file noncommuting-transform fixture proves explicit root mapping and per-bone source binding; same names with different block IDs require the explicit map rather than first-match behavior.",
+          "Duplicate/missing bone ordinal, duplicate target, wrong raw name/SHA, unresolved/cyclic rig ancestry and singular/nonfinite explicit space mapping refuse before any palette escapes.",
+          "Combined source/array/work bounds cover both inputs; original files/request directories stay protected by existing CLI output guards.",
+          "Stored locals/controllers-unapplied labeling remains explicit; animated external rig playback, auto attachment, rig parity and retail equip behavior remain unsupported."
+        ],
+        "non_overlap": "ASSET02 binds one external clip to a skeleton, not a skin to a rig. ASSET13 verifies several geometries in a shared source binding; this exact two-source explicit mapping is new. ASSET05 concerns attachment behavior across pose changes, not stored-local external skin palette construction.",
+        "preauthorize_boundary": "Add nif_skin::external::evaluate(skin_bytes, rig_bytes, source, Request {expected_skin_sha256, expected_rig_sha256, geometry, rig_root, explicit_bone_mapping, explicit_root_space_mapping, weight_policy}, Limits)->Evaluation. Reuse existing binding/scene decoders and affine math; require complete one-to-one mapping from selected skin bone ordinal to exact decoded rig node plus exact expected raw names as verification, never automatic name search. Caller supplies the finite affine relationship between the declared root spaces; preserve it as engineering input. Every mapped node must reach the chosen rig root; no rest-pose/units/alignment guess.",
+        "boundary_authorized_by": "coordinator; rolling backlog refill02",
+        "common_conditions": [
+          "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+          "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+          "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+          "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+          "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+          "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+          "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance."
+        ]
       }
     ],
     "world": [
@@ -1560,7 +2010,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T05:37:58.623145+00:00",
+  "updated_at": "2026-10-04T05:53:09.094544+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

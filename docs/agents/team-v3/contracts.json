@@ -316,7 +316,237 @@
         "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
       ],
       "first_consumer": "Actor/container explicit transfer intents and existing item-state engineering CLI."
+    },
+    {
+      "id": "V3-ACT-15",
+      "producer": "actors",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add actor_rules::context::observe(&World, &foreign::Content, &actors::placements::Catalogue, &actors::Catalogue, ReferenceId, Limits)->Observation. Acquire a fresh canonical reference view inside the call; match exact source receipts/cohort and winning placement origin, uniquely resolved nondeleted NPC_/CREA base. Observation is non-deserializable as authority and contains no mutation method. Source placement and current canonical state remain separate fields.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ACT10 hardens package caller handles; this adds the missing placement-to-base join. ACT04 remains measured initialization; STATE15 pages references and does not resolve actor bases."
+      ],
+      "first_consumer": "A new optional actor-context inspector path loads a strict source-bound current snapshot, selects one canonical ReferenceId and returns its source placement/base and existing canonical pose/enable observation. Presentation and package hosts can consume the same owned read-only request."
+    },
+    {
+      "id": "V3-ACT-16",
+      "producer": "actors",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add actor_rules::equipment::observe(&World, &foreign::Content, owner: ReferenceId, item: ItemId, Limits)->Selection. Read the canonical owner inventory under existing ViewLimits, confirm the selected lot and source item base, preserve campaign/cohort/revision and exact optional facts. Selection is an immutable observation; it has no equip/unequip/commit operation. No dependency on the active ACT08 model request API is required; an optional future caller passes Selection.base to it.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ACT08 resolves equipment source model roles. This adapter binds an already existing canonical lot and never implements roles, equipping, slot conflict or attachment math. STATE10 delivered generic inventory observations, not this actor consumer."
+      ],
+      "first_consumer": "Actor inspector accepts a strict current snapshot, owner ReferenceId and explicit ItemId, and emits a source-model selection input plus the unchanged observed lot facts. A presentation inventory/equipment choice can later consume it directly."
+    },
+    {
+      "id": "V3-ACT-17",
+      "producer": "actors",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add actors::packages::destinations::request(&mut RecordStore, &packages::Catalogue, &FormKey, Limits)->Manifest. Read the complete already-pinned FNV schema for actual location/target fields such as PLDT/PTDT before implementing the admitted discriminants. Preserve every physical occurrence, raw union words, signed values and source spans; use existing RecordStore bindings only for schema-confirmed FormID alternatives. Unknown alternatives remain opaque unavailable requests. No second plugin decoder.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ACT02/10/13 concern conditions/context/capability; ACT05 waits for measured package execution and navigation. This new producer supplies missing source operands without claiming that acceptance."
+      ],
+      "first_consumer": "Existing actor-sources package projection gains an explicit selected PACK destination request. A headless actor package consumer can inspect exact location/target alternatives before physics path selection is available."
+    },
+    {
+      "id": "V3-ACT-18",
+      "producer": "actors",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add actor_rules::inventory_boot::prepare(content, actor_definition, explicit_physical_item_indices, explicit_per_lot_facts, Limits)->private Plan. Admit only uniquely resolved direct nonleveled item forms with explicitly supplied positive host counts; retain and compare source signed counts separately, do not interpret negative/leveled semantics. Applying consumes a private newly restored candidate World; return its new snapshot only if every lot operation succeeds. An existing initialized bank refuses to avoid accidental duplicate boot. Unknown optional facts stay None; callers must explicitly supply facts not established by source parsing.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "Input/live canonical World remains unchanged; only a newly restored private result may be initialized. No live partial boot API.",
+        "Runtime STATE22 atomically transfers existing lots; this explicitly constructs a private engineering boot result from selected source declarations. ACT09 handles scalar actor stats and ACT08 handles selected model roles."
+      ],
+      "first_consumer": "Opt-in engineering actor-inventory boot CLI takes an existing strict snapshot, explicit actor base/owner and explicit selection of direct source occurrences, emits a fresh candidate snapshot through canonical initialize_inventory/add_item and reports exact source-to-lot mapping."
+    },
+    {
+      "id": "V3-ACT-19",
+      "producer": "actors",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add actors::script_attachment::request(&RecordStore, &actors::Catalogue, &loaded_scripts::Catalogue, actor: &FormKey, Limits)->Request. Reuse existing record bytes, physical subrecord visitor and store key binding; validate exact source cohort and a single nondeleted SCPT target with one existing standalone loaded unit. Do not modify quest_scripts or scripts-owned parser/admission. Actor request remains source-only and does not create a runtime instance or queue an event.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "VM21 bootstraps an explicitly chosen quest using existing QUST attachments; this actor-owned producer covers NPC_/CREA source attachment only. No scripts-owned implementation or live lifecycle change."
+      ],
+      "first_consumer": "Selected actor-sources gains a script-attachment request with existing compiled handle/version, owner kind, declarations and exact source offsets. Later host boot can consume it without guessing the actor's event list."
+    },
+    {
+      "id": "V3-ACT-20",
+      "producer": "actors",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add actors::ai_inputs::request(&RecordStore, &actors::Catalogue, &FormKey, Limits)->Manifest. Read complete existing pinned FNV AIDT and actor combat-style field definitions before decoding version-specific layouts. Preserve repeated fields, raw words/enums/flags and template-category requirement; bind the explicit target through RecordStore and expose record identity only. Do not decode combat formulas, evaluate template inheritance or map source fields to live actor values.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ACT09 is the existing ACBS/DATA/DNAM scalar input consumer. This task adds missing AI declarations and a combat-style link, not current health/stats, faction reactions or measured combat execution."
+      ],
+      "first_consumer": "One selected actor-sources AI-input request exposes the exact authored fields and optional source-bound combat-style target to the future package/combat host; unavailable inherited/current behavior remains explicit."
+    },
+    {
+      "id": "V3-ASSET-15",
+      "producer": "assets",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add pose::PreparedSource::prepare(bytes, source, Limits)->PreparedSource and sample(&self, Request, SampleLimits)->ObjectPose. Private fields own admitted decoded catalogues, source SHA/spans and maps; constructors never accept arbitrary public predecoded catalogues. Existing evaluate remains a backward-compatible one-shot wrapper. Budget preparation retention separately from each sample's work/output and an aggregate CLI output budget; no global cache or filesystem cache format.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ASSET08 fixes retention bounds, not repeated immutable decoding. ASSET12 defines timing-domain boundaries; this task keeps those semantics unchanged."
+      ],
+      "first_consumer": "Owned pose CLI adds a bounded list-of-times request and prepares the selected immutable source once, then emits equivalent existing ObjectPose observations at each explicit time. Presentation may reuse the same producer later."
+    },
+    {
+      "id": "V3-ASSET-16",
+      "producer": "assets",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add nif_skin::pose::evaluate_sampled(bytes, source, skin_request, animation_request, combined_limits)->EvaluationWithSample. Invoke the existing source-linked pose evaluator internally; do not trust a caller-mutated ObjectPose or JSON matrix as validated authority. Substitute only its exact validated node-local transform while rebuilding affected bone/root ancestry through existing skin math. Preserve an exact sample receipt and report/refuse all other unapplied controlled ancestry according to an explicit engineering request policy; default stored-local API unchanged.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ASSET01 was stored-local skin; ASSET03 sampled one object. ASSET05 concerns equipment attachment across poses and does not implement skinned vertex deformation. No dependency on current external clip ASSET02."
+      ],
+      "first_consumer": "Owned skin CLI accepts one explicit same-container animation Request plus geometry and weight policy; actual CPU deformation changes at a sampled source time and returns the existing skin arrays suitable for the presentation boundary."
+    },
+    {
+      "id": "V3-ASSET-17",
+      "producer": "assets",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add pose::evaluate_set(bytes, source, &[Request], SetLimits)->PoseSet using private shared existing decoder/sampler/link-validation helpers. Exactly one request per affected object; require every controlled ancestor needed by a requested result to be explicitly selected and supported. Evaluate admitted local channels first, then propagate parent-before-child once over the validated forest. No priority/blend/sequence selection; existing single-request API and faithful refusal remain unchanged.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "Unselected controlling channels cannot be overwritten or blended implicitly; require a complete explicit admitted channel set or refuse.",
+        "ASSET07 checks invalid ancestry links and ASSET11 adds a controller type. This task supports simultaneous existing channel types through a controlled ancestor. ASSET13 covers multiple skin geometries rather than animation-channel composition."
+      ],
+      "first_consumer": "Owned pose CLI gets an explicit multi-object/controller/time request and returns one bounded hierarchy result. This enables headless validation of a moving parent and child before whole rig playback."
+    },
+    {
+      "id": "V3-ASSET-18",
+      "producer": "assets",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add nif_skin::influences::prepare(bytes, source, geometry, Limits)->Table with private source/geometry/instance identity, vertex_offsets (CSR), and entries {bone_ordinal, weight_bits, source_weight_ordinal}. Reuse binding decode and existing weight-policy validation. Count before allocating, prefix-sum with checked arithmetic, preserve all raw repeated influences and stable original bone/weight order per vertex. No fixed four/eight influence cap, merging, sorting by magnitude or normalization.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ASSET08 retention ceilings and ASSET09 normal math remain unchanged. ASSET13 is shared skeleton/multiple geometries; this produces a new selected-geometry influence representation."
+      ],
+      "first_consumer": "An owned skin CLI option exports a selected source-bound compact table and reconstructs a CPU deformation through it. Presentation later decides GPU storage/upload without owning skin import logic."
+    },
+    {
+      "id": "V3-ASSET-19",
+      "producer": "assets",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add nif_animation::markers::query(bytes, source, Request {expected_sha256, sequence, source_start, source_end}, Limits)->Observation. Follow only the selected sequence's exact text_keys link through the existing animation decoder. Require finite ordered request bounds and finite authored key times; preserve original physical order/repeated times/raw string bytes/source spans. Define the query as closed interval [start,end] solely for this read-only API; no dispatch, cursor, repeat/cycle or event-name semantics.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ASSET04 waits for measured transition/event behavior and ASSET12 concerns sampling-clock domains. This source-key query adds no playback lifecycle and is independently executable now."
+      ],
+      "first_consumer": "Owned animation CLI selects exact sequence, expected source SHA and an explicit inclusive source-time interval; it reports matching physical text-key entries and exact raw strings for headless inspection and future event planning."
+    },
+    {
+      "id": "V3-ASSET-20",
+      "producer": "assets",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add nif_skin::external::evaluate(skin_bytes, rig_bytes, source, Request {expected_skin_sha256, expected_rig_sha256, geometry, rig_root, explicit_bone_mapping, explicit_root_space_mapping, weight_policy}, Limits)->Evaluation. Reuse existing binding/scene decoders and affine math; require complete one-to-one mapping from selected skin bone ordinal to exact decoded rig node plus exact expected raw names as verification, never automatic name search. Caller supplies the finite affine relationship between the declared root spaces; preserve it as engineering input. Every mapped node must reach the chosen rig root; no rest-pose/units/alignment guess.",
+      "invariants": [
+        "All tasks are additive and owned by the stated lane. No new dependencies, source pins, save schema, runtime defaults, original timing or gameplay truth are authorized by this proposal.",
+        "Workers expose exact signatures in their own outbox before another lane consumes them. Minimal private module export and owned CLI dispatch may be declared in handoff. No consumer-file edits in another lane.",
+        "Every task includes an immediately reachable headless CLI consumer using an existing owned inspector; future renderer/AI consumption is not required to finish the task.",
+        "A published shared dependency is consumed once at a clean boundary. None of the proposed tasks depends on a new sibling task or unavailable original-game capture. Workers retain old proofs and source inputs.",
+        "Test semantic behavior with independent authored expected values and a selected installed source when it exercises the supported branch. Do not replace implementation work with another full corpus census or tests-only audit.",
+        "Keep faithful unsupported where semantics are unmeasured. An engineering request, raw source view or math evaluation never initializes live actor behavior by itself.",
+        "If a stated code gap has been closed since these heads, select another task; do not duplicate it. Queue counts exclude active/completed tasks and original-measurement-only acceptance.",
+        "ASSET02 binds one external clip to a skeleton, not a skin to a rig. ASSET13 verifies several geometries in a shared source binding; this exact two-source explicit mapping is new. ASSET05 concerns attachment behavior across pose changes, not stored-local external skin palette construction."
+      ],
+      "first_consumer": "Owned skin CLI accepts skin NIF, rig NIF and an explicit bounded mapping request and emits a stored-local engineering palette/deformed geometry. No actor/gender/socket choice is made by the asset producer."
     }
   ],
-  "updated_at": "2026-10-04T05:37:58.623145+00:00"
+  "updated_at": "2026-10-04T05:53:09.094544+00:00"
 }

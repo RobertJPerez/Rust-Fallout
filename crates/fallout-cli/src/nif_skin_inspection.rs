@@ -267,6 +267,152 @@ impl InfluenceWeightPolicy {
         }
     }
 }
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum BoundsPoseRequest {
+    Stored {},
+    Sampled {
+        object: u32,
+        controller: u32,
+        source_time: f64,
+        controller_policy: String,
+    },
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct BoundsRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    weights: BoundsWeightPolicy,
+    pose: BoundsPoseRequest,
+}
+// Empty struct variants enforce deny_unknown_fields; tagged unit variants
+// otherwise accept ignored data alongside the tag in serde's current format.
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum BoundsWeightPolicy {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl BoundsWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+#[derive(Serialize)]
+pub struct BoundsReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    request: BoundsRequest,
+    evaluation: Option<nif_skin::bounds::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+
+#[cfg(test)]
+mod bounds_request_tests {
+    use super::*;
+
+    #[test]
+    fn every_nested_bounds_request_variant_rejects_unknown_fields_and_keeps_explicit_tags() {
+        let digest = [0u8; 32];
+        for pose in [
+            serde_json::json!({"kind":"stored"}),
+            serde_json::json!({"kind":"sampled","object":1,"controller":7,"source_time":-0.0,"controller_policy":"refuse_other_required"}),
+        ] {
+            for weights in [
+                serde_json::json!({"kind":"preserve_raw_nonnegative"}),
+                serde_json::json!({"kind":"require_unit_sum","absolute_tolerance":0.0}),
+            ] {
+                let valid = serde_json::json!({"schema_version":1,"expected_source_sha256":digest,"geometry":3,"weights":weights,"pose":pose});
+                let request: BoundsRequest = serde_json::from_value(valid.clone()).unwrap();
+                assert_eq!(serde_json::to_value(request).unwrap(), valid);
+                for field in [None, Some("pose"), Some("weights")] {
+                    let mut invalid = valid.clone();
+                    let object = match field {
+                        Some(key) => &mut invalid[key],
+                        None => &mut invalid,
+                    };
+                    object["extra"] = serde_json::json!(1);
+                    assert!(
+                        serde_json::from_value::<BoundsRequest>(invalid).is_err(),
+                        "variant {field:?}"
+                    );
+                }
+                for missing in ["pose", "weights", "expected_source_sha256"] {
+                    let mut invalid = valid.clone();
+                    invalid.as_object_mut().unwrap().remove(missing);
+                    assert!(serde_json::from_value::<BoundsRequest>(invalid).is_err());
+                }
+            }
+        }
+    }
+}
+
+pub fn inspect_bounds(input: &Path, request_path: &Path) -> Result<BoundsReport> {
+    let request: BoundsRequest = serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("skin bounds requires schema1".into());
+    }
+    let selected = match &request.pose {
+        BoundsPoseRequest::Stored {} => nif_skin::bounds::Pose::Stored,
+        BoundsPoseRequest::Sampled {
+            object,
+            controller,
+            source_time,
+            controller_policy,
+        } => {
+            if controller_policy != "refuse_other_required" {
+                return Err("sampled skin bounds requires refuse_other_required policy".into());
+            }
+            nif_skin::bounds::Pose::Sampled {
+                controller_policy: nif_skin::pose::ControllerPolicy::RefuseOtherRequired,
+                animation: fallout_data::nif_animation::pose::Request {
+                    object: *object,
+                    controller: *controller,
+                    source_time: *source_time,
+                },
+            }
+        }
+    };
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = nif_skin::bounds::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::bounds::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: request.weights.policy(),
+            },
+            pose: selected,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(BoundsReport {
+        schema_version: 1,
+        contract: nif_skin::bounds::CONTRACT,
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct InfluencesRequest {

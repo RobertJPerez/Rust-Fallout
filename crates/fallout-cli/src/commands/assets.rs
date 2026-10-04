@@ -151,4 +151,7 @@ pub(crate) struct NifSkinArgs {
     /// Apply the complete explicitly sampled required skin forest.
     #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request", "partition_pose_request"])]
     pub(crate) pose_set_request: Option<PathBuf>,
+    /// Enclose one stored or explicitly sampled CPU skin in its source frame.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request", "partition_pose_request", "pose_set_request"])]
+    pub(crate) bounds_request: Option<PathBuf>,
 }

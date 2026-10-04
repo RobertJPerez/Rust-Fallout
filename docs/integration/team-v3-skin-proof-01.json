@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "revision": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9",
+  "scope": "Fresh source-local skin palette and raw-weight engineering proof for one selected geometry; no original execution or playback acceptance",
+  "driver_sha256": "3965d2ccd177325d5cb230c5c099fdc35cfd4453ff5e1cc114dc583025787cd8",
+  "driver_revision": "77a4277",
+  "receipt_sha256": "07f3d03c377e4ffa943f57295f614d7db69bee247b78eb6a98c170cd18e4de58",
+  "input_sha256": "618eb19e96303dd082e0c0e253d476c59cd79ee389c204f70aaae888daa66234",
+  "input_bytes": 192724,
+  "geometry": 1,
+  "absolute_weight_tolerance": 1.1920928955078125e-07,
+  "native_source_revision": "cca0a770094bb962fb28ea1fec5ea903e68fda8e",
+  "source_manifests": {
+    "repository": "4ad44d30fe63a9b0e34dbe6847223b8b4c6931d67727f8ddd58138dae6c3a239",
+    "native": "142f6e0d7b988dc88341347bda64512c27802cd891e915832c6a113f46c21f92"
+  },
+  "frozen_source_manifests": {
+    "rust": "4ad44d30fe63a9b0e34dbe6847223b8b4c6931d67727f8ddd58138dae6c3a239",
+    "native": "142f6e0d7b988dc88341347bda64512c27802cd891e915832c6a113f46c21f92"
+  },
+  "producer_sha256": "a972cfb893ac21e5fb6517e0c48f66a7b101535e99790e148582e399696d092a",
+  "native_producer_sha256": "12c951306b64d2b5a5de8798fad18e84eed2a6dd1e5a5f7a4418778dc628d60f",
+  "artifacts": {
+    "native_report": {
+      "bytes": 258297,
+      "sha256": "a51318e179d3128b453cd0b2262df560a355db7f09340ced91633d9931a64208"
+    },
+    "source_comparison": {
+      "bytes": 1026275,
+      "sha256": "3e8d6db613772423e364dbd02e6f79b717108f2909ee1d387f5c65ad3e9c6aa8"
+    },
+    "pose_summary": {
+      "bytes": 2751,
+      "sha256": "ebc2f92bc01a42420898366f57b2ae62f50a8b625e23f106afa9e6dc41a79c3b"
+    }
+  },
+  "numeric": {
+    "palette_entries": 25,
+    "coefficients": 300,
+    "vertices": 1706,
+    "maximum_absolute_palette_error": 1.247655587073829e-14,
+    "numerical_bound": "gamma_(7*m) * absolute matrix product + 2^-1074"
+  },
+  "intended_refusals": 2,
+  "altered_coefficient_rejections": 1,
+  "command_count": 12,
+  "commands_all_passed": true,
+  "retained_evidence_files": 67,
+  "source_unchanged": true,
+  "inputs_unchanged": true,
+  "binaries_unchanged": true,
+  "first_seen_evidence_unchanged": true,
+  "retail_behavior_verified": false,
+  "playback_verified": false,
+  "limitations": [
+    "Independent checker validates25 palette entries/300coefficients and raw weight sums;1706 vertex cardinality, not every deformed position or normal.",
+    "Source controllers are retained but unapplied; no external skeleton, runtime actor or original scheduling claim.",
+    "Fresh original-process isolation and physical rendered acceptance remain unavailable; checkpoint45 remains the latest verified checkpoint."
+  ]
+}

@@ -365,3 +365,11 @@ and atomic rejection of legacy/altered identities. See the exact
 [development receipt](docs/integration/team-v3-development-03.json).
 Presentation input and physics corrections remain separate; checkpoint45 and
 original gameplay acceptance are unchanged.
+
+A fresh detached committed source proof rebuilt the standalone Rust producer and
+pinned native reader independently. Native fields matched before rational skin
+palette checks: 25 entries, 300 coefficients, two intended refusals and an altered
+coefficient rejection passed. The 1,706-vertex cardinality is checked; individual
+deformed positions/normals and animation playback remain unverified. See the
+[skin proof scope](docs/integration/team-v3-skin-proof-01.json). No gameplay
+scenario or new checkpoint is claimed.

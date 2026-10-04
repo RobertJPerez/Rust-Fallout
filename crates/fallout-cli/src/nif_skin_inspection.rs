@@ -4,7 +4,7 @@ use fallout_data::{
     baseline,
     nif_skin::{self, Skin, binding, partition},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
@@ -82,6 +82,76 @@ pub fn inspect_pose(input: &Path, geometry: u32, absolute_tolerance: f64) -> Res
         contract: "engineering-source-local-skin-v1",
         input: input.into(),
         sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SampledPoseRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    absolute_weight_tolerance: f64,
+    object: u32,
+    controller: u32,
+    source_time: f64,
+    controller_policy: String,
+}
+
+#[derive(Serialize)]
+pub struct SampledPoseReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    request: SampledPoseRequest,
+    evaluation: Option<nif_skin::pose::EvaluationWithSample>,
+    error: Option<String>,
+    pub failures: usize,
+}
+
+pub fn inspect_sampled_pose(input: &Path, request_path: &Path) -> Result<SampledPoseReport> {
+    let request: SampledPoseRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.controller_policy != "refuse_other_required" {
+        return Err(
+            "sampled skin request requires schema1 and refuse_other_required policy".into(),
+        );
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = nif_skin::pose::evaluate_sampled(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::pose::SampledRequest {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: nif_skin::pose::WeightPolicy::RequireUnitSum {
+                    absolute_tolerance: request.absolute_weight_tolerance,
+                },
+            },
+            controller_policy: nif_skin::pose::ControllerPolicy::RefuseOtherRequired,
+        },
+        fallout_data::nif_animation::pose::Request {
+            object: request.object,
+            controller: request.controller,
+            source_time: request.source_time,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(SampledPoseReport {
+        schema_version: 1,
+        contract: "engineering-one-linked-sample-skin-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request,
         failures: usize::from(error.is_some()),
         evaluation,
         error,

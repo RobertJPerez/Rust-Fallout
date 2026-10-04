@@ -444,3 +444,84 @@ failed private compatibility harness attempts remain preserved: they mismatched
 oracle schema/count admission or compared schema-1 dependencies to schema-3
 retired dependencies. The final check compares matching modes through both
 frozen binaries; these failures did not require a production change.
+
+## One source-linked sampled node
+
+`pose::evaluate_sampled(bytes, source, SampledRequest, animation_request,
+CombinedLimits)` bridges the existing same-container explicit-time evaluator
+into the selected skin. `SampledRequest` requires the expected 32-byte source
+SHA, the existing geometry/weight `Request`, and the explicit
+`ControllerPolicy::RefuseOtherRequired` policy. `animation_request` is the
+existing exact object/controller/finite source-time request. The bridge calls
+the existing evaluator internally; a caller-provided `ObjectPose` or matrix
+cannot substitute validated source authority.
+
+The returned `EvaluationWithSample` preserves the complete source-linked sample
+receipt and the skin output, labeled `engineering-one-linked-sample-skin-v1`.
+Only the selected validated node-local transform replaces a stored local. Bone
+chains rebuild `SkinTransform * BoneToRoot * SkinToBone` in authored order. A
+sampled root or ancestor above it changes `RootWorld * inverse(SkinTransform)`;
+the root local does not also enter the relative palette. The sampled node must
+occur on a selected bone-to-root path or the root-to-footer path. A sibling
+outside those paths refuses, even if its channel can be sampled independently.
+Geometry owner transforms remain excluded from deformation/display composition.
+
+All other controllers needed by root, owner or bone ancestry refuse with exact
+object/controller IDs. The selected controller's raw clock/flag fields and
+interpolator constants/WXYZ words stay in the sample receipt, unapplied as before.
+Linear1/constant5 translation/scale and absent-group NiAV retention keep their
+existing engineering rules; rotation keys, controller chains and controlled
+sample ancestors remain unsupported. Normals remain raw weighted linear
+directions, without inverse-transpose or normalization. A zero sampled scale is
+allowed as a forward deformation; singular authored SkinTransform still refuses
+because the display mapping requires its inverse. Stored-local `evaluate` and
+source-report schemas retain their behavior.
+
+`CombinedLimits` admits both decoders' complete declared array allowances and
+decoder/index/sampler check allowances before either decode. These are
+conservative admission envelopes, not measurements of allocated bytes or elapsed
+work: animation uses its combined key/animation allowance plus scene arrays;
+skin uses scene, skin, partition and binding allowances. Checked addition rejects
+overflow. Default envelopes are 640 MiB and 72 million checks; actual default
+allowances total 544 MiB and 67 million checks. Existing decoder input/block caps
+separately bound index and scene graph tables. Source input is borrowed once and
+capped through all decoder paths before SHA scanning. The bridge separately sums
+charged pose/skin helper and output storage (including scratch already released)
+under a 72 MiB default, and pose traversal under 18 million units. Each next
+evaluation receives only the remaining allowance before output allocation.
+Allocator overhead, vector spare capacity, source/index block-count tables and
+process memory are outside the element-array count; those existing source caps
+remain enforced. Any failure returns no `EvaluationWithSample` or partial palette.
+
+The headless consumer is:
+
+```text
+fallout nif-skin INPUT --sampled-pose-request REQUEST.json --output RECEIPT.json
+```
+
+The strict schema1 request requires `expected_source_sha256` (32 byte integers),
+`geometry`, `absolute_weight_tolerance`, `object`, `controller`, `source_time`,
+and `controller_policy: "refuse_other_required"`. Missing/extra fields, another
+policy/schema and conflicting source/static-pose options refuse. Input is capped
+at 64 MiB, request JSON at 64 KiB; output must be outside both source and request
+directories. An evaluation refusal emits `evaluation: null`, exact error and
+nonzero exit. This does not select actor state, equipment, a live clock or events,
+or assert measured retail playback. Presentation retains GPU and placement
+ownership.
+
+Authored two-bone checks exercise noncommuting transforms, changed weighted
+vertices/normals, unchanged other-bone contributions, exact endpoints, sampled
+root and above-root mapping, identity/link/refusal cases and exact aggregate
+ceilings/one-over. `tools/nif-skin-oracle/check_sampled.py` constructs a second
+independent sibling-bone source and checks literal vertex/normal expectations at
+negative, zero and positive sampled scales through the frozen CLI.
+
+The focused validation passes 39 data tests (seven new sampled-skin cases),
+38 CLI tests, affected all-target Clippy with warnings denied, formatting and
+the CLI build. The frozen second fixture passes three analytic deformations and
+nine intended identity/link/time/schema/policy/protected-directory refusals.
+The selected preserved original geometry's stored-pose receipt and source schemas
+1/2/3 stay byte-identical to the preceding frozen binary. Its native-confirmed
+root has no controller; an explicit sampled-root request refuses that missing
+link with no partial pose. No supported retail animated-skin playback is claimed.
+Immutable receipts and the frozen executable stay in `local/v3-asset-16`.

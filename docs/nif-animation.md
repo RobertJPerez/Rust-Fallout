@@ -1114,3 +1114,71 @@ stricter existing refusals were retained, with corrected exact-offset expectatio
 passing. One prematurely queued validation was cancelled before any child build;
 its empty log/cancellation receipt and all first-run failures stay preserved.
 Evidence and frozen executable remain in ignored `local/v3-asset-19`.
+
+## Immutable source preparation and explicit batches
+
+`pose::PreparedSource::prepare(bytes, source, Limits)` owns the admitted existing
+key/animation and scene catalogues, container index, exact source SHA, all block
+spans/hashes and four block lookup tables. Fields are private; no public decoded
+catalogue, deserialization constructor, borrowed input lifetime or global/file
+cache can substitute source authority. The caller may change/drop its bytes after
+successful preparation. Each source is independently decoded through the existing
+decoders; one lookup-table group and source/block hashes are constructed during
+preparation, then immutable.
+
+`sample(&self, Request, SampleLimits)` uses the same private source-link checks,
+samplers and hierarchy math as the one-shot `evaluate` wrapper. Prepared requests
+use indexed lookups and borrowed maps; source/block hashes are cloned from admitted
+spans instead of recalculated. Exact object/controller/target/interpolator/data
+identity, supported channels, static reachable ancestry and explicit finite time
+retain their previous requirements. Source clock/flag/quaternion fields remain
+unapplied. The returned `ObjectPose` numeric/source observations and sampler usage
+match one-shot results; its extra storage/work counts are lower because map
+construction and catalogue scans belong to preparation. The old one-shot path
+preserves its original allocation admission, failure ordering and receipt counts.
+
+`PreparationUsage` separates one animation/key decode, one scene decode, one group
+of four lookup-map constructions, one whole-source SHA computation and one block
+SHA per source block. `usage()` is unchanged after repeated samples. Extra
+preparation element/string storage (including its owned source label and spans)
+and traversal use `Limits.array_bytes/work_units`; existing key/animation combined
+and scene array/input/block caps still apply separately. The receipt reports
+actual charged key/animation storage and the conservative full scene array
+allowance, because the scene decoder does not expose a retained byte counter.
+Allocator overhead/vector spare capacity and scene/index tables governed by block
+caps remain outside those array counts. No measured speed or process-memory
+ceiling is claimed.
+
+`sample_many(&[Request], BatchLimits)` returns a `PoseBatch` in explicit request
+order, preserving repeated/decreasing times. It does not choose a clock or sort
+requests. Each next sample receives only remaining aggregate storage, pose work,
+validation and sampling allowances. The complete result vector is admitted before
+allocation; individual receipt headers are also charged, conservatively twice.
+Defaults cap 64 requests, 64 MiB extra batch storage, one million pose traversal
+units and one million validation/sampling units each, plus per-sample caps. Empty
+batches are explicit observations. If any later sample fails, all earlier retained
+observations are dropped and no completed batch is returned.
+
+The strict headless consumer is:
+
+```text
+fallout nif-source-pose-batch INPUT --request REQUEST.json --output RECEIPT.json
+```
+
+Schema1 JSON requires `expected_sha256` (32 byte integers), exact `object` and
+`controller`, and `source_times` (at most 64 explicit numbers). Request/source
+caps are 64 KiB/64 MiB; output stays outside both input directories. A mismatch or
+unsupported request emits `evaluation: null`, error and nonzero exit. No default
+time, interpolation constant, actor state, render transform or live event is
+inferred from this batch.
+
+Focused checks pass 45 pose/clip/skin tests (six new preparation/batch cases),
+38 CLI tests, affected all-target Clippy with warnings denied, formatting and the
+CLI build. The frozen independent source passes six analytic samples in decreasing
+and repeated request order, an empty batch, exact binary64 JSON time transport and
+nine intended identity/link/range/schema/count/protected-directory refusals.
+Five prior one-shot receipts, including budget counts and an outside-range error,
+are byte-identical. The original first-person skeleton's exact node12/controller13
+request refuses its missing transform interpolator through both one-shot and
+prepared batch paths, without a partial result. Frozen sources/executables and
+receipts stay in ignored `local/v3-asset-15`; retail playback remains unverified.

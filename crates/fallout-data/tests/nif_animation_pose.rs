@@ -372,6 +372,239 @@ fn unknown_scene_edges_and_orphan_selected_objects_cannot_certify_ancestry() {
 }
 
 #[test]
+fn prepared_source_reuses_admitted_catalogues_and_matches_one_shot_observations() {
+    let bytes = container(&blocks());
+    let original = bytes.clone();
+    let prepared = pose::PreparedSource::prepare(&bytes, "prepared", Default::default()).unwrap();
+    let usage = prepared.usage();
+    assert_eq!(
+        (
+            usage.animation_key_decodes,
+            usage.scene_decodes,
+            usage.map_constructions,
+            usage.source_sha256_computations
+        ),
+        (1, 1, 1, 1)
+    );
+    for time in [2., 0., 1., 1.] {
+        let sampled = prepared.sample(request(time), Default::default()).unwrap();
+        let one = pose::evaluate(&bytes, "prepared", request(time), Default::default()).unwrap();
+        let mut sampled_json = serde_json::to_value(&sampled).unwrap();
+        let mut one_json = serde_json::to_value(&one).unwrap();
+        // Preparation holds the maps/source scans separately; numeric/source
+        // observations and sampler usage are otherwise the same exact receipt.
+        for field in ["retained_bytes", "work_units"] {
+            sampled_json.as_object_mut().unwrap().remove(field);
+            one_json.as_object_mut().unwrap().remove(field);
+        }
+        assert_eq!(sampled_json, one_json);
+        assert!(sampled.retained_bytes < one.retained_bytes);
+        assert!(sampled.work_units < one.work_units);
+    }
+    assert_eq!(
+        serde_json::to_value(prepared.usage()).unwrap(),
+        serde_json::to_value(usage).unwrap()
+    );
+    assert_eq!(bytes, original);
+}
+
+#[test]
+fn prepared_source_owns_receipts_after_caller_bytes_are_changed_and_dropped() {
+    let mut bytes = container(&blocks());
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let prepared = pose::PreparedSource::prepare(&bytes, "owned", Default::default()).unwrap();
+    bytes.fill(0);
+    drop(bytes);
+    let sampled = prepared.sample(request(1.), Default::default()).unwrap();
+    assert_eq!(sampled.source_sha256, hash);
+    assert_eq!(prepared.source_sha256(), hash);
+    assert_eq!(
+        sampled.local,
+        [[0., -2., 0., 5.], [2., 0., 0., 3.], [0., 0., 2., 6.]]
+    );
+    assert_eq!(
+        sampled.source_world,
+        [[0., -6., 0., 25.], [6., 0., 0., 29.], [0., 0., 6., 48.]]
+    );
+}
+
+#[test]
+fn prepared_admission_and_sample_output_have_separate_exact_ceilings() {
+    let bytes = container(&blocks());
+    let prepared = pose::PreparedSource::prepare(&bytes, "bounds", Default::default()).unwrap();
+    let preparation = Limits {
+        array_bytes: prepared.usage().extra_retained_bytes,
+        work_units: prepared.usage().work_units,
+        ..Default::default()
+    };
+    assert!(pose::PreparedSource::prepare(&bytes, "bounds", preparation).is_ok());
+    for limits in [
+        Limits {
+            array_bytes: preparation.array_bytes - 1,
+            ..preparation
+        },
+        Limits {
+            work_units: preparation.work_units - 1,
+            ..preparation
+        },
+    ] {
+        assert!(pose::PreparedSource::prepare(&bytes, "bounds", limits).is_err());
+    }
+    let sample = prepared.sample(request(1.), Default::default()).unwrap();
+    let exact = pose::SampleLimits {
+        array_bytes: sample.retained_bytes,
+        work_units: sample.work_units,
+        ..Default::default()
+    };
+    assert!(prepared.sample(request(1.), exact).is_ok());
+    for limits in [
+        pose::SampleLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::SampleLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::SampleLimits {
+            ancestry_depth: 1,
+            ..exact
+        },
+    ] {
+        assert!(prepared.sample(request(1.), limits).is_err());
+    }
+}
+
+#[test]
+fn prepared_exact_source_links_and_unsupported_channels_match_one_shot_refusal() {
+    let bytes = container(&blocks());
+    let prepared =
+        pose::PreparedSource::prepare(&bytes, "same refusal", Default::default()).unwrap();
+    for selected in [
+        Request {
+            object: 0,
+            ..request(1.)
+        },
+        Request {
+            controller: 3,
+            ..request(1.)
+        },
+        request(-1.),
+        request(f64::NAN),
+    ] {
+        let one = pose::evaluate(&bytes, "same refusal", selected, Default::default()).unwrap_err();
+        let sampled = prepared.sample(selected, Default::default()).unwrap_err();
+        assert_eq!(one.to_string(), sampled.to_string());
+    }
+    let mut source = blocks();
+    set(&mut source[2].1, 0, 2);
+    let bytes = container(&source);
+    let prepared = pose::PreparedSource::prepare(&bytes, "chain", Default::default()).unwrap();
+    assert_eq!(
+        pose::evaluate(&bytes, "chain", request(1.), Default::default())
+            .unwrap_err()
+            .to_string(),
+        prepared
+            .sample(request(1.), Default::default())
+            .unwrap_err()
+            .to_string()
+    );
+}
+
+#[test]
+fn prepared_batch_preserves_decreasing_repeat_order_and_discards_later_failure() {
+    let bytes = container(&blocks());
+    let prepared = pose::PreparedSource::prepare(&bytes, "batch", Default::default()).unwrap();
+    let selected = [request(2.), request(0.), request(1.), request(1.)];
+    let batch = prepared.sample_many(&selected, Default::default()).unwrap();
+    assert_eq!(
+        batch
+            .samples
+            .iter()
+            .map(|p| p.requested_time_f64_bits)
+            .collect::<Vec<_>>(),
+        [
+            2f64.to_bits(),
+            0f64.to_bits(),
+            1f64.to_bits(),
+            1f64.to_bits()
+        ]
+    );
+    assert_eq!(
+        batch.samples[0].local,
+        [[0., -3., 0., 10.], [3., 0., 0., 4.], [0., 0., 3., 8.]]
+    );
+    assert_eq!(
+        batch.samples[1].source_world,
+        [[0., -3., 0., 10.], [3., 0., 0., 26.], [0., 0., 3., 42.]]
+    );
+    let failed = prepared
+        .sample_many(&[request(0.), request(1.), request(3.)], Default::default())
+        .unwrap_err();
+    assert!(failed.to_string().contains("batch request 2"), "{failed}");
+    assert!(failed.to_string().contains("extrapolate"), "{failed}");
+    assert_eq!(
+        prepared
+            .sample_many(&[], Default::default())
+            .unwrap()
+            .samples
+            .len(),
+        0
+    );
+    assert_eq!(prepared.usage().animation_key_decodes, 1);
+}
+
+#[test]
+fn aggregate_batch_output_traversal_and_sampler_limits_have_exact_ceilings() {
+    let bytes = container(&blocks());
+    let prepared =
+        pose::PreparedSource::prepare(&bytes, "batch bounds", Default::default()).unwrap();
+    let selected = [request(0.), request(1.), request(2.)];
+    let batch = prepared.sample_many(&selected, Default::default()).unwrap();
+    let exact = pose::BatchLimits {
+        samples: 3,
+        array_bytes: batch.retained_bytes,
+        work_units: batch.work_units,
+        sampling: sampling::Limits {
+            validation_work: batch.sample_work.validation_units,
+            sampling_work: batch.sample_work.sampling_units,
+        },
+        ..Default::default()
+    };
+    assert!(prepared.sample_many(&selected, exact).is_ok());
+    for limits in [
+        pose::BatchLimits {
+            samples: 2,
+            ..exact
+        },
+        pose::BatchLimits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        pose::BatchLimits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        pose::BatchLimits {
+            sampling: sampling::Limits {
+                validation_work: exact.sampling.validation_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+        pose::BatchLimits {
+            sampling: sampling::Limits {
+                sampling_work: exact.sampling.sampling_work - 1,
+                ..exact.sampling
+            },
+            ..exact
+        },
+    ] {
+        assert!(prepared.sample_many(&selected, limits).is_err());
+    }
+}
+
+#[test]
 fn rotation_keys_refuse_instead_of_quaternion_normalization_or_angle_guess() {
     let mut blocks = blocks();
     let mut data = Vec::new();

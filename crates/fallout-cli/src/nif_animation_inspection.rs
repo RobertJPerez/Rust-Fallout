@@ -92,6 +92,61 @@ struct MarkerRequest {
     source_end: f64,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PoseBatchRequest {
+    schema_version: u32,
+    expected_sha256: [u8; 32],
+    object: u32,
+    controller: u32,
+    source_times: Vec<f64>,
+}
+
+pub fn inspect_pose_batch(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PoseReport<nif_animation::pose::PoseBatch>> {
+    let request: PoseBatchRequest = serde_json::from_slice(&bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.source_times.len() > 64 {
+        return Err("pose batch requires schema1 and at most 64 explicit times".into());
+    }
+    let bytes = bounded(input, 64 * 1024 * 1024)?;
+    let source = input.display().to_string();
+    let evaluated = if <[u8; 32]>::from(Sha256::digest(&bytes)) != request.expected_sha256 {
+        Err(fallout_data::Error::Unsupported(format!(
+            "{source}: prepared pose source SHA256 differs"
+        )))
+    } else {
+        nif_animation::pose::PreparedSource::prepare(&bytes, &source, Default::default()).and_then(
+            |prepared| {
+                let requests = request
+                    .source_times
+                    .iter()
+                    .map(|&source_time| nif_animation::pose::Request {
+                        object: request.object,
+                        controller: request.controller,
+                        source_time,
+                    })
+                    .collect::<Vec<_>>();
+                prepared.sample_many(&requests, Default::default())
+            },
+        )
+    };
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: "engineering-prepared-source-pose-batch-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 pub fn inspect_markers(
     input: &Path,
     request_path: &Path,

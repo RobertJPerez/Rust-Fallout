@@ -3,6 +3,7 @@ pub mod admission;
 pub mod attachment_boot;
 pub mod condition;
 pub mod copy_probe;
+pub mod event_request;
 pub mod fixture;
 pub mod foreign_copy;
 pub mod local_copy;

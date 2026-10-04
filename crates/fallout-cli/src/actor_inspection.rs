@@ -304,6 +304,8 @@ pub(super) struct Options {
     pub(super) initialization_root: Option<FormKey>,
     pub(super) effect_root: Option<FormKey>,
     pub(super) effect_field: Option<usize>,
+    pub(super) weapon_root: Option<FormKey>,
+    pub(super) ammo_root: Option<FormKey>,
     pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
@@ -333,6 +335,10 @@ pub(super) fn parse_equipment_role(
             }
         }
     })
+}
+
+pub(super) fn parse_boxed_root(raw: &str) -> std::result::Result<Box<FormKey>, String> {
+    parse_root(raw).map(Box::new)
 }
 
 pub(super) fn parse_root(raw: &str) -> std::result::Result<FormKey, String> {
@@ -544,6 +550,15 @@ pub(super) fn inspect(
             Default::default(),
         )?;
         report["actor_effect_inputs"] = json!({"manifest": manifest});
+    }
+    if let Some(root) = &options.weapon_root {
+        let manifest = actors::attack_inputs::request(
+            &mut store,
+            root,
+            options.ammo_root.as_ref(),
+            Default::default(),
+        )?;
+        report["actor_attack_inputs"] = json!({"manifest": manifest});
     }
     if let Some(root) = &options.script_root {
         let scripts =
@@ -843,6 +858,11 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         && report.get("actor_effect_inputs") != oracle.get("actor_effect_inputs")
     {
         return Err("independent actor source comparison differs in actor_effect_inputs".into());
+    }
+    if report.get("actor_attack_inputs").is_some()
+        && report.get("actor_attack_inputs") != oracle.get("actor_attack_inputs")
+    {
+        return Err("independent actor source comparison differs in actor_attack_inputs".into());
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,

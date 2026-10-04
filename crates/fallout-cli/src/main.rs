@@ -234,6 +234,10 @@ enum Command {
         effect_root: Option<identity::FormKey>,
         #[arg(long, requires = "effect_root")]
         effect_field: Option<usize>,
+        #[arg(long, value_parser = actor_inspection::parse_boxed_root)]
+        weapon_root: Option<Box<identity::FormKey>>,
+        #[arg(long, requires = "weapon_root", value_parser = actor_inspection::parse_boxed_root)]
+        ammo_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
         creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },
@@ -951,6 +955,8 @@ fn run(args: Args) -> Result<()> {
             initialization_root,
             effect_root,
             effect_field,
+            weapon_root,
+            ammo_root,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -978,6 +984,8 @@ fn run(args: Args) -> Result<()> {
                     initialization_root,
                     effect_root,
                     effect_field,
+                    weapon_root: weapon_root.map(|key| *key),
+                    ammo_root: ammo_root.map(|key| *key),
                     creature_model_directory,
                 },
             )?;

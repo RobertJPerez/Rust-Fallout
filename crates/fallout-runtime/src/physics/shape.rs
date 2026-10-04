@@ -14,41 +14,97 @@ fn length(v: V) -> f64 {
 
 // FMA recovers the rounding error of the second product before subtraction.
 // This avoids losing the perpendicular offset of a long, nearly axial ray.
-fn difference_of_products(a: f64, b: f64, c: f64, d: f64) -> f64 {
+fn round_bound(v: f64) -> f64 {
+    f64::EPSILON * v.abs() + f64::from_bits(1)
+}
+fn difference_of_products(a: f64, b: f64, c: f64, d: f64) -> (f64, f64) {
     let product = c * d;
     let error = (-c).mul_add(d, product);
-    a.mul_add(b, -product) + error
+    let difference = a.mul_add(b, -product);
+    let result = difference + error;
+    (
+        result,
+        round_bound(difference) + round_bound(error) + round_bound(result),
+    )
 }
-fn precise_cross(a: V, b: V) -> V {
-    [
+fn cross_with_error(a: V, b: V) -> (V, V) {
+    let components = [
         difference_of_products(a[1], b[2], a[2], b[1]),
         difference_of_products(a[2], b[0], a[0], b[2]),
         difference_of_products(a[0], b[1], a[1], b[0]),
-    ]
+    ];
+    (components.map(|v| v.0), components.map(|v| v.1))
+}
+fn precise_cross(a: V, b: V) -> V {
+    cross_with_error(a, b).0
+}
+
+fn sphere_contains(p: V, radius: f64) -> QueryResult<bool> {
+    let distance = length(p);
+    // A one-component norm is exact, including source-axis surface points.
+    if p.iter().filter(|v| **v != 0.).count() <= 1 {
+        return Ok(distance <= radius);
+    }
+    let uncertainty = 8. * f64::EPSILON * distance + f64::from_bits(1);
+    if (distance - radius).abs() <= uncertainty {
+        return Err(QueryError::Invalid(
+            "sphere containment predicate is numerically uncertain",
+        ));
+    }
+    Ok(distance < radius)
 }
 
 fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
     let relative = sub(o, center);
-    if length(relative) <= radius {
+    if sphere_contains(relative, radius)? {
         return Ok(Some(0.));
     }
     let speed = length(d);
     if speed == 0. || !speed.is_finite() {
         return Err(QueryError::Invalid("unrepresentable local ray speed"));
     }
-    let direction = d.map(|v| v / speed);
     // Subtracting squared axial distances in the quadratic discriminant can
     // erase a finite transverse miss. Measure that distance directly instead.
-    let perpendicular = length(precise_cross(relative, direction));
-    let along = -dot(relative, direction);
-    if perpendicular > radius || along <= 0. {
+    // Keep the ORIGINAL direction: normalizing each component changes a skew
+    // distant ray's orientation. Divide its compensated cross norm by speed.
+    let axial = d.iter().filter(|v| **v != 0.).count() == 1;
+    let (perpendicular, uncertainty, along) = if axial {
+        let index = d
+            .iter()
+            .position(|v| *v != 0.)
+            .expect("checked nonzero speed");
+        let mut transverse = relative;
+        transverse[index] = 0.;
+        let distance = length(transverse);
+        let uncertainty = if transverse.iter().filter(|v| **v != 0.).count() <= 1 {
+            0.
+        } else {
+            8. * f64::EPSILON * distance
+        };
+        (distance, uncertainty, -relative[index] * d[index].signum())
+    } else {
+        let (cross, error) = cross_with_error(relative, d);
+        let distance = length(cross) / speed;
+        (
+            distance,
+            length(error) / speed + 8. * f64::EPSILON * distance,
+            -dot(relative, d) / speed,
+        )
+    };
+    if along <= 0. || perpendicular - radius > uncertainty {
         return Ok(None);
+    }
+    if uncertainty > 0. && (perpendicular - radius).abs() <= uncertainty {
+        return Err(QueryError::Invalid(
+            "sphere grazing predicate is numerically uncertain",
+        ));
     }
     let chord = ((radius - perpendicular) * (radius + perpendicular)).sqrt();
     let entry = along - chord;
     // A distant true intersection can still have an unrepresentable surface
     // entry. Refuse it instead of reporting a rounded point inside the solid.
-    if chord > 0. && entry == along {
+    if chord > 0. && (entry == along || (!axial && 64. * f64::EPSILON * length(relative) >= chord))
+    {
         return Err(QueryError::Invalid(
             "ray surface entry exceeds numerical precision",
         ));
@@ -144,6 +200,12 @@ impl Shape {
                 (enter <= exit).then_some(enter)
             }
             Self::Capsule { a, b, radius } => {
+                // Axis projection loses source offsets for long/thin geometry.
+                if 128. * f64::EPSILON * (length(sub(o, a)) + length(sub(b, a))) > radius {
+                    return Err(QueryError::Invalid(
+                        "capsule projection exceeds numerical precision",
+                    ));
+                }
                 if segment_distance2(o, a, b) <= radius * radius {
                     return Ok(Some(0.));
                 }

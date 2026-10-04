@@ -272,10 +272,17 @@ struct SphereRequest {
     radius: f64,
 }
 #[derive(Serialize)]
+struct RayNumericInput {
+    origin_binary64_hex: [String; 3],
+    direction_binary64_hex: [String; 3],
+    max_distance_binary64_hex: String,
+}
+#[derive(Serialize)]
 pub struct QueryReport {
     source_sha256: String,
     request_sha256: String,
     units: fallout_runtime::physics::EngineeringUnits,
+    ray_numeric_input: Option<RayNumericInput>,
     primitive_count: usize,
     ray_hits: Vec<fallout_runtime::physics::Hit>,
     overlap_hits: Vec<fallout_runtime::physics::Hit>,
@@ -323,6 +330,11 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
         source_sha256: format!("{:x}", Sha256::digest(&bytes)),
         request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
         units: request.units,
+        ray_numeric_input: request.ray.map(|r| RayNumericInput {
+            origin_binary64_hex: r.origin.map(|v| format!("{:016x}", v.to_bits())),
+            direction_binary64_hex: r.direction.map(|v| format!("{:016x}", v.to_bits())),
+            max_distance_binary64_hex: format!("{:016x}", r.max_distance.to_bits()),
+        }),
         primitive_count: scene.primitive_count(),
         ray_hits: request
             .ray

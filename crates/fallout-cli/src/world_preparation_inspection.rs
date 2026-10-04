@@ -2012,7 +2012,7 @@ mod tests {
         )
         .unwrap();
         match parsed.command {
-            crate::Command::GridSetSources { grid, .. } => assert_eq!(
+            crate::Command::World(crate::WorldCommand::GridSetSources { grid, .. }) => assert_eq!(
                 parse_grid_set(&grid).unwrap(),
                 [[i32::MIN, i32::MAX], [0, 0]]
             ),

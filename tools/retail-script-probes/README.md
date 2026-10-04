@@ -9,3 +9,8 @@ See [script-measurements.md](../../docs/script-measurements.md) for command,
 schema, limits, negative cases and acceptance boundaries. Coordinator-owned
 `tools/retail-profile` supplies isolated launch/capture receipts. An unavailable
 original or replacement capture must remain an explicit blocked comparison.
+
+`--replacement-copy` produces real engineering own-local observations through
+the existing runtime stage/commit APIs. See
+[vm-copy-probes.md](../../docs/vm-copy-probes.md). This producer writes no
+original expectation and never launches the original engine.

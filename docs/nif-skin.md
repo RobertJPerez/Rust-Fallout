@@ -602,3 +602,96 @@ positions, normals, palettes, source frame and sums agree with the existing
 evaluator on both sources. Earlier authored/original pose receipts and source
 schemas1/2/3 remain byte-identical. Final checks and frozen artifacts stay in
 ignored `local/v3-asset-18`; no measured retail or GPU skinning claim is made.
+
+## Explicit two-source rig mapping
+
+`external::evaluate(skin_bytes, rig_bytes, source, &Request, Limits)` evaluates
+one source geometry against explicit node IDs from a second source. The caller
+supplies both exact whole-source SHA256 values, the skin geometry, rig root,
+one mapping for every skin bone ordinal and an explicit finite, invertible
+root-space affine matrix `X`. Each mapping includes exact expected raw name bytes
+for its selected original skin bone and rig node. Names are checked after ID
+selection, never searched or used to choose a rig. Duplicate raw names at
+different explicit IDs are valid; duplicate ordinals or rig targets refuse.
+Missing names, wrong hashes/types, incomplete mappings, unreachable ancestry,
+cycles and unsupported scene edges return no completed evaluation.
+
+`X` maps rig-root coordinates into the skin source's declared root coordinates.
+Each engineering palette is `S * X * RigBoneToRoot * SkinToBone`: `S` and
+`SkinToBone` come from the original NiSkinData; rig-relative transforms come
+from the selected rig's authored ancestor chain. The selected rig root's own
+local transform is excluded. Geometry-local transforms are excluded from the
+palette. The existing source-world display mapping remains
+`SkinRootWorld * inverse(S)` and is applied once. Invertibility of `X` is validated
+as part of this explicit relationship, although its inverse is unused in forward
+palette construction. Finite shear and reflection are admitted.
+
+Raw influence accumulation reuses the existing private pose helpers in original
+bone/weight order. Duplicates, signed zero and nonunit sums remain intact;
+`RequireUnitSum` validates without changing weights. Normals use the existing
+weighted linear direction contract. This producer does not call a second stored
+pose evaluator, accept caller-provided palettes, select actor/equipment state or
+apply controller sampling. Required rig controllers and original skin root/owner
+controllers are recorded as unapplied observations.
+
+The receipt includes both whole-source hashes, explicit mapping, raw names and
+source-qualified node spans, selected rig root span, unapplied rig root local and
+source-world matrices, each rig-relative and authored bind matrix, palettes,
+deformed source-local positions/normals and the original skin display mapping.
+The nested skin palette's `node` IDs refer to the separately identified rig
+source. Its usage fields repeat the aggregate producer usage, rather than
+describing an independently executed evaluator. The contract is
+`engineering-exact-external-rig-skin-v1`; retail behavior is unverified.
+
+Default bounds admit 128 MiB combined source bytes, 4,096 mappings, one MiB of
+caller name bytes, ancestry depth 1,024, 64 MiB charged extra logical elements and
+sixteen million traversal units. Existing source decoders keep independent caps.
+Before decoding, their declared array/check allowances are admitted together
+under 640 MiB and 64 million units; defaults declare 576 MiB and 48 million units.
+Block-count-bounded scene/index tables remain separately governed by the source
+decoders. Private maps, path walks, controller observations, name copies and
+deformation arrays are charged. Reported storage is logical accounting including
+temporary elements, excluding allocator overhead and spare capacity; it is not
+a process-memory ceiling or playback-speed measurement.
+
+The owned headless consumer is:
+
+```text
+fallout nif-skin SKIN --external-rig RIG --external-skin-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 JSON requires `expected_skin_sha256`, `expected_rig_sha256`
+(32 byte integers each), `geometry`, `rig_root`, `explicit_bone_mapping`,
+`explicit_root_space_mapping` and explicit `weights`. Each mapping contains
+`bone_ordinal`, `rig_node`, `expected_skin_bone_name_bytes` and
+`expected_rig_node_name_bytes`. Weight policies match the compact-influence
+consumer above. Both flags must be supplied together and conflict with other
+source/pose modes. Each input is capped at 64 MiB and request JSON at 64 KiB;
+output must be outside all three input directories. Semantic refusal emits
+`evaluation: null`, exact diagnostic and nonzero exit.
+
+`tools/nif-skin-oracle/check_external.py` constructs independent named skin and
+rig sources with noncommuting transforms, an explicit rig root, duplicate names,
+non-UTF8/NUL bytes and an explicit shear/reflection mapping. It checks literal
+deformations for distinct explicit targets, complete mapping permutation and
+identity/type/name/ancestry/schema/policy/protected-directory refusals.
+
+Final validation passes 63 focused pose/clip/skin integration tests (six new
+external-rig cases), 38 serial CLI tests, affected all-target Clippy with warnings
+denied, formatting and the CLI build. A fresh frozen executable on the corrected
+pose-set base passes two literal second-source deformations, complete mapping
+permutation and twenty intended refusals. Earlier source schemas1/2/3, stored
+pose and full compact-influence receipt remain byte-identical.
+
+For installed childfemaleupperbody source `618eb19e...` and male skeleton
+`c6667dd9...`, a frozen explicit engineering identity `X` produces 25 palettes
+over 1,706 vertices. All 300 palette coefficients agree with independently
+decoded native source transforms under exact-rational forward-error bounds;
+maximum absolute error is `3.581417024842903e-14`. Deliberate coefficient mutation
+is rejected. All 28 required rig controllers remain unapplied. This validates
+source composition; original deformation, actor/child alignment, placement,
+rig parity and retail playback are unmeasured. Raw string capture used an already
+frozen pinned native executable without rebuilding it. Initial test expectation
+failure, original draft proofs and byte-exact preservation/restoration before
+the pose-set correction remain immutable beside fresh validation03, binary02
+and consumer02 evidence in ignored `local/v3-asset-20`.

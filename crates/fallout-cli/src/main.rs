@@ -566,7 +566,32 @@ fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
             pose_weight_tolerance,
             sampled_pose_request,
             influences_request,
+            external_rig,
+            external_skin_request,
         } => {
+            if let Some(request) = external_skin_request {
+                let rig = external_rig.ok_or("external rig input missing")?;
+                if let Some(path) = output {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(Path::new("."))
+                        .canonicalize()?;
+                    for source in [&input, &rig, &request] {
+                        if parent.starts_with(protected_tree(source)?) {
+                            return Err(
+                                "report output must be outside every source directory".into()
+                            );
+                        }
+                    }
+                }
+                let report = nif_skin_inspection::inspect_external_skin(&input, &rig, &request)?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("explicit external source skin pose refused; see report".into());
+                }
+                return Ok(());
+            }
             if let Some(request) = influences_request {
                 if let Some(path) = output {
                     let parent = path

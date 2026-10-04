@@ -232,24 +232,24 @@ pub struct Evaluation {
     pub retail_behavior_verified: bool,
 }
 
-struct Budget<'a> {
-    source: &'a str,
-    storage: usize,
-    work: usize,
+pub(super) struct Budget<'a> {
+    pub(super) source: &'a str,
+    pub(super) storage: usize,
+    pub(super) work: usize,
 }
 
 impl Budget<'_> {
-    fn fail(&self, detail: &str) -> Error {
+    pub(super) fn fail(&self, detail: &str) -> Error {
         Error::Unsupported(format!("{}: source-local skin pose: {detail}", self.source))
     }
-    fn reserve<T>(&mut self, count: usize) -> Result<()> {
+    pub(super) fn reserve<T>(&mut self, count: usize) -> Result<()> {
         self.storage = count
             .checked_mul(std::mem::size_of::<T>())
             .and_then(|n| self.storage.checked_sub(n))
             .ok_or_else(|| self.fail("array storage budget exceeded"))?;
         Ok(())
     }
-    fn charge(&mut self, count: usize) -> Result<()> {
+    pub(super) fn charge(&mut self, count: usize) -> Result<()> {
         self.work = self
             .work
             .checked_sub(count)
@@ -267,7 +267,7 @@ pub(crate) fn compose(parent: Affine, local: Affine) -> Affine {
     })
 }
 
-fn skin_affine(t: &Transform) -> Affine {
+pub(super) fn skin_affine(t: &Transform) -> Affine {
     std::array::from_fn(|r| {
         std::array::from_fn(|c| {
             if c == 3 {
@@ -292,7 +292,7 @@ pub(crate) fn scene_affine(t: nif_scene::Transform) -> Affine {
     })
 }
 
-fn finite(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
+pub(super) fn finite(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
     if matrix.iter().flatten().all(|v| v.is_finite()) {
         Ok(matrix)
     } else {
@@ -300,7 +300,7 @@ fn finite(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
     }
 }
 
-fn inverse(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
+pub(super) fn inverse(matrix: Affine, budget: &Budget<'_>) -> Result<Affine> {
     // General 3x3 inverse: source rotations are not silently orthogonalized.
     let cofactors: [[f64; 3]; 3] = std::array::from_fn(|r| {
         std::array::from_fn(|c| {
@@ -697,7 +697,7 @@ fn evaluate_inner(
     Ok(result)
 }
 
-fn accumulate_weight(
+pub(super) fn accumulate_weight(
     matrix: Affine,
     bits: u32,
     vertex: usize,

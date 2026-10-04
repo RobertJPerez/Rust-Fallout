@@ -488,6 +488,151 @@ fn malformed_source_words_schemas_and_exact_limits_have_precise_refusals() {
 }
 
 #[test]
+fn encoded_source_caller_and_assignment_destination_cannot_be_relabelled() {
+    let prefixed = [
+        vec![0x1c, 0, 1, 0],
+        instruction(0x102f, &[1, 0, b'r', 1, 0]),
+    ]
+    .concat();
+    let (_directory, catalogue, _) = fixture(&event(&prefixed));
+    let sources = sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let mut manifest = manifest(
+        plan,
+        sources.source_cohort_sha256(),
+        Operation::GetItemCount,
+        10,
+    );
+    manifest.steps[0].caller.calling_reference = Some(form(0x100));
+    let original = capture(
+        &manifest,
+        Producer::Original,
+        StepOutput {
+            return_value: Some(Word::binary64(0)),
+            successor_scda_offset: None,
+            writes: vec![],
+            error: None,
+        },
+    );
+    let replacement = capture(
+        &manifest,
+        Producer::Replacement,
+        original.steps[0].output.clone(),
+    );
+    assert_eq!(
+        compare(
+            &sources,
+            &manifest,
+            Some(&original),
+            Some(&replacement),
+            Default::default()
+        )
+        .unwrap()
+        .status,
+        Status::Matched
+    );
+    manifest.steps[0].caller.calling_reference = Some(form(0x14));
+    let wrong_original = capture(
+        &manifest,
+        Producer::Original,
+        original.steps[0].output.clone(),
+    );
+    let wrong_replacement = capture(
+        &manifest,
+        Producer::Replacement,
+        original.steps[0].output.clone(),
+    );
+    assert!(
+        compare(
+            &sources,
+            &manifest,
+            Some(&wrong_original),
+            Some(&wrong_replacement),
+            Default::default()
+        )
+        .is_err(),
+        "An encoded static caller cannot be relabelled as the player"
+    );
+    let (_directory, catalogue, _) = fixture(&event(&copy()));
+    let sources = crate::sources(&catalogue);
+    let plan = sources.get(&definition(&catalogue)).unwrap().plan();
+    let manifest = crate::manifest(
+        plan,
+        sources.source_cohort_sha256(),
+        Operation::Assignment,
+        10,
+    );
+    let mut wrong = output();
+    wrong.writes[0].index = 1;
+    let original = capture(&manifest, Producer::Original, wrong.clone());
+    let replacement = capture(&manifest, Producer::Replacement, wrong);
+    assert!(
+        compare(
+            &sources,
+            &manifest,
+            Some(&original),
+            Some(&replacement),
+            Default::default()
+        )
+        .is_err(),
+        "Both captures naming the wrong local cannot change the encoded destination"
+    );
+}
+
+#[test]
+fn encoded_expression_callers_and_foreign_local_scope_are_not_assumed_from_host_roles() {
+    let expression = [
+        vec![b'r', 1, 0, b'X', 0x2f, 0x10, 5, 0],
+        vec![1, 0, b'r', 1, 0],
+    ]
+    .concat();
+    let payload = [
+        vec![b'f', 2, 0],
+        (expression.len() as u16).to_le_bytes().to_vec(),
+        expression,
+    ]
+    .concat();
+    let (_directory, catalogue, _) = fixture(&event(&instruction(0x15, &payload)));
+    let prepared = sources(&catalogue);
+    let plan = prepared.get(&definition(&catalogue)).unwrap().plan();
+    let mut case = manifest(
+        plan,
+        prepared.source_cohort_sha256(),
+        Operation::GetItemCount,
+        22,
+    );
+    case.steps[0].caller.calling_reference = Some(form(0x100));
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_ok());
+    case.steps[0].caller.calling_reference = None;
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_err());
+    // This source's foreign read needs an independently identified external bank;
+    // schema1 own-local writes cannot pretend that host caller roles provide it.
+    let (_directory, catalogue, _) = fixture(&event(&instruction(
+        0x15,
+        &[b'f', 2, 0, 6, 0, b'r', 1, 0, b'f', 1, 0],
+    )));
+    let prepared = sources(&catalogue);
+    let plan = prepared.get(&definition(&catalogue)).unwrap().plan();
+    let case = manifest(
+        plan,
+        prepared.source_cohort_sha256(),
+        Operation::Assignment,
+        10,
+    );
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_err());
+    let branch = [
+        instruction(0x16, &[0, 0, 6, 0, b'r', 1, 0, b'f', 1, 0]),
+        instruction(0x19, &[]),
+    ]
+    .concat();
+    let (_directory, catalogue, _) = fixture(&event(&branch));
+    let prepared = sources(&catalogue);
+    let plan = prepared.get(&definition(&catalogue)).unwrap().plan();
+    let case = manifest(plan, prepared.source_cohort_sha256(), Operation::Branch, 10);
+    assert!(validate_manifest(&prepared, &case, Default::default()).is_err());
+}
+
+#[test]
 fn actual_engineering_copy_supplies_replacement_bits_via_canonical_commit() {
     let (_directory, catalogue, content) = fixture(&event(&copy()));
     let sources = sources(&catalogue);
@@ -796,4 +941,38 @@ fn cli_import_helper() {
         report["comparison"]["first_difference"]["field"],
         "local_writes"
     );
+    let mut wrong_scope = replacement;
+    wrong_scope.steps[0].output.writes[0].index = 1;
+    let wrong_path = evidence.join("wrong-source-destination.json");
+    fs::write(
+        &wrong_path,
+        serde_json::to_vec_pretty(&wrong_scope).unwrap(),
+    )
+    .unwrap();
+    let report_path = evidence.join("wrong-source-destination-report.json");
+    let output = std::process::Command::new(cli)
+        .args(["script-trace", "--install"])
+        .arg(&install)
+        .arg("--load-order")
+        .arg(evidence.join("order.json"))
+        .arg("--manifest")
+        .arg(evidence.join("manifest.json"))
+        .arg("--profile-receipt")
+        .arg(evidence.join("profile-receipt.txt"))
+        .arg("--original-trace")
+        .arg(evidence.join("original-synthetic.json"))
+        .arg("--replacement-trace")
+        .arg(wrong_path)
+        .arg("--output")
+        .arg(&report_path)
+        .output()
+        .unwrap();
+    fs::write(
+        evidence.join("wrong-source-destination.stderr"),
+        &output.stderr,
+    )
+    .unwrap();
+    assert!(!output.status.success());
+    assert!(!report_path.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("source destination"));
 }

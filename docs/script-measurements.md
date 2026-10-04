@@ -24,6 +24,15 @@ source reference-table argument. Observed successors must name instruction
 headers. These checks establish source
 relationships, not operation semantics.
 
+Encoded native caller prefixes must join their static source form and agree
+with the imported calling-reference role, including expression-token callers.
+Dynamic/unresolved prefixes cannot borrow the host caller as a fallback.
+Schema 1 assignment/conversion observations are limited to a declared own-local
+destination, and every observed local write must name that encoded destination.
+Foreign-local reads and external/global destinations require a separately
+identified bank that this capture schema does not yet provide; their scope is
+refused before comparison.
+
 The schema is `execution::trace::{Manifest,Capture}` version 1. A capture records
 its producer, actual producer executable digest, transport receipt digest,
 instrumentation disclosure, completion state, ordered inputs and observed output.

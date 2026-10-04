@@ -367,6 +367,9 @@ enum Command {
         include_source_owners: bool,
         #[arg(long)]
         include_source_runs: bool,
+        /// Read one explicit engineering query from a canonical snapshot; no condition truth.
+        #[arg(long)]
+        engineering_query_input: Option<PathBuf>,
     },
     /// Hash original compressed record inputs and exact decoded outputs.
     CompressedRecords {
@@ -1105,6 +1108,7 @@ fn run(args: Args) -> Result<()> {
             index_cache,
             include_source_owners,
             include_source_runs,
+            engineering_query_input,
         } => {
             let report = condition_dependency_inspection::inspect(
                 &install,
@@ -1112,6 +1116,7 @@ fn run(args: Args) -> Result<()> {
                 index_cache.as_deref(),
                 include_source_owners,
                 include_source_runs,
+                engineering_query_input.as_deref(),
             )?;
             emit(&report, args.output.as_deref(), &protected_tree(&install)?)?;
             if report["counts"]["source_findings"] != 0

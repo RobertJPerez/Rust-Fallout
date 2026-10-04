@@ -4,16 +4,146 @@ use super::{Result, command_catalogue, inspection_input::Order};
 use fallout_data::{
     condition_census,
     condition_operands::{self, Parameter, Signature, Signatures},
-    plugin, record_metadata,
+    identity::FormKey,
+    loaded_scripts, plugin, record_metadata,
+};
+use fallout_runtime::{
+    execution::condition as condition_query, foreign::Content, identity::ReferenceId,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{io::Write, path::Path};
+use std::{
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 const MAXIMUM_CANDIDATES: usize = 262_144;
 const MAXIMUM_DECODED_BYTES: usize = 512 * 1024 * 1024;
 const MAXIMUM_CONDITIONS: usize = 1_000_000;
 const MAXIMUM_RETAINED_BYTES: usize = 128 * 1024 * 1024;
+const MAXIMUM_QUERY_INPUT_BYTES: usize = 16 * 1024;
+const MAXIMUM_QUERY_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
+const MAXIMUM_QUERY_CONTRIBUTIONS: usize = 65_536;
+
+fn bounded_input(path: &Path, maximum: usize) -> Result<Vec<u8>> {
+    let file = fallout_data::baseline::open_source(path)?;
+    if file.metadata()?.len() > maximum as u64 {
+        return Err("Engineering condition input byte budget exceeded".into());
+    }
+    let mut bytes = Vec::new();
+    file.take(maximum as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > maximum {
+        return Err("Engineering condition input byte budget exceeded".into());
+    }
+    Ok(bytes)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QueryInput {
+    record: FormKey,
+    field_decoded_offset: usize,
+    explicit_subject: u64,
+    snapshot: PathBuf,
+}
+impl QueryInput {
+    fn read(path: &Path) -> Result<Self> {
+        let mut input: Self =
+            serde_json::from_slice(&bounded_input(path, MAXIMUM_QUERY_INPUT_BYTES)?)?;
+        if !input.snapshot.is_absolute() {
+            input.snapshot = path
+                .parent()
+                .ok_or("Condition query input has no parent")?
+                .join(input.snapshot);
+        }
+        Ok(input)
+    }
+}
+
+struct QueryContext {
+    input: QueryInput,
+    subject: ReferenceId,
+    world: fallout_runtime::World<'static>,
+    content: Content,
+    snapshot_sha256: String,
+}
+impl QueryContext {
+    fn load(input: QueryInput, store: &mut fallout_data::store::RecordStore) -> Result<Self> {
+        let source_catalogue = Arc::new(loaded_scripts::Catalogue::load(
+            store,
+            Default::default(),
+            |_, _| Ok(()),
+        )?);
+        let content = Content::load(store, &source_catalogue, 1_000_000)?;
+        let limits = fallout_runtime::Limits {
+            max_snapshot_bytes: MAXIMUM_QUERY_SNAPSHOT_BYTES,
+            ..Default::default()
+        };
+        let bytes = bounded_input(&input.snapshot, limits.max_snapshot_bytes)?;
+        let world = fallout_runtime::World::restore(
+            source_catalogue,
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, limits)?,
+            limits,
+        )?;
+        let subject = ReferenceId(input.explicit_subject.try_into()?);
+        let snapshot_sha256 = format!(
+            "{:x}",
+            Sha256::digest(world.snapshot().encode(limits.max_snapshot_bytes)?)
+        );
+        Ok(Self {
+            input,
+            subject,
+            world,
+            content,
+            snapshot_sha256,
+        })
+    }
+
+    fn observe(
+        &self,
+        record: &condition_operands::PreparedRecord,
+        maximum: usize,
+    ) -> Result<Value> {
+        let request = condition_query::Request::prepare(
+            &self.world,
+            record,
+            self.input.field_decoded_offset,
+        )?;
+        #[derive(serde::Serialize)]
+        struct Reports<'a> {
+            faithful: condition_query::Observation<'a>,
+            engineering: condition_query::Observation<'a>,
+            canonical_snapshot_sha256: &'a str,
+            canonical_state_unchanged: bool,
+        }
+        let reports = Reports {
+            faithful: request.observe(
+                &self.world,
+                &self.content,
+                Some(self.subject),
+                condition_query::Intent::Faithful,
+                MAXIMUM_QUERY_CONTRIBUTIONS,
+            )?,
+            engineering: request.observe(
+                &self.world,
+                &self.content,
+                Some(self.subject),
+                condition_query::Intent::EngineeringObservation,
+                MAXIMUM_QUERY_CONTRIBUTIONS,
+            )?,
+            canonical_snapshot_sha256: &self.snapshot_sha256,
+            canonical_state_unchanged: true,
+        };
+        let after = self.world.snapshot().encode(MAXIMUM_QUERY_SNAPSHOT_BYTES)?;
+        if format!("{:x}", Sha256::digest(after)) != self.snapshot_sha256 {
+            return Err("Condition observation changed canonical state".into());
+        }
+        let mut admission = Admission { bytes: 0, maximum };
+        serde_json::to_writer(&mut admission, &reports)?;
+        Ok(serde_json::to_value(reports)?)
+    }
+}
 
 fn bounded_candidates<T>(candidates: impl Iterator<Item = T>, maximum: usize) -> Result<Vec<T>> {
     let mut admitted = Vec::new();
@@ -140,6 +270,7 @@ pub(super) fn inspect(
     cache: Option<&Path>,
     include_source_owners: bool,
     include_source_runs: bool,
+    engineering_query_input: Option<&Path>,
 ) -> Result<Value> {
     let include_source_owners = include_source_owners || include_source_runs;
     let order = Order::read(order_path)?;
@@ -167,6 +298,12 @@ pub(super) fn inspect(
             )
         })
         .collect();
+    let query = engineering_query_input
+        .map(QueryInput::read)
+        .transpose()?
+        .map(|input| QueryContext::load(input, &mut store))
+        .transpose()?;
+    let mut query_report = None;
     let candidates = bounded_candidates(
         store
             .winning_definitions()
@@ -222,6 +359,11 @@ pub(super) fn inspect(
         };
         let prepared = admission.conditions();
         let identity = prepared.identity();
+        if let Some(query) = &query
+            && identity.key == query.input.record
+        {
+            query_report = Some(query.observe(prepared, MAXIMUM_RETAINED_BYTES - retained)?);
+        }
         number(
             &mut counts,
             "decoded_candidate_bytes",
@@ -388,6 +530,19 @@ pub(super) fn inspect(
     if include_source_runs {
         report["schema_version"] = 3.into();
         report["source_run_counts"] = run_counts;
+    }
+    if query.is_some() {
+        let query_report = query_report
+            .ok_or("Engineering condition record has no nondeleted admitted candidate")?;
+        let mut admission = Admission {
+            bytes: 0,
+            maximum: MAXIMUM_RETAINED_BYTES,
+        };
+        serde_json::to_writer(&mut admission, &report)?;
+        admission.write_all(b",\"engineering_query\":")?;
+        serde_json::to_writer(&mut admission, &query_report)?;
+        report["schema_version"] = 4.into();
+        report["engineering_query"] = query_report;
     }
     Ok(report)
 }

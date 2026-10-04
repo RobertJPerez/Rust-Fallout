@@ -1,6 +1,7 @@
 //! One bounded cell residency owner over sealed source plans and ResourceJobs.
 //! Source bytes, GPU resources, collision and persistent existence have separate
 //! owners. A decoded BSA member never implies simulation or render readiness.
+mod prefetch;
 mod set;
 mod terrain;
 #[cfg(test)]
@@ -17,6 +18,7 @@ use crate::{
         self, Artifact, Generation, JobError, JobHandle, JobResult, JobToken, ResourceJobs,
     },
 };
+pub use prefetch::{DoorPrefetchLimits, DoorPrefetchSnapshot, DoorPrefetchSources, DoorPrefetcher};
 use serde::Serialize;
 pub use set::{
     Admission, CellResidencySet, SetLimits, SetSnapshot, SetUsage, SlotSnapshot, SlotState,

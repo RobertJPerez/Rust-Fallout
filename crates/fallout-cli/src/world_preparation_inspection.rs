@@ -20,7 +20,7 @@ use fallout_data::{
         preparation::CellModelPlan,
         regions::CellRegionSources,
         residency::{
-            Admission, CellResidency, CellResidencySet, Snapshot, Stage,
+            Admission, CellResidency, CellResidencySet, DoorPrefetcher, Snapshot, Stage,
             TerrainState, TexturePlan, TextureState,
         },
         water::CellWaterSources,
@@ -988,29 +988,135 @@ pub(super) fn door_residency(
     let deadline = source_deadline(input.source.source_timeout_ms)?;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, index_cache)?;
-    let sources = DoorDestination::load(
+    let destination = DoorDestination::load(
         &mut store,
         &input.source.cell,
         &input.door,
         Default::default(),
     )?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "door_destination":destination.metadata(),"door_source_graph":destination.graph(),
+        "source_error":null,"cell_models":null,"cell_textures":null,"model_payloads":[],
+        "texture_payloads":[],"residency":null,"door_prefetch":null,"captured_sources_available":false,
+        "destination_applied":false,"current_cell_changed":false,
+        "lookup_precedence_verified":false,"runtime_ready":false,"retail_parity_accepted":false,
+        "scope":"Exact source XTEL destination model/texture lease, cancellation and retry; cyclic destinations remain unsupported"});
     let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
-    let mut report = match sources.prepare_cell(&mut store, assets.mounts(), Default::default()) {
-        Ok(plan) => consume_plan(install, resource_cache, deadline, plan, assets.mounts())?,
-        Err(error) => json!({"schema_version":1,"profile":"nv-original",
-            "source_error":error.to_string(),"cell_models":null,"cell_textures":null,
-            "texture_payloads":[],"residency":null,"captured_sources_available":false,
-            "lookup_precedence_verified":false,"runtime_ready":false,"retail_parity_accepted":false}),
-    };
+    let mut owner = DoorPrefetcher::new(install, resource_cache, Default::default())?;
+    let consumed = (|| -> Result<()> {
+        let ticket = owner.request(&mut store, destination, assets.mounts(), Default::default())?;
+        let lease = drive_prefetch(&mut owner, &ticket, assets.mounts(), deadline)?;
+        report["cell_models"] = serde_json::to_value(lease.models()?.plan()?.receipt())?;
+        report["cell_textures"] = serde_json::to_value(lease.texture_receipt()?)?;
+        let payloads = prefetch_payloads(&lease)?;
+        report["model_payloads"] = payloads["models"].clone();
+        report["texture_payloads"] = payloads["textures"].clone();
+        let snapshot = owner.snapshot();
+        report["residency"] = serde_json::to_value(&snapshot.residency)?;
+        report["door_prefetch"] = serde_json::to_value(&snapshot)?;
+        owner.cancel()?;
+        report["door_prefetch_after_cancel"] = serde_json::to_value(owner.poll()?)?;
+        report["retained_source_lifetime"] = json!({"old_ticket_rejected":ticket.check().is_err(),
+            "old_owner_access_rejected":owner.sources(&ticket).is_err(),
+            "borrowed_destination_access_rejected":lease.destination().is_err(),
+            "borrowed_model_access_rejected":lease.models().is_err(),
+            "borrowed_texture_access_rejected":lease.texture(0).is_err()});
+        drop(lease);
+        let start = Instant::now();
+        loop {
+            let snapshot = owner.poll()?;
+            if snapshot.residency.stage == Stage::Unrequested {
+                report["door_prefetch_after_release"] = serde_json::to_value(snapshot)?;
+                break;
+            }
+            if start.elapsed() >= deadline {
+                return Err("cancelled door destination source pins did not drain".into());
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        let retry_destination = DoorDestination::load(
+            &mut store,
+            &input.source.cell,
+            &input.door,
+            Default::default(),
+        )?;
+        let retry_ticket = owner.request(
+            &mut store,
+            retry_destination,
+            assets.mounts(),
+            Default::default(),
+        )?;
+        let retry_lease = drive_prefetch(&mut owner, &retry_ticket, assets.mounts(), deadline)?;
+        let retry = prefetch_payloads(&retry_lease)?;
+        if retry != payloads || retry_ticket.generation() <= ticket.generation() {
+            return Err(
+                "door destination retry source bytes or generation differ from admitted request"
+                    .into(),
+            );
+        }
+        report["retry_payloads"] = retry;
+        report["door_prefetch_retry"] = serde_json::to_value(owner.snapshot())?;
+        report["captured_sources_available"] = json!(true);
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+        owner.cancel()?;
+    }
     provenance(&mut report, &order, &mut store)?;
-    report["door_destination"] = serde_json::to_value(sources.metadata())?;
-    report["door_source_graph"] = serde_json::to_value(sources.graph())?;
-    report["destination_applied"] = json!(false);
-    report["current_cell_changed"] = json!(false);
-    report["scope"] = json!(
-        "Source-selected XTEL destination CELL model/texture jobs; no movement, activation, GPU, physics or behavior admission"
-    );
     Ok(report)
+}
+fn drive_prefetch(
+    owner: &mut DoorPrefetcher,
+    ticket: &fallout_data::world::residency::Ticket,
+    mounts: &MountIndex,
+    deadline: Duration,
+) -> Result<std::sync::Arc<fallout_data::world::residency::DoorPrefetchSources>> {
+    let start = Instant::now();
+    loop {
+        let snapshot = owner.poll()?;
+        if snapshot.residency.stage == Stage::Decoded {
+            break;
+        }
+        if start.elapsed() >= deadline {
+            owner.cancel()?;
+            return Err("door model source deadline exceeded".into());
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    owner.prepare_textures(ticket, mounts, Default::default())?;
+    let start = Instant::now();
+    loop {
+        if owner.poll()?.source_lease_available {
+            return Ok(owner.sources(ticket)?);
+        }
+        if start.elapsed() >= deadline {
+            owner.cancel()?;
+            return Err("door texture source deadline exceeded".into());
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+fn prefetch_payloads(lease: &fallout_data::world::residency::DoorPrefetchSources) -> Result<Value> {
+    let model = lease.models()?;
+    let model_receipt = model.plan()?;
+    let mut models = Vec::new();
+    let mut textures = Vec::new();
+    for (request, row) in model_receipt.receipt().requests.iter().enumerate() {
+        let bytes = model.model(request)?;
+        if bytes.len() != row.decoded_bytes {
+            return Err("door model extent differs from source request".into());
+        }
+        models.push(json!({"request":request,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(bytes))}));
+    }
+    for (request, row) in lease.texture_receipt()?.requests.iter().enumerate() {
+        let bytes = lease.texture(request)?;
+        if bytes.len() != row.decoded_bytes {
+            return Err("door texture extent differs from source request".into());
+        }
+        textures.push(json!({"request":request,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(bytes))}));
+    }
+    Ok(json!({"models":models,"textures":textures}))
 }
 
 fn source_deadline(milliseconds: u64) -> Result<Duration> {
@@ -3510,6 +3616,9 @@ mod tests {
         }
     }
     fn door_fixture(root: &Path, target: u32) {
+        door_fixture_with_cycle(root, target, false);
+    }
+    fn door_fixture_with_cycle(root: &Path, target: u32, cycle: bool) {
         cell_fixture(root, b"m.nif", b"t.dds");
         let group = |cell: u32, kind: i32, body: &[u8]| {
             [
@@ -3533,15 +3642,19 @@ mod tests {
                 &[
                     field(b"NAME", &0x401_u32.to_le_bytes()),
                     field(b"DATA", &[0; 24]),
-                    field(
-                        b"XTEL",
-                        &[
-                            teleport.to_le_bytes().as_slice(),
-                            &pose,
-                            &7_u32.to_le_bytes(),
-                        ]
-                        .concat(),
-                    ),
+                    if teleport == 0 {
+                        Vec::new()
+                    } else {
+                        field(
+                            b"XTEL",
+                            &[
+                                teleport.to_le_bytes().as_slice(),
+                                &pose,
+                                &7_u32.to_le_bytes(),
+                            ]
+                            .concat(),
+                        )
+                    },
                 ]
                 .concat(),
             )
@@ -3558,7 +3671,11 @@ mod tests {
         bytes.extend(group(
             0x201,
             6,
-            &group(0x201, 9, &reference(0x311, 0x310, 99.0)),
+            &group(
+                0x201,
+                9,
+                &reference(0x311, if cycle { 0x310 } else { 0 }, 99.0),
+            ),
         ));
         fs::write(path, bytes).unwrap();
     }
@@ -3572,6 +3689,7 @@ mod tests {
     fn cli_door_destination_prepares_exact_target_sources_without_moving_current_cell() {
         let directory = directory();
         door_fixture(&directory, 0x311);
+        println!("WORLD_PREFETCH_FIXTURE={}", directory.display());
         let source_before = Sha256::digest(fs::read(directory.join("Data/Base.esm")).unwrap());
         let report = door_residency(
             &directory,
@@ -3616,6 +3734,25 @@ mod tests {
         assert_eq!(report["destination_applied"], false);
         assert_eq!(report["current_cell_changed"], false);
         assert_eq!(report["runtime_ready"], false);
+        assert_eq!(
+            report["retained_source_lifetime"]["old_ticket_rejected"],
+            true
+        );
+        assert_eq!(report["door_prefetch_after_cancel"]["retained_requests"], 1);
+        assert_eq!(
+            report["door_prefetch_after_release"]["retained_requests"],
+            0
+        );
+        assert_eq!(
+            report["door_prefetch_after_release"]["residency"]["outstanding"],
+            0
+        );
+        assert!(
+            report["door_prefetch_retry"]["residency"]["generation"]
+                .as_u64()
+                .unwrap()
+                > report["residency"]["generation"].as_u64().unwrap()
+        );
         assert_eq!(
             Sha256::digest(fs::read(directory.join("Data/Base.esm")).unwrap()),
             source_before
@@ -4155,6 +4292,20 @@ mod tests {
             }
         ));
     }
+    #[test]
+    fn cli_cyclic_door_records_source_cycle_without_a_successful_destination_lease() {
+        let root = directory();
+        door_fixture_with_cycle(&root, 0x311, true);
+        println!("WORLD_CYCLIC_PREFETCH_FIXTURE={}", root.display());
+        let report =
+            door_residency(&root, &root.join("order.json"), None, None, door_input()).unwrap();
+        assert!(report["door_destination"]["source_cycle_component"].is_number());
+        assert_eq!(report["captured_sources_available"], false);
+        assert!(report["source_error"].is_string());
+        assert!(report["residency"].is_null());
+        assert!(report["cell_models"].is_null());
+    }
+
     fn grid_set_input(grids: Vec<[i32; 2]>) -> GridSetInput {
         GridSetInput {
             world: crate::parse_cell_key("Base.esm:100").unwrap(),

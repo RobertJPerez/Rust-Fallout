@@ -44,9 +44,11 @@ cell, activate a destination, execute an object script, evaluate locks/enablemen
 or mutate canonical state. `runtime_ready` stays false. Original activation,
 orientation conventions, unit measurements and faithful traversal remain open.
 
-The executable consumer uses the same model/texture polling path as
-`cell-residency-sources`, with one protected ordered store retained through source
-selection and destination planning:
+The executable consumer uses `DoorPrefetcher`, with one protected ordered store
+retained through source selection, complete model/texture jobs, cancellation,
+actual pin drain and retry. See [the adapter's scope and limits](world-door-sources.md).
+The adapter refuses cyclic destinations while this source producer preserves
+their diagnostic graph components:
 
 ```powershell
 fallout --output NEW_LOCAL_REPORT.json door-residency-sources --install INSTALL --load-order ORDER.json --cell SOURCE_PLUGIN:SOURCE_CELL_HEX --door SOURCE_PLUGIN:DOOR_REF_HEX

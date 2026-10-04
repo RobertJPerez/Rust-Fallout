@@ -546,7 +546,33 @@
         "ASSET02 binds one external clip to a skeleton, not a skin to a rig. ASSET13 verifies several geometries in a shared source binding; this exact two-source explicit mapping is new. ASSET05 concerns attachment behavior across pose changes, not stored-local external skin palette construction."
       ],
       "first_consumer": "Owned skin CLI accepts skin NIF, rig NIF and an explicit bounded mapping request and emits a stored-local engineering palette/deformed geometry. No actor/gender/socket choice is made by the asset producer."
+    },
+    {
+      "id": "REFERENCE-SAVE-HOST",
+      "producer": "runtime",
+      "consumers": [
+        "presentation"
+      ],
+      "task": "V3-VIEW-04",
+      "reviewed_dependencies": {
+        "reference_state": {
+          "original": "55935d3a963559c777fda6699935c689555f21db",
+          "published": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9"
+        },
+        "save_status": {
+          "original": "aa02f60bd3f9a9266ca1bc0cbe10017ec996eedc",
+          "published": "aa02f60bd3f9a9266ca1bc0cbe10017ec996eedc"
+        },
+        "combined_current_source": "e8799b0061328068eb0bc08795ca62ecfa7d5322"
+      },
+      "invariants": [
+        "Restore explicit current project-native source-bound state through existing runtime APIs; retain canonical identity/cohort/revision. No inferred original save, player boot or default value.",
+        "Presentation observes immutable reference snapshots and transforms exactly once through approved source/view coordinates; render entity IDs do not become persistent authority.",
+        "Use existing SaveStatus/SaveTicket publication receipt and source-validated cold restore. Pending or joined writer is not success; terminal failure stays visible.",
+        "Existing internal runtime path dependency is preapproved only as stated in presentation assignment. External dependencies and changed persistent semantics remain coordinator-owned."
+      ],
+      "first_consumer": "Actual explicit host render/input/Continue surface for an authored canonical reference and project-native save; unload/cold restart preserves source-defined state and reports real completed or failed publication."
     }
   ],
-  "updated_at": "2026-10-04T05:53:09.094544+00:00"
+  "updated_at": "2026-10-04T06:12:26.094578+00:00"
 }

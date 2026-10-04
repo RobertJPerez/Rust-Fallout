@@ -1735,15 +1735,24 @@
       },
       {
         "id": "V3-VIEW-04",
-        "state": "blocked",
+        "state": "ready",
         "title": "Display canonical reference snapshots and save status",
-        "depends_on": [
-          "V3-STATE-02",
-          "V3-STATE-03"
-        ],
+        "depends_on": [],
         "consumer": "STATE02/03 adapters -> actual host render/input/Continue surface.",
         "acceptance": "Rendering never mutates canonical storage, stable identity across unload; completed/failed save truthful and source-defined view state after cold restart.",
-        "fallback_task_id": "V3-VIEW-01"
+        "fallback_task_id": "V3-VIEW-01",
+        "reviewed_dependencies": {
+          "reference_state": {
+            "original": "55935d3a963559c777fda6699935c689555f21db",
+            "published": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9"
+          },
+          "save_status": {
+            "original": "aa02f60bd3f9a9266ca1bc0cbe10017ec996eedc",
+            "published": "aa02f60bd3f9a9266ca1bc0cbe10017ec996eedc"
+          },
+          "combined_current_source": "e8799b0061328068eb0bc08795ca62ecfa7d5322"
+        },
+        "scope_note": "Reviewed canonical-reference and SaveStatus producers already exist on main. Original gameplay acceptance stays open; build the explicit source-bound engineering host consumer now. STATE15 paging is optional, not a gate. No guessed initial references or values."
       },
       {
         "id": "V3-VIEW-05",
@@ -2010,7 +2019,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T05:53:09.094544+00:00",
+  "updated_at": "2026-10-04T06:12:26.094578+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

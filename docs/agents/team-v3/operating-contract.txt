@@ -32,6 +32,14 @@ Append outbox JSON lines with sequence, generation, run_id, lane, session_uuid,
 timestamp, type, task_id and message. Do not rewrite history. Coordinator alone
 writes assignments, board and global control. Separate chats communicate through
 these files; do not assume an in-memory message reaches another VS Code session.
+A handoff completes a tested slice, never the continuous authorized Goal. Publish
+the receipt in your outbox, then immediately select the next ready or independent
+fallback task. Do not set Goal complete/paused or status stopped after a handoff.
+If the session ends a normal turn, leave its Goal active for automatic continuation;
+never require Robert to acknowledge the result before starting the next task.
+Blocked acceptance for one feature is not a blocked lane while independent useful
+work remains. Helping the coordinator with an assigned scoped review/proof is
+also useful continuing work. Service/budget/interruption limits remain real.
 No stale lease expires just because it is old. Verify its writer stopped, archive
 it with receipt, then allow a new claimant. Do not create duplicate lane sessions.
 
@@ -50,6 +58,16 @@ At four unmerged handoffs, prioritize fixes and review of that stack and request
 integration priority. Keep one coding task and at most one parked validation task.
 Use source/fixture/consumer work while a build is busy; no untested feature pile.
 Real exhaustion is reported honestly rather than inventing work to consume credit.
+
+Coordinator queue maintenance: at every handoff, count independent ready work
+separately from blocked acceptance. Replenish before a lane drops below six ready
+tasks, aiming for twelve. Keep tested partial producers usable without claiming
+their still-open gameplay acceptance is complete. Resolve dependency decisions
+at the boundary rather than withholding an entire batch for checkpoint wording.
+Robert authorizes redirecting a lane toward a demonstrated critical-path gap.
+Transfer writing ownership only at a clean preserved handoff, update assignment
+and ownership records, and notify both owners before the new writer edits. Parallel
+read-only review can help another lane immediately; it never takes its write lease.
 
 OWNERSHIP AND INTERFACES
 ownership.json is binding; unlisted paths are coordinator-owned pending a clear

@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "revision": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9",
+  "scope": "Scoped engineering checks and full-cohort CLI consumer; no original gameplay acceptance",
+  "rust_passing_results": 392,
+  "ignored_helpers": 11,
+  "commands": [
+    {
+      "name": "data-consumers",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "--jobs",
+        "1",
+        "--test",
+        "actors",
+        "--test",
+        "actors_associations",
+        "--test",
+        "actors_classes",
+        "--test",
+        "actors_dependencies",
+        "--test",
+        "actors_factions",
+        "--test",
+        "actors_package_dependencies",
+        "--test",
+        "actors_packages",
+        "--test",
+        "actors_placements",
+        "--test",
+        "actors_races",
+        "--test",
+        "nif_skin",
+        "--test",
+        "nif_skin_binding",
+        "--test",
+        "nif_skin_partition",
+        "--test",
+        "nif_skin_pose"
+      ],
+      "exit_code": 0,
+      "log_sha256": "5638b400e99041122879e456414830cb93d60abd527cb62208634be0b085b1d5"
+    },
+    {
+      "name": "residency",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "--lib",
+        "world::residency",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "64e125182984b9630fe3334dae8bf577faea73414da9f998667574b8c68cfe30"
+    },
+    {
+      "name": "source-lease-doctest",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "--doc",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "8fbbdff7f45c106b5a5d80aa3ac1c0c0b46284edd38a5a470f614f02b22b73b5"
+    },
+    {
+      "name": "runtime",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-runtime",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "7678926fc0a548c8c0f1d4e10a9f3003110e4d3b9d0ca0dbfdfa681ce620bb84"
+    },
+    {
+      "name": "cli",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "test",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "--all-targets",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "d91e2d222d94b834c6cdbe9d026067f02ca241cba32216b5e23fac96796e3f71"
+    },
+    {
+      "name": "clippy",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "clippy",
+        "--locked",
+        "-p",
+        "fallout-data",
+        "-p",
+        "fallout-runtime",
+        "-p",
+        "fallout-cli",
+        "--all-targets",
+        "--jobs",
+        "1",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e0d84ec89857759804bb0925f73f5ba13c3e6e6eb316f29e2fa533ed58072e99"
+    },
+    {
+      "name": "format",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "cli-build",
+      "arguments": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "G:\\Rust-Fallout\\tools\\cargo.ps1",
+        "build",
+        "--locked",
+        "-p",
+        "fallout-cli",
+        "--bin",
+        "fallout",
+        "--jobs",
+        "1"
+      ],
+      "exit_code": 0,
+      "log_sha256": "c6fbd9b4f606ef7ba87227f242e8d0655991c14aaa0fd43bbc4a11d597536382"
+    },
+    {
+      "name": "exported-cohort-cli",
+      "arguments": [
+        "py",
+        "-3",
+        "G:\\Rust-Fallout-worktrees\\integration\\tools\\integration_request_check.py",
+        "--binary",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-03\\producer\\fallout.exe",
+        "--authored-input",
+        "G:\\Rust-Fallout-worktrees\\v3-scripts\\local\\v3-vm-01-073a3414\\cli-smoke-01",
+        "--output",
+        "G:\\Rust-Fallout-worktrees\\integration\\local\\team-v3-combined-03\\cohort-consumer"
+      ],
+      "exit_code": 0,
+      "log_sha256": "57c2c3ca31fea800c12bfa8b2945c143c7987f3a8ece1c923eb0f47619ed99cc"
+    }
+  ],
+  "receipt_sha256": "6562479fe46ba4bf9403767ae81141c4fa90556dcb1ab84e4ecc0d4ed7a4497d",
+  "producer_binary_sha256": "d1fe59ee7fa43d5040419eb77adeb0483017ff92853ef6473c274c634f6f73cd",
+  "actual_cohort_consumer_receipt_sha256": "6381b20758ff34711545317696d597dc5c0c70ba6321d7b8b7b9f18fe41b4c55",
+  "actual_cohort_cases": [
+    "full cohort reaches exact authored unsupported-assignment finding at SCDA10",
+    "legacy and altered cohorts refuse before producing any report"
+  ],
+  "original_to_integrated": {
+    "6ee939236acca69b2465dad2fe281f24f9ddb28f": "c73662f524b72f0c084792f32c1d9c063feb9232",
+    "9f513993a548f32d342731828d5b64f83f5bd803": "e12259615d0798b86cce417c815b624b34adb612",
+    "3c7d128782ca333fae7ac11624c77c41153be170": "22eac95337db9b31088cd5020394c249b9af5e0c",
+    "f0c1a0fd88da17971939a230bfd14a184e18e53f": "62d5a7470dbdb598d31d4b956f11fde690e5c49c",
+    "55935d3a963559c777fda6699935c689555f21db": "bf14a0f6a9a4aea5a131c064a406e88a79c16ed9"
+  },
+  "shared_corrections": [
+    "Distinct full snapshot cohort export preserves legacy winning-definition digest",
+    "Actual frozen CLI requests exercise accepted identity and atomic mismatches"
+  ],
+  "limitations": [
+    "Skin palette/array engineering evaluation is not actor playback or full independent deformation parity.",
+    "Reference pose and explicit enable state do not infer enable-parent behavior or absent source defaults.",
+    "Source-root admission and trace agreement do not admit faithful execution.",
+    "Presentation focus correction and physics numerical correction remain separate held handoffs.",
+    "Checkpoint45 remains the latest verified checkpoint; no original gameplay scenario accepted."
+  ]
+}

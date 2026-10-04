@@ -1156,5 +1156,12 @@
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
   "updated_at": "2026-10-04T04:17:39.029034+00:00",
-  "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices."
+  "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
+  "queue_maintenance": {
+    "refill_when_independent_ready_below": 6,
+    "target_independent_ready_tasks": 12,
+    "review_at": "Every tested handoff and coordinator task boundary",
+    "blocked_tasks_do_not_count_as_ready": true,
+    "redirect_authorization": "Robert explicitly authorized coordinator redirection on2026-10-04; transfer write ownership only after clean handoff, preserved drafts and notice to both owners."
+  }
 }

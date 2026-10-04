@@ -355,3 +355,13 @@ a new checkpoint or gameplay acceptance. The original-profile capture succeeded
 with equal before/after installation and save content fingerprints, but original
 process isolation and runtime measurement remain unavailable. See the
 [capture scope](docs/integration/team-v3-profile-capture-01.json).
+
+The next reviewed development batch adds source-selected actor render roles,
+source-local skin evaluation, persistent reference pose/enable state with explicit
+legacy imports, and bounded source-root execution admission. Scoped consumer
+checks pass 392 Rust results (11 ignored helpers), affected-package
+Clippy and formatting. A frozen CLI exercises the exported full source cohort
+and atomic rejection of legacy/altered identities. See the exact
+[development receipt](docs/integration/team-v3-development-03.json).
+Presentation input and physics corrections remain separate; checkpoint45 and
+original gameplay acceptance are unchanged.

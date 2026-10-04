@@ -9,6 +9,16 @@ worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
+[Development batch 09](docs/integration/team-v3-development-09.json) passed 1,339
+data/runtime/CLI/preview test results, Clippy, formatting and executable builds;
+45 helpers remained ignored. Forty reviewed maps from batches09–12 are included.
+The [explicit route-boot command](docs/route-boot.md) passed 42 authored CLI cases:
+four successful publications, one preserved publication after stdout failure,
+and 37 intended refusals. Complete native bytes and canonical snapshots were
+compared. The collision fixture correction was already published in batch08.
+Boot does not prepare model assets or establish original activation/gameplay.
+Deadline expiry, two report digests, and power-loss durability remain unaccepted.
+Later integration work stays outside this frozen source. Checkpoint45 is unchanged.
 [Development batch 08](docs/integration/team-v3-development-08.json) passed 1,131
 data/runtime/CLI/preview test results, Clippy, formatting and executable builds.
 Twelve prepared-pose CLI calls and 22 linked-pose/raw-skin CLI calls passed their

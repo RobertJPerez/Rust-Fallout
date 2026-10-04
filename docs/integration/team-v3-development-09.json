@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "revision": "36c60f309027d1a653e7fd901bc5d5a749d24d78",
+  "status": "reviewed_development_batch",
+  "scope": "Reviewed source preparation, ownership and cold state consumers; explicit inventory/quest initialization into a fresh project-native repository.",
+  "source_manifest_sha256": "97ad435a0e0e614c993f983eedc40b7e8f0f514578d256493c682f9eb1b20922",
+  "proved_source_files": 1054,
+  "rust_passing_results": 1339,
+  "ignored_helpers": 45,
+  "rust_result_lines": 125,
+  "commands": [
+    {
+      "name": "rust",
+      "exit_code": 0,
+      "log_sha256": "c7b0ddfcfcd39a4cdd89fc3d17c431e2089a6b4922717c769cbc3b76396fd096"
+    },
+    {
+      "name": "clippy",
+      "exit_code": 0,
+      "log_sha256": "1bb5ae13e4b984f41bcbadc7a914cd2d72cc73b325c0a373c3315ec99488b640"
+    },
+    {
+      "name": "format",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer-build",
+      "exit_code": 0,
+      "log_sha256": "bb36382f9a6f77e9a091c64821a0f4c8d821f9ba9abf8c98671274d35b96ae6c"
+    }
+  ],
+  "combined_receipt_sha256": "8d467cb75090dd0b69fdf914dfc11f82e8f2c85afc9e7c442ce2f4bcabf013d9",
+  "freeze_receipt_sha256": "fb599673d745cac62e8db7cad573018819427f2bf71b1e5633964e50983ced49",
+  "route_boot_acceptance_receipt_sha256": "a16adc156ca2aa9e0c5f7636388e87e3f90043919b8eebd1e83fb30f1848ad15",
+  "route_boot_wrapper_receipt_sha256": "45e4ff9218662c42fc7b28261fed604f64abacb32835780055756c62d7ebc383",
+  "producer_binary": {
+    "bytes": 22146560,
+    "sha256": "9594a05552200a45d7baf9204bc28b266e0ea84d480c986501b900dd05efd3cc"
+  },
+  "route_boot_consumer": {
+    "command": "fallout route-boot",
+    "cases": 42,
+    "successful_publications": 4,
+    "preserved_publication_after_stdout_failure": 1,
+    "intended_prepublication_refusals": 37,
+    "whole_native_and_canonical_snapshots_compared": true,
+    "model_assets_prepared": false,
+    "independently_unaccepted_digest_fields": [
+      "actor source_definition_sha256",
+      "prepared_decoder_sha256"
+    ],
+    "deadline_expiry_proved": false,
+    "power_loss_durability_proved": false
+  },
+  "commit_map": [
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-20",
+      "original": "1855df8b407b1ecd5fa36b2350efe730bb692ae3",
+      "integrated": "f1f40cbb669e9138ff860f43c1804fd0b8d3e023"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-13",
+      "original": "c42a4f6bb558c8da1a05c03bccb7ce31547b03c3",
+      "integrated": "1078de65e6bac15a607e184b328c4c074f24a315"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-20-correction",
+      "original": "9702df5f3ace989b8274128d4d0c9c3fbcac9fd0",
+      "integrated": "0dbb3e0b0c2f274a02e2b880c4ac688bd33e9309"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-21",
+      "original": "6d3fe1d6f9f9022d9bf53d9ab7d35a48dbe41f1b",
+      "integrated": "2da6ff233c0edbce6abea516262e4475d59b339d"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-20A",
+      "original": "e5dc2b8df3dcc4b6099cd887e6fa065ccd2874e1",
+      "integrated": "561bcf46c889bd5c9793d3ff9fc89d1ded312db3"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-20B",
+      "original": "cbb886f6cf2976c7ae16a2ce370dd193b8abbb21",
+      "integrated": "502ea3be2b8544ca3ddedb9dfeff6728bb02e51e"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-21A",
+      "original": "aaf489610ae50a8cfe26e9d5a4ffa3ad215bc19c",
+      "integrated": "7ccc633ac077e9615917f7686daeeba0cf6c332c"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-21B",
+      "original": "0d759292774d8475a710df4108a9c567164f5b08",
+      "integrated": "d20746fb9c977d95c985295d51b10ad8c8cb6129"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-21C",
+      "original": "1dbe1e4f7acffd388fed5de91ab354ba91f42813",
+      "integrated": "3bde334b2f658fd24a326a326cf2d6d345c70cec"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-16",
+      "original": "d6bde906dbc7819518e7bd9e918c9a0b98139b23",
+      "integrated": "64f236ecfa72b0bc1d553593e588968d33a170f8"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-17",
+      "original": "6eef1fee08662b124d040327dc7cff009848d086",
+      "integrated": "9cd43222081d9b0dca245c99504595e1a184ec2e"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-22",
+      "original": "b62941dfee5b0f121cfbc5171bde8e338a94f4dc",
+      "integrated": "761f6745bf8642d65097b1653d6ebea4d50e3339"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-04-owner-correction",
+      "original": "1cfa6106a8bfc99182056609d40984e161a0afee",
+      "integrated": "27a434effd54debdf1d248f0d27fea9e236c7fb2"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-07A",
+      "original": "c4d74f1c80943f83cd351417fb421fc53eaabc5a",
+      "integrated": "5c1c1990c788d10f511b388247220f98f4b4957e"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-07B",
+      "original": "9e6e7134b6faeb5441107d14961699299e93402f",
+      "integrated": "c3463daf290a0bbe2581cfd254d44f3a9c486cf1"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-07C",
+      "original": "8be99bdb591b15a02fdcdaca4b65a4db13bcfac1",
+      "integrated": "12623e58b9af440f8e6fdeffa3642933976c370e"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-10",
+      "original": "f3029182b5c49d0fae8ae3544f3da4d1962f86c4",
+      "integrated": "56369ab0c7ee5bcba79861ac9805278361636937"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-21",
+      "original": "630a86a0f03bd3584227b52716490bc3bb354091",
+      "integrated": "71ec5a358e200cc215e3bdbd9a9c3eeb7220538d"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-22",
+      "original": "933b4d0b3b6401db6d2effa118c5876c3f3b2d82",
+      "integrated": "447736d8d55bad736022d54ca265b6031097d606"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-16",
+      "original": "fd135fe0687edb11f64e2bc4338299d02249fae7",
+      "integrated": "53a9d10a3cdb166e4a8535094a598ca6d7308e3a"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "original": "575e1811ce8da8fe748ac8e1ad5e1bb5464ca411",
+      "integrated": "575e1811ce8da8fe748ac8e1ad5e1bb5464ca411"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-22",
+      "original": "435081ad474e48a70bfffed139cf065f18551f68",
+      "integrated": "32393c8c68ec097b42afab3701fa67b694b5e5dc"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-23",
+      "original": "0784c9249cab04665077c6090d7a097da37d720d",
+      "integrated": "5ce74324ca2e78b91d5322668e4c8ca1872b4b21"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-23",
+      "original": "898aae9cb9e03d6ba54d5c55d5c379edc7f05cb9",
+      "integrated": "6a262a4bd1d40fd4a5832011851c8fb4b3647e31"
+    },
+    {
+      "lane": "scripts",
+      "task_id": "V3-VM-23",
+      "original": "4623fec13416665b92998d2ff3318ab5f9204aec",
+      "integrated": "1734f94048effb316ef3ce6d1f2193957d9906eb"
+    },
+    {
+      "lane": "actors",
+      "task_id": "V3-ACT-18",
+      "original": "fcb41e5a0019a3b78e496bbe221a3b0de29fc62c",
+      "integrated": "15d0eebfbda3681359caa3947d725d76522b82ee"
+    },
+    {
+      "lane": "physics",
+      "task_id": "V3-PHYS-16",
+      "original": "d6181ebb30ae6cea4d6db5b3c19949f9224a3837",
+      "integrated": "35fefa71907b52578406bf39e1b1da4991a0550f"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-17",
+      "original": "f7690c15d26fd5fe26f67f214cddcc1d0d42bb2c",
+      "integrated": "c74dad1f7bf9275e0de14febc5265c46837daeeb"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-22A",
+      "original": "5559adeceea54df776ba87442b64e3edf3af3dae",
+      "integrated": "3711045eac81f248fede3638d8161bddb378f893"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-22B",
+      "original": "531e5588751d5b86251f11bf5b92ee0dd2a6b552",
+      "integrated": "20d34dc7c5336e033d5da89bd021b719a030aaa1"
+    },
+    {
+      "lane": "assets",
+      "task_id": "V3-ASSET-24",
+      "original": "29d8e341208fd9edefa75e6457ef8eb943cf801b",
+      "integrated": "a3872f436cd2cef2bed08399e31944e41012582e"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "original": "ff83d0ebf395d683354683877bad891317a0b857",
+      "integrated": "ff83d0ebf395d683354683877bad891317a0b857"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-23A",
+      "original": "71555de724ad931d52b074a0cf702c6df7ec0364",
+      "integrated": "d651d731e3d695820784b8b709934e3d4302cad7"
+    },
+    {
+      "lane": "world",
+      "task_id": "V3-WORLD-23B",
+      "original": "aaa5fdd7c300562f132ce5d1caf43486a35ffdae",
+      "integrated": "036a81351de273c87eae5eab6cd01fecdea3de11"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-12",
+      "original": "6c48a0d38bf0a706e474b9eb4db920310e5e9099",
+      "integrated": "6c48a0d38bf0a706e474b9eb4db920310e5e9099"
+    },
+    {
+      "lane": "presentation",
+      "task_id": "V3-VIEW-18",
+      "original": "c4f9493ce54cbd677cb3f18dd20ae20c3bdc6fe9",
+      "integrated": "10c27ae5b02e32bca57df8e090037ab8e14525ff"
+    },
+    {
+      "lane": "coordinator",
+      "task_id": "V3-COORD-13",
+      "original": "dc47d08d0eed98785159ada4068ee5f65003f99b",
+      "integrated": "dc47d08d0eed98785159ada4068ee5f65003f99b"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-24",
+      "original": "6c9171597d3adf713c72cd74e574872852ba5102",
+      "integrated": "c4027312d5b7e8c00f55217d24ff43c52f51949f"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-25",
+      "original": "af7c185e34e0725b5cdf0bdcc6ff2075f5f8b62d",
+      "integrated": "59b462e79497d8b2f65778e2d4a20722f41cd9d7"
+    },
+    {
+      "lane": "runtime",
+      "task_id": "V3-STATE-26",
+      "original": "a066148bded3d093443211710de27dd4818fedc4",
+      "integrated": "36c60f309027d1a653e7fd901bc5d5a749d24d78"
+    }
+  ],
+  "mapping_receipt_sha256": [
+    "3b5c544ffebad48ad68cfbf6b8a9da48aaedeea02004cc8ff7ed8b76bdaa32db",
+    "47f8d1dd27a9ca28bb7ae43280506c62e6cd608f200b4b7cd3c76ce93f9b4197",
+    "391a13faa9f08fbf19ae333189c5b987109f426c530b22bd4d664c18e2e58493",
+    "aa16db22754ef0cd4eea3de5a52633a7e1ca8540bfadc6249c11ef1ff5739e3b"
+  ],
+  "already_published_equivalent_fixture": {
+    "original": "12c2538c152a32c4bf1e213e50439f8b20bacb99",
+    "development08_revision": "8e8be61528970f993e9cafa7d105d712ec8771c2",
+    "path": "crates/fallout-runtime/tests/physics_cell.rs",
+    "bytes": 14826,
+    "sha256": "e42b4814adaee2f5c58b61aa0ff73f5d52949b4ab16ad414a4a4a92b515a38de",
+    "new_feature_claimed": false
+  },
+  "limits": [
+    "Boot requires existing source-bound canonical state and explicit engineering choices; it does not activate a new original game.",
+    "No model, texture, collision or GPU readiness is admitted by the boot compositor.",
+    "Original execution, gameplay, menu layout, actor AI, animation playback and physics response remain outside this proof.",
+    "Deadline expiry and two named report digests remain outside independent acceptance; no power-loss durability claim.",
+    "Later live integration batches and worker handoffs are outside this frozen source."
+  ],
+  "last_verified_checkpoint": 45,
+  "new_checkpoint_claimed": false,
+  "original_process_started": false,
+  "original_gameplay_scenarios_accepted": 0,
+  "gameplay_accepted": false,
+  "retail_parity_accepted": false,
+  "promoted_merge_revision": "c7b9e1c1de6c3b88ee7c7ed2939abc648c662085",
+  "promotion_equivalence": {
+    "result": "passed",
+    "proved_source": "36c60f309027d1a653e7fd901bc5d5a749d24d78",
+    "promoted_merge_revision": "c7b9e1c1de6c3b88ee7c7ed2939abc648c662085",
+    "actual_merge_parents": [
+      "719cd368e73d498468b7da3a4d76d5408b4eec3f",
+      "36c60f309027d1a653e7fd901bc5d5a749d24d78"
+    ],
+    "matched_worktree_source_files": 1052,
+    "preserved_live_metadata": [
+      "NEXT_STEPS.md",
+      "docs/agents/team-v3/backlog.json",
+      "docs/integration/team-v3-development-08.json"
+    ],
+    "additional_paths_allowed": [],
+    "fixture_duplicate_is_not_a_new_feature": true,
+    "new_checkpoint_claimed": false,
+    "gameplay_accepted": false
+  }
+}

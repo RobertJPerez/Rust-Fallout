@@ -75,6 +75,29 @@ fn transform(shape: u32, columns: [[f32; 4]; 4]) -> Vec<u8> {
     }
     b
 }
+fn convex_cuboid_fixture() -> Vec<u8> {
+    let mut b = sphere(0.25);
+    words(&mut b, &[0, 0, 0x8000_0000, 0, 0, 0x8000_0000, 8]);
+    for x in [1., 3.] {
+        for y in [2., 6.] {
+            for z in [-1., 1.] {
+                floats(&mut b, &[x, y, z, 0.]);
+            }
+        }
+    }
+    words(&mut b, &[6]);
+    for plane in [
+        [-1., 0., 0., 1.],
+        [1., 0., 0., -3.],
+        [0., -1., 0., 2.],
+        [0., 1., 0., -6.],
+        [0., 0., -1., -1.],
+        [0., 0., 1., -1.],
+    ] {
+        floats(&mut b, &plane);
+    }
+    b
+}
 fn identity() -> Affine {
     Affine {
         rows: [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]],
@@ -183,6 +206,142 @@ fn distant_sphere_and_capsule_rays_keep_perpendicular_misses_and_refuse_lost_ent
             0.
         );
     }
+}
+
+#[test]
+fn certified_authored_convex_cuboid_keeps_offset_hull_shell_and_reflection() {
+    let (_, collision) = nif_collision::decode(
+        &container(&[
+            ("bhkRigidBody", body(1)),
+            ("bhkConvexVerticesShape", convex_cuboid_fixture()),
+        ]),
+        "offset authored cuboid",
+    )
+    .unwrap();
+    let scene =
+        StaticScene::build(&collision, &[placement()], units(), QueryLimits::default()).unwrap();
+    let hits = scene
+        .ray_cast(ray([0., 4., 0.], [1., 0., 0.], 10.), QueryBudget::default())
+        .unwrap();
+    assert_eq!(hits.len(), 1);
+    close(hits[0].distance, 1.);
+    assert_eq!(hits[0].source.shape_block, 1);
+    assert_eq!(hits[0].material, 17);
+    assert_eq!(hits[0].authored_shell_radius, 0.25);
+    assert!(matches!(
+        StaticScene::build(
+            &collision,
+            &[placement()],
+            units(),
+            QueryLimits {
+                geometry_elements: 14,
+                ..QueryLimits::default()
+            }
+        ),
+        Err(QueryError::Budget("geometry elements"))
+    ));
+    assert!(
+        scene
+            .ray_cast(ray([0., 7., 0.], [1., 0., 0.], 10.), QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    close(
+        scene
+            .ray_cast(
+                ray([-2., 0., 0.], [0.6, 0.8, 0.], 10.),
+                QueryBudget::default(),
+            )
+            .unwrap()[0]
+            .distance,
+        5.,
+    );
+    assert!(
+        scene
+            .overlap_sphere([0.9, 4., 0.], 0., QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        scene
+            .overlap_sphere([0., 1., 0.], 2., QueryBudget::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        scene
+            .overlap_sphere([0., 1., 0.], 1., QueryBudget::default())
+            .unwrap()
+            .is_empty()
+    );
+    let mut reflected = placement();
+    reflected.attachment_to_source.rows[0] = [-1., 0., 0., 10.];
+    let reflected =
+        StaticScene::build(&collision, &[reflected], units(), QueryLimits::default()).unwrap();
+    close(
+        reflected
+            .ray_cast(
+                ray([10., 4., 0.], [-1., 0., 0.], 10.),
+                QueryBudget::default(),
+            )
+            .unwrap()[0]
+            .distance,
+        1.,
+    );
+    assert!(!reflected.faithful_ready());
+}
+
+#[test]
+fn convex_bounds_never_replace_missing_corners_or_inconsistent_source_planes() {
+    for (offset, value) in [(36, 2.0f32), (48, 1.), (180, 2.), (172, 1.)] {
+        let mut shape = convex_cuboid_fixture();
+        shape[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        let (_, collision) = nif_collision::decode(
+            &container(&[("bhkRigidBody", body(1)), ("bhkConvexVerticesShape", shape)]),
+            "invalid convex certificate",
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                StaticScene::build(&collision, &[placement()], units(), QueryLimits::default()),
+                Err(QueryError::Unsupported { block: 1, .. })
+            ),
+            "offset {offset}"
+        );
+    }
+    for degenerate in [false, true] {
+        let mut shape = convex_cuboid_fixture();
+        if degenerate {
+            for i in 0..8 {
+                shape[36 + 16 * i + 8..36 + 16 * i + 12].copy_from_slice(&0f32.to_le_bytes());
+            }
+        } else {
+            let first: [u8; 16] = shape[36..52].try_into().unwrap();
+            shape[52..68].copy_from_slice(&first);
+        }
+        let (_, collision) = nif_collision::decode(
+            &container(&[("bhkRigidBody", body(1)), ("bhkConvexVerticesShape", shape)]),
+            "missing or degenerate corners",
+        )
+        .unwrap();
+        assert!(matches!(
+            StaticScene::build(&collision, &[placement()], units(), QueryLimits::default()),
+            Err(QueryError::Unsupported { block: 1, .. })
+        ));
+    }
+    let mut nonfinite = convex_cuboid_fixture();
+    nonfinite[36..40].copy_from_slice(&f32::NAN.to_le_bytes());
+    assert!(
+        nif_collision::decode(
+            &container(&[
+                ("bhkRigidBody", body(1)),
+                ("bhkConvexVerticesShape", nonfinite)
+            ]),
+            "nonfinite corners"
+        )
+        .is_err()
+    );
 }
 
 #[test]

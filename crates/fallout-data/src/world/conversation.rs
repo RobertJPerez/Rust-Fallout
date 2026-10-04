@@ -14,7 +14,7 @@ use crate::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::io::Write;
+use std::{collections::BTreeMap, io::Write};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -204,6 +204,7 @@ impl DialogueSources {
         let info_doc = narrative::decode(&info_record, &info.source_plugin, decoder_limits)?;
         let topic_fields = fields(&topic_doc);
         let info_fields = fields(&info_doc);
+        let mut response_fields = index_responses(&info_doc)?;
         let mut responses = Vec::new();
         for (section, owner) in info_doc.sections.iter().enumerate() {
             if owner.kind != SectionKind::Response {
@@ -212,29 +213,15 @@ impl DialogueSources {
             let marker = owner
                 .marker_offset
                 .ok_or_else(|| Error::Resolution("response lacks source marker".into()))?;
-            let data = info_doc
-                .fields
-                .iter()
-                .find_map(|field| {
-                    if field.offset == marker
-                        && let Value::ResponseData(data) = field.value
-                    {
-                        return Some(data);
-                    }
-                    None
-                })
+            let data = response_fields[section]
+                .marker
                 .ok_or_else(|| Error::Resolution("response marker lacks decoded TRDT".into()))?;
             responses.push(ResponseSource {
                 section,
                 marker_decoded_offset: marker,
                 number: data.number,
                 sound: link(store, info_location, data.sound_raw_form)?,
-                fields: info_doc
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, field)| (field.owner == Some(section)).then_some(index))
-                    .collect(),
+                fields: std::mem::take(&mut response_fields[section].fields),
             });
         }
         let mut links = Vec::new();
@@ -253,30 +240,22 @@ impl DialogueSources {
             }
         }
         let mut fragments = Vec::new();
+        // At most one key per SectionKind (plus None); never rescan all units
+        // for each fragment. Discriminants are private temporary grouping keys,
+        // not source/save identities or an exported ordering convention.
+        let mut role_counts = BTreeMap::new();
         for script in &info_doc.scripts {
-            let role = script
-                .owner
-                .and_then(|index| info_doc.sections.get(index))
-                .and_then(|section| match section.kind {
-                    SectionKind::BeginScript => Some(OwnerKind::DialogueBegin),
-                    SectionKind::EndScript => Some(OwnerKind::DialogueEnd),
-                    _ => None,
-                });
-            let duplicate_role = info_doc
-                .scripts
-                .iter()
-                .filter(|other| {
-                    other
-                        .owner
-                        .and_then(|index| info_doc.sections.get(index))
-                        .map(|section| section.kind)
-                        == script
-                            .owner
-                            .and_then(|index| info_doc.sections.get(index))
-                            .map(|section| section.kind)
-                })
-                .count()
-                != 1;
+            *role_counts
+                .entry(script_section_kind(script, &info_doc).map(|kind| kind as usize))
+                .or_insert(0usize) += 1;
+        }
+        for script in &info_doc.scripts {
+            let kind = script_section_kind(script, &info_doc);
+            let role = match kind {
+                Some(SectionKind::BeginScript) => Some(OwnerKind::DialogueBegin),
+                Some(SectionKind::EndScript) => Some(OwnerKind::DialogueEnd),
+                _ => None,
+            };
             fragments.push(FragmentRequest {
                 key: ScriptKey {
                     record: request.info.clone(),
@@ -284,7 +263,7 @@ impl DialogueSources {
                         .map_err(|_| Error::Unsupported("script marker offset overflow".into()))?,
                 },
                 role,
-                role_unique: !duplicate_role,
+                role_unique: role_counts[&kind.map(|kind| kind as usize)] == 1,
                 source: info.clone(),
                 metadata_sha256: script_bindings::metadata_digest(&script.unit),
                 compiled_sha256: script.unit.compiled.map(|field| digest(field.data)),
@@ -320,6 +299,48 @@ impl DialogueSources {
             retained_bytes,
         })
     }
+}
+
+#[derive(Default)]
+struct ResponseFields {
+    marker: Option<narrative::ResponseData>,
+    fields: Vec<usize>,
+}
+fn index_responses(document: &narrative::Document<'_>) -> Result<Vec<ResponseFields>> {
+    // The existing decoder bounds both tables and owns their physical indices.
+    // One pass preserves every response-owned field's exact source order; orphan
+    // fields remain only in the original field table. No response-number lookup.
+    let mut rows: Vec<ResponseFields> = (0..document.sections.len())
+        .map(|_| Default::default())
+        .collect();
+    for (index, field) in document.fields.iter().enumerate() {
+        let Some(owner) = field.owner else {
+            continue;
+        };
+        let section = document.sections.get(owner).ok_or_else(|| {
+            Error::Resolution("narrative field owner outside section table".into())
+        })?;
+        if section.kind != SectionKind::Response {
+            continue;
+        }
+        let row = &mut rows[owner];
+        row.fields.push(index);
+        if section.marker_offset == Some(field.offset)
+            && let Value::ResponseData(data) = field.value
+        {
+            row.marker.get_or_insert(data);
+        }
+    }
+    Ok(rows)
+}
+fn script_section_kind(
+    script: &narrative::Script<'_>,
+    document: &narrative::Document<'_>,
+) -> Option<SectionKind> {
+    script
+        .owner
+        .and_then(|index| document.sections.get(index))
+        .map(|section| section.kind)
 }
 
 #[derive(Debug, Clone, Serialize)]

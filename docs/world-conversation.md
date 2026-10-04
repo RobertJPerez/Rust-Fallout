@@ -28,6 +28,15 @@ remain distinct and response numbers do not reorder authored sections. Orphan
 text remains in the original field table with its finding; it is never silently
 assigned to a response. `topic_bytes(index)` exposes an original FULL/EDID or
 other explicitly indexed field without substituting authored interface text.
+Response preparation indexes physical field ownership and TRDT markers in one
+pass over the existing bounded decoder output. Fragment role counts use a small
+temporary section-kind index. Neither operation rescans all source fields/units
+for each response/fragment; authored order, repeated response numbers, orphan
+fields and duplicate-role refusals remain the same. These indexes are private
+temporary storage under the existing field/section ceilings, without new metadata
+or save formats. Maximum admitted field/section consumer fixtures compare exact
+metadata hashes and original subtitle spans; timing samples are diagnostics,
+with no machine-dependent performance threshold.
 
 `metadata().conditions` is the existing `PreparedOwnerRecord`, preserving exact
 CTDA bytes, original physical owners and bound operands. Its sites can feed the

@@ -280,9 +280,12 @@ Admission allows one 152-byte quad, 128 KiB request and 16 MiB report, at most 3
 literal rows, 4 KiB resolved filename, 16 KiB retained filename copies and 64 KiB
 logical plan metadata. Existing document, projection and viewport caps apply.
 DDS input and retained payload each have an 8 MiB ceiling; base and aggregate
-mip texels must fit 4,194,304 (16 MiB virtual RGBA). These counts describe logical
-admission rather than measured peak memory. Complete report serialization is
-admitted before creating a fresh report; later I/O or cancellation can leave a
+physical mip texels must fit 4,194,304 (16 MiB virtual RGBA). Before the image
+decoder runs, checked admission rounds the base dimensions to BC's 4x4 blocks,
+then rounds every mip of that Bevy image extent to whole blocks. This includes
+sub-block tail mips. The texture receipt reports this same physical count.
+These counts describe admission rather than measured peak memory. Complete report
+serialization is admitted before creating a fresh report; later I/O or cancellation can leave a
 diagnostic report without a capture. Source receipts are preparation snapshots,
 with identity checked again on retry. Original menus, fonts, focus/actions and
 gameplay remain unaccepted.

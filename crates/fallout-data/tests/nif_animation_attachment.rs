@@ -430,3 +430,407 @@ fn changed_attachment_keeps_skeleton_mapping_independent_and_changes_root_pose()
     assert_ne!(first.attachment_sha256, second.attachment_sha256);
     assert_eq!(second.root_to_skeleton_source[1][3], 25.);
 }
+
+fn floats(out: &mut Vec<u8>, values: &[f32]) {
+    for &value in values {
+        words(out, &[value.to_bits()]);
+    }
+}
+fn sampled_blocks(scale: f32) -> Vec<(&'static str, Vec<u8>)> {
+    let mut controller = Vec::new();
+    words(&mut controller, &[NULL]);
+    controller.extend(0xFFFFu16.to_le_bytes());
+    floats(&mut controller, &[17., -9., 100., 101.]);
+    words(&mut controller, &[1, 3]);
+    let mut interpolator = Vec::new();
+    floats(
+        &mut interpolator,
+        &[1000., 2000., 3000., 2., -3., 4., -5., 12.],
+    );
+    words(&mut interpolator, &[4]);
+    let mut keys = Vec::new();
+    words(&mut keys, &[0, 2, 1]);
+    floats(&mut keys, &[0., 2., 4., 6., 2., 6., 8., 10.]);
+    words(&mut keys, &[2, 1]);
+    floats(&mut keys, &[0., scale, 2., scale]);
+    vec![
+        ("NiNode", node(1, &[1], [1., 2., 3.], ROT, 2., NULL)),
+        ("NiNode", node(0, &[], [4., 5., 6.], HALF, 0.5, 2)),
+        ("NiTransformController", controller),
+        ("NiTransformInterpolator", interpolator),
+        ("NiTransformData", keys),
+    ]
+}
+fn sampled_asset(child_controller: bool, root_controller: bool) -> Vec<u8> {
+    if child_controller {
+        container(
+            &[
+                ("NiNode", node(0, &[1], [10., -20., 30.], ROT, 2., NULL)),
+                ("NiNode", node(0, &[], [0.; 3], ROT, 1., 2)),
+                ("NiFloatInterpolator", vec![0]),
+            ],
+            &[b"asset"],
+            &[0],
+        )
+    } else {
+        container(
+            &[
+                (
+                    "NiNode",
+                    node(
+                        0,
+                        &[],
+                        [10., -20., 30.],
+                        ROT,
+                        2.,
+                        if root_controller { 1 } else { NULL },
+                    ),
+                ),
+                ("NiFloatInterpolator", vec![0]),
+            ],
+            &[b"asset"],
+            &[0],
+        )
+    }
+}
+fn sampled_request<'a>(s: &[u8], a: &[u8]) -> attachment::SampledRequest<'a> {
+    attachment::SampledRequest {
+        binding: request(s, a),
+        sample: fallout_data::nif_animation::pose::Request {
+            object: 1,
+            controller: 2,
+            source_time: 1.,
+        },
+    }
+}
+fn sampled_failure(
+    s: &[u8],
+    a: &[u8],
+    request: attachment::SampledRequest<'_>,
+    limits: attachment::SampledLimits,
+    reason: &str,
+) {
+    let error =
+        attachment::evaluate_sampled(s, a, "sampled attachment", request, limits).unwrap_err();
+    assert!(error.to_string().contains(reason), "{error}");
+}
+#[test]
+fn sampled_attachment_noncommuting_literal_world_root_mapping_and_raw_source_provenance() {
+    let blocks = sampled_blocks(2.);
+    let s = container(&blocks, &[NAME, b"root"], &[0]);
+    let a = sampled_asset(false, false);
+    let result = attachment::evaluate_sampled(
+        &s,
+        &a,
+        "sampled",
+        sampled_request(&s, &a),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result.sample.local,
+        [[-2., 0., 0., 4.], [0., -2., 0., 6.], [0., 0., 2., 8.]]
+    );
+    assert_eq!(
+        result.sample.source_world,
+        [[0., 4., 0., -11.], [-4., 0., 0., 10.], [0., 0., 4., 19.]]
+    );
+    assert_eq!(
+        result.attachment_source_to_skeleton_source,
+        [[0., 12., 0., 21.], [8., 0., 0., -18.], [0., 0., 16., 55.]]
+    );
+    assert_eq!(
+        result.root_to_skeleton_source,
+        [
+            [24., 0., 0., -219.],
+            [0., -16., 0., 62.],
+            [0., 0., 32., 535.]
+        ]
+    );
+    assert_eq!(
+        result.stored_binding.attachment_source_to_skeleton_source,
+        [[0., 3., 0., -1.], [2., 0., 0., 3.], [0., 0., 4., 24.]]
+    );
+    assert_eq!(
+        result.stored_binding.root_to_skeleton_source,
+        [[6., 0., 0., -61.], [0., -4., 0., 23.], [0., 0., 8., 144.]]
+    );
+    assert_eq!(result.sample.requested_time_f64_bits, 1f64.to_bits());
+    assert_eq!(result.stored_binding.node_name_bytes, NAME);
+    assert_eq!(
+        result
+            .sample
+            .unapplied_interpolator_fields
+            .rotation_wxyz_bits,
+        [
+            2f32.to_bits(),
+            (-3f32).to_bits(),
+            4f32.to_bits(),
+            (-5f32).to_bits()
+        ]
+    );
+    assert_eq!(
+        result.sample.source_sha256,
+        result.stored_binding.skeleton_sha256
+    );
+    for (source, bytes) in [
+        (&result.sample.object, &s),
+        (&result.sample.controller, &s),
+        (&result.sample.interpolator, &s),
+        (&result.sample.data, &s),
+        (&result.stored_binding.attachment_root.source, &a),
+    ] {
+        assert_eq!(
+            source.sha256,
+            format!(
+                "{:x}",
+                Sha256::digest(&bytes[source.offset..source.offset + source.bytes])
+            )
+        );
+    }
+    assert!(!result.retail_behavior_verified);
+}
+#[test]
+fn sampled_attachment_preserves_mirrored_nonunit_scale_and_zero_forward_mapping() {
+    let a = sampled_asset(false, false);
+    let s = container(&sampled_blocks(-2.), &[NAME, b"root"], &[0]);
+    let reflected = attachment::evaluate_sampled(
+        &s,
+        &a,
+        "mirrored",
+        sampled_request(&s, &a),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        reflected.attachment_source_to_skeleton_source,
+        [
+            [0., -12., 0., -43.],
+            [-8., 0., 0., 38.],
+            [0., 0., -16., -17.]
+        ]
+    );
+    assert_eq!(
+        reflected.root_to_skeleton_source,
+        [
+            [-24., 0., 0., 197.],
+            [0., 16., 0., -42.],
+            [0., 0., -32., -497.]
+        ]
+    );
+    let s = container(&sampled_blocks(0.), &[NAME, b"root"], &[0]);
+    let zero =
+        attachment::evaluate_sampled(&s, &a, "zero", sampled_request(&s, &a), Default::default())
+            .unwrap();
+    assert_eq!(
+        zero.root_to_skeleton_source,
+        [[0., 0., 0., -11.], [0., 0., 0., 10.], [0., 0., 0., 19.]]
+    );
+    let r = sampled_request(&s, &a);
+    let mut forward = CALLER;
+    forward[1][1] = f64::INFINITY;
+    sampled_failure(
+        &s,
+        &a,
+        attachment::SampledRequest {
+            binding: Request {
+                attachment_parent_to_node: forward,
+                ..r.binding
+            },
+            ..r
+        },
+        Default::default(),
+        "nonfinite or overflowing",
+    );
+}
+#[test]
+fn sampled_attachment_exact_sha_name_node_controller_time_chain_rotation_and_ancestors_refuse() {
+    let blocks = sampled_blocks(2.);
+    let s = container(&blocks, &[NAME, b"root"], &[0]);
+    let a = sampled_asset(false, false);
+    let r = sampled_request(&s, &a);
+    let mut stale = r;
+    stale.binding.expected_skeleton_sha256[0] ^= 1;
+    sampled_failure(
+        &s,
+        &a,
+        stale,
+        Default::default(),
+        "skeleton source SHA256 differs",
+    );
+    let mut stale = r;
+    stale.binding.expected_attachment_sha256[0] ^= 1;
+    sampled_failure(
+        &s,
+        &a,
+        stale,
+        Default::default(),
+        "attachment source SHA256 differs",
+    );
+    sampled_failure(
+        &s,
+        &a,
+        attachment::SampledRequest {
+            binding: Request {
+                node_name_bytes: b"bip01 r hand",
+                ..r.binding
+            },
+            ..r
+        },
+        Default::default(),
+        "raw node name differs",
+    );
+    for (object, controller, time, reason) in [
+        (0, 2, 1., "object differs"),
+        (1, 3, 1., "object.controller differs"),
+        (1, 2, f64::INFINITY, "time must be finite"),
+        (1, 2, 3., "extrapolate"),
+    ] {
+        sampled_failure(
+            &s,
+            &a,
+            attachment::SampledRequest {
+                sample: fallout_data::nif_animation::pose::Request {
+                    object,
+                    controller,
+                    source_time: time,
+                },
+                ..r
+            },
+            Default::default(),
+            reason,
+        );
+    }
+    let mut ancestor = blocks.clone();
+    ancestor[0].1[8..12].copy_from_slice(&2u32.to_le_bytes());
+    let mut chain = blocks.clone();
+    chain[2].1[0..4].copy_from_slice(&2u32.to_le_bytes());
+    let mut rotation = blocks;
+    rotation[4].1.clear();
+    words(&mut rotation[4].1, &[1, 1]);
+    floats(&mut rotation[4].1, &[0., 1., 0., 0., 0.]);
+    words(&mut rotation[4].1, &[0, 0]);
+    for (blocks, reason) in [
+        (ancestor, "ancestor 0 controller is unapplied"),
+        (chain, "controller chain is unapplied"),
+        (rotation, "rotation key mapping is unapplied"),
+    ] {
+        let s = container(&blocks, &[NAME, b"root"], &[0]);
+        sampled_failure(&s, &a, sampled_request(&s, &a), Default::default(), reason);
+    }
+}
+#[test]
+fn sampled_attachment_rejects_controlled_socket_children_and_attachment_root_or_children() {
+    let s = container(&sampled_blocks(2.), &[NAME, b"root"], &[0]);
+    for a in [sampled_asset(false, true), sampled_asset(true, false)] {
+        sampled_failure(
+            &s,
+            &a,
+            sampled_request(&s, &a),
+            Default::default(),
+            "descendant",
+        );
+    }
+    let mut blocks = sampled_blocks(2.);
+    blocks[1].1 = node(0, &[5], [4., 5., 6.], HALF, 0.5, 2);
+    blocks.push(("NiNode", node(0, &[], [0.; 3], ROT, 1., 2)));
+    let s = container(&blocks, &[NAME, b"root"], &[0]);
+    let a = sampled_asset(false, false);
+    sampled_failure(
+        &s,
+        &a,
+        sampled_request(&s, &a),
+        Default::default(),
+        "descendant 5 controller 2 is unapplied",
+    );
+}
+#[test]
+fn sampled_attachment_phase_aggregate_source_and_sampling_limits_have_exact_ceilings() {
+    use attachment::SampledLimits;
+    let s = container(&sampled_blocks(2.), &[NAME, b"root"], &[0]);
+    let a = sampled_asset(false, false);
+    let r = sampled_request(&s, &a);
+    let baseline = attachment::evaluate_sampled(&s, &a, "baseline", r, Default::default()).unwrap();
+    let mut exact = SampledLimits {
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+        decoder_check_admission_units: baseline.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.binding.array_bytes = baseline.stored_binding.retained_bytes;
+    exact.binding.work_units = baseline.stored_binding.work_units;
+    exact.sample.array_bytes = baseline.sample.retained_bytes;
+    exact.sample.work_units = baseline.sample.work_units;
+    exact.sample.sampling.validation_work = baseline.sample.sample_work.validation_units;
+    exact.sample.sampling.sampling_work = baseline.sample.sample_work.sampling_units;
+    // Declared sampler allowances above changed the combined admission, so retain
+    // the independently sufficient original admission cap while testing counts.
+    exact.binding.combined_input_bytes = s.len() + a.len();
+    exact.binding.scene.input_bytes = s.len().max(a.len());
+    exact.sample.scene.input_bytes = s.len();
+    exact.sample.keys.animation.input_bytes = s.len();
+    exact.binding.ancestry_depth = 2;
+    exact.sample.ancestry_depth = 2;
+    attachment::evaluate_sampled(&s, &a, "exact", r, exact).unwrap();
+    for mode in 0..11 {
+        let mut under = exact;
+        match mode {
+            0 => under.array_bytes -= 1,
+            1 => under.work_units -= 1,
+            2 => under.binding.array_bytes -= 1,
+            3 => under.binding.work_units -= 1,
+            4 => under.sample.array_bytes -= 1,
+            5 => under.sample.work_units -= 1,
+            6 => under.sample.sampling.validation_work -= 1,
+            7 => under.sample.sampling.sampling_work -= 1,
+            8 => under.binding.combined_input_bytes -= 1,
+            9 => under.sample.ancestry_depth = 1,
+            _ => under.binding.ancestry_depth = 1,
+        }
+        assert!(
+            attachment::evaluate_sampled(&s, &a, "under", r, under).is_err(),
+            "mode {mode}"
+        );
+    }
+    for mode in 0..2 {
+        let mut under = SampledLimits {
+            decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+            decoder_check_admission_units: baseline.decoder_check_admission_units,
+            ..Default::default()
+        };
+        if mode == 0 {
+            under.decoder_array_admission_bytes -= 1;
+        } else {
+            under.decoder_check_admission_units -= 1;
+        }
+        assert!(attachment::evaluate_sampled(&s, &a, "decoder-under", r, under).is_err());
+    }
+}
+#[test]
+fn sampled_attachment_keeps_stored_reference_exact_and_time_bits_distinct_without_clock_semantics()
+{
+    let s = container(&sampled_blocks(2.), &[NAME, NAME], &[0]);
+    let a = sampled_asset(false, false);
+    let r = sampled_request(&s, &a);
+    let old = attachment::evaluate(&s, &a, "stored", r.binding, Default::default()).unwrap();
+    let value = attachment::evaluate_sampled(&s, &a, "sampled", r, Default::default()).unwrap();
+    assert_eq!(
+        serde_json::to_value(old).unwrap(),
+        serde_json::to_value(value.stored_binding).unwrap()
+    );
+    let mut negative_zero = r;
+    negative_zero.sample.source_time = -0.;
+    let first =
+        attachment::evaluate_sampled(&s, &a, "negative zero", negative_zero, Default::default())
+            .unwrap();
+    assert_eq!(first.sample.requested_time_f64_bits, (-0f64).to_bits());
+    assert_ne!(
+        first.attachment_source_to_skeleton_source,
+        value.attachment_source_to_skeleton_source
+    );
+    assert_eq!(
+        first.sample.unapplied_controller_fields.frequency_bits,
+        17f32.to_bits()
+    );
+}

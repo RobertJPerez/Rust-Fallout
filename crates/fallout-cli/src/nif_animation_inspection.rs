@@ -250,6 +250,87 @@ struct AttachmentRequest {
     attachment_parent_to_node: fallout_data::nif_skin::pose::Affine,
     source_policy: nif_animation::attachment::SourcePolicy,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SampledAttachmentRequest {
+    schema_version: u32,
+    expected_skeleton_sha256: [u8; 32],
+    expected_attachment_sha256: [u8; 32],
+    node: u32,
+    node_name_bytes: Vec<u8>,
+    attachment_root: u32,
+    attachment_parent_to_node: fallout_data::nif_skin::pose::Affine,
+    source_policy: nif_animation::attachment::SourcePolicy,
+    object: u32,
+    controller: u32,
+    source_time: f64,
+}
+#[derive(Serialize)]
+pub struct SampledAttachmentReport {
+    schema_version: u32,
+    contract: &'static str,
+    skeleton: PathBuf,
+    attachment: PathBuf,
+    request: PathBuf,
+    skeleton_sha256: String,
+    attachment_sha256: String,
+    request_sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::attachment::SampledEvaluation>,
+    error: Option<String>,
+}
+pub fn inspect_sampled_attachment(
+    skeleton: &Path,
+    attachment: &Path,
+    request_path: &Path,
+) -> Result<SampledAttachmentReport> {
+    let request_bytes = attachment_input(request_path, 64 * 1024)?;
+    let request: SampledAttachmentRequest = serde_json::from_slice(&request_bytes)?;
+    if request.schema_version != 1 {
+        return Err("sampled rigid attachment requires schema1".into());
+    }
+    let skeleton_bytes = attachment_input(skeleton, 64 * 1024 * 1024)?;
+    let attachment_bytes = attachment_input(attachment, 64 * 1024 * 1024)?;
+    let evaluated = nif_animation::attachment::evaluate_sampled(
+        &skeleton_bytes,
+        &attachment_bytes,
+        &skeleton.display().to_string(),
+        nif_animation::attachment::SampledRequest {
+            binding: nif_animation::attachment::Request {
+                expected_skeleton_sha256: request.expected_skeleton_sha256,
+                expected_attachment_sha256: request.expected_attachment_sha256,
+                node: request.node,
+                node_name_bytes: &request.node_name_bytes,
+                attachment_root: request.attachment_root,
+                attachment_parent_to_node: request.attachment_parent_to_node,
+                source_policy: request.source_policy,
+            },
+            sample: nif_animation::pose::Request {
+                object: request.object,
+                controller: request.controller,
+                source_time: request.source_time,
+            },
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(SampledAttachmentReport {
+        schema_version: 1,
+        contract: "engineering-one-source-sampled-rigid-attachment-v1",
+        skeleton: skeleton.into(),
+        attachment: attachment.into(),
+        request: request_path.into(),
+        skeleton_sha256: format!("{:x}", Sha256::digest(&skeleton_bytes)),
+        attachment_sha256: format!("{:x}", Sha256::digest(&attachment_bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 #[derive(Serialize)]
 pub struct AttachmentReport {
     schema_version: u32,

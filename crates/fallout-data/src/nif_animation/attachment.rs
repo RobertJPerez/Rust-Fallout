@@ -8,6 +8,9 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+mod sampled;
+pub use sampled::{SampledEvaluation, SampledLimits, SampledRequest, evaluate_sampled};
+
 pub const CONTRACT: &str = "engineering-source-local-rigid-attachment-v1";
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -136,7 +139,7 @@ pub fn evaluate(
     request: Request<'_>,
     limits: Limits,
 ) -> Result<Evaluation> {
-    let mut budget = Budget {
+    let budget = Budget {
         source,
         bytes: limits.array_bytes,
         work: limits.work_units,
@@ -163,6 +166,41 @@ pub fn evaluate(
         nif_scene::decode_with_limits(skeleton_bytes, source, limits.scene)?;
     let (attachment_index, attachment) =
         nif_scene::decode_with_limits(attachment_bytes, source, limits.scene)?;
+    evaluate_loaded(
+        skeleton_bytes,
+        attachment_bytes,
+        request,
+        limits,
+        Loaded {
+            skeleton_index: &skeleton_index,
+            skeleton: &skeleton,
+            attachment_index: &attachment_index,
+            attachment: &attachment,
+        },
+        budget,
+    )
+}
+
+struct Loaded<'a> {
+    skeleton_index: &'a nif::NifIndex,
+    skeleton: &'a nif_scene::Scene,
+    attachment_index: &'a nif::NifIndex,
+    attachment: &'a nif_scene::Scene,
+}
+fn evaluate_loaded(
+    skeleton_bytes: &[u8],
+    attachment_bytes: &[u8],
+    request: Request<'_>,
+    limits: Limits,
+    loaded: Loaded<'_>,
+    mut budget: Budget<'_>,
+) -> Result<Evaluation> {
+    let Loaded {
+        skeleton_index,
+        skeleton,
+        attachment_index,
+        attachment,
+    } = loaded;
     if !skeleton.unsupported_scene_edges.is_empty()
         || !attachment.unsupported_scene_edges.is_empty()
     {
@@ -243,14 +281,14 @@ pub fn evaluate(
             .ok_or_else(|| budget.fail("required ancestor has no source world"))?];
         path.push(source_node(
             skeleton_bytes,
-            &skeleton_index,
+            skeleton_index,
             object,
             world.parent,
             &mut budget,
         )?);
         next = world.parent;
     }
-    let root_source = source_node(attachment_bytes, &attachment_index, root, None, &mut budget)?;
+    let root_source = source_node(attachment_bytes, attachment_index, root, None, &mut budget)?;
     budget.charge(24)?;
     let mapping = finite(
         compose(node_world.matrix, request.attachment_parent_to_node),

@@ -469,6 +469,16 @@ pub fn evaluate(
     request: Request,
     limits: Limits,
 ) -> Result<ObjectPose> {
+    evaluate_with_scene(bytes, source, request, limits).map(|(_, _, pose)| pose)
+}
+
+/// Private same-source ownership transfer for the sampled attachment adapter.
+pub(super) fn evaluate_with_scene(
+    bytes: &[u8],
+    source: &str,
+    request: Request,
+    limits: Limits,
+) -> Result<(nif::NifIndex, nif_scene::Scene, ObjectPose)> {
     let budget = Budget {
         source,
         bytes: limits.array_bytes,
@@ -482,7 +492,7 @@ pub fn evaluate(
     }
     let (index, decoded) = keyframe::decode_with_limits(bytes, source, limits.keys)?;
     let (_, scene) = nif_scene::decode_with_limits(bytes, source, limits.scene)?;
-    evaluate_loaded(
+    let pose = evaluate_loaded(
         SourceView {
             source,
             index: &index,
@@ -492,7 +502,8 @@ pub fn evaluate(
         },
         request,
         limits.into(),
-    )
+    )?;
+    Ok((index, scene, pose))
 }
 
 fn evaluate_loaded(

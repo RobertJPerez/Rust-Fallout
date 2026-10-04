@@ -116,6 +116,9 @@ enum Command {
         attachment: PathBuf,
         #[arg(long)]
         request: PathBuf,
+        /// Evaluate one exact controller/time request for the selected node.
+        #[arg(long)]
+        sampled: bool,
     },
     /// Evaluate linked translation/scale at explicit source time; playback unverified.
     NifSourcePose {
@@ -1728,6 +1731,7 @@ fn run(args: Args) -> Result<()> {
             skeleton,
             attachment,
             request,
+            sampled,
         } => {
             if let Some(path) = output {
                 let parent = path
@@ -1740,6 +1744,18 @@ fn run(args: Args) -> Result<()> {
                         return Err("report output must be outside every source directory".into());
                     }
                 }
+            }
+            if sampled {
+                let report = nif_animation_inspection::inspect_sampled_attachment(
+                    &skeleton,
+                    &attachment,
+                    &request,
+                )?;
+                emit(&report, output, &skeleton)?;
+                if report.failures != 0 {
+                    return Err("sampled rigid source attachment refused; see report".into());
+                }
+                return Ok(());
             }
             let report =
                 nif_animation_inspection::inspect_attachment(&skeleton, &attachment, &request)?;

@@ -1,0 +1,53 @@
+# Audio source preparation
+
+## Implemented producer slice
+
+The source51 basis had no audio preparation module. This slice adds a
+source-qualified WAVE producer in `fallout-data`: it asks the existing `MountIndex`
+for one unambiguous archive member, validates its `AssetSource` against the selected
+`ArchiveInput`, and extracts it through `ResourceJobs`. The returned `PreparedSound`
+owns the existing `Artifact`; its source archive and aggregate decoded-byte
+reservation remain pinned until the sound is dropped.
+
+The decoder accepts only RIFF/WAVE with the classic integer PCM format tag,
+mono or stereo channels, and 8- or 16-bit samples. It checks RIFF/chunk extents,
+odd-byte padding, format chunk size, nonzero channels/rate, bytes-per-second,
+block alignment and complete frames before exposing the sound. Unsupported
+containers, format tags, channels, sample depths, extensions and duplicate data
+chunks fail with an error. File extensions do not select or validate a codec.
+
+PCM is returned as interleaved normalized samples in bounded frame chunks. The
+source sample rate and channel layout are preserved; this producer does not mix,
+resample, apply gain, or claim a device clock. `PcmStream` checks its caller-owned
+`JobToken` before work, every 256 frames, and before publishing each chunk. Dropping
+the stream does not release the retained source; dropping `PreparedSound` releases
+the `ResourceJobs` artifact and budget pin.
+
+The existing archive cap is 256 MiB per member; `ResourceJobs` also charges each
+pending/retained artifact to its configured aggregate decoded-byte budget. PCM
+pulls are capped at 4096 frames. These engineering bounds limit memory and
+cancellation latency; they are not measured original-game duration or playback
+rules.
+
+## Deliberate open work
+
+`actors::voices` records that effective actor voice and audio-path selection are
+unsupported. `world::conversation` retains the source `Sound` form link, but does
+not identify a localized filename. This module therefore does not infer a dialogue
+cue, select language, resolve localization, parse LIP, schedule voice/music/radio,
+or provide a device backend. In particular, it is not audio-02/03/04 acceptance and
+does not establish original audio fidelity.
+
+The WAVE subset follows Microsoft's `WAVEFORMATEX` fields and PCM constraints:
+<https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatex>
+and its RIFF/WAVE chunk description:
+<https://learn.microsoft.com/en-us/windows/win32/xaudio2/resource-interchange-file-format--riff->.
+No external decoder implementation or retail asset is copied into this repository.
+
+## Synthetic verification
+
+`fallout-data/tests/audio_source.rs` builds a one-member BSA104 fixture in memory
+and exercises VFS uniqueness, source identity, artifact lifetime, bounded PCM chunks,
+per-stream cancellation, truncated format data, zero channels/rate, oversized
+declared payload and explicit unsupported ADPCM. These cases verify engineering
+behavior only; no original-game audio corpus or device playback is claimed.

@@ -490,6 +490,9 @@ enum Command {
         index_cache: Option<PathBuf>,
         #[arg(long)]
         comparison_bundle: Option<PathBuf>,
+        /// Exact source roots/cohort for bounded execution capability diagnostics.
+        #[arg(long)]
+        execution_admission: Option<PathBuf>,
     },
     /// Match source delimiters and raw distances in an offline SCDA bundle.
     ControlFlow {
@@ -1375,22 +1378,30 @@ fn run(args: Args) -> Result<()> {
             load_order,
             index_cache,
             comparison_bundle,
+            execution_admission,
         } => {
             let report = definition_plan_inspection::inspect(
                 &install,
                 &load_order,
                 index_cache.as_deref(),
                 comparison_bundle.as_deref(),
+                execution_admission.as_deref(),
             )?;
-            let failed = report["counts"]
-                .as_object()
-                .ok_or("Missing source-plan counts")?
-                .iter()
-                .any(|(kind, count)| {
-                    kind != "prepared_source_structure"
-                        && kind != "absent_compiled_field"
-                        && count.as_u64().unwrap_or(1) != 0
-                });
+            let failed = if execution_admission.is_some() {
+                !report["execution_admission"]["faithful_execution_admitted"]
+                    .as_bool()
+                    .unwrap_or(false)
+            } else {
+                report["counts"]
+                    .as_object()
+                    .ok_or("Missing source-plan counts")?
+                    .iter()
+                    .any(|(kind, count)| {
+                        kind != "prepared_source_structure"
+                            && kind != "absent_compiled_field"
+                            && count.as_u64().unwrap_or(1) != 0
+                    })
+            };
             emit(&report, output, &install)?;
             if failed {
                 return Err(

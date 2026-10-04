@@ -302,6 +302,10 @@ impl<'a> PreparedSources<'a> {
     pub fn source_cohort_sha256(&self) -> &str {
         &self.cohort
     }
+    /// The immutable catalogue that owns every cached source plan and table.
+    pub fn catalogue(&self) -> &'a Catalogue {
+        self.catalogue
+    }
     pub fn decoder_sha256(&self) -> &str {
         &self.decoder_sha256
     }

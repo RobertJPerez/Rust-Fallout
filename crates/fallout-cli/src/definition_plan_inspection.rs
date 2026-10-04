@@ -7,11 +7,12 @@ use fallout_data::{
         operand_binding,
     },
 };
+use fallout_runtime::{execution::admission, programs::PreparedSources};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
-    fs::OpenOptions,
-    io::{BufWriter, Write},
+    fs::{File, OpenOptions},
+    io::{BufWriter, Read, Write},
     path::Path,
 };
 
@@ -38,7 +39,13 @@ pub(super) fn inspect(
     order_path: &Path,
     cache: Option<&Path>,
     bundle_path: Option<&Path>,
+    admission_path: Option<&Path>,
 ) -> Result<Value> {
+    if admission_path.is_some() && bundle_path.is_some() {
+        return Err(
+            "execution admission and comparison bundle are separate source-plan requests".into(),
+        );
+    }
     let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
     let operators = script_profile::operators(&descriptors)?;
     let model = expression_plan::Model::vanilla(&operators)?;
@@ -49,6 +56,35 @@ pub(super) fn inspect(
         loaded_scripts::Catalogue::load(&mut store, loaded_scripts::Limits::default(), |_, _| {
             Ok(())
         })?;
+    if let Some(path) = admission_path {
+        let mut bytes = Vec::new();
+        File::open(path)?
+            .take(1024 * 1024 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > 1024 * 1024 {
+            return Err("execution admission request byte budget exceeded".into());
+        }
+        let request: admission::Request = serde_json::from_slice(&bytes)?;
+        let sources = PreparedSources::load(&catalogue, &model, &signatures, Default::default())?;
+        let attachments = fallout_data::quest_scripts::Attachments::load(
+            &mut store,
+            &catalogue,
+            131_072,
+            |_, _| Ok(()),
+        )?;
+        let report = request.check(&sources, &attachments, Default::default())?;
+        return Ok(json!({
+            "schema_version": 1,
+            "scope": "bounded_declared_source_dependencies_and_unverified_execution_capabilities",
+            "request_sha256": format!("{:x}", sha2::Sha256::digest(&bytes)),
+            "explicit_load_order": order.names,
+            "load_order_sha256": order.sha256,
+            "executable_source_sha256": descriptors.source_sha256,
+            "execution_admission": report,
+            "index_cache": store.index_cache_report(),
+            "retail_parity_accepted": false,
+        }));
+    }
     let mut bundle = bundle_path
         .map(|path| -> Result<_> {
             let parent = path

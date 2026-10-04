@@ -234,6 +234,8 @@ def validate_capture_config(config: object) -> list[dict]:
     for index, raw in enumerate(runs):
         row = _object(raw, f"runs[{index}]")
         run_id = _string(row.get("id"), f"runs[{index}].id")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", run_id) is None:
+            raise AcceptanceError(f"{run_id}: scenario id must be a safe filename component")
         if run_id in ids:
             raise AcceptanceError(f"Duplicate scenario id: {run_id}")
         ids.add(run_id)
@@ -556,6 +558,14 @@ def _check_private_output(repo: Path, install: Path, output: Path) -> Path:
         raise AcceptanceError("Capture output must be outside the read-only installation")
     if destination.exists():
         raise AcceptanceError("Capture output directory already exists; stale output is refused")
+    return destination
+
+
+def _check_private_evidence_path(repo: Path, path: Path) -> Path:
+    private = (repo.resolve() / "local" / "v4-evidence").resolve()
+    destination = path.resolve()
+    if private != destination and private not in destination.parents:
+        raise AcceptanceError("Verification output must stay under local/v4-evidence")
     return destination
 
 
@@ -1072,7 +1082,9 @@ def capture(args: argparse.Namespace) -> int:
 
 def verify(args: argparse.Namespace) -> int:
     result = compare_capture_manifests(args.expected.resolve(), args.actual.resolve())
-    result_path = args.result.resolve() if args.result else args.actual.resolve().parent / "verification.json"
+    repo = Path(__file__).resolve().parents[2]
+    requested_result = args.result.resolve() if args.result else args.actual.resolve().parent / "verification.json"
+    result_path = _check_private_evidence_path(repo, requested_result)
     write_json_new(result_path, result)
     print(f"Harness replay: {result['harness_status']}; scene observations: {result['scene_status']}.")
     print(f"Feature acceptance: {result['feature_acceptance']}; retail parity accepted: false.")

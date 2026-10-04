@@ -221,8 +221,34 @@ class CompletionAndObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(scene_replay.AcceptanceError, "Duplicate scenario"):
             scene_replay.validate_capture_config(config)
 
+    def test_scenario_id_cannot_escape_capture_directory(self) -> None:
+        config = {
+            "schema_version": 1,
+            "cell_editor_id": "cell",
+            "runs": [
+                {
+                    "id": "..\\outside",
+                    "camera": {"source_position": [0, 0, 0], "source_target": [0, 1, 0]},
+                }
+            ],
+        }
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "safe filename component"):
+            scene_replay.validate_capture_config(config)
+
 
 class ImageAndFreshnessTests(unittest.TestCase):
+    def test_verification_result_must_stay_in_private_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / "repo"
+            private = repo / "local" / "v4-evidence"
+            private.mkdir(parents=True)
+            self.assertEqual(
+                scene_replay._check_private_evidence_path(repo, private / "result.json"),
+                private / "result.json",
+            )
+            with self.assertRaisesRegex(scene_replay.AcceptanceError, "local/v4-evidence"):
+                scene_replay._check_private_evidence_path(repo, Path(directory) / "outside.json")
+
     def test_exact_image_match_and_declared_pixel_tolerance(self) -> None:
         first = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
         changed = bytes([255, 0, 0, 0, 255, 0, 0, 0, 250, 255, 255, 255])

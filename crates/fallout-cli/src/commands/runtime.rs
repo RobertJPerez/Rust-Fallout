@@ -191,6 +191,12 @@ pub(crate) enum RuntimeCommand {
             conflicts_with = "engineering_event_commit"
         )]
         host_requirements: Option<PathBuf>,
+        /// Explicit source selections and retained state for atomic group admission.
+        #[arg(long, requires = "source_reference_repository", conflicts_with_all = ["engineering_event_commit", "host_snapshot", "host_requirements"])]
+        source_reference_group: Option<PathBuf>,
+        /// New native repository for the explicit group before/current boundaries.
+        #[arg(long, requires = "source_reference_group", conflicts_with_all = ["engineering_event_commit", "host_snapshot", "host_requirements"])]
+        source_reference_repository: Option<PathBuf>,
     },
     /// Prepare bounded source windows for explicit engineering pending events.
     EventFrames {

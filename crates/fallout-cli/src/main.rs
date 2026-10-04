@@ -1065,6 +1065,8 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             engineering_event_commit,
             host_snapshot,
             host_requirements,
+            source_reference_group,
+            source_reference_repository,
         } => {
             let report = script_state_inspection::inspect(
                 &install,
@@ -1072,6 +1074,9 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
                 index_cache.as_deref(),
                 engineering_event_commit.as_deref(),
                 host_snapshot.as_deref().zip(host_requirements.as_deref()),
+                source_reference_group
+                    .as_deref()
+                    .zip(source_reference_repository.as_deref()),
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }

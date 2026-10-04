@@ -2,13 +2,19 @@
 //! using explicit synthetic values. No retail event list is captured or run.
 use super::{Result, inspection_input::Order};
 use fallout_data::{
+    identity::FormKey,
     loaded_scripts::{self, Catalogue},
     record_metadata,
 };
 use fallout_runtime::{
     Limits, World,
     events::{Clocks, Context, Trigger},
+    foreign::Content,
     identity::{CampaignId, Owner, ReferenceValue, Value},
+    reference_state::{
+        Pose, SourceReferenceGroupLimits, SourceReferenceLimits, SourceReferenceRequest, State,
+    },
+    save::{Captured, Recovery, Repository},
     schema::{self, Kind},
     snapshot::Snapshot,
     state::{HostLimits, HostRequirements, initialization},
@@ -21,6 +27,123 @@ use std::{collections::BTreeMap, io::Read, path::Path};
 struct HostCheckInput {
     snapshot: Snapshot,
     requirements: HostRequirements,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExplicitSourceReference {
+    authored: FormKey,
+    allowed_kinds: Vec<[u8; 4]>,
+    cell: FormKey,
+    pose: Pose,
+    enabled: bool,
+}
+impl ExplicitSourceReference {
+    fn request(&self) -> SourceReferenceRequest<'_> {
+        SourceReferenceRequest {
+            authored: &self.authored,
+            allowed_kinds: &self.allowed_kinds,
+            cell: &self.cell,
+            pose: &self.pose,
+            enabled: self.enabled,
+        }
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceGroupInput {
+    existing: ExplicitSourceReference,
+    retained_state: State,
+    requests: Vec<ExplicitSourceReference>,
+}
+impl SourceGroupInput {
+    fn read(path: &Path) -> Result<Self> {
+        let bytes = read_bounded(
+            path,
+            64 * 1024,
+            "Source reference group input byte budget exceeded",
+        )?;
+        let input: Self = serde_json::from_slice(&bytes)?;
+        let limits = SourceReferenceGroupLimits::default();
+        if input.requests.len() > limits.max_requests {
+            return Err("Source reference group request budget exceeded".into());
+        }
+        Ok(input)
+    }
+    fn probe(
+        self,
+        catalogue: &Catalogue,
+        content: &Content,
+        install: &Path,
+        repository_path: &Path,
+    ) -> Result<Json> {
+        let mut harness = engineering_world(catalogue)?;
+        let world = &mut harness.world;
+        let created = world.commit_source_reference(world.stage_source_reference(
+            self.existing.request(),
+            content,
+            SourceReferenceLimits::default(),
+        )?)?;
+        let existing_id = created.view().reference();
+        // Retained state is another explicit host input, still source-cell-bound.
+        if content.source_form(world, self.retained_state.cell())?.kind != *b"CELL" {
+            return Err("Retained source reference cell must be CELL".into());
+        }
+        let retained_edit = world.commit_reference_state(
+            world.stage_reference_state(created.view(), self.retained_state)?,
+        )?;
+        let before = world.snapshot();
+        let requests = self
+            .requests
+            .iter()
+            .map(ExplicitSourceReference::request)
+            .collect::<Vec<_>>();
+        let stage = world.stage_source_reference_group(
+            &requests,
+            content,
+            SourceReferenceGroupLimits::default(),
+        )?;
+        if world.snapshot() != before {
+            return Err("Source group staging changed canonical state".into());
+        }
+        let admission = world.commit_source_reference_group(stage)?;
+        let current = world.snapshot();
+        let mut restored = World::restore(catalogue, current.clone(), Limits::default())?;
+        let reused =
+            restored.commit_source_reference_group(restored.stage_source_reference_group(
+                &requests,
+                content,
+                SourceReferenceGroupLimits::default(),
+            )?)?;
+        if restored.snapshot() != current || reused.usage().created != 0 {
+            return Err("Restored source group changed retained canonical state".into());
+        }
+        for row in admission.rows() {
+            if serde_json::to_value(row.view())?
+                != serde_json::to_value(restored.reference_view(row.view().reference())?)?
+            {
+                return Err("Source group view differs after restoration".into());
+            }
+        }
+        // Create only after the whole request, group and round-trip checks pass.
+        let repository = Repository::create(repository_path, &[install.into()], world.campaign())?;
+        let before_world = World::restore(catalogue, before.clone(), Limits::default())?;
+        let before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+        let current_write = repository.commit(&Captured::at_boundary(world))?;
+        let (loaded, load) = repository.load(catalogue, Limits::default(), Recovery::Strict)?;
+        if loaded.snapshot() != current {
+            return Err("Native source group boundary differs".into());
+        }
+        Ok(
+            json!({"scope":"Explicit source-header-admitted reference identities and host-selected state",
+            "existing_initialization":created,"retained_edit":retained_edit,"existing_id":existing_id,
+            "admission":admission,"restored_reuse":reused,"before_snapshot":before,"current_snapshot":current,
+            "before_write":before_write,"current_write":current_write,"native_load":load,
+            "snapshot_sha256":format!("{:x}",Sha256::digest(current.encode(Limits::default().max_snapshot_bytes)?)),
+            "stage_preserved_state":true,"canonical_state_round_trip_equal":true,
+            "source_membership_inferred":false,"bytecode_executed":false,"retail_parity_accepted":false}),
+        )
+    }
 }
 fn read_bounded(path: &Path, maximum: u64, message: &'static str) -> Result<Vec<u8>> {
     let file = fallout_data::baseline::open_source(path)?;
@@ -309,11 +432,24 @@ pub(super) fn inspect(
     cache: Option<&Path>,
     engineering_event_commit: Option<&Path>,
     host_inputs: Option<(&Path, &Path)>,
+    source_group_inputs: Option<(&Path, &Path)>,
 ) -> Result<Json> {
     // Bound and validate the opt-in request before loading the content corpus.
     if engineering_event_commit.is_some() && host_inputs.is_some() {
         return Err("Host requirements and engineering event commit are mutually exclusive".into());
     }
+    if source_group_inputs.is_some()
+        && (engineering_event_commit.is_some() || host_inputs.is_some())
+    {
+        return Err(
+            "Source reference group and other opt-in state modes are mutually exclusive".into(),
+        );
+    }
+    let source_group = source_group_inputs
+        .map(|(input, repository)| {
+            Ok::<_, Box<dyn std::error::Error>>((SourceGroupInput::read(input)?, repository))
+        })
+        .transpose()?;
     let request = engineering_event_commit
         .map(EngineeringCommit::read)
         .transpose()?;
@@ -387,6 +523,11 @@ pub(super) fn inspect(
         let mut harness = engineering_world(&catalogue)?;
         report["engineering_event_commit"] = event_commit_probe(&mut harness.world, request)?;
     }
+    if let Some((input, repository)) = source_group {
+        let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+        report["source_reference_group"] =
+            input.probe(&catalogue, &content, install, repository)?;
+    }
     Ok(report)
 }
 
@@ -427,6 +568,98 @@ mod tests {
     impl Drop for InputFile {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn explicit_source_group_input_preserves_bits_and_refuses_ambiguous_fields() {
+        let file = InputFile::new();
+        let key = json!({"profile":"nv-original","origin_plugin":"falloutnv.esm","local_id":1280});
+        let cell = json!({"profile":"nv-original","origin_plugin":"falloutnv.esm","local_id":1024});
+        let pose = json!({"position_bits":[1065353216,2147483648_u32,1],"rotation_bits":[0,0,0],"scale_bits":null});
+        let row = json!({"authored":key,"allowed_kinds":[[82,69,70,82]],"cell":cell,"pose":pose,"enabled":true});
+        let valid = json!({"existing":row,"retained_state":{"schema_version":1,"cell":cell,"pose":pose,"enabled":false},"requests":[row]});
+        std::fs::write(&file.0, serde_json::to_vec(&valid).unwrap()).unwrap();
+        let input = SourceGroupInput::read(&file.0).unwrap();
+        assert_eq!(
+            input.requests[0].pose.source_transform().position[1].to_bits(),
+            0x80000000
+        );
+        assert_eq!(
+            input.requests[0].pose.source_transform().position[2].to_bits(),
+            1
+        );
+        for bad in [
+            {
+                let mut v = valid.clone();
+                v["unexpected"] = json!(true);
+                v
+            },
+            {
+                let mut v = valid.clone();
+                v.as_object_mut().unwrap().remove("retained_state");
+                v
+            },
+            {
+                let mut v = valid.clone();
+                v["requests"][0]["enabled"] = json!(null);
+                v
+            },
+            {
+                let mut v = valid.clone();
+                v["existing"]["unknown"] = json!(1);
+                v
+            },
+            {
+                let mut v = valid.clone();
+                v["requests"][0]["pose"]["position_bits"][0] = json!(4294967296_u64);
+                v
+            },
+        ] {
+            std::fs::write(&file.0, serde_json::to_vec(&bad).unwrap()).unwrap();
+            assert!(SourceGroupInput::read(&file.0).is_err());
+        }
+    }
+    #[test]
+    fn source_group_input_and_paired_mode_flags_are_bounded_and_exclusive() {
+        use clap::Parser;
+        let file = InputFile::new();
+        std::fs::write(&file.0, vec![b' '; 65537]).unwrap();
+        assert_eq!(
+            SourceGroupInput::read(&file.0).err().unwrap().to_string(),
+            "Source reference group input byte budget exceeded"
+        );
+        let base = [
+            "fallout",
+            "script-state",
+            "--install",
+            "install",
+            "--load-order",
+            "order.json",
+        ];
+        let pair = [
+            "--source-reference-group",
+            "group.json",
+            "--source-reference-repository",
+            "new-native",
+        ];
+        assert!(super::super::Args::try_parse_from(base.into_iter().chain(pair)).is_ok());
+        for extra in [
+            vec!["--source-reference-group", "group.json"],
+            vec!["--source-reference-repository", "new-native"],
+            pair.into_iter()
+                .chain(["--engineering-event-commit", "commit.json"])
+                .collect::<Vec<_>>(),
+            pair.into_iter()
+                .chain([
+                    "--host-snapshot",
+                    "snapshot.json",
+                    "--host-requirements",
+                    "requirements.json",
+                ])
+                .collect::<Vec<_>>(),
+        ] {
+            assert!(super::super::Args::try_parse_from(base.into_iter().chain(extra)).is_err());
         }
     }
 

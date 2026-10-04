@@ -448,3 +448,51 @@ graph and route budgets remain in force. Additional bounds cover cell/source/mes
 counts, strict policy entries, request/view/output bytes and conservative logical
 work. The work total reserves the route's complete configured edge, policy,
 expansion and path budget before traversal; it is not a count of actual expansions.
+
+### Explicit canonical actor interactions (ACT30–32)
+
+`actor_rules::reference_intent`, `inventory_transfer` and `equipment_intent` accept
+an explicit `Claim` containing the compact canonical input snapshot SHA256,
+already registered reference ID, expected actor base FormKey and intent
+`{"kind":"engineering"}`. `faithful` refuses because original initialization,
+pickup and equipment behavior remains unmeasured. The input snapshot is admitted
+through existing intrinsic budgets and strict source-bound restoration. ACT15
+then freshly qualifies its authored ACHR/ACRE placement and winning actor base.
+No reference is registered and no saved inspector view becomes authority.
+
+Reference choices require a live CELL, all six finite position/rotation bit words,
+explicit nullable scale bits and explicit enabled value. Positive finite supplied
+scale and signed zero are preserved by the canonical Pose/State constructors.
+Missing scale remains null. Source DATA and disabled flags do not supply defaults.
+The private candidate stages and commits the selected component exactly once.
+
+Transfer choices select one ItemId belonging to the qualified actor and an
+already registered destination with an explicitly initialized inventory. ACT16
+admits the exact lot and winning base. The existing whole-lot transfer preserves
+its ID, count and every fact; same-base lots never merge. Transfer to the same
+owner follows the canonical no-op contract and preserves the revision.
+
+Equipment choices require `supplied_slots`, whose null, empty array and ordered
+unique u16 array remain distinct. Omission refuses. Only that selected lot's
+equipped_slots changes through the existing facts validator and replacement.
+Condition width and raw bits, ownership, ammo, modification order, quest/script
+links and opaque bytes remain exact. Equal supplied facts still advance the
+canonical revision. There is no slot sorting, retail mapping, auto-unequip or
+conflict inference.
+
+The optional `actor-package-context --actor-reference-intent request.json`,
+`--actor-inventory-transfer request.json` and `--actor-equipment-intent request.json`
+flags emit immutable private candidate reports. Each supplied request independently
+uses the same original input snapshot. An explicit chain requires saving a
+candidate snapshot and making a new digest-qualified request against it. Source,
+request, snapshot, inventory, fact/slot/work and complete output budgets apply;
+Borrowed snapshot bytes are admitted before canonical source-name validation;
+the exact candidate length delta is admitted before cloning its snapshot, and
+late output refusal drops the private result. The original world and input files
+remain unchanged. Strict wire types reject duplicate or unknown fields.
+
+The connected proof checks component → slot metadata → exact-lot transfer → cold
+restore, with nonempty unrelated script/event state and full snapshot conservation.
+The independent interactions oracle reuses existing source/placement/lot readers
+and derives complete expected candidates from caller input alone. Engineering
+proofs do not establish original gameplay parity.

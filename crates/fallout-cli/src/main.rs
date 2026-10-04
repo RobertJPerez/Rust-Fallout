@@ -291,6 +291,15 @@ enum Command {
         inventory_boot_request: Option<PathBuf>,
         #[arg(long)]
         package_route_request: Option<PathBuf>,
+        /// Apply explicit component values to a private source-qualified candidate.
+        #[arg(long)]
+        actor_reference_intent: Option<PathBuf>,
+        /// Move one exact canonical lot in a private candidate; no pickup rules.
+        #[arg(long)]
+        actor_inventory_transfer: Option<PathBuf>,
+        /// Replace only explicit slot metadata in a private candidate.
+        #[arg(long)]
+        actor_equipment_intent: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1071,6 +1080,9 @@ fn run(args: Args) -> Result<()> {
             render_path_selection,
             inventory_boot_request,
             package_route_request,
+            actor_reference_intent,
+            actor_inventory_transfer,
+            actor_equipment_intent,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1092,6 +1104,9 @@ fn run(args: Args) -> Result<()> {
                     render_path_selection: render_path_selection.as_deref(),
                     inventory_boot_request: inventory_boot_request.as_deref(),
                     package_route_request: package_route_request.as_deref(),
+                    actor_reference_intent: actor_reference_intent.as_deref(),
+                    actor_inventory_transfer: actor_inventory_transfer.as_deref(),
+                    actor_equipment_intent: actor_equipment_intent.as_deref(),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

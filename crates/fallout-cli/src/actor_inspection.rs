@@ -51,6 +51,9 @@ pub(super) struct ContextOptions<'a> {
     pub(super) render_path_selection: Option<&'a Path>,
     pub(super) inventory_boot_request: Option<&'a Path>,
     pub(super) package_route_request: Option<&'a Path>,
+    pub(super) actor_reference_intent: Option<&'a Path>,
+    pub(super) actor_inventory_transfer: Option<&'a Path>,
+    pub(super) actor_equipment_intent: Option<&'a Path>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -78,6 +81,9 @@ pub(super) fn package_context(
         || options.include_initialization_inputs
         || options.equipment_item.is_some()
         || options.package_route_request.is_some()
+        || options.actor_reference_intent.is_some()
+        || options.actor_inventory_transfer.is_some()
+        || options.actor_equipment_intent.is_some()
         || options.inventory_boot_request.is_some())
     .then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
@@ -354,6 +360,78 @@ pub(super) fn package_context(
             .expect_err("faithful AI is unverified");
         report["actor_package_route"] = serde_json::to_value(proposal)?;
     }
+    if options.actor_reference_intent.is_some()
+        || options.actor_inventory_transfer.is_some()
+        || options.actor_equipment_intent.is_some()
+    {
+        use fallout_runtime::actor_rules::{
+            equipment_intent, inventory_transfer, reference_intent,
+        };
+        let placements = actors::placements::Catalogue::load(&mut store, Default::default())?;
+        let sources = reference_intent::Sources {
+            placements: &placements,
+            actors: &actors,
+        };
+        let input = before_observation
+            .as_ref()
+            .expect("intent captures the original snapshot");
+        let intent_limits = reference_intent::Limits::default();
+        let check_claim = |claim: &reference_intent::Claim| -> Result<()> {
+            if &claim.actor != options.actor_root
+                || options
+                    .explicit_subject
+                    .is_some_and(|id| claim.reference.0 != id)
+            {
+                return Err("actor intent claim differs from explicit actor/subject".into());
+            }
+            Ok(())
+        };
+        if let Some(path) = options.actor_reference_intent {
+            let choice: reference_intent::Choice =
+                read_actor_intent(path, intent_limits.max_request_bytes)?;
+            check_claim(&choice.claim)?;
+            let candidate = reference_intent::apply_private(
+                input,
+                &scripts,
+                &content,
+                sources,
+                &choice,
+                limits,
+                intent_limits,
+            )?;
+            report["actor_reference_intent"] = serde_json::to_value(candidate)?;
+        }
+        if let Some(path) = options.actor_inventory_transfer {
+            let choice: inventory_transfer::Choice =
+                read_actor_intent(path, intent_limits.max_request_bytes)?;
+            check_claim(&choice.claim)?;
+            let candidate = inventory_transfer::apply_private(
+                input,
+                &scripts,
+                &content,
+                sources,
+                &choice,
+                limits,
+                intent_limits,
+            )?;
+            report["actor_inventory_transfer"] = serde_json::to_value(candidate)?;
+        }
+        if let Some(path) = options.actor_equipment_intent {
+            let choice: equipment_intent::Choice =
+                read_actor_intent(path, intent_limits.max_request_bytes)?;
+            check_claim(&choice.claim)?;
+            let candidate = equipment_intent::apply_private(
+                input,
+                &scripts,
+                &content,
+                sources,
+                &choice,
+                limits,
+                intent_limits,
+            )?;
+            report["actor_equipment_intent"] = serde_json::to_value(candidate)?;
+        }
+    }
     if before_observation
         .as_ref()
         .is_some_and(|before| before != &world.snapshot())
@@ -361,6 +439,18 @@ pub(super) fn package_context(
         return Err("actor item/context observation changed canonical state".into());
     }
     Ok(report)
+}
+
+fn read_actor_intent<T: serde::de::DeserializeOwned>(path: &Path, maximum: usize) -> Result<T> {
+    let mut source = baseline::open_source(path)?;
+    let mut bytes = Vec::new();
+    (&mut source)
+        .take(maximum as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > maximum {
+        return Err("actor intent request byte budget exceeded".into());
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }
 
 pub(super) fn parse_package_operation(

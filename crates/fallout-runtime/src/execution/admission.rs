@@ -24,6 +24,8 @@ pub struct Limits {
     pub maximum_definitions: usize,
     pub maximum_dependencies: usize,
     pub maximum_instructions: usize,
+    /// Total cached operand uses visited, including own locals without edges.
+    pub maximum_operand_uses: usize,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -32,6 +34,7 @@ impl Default for Limits {
             maximum_definitions: 256,
             maximum_dependencies: 4_096,
             maximum_instructions: 65_536,
+            maximum_operand_uses: 65_536,
         }
     }
 }
@@ -39,6 +42,13 @@ impl Default for Limits {
 pub enum Error {
     #[error("execution admission budget exceeded: {0}")]
     Capacity(&'static str),
+    #[error(
+        "execution admission operand-use budget exceeded at SCDA operand 0x{source_scda_offset:X} in {definition:?}"
+    )]
+    OperandUseBudget {
+        definition: Box<Handle>,
+        source_scda_offset: usize,
+    },
     #[error("execution admission needs at least one exact source root")]
     EmptyRoots,
     #[error("execution admission has conflicting versions for one source key")]
@@ -292,6 +302,7 @@ pub fn check(
     let mut dependency_findings = Vec::new();
     let mut first = None;
     let mut instructions = 0;
+    let mut operand_uses = 0;
     while let Some(handle) = queue.pop_front() {
         // A stale requested version is a caller error, never a source capability
         // rejection silently substituted with the current winning version.
@@ -323,6 +334,16 @@ pub fn check(
             return Err(Error::Capacity("instructions"));
         }
         instructions += plan.control().instructions().len();
+        let remaining = limits.maximum_operand_uses.saturating_sub(operand_uses);
+        if let Some(excluded) = plan.bindings().uses.get(remaining) {
+            return Err(Error::OperandUseBudget {
+                definition: Box::new(handle),
+                source_scda_offset: excluded.scda_offset,
+            });
+        }
+        operand_uses = operand_uses
+            .checked_add(plan.bindings().uses.len())
+            .ok_or(Error::Capacity("operand uses"))?;
         first.get_or_insert_with(|| operation(plan));
         for use_ in &plan.bindings().uses {
             let mut targets = Vec::new();

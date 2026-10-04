@@ -1,6 +1,13 @@
-//! Conservative culling of identity-frame source primitives. Every accepted
-//! candidate still reaches the original shape predicate; other frames fall back.
-use super::{QueryError, QueryResult, Ray, math::V, shape::cuboid_may_ray};
+//! Conservative source culling. Every accepted candidate still reaches its
+//! original shape predicate; uncertifiable transform enclosures fall back.
+use super::{
+    QueryError, QueryResult, Ray,
+    enclosure::{
+        self, Interval, upper_product as product, upper_quotient as quotient, upper_sum as sum,
+    },
+    math::{Similarity, V},
+    shape::cuboid_may_ray,
+};
 use std::{
     iter::{Copied, Peekable},
     ops::Range,
@@ -12,43 +19,208 @@ use std::{
 pub(super) struct Bounds {
     minimum: V,
     maximum: V,
+    coefficients: [[f64; 3]; 3],
+    constant: V,
+    underflow: V,
+    radius_coefficients: V,
+    projection_magnitudes: [[f64; 4]; 3],
+    inverse_scale: f64,
+    exact_identity: bool,
 }
 impl Bounds {
     pub fn new(minimum: V, maximum: V) -> Self {
         Self {
             minimum: minimum.map(f64::next_down),
             maximum: maximum.map(f64::next_up),
+            coefficients: [[0.; 3]; 3],
+            constant: [0.; 3],
+            underflow: [0.; 3],
+            radius_coefficients: [1.; 3],
+            projection_magnitudes: [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]],
+            inverse_scale: 1.,
+            exact_identity: true,
         }
+    }
+    pub fn transformed(minimum: V, maximum: V, transform: &Similarity) -> Option<Self> {
+        if transform.is_identity() {
+            return Some(Self::new(minimum, maximum));
+        }
+        let inverse = transform.inverse_rows();
+        let linear = std::array::from_fn(|i| std::array::from_fn(|j| inverse[i][j]));
+        let forward = enclosure::inverse(linear)?;
+        let local = [
+            Interval::new(minimum[0], maximum[0])?.subtract(Interval::point(inverse[0][3]))?,
+            Interval::new(minimum[1], maximum[1])?.subtract(Interval::point(inverse[1][3]))?,
+            Interval::new(minimum[2], maximum[2])?.subtract(Interval::point(inverse[2][3]))?,
+        ];
+        let mut result = Self::new([0.; 3], [0.; 3]);
+        result.exact_identity = false;
+        result.projection_magnitudes = inverse.map(|row| row.map(f64::abs));
+        result.inverse_scale = quotient(1., transform.scale);
+        // Existing Affine.point/local_vector use at most 7/6 rounded operations.
+        // 16EPS exceeds gamma7 (unit roundoff EPS/2); 8minsub covers underflow.
+        let gamma = 16. * f64::EPSILON;
+        for (i, row) in forward.iter().enumerate() {
+            let mut world = Interval::point(0.);
+            let mut row_sum = 0.;
+            for (j, element) in row.iter().enumerate() {
+                world = world.add(element.multiply(local[j])?)?;
+                let magnitude = element.absolute_upper();
+                row_sum = sum(row_sum, magnitude);
+                result.constant[i] =
+                    sum(result.constant[i], product(magnitude, inverse[j][3].abs()));
+                for (k, value) in linear[j].iter().enumerate() {
+                    result.coefficients[i][k] =
+                        sum(result.coefficients[i][k], product(magnitude, value.abs()));
+                }
+            }
+            result.minimum[i] = world.lower.next_down();
+            result.maximum[i] = world.upper.next_up();
+            result.constant[i] = product(gamma, result.constant[i]);
+            result.coefficients[i] = result.coefficients[i].map(|v| product(gamma, v));
+            // Include one more minsub for rounded radius division. This extra
+            // allowance is conservative for rays as well as overlaps.
+            result.underflow[i] = product(f64::from_bits(9), row_sum);
+            result.radius_coefficients[i] =
+                product(quotient(row_sum, transform.scale), 1. + f64::EPSILON);
+        }
+        if result
+            .minimum
+            .iter()
+            .chain(&result.maximum)
+            .chain(result.coefficients.iter().flatten())
+            .chain(&result.constant)
+            .chain(&result.underflow)
+            .chain(&result.radius_coefficients)
+            .chain(std::iter::once(&result.inverse_scale))
+            .any(|v| !v.is_finite())
+        {
+            return None;
+        }
+        Some(result)
     }
     fn union(self, other: Self) -> Self {
         Self {
             minimum: std::array::from_fn(|i| self.minimum[i].min(other.minimum[i])),
             maximum: std::array::from_fn(|i| self.maximum[i].max(other.maximum[i])),
+            coefficients: std::array::from_fn(|i| {
+                std::array::from_fn(|j| self.coefficients[i][j].max(other.coefficients[i][j]))
+            }),
+            constant: std::array::from_fn(|i| self.constant[i].max(other.constant[i])),
+            underflow: std::array::from_fn(|i| self.underflow[i].max(other.underflow[i])),
+            radius_coefficients: std::array::from_fn(|i| {
+                self.radius_coefficients[i].max(other.radius_coefficients[i])
+            }),
+            projection_magnitudes: std::array::from_fn(|i| {
+                std::array::from_fn(|j| {
+                    self.projection_magnitudes[i][j].max(other.projection_magnitudes[i][j])
+                })
+            }),
+            inverse_scale: self.inverse_scale.max(other.inverse_scale),
+            exact_identity: self.exact_identity && other.exact_identity,
         }
     }
     fn center(self, axis: usize) -> f64 {
         0.5 * self.minimum[axis] + 0.5 * self.maximum[axis]
     }
+    fn projection_in_domain(self, value: V, point: bool) -> bool {
+        self.projection_magnitudes.iter().all(|row| {
+            let mut magnitude = if point { row[3] } else { 0. };
+            for (coefficient, value) in row[..3].iter().zip(value) {
+                magnitude = sum(magnitude, product(*coefficient, value.abs()));
+            }
+            sum(
+                product(magnitude, 1. + 16. * f64::EPSILON),
+                f64::from_bits(8),
+            ) <= 1e50
+        })
+    }
+    fn ray_padding(self, ray: Ray) -> V {
+        std::array::from_fn(|i| {
+            let mut error = sum(
+                self.constant[i],
+                product(self.underflow[i], sum(1., ray.max_distance)),
+            );
+            for k in 0..3 {
+                error = sum(
+                    error,
+                    product(
+                        self.coefficients[i][k],
+                        sum(
+                            ray.origin[k].abs(),
+                            product(ray.max_distance, ray.direction[k].abs()),
+                        ),
+                    ),
+                );
+            }
+            error
+        })
+    }
     fn may_ray(self, ray: Ray) -> bool {
+        // Culling must not hide the original local-domain refusal. If the
+        // conversion cannot be certified within that domain, retain the leaf.
+        if !self.exact_identity
+            && (!self.projection_in_domain(ray.origin, true)
+                || !self.projection_in_domain(ray.direction, false))
+        {
+            return true;
+        }
+        let (minimum, maximum) = if self.exact_identity {
+            (self.minimum, self.maximum)
+        } else {
+            let Some(bounds) = self.expanded(self.ray_padding(ray)) else {
+                return true;
+            };
+            bounds
+        };
         cuboid_may_ray(
             ray.origin,
             ray.direction,
-            self.minimum,
-            self.maximum,
+            minimum,
+            maximum,
             ray.max_distance,
         )
     }
-    fn may_overlap(self, center: V, radius: f64) -> bool {
-        (0..3).all(|i| {
-            let minimum = (self.minimum[i] - radius).next_down();
-            let maximum = (self.maximum[i] + radius).next_up();
-            // Nonfinite bounds cannot certify exclusion.
-            !minimum.is_finite()
-                || !maximum.is_finite()
-                || (minimum <= center[i] && center[i] <= maximum)
+    fn overlap_padding(self, center: V, radius: f64) -> V {
+        std::array::from_fn(|i| {
+            let mut error = sum(
+                self.constant[i],
+                sum(
+                    self.underflow[i],
+                    product(self.radius_coefficients[i], radius),
+                ),
+            );
+            for (k, value) in center.iter().enumerate() {
+                error = sum(error, product(self.coefficients[i][k], value.abs()));
+            }
+            error
         })
     }
+    fn may_overlap(self, center: V, radius: f64) -> bool {
+        if !self.exact_identity
+            && (!self.projection_in_domain(center, true)
+                || sum(product(self.inverse_scale, radius), f64::from_bits(1)) > 1e50)
+        {
+            return true;
+        }
+        self.expanded(self.overlap_padding(center, radius))
+            .is_none_or(|(minimum, maximum)| {
+                (0..3).all(|i| minimum[i] <= center[i] && center[i] <= maximum[i])
+            })
+    }
+    fn expanded(self, pad: V) -> Option<(V, V)> {
+        if pad.iter().any(|v| !v.is_finite() || *v < 0.) {
+            return None;
+        }
+        let minimum: V = std::array::from_fn(|i| (self.minimum[i] - pad[i]).next_down());
+        let maximum: V = std::array::from_fn(|i| (self.maximum[i] + pad[i]).next_up());
+        (minimum.iter().chain(&maximum).all(|v| v.is_finite())).then_some((minimum, maximum))
+    }
 }
+
+#[cfg(test)]
+#[path = "index_tests.rs"]
+mod tests;
 
 #[derive(Debug)]
 enum Node {

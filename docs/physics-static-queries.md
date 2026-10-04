@@ -95,22 +95,51 @@ subtraction residuals, refusing uncertain contact comparisons. These local
 predicates retain the declared engineering transform scope; they do not certify
 retail units or arbitrary approximately similar transforms.
 
-Scenes with at least eight identity-inverse primitive occurrences use a balanced
-source-bound index. Its bounds enclose the supported authored core geometry;
-they only reject guaranteed misses and never produce hits. Unresolved or
-overflowing bound-ray predicates keep the source candidate. Other transforms
-retain the exhaustive path, merged in original occurrence order. Thus current
-acceleration covers model-local identity frames; transformed acceleration remains
-unfinished, while transformed geometry queries remain available.
+Scenes with at least eight certifiably enclosed primitive occurrences use a
+balanced source-bound index. Its bounds enclose supported authored core geometry;
+they only reject guaranteed misses and never produce hits. Identity frames have
+direct outward source bounds. Other validated transforms use directed intervals
+to invert the actual stored binary64 inverse matrix, then enclose the source
+volume in query coordinates. Query-dependent padding covers rounding in the
+existing local origin/direction/center projections and radius conversion.
+Translation, rotation, reflection, uniform scale and accepted near-similarity
+frames retain their original transforms and narrow predicates. Uncertifiable
+transform bounds retain the exhaustive path, merged in original occurrence order.
+Unresolved or overflowing bound predicates keep the source candidate.
+Absolute projection and radius bounds also keep candidates whenever the original
+local numerical domain cannot be certified. A distant bounding miss cannot hide
+the original local-conversion refusal.
 Build accounting charges every retained index node and fallback ordinal against
 `geometry_elements`. A query derives a separate index-visit ceiling of twice its
 initial `primitive_tests`; narrow primitives still charge the original counter.
 Traversal stops before exceeding that ceiling, and any error discards the whole
 query. Candidate ordering and final distance/source ordering are deterministic.
+At most the visited leaf count is retained and sorted for original occurrence
+order. These caps bound query work/storage; they do not guarantee pruning of
+every miss. In particular, a long oblique ray may intersect many world-axis
+enclosures without intersecting their authored shapes and can exhaust its budget.
 Balanced construction halves each range, bounding its stack depth by
 `usize::BITS`, independently of authored graph depth. Source graph traversal
 remains iterative. No visual bounds or decoded MOPP instructions replace the
 authored narrow geometry.
+
+For transformed bounds, let `B,q` be the unchanged stored local affine and `F`
+the enclosed mathematical inverse of `B`. Static bounds enclose `F*(source-q)`.
+Each world component uses outward nonnegative coefficients
+`16*EPSILON*sum_j(abs(F_ij)*abs(B_jk))` and
+`16*EPSILON*sum_j(abs(F_ij)*abs(q_j))` for projection error. The existing point
+and vector evaluations take at most seven and six rounded operations; this
+allowance exceeds their standard binary64 roundoff bound. Nine minimum
+subnormals times the absolute row sum cover underflow and radius division.
+Ray padding depends on `abs(origin_k)+max_distance*abs(direction_k)`, including
+the separate rounded origin and direction projections throughout the bounded
+segment. Overlap padding also encloses the actual local radius using the row
+sum divided by the existing validated scale, with outward division rounding.
+Parent nodes take componentwise maxima of child coefficients. No culling
+enclosure or padding becomes contact geometry. An interval determinant containing
+zero or an unrepresentable enclosure falls back; query padding overflow retains
+candidates. This numerical enclosure does not extend the scope of the original
+shape predicates or certify retail geometry behavior.
 
 ## Headless source consumer
 

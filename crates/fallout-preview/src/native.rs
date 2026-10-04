@@ -72,6 +72,7 @@ pub struct Shutdown(Arc<ShutdownState>);
 #[derive(Default)]
 struct ShutdownState {
     closed: AtomicBool,
+    panicked: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
 }
 impl Shutdown {
@@ -87,11 +88,12 @@ impl Shutdown {
             self.0.closed.store(true, Ordering::Release);
             std::mem::take(&mut *tasks)
         };
-        let mut panicked = false;
+        let mut panicked = self.0.panicked.load(Ordering::Acquire);
         for task in tasks {
             panicked |= task.join().is_err();
         }
         if panicked {
+            self.0.panicked.store(true, Ordering::Release);
             return Err("Native host panicked during shutdown".into());
         }
         Ok(())
@@ -129,6 +131,8 @@ impl Session {
         bindings(&self.world, &self.cell, &self.keys)
     }
 
+    /// Called by source preparation, outside render/input updates. Only returned
+    /// owners are joined here; outstanding owners remain for final shutdown.
     pub fn start(self, origin: [f64; 3], shutdown: Shutdown) -> model::Result<(Host, Observation)> {
         let initial = observe(&self.world, &self.cell, &self.keys, origin, self.load)?;
         let (commands, receiver) = mpsc::sync_channel(1);
@@ -139,8 +143,24 @@ impl Session {
             .tasks
             .lock()
             .map_err(|_| "Native shutdown registry poisoned")?;
-        if shutdown.0.closed.load(Ordering::Acquire) || tasks.len() >= 8 {
-            return Err("Native host admission closed or its eight-owner bound exhausted".into());
+        if shutdown.0.closed.load(Ordering::Acquire) {
+            return Err("Native host admission closed".into());
+        }
+        let mut index = 0;
+        while index < tasks.len() {
+            if tasks[index].is_finished() {
+                if tasks.swap_remove(index).join().is_err() {
+                    shutdown.0.panicked.store(true, Ordering::Release);
+                }
+            } else {
+                index += 1;
+            }
+        }
+        if shutdown.0.panicked.load(Ordering::Acquire) {
+            return Err("Native host panicked before retry".into());
+        }
+        if tasks.len() >= 8 {
+            return Err("Native host eight-outstanding-owner bound exhausted".into());
         }
         let closing = Arc::clone(&shutdown.0);
         tasks.push(

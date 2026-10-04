@@ -11,7 +11,9 @@ publish = false
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Requests and observation reports must preserve finite binary64 words. The
+# approximate decimal path can change a near-tangent collision classification.
+serde_json = { version = "1", features = ["float_roundtrip"] }
 thiserror = "2"
 sha2 = "0.10.9"
 getrandom = "=0.4.3"

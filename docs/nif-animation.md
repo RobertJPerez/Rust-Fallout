@@ -1,5 +1,92 @@
 # NV animation source framing
 
+## V3-ASSET-03 explicit-time linked object pose
+
+`nif_animation::pose::evaluate(bytes, source, Request { object, controller,
+source_time }, Limits)` connects the existing ASSET06 component sampler to one
+exact same-container source object. Its `engineering-linked-source-pose-v1`
+receipt is an engineering transform request. It does not establish retail
+controller playback, animation clocks, events, transitions or external clip
+binding.
+
+The object must reference exactly the requested decoded `NiTransformController`;
+the controller must target exactly that object, have no next controller and link
+to a decoded `NiTransformInterpolator` with `NiTransformData`. Source blocks and
+ancestry come from the existing decoders, each indexing the same immutable input.
+No public predecoded index, bone/node name or fallback object can replace these
+links. Unknown scene edges, disconnected objects and any controller on a required
+ancestor refuse. Rotation keys also refuse: their mapping remains unapplied.
+
+Translation and scale reuse the bounded linear/tag-1 or constant/tag-5 sampler at
+the caller's finite binary64 source time. Time remains in the source key domain;
+frequency, phase, start/stop and flags are recorded without application. Exact
+endpoints retain source values; outside-key-range requests refuse. An absent
+group retains that component from the object's NiAV local transform. Interpolator
+constants, including exact raw WXYZ quaternion words, remain recorded unapplied.
+This explicit engineering rule supplies no default retail pose.
+
+The evaluated local matrix retains the authored NiAV rotation matrix, selected
+scale and translation, in original source axes/units and affine column-vector
+rows. Static ancestor locals compose to `source_world`, nearest parent first;
+the selected object's stored world matrix is never reapplied. Signed and zero
+forward scale remain valid; nonfinite accumulated matrices refuse. The skin and
+object evaluators share private owned affine math. Presentation uses the returned
+matrix for the exact selected object and applies its coordinate/placement mapping
+once. This initial object request does not animate a whole skin palette.
+
+The receipt binds the whole input SHA256 and exact object/controller/interpolator/
+data block IDs, offsets, lengths and hashes. It includes raw local fields, flags,
+unapplied interpolator/controller fields, per-channel source-key diagnostics,
+ordered static ancestors, matrices and logical budget usage. Fresh source identity
+is established for every call; failed evaluation returns no partial pose.
+
+Default admission is 64 MiB input, 16,384 blocks, 32 MiB scene arrays, 64 MiB
+combined animation/key retention, one million key/pose/sampling work units per
+respective allowance, 1,024 ancestry depth and 4 MiB extra pose/maps/string storage.
+The scene's block-bounded object/traversal tables and allocator overhead are
+separate from its payload-array charge. These logical limits are not a measured
+process-memory ceiling. Hashing is bounded by admitted input size.
+
+`fallout nif-source-pose INPUT --object BLOCK --controller BLOCK --source-time
+TIME --output NEW_REPORT` exposes the same production evaluator in a separate
+receipt. It requires all three explicit arguments, emits contextual failures with
+nonzero exit, and leaves the seven existing animation source schemas intact.
+The relevant pinned `Animation.hpp` and `Animation.cpp` were read completely;
+source layout facts are reused through existing original Rust decoders, without
+copying upstream implementation. Stored clock fields do not define an admitted
+retail-time mapping.
+
+The focused engineering tests pass all 12 new linked-pose cases plus 13 existing
+keyframe and eight sampler cases. Independent analytic expectations cover two
+different source transform spaces, exact links/hashes, signed parent scale and
+rotation, retained locals for absent groups, step endpoints, binary64 time detail,
+controller/ancestry/rotation refusals and exact/one-under storage/work/depth limits.
+`tools/nif-animation-oracle/check_pose.py` supplies a second authored packet with
+literal analytic matrices for a different parent rotation and signed/zero sample
+scales. Frozen consumer verification and original-source coverage stay separate
+from measured retail playback.
+
+The frozen CLI passes all five second-fixture analytic poses, including negative
+and zero scale, and seven intended source/time/link refusals. The original
+Protectron skeleton from the preserved actor manifest (root `FalloutNV.esm:17A03`,
+archive entry 6636, source SHA256
+`559049dbac7b44fdc98fb71a38c03fdc7c538755712b77526578f63740e3bceb`)
+refuses three concrete unsupported requests: object 4's actual controller 7 is
+outside the admitted transform class; selecting controller 8 instead mismatches
+the exact object link; object 16's controller 18 has no interpolator. Existing
+independent native node/controller projections confirm those exact links. The
+new frozen CLI and preserved ASSET09 binary emit byte-identical schema-1 and
+schema-6 animation source reports for this original input. All binary/input/native
+hashes remain unchanged.
+
+All 36 CLI tests, affected-package warnings-denied Clippy, build and final format
+checks pass. One failed consumer harness is retained: it attempted to write a
+report beside its generated input, which the existing CLI source protection
+correctly refused. The corrected checker writes inputs to their own directory.
+Ignored receipts remain under `local/v3-asset-03`. Original controller chains,
+external skeleton/clip links and missing interpolators remain real pose coverage
+gaps; source refusal is not visible animation or gameplay acceptance.
+
 ASSET-04 decodes four exact source classes: `NiTransformController`,
 `NiControllerSequence`, `NiTransformInterpolator` and `NiTextKeyExtraData`.
 It preserves fields, authored order and finite binary32 bits. Animation clocks,

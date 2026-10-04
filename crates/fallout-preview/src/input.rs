@@ -3,8 +3,9 @@
 //! measured original-game controls or a canonical player movement implementation.
 use bevy::{
     input::{
-        InputSystems,
+        ButtonState, InputSystems,
         gamepad::GamepadConnectionEvent,
+        keyboard::{KeyboardFocusLost, KeyboardInput},
         mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
     },
     prelude::*,
@@ -63,8 +64,6 @@ impl<T> Default for ButtonGate<T> {
 impl<T: Copy + Eq + Hash + Send + Sync + 'static> ButtonGate<T> {
     fn update(&mut self, physical: &ButtonInput<T>, boundary: bool, enabled: bool) {
         if boundary || !enabled {
-            // Bevy synthesizes keyboard releases on focus loss. Include the last
-            // focused sample, so those releases cannot arm a still-held action.
             self.blocked.extend(self.previous.iter().copied());
             self.blocked.extend(physical.get_pressed().copied());
         } else {
@@ -80,6 +79,55 @@ impl<T: Copy + Eq + Hash + Send + Sync + 'static> ButtonGate<T> {
 
     fn edge(&self, physical: &ButtonInput<T>, button: T) -> bool {
         self.held(physical, button) && physical.just_pressed(button)
+    }
+}
+
+/// Raw primary-window transitions retain physical press/repeat information that
+/// Bevy's shared ButtonInput discards. Focus clearing is never a physical release.
+#[derive(Default)]
+struct KeyTransitions {
+    pressed: HashSet<KeyCode>,
+    fresh: HashSet<KeyCode>,
+    released: HashSet<KeyCode>,
+}
+
+impl KeyTransitions {
+    fn record(&mut self, event: &KeyboardInput) {
+        match event.state {
+            ButtonState::Pressed => {
+                self.pressed.insert(event.key_code);
+                if !event.repeat {
+                    self.fresh.insert(event.key_code);
+                }
+            }
+            ButtonState::Released => {
+                self.released.insert(event.key_code);
+            }
+        }
+    }
+}
+
+impl ButtonGate<KeyCode> {
+    fn update_keyboard(
+        &mut self,
+        physical: &ButtonInput<KeyCode>,
+        transitions: &KeyTransitions,
+        boundary: bool,
+        enabled: bool,
+    ) {
+        if boundary || !enabled {
+            self.blocked.extend(self.previous.iter().copied());
+            self.blocked.extend(physical.get_pressed().copied());
+            self.blocked.extend(transitions.pressed.iter().copied());
+        } else {
+            // Empty samples and auto-repeat cannot prove release. A release in
+            // this stable focused context, or a fresh non-repeat physical press
+            // after an unobserved out-of-focus release, can leave quarantine.
+            for key in transitions.released.iter().chain(&transitions.fresh) {
+                self.blocked.remove(key);
+            }
+        }
+        self.previous = physical.get_pressed().copied().collect();
     }
 }
 
@@ -99,6 +147,7 @@ struct Frame<'a> {
     focus_changed: bool,
     pad_changed: bool,
     keys: &'a ButtonInput<KeyCode>,
+    key_transitions: KeyTransitions,
     mouse: &'a ButtonInput<MouseButton>,
     pad: Option<(Entity, &'a Gamepad)>,
     motion: Vec2,
@@ -126,7 +175,8 @@ impl Boundary {
         let boundary = self.last != Some(state) || frame.focus_changed;
         self.last = Some(state);
         let enabled = frame.focused && frame.context != Context::Suspended;
-        self.keys.update(frame.keys, boundary, enabled);
+        self.keys
+            .update_keyboard(frame.keys, &frame.key_transitions, boundary, enabled);
         self.mouse.update(frame.mouse, boundary, enabled);
         let pad_id = frame.pad.map(|(id, _)| id);
         let pad_boundary = boundary || frame.pad_changed || self.pad != pad_id;
@@ -166,7 +216,7 @@ impl Boundary {
             return Actions::default();
         }
         let held = |key| self.keys.held(frame.keys, key);
-        let edge = |key| self.keys.edge(frame.keys, key);
+        let edge = |key| held(key) && frame.key_transitions.fresh.contains(&key);
         let axis = |positive, negative| {
             f32::from(u8::from(held(positive))) - f32::from(u8::from(held(negative)))
         };
@@ -213,6 +263,8 @@ fn collect_input(
     windows: Query<(Entity, &Window), With<PrimaryWindow>>,
     pads: Query<(Entity, &Gamepad)>,
     mut focus: MessageReader<WindowFocused>,
+    mut keyboard_focus_lost: MessageReader<KeyboardFocusLost>,
+    mut keyboard: MessageReader<KeyboardInput>,
     mut connections: MessageReader<GamepadConnectionEvent>,
     mut motion: MessageReader<MouseMotion>,
     mut wheel: MessageReader<MouseWheel>,
@@ -221,9 +273,17 @@ fn collect_input(
 ) {
     let window = windows.iter().next();
     let focused = window.is_some_and(|(_, window)| window.focused);
-    let mut focus_changed = false;
+    // Winit sends its synthetic Released messages with KeyboardFocusLost on a
+    // later frame. Treat that marker as a boundary even after window regain.
+    let mut focus_changed = keyboard_focus_lost.read().count() != 0;
     for event in focus.read() {
         focus_changed |= window.is_some_and(|(id, _)| event.window == id);
+    }
+    let mut key_transitions = KeyTransitions::default();
+    for event in keyboard.read() {
+        if window.is_some_and(|(id, _)| event.window == id) {
+            key_transitions.record(event);
+        }
     }
     // Keep the current controller until disconnect. A replacement is selected
     // deterministically, and enters through its own held/neutral boundary.
@@ -257,6 +317,7 @@ fn collect_input(
         focus_changed,
         pad_changed,
         keys: &keys,
+        key_transitions,
         mouse: &mouse,
         pad,
         motion: pointer,
@@ -268,9 +329,9 @@ fn collect_input(
 mod tests {
     use super::*;
     use bevy::input::{
-        ButtonState, InputPlugin,
+        InputPlugin,
         gamepad::{GamepadConnection, RawGamepadAxisChangedEvent, RawGamepadEvent},
-        keyboard::{Key, KeyboardFocusLost, KeyboardInput},
+        keyboard::Key,
     };
 
     #[derive(Default)]
@@ -287,6 +348,13 @@ mod tests {
                 focus_changed: false,
                 pad_changed: false,
                 keys: &self.keys,
+                // These authored device edges are physical, unlike production
+                // ButtonInput edges which may come from focus clearing/repeat.
+                key_transitions: KeyTransitions {
+                    pressed: self.keys.get_just_pressed().copied().collect(),
+                    fresh: self.keys.get_just_pressed().copied().collect(),
+                    released: self.keys.get_just_released().copied().collect(),
+                },
                 mouse: &self.mouse,
                 pad: pad_id.map(|id| (id, &self.pad)),
                 motion: Vec2::ZERO,
@@ -460,6 +528,219 @@ mod tests {
         assert!((stick(Vec2::ONE).length() - 1.).abs() < 1e-6);
         assert_eq!(stick(Vec2::new(f32::NAN, 1.)), Vec2::ZERO);
         assert_eq!(stick(Vec2::new(f32::INFINITY, 1.)), Vec2::ZERO);
+    }
+
+    #[test]
+    fn empty_focus_regain_cannot_arm_repeat_without_physical_release() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            InputPlugin,
+            WindowPlugin::default(),
+            InspectionInputPlugin,
+        ));
+        let mut windows = app
+            .world_mut()
+            .query_filtered::<Entity, With<PrimaryWindow>>();
+        let window = windows.single(app.world()).unwrap();
+        app.world_mut().get_mut::<Window>(window).unwrap().focused = true;
+        app.update();
+        let key = |state, repeat| KeyboardInput {
+            key_code: KeyCode::KeyW,
+            logical_key: Key::Character("w".into()),
+            state,
+            repeat,
+            text: None,
+            window,
+        };
+        app.world_mut()
+            .write_message(key(ButtonState::Pressed, false));
+        app.update();
+        assert_eq!(app.world().resource::<Actions>().movement, Vec3::Y);
+        app.world_mut().get_mut::<Window>(window).unwrap().focused = false;
+        app.world_mut().write_message(WindowFocused {
+            window,
+            focused: false,
+        });
+        app.world_mut().write_message(KeyboardFocusLost);
+        // Winit's focus clearing also synthesizes this Released message. It is
+        // not evidence the user physically released W.
+        app.world_mut()
+            .write_message(key(ButtonState::Released, false));
+        app.update();
+        assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        app.world_mut().get_mut::<Window>(window).unwrap().focused = true;
+        app.world_mut().write_message(WindowFocused {
+            window,
+            focused: true,
+        });
+        app.update(); // Winit ignores synthetic regain presses.
+        app.update(); // Empty ButtonInput sample must not clear quarantine.
+        app.world_mut()
+            .write_message(key(ButtonState::Pressed, true));
+        app.update();
+        assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        app.update();
+        assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        app.world_mut()
+            .write_message(key(ButtonState::Released, false));
+        app.update();
+        app.world_mut()
+            .write_message(key(ButtonState::Pressed, false));
+        app.update();
+        assert_eq!(app.world().resource::<Actions>().movement, Vec3::Y);
+    }
+
+    fn keyboard_app() -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            InputPlugin,
+            WindowPlugin::default(),
+            InspectionInputPlugin,
+        ));
+        let mut windows = app
+            .world_mut()
+            .query_filtered::<Entity, With<PrimaryWindow>>();
+        let window = windows.single(app.world()).unwrap();
+        app.world_mut().get_mut::<Window>(window).unwrap().focused = true;
+        app.update();
+        (app, window)
+    }
+
+    fn key(app: &mut App, window: Entity, key_code: KeyCode, state: ButtonState, repeat: bool) {
+        app.world_mut().write_message(KeyboardInput {
+            key_code,
+            logical_key: match key_code {
+                KeyCode::Tab => Key::Tab,
+                KeyCode::Escape => Key::Escape,
+                _ => Key::Character("w".into()),
+            },
+            state,
+            repeat,
+            text: None,
+            window,
+        });
+    }
+
+    fn focus(app: &mut App, window: Entity, focused: bool) {
+        app.world_mut().get_mut::<Window>(window).unwrap().focused = focused;
+        app.world_mut()
+            .write_message(WindowFocused { window, focused });
+    }
+
+    #[test]
+    fn repeated_shortcuts_stay_quarantined_and_physical_fresh_press_resumes() {
+        for code in [KeyCode::Tab, KeyCode::Escape] {
+            let (mut app, window) = keyboard_app();
+            key(&mut app, window, code, ButtonState::Pressed, false);
+            app.update();
+            let action = *app.world().resource::<Actions>();
+            assert_eq!(action.toggle, code == KeyCode::Tab);
+            assert_eq!(action.close, code == KeyCode::Escape);
+            focus(&mut app, window, false);
+            app.world_mut().write_message(KeyboardFocusLost);
+            key(&mut app, window, code, ButtonState::Released, false);
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            // The user releases outside this application. That event cannot
+            // arm the unfocused context; a later fresh press can establish it.
+            key(&mut app, window, code, ButtonState::Released, false);
+            app.update();
+            focus(&mut app, window, true);
+            app.update();
+            app.update();
+            key(&mut app, window, code, ButtonState::Pressed, true);
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            app.update();
+            assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+            // A non-repeat physical press after the unobserved release arms
+            // this shortcut even when ButtonInput still calls the key held.
+            key(&mut app, window, code, ButtonState::Pressed, false);
+            app.update();
+            let action = *app.world().resource::<Actions>();
+            assert_eq!(action.toggle, code == KeyCode::Tab);
+            assert_eq!(action.close, code == KeyCode::Escape);
+        }
+    }
+
+    #[test]
+    fn delayed_focus_clear_cannot_arm_repeat_after_window_regain() {
+        let (mut app, window) = keyboard_app();
+        key(&mut app, window, KeyCode::KeyW, ButtonState::Pressed, false);
+        app.update();
+        assert_eq!(app.world().resource::<Actions>().movement, Vec3::Y);
+        focus(&mut app, window, false);
+        app.update();
+        focus(&mut app, window, true);
+        app.update();
+        // Winit's Last-schedule clear can reach the adapter after focus has
+        // returned. Its Released message still cannot prove physical release.
+        app.world_mut().write_message(KeyboardFocusLost);
+        key(
+            &mut app,
+            window,
+            KeyCode::KeyW,
+            ButtonState::Released,
+            false,
+        );
+        app.update();
+        app.update();
+        key(&mut app, window, KeyCode::KeyW, ButtonState::Pressed, true);
+        app.update();
+        assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        key(
+            &mut app,
+            window,
+            KeyCode::KeyW,
+            ButtonState::Released,
+            false,
+        );
+        app.update();
+        key(&mut app, window, KeyCode::KeyW, ButtonState::Pressed, false);
+        app.update();
+        assert_eq!(app.world().resource::<Actions>().movement, Vec3::Y);
+    }
+
+    #[test]
+    fn other_window_messages_cannot_remove_primary_keyboard_quarantine() {
+        let (mut app, window) = keyboard_app();
+        let other = app.world_mut().spawn(Window::default()).id();
+        key(&mut app, window, KeyCode::KeyW, ButtonState::Pressed, false);
+        app.update();
+        focus(&mut app, window, false);
+        app.world_mut().write_message(KeyboardFocusLost);
+        key(
+            &mut app,
+            window,
+            KeyCode::KeyW,
+            ButtonState::Released,
+            false,
+        );
+        app.update();
+        focus(&mut app, window, true);
+        app.update();
+        app.update();
+        key(&mut app, other, KeyCode::KeyW, ButtonState::Pressed, false);
+        app.update();
+        assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        key(&mut app, other, KeyCode::KeyW, ButtonState::Released, false);
+        app.update();
+        key(&mut app, window, KeyCode::KeyW, ButtonState::Pressed, true);
+        app.update();
+        assert_eq!(*app.world().resource::<Actions>(), Actions::default());
+        key(
+            &mut app,
+            window,
+            KeyCode::KeyW,
+            ButtonState::Released,
+            false,
+        );
+        app.update();
+        key(&mut app, window, KeyCode::KeyW, ButtonState::Pressed, false);
+        app.update();
+        assert_eq!(app.world().resource::<Actions>().movement, Vec3::Y);
     }
 
     #[test]

@@ -2412,23 +2412,31 @@ pub(super) fn assign_saved_native(
     Ok(report)
 }
 
+pub(super) struct SavedBatchInput<'a> {
+    pub request: &'a Path,
+    pub slice_events: Option<u8>,
+}
+
 pub(super) fn copy_saved_batch(
     install: &Path,
     order_path: &Path,
     cache: Option<&Path>,
-    request_path: &Path,
+    input: SavedBatchInput<'_>,
     snapshot_path: &Path,
     result_path: &Path,
     report_path: Option<&Path>,
 ) -> Result<Value> {
     let request: SavedBatchRequest = serde_json::from_slice(&read_bounded_named(
-        request_path,
+        input.request,
         16 * 1024,
         "saved batch request byte budget exceeded",
     )?)?;
     let defaults = pending_batch::Limits::default();
     let world_limits = fallout_runtime::Limits::default();
-    if request.schema_version != 1
+    if input
+        .slice_events
+        .is_some_and(|slice| slice == 0 || usize::from(slice) > defaults.maximum_events)
+        || request.schema_version != 1
         || request.events.is_empty()
         || request.events.len() > defaults.maximum_events
         || request.maximum_source_instructions > defaults.maximum_source_instructions
@@ -2536,30 +2544,41 @@ pub(super) fn copy_saved_batch(
     let intent = match request.intent {
         SavedIntent::Engineering => local_copy::Intent::Engineering,
     };
-    let outcome = pending_batch::consume(
-        world,
-        &sources,
-        &content,
-        &request.events,
-        intent,
-        pending_batch::Limits {
-            maximum_events: defaults.maximum_events,
-            maximum_source_instructions: request.maximum_source_instructions,
-            maximum_statement_bytes: request.maximum_statement_bytes,
-            trace_projection: preparation::ObservationLimits {
-                maximum_source_bytes: request.maximum_trace_source_bytes,
-                maximum_rows: request.maximum_trace_rows,
-                maximum_variable_bytes: request.maximum_trace_variable_bytes,
-                maximum_binding_uses: request.maximum_trace_binding_uses,
-            },
+    let limits = pending_batch::Limits {
+        maximum_events: defaults.maximum_events,
+        maximum_source_instructions: request.maximum_source_instructions,
+        maximum_statement_bytes: request.maximum_statement_bytes,
+        trace_projection: preparation::ObservationLimits {
+            maximum_source_bytes: request.maximum_trace_source_bytes,
+            maximum_rows: request.maximum_trace_rows,
+            maximum_variable_bytes: request.maximum_trace_variable_bytes,
+            maximum_binding_uses: request.maximum_trace_binding_uses,
         },
-    )?;
+    };
+    let mut cooperative_progress = Vec::new();
+    let outcome = if let Some(slice) = input.slice_events {
+        let mut job =
+            pending_batch::Job::new(world, &sources, &content, &request.events, intent, limits)?;
+        // At most one initial status plus 64 complete-event advances. Counters
+        // are diagnostics only; no intermediate state or receipt is published.
+        cooperative_progress.push(job.progress());
+        while job.progress().status == pending_batch::Status::Pending {
+            cooperative_progress.push(job.advance(usize::from(slice))?);
+        }
+        job.finish()?
+    } else {
+        pending_batch::consume(world, &sources, &content, &request.events, intent, limits)?
+    };
     let mut report = json!({"schema_version":1,"scope":"explicit engineering existing journal prefix","campaign":campaign,
         "before_revision":before_revision,"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),
         "explicit_events":request.events,"intent":intent,"result_snapshot":null,
         "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},
         "executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),
         "faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    if let Some(slice) = input.slice_events {
+        report["cooperative_execution"] =
+            json!({"slice_events":slice,"progress":cooperative_progress});
+    }
     let result_bytes = match outcome {
         pending_batch::Outcome::Unsupported {
             event_index,

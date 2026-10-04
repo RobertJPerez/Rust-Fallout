@@ -13,7 +13,7 @@ use fallout_runtime::{
     events::{Context, Trigger},
     execution::{
         local_copy::{Intent, Unsupported},
-        pending_batch::{self, Outcome, Request},
+        pending_batch::{self, Job, Outcome, Request, Status, WorkCounts},
     },
     foreign::Content,
     identity::{CampaignId, Owner, ReferenceValue, Value},
@@ -575,6 +575,294 @@ fn changed_whole_cohort_unselected_source_and_nonfragment_owner_never_return_res
 }
 
 #[test]
+fn cooperative_slices_preserve_whole_state_and_never_repeat_complete_events() {
+    let (_directory, catalogue, content) = fixture(false);
+    let prepared = sources(&catalogue);
+    for bits in [0x8000000000000000, 0x7ff8123456789abc, u64::MAX] {
+        let before = saved(Arc::clone(&catalogue), Some(bits)).snapshot();
+        let input = before.encode(64 * 1024 * 1024).unwrap();
+        let request = requests(3);
+        let synchronous = pending_batch::consume(
+            restored(Arc::clone(&catalogue), &before),
+            &prepared,
+            &content,
+            &request,
+            Intent::Engineering,
+            Default::default(),
+        )
+        .unwrap();
+        for slice in [1, 2, 3, usize::MAX] {
+            let mut job = Job::new(
+                restored(Arc::clone(&catalogue), &before),
+                &prepared,
+                &content,
+                &request,
+                Intent::Engineering,
+                Default::default(),
+            )
+            .unwrap();
+            assert_eq!(job.progress().status, Status::Pending);
+            assert_eq!(
+                job.progress().work,
+                WorkCounts {
+                    source_frame_attempts: 0,
+                    copy_adapter_attempts: 0,
+                }
+            );
+            while job.progress().status == Status::Pending {
+                let previous = job.progress();
+                let progress = job.advance(slice).unwrap();
+                let completed = (3 - previous.counts.events).min(slice);
+                assert_eq!(progress.counts.events, previous.counts.events + completed);
+                assert_eq!(progress.work.source_frame_attempts, progress.counts.events);
+                assert_eq!(progress.work.copy_adapter_attempts, progress.counts.events);
+                assert_eq!(
+                    progress.counts.source_instructions,
+                    progress.counts.events * 3
+                );
+                assert_eq!(progress.counts.statement_bytes, progress.counts.events * 12);
+                assert_eq!(
+                    progress.counts.trace_projection.source_bytes,
+                    progress.counts.events * 26
+                );
+                assert_eq!(
+                    progress.counts.trace_projection.rows,
+                    progress.counts.events * 8
+                );
+                assert_eq!(
+                    progress.counts.trace_projection.binding_uses,
+                    progress.counts.events * 6
+                );
+                let counters = serde_json::to_value(progress).unwrap();
+                assert_eq!(counters.as_object().unwrap().len(), 3);
+                assert!(counters.get("snapshot").is_none() && counters.get("committed").is_none());
+            }
+            let ready = job.progress();
+            assert_eq!(ready.status, Status::Ready);
+            assert_eq!(job.advance(1).unwrap(), ready);
+            assert_eq!(job.advance(usize::MAX).unwrap(), ready);
+            let outcome = job.finish().unwrap();
+            assert_eq!(
+                serde_json::to_value(&outcome).unwrap(),
+                serde_json::to_value(&synchronous).unwrap()
+            );
+            let result = complete(outcome);
+            let expected = expected(before.clone(), 3, bits);
+            assert_eq!(result.snapshot, expected);
+            assert_eq!(
+                restored(Arc::clone(&catalogue), &result.snapshot).snapshot(),
+                expected
+            );
+            for (index, copy) in result.committed.iter().enumerate() {
+                assert_eq!(copy.receipt.assignments, 1);
+                assert_eq!(
+                    copy.receipt.before_revision,
+                    before.state_revision + index as u64
+                );
+                assert_eq!(
+                    copy.receipt.after_revision,
+                    before.state_revision + index as u64 + 1
+                );
+                assert_eq!(
+                    copy.receipt.acknowledged.as_ref(),
+                    Some(&before.pending_events[index])
+                );
+            }
+            assert_eq!(before.encode(64 * 1024 * 1024).unwrap(), input);
+        }
+    }
+}
+
+#[test]
+fn cooperative_abort_zero_slice_and_late_refusal_expose_no_partial_state() {
+    let (_directory, catalogue, content) = fixture(true);
+    let prepared = sources(&catalogue);
+    let before = saved(Arc::clone(&catalogue), Some(17)).snapshot();
+    let input = before.encode(64 * 1024 * 1024).unwrap();
+    let request = requests(3);
+    for advance_first in [false, true] {
+        let mut job = Job::new(
+            restored(Arc::clone(&catalogue), &before),
+            &prepared,
+            &content,
+            &request,
+            Intent::Engineering,
+            Default::default(),
+        )
+        .unwrap();
+        let unchanged = job.progress();
+        assert!(job.advance(0).is_err());
+        assert_eq!(job.progress(), unchanged);
+        if advance_first {
+            assert_eq!(job.advance(1).unwrap().counts.events, 1);
+        }
+        assert!(job.finish().is_err());
+    }
+    let mut dropped = Job::new(
+        restored(Arc::clone(&catalogue), &before),
+        &prepared,
+        &content,
+        &request,
+        Intent::Engineering,
+        Default::default(),
+    )
+    .unwrap();
+    dropped.advance(1).unwrap();
+    drop(dropped);
+    let mut job = Job::new(
+        restored(Arc::clone(&catalogue), &before),
+        &prepared,
+        &content,
+        &request,
+        Intent::Engineering,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(job.advance(1).unwrap().counts.events, 1);
+    let refused = job.advance(1).unwrap();
+    assert_eq!(refused.status, Status::Unsupported);
+    assert_eq!(refused.counts.events, 1);
+    assert_eq!(
+        refused.work,
+        WorkCounts {
+            source_frame_attempts: 2,
+            copy_adapter_attempts: 2
+        }
+    );
+    assert_eq!(job.advance(usize::MAX).unwrap(), refused);
+    let outcome = job.finish().unwrap();
+    assert!(matches!(
+        outcome,
+        Outcome::Unsupported {
+            event_index: Some(1),
+            reason: Unsupported::ExpressionShape,
+            ..
+        }
+    ));
+    let json = serde_json::to_value(outcome).unwrap();
+    assert!(
+        json.get("snapshot").is_none()
+            && json.get("committed").is_none()
+            && json.get("result").is_none()
+    );
+    let mut faithful = Job::new(
+        restored(Arc::clone(&catalogue), &before),
+        &prepared,
+        &content,
+        &request,
+        Intent::Faithful,
+        pending_batch::Limits {
+            maximum_source_instructions: 0,
+            trace_projection: fallout_runtime::preparation::ObservationLimits {
+                maximum_source_bytes: 0,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(faithful.progress().status, Status::Unsupported);
+    assert_eq!(
+        faithful.advance(1).unwrap().work,
+        WorkCounts {
+            source_frame_attempts: 0,
+            copy_adapter_attempts: 0
+        }
+    );
+    assert!(matches!(
+        faithful.finish().unwrap(),
+        Outcome::Unsupported {
+            event_index: None,
+            reason: Unsupported::UnverifiedRetailSemantics,
+            ..
+        }
+    ));
+    assert_eq!(before.encode(64 * 1024 * 1024).unwrap(), input);
+}
+
+#[test]
+fn cooperative_aggregate_caps_do_not_reset_between_advances_and_poison_failed_jobs() {
+    let (_directory, catalogue, content) = fixture(false);
+    let prepared = sources(&catalogue);
+    let before = saved(Arc::clone(&catalogue), Some(17)).snapshot();
+    let request = requests(3);
+    let sample = complete(
+        pending_batch::consume(
+            restored(Arc::clone(&catalogue), &before),
+            &prepared,
+            &content,
+            &request,
+            Intent::Engineering,
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    let exact = pending_batch::Limits {
+        maximum_events: 3,
+        maximum_source_instructions: 9,
+        maximum_statement_bytes: 36,
+        trace_projection: fallout_runtime::preparation::ObservationLimits {
+            maximum_source_bytes: 78,
+            maximum_rows: 24,
+            maximum_variable_bytes: sample.counts.trace_projection.variable_bytes,
+            maximum_binding_uses: 18,
+        },
+    };
+    for field in 0..6 {
+        let mut limits = exact;
+        match field {
+            0 => limits.maximum_source_instructions -= 1,
+            1 => limits.maximum_statement_bytes -= 1,
+            2 => limits.trace_projection.maximum_source_bytes -= 1,
+            3 => limits.trace_projection.maximum_rows -= 1,
+            4 => limits.trace_projection.maximum_variable_bytes -= 1,
+            _ => limits.trace_projection.maximum_binding_uses -= 1,
+        }
+        let mut job = Job::new(
+            restored(Arc::clone(&catalogue), &before),
+            &prepared,
+            &content,
+            &request,
+            Intent::Engineering,
+            limits,
+        )
+        .unwrap();
+        assert_eq!(job.advance(1).unwrap().counts.events, 1);
+        assert_eq!(job.advance(1).unwrap().counts.events, 2);
+        assert!(job.advance(1).is_err(), "field{field}");
+        let failed = job.progress();
+        assert_eq!(failed.status, Status::Failed);
+        assert_eq!(failed.counts.events, 2);
+        assert_eq!(
+            failed.work,
+            WorkCounts {
+                source_frame_attempts: 3,
+                copy_adapter_attempts: 2
+            }
+        );
+        assert!(job.advance(1).is_err());
+        assert_eq!(job.progress(), failed);
+        assert!(job.finish().is_err());
+    }
+    let mut job = Job::new(
+        restored(Arc::clone(&catalogue), &before),
+        &prepared,
+        &content,
+        &request,
+        Intent::Engineering,
+        exact,
+    )
+    .unwrap();
+    for _ in 0..3 {
+        job.advance(1).unwrap();
+    }
+    assert_eq!(
+        complete(job.finish().unwrap()).snapshot,
+        expected(before, 3, 17)
+    );
+}
+
+#[test]
 #[ignore = "built frozen CLI and authored metadata copy; strict saved engineering batch only"]
 fn cli_saved_batch_helper() {
     use serde_json::{Value as Json, json};
@@ -609,6 +897,7 @@ fn cli_saved_batch_helper() {
     let initial = evidence.join("initial.snapshot.json");
     fs::write(&initial, &bytes).unwrap();
     let request = json!({"schema_version":1,"intent":"engineering","events":[{"sequence":1,"activation":1},{"sequence":2,"activation":1}],"maximum_source_instructions":192,"maximum_statement_bytes":65539,"maximum_trace_source_bytes":1048576,"maximum_trace_rows":65536,"maximum_trace_variable_bytes":1048576,"maximum_trace_binding_uses":262144,"maximum_result_snapshot_bytes":67108864,"maximum_report_bytes":8388608});
+    let cases = std::cell::Cell::new(0_usize);
     let run_on = |name: &str,
                   source_install: &Path,
                   snapshot: &Path,
@@ -655,6 +944,7 @@ fn cli_saved_batch_helper() {
             command.arg("--output").arg(&report);
         }
         let output = command.output().unwrap();
+        cases.set(cases.get() + 1);
         fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
         fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
         fs::write(
@@ -702,6 +992,7 @@ fn cli_saved_batch_helper() {
             String::from_utf8_lossy(&output.stderr)
         );
         let report = report.unwrap();
+        assert!(report.get("cooperative_execution").is_none());
         assert_eq!(report["snapshot_batch"]["status"], "engineering_committed");
         assert_eq!(
             report["snapshot_batch"]["committed"]
@@ -749,6 +1040,77 @@ fn cli_saved_batch_helper() {
         Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap(),
         expected(before.clone(), 3, 0x7ff8123456789abc)
     );
+    for slice in [1_u8, 2, 3, 64] {
+        let mut sliced = request.clone();
+        sliced["events"] = serde_json::to_value(requests(3)).unwrap();
+        let slice_text = slice.to_string();
+        let (output, report, result, _) = run(
+            &format!("cooperative-slice-{slice}"),
+            &initial,
+            &sliced,
+            None,
+            "new",
+            &["--snapshot-copy-batch-slice-events", &slice_text],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report = report.unwrap();
+        let progress = report["cooperative_execution"]["progress"]
+            .as_array()
+            .unwrap();
+        assert_eq!(report["cooperative_execution"]["slice_events"], slice);
+        assert_eq!(progress.len(), 1 + 3_usize.div_ceil(usize::from(slice)));
+        for (index, row) in progress.iter().enumerate() {
+            let completed = (index * usize::from(slice)).min(3);
+            assert_eq!(row["counts"]["events"], completed);
+            assert_eq!(row["work"]["source_frame_attempts"], completed);
+            assert_eq!(row["work"]["copy_adapter_attempts"], completed);
+            assert_eq!(row["counts"]["source_instructions"], completed * 3);
+            assert_eq!(row.as_object().unwrap().len(), 3);
+            assert_eq!(
+                row["status"],
+                if completed == 3 { "ready" } else { "pending" }
+            );
+        }
+        let actual = Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap();
+        let expected = expected(before.clone(), 3, 0x7ff8123456789abc);
+        assert_eq!(actual, expected);
+        assert_eq!(
+            restored(Arc::clone(&catalogue), &actual).snapshot(),
+            expected
+        );
+        let default_report: Json =
+            serde_json::from_slice(&fs::read(evidence.join("complete-3/report.json")).unwrap())
+                .unwrap();
+        assert_eq!(report["snapshot_batch"], default_report["snapshot_batch"]);
+    }
+    let (output, _, result, _) = run(
+        "cooperative-cold-next-head",
+        after_two.as_ref().unwrap(),
+        &continuation,
+        None,
+        "new",
+        &["--snapshot-copy-batch-slice-events", "1"],
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        Snapshot::decode(&fs::read(result).unwrap(), Default::default()).unwrap(),
+        expected(before.clone(), 3, 0x7ff8123456789abc)
+    );
+    for value in ["0", "65", "-1", "text"] {
+        let (output, report, result, _) = run(
+            &format!("cooperative-invalid-{value}"),
+            &initial,
+            &request,
+            None,
+            "new",
+            &["--snapshot-copy-batch-slice-events", value],
+        );
+        assert!(!output.status.success() && report.is_none() && !result.exists());
+    }
     let (output, report, result, _) = run(
         "cold-old-sequence",
         after_three.as_ref().unwrap(),
@@ -815,6 +1177,18 @@ fn cli_saved_batch_helper() {
             !output.status.success() && report.is_none() && !result.exists(),
             "{field}"
         );
+        let (output, report, result, _) = run(
+            &format!("cooperative-one-under-{field}"),
+            &initial,
+            &low,
+            None,
+            "new",
+            &["--snapshot-copy-batch-slice-events", "1"],
+        );
+        assert!(
+            !output.status.success() && report.is_none() && !result.exists(),
+            "{field}"
+        );
     }
     let (output, _, _, report_path) = run("report-bound-a", &initial, &request, None, "new", &[]);
     assert!(output.status.success());
@@ -829,6 +1203,28 @@ fn cli_saved_batch_helper() {
     );
     cap["maximum_report_bytes"] = json!(report_bytes - 1);
     let (output, report, result, _) = run("report-bound-c", &initial, &cap, None, "new", &[]);
+    assert!(!output.status.success() && report.is_none() && !result.exists());
+    let mut cooperative_low_report = request.clone();
+    cooperative_low_report["maximum_report_bytes"] = json!(1);
+    let (output, report, result, _) = run(
+        "cooperative-report-cap",
+        &initial,
+        &cooperative_low_report,
+        None,
+        "new",
+        &["--snapshot-copy-batch-slice-events", "1"],
+    );
+    assert!(!output.status.success() && report.is_none() && !result.exists());
+    let mut wrong_later_owner = request.clone();
+    wrong_later_owner["events"][1]["activation"] = json!(2);
+    let (output, report, result, _) = run(
+        "cooperative-late-owner",
+        &initial,
+        &wrong_later_owner,
+        None,
+        "new",
+        &["--snapshot-copy-batch-slice-events", "1"],
+    );
     assert!(!output.status.success() && report.is_none() && !result.exists());
     for (name, intent) in [
         ("intent-object-null", json!({"engineering":null})),
@@ -947,7 +1343,33 @@ fn cli_saved_batch_helper() {
     assert!(report["snapshot_batch"].get("committed").is_none());
     assert_eq!(report["before_revision"], report["after_revision"]);
     assert_eq!(report["private_result_discarded"], true);
-    assert_eq!(fs::read(mixed_input).unwrap(), mixed_bytes);
+    assert_eq!(fs::read(&mixed_input).unwrap(), mixed_bytes);
+    let (output, report, result, _) = run_on(
+        "cooperative-unsupported-second",
+        &mixed_install,
+        &mixed_input,
+        &request,
+        None,
+        "new",
+        &["--snapshot-copy-batch-slice-events", "1"],
+    );
+    assert!(!output.status.success() && !result.exists());
+    let report = report.unwrap();
+    assert_eq!(report["snapshot_batch"]["event_index"], 1);
+    assert!(report["snapshot_batch"].get("committed").is_none());
+    assert_eq!(report["before_revision"], report["after_revision"]);
+    assert_eq!(report["result_snapshot"], Json::Null);
+    assert_eq!(report["private_result_discarded"], true);
+    let stopped = report["cooperative_execution"]["progress"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap();
+    assert_eq!(stopped["status"], "unsupported");
+    assert_eq!(stopped["counts"]["events"], 1);
+    assert_eq!(stopped["work"]["source_frame_attempts"], 2);
+    assert_eq!(stopped["work"]["copy_adapter_attempts"], 2);
+    assert_eq!(fs::read(&mixed_input).unwrap(), mixed_bytes);
     for mode in [
         "input",
         "request",
@@ -1054,5 +1476,5 @@ fn cli_saved_batch_helper() {
         fs::read(install.join("Data/FalloutNV.esm")).unwrap(),
         source
     );
-    fs::write(evidence.join("acceptance.json"),serde_json::to_vec_pretty(&json!({"schema_version":1,"cases":58,"scope":"explicit strict saved engineering prefix","original_launches":0,"faithful_execution_admitted":false,"gameplay_accepted":false})).unwrap()).unwrap();
+    fs::write(evidence.join("acceptance.json"),serde_json::to_vec_pretty(&json!({"schema_version":1,"cases":cases.get(),"scope":"explicit strict saved engineering prefix and cooperative complete-event slices","original_launches":0,"faithful_execution_admitted":false,"gameplay_accepted":false})).unwrap()).unwrap();
 }

@@ -33,7 +33,7 @@ impl Default for Limits {
         }
     }
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Counts {
     pub events: usize,
     pub source_instructions: usize,
@@ -76,6 +76,54 @@ pub enum Outcome {
     },
 }
 
+/// Call-site witnesses for cooperative work. These do not count immutable
+/// source parsing performed earlier when PreparedSources was created.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct WorkCounts {
+    pub source_frame_attempts: usize,
+    pub copy_adapter_attempts: usize,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Status {
+    Pending,
+    Ready,
+    Unsupported,
+    Failed,
+}
+/// Counters and lifecycle only. Progress carries no state or commit authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Progress {
+    pub status: Status,
+    pub counts: Counts,
+    pub work: WorkCounts,
+}
+enum State {
+    Pending,
+    Ready,
+    Unsupported {
+        event_index: Option<usize>,
+        reason: local_copy::Unsupported,
+        detail: String,
+    },
+    Failed,
+}
+/// Ephemeral private prefix execution. Dropping this job or finishing early
+/// discards all private effects. Borrowed inputs cannot change between slices.
+pub struct Job<'w, 'p, 's> {
+    world: Option<World<'w>>,
+    sources: &'p PreparedSources<'s>,
+    content: &'p Content,
+    requests: &'p [Request],
+    intent: local_copy::Intent,
+    limits: Limits,
+    counts: Counts,
+    work: WorkCounts,
+    remaining: preparation::ObservationLimits,
+    committed: Vec<local_copy::CommittedCopy>,
+    state: State,
+}
+
 fn charge(
     used: &mut usize,
     amount: usize,
@@ -94,59 +142,196 @@ fn charge(
 /// Every error/refusal consumes and discards that private World. Existing input
 /// bytes/caller snapshots are never modified or returned as a partial success.
 pub fn consume(
-    mut world: World<'_>,
+    world: World<'_>,
     sources: &PreparedSources<'_>,
     content: &Content,
     requests: &[Request],
     intent: local_copy::Intent,
     limits: Limits,
 ) -> Result<Outcome, Error> {
-    if requests.is_empty() {
-        return Err(Error::Input("an explicit nonempty prefix is required"));
-    }
-    if requests.len() > limits.maximum_events {
-        return Err(Error::Capacity("events"));
-    }
-    if intent == local_copy::Intent::Faithful {
-        return Ok(Outcome::Unsupported { event_index: None, reason: local_copy::Unsupported::UnverifiedRetailSemantics,
-            detail: "Original assignment conversions, dispatch order and event-list lifecycle are unverified".into() });
-    }
-    content.validate_world(&world)?;
-    if world.pending_events().len() < requests.len() {
-        return Err(Error::Input("prefix exceeds the existing journal"));
-    }
-    // Validate all sequence/owner identities before any private commit.
-    for (pending, request) in world.pending_events().zip(requests) {
-        if pending.sequence != request.sequence.get() {
-            return Err(Error::Input(
-                "requests must name the exact existing ordered journal prefix",
-            ));
+    let mut job = Job::new(world, sources, content, requests, intent, limits)?;
+    job.advance(usize::MAX)?;
+    job.finish()
+}
+
+impl<'w, 'p, 's> Job<'w, 'p, 's> {
+    pub fn new(
+        world: World<'w>,
+        sources: &'p PreparedSources<'s>,
+        content: &'p Content,
+        requests: &'p [Request],
+        intent: local_copy::Intent,
+        limits: Limits,
+    ) -> Result<Self, Error> {
+        if requests.is_empty() {
+            return Err(Error::Input("an explicit nonempty prefix is required"));
         }
-        let instance = world.instance(world.handle(pending.instance)?)?;
-        if instance.owner()
-            != &(Owner::Fragment {
-                activation: request.activation,
-            })
-        {
-            return Err(Error::Input(
-                "explicit fragment activation differs from the saved owner",
-            ));
+        if requests.len() > limits.maximum_events {
+            return Err(Error::Capacity("events"));
+        }
+        let mut job = Self {
+            world: Some(world),
+            sources,
+            content,
+            requests,
+            intent,
+            limits,
+            counts: Counts {
+                events: 0,
+                source_instructions: 0,
+                statement_bytes: 0,
+                trace_projection: preparation::ObservationCounts {
+                    source_bytes: 0,
+                    rows: 0,
+                    variable_bytes: 0,
+                    binding_uses: 0,
+                },
+            },
+            work: WorkCounts {
+                source_frame_attempts: 0,
+                copy_adapter_attempts: 0,
+            },
+            remaining: limits.trace_projection,
+            committed: Vec::new(),
+            state: State::Pending,
+        };
+        if intent == local_copy::Intent::Faithful {
+            job.discard();
+            job.state = State::Unsupported {
+                event_index: None,
+                reason: local_copy::Unsupported::UnverifiedRetailSemantics,
+                detail: "Original assignment conversions, dispatch order and event-list lifecycle are unverified".into(),
+            };
+            return Ok(job);
+        }
+        let world = job.world.as_ref().expect("private world present");
+        content.validate_world(world)?;
+        if world.pending_events().len() < requests.len() {
+            return Err(Error::Input("prefix exceeds the existing journal"));
+        }
+        // Validate the complete prefix before the first private event commit.
+        for (pending, request) in world.pending_events().zip(requests) {
+            if pending.sequence != request.sequence.get() {
+                return Err(Error::Input(
+                    "requests must name the exact existing ordered journal prefix",
+                ));
+            }
+            let instance = world.instance(world.handle(pending.instance)?)?;
+            if instance.owner()
+                != &(Owner::Fragment {
+                    activation: request.activation,
+                })
+            {
+                return Err(Error::Input(
+                    "explicit fragment activation differs from the saved owner",
+                ));
+            }
+        }
+        job.committed = Vec::with_capacity(requests.len());
+        Ok(job)
+    }
+
+    pub fn progress(&self) -> Progress {
+        Progress {
+            status: match self.state {
+                State::Pending => Status::Pending,
+                State::Ready => Status::Ready,
+                State::Unsupported { .. } => Status::Unsupported,
+                State::Failed => Status::Failed,
+            },
+            counts: self.counts,
+            work: self.work,
         }
     }
-    let mut counts = Counts {
-        events: 0,
-        source_instructions: 0,
-        statement_bytes: 0,
-        trace_projection: preparation::ObservationCounts {
-            source_bytes: 0,
-            rows: 0,
-            variable_bytes: 0,
-            binding_uses: 0,
-        },
-    };
-    let mut remaining = limits.trace_projection;
-    let mut committed = Vec::with_capacity(requests.len());
-    for (event_index, request) in requests.iter().enumerate() {
+
+    fn discard(&mut self) {
+        self.world.take();
+        self.committed.clear();
+    }
+
+    /// A complete source-admitted event is indivisible. Slice size bounds the
+    /// number of events; all source/projection caps remain global to the job.
+    pub fn advance(&mut self, maximum_complete_events: usize) -> Result<Progress, Error> {
+        if maximum_complete_events == 0 {
+            return Err(Error::Input("a positive complete-event slice is required"));
+        }
+        if matches!(self.state, State::Failed) {
+            return Err(Error::Input("the private job has already failed"));
+        }
+        if !matches!(self.state, State::Pending) {
+            return Ok(self.progress());
+        }
+        for _ in 0..maximum_complete_events.min(self.requests.len() - self.counts.events) {
+            let event_index = self.counts.events;
+            let outcome = match self.step() {
+                Ok(outcome) => outcome,
+                Err(error) => {
+                    self.discard();
+                    self.state = State::Failed;
+                    return Err(error);
+                }
+            };
+            match outcome {
+                copy_probe::PendingOutcome::EngineeringCommitted { committed } => {
+                    self.committed.push(*committed);
+                    self.counts.events += 1;
+                }
+                copy_probe::PendingOutcome::Unsupported { reason, detail } => {
+                    self.discard();
+                    self.state = State::Unsupported {
+                        event_index: Some(event_index),
+                        reason,
+                        detail,
+                    };
+                    return Ok(self.progress());
+                }
+            }
+        }
+        if self.counts.events == self.requests.len() {
+            self.state = State::Ready;
+        }
+        Ok(self.progress())
+    }
+
+    pub fn finish(mut self) -> Result<Outcome, Error> {
+        match self.state {
+            State::Ready => Ok(Outcome::EngineeringCommitted {
+                result: Box::new(Completed {
+                    snapshot: self
+                        .world
+                        .take()
+                        .expect("complete private world")
+                        .snapshot(),
+                    committed: self.committed,
+                    counts: self.counts,
+                }),
+            }),
+            State::Unsupported {
+                event_index,
+                reason,
+                detail,
+            } => Ok(Outcome::Unsupported {
+                event_index,
+                reason,
+                detail,
+            }),
+            State::Pending => Err(Error::Input(
+                "the explicit prefix is not completely executed",
+            )),
+            State::Failed => Err(Error::Input("the private job has already failed")),
+        }
+    }
+
+    fn step(&mut self) -> Result<copy_probe::PendingOutcome, Error> {
+        self.work.source_frame_attempts += 1;
+        let world = self.world.as_mut().expect("pending private world");
+        let request = &self.requests[self.counts.events];
+        let sources = self.sources;
+        let content = self.content;
+        let intent = self.intent;
+        let limits = self.limits;
+        let counts = &mut self.counts;
+        let remaining = &mut self.remaining;
         let frame = world.prepare_event_with_sources(
             request.sequence.get(),
             sources,
@@ -189,7 +374,7 @@ pub fn consume(
                 selected.push(u32::from(binding.index));
             }
         }
-        let projection = preparation::EventObservation::capture(&frame, &selected, remaining)?;
+        let projection = preparation::EventObservation::capture(&frame, &selected, *remaining)?;
         let admitted = projection.counts;
         let instructions = frame.instructions().len();
         // Temporary projection is not retained alongside the old trace. Its
@@ -225,8 +410,9 @@ pub fn consume(
             limits.trace_projection.maximum_binding_uses,
             "trace binding uses",
         )?;
-        match copy_probe::commit_pending(
-            &mut world,
+        self.work.copy_adapter_attempts += 1;
+        Ok(copy_probe::commit_pending(
+            world,
             sources,
             content,
             request.sequence.get(),
@@ -237,25 +423,6 @@ pub fn consume(
                 maximum_operand_uses: 2,
                 maximum_statement_bytes: limits.maximum_statement_bytes,
             },
-        )? {
-            copy_probe::PendingOutcome::EngineeringCommitted { committed: copy } => {
-                committed.push(*copy)
-            }
-            copy_probe::PendingOutcome::Unsupported { reason, detail } => {
-                return Ok(Outcome::Unsupported {
-                    event_index: Some(event_index),
-                    reason,
-                    detail,
-                });
-            }
-        }
-        counts.events += 1;
+        )?)
     }
-    Ok(Outcome::EngineeringCommitted {
-        result: Box::new(Completed {
-            snapshot: world.snapshot(),
-            committed,
-            counts,
-        }),
-    })
 }

@@ -11,6 +11,24 @@ and ordered receipts only when the whole prefix succeeds. A later refusal/error
 discards the owned private World and earlier traces; no partial successful result
 is exposed. Faithful intent returns a typed unverified-semantics refusal.
 
+`pending_batch::Job` uses the same implementation with an ephemeral owned private
+World and borrowed immutable source/content/request inputs. `advance(n)` admits
+and completes at most n existing events; n must be positive. `progress()` returns
+only lifecycle and cumulative work/admission counters. A ready job's further
+advances are inert. `finish()` consumes the job and returns the existing complete
+Outcome; finishing early or dropping it discards all private effects. A source or
+capacity error discards private state and poisons the job. A late unsupported
+event retains its refusal index only. Aggregate caps never reset between slices.
+Call-site witnesses count outer source-frame attempts and copy-adapter attempts;
+they do not claim to count immutable parsing or the adapter's internal work.
+
+The optional CLI flag `--snapshot-copy-batch-slice-events 1..64` runs this job and
+adds bounded lifecycle/counter diagnostics to the report. It requires the batch
+request. Each event remains indivisible; this is a cooperative event count bound,
+not a wall-clock deadline or instruction preemption. Complete result and report
+admission still precede output creation. Without the flag the existing request,
+report shape, limits and synchronous outcome remain unchanged.
+
 This concerns several existing journal events. VM22 concerns several assignments
 inside one event and remains a separate opt-in operation. The single-copy event
 shape and refusal rules remain Begin / one own numeric bit copy / End. Raw numeric

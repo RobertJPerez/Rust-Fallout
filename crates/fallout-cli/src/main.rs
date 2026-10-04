@@ -409,6 +409,9 @@ enum Command {
         /// Consume an explicit existing saved journal prefix with engineering copies.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_batch_request: Option<PathBuf>,
+        /// Advance a saved copy prefix by this many complete events per slice (1..64).
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=64), requires = "snapshot_copy_batch_request")]
+        snapshot_copy_batch_slice_events: Option<u8>,
         /// Copy one explicitly qualified foreign numeric local into the own saved head.
         #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_foreign_copy_request: Option<Box<PathBuf>>,
@@ -1265,6 +1268,7 @@ fn run(args: Args) -> Result<()> {
             engineering_local_copy,
             snapshot_copy_request,
             snapshot_copy_batch_request,
+            snapshot_copy_batch_slice_events,
             snapshot_foreign_copy_request,
             snapshot_reference_copy_request,
             snapshot_reference_literal_request,
@@ -1489,7 +1493,10 @@ fn run(args: Args) -> Result<()> {
                     &install,
                     &load_order,
                     index_cache.as_deref(),
-                    &request,
+                    event_operand_inspection::SavedBatchInput {
+                        request: &request,
+                        slice_events: snapshot_copy_batch_slice_events,
+                    },
                     snapshot_input.as_deref().ok_or("Missing snapshot input")?,
                     snapshot_output
                         .as_deref()

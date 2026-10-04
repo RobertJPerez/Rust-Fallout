@@ -957,6 +957,338 @@ pub fn reference_query(
     Ok(report)
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MultiBodyRequest {
+    reference: std::num::NonZeroU64,
+    body_blocks: Vec<u32>,
+    attachment_rows: [[f64; 4]; 3],
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MultiModelRequest {
+    model_index: usize,
+    source_sha256: String,
+    placements: Vec<MultiBodyRequest>,
+}
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct QueryWork {
+    primitive_tests: usize,
+    geometry_tests: usize,
+    hits: usize,
+}
+impl Default for QueryWork {
+    fn default() -> Self {
+        let b = fallout_runtime::physics::QueryBudget::default();
+        Self {
+            primitive_tests: b.primitive_tests,
+            geometry_tests: b.geometry_tests,
+            hits: b.hits,
+        }
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MultiRequest {
+    models: Vec<MultiModelRequest>,
+    units: fallout_runtime::physics::EngineeringUnits,
+    ray: Option<fallout_runtime::physics::Ray>,
+    overlap: Option<SphereRequest>,
+    io_deadline_ms: u64,
+    #[serde(default)]
+    verify_unload: bool,
+    #[serde(default)]
+    query_budget: QueryWork,
+}
+#[derive(Serialize)]
+pub struct MultiReport {
+    schema_version: u32,
+    scope: fallout_runtime::physics::multi::Scope,
+    request_sha256: String,
+    load_order_sha256: String,
+    sources: Vec<fallout_data::store::SourceReceipt>,
+    selected_models: Vec<Value>,
+    primitive_count: usize,
+    query_budget: QueryWork,
+    ray_hits: Vec<fallout_runtime::physics::Hit>,
+    overlap_hits: Vec<fallout_runtime::physics::Hit>,
+    ray_numeric_input: Option<RayNumericInput>,
+    overlap_numeric_input: Option<OverlapNumericInput>,
+    residency: fallout_data::world::residency::Snapshot,
+    unload: Option<Value>,
+    query_semantics: &'static str,
+    faithful_ready: bool,
+}
+
+/// One explicit selected subset, one retained source lease and one scene/index.
+/// Engineering references/frames do not create or mutate canonical World state.
+pub fn multi_query(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    source_cache: Option<&Path>,
+    editor_id: &str,
+    request_path: &Path,
+) -> Result<MultiReport> {
+    use fallout_data::{
+        archive::NvArchive,
+        vfs::MountIndex,
+        world::{
+            preparation::CellModelPlan,
+            residency::{self, CellResidency, Stage},
+        },
+    };
+    use fallout_runtime::{
+        identity::ReferenceId,
+        physics::{
+            BodyPlacement, QueryBudget,
+            multi::{self, CellSelection, ModelSelection},
+        },
+    };
+    use std::time::{Duration, Instant};
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: MultiRequest = serde_json::from_slice(&request_bytes)?;
+    if request.models.is_empty()
+        || request.models.len() > 64
+        || !(1..=60_000).contains(&request.io_deadline_ms)
+        || (request.ray.is_none() && request.overlap.is_none())
+    {
+        return Err(
+            "multi-model collision needs 1..64 models, bounded IO deadline and a query".into(),
+        );
+    }
+    let max = QueryWork::default();
+    if request.query_budget.primitive_tests > max.primitive_tests
+        || request.query_budget.geometry_tests > max.geometry_tests
+        || request.query_budget.hits > max.hits
+    {
+        return Err("multi-model query budget exceeds engineering ceiling".into());
+    }
+    let mut count = 0usize;
+    let mut selections = Vec::with_capacity(request.models.len());
+    // Check total bodies and all textual SHA fields before constructing placements.
+    for model in &request.models {
+        if model.placements.is_empty()
+            || model.source_sha256.len() != 64
+            || !model.source_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err("multi-model collision requires placements and exact source SHA".into());
+        }
+        for p in &model.placements {
+            if p.body_blocks.is_empty() {
+                return Err("multi-model collision body selection is empty".into());
+            }
+            count = count
+                .checked_add(p.body_blocks.len())
+                .ok_or("multi-model body count overflow")?;
+            if count > 1024 {
+                return Err("multi-model collision exceeds 1024 total body placements".into());
+            }
+        }
+    }
+    for model in &request.models {
+        let sha = std::array::from_fn(|i| {
+            u8::from_str_radix(&model.source_sha256[2 * i..2 * i + 2], 16)
+                .expect("checked ASCII hex")
+        });
+        let mut placements = Vec::new();
+        for p in &model.placements {
+            for &body_block in &p.body_blocks {
+                placements.push(BodyPlacement {
+                    reference: ReferenceId(p.reference),
+                    source_sha256: sha,
+                    body_block,
+                    attachment_to_source: fallout_data::coordinates::Affine {
+                        rows: p.attachment_rows,
+                    },
+                });
+            }
+        }
+        selections.push(ModelSelection {
+            model_index: model.model_index,
+            placements,
+        });
+    }
+    let order = crate::inspection_input::Order::read(order_path)?;
+    let mut plugin_bytes = 0u64;
+    for name in &order.names {
+        fallout_data::identity::plugin_name(name)?;
+        plugin_bytes = plugin_bytes
+            .checked_add(std::fs::metadata(install.join("Data").join(name))?.len())
+            .ok_or("multi-model plugin bytes overflow")?;
+        if plugin_bytes > 4 * 1024 * 1024 * 1024 {
+            return Err("multi-model plugin cohort exceeds 4 GiB".into());
+        }
+    }
+    let index_limits = fallout_data::plugin::Limits {
+        max_records: 4_000_000 / order.names.len() as u64,
+        max_record_bytes: 4 * 1024 * 1024,
+        max_decoded_bytes: 4 * 1024 * 1024 * 1024 / order.names.len() as u64,
+        ..Default::default()
+    };
+    let data = install.join("Data");
+    let mut store = if let Some(cache) = index_cache {
+        fallout_data::store::RecordStore::open_nv_headers_cached(
+            &data,
+            &order.names,
+            index_limits,
+            cache,
+        )?
+    } else {
+        fallout_data::store::RecordStore::open_nv_headers(&data, &order.names, index_limits)?
+    };
+    let sources = store.source_receipts()?;
+    let root = store.cell_by_editor_id(editor_id.as_bytes())?.0;
+    let archives = crate::data_files(install, &["bsa"])?;
+    if archives.len() > 8 {
+        return Err("multi-model archive count exceeds eight".into());
+    }
+    let archive_bytes = archives.iter().try_fold(0u64, |n, p| {
+        n.checked_add(std::fs::metadata(p)?.len())
+            .ok_or_else(|| std::io::Error::other("archive bytes overflow"))
+    })?;
+    if archive_bytes > 16 * 1024 * 1024 * 1024 {
+        return Err("multi-model archive sources exceed 16 GiB".into());
+    }
+    let mut mounts = MountIndex::default();
+    for path in archives {
+        NvArchive::open(&path)?.census(&mut mounts)?;
+    }
+    let plan = CellModelPlan::load(&mut store, &root, &mounts, Default::default())?;
+    let mut owner = CellResidency::new(
+        install,
+        source_cache,
+        residency::Limits {
+            workers: 1,
+            source_bytes: 64 * 1024 * 1024,
+            ..Default::default()
+        },
+    )?;
+    let ticket = owner.request(plan)?;
+    let deadline = Instant::now() + Duration::from_millis(request.io_deadline_ms);
+    loop {
+        let state = owner.poll()?;
+        if state.stage == Stage::Decoded {
+            break;
+        }
+        if state.stage == Stage::Failed {
+            return Err(format!("multi-model collision IO failed: {:?}", state.failure).into());
+        }
+        if Instant::now() >= deadline {
+            return Err("multi-model collision IO deadline exhausted".into());
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let selected_models = {
+        let resident = owner.sources(&ticket)?;
+        let plan = resident.plan()?;
+        let mut rows = Vec::with_capacity(request.models.len());
+        for model in &request.models {
+            rows.push(serde_json::to_value(
+                plan.receipt()
+                    .requests
+                    .get(model.model_index)
+                    .ok_or("resident model receipt index out of range")?,
+            )?);
+        }
+        rows
+    };
+    let mut collision = CellSelection::default();
+    let scope = collision.admit(
+        &mut owner,
+        &ticket,
+        &selections,
+        request.units,
+        multi::Limits::default(),
+    )?;
+    let ray_numeric_input = request.ray.map(ray_numeric_input);
+    let overlap_numeric_input = request.overlap.as_ref().map(overlap_numeric_input);
+    let queries = usize::from(request.ray.is_some()) + usize::from(request.overlap.is_some());
+    let budget = QueryBudget {
+        primitive_tests: request.query_budget.primitive_tests / queries,
+        geometry_tests: request.query_budget.geometry_tests / queries,
+        hits: request.query_budget.hits / queries,
+    };
+    let ray = request
+        .ray
+        .map(|r| collision.ray_cast(&owner, r, budget))
+        .transpose()
+        .map_err(|e| {
+            format!(
+                "multi-model ray refused: {e}; ray_numeric_input={}",
+                serde_json::to_string(&ray_numeric_input).expect("numeric audit")
+            )
+        })?;
+    let overlap = request
+        .overlap
+        .map(|s| collision.overlap_sphere(&owner, s.center, s.radius, budget))
+        .transpose()
+        .map_err(|e| {
+            format!(
+                "multi-model overlap refused: {e}; overlap_numeric_input={}",
+                serde_json::to_string(&overlap_numeric_input).expect("numeric audit")
+            )
+        })?;
+    let ray_hits = ray
+        .as_ref()
+        .map(|r| r.hits(&owner))
+        .transpose()?
+        .unwrap_or(&[])
+        .to_vec();
+    let overlap_hits = overlap
+        .as_ref()
+        .map(|r| r.hits(&owner))
+        .transpose()?
+        .unwrap_or(&[])
+        .to_vec();
+    let residency = owner.snapshot();
+    let primitive_count = collision.retained_primitive_count();
+    let unload = if request.verify_unload {
+        owner.unload()?;
+        let receipts_refuse = ray.as_ref().is_none_or(|r| r.hits(&owner).is_err())
+            && overlap.as_ref().is_none_or(|r| r.hits(&owner).is_err());
+        let geometry_released =
+            collision.invalidate(&owner) && collision.retained_primitive_count() == 0;
+        let after = owner.poll()?;
+        if !receipts_refuse
+            || !geometry_released
+            || after.pinned_source_bytes != 0
+            || after.retained_plans != 0
+            || after.outstanding != 0
+        {
+            return Err(
+                "multi-model unload did not revoke all receipts and release owned pins".into(),
+            );
+        }
+        Some(
+            serde_json::json!({"receipts_refuse":receipts_refuse,"geometry_released":geometry_released,"residency":after}),
+        )
+    } else {
+        None
+    };
+    let report = MultiReport {
+        schema_version: 1,
+        scope,
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        load_order_sha256: order.sha256,
+        sources,
+        selected_models,
+        primitive_count,
+        query_budget: request.query_budget,
+        ray_hits,
+        overlap_hits,
+        ray_numeric_input,
+        overlap_numeric_input,
+        residency,
+        unload,
+        faithful_ready: false,
+        query_semantics: "explicit resident model subset; one frozen source-core scene/index and global query budget; all source filters retained; engineering reference/frame inputs; whole-cell collision Unsupported; no canonical World mutation",
+    };
+    serde_json::to_writer_pretty(&mut ReportCounter(1), &report)?;
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -602,6 +602,21 @@ enum Command {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Query an explicit resident model subset under one collision budget.
+    CellCollisionSelection {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        source_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Query selected collision bound to existing canonical references in a strict saved World.
     ReferenceCollision {
         #[arg(long)]
@@ -1757,6 +1772,24 @@ fn run(args: Args) -> Result<()> {
             request,
         } => {
             let report = collision::cell_query(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
+        Command::CellCollisionSelection {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::multi_query(
                 &install,
                 &load_order,
                 index_cache.as_deref(),

@@ -43,6 +43,14 @@ pub struct StaticScene {
     index: Option<Index>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct BuildUsage {
+    pub blocks: usize,
+    pub shape_visits: usize,
+    pub primitives: usize,
+    pub geometry_elements: usize,
+}
+
 fn unsupported(block: u32, reason: &'static str) -> QueryError {
     QueryError::Unsupported { block, reason }
 }
@@ -296,6 +304,14 @@ impl StaticScene {
         units: EngineeringUnits,
         limits: QueryLimits,
     ) -> QueryResult<Self> {
+        Self::build_counted(collision, placements, units, limits).map(|(scene, _)| scene)
+    }
+    pub(super) fn build_counted(
+        collision: &Collision,
+        placements: &[BodyPlacement],
+        units: EngineeringUnits,
+        limits: QueryLimits,
+    ) -> QueryResult<(Self, BuildUsage)> {
         if !units.havok_to_source.is_finite()
             || units.havok_to_source <= 0.
             || !units.source_to_query.is_finite()
@@ -530,7 +546,61 @@ impl StaticScene {
             }
         }
         scene.index = Index::build(indexed, fallback, &mut elements)?;
-        Ok(scene)
+        let usage = BuildUsage {
+            blocks: collision.blocks.len(),
+            shape_visits: limits.shape_visits - visits,
+            primitives: scene.leaves.len(),
+            geometry_elements: limits.geometry_elements - elements,
+        };
+        Ok((scene, usage))
+    }
+    /// Consume already compiled source leaves; frames and narrow predicates are
+    /// unchanged. Intermediate indices drop, and one final index shares the
+    /// remaining aggregate allowance. Callers charge the merge leaf visits.
+    pub(super) fn combine(
+        scenes: Vec<Self>,
+        primitives: usize,
+        elements: &mut usize,
+    ) -> QueryResult<Self> {
+        let mut count = 0usize;
+        let first = scenes
+            .first()
+            .ok_or(QueryError::Invalid("empty scene selection"))?;
+        let units = first.units;
+        for scene in &scenes {
+            if scene.units.havok_to_source.to_bits() != units.havok_to_source.to_bits()
+                || scene.units.source_to_query.to_bits() != units.source_to_query.to_bits()
+                || scene.units.transform_tolerance.to_bits() != units.transform_tolerance.to_bits()
+            {
+                return Err(QueryError::Invalid("scene selection units differ"));
+            }
+            count = count
+                .checked_add(scene.leaves.len())
+                .ok_or(QueryError::Budget("primitives"))?;
+            if count > primitives {
+                return Err(QueryError::Budget("primitives"));
+            }
+        }
+        let mut combined = Self {
+            leaves: Vec::with_capacity(count),
+            units,
+            index: None,
+        };
+        for scene in scenes {
+            combined.leaves.extend(scene.leaves);
+        }
+        let mut indexed = Vec::new();
+        let mut fallback = Vec::new();
+        for (ordinal, leaf) in combined.leaves.iter().enumerate() {
+            let (minimum, maximum) = leaf.geometry.shape.bounds();
+            if let Some(bounds) = Bounds::transformed(minimum, maximum, &leaf.transform) {
+                indexed.push((ordinal, bounds));
+            } else {
+                fallback.push(ordinal);
+            }
+        }
+        combined.index = Index::build(indexed, fallback, elements)?;
+        Ok(combined)
     }
     pub fn primitive_count(&self) -> usize {
         self.leaves.len()

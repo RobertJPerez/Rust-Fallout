@@ -152,3 +152,17 @@ inside successful plans. A refused selection or factory emits its directory and
 error with a null plan set and exits 1. Successful preparation exits 0, including
 explicitly reported incomplete model coverage. No model payload jobs or runtime
 activation occur, and the runtime/lookup/parity fields remain false.
+
+`request_persistent()` separately requires exactly one live
+`Role::PersistentGroup` in this world's winning source directory. Its sealed
+`CellPersistentRequest` contains world, CELL identity and source cohort, without
+grid coordinates. A misleading XCLC remains source metadata on the entry; it
+cannot turn the request into an exterior grid request. Deleted winners remain
+tombstones, and missing or multiple live persistent groups refuse selection.
+
+`prepare_persistent(store, request, mounts, model_limits)` verifies the same
+world/directory and full ordered source seal, then prepares the exact persistent
+CELL through existing `CellModelPlan::load` and its unchanged strict graph/model
+ceilings. It performs no extra census, predecessor fallback or quota lift. The
+plan can be retained by a host separately from spatial grid plans; this source
+API creates no residency, persistent-actor simulation or canonical state change.

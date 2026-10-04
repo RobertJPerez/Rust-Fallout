@@ -7,7 +7,7 @@ use fallout_data::{
     vfs::MountIndex,
     world::{
         cells::{CellGridSources, Limits, Role},
-        preparation::ModelSetLimits,
+        preparation::{Limits as ModelLimits, ModelSetLimits},
         residency::CellResidency,
     },
 };
@@ -855,4 +855,221 @@ fn empty_model_cell_sets_still_charge_metadata_and_allow_exact_zero_byte_records
         .prepare_cells(&mut store, &request, &MountIndex::default(), limits)
         .unwrap();
     assert_eq!(set.usage().grids, 2);
+}
+
+#[test]
+fn persistent_request_keeps_misleading_grid_and_remapped_override_as_separate_authority() {
+    let mut fixture = Fixture::new();
+    let mounts = model_pair(&fixture);
+    let base_path = fixture.root.path().join("Data/Base.esm");
+    let mut base = fs::read(&base_path).unwrap();
+    base.extend(group(
+        0x100,
+        &child_group(
+            0x202,
+            6,
+            &child_group(
+                0x202,
+                9,
+                &record(
+                    b"REFR",
+                    0x350,
+                    0,
+                    &[
+                        field(b"NAME", &0x400_u32.to_le_bytes()),
+                        field(b"DATA", &[0; 24]),
+                    ]
+                    .concat(),
+                ),
+            ),
+        ),
+    ));
+    fs::write(&base_path, base).unwrap();
+    fs::write(fixture.root.path().join("Data/Other.esm"), header(false)).unwrap();
+    // Two authored master slots: the winning CELL/world labels use Base at slot1.
+    let patch = [
+        record(
+            b"TES4",
+            0,
+            0,
+            &[
+                field(
+                    b"HEDR",
+                    &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                ),
+                field(b"MAST", b"Other.esm\0"),
+                field(b"DATA", &[0; 8]),
+                field(b"MAST", b"Base.esm\0"),
+                field(b"DATA", &[0; 8]),
+            ]
+            .concat(),
+        ),
+        group(
+            0x0100_0100,
+            &cell(0x0100_0202, plugin::PERSISTENT, 0, Some([-18, 0])),
+        ),
+    ]
+    .concat();
+    assert_eq!(&patch[109..113], &0x0100_0100_u32.to_le_bytes());
+    assert_eq!(&patch[125..129], b"CELL");
+    assert_eq!(&patch[133..137], &0x400_u32.to_le_bytes());
+    assert_eq!(&patch[137..141], &0x0100_0202_u32.to_le_bytes());
+    assert_eq!(&patch[162..170], &[0xee, 0xff, 0xff, 0xff, 0, 0, 0, 0]);
+    fs::write(fixture.root.path().join("Data/Patch.esp"), patch).unwrap();
+    fixture.names = vec!["Base.esm".into(), "Other.esm".into(), "Patch.esp".into()];
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_persistent().unwrap();
+    assert_eq!(request.world(), &key(0x100));
+    assert_eq!(request.cell(), &key(0x202));
+    assert!(
+        serde_json::to_value(&request)
+            .unwrap()
+            .get("grid")
+            .is_none()
+    );
+    assert_eq!(directory.request([-18, 0]).unwrap().cell(), &key(0x200));
+    let entry = directory
+        .metadata()
+        .entries
+        .iter()
+        .find(|entry| &entry.key == request.cell())
+        .unwrap();
+    assert_eq!(entry.role, Role::PersistentGroup);
+    assert_eq!(entry.source_ordinal, 2);
+    assert_eq!(entry.header.offset, 125);
+    assert_eq!(entry.header.form_id, 0x0100_0202);
+    assert_eq!(entry.parent_world_raw, 0x0100_0100);
+    assert_eq!(
+        entry
+            .fields
+            .as_ref()
+            .unwrap()
+            .grid
+            .as_ref()
+            .unwrap()
+            .decoded_offset,
+        7
+    );
+    let plan = directory
+        .prepare_persistent(&mut store, &request, &mounts, Default::default())
+        .unwrap();
+    assert_eq!(plan.root(), &key(0x202));
+    assert_eq!(plan.graph().root_members, 1);
+    assert_eq!(plan.receipt().requests.len(), 1);
+    assert_eq!(plan.receipt().requests[0].decoded_bytes, 3);
+    assert_eq!(
+        plan.receipt().source_cohort_sha256,
+        directory.metadata().source_cohort_sha256
+    );
+    assert!(!plan.receipt().runtime_ready);
+    assert!(
+        directory
+            .prepare_persistent(
+                &mut store,
+                &request,
+                &mounts,
+                ModelLimits {
+                    max_requests: 0,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn persistent_selection_refuses_missing_deleted_multiple_and_wrong_directory() {
+    for mode in ["missing", "deleted", "multiple"] {
+        let mut fixture = Fixture::new();
+        let (raw, flags) = match mode {
+            "missing" => (0x202, 0),
+            "deleted" => (0x202, plugin::PERSISTENT | plugin::DELETED),
+            _ => (0x0100_0220, plugin::PERSISTENT),
+        };
+        fixture.patch(&group(0x100, &cell(raw, flags, 0, Some([-18, 0]))));
+        let mut store = fixture.open(false);
+        assert!(load(&mut store).request_persistent().is_err());
+    }
+    let fixture = Fixture::new();
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_persistent().unwrap();
+    let other = CellGridSources::load(&mut store, &key(0x101), Limits::default()).unwrap();
+    assert!(
+        other
+            .prepare_persistent(
+                &mut store,
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+    assert!(
+        directory
+            .prepare_persistent(
+                &mut store,
+                &request,
+                &MountIndex::default(),
+                ModelLimits {
+                    dependencies: fallout_data::world::dependencies::Limits {
+                        max_nodes: 0,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn persistent_plan_rejects_changed_source_order_count_and_bytes() {
+    let mut fixture = Fixture::new();
+    fixture.patch(&[]);
+    fs::write(fixture.root.path().join("Data/Other.esm"), header(false)).unwrap();
+    fixture.names.push("Other.esm".into());
+    let mut store = fixture.open(false);
+    let directory = load(&mut store);
+    let request = directory.request_persistent().unwrap();
+    drop(store);
+    fixture.names.swap(1, 2);
+    assert!(
+        directory
+            .prepare_persistent(
+                &mut fixture.open(false),
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+    fixture.names.swap(1, 2);
+    fixture.names.pop();
+    assert!(
+        directory
+            .prepare_persistent(
+                &mut fixture.open(false),
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
+    fixture.names.push("Other.esm".into());
+    let path = fixture.root.path().join("Data/Base.esm");
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.extend(record(b"STAT", 0x901, 0, &[]));
+    fs::write(path, bytes).unwrap();
+    assert!(
+        directory
+            .prepare_persistent(
+                &mut fixture.open(false),
+                &request,
+                &MountIndex::default(),
+                Default::default()
+            )
+            .is_err()
+    );
 }

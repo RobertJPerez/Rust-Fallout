@@ -433,6 +433,67 @@ fn capsule_initial_inside_predicate_refuses_rounded_boundary_false_hit() {
 }
 
 #[test]
+fn long_skew_capsule_original_axis_refuses_independent_exact_line_miss() {
+    let scene = scene(&[
+        ("bhkRigidBody", body(1)),
+        (
+            "bhkCapsuleShape",
+            capsule(
+                [0.; 3],
+                [52_261_384_192., 84_231_479_296., 55_128_973_312.],
+                1.,
+            ),
+        ),
+    ]);
+    // Independent Fraction over these exact source-f32 / request-f64 words:
+    // infinite-line distance^2 is13391122364968215868819298297140779722394308083273962324769 /
+    // 13391094655208010850365703542705265712767206248445162553344 >1.
+    // Neither finite subset can intersect. The declared interval refuses it.
+    assert!(matches!(
+        scene.ray_cast(
+            ray(
+                [26130692086.14725, 42115739648.971, 27564486654.273586],
+                [0.9951285574918328, -0.04695609615116375, 0.0866849415900279],
+                20.
+            ),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "capsule side predicate is numerically uncertain"
+        ))
+    ));
+}
+
+#[test]
+fn ordinary_skew_capsule_side_and_exact_parallel_cap_keep_analytic_entries() {
+    let scene = scene(&[
+        ("bhkRigidBody", body(1)),
+        ("bhkCapsuleShape", capsule([0.; 3], [4., 4., 0.], 1.)),
+    ]);
+    close(
+        scene
+            .ray_cast(
+                ray([2., 2., -3.], [0., 0., 1.], 10.),
+                QueryBudget::default(),
+            )
+            .unwrap()[0]
+            .distance,
+        2.,
+    );
+    let half = std::f64::consts::FRAC_1_SQRT_2;
+    close(
+        scene
+            .ray_cast(
+                ray([-2., -2., 0.], [half, half, 0.], 10.),
+                QueryBudget::default(),
+            )
+            .unwrap()[0]
+            .distance,
+        8f64.sqrt() - 1.,
+    );
+}
+
+#[test]
 fn capsule_endpoint_subtraction_cannot_round_an_outside_origin_onto_surface() {
     let scene = scene(&[
         ("bhkRigidBody", body(1)),

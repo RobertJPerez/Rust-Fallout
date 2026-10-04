@@ -48,6 +48,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) include_actor_context: bool,
     pub(super) equipment_item: Option<std::num::NonZeroU64>,
     pub(super) equipment_model_role: Option<actors::dependencies::equipment::Role>,
+    pub(super) render_path_selection: Option<&'a Path>,
     pub(super) inventory_boot_request: Option<&'a Path>,
 }
 
@@ -217,6 +218,42 @@ pub(super) fn package_context(
             return Err("canonical actor placement base differs from --actor-root".into());
         }
         report["actor_context"] = serde_json::to_value(observation)?;
+        if let Some(selection_path) = options.render_path_selection {
+            let mut selection_source = baseline::open_source(selection_path)?;
+            let mut bytes = Vec::new();
+            (&mut selection_source)
+                .take(8 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)?;
+            if bytes.len() > 8 * 1024 * 1024 {
+                return Err("render path selection exceeds 8 MiB".into());
+            }
+            use fallout_runtime::actor_rules::render_context;
+            let occurrences: Vec<render_context::Occurrence> = serde_json::from_slice(&bytes)?;
+            let lists = leveled::Catalogue::load(&mut store, Default::default())?;
+            let dependencies = actors::dependencies::Catalogue::load(
+                &mut store,
+                &actors,
+                &associations,
+                &lists,
+                Default::default(),
+            )?;
+            let assets = ArchiveAssets::open_nv(install)?;
+            let view = world.reference_view(reference)?;
+            let observation = render_context::observe(
+                &world,
+                &content,
+                render_context::Sources {
+                    placements: &placements,
+                    actors: &actors,
+                    dependencies: &dependencies,
+                    assets: &assets,
+                },
+                &view,
+                &occurrences,
+                Default::default(),
+            )?;
+            report["actor_render_context"] = serde_json::to_value(observation)?;
+        }
         if before_observation.as_ref() != Some(&world.snapshot()) {
             return Err("actor context changed canonical state".into());
         }

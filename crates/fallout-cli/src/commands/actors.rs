@@ -107,6 +107,8 @@ pub(crate) enum ActorsCommand {
         equipment_item: Option<std::num::NonZeroU64>,
         #[arg(long, requires = "equipment_item", value_parser = actor_inspection::parse_equipment_role)]
         equipment_model_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, requires = "include_actor_context")]
+        render_path_selection: Option<PathBuf>,
         #[arg(long, requires = "explicit_subject")]
         inventory_boot_request: Option<PathBuf>,
     },

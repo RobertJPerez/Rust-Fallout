@@ -368,3 +368,50 @@ remain missing, ambiguous or unsupported as reported by ACT08. No equip rule,
 slot conflict, automatic texture/attachment choice, NIF decoder, live mutation
 or save format change is introduced. Equipped state and original behavior remain
 unverified.
+
+## Current canonical placement and explicit actor model occurrences
+
+`actor_rules::render_context::observe(&World, &Content, Sources, &View,
+&[Occurrence], Limits)` joins the existing ACT15 placement/base observation with
+an internally constructed actor `RenderManifest`. `Sources` borrows the existing
+placement, actor and dependency catalogues and archive index. The caller supplies
+an existing private canonical reference `View`; an actor base is derived solely
+from the validated ACHR/ACRE binding. Complete ordered source receipts, winning
+cohort and canonical actor/model header facts are checked before output.
+
+The supplied view must match campaign, cohort, revision, authored origin and
+current component. For an existing component the existing canonical staging
+validator checks its private World epoch and exact state. The private proposal
+is immediately dropped; no commit occurs. An unavailable component always gives
+an explicit no-mesh outcome, including an equal-state restored unavailable view.
+Fresh views can qualify their current saved pose after strict cold restoration;
+old views with a component refuse after restoration or state changes.
+
+Each occurrence specifies source FormKey, whole-plugin SHA-256, record file
+offset, physical field index/decoded offset/string-frame offset and existing
+`RenderRole`. Exact source identity and role must match one existing producer
+request. Selection order and repeated choices remain explicit indices into the
+single manifest. Unrelated source paths remain diagnostics and do not become
+implicit mesh requests. Strict request JSON rejects extra fields, including
+inside a role object; the source-role API and raw decoders are unchanged.
+
+The typed outcome distinguishes unavailable component, disabled state,
+unavailable scale, unavailable source, empty selection, selected non-mesh paths
+and admission. Every selected request is withheld unless the existing canonical
+component is explicitly enabled, its scale is available and positive, the
+existing render producer admits its source requests and all explicitly selected
+paths are model paths. Role collisions, selected HDPT cycles and unavailable or
+colliding archives preserve their existing diagnostics. Admission is atomic.
+
+`actor-package-context --include-actor-context --render-path-selection file.json`
+uses its strict snapshot and explicit subject, requires the caller's actor root
+to agree with the placement join, and emits `actor_render_context`. The result
+keeps authored `DATA` and current saved pose/enable separate and confirms that
+the authoritative snapshot is unchanged. `admitted_paths()` yields only the
+explicit admitted source requests. Output remains in canonical source units;
+GPU readiness is false. Transform conversion, NIF/rig/animation selection,
+effective equipment and live state mutation remain separate consumers.
+
+Nested context/render/structural limits remain in force. Additional bounds cover
+source count, selected occurrences, input identity bytes, logical visits, supplied
+view and complete serialized output. Index retention avoids repeated path clones.

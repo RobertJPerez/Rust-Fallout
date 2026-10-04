@@ -15,11 +15,12 @@ From `G:\Rust-Fallout`, run:
 
 You can also double-click that executable in Explorer. The ignored
 `local/playtest.json` is already configured for this installation and Goodsprings.
-The 3D view opens in a separate window. The console now shows loading stages and
-an elapsed-time message every five seconds until data preparation finishes. The
-latest Goodsprings offscreen launch prepared source data in 17 seconds; this is a
-single smoke run, not a startup performance guarantee. Keep the launcher console
-open while loading.
+The current inspection host opens its window before source preparation. Its title
+shows loading stages and elapsed preparation time; draw uploads complete over
+bounded updates before the scene appears. See [responsive loading](presentation-loading.md).
+The earlier Goodsprings offscreen launch prepared source data in 17 seconds; that
+was a single smoke run, not a startup performance guarantee. Keep the launcher
+console open while loading.
 `fallout-playtest.exe --terrain GoodspringsSource` selects another supported cell;
 `--check` validates the configuration without opening a window.
 `--smoke-test` exercises the complete launcher and renderer offscreen, writes a

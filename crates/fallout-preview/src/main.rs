@@ -1,12 +1,14 @@
 //! A small inspection host for the production decoder, not a gameplay runtime.
 mod fixture;
 mod input;
+mod loading;
 mod material;
 mod model;
 mod scene;
 mod startup;
 mod terrain;
 mod terrain_textures;
+mod upload;
 
 use bevy::{
     app::{AppExit, ScheduleRunnerPlugin},
@@ -19,7 +21,7 @@ use bevy::{
         render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
         view::screenshot::{Screenshot, ScreenshotCaptured},
     },
-    window::ExitCondition,
+    window::{ExitCondition, PrimaryWindow, WindowCloseRequested, WindowCreated},
     winit::WinitPlugin,
 };
 use clap::{ArgGroup, Parser};
@@ -31,7 +33,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Parser, Resource)]
+#[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
 #[command(group(ArgGroup::new("mode").required(true).args(["model", "cell", "terrain", "material_fixture"])))]
 struct Options {
@@ -108,6 +110,85 @@ struct Navigation {
     home: Transform,
 }
 
+struct ReadyScene {
+    upload: DrawScene,
+    orbit: Orbit,
+    navigation: Navigation,
+    fixture: Option<fixture::Report>,
+}
+
+struct DrawScene {
+    queue: upload::Queue,
+    cell: Option<scene::CellSources>,
+}
+
+impl DrawScene {
+    fn status(&self) -> String {
+        self.queue.status()
+    }
+
+    fn advance(
+        &mut self,
+        commands: &mut Commands,
+        assets: &mut upload::Resources,
+        epoch: u64,
+    ) -> Result<bool, String> {
+        if let Some(cell) = &self.cell {
+            cell.sources
+                .ticket()
+                .check()
+                .map_err(|error| error.to_string())?;
+        }
+        if !self.queue.advance(commands, assets, epoch)? {
+            return Ok(false);
+        }
+        let queue = &mut self.queue;
+        if let Some(cell) = &mut self.cell {
+            cell.owner
+                .get_mut()
+                .map_err(|_| "Source residency owner poisoned".to_string())?
+                .publish_render(&cell.ticket, || {
+                    queue
+                        .publish(commands, epoch)
+                        .map_err(fallout_data::resource_jobs::JobError::Invalid)
+                })
+                .map_err(|error| error.to_string())?;
+        } else {
+            queue.publish(commands, epoch)?;
+        }
+        Ok(true)
+    }
+
+    fn dispose(&mut self, commands: &mut Commands, assets: &mut upload::Resources) {
+        if let Some(cell) = &mut self.cell {
+            match cell.owner.get_mut() {
+                Ok(owner) => {
+                    if let Err(error) = owner.unload() {
+                        error!("Source residency unload failed: {error}");
+                    }
+                }
+                Err(error) => error!("Source residency owner poisoned: {error}"),
+            }
+        }
+        self.queue.dispose(commands, assets);
+    }
+}
+
+enum Phase {
+    WaitingForWindow,
+    Preparing(loading::Job<ReadyScene>),
+    Uploading(DrawScene),
+    Ready(DrawScene),
+    Failed(String),
+    Cancelled,
+}
+
+#[derive(Resource)]
+struct Loading {
+    epoch: u64,
+    phase: Phase,
+}
+
 fn output_path(path: &Path, install: Option<&Path>) -> model::Result<PathBuf> {
     let name = path.file_name().ok_or("output needs a file name")?;
     let parent = path
@@ -137,7 +218,75 @@ fn run() -> model::Result<AppExit> {
     if options.capture.is_some() && options.capture == options.report {
         return Err("capture and report must have different paths".into());
     }
-    let preparation = startup::Progress::start(options.headless);
+    let headless = options.headless;
+    let orbit = Orbit {
+        center: Vec3::ZERO,
+        radius: 1.,
+        yaw: 2.5,
+        pitch: 0.3,
+        distance: 3.,
+    };
+    let navigation = Navigation {
+        fly: options.camera_position.is_some(),
+        home: if options.material_fixture {
+            Transform::from_xyz(0., 0., 1000.).looking_at(Vec3::ZERO, Vec3::Y)
+        } else {
+            orbit.transform()
+        },
+    };
+    let mut plugins = DefaultPlugins
+        .set(WindowPlugin {
+            primary_window: (!headless).then(|| Window {
+                title: "Fallout Rust - Loading source data".into(),
+                resolution: (1280, 900).into(),
+                ..default()
+            }),
+            exit_condition: if headless {
+                ExitCondition::DontExit
+            } else {
+                ExitCondition::OnAllClosed
+            },
+            ..default()
+        })
+        .set(RenderPlugin {
+            synchronous_pipeline_compilation: true,
+            ..default()
+        });
+    if headless {
+        plugins = plugins.disable::<WinitPlugin>();
+    }
+    let mut app = App::new();
+    app.add_plugins(plugins)
+        .add_plugins(material::InspectionPlugin)
+        .add_plugins(input::InspectionInputPlugin)
+        .insert_resource(if headless {
+            input::Context::Suspended
+        } else {
+            input::Context::Loading
+        })
+        .insert_resource(options)
+        .insert_resource(orbit)
+        .insert_resource(navigation)
+        .insert_resource(Loading {
+            epoch: 1,
+            phase: Phase::WaitingForWindow,
+        })
+        .insert_resource(ClearColor(Color::srgb(0.035, 0.045, 0.055)))
+        .add_systems(Startup, setup)
+        .add_systems(Update, (controls, drive_loading, capture).chain());
+    if headless {
+        app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)));
+    }
+    Ok(app.run())
+}
+
+fn prepare_scene(
+    options: &Options,
+    context: &loading::Context,
+    epoch: u64,
+) -> model::Result<ReadyScene> {
+    context.stage("Reading source data")?;
+    let mut cell_sources = None;
     let (prepared, report) = if options.material_fixture {
         let (prepared, report) = fixture::prepare()?;
         (prepared, scene::Report::Fixture(report))
@@ -154,7 +303,7 @@ fn run() -> model::Result<AppExit> {
             options.terrain_texture_repeat,
         )?
     } else {
-        scene::load_cell(
+        let (prepared, report, sources) = scene::load_cell(
             options.install.as_deref().expect("clap requires install"),
             options
                 .load_order
@@ -164,7 +313,10 @@ fn run() -> model::Result<AppExit> {
                 .cell
                 .as_deref()
                 .expect("clap requires model or cell"),
-        )?
+            context,
+        )?;
+        cell_sources = Some(sources);
+        (prepared, report)
     };
     match &report {
         scene::Report::Model(report) => eprintln!(
@@ -194,6 +346,7 @@ fn run() -> model::Result<AppExit> {
     eprintln!(
         "Tab/Select: orbit/fly; WASD/left stick: move; Q/E or shoulders: vertical/zoom; arrows/right stick or right-drag: look; wheel: orbit zoom; Shift/left stick click: faster; R/Y: reset; Esc/Start: close"
     );
+    context.check()?;
     if let Some(path) = &options.report
         && !options.material_fixture
     {
@@ -201,7 +354,14 @@ fn run() -> model::Result<AppExit> {
         serde_json::to_writer_pretty(&mut file, &report)?;
         file.write_all(b"\n")?;
     }
-    preparation.finish();
+    context.check()?;
+    if !prepared.center.is_finite()
+        || !prepared.radius.is_finite()
+        || prepared.radius <= 0.
+        || !(prepared.radius * 100.).is_finite()
+    {
+        return Err("Prepared camera bounds must be finite and positive".into());
+    }
     let orbit = Orbit {
         center: prepared.center,
         radius: prepared.radius,
@@ -224,121 +384,158 @@ fn run() -> model::Result<AppExit> {
         fly: options.camera_position.is_some(),
         home,
     };
-    let headless = options.headless;
-    let input_context = if headless || options.material_fixture {
-        input::Context::Suspended
-    } else if navigation.fly {
-        input::Context::Fly
-    } else {
-        input::Context::Orbit
+    context.stage("Preparing bounded draw uploads")?;
+    Ok(ReadyScene {
+        upload: DrawScene {
+            queue: upload::Queue::new(epoch, prepared)?,
+            cell: cell_sources,
+        },
+        orbit,
+        navigation,
+        fixture: if let scene::Report::Fixture(report) = report {
+            Some(report)
+        } else {
+            None
+        },
+    })
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Loading coordinates separate host resource owners"
+)]
+fn drive_loading(
+    mut commands: Commands,
+    options: Res<Options>,
+    actions: Res<input::Actions>,
+    mut state: ResMut<Loading>,
+    mut context: ResMut<input::Context>,
+    mut orbit: ResMut<Orbit>,
+    mut navigation: ResMut<Navigation>,
+    mut cameras: Query<(&mut Transform, &mut Projection), With<Camera3d>>,
+    mut windows: Query<(Entity, &mut Window), With<PrimaryWindow>>,
+    mut created: MessageReader<WindowCreated>,
+    mut closed: MessageReader<WindowCloseRequested>,
+    mut assets: upload::Resources,
+    mut capture: ResMut<Capture>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let window_ready = created
+        .read()
+        .any(|event| windows.iter().any(|(id, _)| id == event.window));
+    let closing = closed.read().next().is_some() || actions.close;
+    let epoch = state.epoch;
+    let phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
+    if closing {
+        state.epoch = state.epoch.saturating_add(1);
+        match phase {
+            Phase::Preparing(mut job) => job.cancel(),
+            Phase::Uploading(mut queue) | Phase::Ready(mut queue) => {
+                queue.dispose(&mut commands, &mut assets)
+            }
+            _ => {}
+        }
+        *context = input::Context::Suspended;
+        return;
+    }
+    let failure = |error: String, exit: &mut MessageWriter<AppExit>| {
+        error!("Source scene failed: {error}");
+        if options.headless {
+            exit.write(AppExit::error());
+        }
+        Phase::Failed(error)
     };
-    let mut plugins = DefaultPlugins
-        .set(WindowPlugin {
-            primary_window: (!headless).then(|| Window {
-                title: format!(
-                    "Fallout Rust - inspection - {}",
-                    options
-                        .model
-                        .as_deref()
-                        .or(options.cell.as_deref())
-                        .or(options.terrain.as_deref())
-                        .unwrap_or("synthetic material fixture")
-                ),
-                resolution: (1280, 900).into(),
-                ..default()
-            }),
-            exit_condition: if headless {
-                ExitCondition::DontExit
+    state.phase = match phase {
+        Phase::WaitingForWindow if options.headless || window_ready => {
+            let request = options.clone();
+            match loading::Job::start(epoch, move |context| {
+                prepare_scene(&request, &context, epoch).map_err(|error| error.to_string())
+            }) {
+                Ok(job) => Phase::Preparing(job),
+                Err(error) => failure(error.to_string(), &mut exit),
+            }
+        }
+        Phase::Preparing(mut job) => {
+            if options.headless && job.status().1 > Duration::from_secs(600) {
+                job.cancel();
+                failure("Source preparation timed out".into(), &mut exit)
             } else {
-                ExitCondition::OnAllClosed
-            },
-            ..default()
-        })
-        .set(RenderPlugin {
-            synchronous_pipeline_compilation: true,
-            ..default()
-        });
-    if headless {
-        plugins = plugins.disable::<WinitPlugin>();
+                match job.poll(epoch) {
+                    loading::Poll::Pending => Phase::Preparing(job),
+                    loading::Poll::Ready(ready) => {
+                        *orbit = ready.orbit;
+                        *navigation = ready.navigation;
+                        for (mut transform, mut projection) in &mut cameras {
+                            *transform = navigation.home;
+                            if let Projection::Perspective(perspective) = &mut *projection {
+                                perspective.near = (orbit.radius * 0.001).max(0.01);
+                                perspective.far = orbit.radius * 100.;
+                            }
+                        }
+                        if let Some(report) = ready.fixture {
+                            commands.insert_resource(report);
+                        }
+                        Phase::Uploading(ready.upload)
+                    }
+                    loading::Poll::Failed(error) => failure(error, &mut exit),
+                    loading::Poll::Cancelled => Phase::Cancelled,
+                    loading::Poll::Finished => {
+                        failure("Source result was already consumed".into(), &mut exit)
+                    }
+                }
+            }
+        }
+        Phase::Uploading(mut queue) => match queue.advance(&mut commands, &mut assets, epoch) {
+            Ok(false) => Phase::Uploading(queue),
+            Ok(true) => {
+                *context = if options.headless || options.material_fixture {
+                    input::Context::Suspended
+                } else if navigation.fly {
+                    input::Context::Fly
+                } else {
+                    input::Context::Orbit
+                };
+                capture.frame = 0;
+                capture.started = Instant::now();
+                startup::stage("Source scene admitted; graphics settling before capture.");
+                Phase::Ready(queue)
+            }
+            Err(error) => {
+                queue.dispose(&mut commands, &mut assets);
+                failure(error, &mut exit)
+            }
+        },
+        phase => phase,
+    };
+    let status = match &state.phase {
+        Phase::WaitingForWindow => "Opening inspection window".into(),
+        Phase::Preparing(job) => {
+            let (message, elapsed) = job.status();
+            format!("Loading: {message} ({}s)", elapsed.as_secs())
+        }
+        Phase::Uploading(queue) => queue.status(),
+        Phase::Ready(_) => "Ready".into(),
+        Phase::Failed(error) => format!(
+            "Failed: {} — Escape closes",
+            error.chars().take(180).collect::<String>()
+        ),
+        Phase::Cancelled => "Cancelled".into(),
+    };
+    for (_, mut window) in &mut windows {
+        let title = format!("Fallout Rust - {status}");
+        if window.title != title {
+            window.title = title;
+        }
     }
-    let mut app = App::new();
-    if let scene::Report::Fixture(report) = report {
-        app.insert_resource(report);
-    }
-    app.add_plugins(plugins)
-        .add_plugins(material::InspectionPlugin)
-        .add_plugins(input::InspectionInputPlugin)
-        .insert_resource(input_context)
-        .insert_resource(options)
-        .insert_resource(prepared)
-        .insert_resource(orbit)
-        .insert_resource(navigation)
-        .insert_resource(ClearColor(Color::srgb(0.035, 0.045, 0.055)))
-        .add_systems(Startup, setup)
-        .add_systems(Update, (controls, capture));
-    if headless {
-        app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)));
-    }
-    Ok(app.run())
 }
 
 fn setup(
     mut commands: Commands,
-    mut prepared: ResMut<scene::Prepared>,
     options: Res<Options>,
     navigation: Res<Navigation>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<material::InspectionMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    startup::stage("Graphics initialized; preparing the terrain/model draw resources.");
-    let textures: Vec<_> = prepared
-        .images
-        .drain(..)
-        .map(|image| images.add(image))
-        .collect();
-    // Upload each model once. Repeated references share mesh/material handles.
-    let templates: Vec<Vec<_>> = prepared
-        .models
-        .iter_mut()
-        .map(|model| {
-            model
-                .parts
-                .drain(..)
-                .map(|part| {
-                    (
-                        meshes.add(part.mesh),
-                        materials.add(material::adapt(
-                            StandardMaterial {
-                                base_color: part.color,
-                                base_color_texture: part.texture.map(|i| textures[i].clone()),
-                                ..default()
-                            },
-                            part.raster,
-                        )),
-                    )
-                })
-                .collect()
-        })
-        .collect();
-    for instance in prepared.instances.drain(..) {
-        let mut parent = commands.spawn((instance.transform, Visibility::default()));
-        if let Some(key) = instance.key {
-            let view = scene::ReferenceView { key };
-            parent.insert((
-                Name::new(format!(
-                    "{}:{:06X}",
-                    view.key.origin_plugin, view.key.local_id
-                )),
-                view,
-            ));
-        }
-        parent.with_children(|parent| {
-            for (mesh, material) in &templates[instance.model] {
-                parent.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(material.clone())));
-            }
-        });
-    }
+    startup::stage("Graphics initialized; source preparation follows window creation.");
     let camera = commands
         .spawn((
             Camera3d::default(),
@@ -356,8 +553,8 @@ fn setup(
                 })
             } else {
                 Projection::Perspective(PerspectiveProjection {
-                    near: (prepared.radius * 0.001).max(0.01),
-                    far: prepared.radius * 100.,
+                    near: 0.01,
+                    far: 10_000.,
                     ..default()
                 })
             },
@@ -467,9 +664,13 @@ fn controls(
 fn capture(
     mut commands: Commands,
     options: Res<Options>,
+    loading: Res<Loading>,
     mut state: ResMut<Capture>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    if !matches!(loading.phase, Phase::Ready(_)) {
+        return;
+    }
     let Some(path) = options.capture.clone() else {
         return;
     };
@@ -544,6 +745,191 @@ fn main() -> std::process::ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
+
+    fn loading_app(phase: Phase) -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, WindowPlugin::default()))
+            .init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<material::InspectionMaterial>>()
+            .init_resource::<Assets<Image>>()
+            .insert_resource(
+                Options::try_parse_from([
+                    "fallout-preview",
+                    "--model",
+                    "fixture.nif",
+                    "--install",
+                    "missing-fixture-installation",
+                ])
+                .unwrap(),
+            )
+            .insert_resource(input::Context::Loading)
+            .insert_resource(input::Actions::default())
+            .insert_resource(Loading { epoch: 7, phase })
+            .insert_resource(Orbit {
+                center: Vec3::ZERO,
+                radius: 1.,
+                yaw: 0.,
+                pitch: 0.,
+                distance: 3.,
+            })
+            .insert_resource(Navigation {
+                fly: false,
+                home: Transform::IDENTITY,
+            })
+            .insert_resource(Capture {
+                target: None,
+                frame: 63,
+                started: Instant::now(),
+            })
+            .add_message::<AppExit>()
+            .add_systems(Update, (drive_loading, capture).chain());
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Transform::IDENTITY,
+            Projection::default(),
+        ));
+        app
+    }
+
+    fn ready_fixture(epoch: u64) -> ReadyScene {
+        let (prepared, _) = fixture::prepare().unwrap();
+        ReadyScene {
+            upload: DrawScene {
+                queue: upload::Queue::new(epoch, prepared).unwrap(),
+                cell: None,
+            },
+            orbit: Orbit {
+                center: Vec3::ZERO,
+                radius: 1.,
+                yaw: 0.,
+                pitch: 0.,
+                distance: 3.,
+            },
+            navigation: Navigation {
+                fly: true,
+                home: Transform::from_xyz(100., 20., 30.),
+            },
+            fixture: None,
+        }
+    }
+
+    #[test]
+    fn native_window_event_precedes_source_preparation_and_loading_close_cancels() {
+        let mut app = loading_app(Phase::WaitingForWindow);
+        app.update();
+        assert!(matches!(
+            app.world().resource::<Loading>().phase,
+            Phase::WaitingForWindow
+        ));
+        assert_eq!(app.world().resource::<Capture>().frame, 63);
+        let mut windows = app
+            .world_mut()
+            .query_filtered::<Entity, With<PrimaryWindow>>();
+        let window = windows.single(app.world()).unwrap();
+        app.world_mut().write_message(WindowCreated { window });
+        app.update();
+        assert!(matches!(
+            app.world().resource::<Loading>().phase,
+            Phase::Preparing(_)
+        ));
+        app.world_mut()
+            .write_message(WindowCloseRequested { window });
+        app.update();
+        assert!(matches!(
+            app.world().resource::<Loading>().phase,
+            Phase::Cancelled
+        ));
+        assert_eq!(app.world().resource::<Loading>().epoch, 8);
+        assert_eq!(
+            *app.world().resource::<input::Context>(),
+            input::Context::Suspended
+        );
+        assert_eq!(app.world().resource::<Capture>().frame, 63);
+    }
+
+    #[test]
+    fn actual_host_poll_remains_pending_and_capture_waits_for_complete_upload() {
+        let (entered, started) = mpsc::channel();
+        let (release, gate) = mpsc::channel();
+        let job = loading::Job::start(7, move |context| {
+            context.stage("Gated source fixture")?;
+            entered.send(()).unwrap();
+            gate.recv().unwrap();
+            context.check()?;
+            Ok(ready_fixture(7))
+        })
+        .unwrap();
+        started.recv_timeout(Duration::from_secs(2)).unwrap();
+        let mut app = loading_app(Phase::Preparing(job));
+        for _ in 0..3 {
+            app.update();
+            assert!(matches!(
+                app.world().resource::<Loading>().phase,
+                Phase::Preparing(_)
+            ));
+            assert_eq!(app.world().resource::<Capture>().frame, 63);
+            assert!(app.world().resource::<Assets<Mesh>>().is_empty());
+        }
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !matches!(app.world().resource::<Loading>().phase, Phase::Ready(_)) {
+            assert!(
+                Instant::now() < deadline,
+                "controlled worker did not complete"
+            );
+            app.update();
+            std::thread::yield_now();
+        }
+        assert_eq!(app.world().resource::<Capture>().frame, 0);
+        assert_eq!(
+            *app.world().resource::<input::Context>(),
+            input::Context::Fly
+        );
+        let mut cameras = app
+            .world_mut()
+            .query_filtered::<&Transform, With<Camera3d>>();
+        assert_eq!(
+            cameras.single(app.world()).unwrap().translation,
+            Vec3::new(100., 20., 30.)
+        );
+    }
+
+    #[test]
+    fn actual_source_failure_is_visible_and_never_becomes_capture_ready() {
+        let mut job =
+            loading::Job::<ReadyScene>::start(7, |_| Err("Selected source is unavailable".into()))
+                .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            match job.poll(7) {
+                loading::Poll::Pending => {
+                    assert!(Instant::now() < deadline);
+                    std::thread::yield_now();
+                }
+                loading::Poll::Failed(_) => break,
+                _ => panic!("fixture must fail"),
+            }
+        }
+        let mut app = loading_app(Phase::Preparing(job));
+        app.update();
+        assert!(matches!(
+            app.world().resource::<Loading>().phase,
+            Phase::Failed(_)
+        ));
+        let mut windows = app
+            .world_mut()
+            .query_filtered::<&Window, With<PrimaryWindow>>();
+        assert!(
+            windows
+                .single(app.world())
+                .unwrap()
+                .title
+                .contains("Selected source is unavailable")
+        );
+        assert_eq!(app.world().resource::<Capture>().frame, 63);
+        assert!(app.world().resource::<Assets<Mesh>>().is_empty());
+    }
 
     #[test]
     fn camera_consumer_retains_analog_speed_and_does_not_apply_old_mode_actions() {

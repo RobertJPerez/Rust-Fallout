@@ -18,6 +18,8 @@ pub enum Context {
     #[default]
     Orbit,
     Fly,
+    /// Window loading/failure: close is available, camera intent is suppressed.
+    Loading,
     Suspended,
 }
 
@@ -238,6 +240,12 @@ impl Boundary {
         result.reset |= edge(KeyCode::KeyR);
         result.toggle |= edge(KeyCode::Tab);
         result.close |= edge(KeyCode::Escape);
+        if frame.context == Context::Loading {
+            return Actions {
+                close: result.close,
+                ..default()
+            };
+        }
         // Discard transient motion at a boundary. It belongs to the context
         // that had focus when the events arrived, not the newly selected one.
         if !boundary {
@@ -366,6 +374,36 @@ mod tests {
             self.mouse.clear();
             self.pad.digital_mut().clear();
         }
+    }
+
+    #[test]
+    fn loading_allows_close_and_cannot_leak_camera_actions_on_admission() {
+        let mut gate = Boundary::default();
+        let mut devices = Devices::default();
+        gate.sample(devices.frame(Context::Loading, true, None));
+        devices.keys.press(KeyCode::KeyW);
+        devices.keys.press(KeyCode::Escape);
+        assert_eq!(
+            gate.sample(devices.frame(Context::Loading, true, None)),
+            Actions {
+                close: true,
+                ..default()
+            }
+        );
+        devices.next();
+        assert_eq!(
+            gate.sample(devices.frame(Context::Fly, true, None)),
+            Actions::default()
+        );
+        devices.keys.release_all();
+        devices.next();
+        gate.sample(devices.frame(Context::Fly, true, None));
+        devices.keys.press(KeyCode::KeyW);
+        assert_eq!(
+            gate.sample(devices.frame(Context::Fly, true, None))
+                .movement,
+            Vec3::Y
+        );
     }
 
     #[test]

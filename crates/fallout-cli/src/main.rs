@@ -96,6 +96,13 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Resolve exact source-local rigid attachment; clocks/equipment state unapplied.
+    NifRigidAttachment {
+        skeleton: PathBuf,
+        attachment: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Evaluate linked translation/scale at explicit source time; playback unverified.
     NifSourcePose {
         input: PathBuf,
@@ -1832,6 +1839,30 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifRigidAttachment {
+            skeleton,
+            attachment,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for input in [&skeleton, &attachment, &request] {
+                    if parent.starts_with(protected_tree(input)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report =
+                nif_animation_inspection::inspect_attachment(&skeleton, &attachment, &request)?;
+            emit(&report, output, &skeleton)?;
+            if report.failures != 0 {
+                return Err("rigid source attachment refused; see report".into());
             }
         }
         Command::NifSourcePose {

@@ -1,6 +1,7 @@
 //! Authored NV skin sources. Exact bits and unresolved dependencies are retained;
 //! source decoding does not establish pose evaluation or gameplay skinning.
 pub mod binding;
+pub mod external;
 mod graph;
 pub mod influences;
 pub mod partition;

@@ -296,6 +296,540 @@ fn influence_fixture() -> Vec<(&'static str, Vec<u8>)> {
     blocks
 }
 
+fn named_container(blocks: &[(&str, Vec<u8>)], roots: &[u32], strings: &[&[u8]]) -> Vec<u8> {
+    // Same authored container layout, with an explicit physical string table.
+    let mut out = b"Gamebryo File Format, Version 20.2.0.7\n".to_vec();
+    words(&mut out, &[0x14020007]);
+    out.push(1);
+    words(&mut out, &[11, blocks.len() as u32, 34]);
+    out.extend([0; 3]);
+    let mut types = Vec::new();
+    for (name, _) in blocks {
+        if !types.contains(name) {
+            types.push(*name);
+        }
+    }
+    shorts(&mut out, &[types.len() as u16]);
+    for name in &types {
+        words(&mut out, &[name.len() as u32]);
+        out.extend(name.as_bytes());
+    }
+    for (name, _) in blocks {
+        shorts(
+            &mut out,
+            &[types.iter().position(|n| n == name).unwrap() as u16],
+        );
+    }
+    for (_, payload) in blocks {
+        words(&mut out, &[payload.len() as u32]);
+    }
+    words(
+        &mut out,
+        &[
+            strings.len() as u32,
+            strings.iter().map(|s| s.len()).max().unwrap_or(0) as u32,
+        ],
+    );
+    for value in strings {
+        words(&mut out, &[value.len() as u32]);
+        out.extend(*value);
+    }
+    words(&mut out, &[0]);
+    for (_, payload) in blocks {
+        out.extend(payload);
+    }
+    words(&mut out, &[roots.len() as u32]);
+    words(&mut out, roots);
+    out
+}
+
+fn external_rig_blocks() -> Vec<(&'static str, Vec<u8>)> {
+    let mut rig = vec![
+        ("NiNode", node(ID, [0.; 3], 1., &[])),
+        (
+            "NiNode",
+            node(
+                [[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]],
+                [100., 200., 300.],
+                5.,
+                &[2, 4],
+            ),
+        ),
+        ("NiNode", node(R90, [0., 4., 0.], 2., &[3])),
+        ("NiNode", node(RM90, [2., 0., 1.], 3., &[])),
+        ("NiNode", node(ID, [-5., 0., 2.], 4., &[])),
+    ];
+    rig[2].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    for id in [0, 3, 4] {
+        rig[id].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    }
+    rig
+}
+fn external_fixture() -> (Vec<u8>, Vec<u8>, fallout_data::nif_skin::external::Request) {
+    use fallout_data::nif_skin::external::{BoneMapping, Request};
+    use sha2::{Digest, Sha256};
+    let mut skin = fixture();
+    skin[1].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    skin[2].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    let skin = named_container(&skin, &[0], &[b"Skin-A\xff\0", b"Twin"]);
+    let rig = named_container(&external_rig_blocks(), &[1], &[b"Rig-A\0", b"Twin"]);
+    let request = Request {
+        expected_skin_sha256: Sha256::digest(&skin).into(),
+        expected_rig_sha256: Sha256::digest(&rig).into(),
+        geometry: 3,
+        rig_root: 1,
+        explicit_bone_mapping: vec![
+            BoneMapping {
+                bone_ordinal: 0,
+                rig_node: 2,
+                expected_skin_bone_name_bytes: b"Skin-A\xff\0".to_vec(),
+                expected_rig_node_name_bytes: b"Rig-A\0".to_vec(),
+            },
+            BoneMapping {
+                bone_ordinal: 1,
+                rig_node: 3,
+                expected_skin_bone_name_bytes: b"Twin".to_vec(),
+                expected_rig_node_name_bytes: b"Twin".to_vec(),
+            },
+        ],
+        explicit_root_space_mapping: [[0., -1., 0., 3.], [1., 0., 0., -2.], [0., 0., 2., 1.]],
+        weights: WeightPolicy::RequireUnitSum {
+            absolute_tolerance: 0.,
+        },
+    };
+    (skin, rig, request)
+}
+
+#[test]
+fn external_root_mapping_and_explicit_bones_have_noncommuting_literal_expectations() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, request) = external_fixture();
+    let result = external::evaluate(
+        &skin,
+        &rig,
+        "two authored sources",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result.skin.palette[0].matrix,
+        [[-1., 0., 0., 1.5], [0., -1., 0., -1.], [0., 0., 2., 0.5]]
+    );
+    assert_eq!(
+        result.skin.palette[1].matrix,
+        [[1.5, 0., 0., -10.5], [0., 1.5, 0., -5.5], [0., 0., 3., 2.5]]
+    );
+    assert_eq!(
+        result.skin.positions,
+        [[-6.625, -2.625, 10.25], [-2.5, 0., 4.5], [-15., -5.5, 5.5]]
+    );
+    assert_eq!(
+        result.skin.normals,
+        [[0., 0.875, 0.], [0., -1., 0.], [0., 1.5, 0.]]
+    );
+    assert_eq!(result.skin.weight_sums, [1.; 3]);
+    assert_eq!(
+        result.skin.skin_to_source_world,
+        [[0., -6., 0., 10.], [6., 0., 0., 32.], [0., 0., 6., 30.]]
+    );
+    assert_eq!(
+        result
+            .mappings
+            .iter()
+            .map(|m| (m.skin_node.block, m.rig_node.block))
+            .collect::<Vec<_>>(),
+        [(1, 2), (2, 3)]
+    );
+    assert_eq!(
+        result.mappings[1].rig_bone_to_root,
+        [[6., 0., 0., 0.], [0., 6., 0., 8.], [0., 0., 6., 2.]]
+    );
+    assert_eq!(
+        result.unapplied_rig_root_local,
+        [[-5., 0., 0., 100.], [0., -5., 0., 200.], [0., 0., 5., 300.]]
+    );
+    assert!(!result.retail_behavior_verified);
+}
+
+#[test]
+fn external_same_raw_names_require_explicit_distinct_target_ids_and_permutation_has_no_priority() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    let first =
+        external::evaluate(&skin, &rig, "same sources", &request, Default::default()).unwrap();
+    request.explicit_bone_mapping.reverse();
+    let permuted =
+        external::evaluate(&skin, &rig, "same sources", &request, Default::default()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&first).unwrap(),
+        serde_json::to_value(&permuted).unwrap()
+    );
+    request.explicit_bone_mapping[0].rig_node = 4;
+    let second = external::evaluate(
+        &skin,
+        &rig,
+        "same raw Twin name",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(second.skin.positions[2], [-7.5, -6.5, 4.5]);
+    assert_ne!(first.skin.positions, second.skin.positions);
+    assert_eq!(
+        second.mappings[1].raw_rig_node_name_bytes,
+        first.mappings[1].raw_rig_node_name_bytes
+    );
+}
+
+#[test]
+fn external_duplicate_incomplete_name_sha_root_and_space_requests_refuse() {
+    use fallout_data::nif_skin::external;
+    let (skin, rig, mut request) = external_fixture();
+    request.explicit_bone_mapping[1].bone_ordinal = 0;
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "duplicate ordinal",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate skin bone ordinal")
+    );
+    request.explicit_bone_mapping[1].bone_ordinal = 1;
+    request.explicit_bone_mapping[1].rig_node = 2;
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "duplicate target",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate rig node target")
+    );
+    request.explicit_bone_mapping[1].rig_node = 3;
+    request.explicit_bone_mapping[1]
+        .expected_rig_node_name_bytes
+        .push(0);
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "raw NUL is exact",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("raw name differs")
+    );
+    request.explicit_bone_mapping[1]
+        .expected_rig_node_name_bytes
+        .pop();
+    request.expected_skin_sha256[0] ^= 1;
+    assert!(
+        external::evaluate(&skin, &rig, "skin SHA", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("skin source SHA256 differs")
+    );
+    request.expected_skin_sha256[0] ^= 1;
+    request.expected_rig_sha256[0] ^= 1;
+    assert!(
+        external::evaluate(&skin, &rig, "rig SHA", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("rig source SHA256 differs")
+    );
+    request.expected_rig_sha256[0] ^= 1;
+    request.rig_root = 3;
+    assert!(
+        external::evaluate(&skin, &rig, "chosen root", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("does not reach chosen rig root")
+    );
+    request.rig_root = 0;
+    assert!(
+        external::evaluate(&skin, &rig, "orphan root", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("no reachable ancestry")
+    );
+    request.rig_root = 1;
+    let original = request.explicit_root_space_mapping;
+    request.explicit_root_space_mapping[0] = [0.; 4];
+    assert!(
+        external::evaluate(&skin, &rig, "singular map", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("root-space mapping is singular")
+    );
+    request.explicit_root_space_mapping = original;
+    request.explicit_root_space_mapping[0][0] = f64::NAN;
+    assert!(
+        external::evaluate(&skin, &rig, "nonfinite map", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("root-space mapping must be finite")
+    );
+    request.explicit_root_space_mapping = original;
+    request.explicit_bone_mapping.pop();
+    assert!(
+        external::evaluate(&skin, &rig, "incomplete", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("must cover every")
+    );
+}
+
+#[test]
+fn external_combined_arrays_work_input_map_names_and_source_allowances_have_exact_ceilings() {
+    use fallout_data::nif_skin::external::{self, Limits};
+    let (skin, rig, request) = external_fixture();
+    let result = external::evaluate(&skin, &rig, "bounded", &request, Default::default()).unwrap();
+    let exact = Limits {
+        array_bytes: result.retained_bytes,
+        work_units: result.work_units,
+        source_bytes: skin.len() + rig.len(),
+        mapping_bones: 2,
+        raw_name_bytes: request
+            .explicit_bone_mapping
+            .iter()
+            .map(|m| m.expected_skin_bone_name_bytes.len() + m.expected_rig_node_name_bytes.len())
+            .sum(),
+        decoder_array_admission_bytes: result.decoder_array_admission_bytes,
+        decoder_check_admission_units: result.decoder_check_admission_units,
+        ancestry_depth: 3,
+        ..Default::default()
+    };
+    external::evaluate(&skin, &rig, "bounded", &request, exact).unwrap();
+    for (limits, error) in [
+        (
+            Limits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            Limits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            Limits {
+                source_bytes: exact.source_bytes - 1,
+                ..exact
+            },
+            "combined source input",
+        ),
+        (
+            Limits {
+                mapping_bones: 1,
+                ..exact
+            },
+            "mapping count budget",
+        ),
+        (
+            Limits {
+                raw_name_bytes: exact.raw_name_bytes - 1,
+                ..exact
+            },
+            "raw name byte budget",
+        ),
+        (
+            Limits {
+                decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+                ..exact
+            },
+            "combined decoder array",
+        ),
+        (
+            Limits {
+                decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+                ..exact
+            },
+            "combined decoder check",
+        ),
+        (
+            Limits {
+                ancestry_depth: 1,
+                ..exact
+            },
+            "ancestry depth budget",
+        ),
+    ] {
+        assert!(
+            external::evaluate(&skin, &rig, "bounded", &request, limits)
+                .unwrap_err()
+                .to_string()
+                .contains(error)
+        );
+    }
+}
+
+#[test]
+fn external_cycle_unresolved_link_orphan_and_missing_raw_name_never_return_a_palette() {
+    use fallout_data::nif_skin::external;
+    use sha2::{Digest, Sha256};
+    let (skin, rig, mut request) = external_fixture();
+    let index = fallout_data::nif::inspect(&rig, "authored mutation offsets").unwrap();
+    let mut cycle = rig.clone();
+    let first_child = index.blocks[1].offset + 80;
+    cycle[first_child..first_child + 4].copy_from_slice(&1u32.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&cycle).into();
+    let early = external::evaluate(
+        &skin,
+        &cycle,
+        "footer-root self edge",
+        &request,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        early
+            .to_string()
+            .contains("footer root also has a scene parent"),
+        "{early}"
+    );
+    // Preserve that stronger root refusal, then make root0 the footer root so
+    // this disconnected self-cycle reaches the decoder's general cycle check.
+    let footer = cycle.len() - 4;
+    cycle[footer..].copy_from_slice(&0u32.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&cycle).into();
+    assert!(
+        external::evaluate(&skin, &cycle, "cyclic rig", &request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("cycle")
+    );
+    let mut unresolved = rig.clone();
+    unresolved[first_child..first_child + 4].copy_from_slice(&999u32.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&unresolved).into();
+    assert!(
+        external::evaluate(
+            &skin,
+            &unresolved,
+            "invalid rig child",
+            &request,
+            Default::default()
+        )
+        .is_err()
+    );
+    request.expected_rig_sha256 = Sha256::digest(&rig).into();
+    request.explicit_bone_mapping[1].rig_node = 0;
+    assert!(
+        external::evaluate(
+            &skin,
+            &rig,
+            "same name orphan",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no reachable ancestry")
+    );
+    request.explicit_bone_mapping[1].rig_node = 3;
+    let mut no_name = rig.clone();
+    let target = index.blocks[3].offset;
+    no_name[target..target + 4].copy_from_slice(&NULL.to_le_bytes());
+    request.expected_rig_sha256 = Sha256::digest(&no_name).into();
+    assert!(
+        external::evaluate(
+            &skin,
+            &no_name,
+            "missing raw name",
+            &request,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no authored raw name")
+    );
+}
+
+#[test]
+fn external_root_local_is_unapplied_and_skin_rig_controllers_are_source_observations() {
+    use fallout_data::nif_skin::external;
+    use sha2::{Digest, Sha256};
+    let (skin, _, mut request) = external_fixture();
+    let mut rig = external_rig_blocks();
+    rig[1].1 = node(ID, [999., 888., 777.], 7., &[2, 4]);
+    rig[2].1[8..12].copy_from_slice(&5u32.to_le_bytes());
+    let mut controller = Vec::new();
+    words(&mut controller, &[NULL]);
+    shorts(&mut controller, &[0xffff]);
+    floats(&mut controller, &[17., -9., 100., 101.]);
+    words(&mut controller, &[2, NULL]);
+    rig.push(("NiTransformController", controller));
+    let rig = named_container(&rig, &[1], &[b"Rig-A\0", b"Twin"]);
+    request.expected_rig_sha256 = Sha256::digest(&rig).into();
+    let result = external::evaluate(
+        &skin,
+        &rig,
+        "unapplied rig local/controller",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result.skin.positions,
+        [[-6.625, -2.625, 10.25], [-2.5, 0., 4.5], [-15., -5.5, 5.5]]
+    );
+    assert_eq!(
+        result
+            .rig_unapplied_controllers
+            .iter()
+            .map(|c| (c.object, c.controller))
+            .collect::<Vec<_>>(),
+        [(2, 5)]
+    );
+    assert!(result.skin.unapplied_controllers.is_empty());
+    let mut skin = fixture();
+    skin[0].1[8..12].copy_from_slice(&7u32.to_le_bytes());
+    skin[1].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    skin[2].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    let mut controller = Vec::new();
+    words(&mut controller, &[NULL]);
+    shorts(&mut controller, &[0xffff]);
+    floats(&mut controller, &[17., -9., 100., 101.]);
+    words(&mut controller, &[0, NULL]);
+    skin.push(("NiTransformController", controller));
+    let skin = named_container(&skin, &[0], &[b"Skin-A\xff\0", b"Twin"]);
+    request.expected_skin_sha256 = Sha256::digest(&skin).into();
+    let result = external::evaluate(
+        &skin,
+        &rig,
+        "both controllers unapplied",
+        &request,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        result
+            .skin
+            .unapplied_controllers
+            .iter()
+            .map(|c| (c.object, c.controller))
+            .collect::<Vec<_>>(),
+        [(0, 7)]
+    );
+    assert_eq!(
+        result.skin.positions,
+        [[-6.625, -2.625, 10.25], [-2.5, 0., 4.5], [-15., -5.5, 5.5]]
+    );
+}
+
 #[test]
 fn influence_csr_preserves_sparse_duplicate_zero_raw_bits_and_source_order() {
     use fallout_data::nif_skin::influences;

@@ -536,6 +536,340 @@ fn batch_fixture(count: usize) -> (tempfile::TempDir, Catalogue, Content, Prepar
     (directory, catalogue, content, record)
 }
 
+fn cross_fixture() -> (tempfile::TempDir, Catalogue, Content, [PreparedRecord; 2]) {
+    let (directory, _, _, _) = batch_fixture(4);
+    let path = directory.path().join("FalloutNV.esm");
+    let mut bytes = fs::read(&path).unwrap();
+    let body = [
+        field(b"EDID", b"second\0"),
+        field(b"CTDA", &raw(28, 47, 0x100, 0)),
+        field(b"CTDA", &raw(28, 47, 0x102, 0)),
+    ]
+    .concat();
+    bytes.extend(record(b"QUST", 0x501, 0, &body));
+    fs::write(&path, bytes).unwrap();
+    let (catalogue, content, first) = load_sources(directory.path(), &signatures());
+    let mut store = RecordStore::open_nv_headers(
+        directory.path(),
+        &["FalloutNV.esm".into()],
+        Default::default(),
+    )
+    .unwrap();
+    let location = store.winner(&form(0x501)).unwrap();
+    let second =
+        condition_operands::prepare_record(&mut store, location, &signatures(), Default::default())
+            .unwrap();
+    (directory, catalogue, content, [first, second])
+}
+
+#[test]
+fn cross_record_selection_keeps_each_subject_source_and_order_with_one_cohort_validation() {
+    use fallout_runtime::execution::condition::{CrossRequests, RecordSelection};
+    let (_directory, catalogue, content, records) = cross_fixture();
+    let (mut world, subject) = populated(&catalogue, &[(0x100, 7), (0x100, 11), (0x102, 23)]);
+    let other = world.register_reference(None).unwrap();
+    world.initialize_inventory(other).unwrap();
+    world
+        .add_item(other, Facts::unknown(form(0x100)), 31.try_into().unwrap())
+        .unwrap();
+    world
+        .add_item(other, Facts::unknown(form(0x102)), 41.try_into().unwrap())
+        .unwrap();
+    let before = world.snapshot();
+    assert_eq!(records[1].sites()[0].field_decoded_offset(), 13);
+    assert_eq!(records[1].sites()[1].field_decoded_offset(), 47);
+    let selections = [
+        (1, 1, other),
+        (0, 3, subject),
+        (1, 0, subject),
+        (0, 0, other),
+        (1, 1, other),
+    ]
+    .map(|(record_index, site, subject)| RecordSelection {
+        record_index,
+        field_decoded_offset: records[record_index].sites()[site].field_decoded_offset(),
+        explicit_subject: Some(subject),
+    });
+    let batch = CrossRequests::prepare(
+        &world,
+        &[&records[0], &records[1]],
+        &selections,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(batch.counts().cohort_validations, 1);
+    assert_eq!(batch.counts().records, 2);
+    assert_eq!(batch.counts().requests, 5);
+    assert_eq!(batch.counts().receipt_comparisons, 2);
+    let observed = batch
+        .observe(
+            &world,
+            &content,
+            Intent::EngineeringObservation,
+            Default::default(),
+        )
+        .unwrap();
+    for ((selection, observation), literal) in selections
+        .iter()
+        .zip(&observed)
+        .zip([41_u64, 23, 18, 31, 41])
+    {
+        let record = &records[selection.record_index];
+        let single = Request::prepare(&world, record, selection.field_decoded_offset).unwrap();
+        let expected = single
+            .observe(
+                &world,
+                &content,
+                selection.explicit_subject,
+                Intent::EngineeringObservation,
+                2,
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(observation).unwrap(),
+            serde_json::to_value(expected).unwrap()
+        );
+        assert_eq!(
+            observation.source.key,
+            form(if selection.record_index == 0 {
+                0x500
+            } else {
+                0x501
+            })
+        );
+        let Outcome::EngineeringObservation { trace } = &observation.outcome else {
+            panic!("{observation:?}")
+        };
+        assert_eq!(trace.query.result, literal);
+        assert_eq!(trace.query.subject, selection.explicit_subject.unwrap());
+        assert!(observation.condition_truth.is_none());
+        assert!(!observation.condition_evaluation_ready && !observation.original_behavior_verified);
+    }
+    assert_eq!(world.snapshot(), before);
+    let compact = serde_json::to_vec(&observed).unwrap();
+    let exact = fallout_runtime::execution::condition::CrossObservationLimits {
+        maximum_contributions: 6,
+        maximum_observation_bytes: compact.len(),
+    };
+    assert_eq!(
+        serde_json::to_vec(
+            &batch
+                .observe(&world, &content, Intent::EngineeringObservation, exact)
+                .unwrap()
+        )
+        .unwrap(),
+        compact
+    );
+    assert!(matches!(
+        batch.observe(
+            &world,
+            &content,
+            Intent::EngineeringObservation,
+            fallout_runtime::execution::condition::CrossObservationLimits {
+                maximum_contributions: 5,
+                ..exact
+            }
+        ),
+        Err(Error::Capacity)
+    ));
+    assert!(matches!(
+        batch.observe(
+            &world,
+            &content,
+            Intent::EngineeringObservation,
+            fallout_runtime::execution::condition::CrossObservationLimits {
+                maximum_observation_bytes: compact.len() - 1,
+                ..exact
+            }
+        ),
+        Err(Error::BatchCapacity("observation bytes"))
+    ));
+    assert_eq!(world.snapshot(), before);
+    let restored = World::restore(&catalogue, before.clone(), Default::default()).unwrap();
+    assert_eq!(
+        serde_json::to_vec(
+            &batch
+                .observe(&restored, &content, Intent::EngineeringObservation, exact)
+                .unwrap()
+        )
+        .unwrap(),
+        compact
+    );
+    let current_item = world
+        .inventory_items(subject)
+        .unwrap()
+        .find(|item| item.facts().base == form(0x100))
+        .unwrap()
+        .id();
+    world
+        .remove_item_quantity(current_item, 1.try_into().unwrap())
+        .unwrap();
+    let changed = batch
+        .observe(
+            &world,
+            &content,
+            Intent::EngineeringObservation,
+            Default::default(),
+        )
+        .unwrap();
+    let Outcome::EngineeringObservation { trace } = &changed[2].outcome else {
+        panic!("missing current query")
+    };
+    assert_eq!(trace.query.result, 17);
+}
+
+#[test]
+fn cross_record_creation_limits_late_sites_and_mixed_sources_refuse_without_partial_authority() {
+    use fallout_runtime::execution::condition::{CrossLimits, CrossRequests, RecordSelection};
+    let (_directory, catalogue, _content, records) = cross_fixture();
+    let (world, subject) = populated(&catalogue, &[(0x100, 1)]);
+    let before = world.snapshot();
+    let selections = [
+        RecordSelection {
+            record_index: 1,
+            field_decoded_offset: 47,
+            explicit_subject: Some(subject),
+        },
+        RecordSelection {
+            record_index: 0,
+            field_decoded_offset: records[0].sites()[0].field_decoded_offset(),
+            explicit_subject: Some(subject),
+        },
+    ];
+    let counts = CrossRequests::prepare(
+        &world,
+        &[&records[0], &records[1]],
+        &selections,
+        Default::default(),
+    )
+    .unwrap()
+    .counts();
+    let exact = CrossLimits {
+        maximum_records: counts.records,
+        maximum_source_bytes: counts.source_bytes,
+        maximum_record_fields: counts.record_fields,
+        maximum_record_sites: counts.record_sites,
+        maximum_retained_source_bytes: counts.retained_source_bytes,
+        maximum_requests: counts.requests,
+        maximum_source_receipt_bytes: counts.source_receipt_bytes,
+        maximum_receipt_comparisons: counts.receipt_comparisons,
+        maximum_site_comparisons: counts.site_comparisons,
+        maximum_query_variable_bytes: counts.query_variable_bytes,
+    };
+    assert_eq!(
+        CrossRequests::prepare(&world, &[&records[0], &records[1]], &selections, exact)
+            .unwrap()
+            .counts(),
+        counts
+    );
+    for (limits, reason) in [
+        (
+            CrossLimits {
+                maximum_records: exact.maximum_records - 1,
+                ..exact
+            },
+            "records",
+        ),
+        (
+            CrossLimits {
+                maximum_source_bytes: exact.maximum_source_bytes - 1,
+                ..exact
+            },
+            "source bytes",
+        ),
+        (
+            CrossLimits {
+                maximum_record_fields: exact.maximum_record_fields - 1,
+                ..exact
+            },
+            "record fields",
+        ),
+        (
+            CrossLimits {
+                maximum_record_sites: exact.maximum_record_sites - 1,
+                ..exact
+            },
+            "record sites",
+        ),
+        (
+            CrossLimits {
+                maximum_retained_source_bytes: exact.maximum_retained_source_bytes - 1,
+                ..exact
+            },
+            "retained source bytes",
+        ),
+        (
+            CrossLimits {
+                maximum_requests: exact.maximum_requests - 1,
+                ..exact
+            },
+            "requests",
+        ),
+        (
+            CrossLimits {
+                maximum_source_receipt_bytes: exact.maximum_source_receipt_bytes - 1,
+                ..exact
+            },
+            "source receipt bytes",
+        ),
+        (
+            CrossLimits {
+                maximum_receipt_comparisons: exact.maximum_receipt_comparisons - 1,
+                ..exact
+            },
+            "receipt comparisons",
+        ),
+        (
+            CrossLimits {
+                maximum_site_comparisons: exact.maximum_site_comparisons - 1,
+                ..exact
+            },
+            "site comparisons",
+        ),
+        (
+            CrossLimits {
+                maximum_query_variable_bytes: exact.maximum_query_variable_bytes - 1,
+                ..exact
+            },
+            "query variable bytes",
+        ),
+    ] {
+        assert!(
+            matches!(CrossRequests::prepare(&world,&[&records[0],&records[1]],&selections,limits),
+            Err(Error::BatchCapacity(value)) if value==reason),
+            "{reason}"
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let mut late = selections;
+    late[1].field_decoded_offset += 1;
+    assert!(matches!(
+        CrossRequests::prepare(&world, &[&records[0], &records[1]], &late, exact),
+        Err(Error::MissingSite(_))
+    ));
+    late = selections;
+    late[1].record_index = 2;
+    assert!(matches!(
+        CrossRequests::prepare(&world, &[&records[0], &records[1]], &late, exact),
+        Err(Error::MissingRecord(2))
+    ));
+    assert!(matches!(
+        CrossRequests::prepare(&world, &[&records[0], &records[0]], &selections, exact),
+        Err(Error::DuplicateRecord)
+    ));
+    let (_other, _, _, foreign) = batch_fixture(4);
+    assert!(matches!(
+        CrossRequests::prepare(
+            &world,
+            &[&foreign, &records[1]],
+            &selections,
+            Default::default()
+        ),
+        Err(Error::ContextChanged)
+    ));
+    assert_eq!(world.snapshot(), before);
+}
+
 #[test]
 fn indexed_batch_matches_individual_sites_in_requested_order_with_one_receipt_validation() {
     use fallout_runtime::execution::condition::{BatchLimits, Requests};
@@ -1125,5 +1459,355 @@ fn cli_condition_batch_helper() {
         "preparation":counts,"individual_search_comparisons":64+1+64+32,
         "individual_source_receipt_validations":4,"requested_offsets":offsets,
         "canonical_snapshot":before,"condition_truth_verified":false,"retail_parity_accepted":false
+    })).unwrap()).unwrap();
+}
+
+#[test]
+#[ignore = "built CLI and authored metadata; cross-record current condition queries, no original truth"]
+fn cli_condition_records_helper() {
+    use fallout_runtime::execution::condition::{CrossRequests, RecordSelection};
+    use serde_json::Value as Json;
+    use std::{cell::Cell, path::PathBuf};
+    let cli = std::env::var_os("RF_SCRIPT_TRACE_CLI").expect("CLI");
+    let input = PathBuf::from(std::env::var_os("RF_SCRIPT_TRACE_INPUT").expect("metadata"));
+    let evidence =
+        PathBuf::from(std::env::var_os("RF_SCRIPT_CONDITION_RECORDS_EVIDENCE").expect("evidence"));
+    fs::create_dir(&evidence).unwrap();
+    let (temporary, catalogue, content, records) = cross_fixture();
+    let install = evidence.join("authored-source-copy");
+    fs::create_dir(&install).unwrap();
+    fs::create_dir(install.join("Data")).unwrap();
+    fs::copy(
+        temporary.path().join("FalloutNV.esm"),
+        install.join("Data/FalloutNV.esm"),
+    )
+    .unwrap();
+    fs::copy(
+        input.join("authored-source-copy/FalloutNV.exe"),
+        install.join("FalloutNV.exe"),
+    )
+    .unwrap();
+    let order = evidence.join("order.json");
+    fs::write(&order, b"[\"FalloutNV.esm\"]").unwrap();
+    let (mut world, subject) = populated(&catalogue, &[(0x100, 7), (0x100, 11), (0x102, 23)]);
+    let other = world.register_reference(None).unwrap();
+    world.initialize_inventory(other).unwrap();
+    world
+        .add_item(other, Facts::unknown(form(0x100)), 31.try_into().unwrap())
+        .unwrap();
+    world
+        .add_item(other, Facts::unknown(form(0x102)), 41.try_into().unwrap())
+        .unwrap();
+    let before = world.snapshot();
+    let selections = [
+        (1, 1, other),
+        (0, 3, subject),
+        (1, 0, subject),
+        (0, 0, other),
+        (1, 1, other),
+    ]
+    .map(|(record_index, site, subject)| RecordSelection {
+        record_index,
+        field_decoded_offset: records[record_index].sites()[site].field_decoded_offset(),
+        explicit_subject: Some(subject),
+    });
+    let expected: Vec<_> = selections
+        .iter()
+        .map(|selection| {
+            let request = Request::prepare(
+                &world,
+                &records[selection.record_index],
+                selection.field_decoded_offset,
+            )
+            .unwrap();
+            serde_json::to_value(
+                request
+                    .observe(
+                        &world,
+                        &content,
+                        selection.explicit_subject,
+                        Intent::EngineeringObservation,
+                        2,
+                    )
+                    .unwrap(),
+            )
+            .unwrap()
+        })
+        .collect();
+    let batch = CrossRequests::prepare(
+        &world,
+        &[&records[0], &records[1]],
+        &selections,
+        Default::default(),
+    )
+    .unwrap();
+    let counts = batch.counts();
+    let rows:Vec<_>=selections.iter().map(|selection|json!({"record":records[selection.record_index].identity().key,
+        "field_decoded_offset":selection.field_decoded_offset,"explicit_subject":selection.explicit_subject})).collect();
+    let request = json!({"schema_version":1,"intent":"engineering_observation","selections":rows,"snapshot":"snapshot.json",
+        "maximum_records":64,"maximum_source_bytes":8388608,"maximum_record_fields":262144,
+        "maximum_record_sites":65536,"maximum_retained_source_bytes":16777216,"maximum_requests":4096,
+        "maximum_source_receipt_bytes":1048576,"maximum_receipt_comparisons":262144,"maximum_site_comparisons":1048576,
+        "maximum_query_variable_bytes":1048576,"maximum_contributions":6,"maximum_observation_bytes":8388608,"maximum_report_bytes":8388608});
+    let calls = Cell::new(0);
+    let run = |name: &str,
+               request: &Json,
+               snapshot: &Snapshot,
+               extra: &[&str],
+               report_target: Option<&Path>| {
+        let directory = evidence.join(name);
+        fs::create_dir(&directory).unwrap();
+        let request_path = directory.join("request.json");
+        let snapshot_path = directory.join("snapshot.json");
+        let report = report_target
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| directory.join("report.json"));
+        let bytes = serde_json::to_vec(snapshot).unwrap();
+        fs::write(&snapshot_path, &bytes).unwrap();
+        fs::write(&request_path, serde_json::to_vec_pretty(request).unwrap()).unwrap();
+        let output = Command::new(&cli)
+            .args(["condition-dependencies", "--install"])
+            .arg(&install)
+            .arg("--load-order")
+            .arg(&order)
+            .arg("--engineering-query-records")
+            .arg(&request_path)
+            .arg("--output")
+            .arg(&report)
+            .args(extra)
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.txt"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.txt"), &output.stderr).unwrap();
+        assert_eq!(
+            fs::read(&snapshot_path).unwrap(),
+            bytes,
+            "{name}: input changed"
+        );
+        calls.set(calls.get() + 1);
+        (output, report)
+    };
+    let (output, path) = run("selected-records", &request, &before, &[], None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report_bytes = fs::read(path).unwrap();
+    let report: Json = serde_json::from_slice(&report_bytes).unwrap();
+    assert_eq!(report["preparation"], serde_json::to_value(counts).unwrap());
+    assert_eq!(report["observations"], json!(expected));
+    assert_eq!(report["canonical_state_unchanged"], true);
+    assert_eq!(report["event_acknowledged"], false);
+    assert_eq!(report["group_evaluation_verified"], false);
+    assert_eq!(report["condition_evaluation_ready"], false);
+    for (index, literal) in [41_u64, 23, 18, 31, 41].into_iter().enumerate() {
+        assert_eq!(
+            report["observations"][index]["outcome"]["trace"]["query"]["result"],
+            literal
+        );
+        assert_eq!(report["observations"][index]["condition_truth"], Json::Null);
+    }
+    assert_eq!(
+        report["observations"][0]["site"]["field_decoded_offset"],
+        47
+    );
+    assert_eq!(
+        report["observations"][0]["source"]["key"],
+        json!(form(0x501))
+    );
+    let mut exact = request.clone();
+    for (field, value) in [
+        ("maximum_records", counts.records),
+        ("maximum_source_bytes", counts.source_bytes),
+        ("maximum_record_fields", counts.record_fields),
+        ("maximum_record_sites", counts.record_sites),
+        (
+            "maximum_retained_source_bytes",
+            counts.retained_source_bytes,
+        ),
+        ("maximum_requests", counts.requests),
+        ("maximum_source_receipt_bytes", counts.source_receipt_bytes),
+        ("maximum_receipt_comparisons", counts.receipt_comparisons),
+        ("maximum_site_comparisons", counts.site_comparisons),
+        ("maximum_query_variable_bytes", counts.query_variable_bytes),
+        (
+            "maximum_observation_bytes",
+            serde_json::to_vec(&expected).unwrap().len(),
+        ),
+        ("maximum_report_bytes", report_bytes.len()),
+    ] {
+        exact[field] = json!(value);
+    }
+    let (output, path) = run("all-exact", &exact, &before, &[], None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(path).unwrap(), report_bytes);
+    for field in [
+        "maximum_records",
+        "maximum_source_bytes",
+        "maximum_record_fields",
+        "maximum_record_sites",
+        "maximum_retained_source_bytes",
+        "maximum_requests",
+        "maximum_source_receipt_bytes",
+        "maximum_receipt_comparisons",
+        "maximum_site_comparisons",
+        "maximum_query_variable_bytes",
+        "maximum_contributions",
+        "maximum_observation_bytes",
+        "maximum_report_bytes",
+    ] {
+        let mut short = exact.clone();
+        short[field] = json!(short[field].as_u64().unwrap() - 1);
+        let (output, path) = run(&format!("short-{field}"), &short, &before, &[], None);
+        assert!(!output.status.success(), "{field}");
+        assert!(!path.exists(), "{field}");
+    }
+    for (name, change, reason) in [
+        ("faithful", 0, "unverified_retail_semantics"),
+        ("late-null-subject", 1, "missing_subject"),
+        ("late-unavailable-subject", 2, "host_query_unavailable"),
+    ] {
+        let mut refused = request.clone();
+        match change {
+            0 => refused["intent"] = json!("faithful"),
+            1 => refused["selections"][4]["explicit_subject"] = Json::Null,
+            _ => refused["selections"][4]["explicit_subject"] = json!(999),
+        }
+        let (output, path) = run(name, &refused, &before, &[], None);
+        assert!(!output.status.success());
+        let refused: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(refused["observations"][4]["outcome"]["reason"], reason);
+        assert_eq!(refused["canonical_state_unchanged"], true);
+        if change != 0 {
+            assert_eq!(
+                refused["observations"][0]["outcome"]["trace"]["query"]["result"],
+                41
+            );
+        }
+    }
+    let mut late = request.clone();
+    late["selections"][4]["field_decoded_offset"] = json!(48);
+    let (output, path) = run("late-wrong-site", &late, &before, &[], None);
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    for (name, key) in [
+        ("wrong-record", form(0x999)),
+        ("wrong-record-kind", form(0x100)),
+    ] {
+        let mut invalid = request.clone();
+        invalid["selections"][4]["record"] = json!(key);
+        let (output, path) = run(name, &invalid, &before, &[], None);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    for (name, field, value) in [
+        ("wrong-schema", "schema_version", json!(2)),
+        ("no-selection", "selections", json!([])),
+        ("unknown-field", "initialize", json!(true)),
+        ("zero-report", "maximum_report_bytes", json!(0)),
+        ("report-ceiling", "maximum_report_bytes", json!(8388609)),
+        ("record-ceiling", "maximum_records", json!(65)),
+        ("request-ceiling", "maximum_requests", json!(4097)),
+        (
+            "observation-ceiling",
+            "maximum_observation_bytes",
+            json!(8388609),
+        ),
+        ("request-bytes", "extra", json!("x".repeat(16 * 1024))),
+    ] {
+        let mut invalid = request.clone();
+        invalid[field] = value;
+        let (output, path) = run(name, &invalid, &before, &[], None);
+        assert!(!output.status.success(), "{name}");
+        assert!(!path.exists());
+    }
+    for (name, field) in [
+        ("omitted-subject", "explicit_subject"),
+        ("omitted-offset", "field_decoded_offset"),
+    ] {
+        let mut invalid = request.clone();
+        invalid["selections"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        let (output, path) = run(name, &invalid, &before, &[], None);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    let mut stale = before.clone();
+    stale.catalogue_sha256 = "0".repeat(64);
+    let (output, path) = run("stale-source", &request, &stale, &[], None);
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    stale = before.clone();
+    stale.schema_version = 3;
+    let (output, path) = run("old-snapshot-schema", &request, &stale, &[], None);
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    let current_item = world
+        .inventory_items(subject)
+        .unwrap()
+        .find(|item| item.facts().base == form(0x100))
+        .unwrap()
+        .id();
+    world
+        .remove_item_quantity(current_item, 1.try_into().unwrap())
+        .unwrap();
+    let changed = world.snapshot();
+    let (output, path) = run("changed-current-inventory", &request, &changed, &[], None);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let current: Json = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        current["observations"][2]["outcome"]["trace"]["query"]["result"],
+        17
+    );
+    assert_eq!(
+        current["observations"][0]["outcome"]["trace"]["query"]["result"],
+        41
+    );
+    for (name, extra) in [
+        (
+            "conflict-batch",
+            vec!["--engineering-query-batch", "unused.json"],
+        ),
+        (
+            "conflict-single",
+            vec!["--engineering-query-input", "unused.json"],
+        ),
+        ("conflict-owners", vec!["--include-source-owners"]),
+        ("conflict-runs", vec!["--include-source-runs"]),
+    ] {
+        let (output, path) = run(name, &request, &before, &extra, None);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+    }
+    let protected = install.join("protected.json");
+    let (output, path) = run("protected-report", &request, &before, &[], Some(&protected));
+    assert!(!output.status.success());
+    assert!(!path.exists());
+    let existing = evidence.join("existing.json");
+    fs::write(&existing, b"preserve").unwrap();
+    let (output, _) = run("existing-report", &request, &before, &[], Some(&existing));
+    assert!(!output.status.success());
+    let linked = evidence.join("linked.json");
+    fs::hard_link(&existing, &linked).unwrap();
+    let (output, _) = run("hardlink-report", &request, &before, &[], Some(&linked));
+    assert!(!output.status.success());
+    assert_eq!(fs::read(existing).unwrap(), b"preserve");
+    assert_eq!(world.snapshot(), changed);
+    fs::write(evidence.join("scope.json"),serde_json::to_vec_pretty(&json!({
+        "scope":"ordered_cross_record_condition_queries_over_strict_current_snapshot",
+        "actual_cli_calls":calls.get(),"preparation":counts,"initial_snapshot":before,"changed_snapshot":changed,
+        "literal_initial_counts":[41,23,18,31,41],"literal_changed_count":17,"exact_report_bytes":report_bytes.len(),
+        "condition_truth_verified":false,"original_executed":false,"retail_parity_accepted":false
     })).unwrap()).unwrap();
 }

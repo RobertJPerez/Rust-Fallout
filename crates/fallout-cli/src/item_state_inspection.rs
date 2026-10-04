@@ -10,7 +10,7 @@ use fallout_runtime::{
         PageRequest, TransferLimits, ViewLimits,
     },
     save::{Captured, Recovery, Repository},
-    source_items::{Policy, Role, SourceInventoryLimits},
+    source_items::{Policy, Role, SourceFactsLimits, SourceInventoryLimits},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -350,6 +350,71 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
             return Err("Source inventory starting lot differs".into());
         }
     }
+    let facts_before = engineering.world.snapshot();
+    let first_id = source_initialization.item_ids()[0];
+    let mut first_edit = Facts::unknown(keys[2].clone());
+    first_edit.condition = Some(Condition::Float32 { bits: 0x7fc0_1234 });
+    first_edit.equipped_slots = Some(Vec::new());
+    first_edit.modifications = Some(Vec::new());
+    first_edit.extra_fields = vec![OpaqueExtra {
+        tag: *b"TEST",
+        bytes: vec![0, 128, 255, 0],
+    }];
+    let mut second_edit = Facts::unknown(keys[1].clone());
+    second_edit.condition = Some(Condition::Float64 {
+        bits: 0x8000_0000_0000_0000,
+    });
+    second_edit.ownership = Some(Ownership::Unowned);
+    let facts_edits = [
+        (engineering.world.item_handle(first_id)?, first_edit),
+        (engineering.world.item_handle(separate)?, second_edit),
+    ];
+    let mut bad = facts_edits.clone();
+    bad[1].1.base = placed.clone();
+    if engineering
+        .world
+        .stage_source_item_facts(&content, &source_policy, &bad, SourceFactsLimits::default())
+        .is_ok()
+        || engineering.world.snapshot() != facts_before
+    {
+        return Err("Invalid last source facts edit partly changed a lot".into());
+    }
+    let stage = engineering.world.stage_source_item_facts(
+        &content,
+        &source_policy,
+        &facts_edits,
+        SourceFactsLimits::default(),
+    )?;
+    if engineering.world.snapshot() != facts_before {
+        return Err("Source facts staging changed state".into());
+    }
+    let facts_originals = stage
+        .rows()
+        .iter()
+        .map(|row| row.original().clone())
+        .collect::<Vec<_>>();
+    let source_facts_edit =
+        engineering
+            .world
+            .commit_source_item_facts(&content, &source_policy, stage)?;
+    if source_facts_edit.before_revision() != facts_before.state_revision
+        || source_facts_edit.after_revision()
+            != facts_before
+                .state_revision
+                .checked_add(1)
+                .ok_or("Facts revision exhausted")?
+        || source_facts_edit.item_ids() != [first_id, separate]
+    {
+        return Err("Source facts edit did not publish exactly one revision".into());
+    }
+    for (old, (_, facts)) in facts_originals.iter().zip(&facts_edits) {
+        let item = engineering.world.item(old.id())?;
+        if item.owner() != old.owner() || item.count() != old.count() || item.facts() != facts {
+            return Err(
+                "Source facts edit changed an identity/quantity/owner or supplied fact".into(),
+            );
+        }
+    }
     let expected = engineering.world.snapshot();
     let expected_traces = traces(&engineering.world, &[a, b, source_owner], &keys)?;
     let expected_views = views(&engineering.world, &[a, b, source_owner, absent])?;
@@ -375,6 +440,9 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
     let before_world = World::restore(&scripts, initialization_before.clone(), Limits::default())?;
     let source_inventory_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
     drop(before_world);
+    let before_world = World::restore(&scripts, facts_before.clone(), Limits::default())?;
+    let source_facts_before_write = repository.commit(&Captured::at_boundary(&before_world))?;
+    drop(before_world);
     let capture = Captured::at_boundary(&engineering.world);
     let worker_repository = repository.clone();
     let worker = std::thread::spawn(move || worker_repository.commit(&capture));
@@ -392,8 +460,11 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         return Err("Owned native item capture differs".into());
     }
     let bytes = expected.encode(Limits::default().max_snapshot_bytes)?;
-    Ok(
-        json!({"schema_version":1,"profile":"nv-original","sources":scripts.sources,"inventory_counts":base.counts,"source_item_inputs":selected.iter().map(|(_,value)|value).collect::<Vec<_>>(),
+    let facts_inputs = facts_edits
+        .iter()
+        .map(|(handle, facts)| Ok(json!({"id":engineering.world.item_id(*handle)?,"facts":facts})))
+        .collect::<Result<Vec<_>>>()?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original","sources":scripts.sources,"inventory_counts":base.counts,"source_item_inputs":selected.iter().map(|(_,value)|value).collect::<Vec<_>>(),
         "engineering_inputs":{"owners":[a,b,source_owner],"uninitialized_owner":absent,"item_keys":keys,"original_id":original,"separate_id":separate,"split_id":split,
         "counts":[17,3,5,2],"condition_bits":[0x7ff8_1234_5678_9abc_u64,0x7ff8_1234_5678_9abd_u64],"equipment_slots":[7,1],"opaque_extra":{"tag":"TEST","bytes":[0,255,1]}},
         "item_instances":expected.inventory_banks.iter().map(|b|b.items.len()).sum::<usize>(),"inventory_banks":expected.inventory_banks.len(),"script_instances":expected.instances.len(),
@@ -406,8 +477,13 @@ pub(super) fn probe(install: &Path, order_path: &Path, repository_path: &Path) -
         "source_inventory_inputs":{"owner":source_owner,"authored":placed,"source":placed_source,"policy":source_policy,"lots":starting_lots},
         "source_inventory_invalid_last_preserved_uninitialized":true,"source_inventory_exact_lots_and_one_revision":true,
         "canonical_state_round_trip_equal":true,"all_query_traces_equal_after_restore":true,"rejected_mutations_preserved_state":true,"uninitialized_inventory_rejected":true,"worker_capture_isolated":true,
-        "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
-    )
+        "native_write":write,"native_load":receipt,"original_live_values_captured":false,"original_item_admission_verified":false,"bytecode_executed":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    report["source_facts_edit"] = serde_json::to_value(source_facts_edit)?;
+    report["source_facts_before_write"] = serde_json::to_value(source_facts_before_write)?;
+    report["source_facts_inputs"] = serde_json::to_value(facts_inputs)?;
+    report["source_facts_invalid_last_preserved_state"] = true.into();
+    report["source_facts_ids_counts_owners_and_one_revision_equal"] = true.into();
+    Ok(report)
 }
 pub(super) fn cold(
     install: &Path,

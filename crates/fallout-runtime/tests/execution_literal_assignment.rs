@@ -790,6 +790,12 @@ fn cli_saved_literal_assignment_helper() {
         ("zero-head", "sequence", json!(0)),
         ("generic-engineering", "intent", json!("engineering")),
         (
+            "object-null-engineering",
+            "intent",
+            json!({"engineering_exact_integral_decimal":null}),
+        ),
+        ("object-null-faithful", "intent", json!({"faithful":null})),
+        (
             "bad-policy",
             "intent",
             json!({"kind":"engineering_exact_integral_decimal","extra":1}),

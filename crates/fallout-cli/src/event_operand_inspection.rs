@@ -1145,11 +1145,20 @@ pub(super) fn copy_saved_reference(
     Ok(report)
 }
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 enum SavedLiteralIntent {
     Faithful,
     EngineeringExactIntegralDecimal,
+}
+impl<'de> serde::Deserialize<'de> for SavedLiteralIntent {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        match <String as serde::Deserialize>::deserialize(d)?.as_str() {
+            "faithful" => Ok(Self::Faithful),
+            "engineering_exact_integral_decimal" => Ok(Self::EngineeringExactIntegralDecimal),
+            _ => Err(serde::de::Error::custom(
+                "unsupported saved literal assignment intent",
+            )),
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]

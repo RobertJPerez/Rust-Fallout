@@ -23,6 +23,33 @@ pub enum Context {
     Suspended,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DisplayIdentity {
+    pub scene_epoch: u64,
+    pub revision: u64,
+}
+#[derive(Resource, Default)]
+pub struct NativeDisplay(pub Option<DisplayIdentity>);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeAction {
+    Save,
+    Continue,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Device {
+    Keyboard,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeIntent {
+    pub action: NativeAction,
+    pub display: DisplayIdentity,
+    pub sequence: u64,
+    pub context: Context,
+    pub focused: bool,
+    pub window: Entity,
+    pub device: Device,
+}
+
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Actions {
     /// x: right, y: forward, z: up. Controller magnitude is retained.
@@ -36,8 +63,7 @@ pub struct Actions {
     pub reset: bool,
     pub toggle: bool,
     pub close: bool,
-    pub save: bool,
-    pub continue_saved: bool,
+    pub native: Option<NativeIntent>,
     pub retry_loading: bool,
     pub cancel_loading: bool,
 }
@@ -48,6 +74,7 @@ impl Plugin for InspectionInputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Context>()
             .init_resource::<Actions>()
+            .init_resource::<NativeDisplay>()
             .init_resource::<Boundary>()
             .add_systems(PreUpdate, collect_input.after(InputSystems));
     }
@@ -145,11 +172,14 @@ struct Boundary {
     mouse: ButtonGate<MouseButton>,
     buttons: ButtonGate<GamepadButton>,
     blocked_sticks: [bool; 2],
+    native_sequence: u64,
 }
 
 struct Frame<'a> {
     context: Context,
     focused: bool,
+    window: Option<Entity>,
+    display: Option<DisplayIdentity>,
     focus_changed: bool,
     pad_changed: bool,
     keys: &'a ButtonInput<KeyCode>,
@@ -244,8 +274,6 @@ impl Boundary {
         result.reset |= edge(KeyCode::KeyR);
         result.toggle |= edge(KeyCode::Tab);
         result.close |= edge(KeyCode::Escape);
-        result.save = edge(KeyCode::F5);
-        result.continue_saved = edge(KeyCode::F9);
         if frame.context == Context::Loading {
             return Actions {
                 close: result.close,
@@ -253,6 +281,30 @@ impl Boundary {
                 cancel_loading: edge(KeyCode::Backspace),
                 ..default()
             };
+        }
+        let native_action = if edge(KeyCode::F9) {
+            Some(NativeAction::Continue)
+        } else if edge(KeyCode::F5) {
+            Some(NativeAction::Save)
+        } else {
+            None
+        };
+        if let (Some(action), Some(display), Some(window), Some(sequence)) = (
+            native_action,
+            frame.display,
+            frame.window,
+            self.native_sequence.checked_add(1),
+        ) {
+            self.native_sequence = sequence;
+            result.native = Some(NativeIntent {
+                action,
+                display,
+                sequence,
+                context: frame.context,
+                focused: frame.focused,
+                window,
+                device: Device::Keyboard,
+            });
         }
         // Discard transient motion at a boundary. It belongs to the context
         // that had focus when the events arrived, not the newly selected one.
@@ -274,6 +326,7 @@ impl Boundary {
 )]
 fn collect_input(
     context: Res<Context>,
+    display: Res<NativeDisplay>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     windows: Query<(Entity, &Window), With<PrimaryWindow>>,
@@ -330,6 +383,8 @@ fn collect_input(
     *actions = boundary.sample(Frame {
         context: *context,
         focused,
+        window: window.map(|(id, _)| id),
+        display: display.0,
         focus_changed,
         pad_changed,
         keys: &keys,
@@ -361,6 +416,8 @@ mod tests {
             Frame {
                 context,
                 focused,
+                window: None,
+                display: None,
                 focus_changed: false,
                 pad_changed: false,
                 keys: &self.keys,
@@ -793,11 +850,32 @@ mod tests {
     fn native_save_and_continue_use_fresh_focus_owned_edges_and_loading_suppresses_both() {
         for (button, saving) in [(KeyCode::F5, true), (KeyCode::F9, false)] {
             let (mut app, window) = keyboard_app();
+            app.world_mut().resource_mut::<NativeDisplay>().0 = Some(DisplayIdentity {
+                scene_epoch: 7,
+                revision: 5,
+            });
             key(&mut app, window, button, ButtonState::Pressed, false);
             app.update();
             let action = *app.world().resource::<Actions>();
-            assert_eq!(action.save, saving);
-            assert_eq!(action.continue_saved, !saving);
+            let intent = action.native.unwrap();
+            assert_eq!(
+                intent.action,
+                if saving {
+                    NativeAction::Save
+                } else {
+                    NativeAction::Continue
+                }
+            );
+            assert_eq!(
+                intent.display,
+                DisplayIdentity {
+                    scene_epoch: 7,
+                    revision: 5
+                }
+            );
+            assert_eq!(intent.window, window);
+            assert_eq!(intent.device, Device::Keyboard);
+            assert!(intent.focused);
             focus(&mut app, window, false);
             app.world_mut().write_message(KeyboardFocusLost);
             key(&mut app, window, button, ButtonState::Released, false);
@@ -810,11 +888,14 @@ mod tests {
             assert_eq!(*app.world().resource::<Actions>(), Actions::default());
             key(&mut app, window, button, ButtonState::Pressed, false);
             app.update();
-            assert!(if saving {
-                app.world().resource::<Actions>().save
-            } else {
-                app.world().resource::<Actions>().continue_saved
-            });
+            assert_eq!(
+                app.world().resource::<Actions>().native.unwrap().action,
+                if saving {
+                    NativeAction::Save
+                } else {
+                    NativeAction::Continue
+                }
+            );
             *app.world_mut().resource_mut::<Context>() = Context::Loading;
             app.update();
             key(&mut app, window, button, ButtonState::Released, false);
@@ -823,6 +904,45 @@ mod tests {
             app.update();
             assert_eq!(*app.world().resource::<Actions>(), Actions::default());
         }
+    }
+
+    #[test]
+    fn native_intent_keeps_sampled_identity_and_no_display_or_sequence_wrap_can_emit() {
+        let (mut app, window) = keyboard_app();
+        key(&mut app, window, KeyCode::F5, ButtonState::Pressed, false);
+        app.update();
+        assert!(app.world().resource::<Actions>().native.is_none());
+        let before = DisplayIdentity {
+            scene_epoch: 7,
+            revision: 5,
+        };
+        app.world_mut().resource_mut::<NativeDisplay>().0 = Some(before);
+        app.update();
+        assert!(app.world().resource::<Actions>().native.is_none());
+        key(&mut app, window, KeyCode::F5, ButtonState::Released, false);
+        app.update();
+        key(&mut app, window, KeyCode::F5, ButtonState::Pressed, false);
+        app.update();
+        let saved = app.world().resource::<Actions>().native.unwrap();
+        assert_eq!(saved.display, before);
+        assert_eq!(saved.sequence, 1);
+        let after = DisplayIdentity {
+            scene_epoch: 8,
+            revision: 6,
+        };
+        app.world_mut().resource_mut::<NativeDisplay>().0 = Some(after);
+        key(&mut app, window, KeyCode::F9, ButtonState::Pressed, false);
+        app.update();
+        let next = app.world().resource::<Actions>().native.unwrap();
+        assert_eq!(next.display, after);
+        assert_eq!(next.sequence, 2);
+        assert_eq!(saved.display, before);
+        app.world_mut().resource_mut::<Boundary>().native_sequence = u64::MAX;
+        key(&mut app, window, KeyCode::F9, ButtonState::Released, false);
+        app.update();
+        key(&mut app, window, KeyCode::F9, ButtonState::Pressed, false);
+        app.update();
+        assert!(app.world().resource::<Actions>().native.is_none());
     }
 
     #[test]

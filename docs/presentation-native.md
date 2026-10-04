@@ -28,6 +28,23 @@ context quarantine as camera shortcuts. Loading and suspended contexts suppress
 both actions. One request is admitted at a time; additional presses do not create
 an unbounded queue or an implicit retry.
 
+Keyboard admission emits one typed intent with its action, monotonic sequence,
+primary window, focus/context, device and the displayed scene generation/revision.
+The display identity is available only after native draw publication and changes
+after a complete Continue view update. The main adapter rechecks its current
+window focus/context; the native host consumes each sequence once and rejects a
+different scene/revision. A busy host consumes an additional sequence without
+queuing it, so completion cannot replay a held or refused action. Sequence
+exhaustion emits no command. Controller native-save bindings are unassigned;
+existing controller camera/close boundaries remain separate inspection actions.
+
+The owner command carries the expected revision and checks it against the owned
+canonical world before capture or restore. An input sampled from the previous
+display cannot save a newer world if Continue completes before admission. These
+checks are private host transport; the presentation thread neither mutates
+canonical state nor supplies guessed reference values. The explicit headless
+save-after-ready request uses the same owner precondition without a physical key.
+
 The native owner keeps the shared source catalogue and canonical world on its
 own thread. Capture creation, source-bound restore, disk publication and writer
 shutdown stay outside the frame loop. `SaveStatus` observes the existing

@@ -189,6 +189,8 @@ impl Session {
                 pending: false,
                 published: false,
                 title,
+                revision: initial.report.revision,
+                last_intent_sequence: 0,
             },
             initial,
         ))
@@ -295,6 +297,11 @@ pub enum Request {
     Continue,
 }
 
+struct Command {
+    request: Request,
+    expected_revision: u64,
+}
+
 pub enum Event {
     Saved(fallout_runtime::save::WriteReceipt),
     Continued(Box<Observation>),
@@ -302,12 +309,14 @@ pub enum Event {
 }
 
 pub struct Host {
-    commands: Option<SyncSender<Request>>,
+    commands: Option<SyncSender<Command>>,
     replies: Mutex<Receiver<Event>>,
     shutdown: Shutdown,
     pending: bool,
     published: bool,
     title: String,
+    revision: u64,
+    last_intent_sequence: u64,
 }
 
 impl Host {
@@ -316,6 +325,44 @@ impl Host {
     }
     pub fn published(&self) -> bool {
         self.published
+    }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn intent(
+        &mut self,
+        intent: crate::input::NativeIntent,
+        scene_epoch: u64,
+        admitted: bool,
+    ) -> bool {
+        if intent.sequence <= self.last_intent_sequence {
+            return false;
+        }
+        // Consume once even if this single-slot owner is busy; no replay queue.
+        self.last_intent_sequence = intent.sequence;
+        if self.pending {
+            return false;
+        }
+        if !admitted
+            || !intent.focused
+            || !matches!(
+                intent.context,
+                crate::input::Context::Orbit | crate::input::Context::Fly
+            )
+            || intent.device != crate::input::Device::Keyboard
+            || intent.display.scene_epoch != scene_epoch
+            || intent.display.revision != self.revision
+        {
+            self.failure(
+                "Native input belongs to a different display/window/focus/context boundary".into(),
+            );
+            return false;
+        }
+        self.request(match intent.action {
+            crate::input::NativeAction::Save => Request::Save,
+            crate::input::NativeAction::Continue => Request::Continue,
+        })
     }
 
     pub fn request(&mut self, request: Request) -> bool {
@@ -332,7 +379,10 @@ impl Host {
             .ok_or("Native host stopped")
             .and_then(|sender| {
                 sender
-                    .try_send(request)
+                    .try_send(Command {
+                        request,
+                        expected_revision: self.revision,
+                    })
                     .map_err(|_| "Native host unavailable")
             }) {
             Ok(()) => {
@@ -386,7 +436,10 @@ impl Host {
                     receipt.metadata.generation, receipt.metadata.state_revision
                 )
             }
-            Event::Continued(observation) => self.title = restored_title(observation, "Continue"),
+            Event::Continued(observation) => {
+                self.revision = observation.report.revision;
+                self.title = restored_title(observation, "Continue");
+            }
             Event::Failed(error) => self.failure(error.clone()),
         }
         Some(event)
@@ -427,7 +480,7 @@ fn run(
     cell: FormKey,
     keys: Vec<FormKey>,
     origin: [f64; 3],
-    commands: Receiver<Request>,
+    commands: Receiver<Command>,
     results: SyncSender<Event>,
     closing: Arc<ShutdownState>,
 ) {
@@ -448,7 +501,18 @@ fn run(
                 Err(RecvTimeoutError::Disconnected) => break,
             }
         };
-        let event = match request {
+        if request.expected_revision != world.revision() {
+            if results
+                .send(Event::Failed(
+                    "Native command revision differs from the owned canonical boundary".into(),
+                ))
+                .is_err()
+            {
+                break;
+            }
+            continue;
+        }
+        let event = match request.request {
             Request::Continue => {
                 let result =
                     repository.load(Arc::clone(&catalogue), Limits::default(), Recovery::Strict);

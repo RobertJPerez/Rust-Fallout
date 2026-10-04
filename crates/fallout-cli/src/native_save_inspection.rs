@@ -7,7 +7,7 @@ use fallout_data::{baseline, loaded_scripts};
 use fallout_runtime::{
     Limits,
     identity::Value as LocalValue,
-    save::{Captured, Recovery, Repository, SaveWorker, format},
+    save::{Captured, Recovery, Repository, SaveStatus, SaveWorker, format},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -84,7 +84,7 @@ pub(super) fn probe(
         .transpose()?;
     let repository = Repository::create(root, &[install.into()], engineering.world.campaign())?;
     let mut worker = SaveWorker::start(repository.clone(), 2)?;
-    let ticket = worker.try_submit(capture)?;
+    let first_status = SaveStatus::new(worker.try_submit(capture)?);
     if event_commit.is_none() {
         let instance = first
             .instances
@@ -111,16 +111,16 @@ pub(super) fn probe(
             )],
         )?;
     }
-    let first_receipt = ticket.wait()?;
+    let first_receipt = first_status.wait()?;
     let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
     if restored.snapshot() != first {
         return Err("Worker capture included later state mutations".into());
     }
     let second = engineering.world.snapshot();
-    let second_receipt = worker
-        .try_submit(Captured::at_boundary(&engineering.world))?
-        .wait()?;
+    let second_status =
+        SaveStatus::new(worker.try_submit(Captured::at_boundary(&engineering.world))?);
     worker.finish()?;
+    let second_receipt = second_status.wait()?;
     let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
     if restored.snapshot() != second {
         return Err("Native current-slot round trip differs".into());

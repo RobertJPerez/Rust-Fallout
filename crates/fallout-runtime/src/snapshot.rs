@@ -13,7 +13,7 @@ use fallout_data::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, io::Write};
+use std::{collections::BTreeMap, io::Write, sync::Arc};
 
 mod admission;
 mod relationships;
@@ -244,6 +244,39 @@ impl Snapshot {
         self.check_budgets(limits)?;
         relationships::check(self, limits)
     }
+    /// Call after intrinsic checks. The resolver supplies exact immutable source
+    /// schemas, whether from a live catalogue or an owned publication capture.
+    pub(crate) fn validate_source_schemas(
+        &self,
+        mut resolve: impl FnMut(&Handle) -> Result<Arc<crate::state::DefinitionSchema>>,
+    ) -> Result<()> {
+        let mut schemas = BTreeMap::new();
+        for saved in &self.instances {
+            let schema = resolve(&saved.definition)?;
+            if schema.locals.len() != saved.locals.len() {
+                return Err(Error::Invalid(
+                    "saved local bank does not match its declaration schema".into(),
+                ));
+            }
+            for local in &saved.locals {
+                crate::schema::check_value(
+                    schema
+                        .locals
+                        .get(&local.index)
+                        .ok_or(Error::MissingLocal(local.index))?,
+                    &local.value,
+                )?;
+            }
+            schemas.insert(saved.id, schema);
+        }
+        for event in &self.pending_events {
+            World::validate_trigger(
+                schemas.get(&event.instance).ok_or(Error::MissingInstance)?,
+                &event.trigger,
+            )?;
+        }
+        Ok(())
+    }
     fn check_budgets(&self, limits: Limits) -> Result<()> {
         if self.inventory_banks.len() > limits.max_inventory_banks {
             return Err(Error::Capacity("saved inventory banks"));
@@ -372,6 +405,7 @@ impl<'a> World<'a> {
             return Err(Error::DefinitionChanged);
         }
         relationships::check(&snapshot, limits)?;
+        snapshot.validate_source_schemas(|handle| world.runtime_definition(handle))?;
         world.next_instance = snapshot.next_instance;
         world.next_reference = snapshot.next_reference;
         world.next_sequence = snapshot.next_event_sequence;
@@ -389,20 +423,8 @@ impl<'a> World<'a> {
                 .get_handle(&saved.definition)
                 .ok_or(Error::DefinitionChanged)?;
             let definition_schema = world.runtime_definition(&saved.definition)?;
-            let schema = &definition_schema.locals;
-            if schema.len() != saved.locals.len() {
-                return Err(Error::Invalid(
-                    "saved local bank does not match its declaration schema".into(),
-                ));
-            }
             let mut locals = BTreeMap::new();
             for local in saved.locals {
-                world.validate_value(
-                    schema
-                        .get(&local.index)
-                        .ok_or(Error::MissingLocal(local.index))?,
-                    &local.value,
-                )?;
                 locals.insert(local.index, local.value);
             }
             // Equal cardinality plus checked unique indices proves full schema
@@ -425,8 +447,6 @@ impl<'a> World<'a> {
         }
         world.restore_item_banks(snapshot.inventory_banks, snapshot.next_item)?;
         for event in snapshot.pending_events {
-            let instance = world.instance(world.handle(event.instance)?)?;
-            Self::validate_trigger(&instance.definition_schema, &event.trigger)?;
             world.pending.push_back(event);
         }
         Ok(world)

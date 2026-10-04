@@ -5,6 +5,22 @@ use fallout_data::loaded_scripts::{LoadedScript, ReferenceStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Storage compatibility is shared by mutation, restoration and publication.
+/// Persistent reference links are validated separately against the snapshot or
+/// live world; numeric bit patterns, including NaNs, remain exact storage.
+pub(crate) fn check_value(local: &Local, value: &crate::identity::Value) -> crate::Result<()> {
+    use crate::{Error, identity::Value};
+    match (local.kind, value) {
+        (_, Value::Uninitialized)
+        | (Kind::Float | Kind::Integer, Value::Number { .. })
+        | (Kind::Reference, Value::Reference { .. }) => Ok(()),
+        (Kind::Unsupported { .. } | Kind::UnverifiedZeroIndex { .. }, _) => {
+            Err(Error::UnsupportedLocal(local.index))
+        }
+        _ => Err(Error::IncompatibleLocal(local.index)),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Kind {

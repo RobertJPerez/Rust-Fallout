@@ -93,7 +93,8 @@
         "docs/live-event-*.md",
         "docs/source-bound-script-plans.md",
         "docs/compiled-scripts.md",
-        "docs/vm-*.md"
+        "docs/vm-*.md",
+        "crates/fallout-cli/src/condition_dependency_inspection.rs"
       ],
       "first_task": "VM-01: propose bounded native capability/dispatch contract over existing prepared programs/operands, then implement with a reachable consumer, explicit unsupported cases and independent cases",
       "backlog": [

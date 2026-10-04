@@ -34,7 +34,10 @@ checkout still contains an older four-agent plan.
   If one dependency is missing, record it once and continue an independent slice.
   When the listed queue is exhausted, derive the next source-backed task from
   the master brief and `NEXT_STEPS.md` within assigned paths, with a named
-  consumer and a small tested exit. Share that task in the lane outbox.
+  consumer and a small tested exit. Share that task in the lane outbox. A
+  dependency-gated task is never the end of the lane queue: the coordinator keeps
+  a concrete independent fallback behind it and replenishes that fallback at
+  each handoff. Do not repeat an unchanged blocker audit while ready work exists.
 - Once control enables `automatic_mutex`, run focused Cargo and native builds via
   `tools/team-v2-focused.py` from the assigned worktree with its private target.
   The wrapper waits for one shared build slot; no coordinator grant is needed.

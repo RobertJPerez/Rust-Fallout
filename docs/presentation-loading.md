@@ -3,8 +3,11 @@
 The existing model, CELL and terrain inspector creates its window before starting
 source preparation. `WindowCreated` for the primary window admits one preparation
 worker; headless captures start the same worker on the first update. The window
-title shows preparation, upload and failure status. Loading allows close input
-while suppressing camera actions, and the input boundary quarantines held actions
+title shows preparation, upload and failure status. During interactive loading,
+Backspace cancels the inspection request; Enter retries a terminal failure or
+completed cancellation; Escape closes. These are inspection keyboard bindings,
+not original menu/controller actions. Loading suppresses camera and canonical
+save/Continue actions, and the input boundary quarantines held actions
 when a completed scene enters its camera context.
 
 Source preparation runs outside the window update. Progress replaces one string
@@ -14,6 +17,23 @@ return. The window polls without waiting for extraction or joining an active
 worker. A cancelled or superseded epoch cannot yield an admitted result. Closing
 the window cancels this host's request; opaque source operations finish their
 existing bounded work before dropping their result.
+
+In-window cancellation retains the worker until it returns, without joining an
+active decoder in the update loop. Retry during that wait or GPU disposal is
+ignored rather than queued. A result queued immediately before cancellation goes
+to bounded disposal and cannot publish. A normal source result is observed only
+after its worker has returned, so terminal failure/retry cannot overlap workers.
+Retry starts the same explicit request with a fresh checked host generation and
+new CELL residency owner/tickets; generation exhaustion is a visible refusal.
+Held keys, repeat messages, focus loss and camera-to-loading context changes
+cannot trigger retry. Headless runs retain their single-attempt failing exit.
+
+Requested reports/captures remain immutable. If either output path already
+exists, retry refuses with a diagnostic requiring a new run with fresh paths;
+it never removes the old artifact or silently drops a requested output. Fresh
+output paths still use the existing `create_new` protection. Repairing an
+explicit source input permits retry; missing/unsupported source work remains a
+failure and cannot select a successful default scene.
 
 CELL preparation consumes the sealed `CellModelPlan` and existing `CellResidency`
 jobs. It keeps the returned `Arc<ResidentSources>` and `Arc<ResidentTextures>`
@@ -43,8 +63,8 @@ cascades inside that entity bound. Submitted asset handles and unsubmitted
 image/mesh/instance payloads remain owned until their retirement completes. A
 returned original epoch cannot revive retirement. Unrelated entities/assets are
 preserved. The host retains a disposing phase until cleanup finishes; an actual
-app exit may release the remaining app resources outside the frame loop. Retry
-remains subsequent VIEW09 work. These limits do not measure driver reclamation or
+app exit may release the remaining app resources outside the frame loop. These
+limits do not measure driver reclamation or
 physical frame time.
 
 Captures begin their 64 settling frames only after admission. The source-worker

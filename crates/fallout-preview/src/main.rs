@@ -2,6 +2,8 @@
 mod fixture;
 mod input;
 mod loading;
+#[cfg(test)]
+mod loading_tests;
 mod material;
 mod model;
 mod native;
@@ -212,6 +214,7 @@ impl DrawScene {
 enum Phase {
     WaitingForWindow,
     Preparing(loading::Job<ReadyScene>),
+    Draining(loading::Job<ReadyScene>),
     Uploading(DrawScene),
     Ready(DrawScene),
     Disposing(DrawScene, Option<String>),
@@ -226,6 +229,32 @@ struct Loading {
 }
 
 type InspectionCameraFilter = (With<Camera3d>, Without<scene::ReferenceView>);
+
+fn start_preparation(options: &Options, epoch: u64) -> Result<loading::Job<ReadyScene>, String> {
+    let request = options.clone();
+    loading::Job::start(epoch, move |context| {
+        prepare_scene(&request, &context, epoch).map_err(|error| error.to_string())
+    })
+    .map_err(|error| error.to_string())
+}
+
+fn retry_outputs(options: &Options) -> Result<(), String> {
+    for path in [options.report.as_ref(), options.capture.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        if path
+            .try_exists()
+            .map_err(|error| format!("Retry output check failed: {error}"))?
+        {
+            return Err(format!(
+                "Retry refused: output {} already exists; start a new run with fresh output paths",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
 
 fn output_path(
     path: &Path,
@@ -517,13 +546,16 @@ fn drive_loading(
     let window_ready = created
         .read()
         .any(|event| windows.iter().any(|(id, _)| id == event.window));
-    let closing = closed.read().next().is_some() || actions.close;
+    let closing = closed
+        .read()
+        .any(|event| windows.iter().any(|(id, _)| id == event.window))
+        || actions.close;
     let epoch = state.epoch;
-    let phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
+    let mut phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
     if closing {
         state.epoch = state.epoch.saturating_add(1);
         match phase {
-            Phase::Preparing(mut job) => job.cancel(),
+            Phase::Preparing(mut job) | Phase::Draining(mut job) => job.cancel(),
             Phase::Uploading(mut queue)
             | Phase::Ready(mut queue)
             | Phase::Disposing(mut queue, _) => {
@@ -536,6 +568,21 @@ fn drive_loading(
         *context = input::Context::Suspended;
         return;
     }
+    if actions.cancel_loading && !options.headless {
+        phase = match phase {
+            Phase::WaitingForWindow => Phase::Cancelled,
+            Phase::Preparing(mut job) => {
+                job.cancel();
+                state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
+                Phase::Draining(job)
+            }
+            Phase::Uploading(queue) => {
+                state.epoch = state.epoch.checked_add(1).unwrap_or(state.epoch);
+                Phase::Disposing(queue, None)
+            }
+            phase => phase,
+        };
+    }
     let failure = |error: String, exit: &mut MessageWriter<AppExit>| {
         error!("Source scene failed: {error}");
         if options.headless {
@@ -545,12 +592,36 @@ fn drive_loading(
     };
     state.phase = match phase {
         Phase::WaitingForWindow if options.headless || window_ready => {
-            let request = options.clone();
-            match loading::Job::start(epoch, move |context| {
-                prepare_scene(&request, &context, epoch).map_err(|error| error.to_string())
-            }) {
+            match start_preparation(&options, epoch) {
                 Ok(job) => Phase::Preparing(job),
-                Err(error) => failure(error.to_string(), &mut exit),
+                Err(error) => failure(error, &mut exit),
+            }
+        }
+        Phase::Draining(mut job) => match job.retire() {
+            loading::Retirement::Pending => Phase::Draining(job),
+            loading::Retirement::Done(Some(mut ready)) => {
+                if ready.upload.dispose(&mut commands, &mut assets) {
+                    Phase::Cancelled
+                } else {
+                    Phase::Disposing(ready.upload, None)
+                }
+            }
+            loading::Retirement::Done(None) => Phase::Cancelled,
+        },
+        Phase::Failed(_) | Phase::Cancelled
+            if actions.retry_loading && !actions.cancel_loading && !options.headless =>
+        {
+            let request = retry_outputs(&options).and_then(|()| {
+                let next = state
+                    .epoch
+                    .checked_add(1)
+                    .ok_or("Source retry epoch exhausted")?;
+                state.epoch = next;
+                start_preparation(&options, next)
+            });
+            match request {
+                Ok(job) => Phase::Preparing(job),
+                Err(error) => failure(error, &mut exit),
             }
         }
         Phase::Preparing(mut job) => {
@@ -681,9 +752,16 @@ fn drive_loading(
         Phase::WaitingForWindow => "Opening inspection window".into(),
         Phase::Preparing(job) => {
             let (message, elapsed) = job.status();
-            format!("Loading: {message} ({}s)", elapsed.as_secs())
+            format!(
+                "Loading: {message} ({}s) — Backspace cancels",
+                elapsed.as_secs()
+            )
         }
-        Phase::Uploading(queue) => queue.status(),
+        Phase::Draining(job) => format!(
+            "Cancelling: waiting for source worker return ({}s) — Escape closes",
+            job.status().1.as_secs()
+        ),
+        Phase::Uploading(queue) => format!("{} — Backspace cancels", queue.status()),
         Phase::Disposing(queue, _) => queue.queue.disposal_status(),
         Phase::Ready(queue) => queue
             .cell
@@ -691,10 +769,10 @@ fn drive_loading(
             .and_then(|cell| cell.native.as_ref())
             .map_or_else(|| "Ready".into(), |host| host.title().into()),
         Phase::Failed(error) => format!(
-            "Failed: {} — Escape closes",
+            "Failed: {} — Enter retries; Escape closes",
             error.chars().take(180).collect::<String>()
         ),
-        Phase::Cancelled => "Cancelled".into(),
+        Phase::Cancelled => "Cancelled — Enter retries; Escape closes".into(),
     };
     for (_, mut window) in &mut windows {
         let title = format!("Fallout Rust - {status}");
@@ -1032,7 +1110,7 @@ mod tests {
         app
     }
 
-    fn ready_fixture(epoch: u64) -> ReadyScene {
+    pub(crate) fn ready_fixture(epoch: u64) -> ReadyScene {
         let (prepared, _) = fixture::prepare().unwrap();
         ReadyScene {
             upload: DrawScene {

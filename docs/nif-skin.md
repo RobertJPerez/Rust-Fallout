@@ -1087,6 +1087,11 @@ The owned consumer is `fallout nif-external-clip-skin SKIN RIG CLIP --request
 REQUEST.json --output RECEIPT.json`. Strict schema1 carries the three whole-source
 hashes, existing complete external mapping/weight fields, `clip_object`, exact
 `clip_node_name_bytes`, `clip_sequence`, `clip_controlled_ordinal` and `source_time`.
+The new request's weight ingress uses private empty struct variants, so the raw
+policy rejects nested extra fields, including a unit-sum tolerance. The unit-sum
+policy requires its explicit tolerance and rejects extra fields. Both convert to
+the existing public `WeightPolicy`; older request types retain their prior schema
+and valid clip receipts keep their original policy tags and numeric behavior.
 Each source/request is bounded to64 MiB/64 KiB, with at most4096 mapped bones.
 Output must stay outside all four input directories. Semantic refusal emits a null
 evaluation with nonzero exit. Explicit source sampling supplies no clock mapping,

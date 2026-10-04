@@ -731,6 +731,25 @@ pub fn inspect_external_skin(
     })
 }
 
+// Keep the new clip request strict without changing older weight ingress.
+// Empty struct variants reject fields that serde's tagged unit variant ignores.
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum ExternalClipWeightPolicy {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl ExternalClipWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExternalClipSkinRequest {
@@ -742,12 +761,73 @@ struct ExternalClipSkinRequest {
     rig_root: u32,
     explicit_bone_mapping: Vec<ExternalBoneRequest>,
     explicit_root_space_mapping: nif_skin::pose::Affine,
-    weights: InfluenceWeightPolicy,
+    weights: ExternalClipWeightPolicy,
     clip_object: u32,
     clip_node_name_bytes: Vec<u8>,
     clip_sequence: u32,
     clip_controlled_ordinal: usize,
     source_time: f64,
+}
+
+#[cfg(test)]
+mod external_clip_request_tests {
+    use super::*;
+
+    #[test]
+    fn both_clip_weight_variants_are_strict_without_changing_older_ingress() {
+        let digest = [0u8; 32];
+        for weights in [
+            serde_json::json!({"kind":"preserve_raw_nonnegative"}),
+            serde_json::json!({"kind":"require_unit_sum","absolute_tolerance":0.0}),
+        ] {
+            let valid = serde_json::json!({
+                "schema_version":1,
+                "expected_skin_sha256":digest,"expected_rig_sha256":digest,"expected_clip_sha256":digest,
+                "geometry":3,"rig_root":4,"explicit_bone_mapping":[],
+                "explicit_root_space_mapping":[[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0]],
+                "weights":weights,"clip_object":3,"clip_node_name_bytes":[82,105,103,0],
+                "clip_sequence":0,"clip_controlled_ordinal":0,"source_time":-0.0
+            });
+            let request: ExternalClipSkinRequest = serde_json::from_value(valid.clone()).unwrap();
+            assert_eq!(serde_json::to_value(&request.weights).unwrap(), weights);
+            let old: InfluenceWeightPolicy = serde_json::from_value(weights.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(request.weights.policy()).unwrap(),
+                serde_json::to_value(old.policy()).unwrap()
+            );
+            for field in [None, Some("weights")] {
+                let mut invalid = valid.clone();
+                match field {
+                    Some(key) => invalid[key]["extra"] = serde_json::json!(1),
+                    None => invalid["extra"] = serde_json::json!(1),
+                }
+                assert!(serde_json::from_value::<ExternalClipSkinRequest>(invalid).is_err());
+            }
+            for missing in ["weights", "expected_skin_sha256", "source_time"] {
+                let mut invalid = valid.clone();
+                invalid.as_object_mut().unwrap().remove(missing);
+                assert!(serde_json::from_value::<ExternalClipSkinRequest>(invalid).is_err());
+            }
+        }
+        for invalid in [
+            serde_json::json!({"kind":"preserve_raw_nonnegative","absolute_tolerance":0.0}),
+            serde_json::json!({"kind":"require_unit_sum"}),
+            serde_json::json!({"kind":"require_unit_sum","absolute_tolerance":"0"}),
+            serde_json::json!({"kind":"normalize"}),
+            serde_json::json!({}),
+        ] {
+            assert!(serde_json::from_value::<ExternalClipWeightPolicy>(invalid).is_err());
+        }
+        // Older requests deliberately retain their previous tagged-unit behavior.
+        let old: InfluenceWeightPolicy = serde_json::from_value(
+            serde_json::json!({"kind":"preserve_raw_nonnegative","extra":1}),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(old.policy()).unwrap(),
+            serde_json::to_value(nif_skin::pose::WeightPolicy::PreserveRawNonnegative).unwrap()
+        );
+    }
 }
 #[derive(Serialize)]
 pub struct ExternalClipSkinReport {

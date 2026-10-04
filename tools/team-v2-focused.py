@@ -26,11 +26,26 @@ MUTEX_NAME = "Local\\RustFalloutTeamV2FocusedCargo"
 WAIT_OBJECT_0 = 0
 WAIT_ABANDONED = 0x80
 WAIT_TIMEOUT = 0x102
+READ_ATTEMPTS = 6
+READ_RETRY_SECONDS = 0.05
+
+
+def read_coordination_text(path: Path) -> str:
+    # A worker atomically replaces its status on Windows. A reader can briefly
+    # lose the open race to that replacement even though the file is healthy.
+    # Retry only that filesystem race; persistent absence still stops the build.
+    for attempt in range(READ_ATTEMPTS):
+        try:
+            return path.read_text(encoding="utf-8")
+        except (PermissionError, FileNotFoundError):
+            if attempt + 1 == READ_ATTEMPTS:
+                raise
+            time.sleep(READ_RETRY_SECONDS)
+    raise AssertionError("unreachable coordination read")
 
 
 def read_json(path: Path) -> dict:
-    with path.open(encoding="utf-8") as stream:
-        value = json.load(stream)
+    value = json.loads(read_coordination_text(path))
     if not isinstance(value, dict):
         raise ValueError(f"Expected a JSON object: {path}")
     return value
@@ -69,13 +84,12 @@ def check_authorization(lane: str) -> tuple[dict, dict]:
         raise RuntimeError("Set CARGO_TARGET_DIR to the assigned private target directory")
     # STOP can arrive through an outbox before the control-file update.
     for outbox in TEAM.glob("*.outbox.jsonl"):
-        with outbox.open(encoding="utf-8") as stream:
-            for line in stream:
-                if not line.strip():
-                    continue
-                row = json.loads(line)
-                if row.get("run_id") == control["run_id"] and row.get("type") == "stop_requested":
-                    raise RuntimeError("Current-run STOP message received")
+        for line in read_coordination_text(outbox).splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row.get("run_id") == control["run_id"] and row.get("type") == "stop_requested":
+                raise RuntimeError("Current-run STOP message received")
     return assignment, lease
 
 

@@ -4,7 +4,7 @@ use fallout_runtime::{
     Limits, World,
     events::{Context, Trigger},
     identity::{CampaignId, Owner, Value},
-    save::{self, Captured, Recovery, Repository, Slot, Stage, format},
+    save::{self, Captured, Recovery, Repository, SaveWorker, Slot, Stage, format},
     snapshot::Snapshot,
 };
 use sha2::{Digest, Sha256};
@@ -632,6 +632,106 @@ fn staged_commit_cold_boundaries_preserve_pending_work_and_reference_links() {
     }
 }
 
+const STAGED_SAVE_STAGES: [Stage; 5] = [
+    Stage::CurrentTempWritten,
+    Stage::CurrentTempSynced,
+    Stage::PreviousTempSynced,
+    Stage::PreviousPublished,
+    Stage::CurrentPublished,
+];
+
+fn expected_staged_after(mut before: Snapshot) -> Snapshot {
+    before.state_revision += 1;
+    before.pending_events.remove(0);
+    before.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number {
+        bits: 0x7ff8_1234_5678_9abc,
+    };
+    before
+}
+
+#[test]
+fn interrupted_staged_publication_cold_restores_a_whole_boundary_at_every_stage() {
+    let directory = tempfile::tempdir().unwrap();
+    write_fixture(directory.path(), false);
+    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    for (index, stage) in STAGED_SAVE_STAGES.into_iter().enumerate() {
+        let world = staged_cold_seed(&catalogue);
+        let before = world.snapshot();
+        let repository = repo(
+            &directory.path().join(format!("native-stage-kill-{index}")),
+            &world,
+        );
+        let mut worker = SaveWorker::start(repository.clone(), 1).unwrap();
+        let saved = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+        worker.finish().unwrap();
+        assert_eq!(saved.wait().unwrap().metadata.generation, 1);
+        let ready = directory.path().join(format!("stage-kill-ready-{index}"));
+        let mut writer = child(directory.path(), &format!("kill-stage:{index}"), &ready);
+        await_ready(&ready, &mut writer);
+        assert!(matches!(
+            repository.load(&catalogue, Limits::default(), Recovery::Strict),
+            Err(save::Error::Busy)
+        ));
+        writer.0.kill().unwrap();
+        writer.0.wait().unwrap();
+        let (restored, receipt) = repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap();
+        let published = stage == Stage::CurrentPublished;
+        let expected = if published {
+            expected_staged_after(before.clone())
+        } else {
+            before.clone()
+        };
+        assert_eq!(restored.snapshot(), expected);
+        assert_eq!(receipt.metadata.generation, if published { 2 } else { 1 });
+        if index >= 3 {
+            assert_eq!(
+                format::decode(
+                    &fs::read(repository.path().join("previous.frsv")).unwrap(),
+                    Limits::default()
+                )
+                .unwrap()
+                .snapshot,
+                before
+            );
+        }
+        let cold_ready = directory.path().join(format!("stage-kill-cold-{index}"));
+        let mut cold = child(
+            directory.path(),
+            &format!(
+                "cold-killed-stage:{index}:{}",
+                if published { "after" } else { "before" }
+            ),
+            &cold_ready,
+        );
+        await_ready(&cold_ready, &mut cold);
+        assert!(cold.0.wait().unwrap().success());
+        let mut resumed = SaveWorker::start(repository.clone(), 1).unwrap();
+        let saved = resumed
+            .try_submit(Captured::at_boundary(&restored))
+            .unwrap();
+        resumed.finish().unwrap();
+        assert_eq!(
+            saved.wait().unwrap().metadata.generation,
+            if published { 3 } else { 2 }
+        );
+        assert_eq!(
+            repository
+                .load(&catalogue, Limits::default(), Recovery::Strict)
+                .unwrap()
+                .0
+                .snapshot(),
+            expected
+        );
+    }
+}
+
 #[test]
 #[ignore = "helper launched only by native save process tests"]
 fn native_save_child() {
@@ -681,6 +781,55 @@ fn native_save_child() {
             }
         );
         fs::write(ready, b"verified staged boundary").unwrap();
+        return;
+    }
+    if let Some(parameters) = mode.strip_prefix("cold-killed-stage:") {
+        let (index, boundary) = parameters.split_once(':').unwrap();
+        let index: usize = index.parse().unwrap();
+        let repository =
+            Repository::open(&root.join(format!("native-stage-kill-{index}")), &[]).unwrap();
+        let (world, _) = repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap();
+        let before = staged_cold_seed(&catalogue).snapshot();
+        let expected = match boundary {
+            "before" => before,
+            "after" => expected_staged_after(before),
+            _ => panic!("invalid staged boundary"),
+        };
+        assert_eq!(world.snapshot(), expected);
+        fs::write(ready, b"verified complete interrupted staged boundary").unwrap();
+        return;
+    }
+    if let Some(index) = mode.strip_prefix("kill-stage:") {
+        let index: usize = index.parse().unwrap();
+        let stage = STAGED_SAVE_STAGES[index];
+        let repository =
+            Repository::open(&root.join(format!("native-stage-kill-{index}")), &[]).unwrap();
+        let mut world = staged_cold_seed(&catalogue);
+        let staged = world
+            .stage_event_changes(
+                2,
+                &[(
+                    42,
+                    Value::Number {
+                        bits: 0x7ff8_1234_5678_9abc,
+                    },
+                )],
+                true,
+            )
+            .unwrap();
+        world.commit_event_changes(staged).unwrap();
+        repository
+            .commit_observing(&Captured::at_boundary(&world), |observed| {
+                if observed == stage {
+                    fs::write(&ready, b"staged publication ready").unwrap();
+                    loop {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                }
+            })
+            .unwrap();
         return;
     }
     let index = mode

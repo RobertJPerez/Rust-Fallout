@@ -5,7 +5,7 @@ use fallout_runtime::{
     events::{Clocks, Context, Trigger},
     identity::{CampaignId, Owner, ReferenceValue, Value},
     inventory::{Condition, Facts, OpaqueExtra},
-    save::{self, Captured, CompletionError, Recovery, Repository, SaveWorker, format},
+    save::{self, Captured, CompletionError, Recovery, Repository, SaveWorker, Slot, format},
 };
 use std::fs::{self, OpenOptions};
 
@@ -219,5 +219,121 @@ fn repository_lock_contention_is_a_request_error_and_requires_an_explicit_retry(
             .0
             .snapshot(),
         world.snapshot()
+    );
+}
+
+#[test]
+fn staged_worker_boundaries_recover_exact_pending_and_committed_state() {
+    let (directory, catalogue) = fixture();
+    let mut world = seed(&catalogue);
+    let repository = Repository::create(
+        &directory.path().join("native-staged"),
+        &[],
+        world.campaign(),
+    )
+    .unwrap();
+    let before = world.snapshot();
+    let mut worker = SaveWorker::start(repository.clone(), 2).unwrap();
+    let first = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    let stage = world
+        .stage_event_changes(1, &[(42, Value::Number { bits: u64::MAX })], true)
+        .unwrap();
+    world.commit_event_changes(stage).unwrap();
+    let after = world.snapshot();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected.pending_events.remove(0);
+    expected.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 42)
+        .unwrap()
+        .value = Value::Number { bits: u64::MAX };
+    assert_eq!(after, expected);
+    let second = worker.try_submit(Captured::at_boundary(&world)).unwrap();
+    change(&mut world, 3);
+    drop(world);
+    drop(catalogue);
+    worker.finish().unwrap();
+    assert_eq!(
+        first.wait().unwrap().metadata.state_revision,
+        before.state_revision
+    );
+    assert_eq!(
+        second.wait().unwrap().metadata.state_revision,
+        after.state_revision
+    );
+    let catalogue = load(directory.path(), &["FalloutNV.esm"]);
+    assert_eq!(
+        repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+            .snapshot(),
+        after
+    );
+    assert_eq!(
+        format::decode(
+            &fs::read(repository.path().join("previous.frsv")).unwrap(),
+            Limits::default()
+        )
+        .unwrap()
+        .snapshot,
+        before
+    );
+    fs::write(
+        repository.path().join("current.frsv"),
+        b"truncated staged current",
+    )
+    .unwrap();
+    let failure = repository
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .err()
+        .unwrap();
+    assert_eq!(
+        failure.to_string(),
+        "native save format: container byte budget/extent"
+    );
+    let (recovered, receipt) = repository
+        .load(
+            &catalogue,
+            Limits::default(),
+            Recovery::PreviousIfCurrentInvalid,
+        )
+        .unwrap();
+    assert_eq!(recovered.snapshot(), before);
+    assert_eq!(receipt.slot, Slot::Previous);
+    assert_eq!(
+        receipt.current_failure.as_deref(),
+        Some("native save format: container byte budget/extent")
+    );
+    assert!(!receipt.current_repaired);
+    assert_eq!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        b"truncated staged current"
+    );
+    let (mut repaired, repair) = repository
+        .recover_previous(&catalogue, Limits::default())
+        .unwrap();
+    assert!(repair.current_repaired);
+    assert_eq!(repaired.snapshot(), before);
+    let stage = repaired
+        .stage_event_changes(1, &[(42, Value::Number { bits: u64::MAX })], true)
+        .unwrap();
+    repaired.commit_event_changes(stage).unwrap();
+    assert_eq!(repaired.snapshot(), after);
+    let mut restarted = SaveWorker::start(repository.clone(), 1).unwrap();
+    let resumed = restarted
+        .try_submit(Captured::at_boundary(&repaired))
+        .unwrap();
+    restarted.finish().unwrap();
+    assert_eq!(resumed.wait().unwrap().metadata.generation, 2);
+    assert_eq!(
+        repository
+            .load(&catalogue, Limits::default(), Recovery::Strict)
+            .unwrap()
+            .0
+            .snapshot(),
+        after
     );
 }

@@ -162,6 +162,26 @@ state and the current failure without rewriting current. Explicit repair first
 fully restores previous against the catalogue, then copies it to current. Neither
 path drops unsupported state or conceals recovery in a successful current load.
 
+`native-save-probe --engineering-event-commit FILE` reuses the bounded explicit
+[script-state transaction request](script-runtime-state.md). It validates and
+commits the engineering request before creating the new repository or starting
+its writer; rejected requests publish no save. The inherited save worker then
+stores captures from before and after that transaction. The probe checks both
+complete snapshots, previous-slot fallback and explicit repair, and republishes
+the committed snapshot for a separate cold `native-load-probe` process. Its
+optional report includes the transaction receipt, exact snapshot hashes and the
+strict current-slot failure. The default probe and report remain unchanged.
+
+Staged save-worker tests retain full script, event, reference and inventory state
+after the originating world and catalogue are dropped. Corrupt-current fallback
+restores the pending precommit event; repair permits freshly staging that event
+again in the restored world. Separate publication interruption tests terminate
+the repository writer at all five observed stages, then cold processes verify a
+complete pending or committed boundary and an actual restarted save worker
+publishes it again. The interruption observer exercises the existing repository
+publication path used by the save worker. It does not add a second journal or
+change the save format.
+
 File contents are synced using [Rust File::sync_all](https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all),
 and publication uses [same-directory rename](https://doc.rust-lang.org/std/fs/fn.rename.html).
 The [nonblocking file lock](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock)

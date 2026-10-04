@@ -39,6 +39,17 @@ impl EngineeringCommit {
         }
         Ok(serde_json::from_slice(&bytes)?)
     }
+    pub(super) fn stage(
+        self,
+        world: &World<'_>,
+    ) -> fallout_runtime::Result<fallout_runtime::state::event_commit::StagedEventChanges> {
+        let assignments: Vec<_> = self
+            .assignments
+            .into_iter()
+            .map(|local| (local.index, local.value))
+            .collect();
+        world.stage_event_changes(self.sequence, &assignments, self.acknowledge)
+    }
 }
 
 pub(super) struct EngineeringWorld<'a> {
@@ -176,16 +187,14 @@ fn probe(catalogue: &Catalogue) -> Result<Json> {
     )
 }
 
-fn event_commit_probe(catalogue: &Catalogue, request: EngineeringCommit) -> Result<Json> {
-    let mut harness = engineering_world(catalogue)?;
-    let world = &mut harness.world;
+pub(super) fn event_commit_probe(
+    world: &mut World<'_>,
+    request: EngineeringCommit,
+) -> Result<Json> {
     let before = world.snapshot();
-    let assignments: Vec<_> = request
-        .assignments
-        .into_iter()
-        .map(|local| (local.index, local.value))
-        .collect();
-    let stage = world.stage_event_changes(request.sequence, &assignments, request.acknowledge)?;
+    let stage = request.stage(world)?;
+    let assignments = stage.assignments().to_vec();
+    let acknowledge = stage.acknowledges();
     if world.snapshot() != before {
         return Err("Staging changed canonical state".into());
     }
@@ -208,7 +217,7 @@ fn event_commit_probe(catalogue: &Catalogue, request: EngineeringCommit) -> Resu
         .state_revision
         .checked_add(1)
         .ok_or("State revision exhausted")?;
-    if request.acknowledge {
+    if acknowledge {
         expected.pending_events.remove(0);
     }
     let receipt = world.commit_event_changes(stage)?;
@@ -219,7 +228,8 @@ fn event_commit_probe(catalogue: &Catalogue, request: EngineeringCommit) -> Resu
     let limits = Limits::default();
     for snapshot in [&before, &after] {
         let bytes = snapshot.encode(limits.max_snapshot_bytes)?;
-        let restored = World::restore(catalogue, Snapshot::decode(&bytes, limits)?, limits)?;
+        let restored =
+            World::restore(world.catalogue(), Snapshot::decode(&bytes, limits)?, limits)?;
         if restored.snapshot() != *snapshot {
             return Err("Staged event boundary restoration differs".into());
         }
@@ -305,7 +315,8 @@ pub(super) fn inspect(
         "index_cache":store.index_cache_report(),"catalogue_source_findings":catalogue.counts.scripts_with_issues,
         "constructor_defaults_verified":false,"retail_parity_accepted":false});
     if let Some(request) = request {
-        report["engineering_event_commit"] = event_commit_probe(&catalogue, request)?;
+        let mut harness = engineering_world(&catalogue)?;
+        report["engineering_event_commit"] = event_commit_probe(&mut harness.world, request)?;
     }
     Ok(report)
 }

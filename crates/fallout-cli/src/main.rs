@@ -255,6 +255,9 @@ enum Command {
         load_order: PathBuf,
         #[arg(long)]
         new_repository: PathBuf,
+        /// Explicit bounded engineering transaction checked before creating a save.
+        #[arg(long)]
+        engineering_event_commit: Option<PathBuf>,
     },
     /// Restore a native save in a fresh process against exact original content.
     NativeLoadProbe {
@@ -939,8 +942,14 @@ fn run(args: Args) -> Result<()> {
             install,
             load_order,
             new_repository,
+            engineering_event_commit,
         } => {
-            let report = native_save_inspection::probe(&install, &load_order, &new_repository)?;
+            let report = native_save_inspection::probe(
+                &install,
+                &load_order,
+                &new_repository,
+                engineering_event_commit.as_deref(),
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeLoadProbe {

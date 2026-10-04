@@ -1,4 +1,8 @@
-use super::{Result, inspection_input::Order, script_state_inspection::engineering_world};
+use super::{
+    Result,
+    inspection_input::Order,
+    script_state_inspection::{EngineeringCommit, engineering_world, event_commit_probe},
+};
 use fallout_data::{baseline, loaded_scripts};
 use fallout_runtime::{
     Limits,
@@ -55,7 +59,15 @@ pub(super) fn load(install: &Path, order_path: &Path, root: &Path) -> Result<Val
         "canonical_snapshot_bytes":bytes.len(),"source_bound_restore":true,"original_live_state_captured":false,"retail_parity_accepted":false}),
     )
 }
-pub(super) fn probe(install: &Path, order_path: &Path, root: &Path) -> Result<Value> {
+pub(super) fn probe(
+    install: &Path,
+    order_path: &Path,
+    root: &Path,
+    engineering_event_commit: Option<&Path>,
+) -> Result<Value> {
+    let request = engineering_event_commit
+        .map(EngineeringCommit::read)
+        .transpose()?;
     let order = Order::read(order_path)?;
     let mut store = order.store(install, None)?;
     let catalogue =
@@ -63,35 +75,42 @@ pub(super) fn probe(install: &Path, order_path: &Path, root: &Path) -> Result<Va
             Ok(())
         })?;
     let mut engineering = engineering_world(&catalogue)?;
-    let repository = Repository::create(root, &[install.into()], engineering.world.campaign())?;
     let capture = Captured::at_boundary(&engineering.world);
     let first = capture.snapshot().clone();
+    // Complete the opt-in transaction before creating the new repository or
+    // starting a writer. Invalid input cannot publish even a precommit save.
+    let event_commit = request
+        .map(|request| event_commit_probe(&mut engineering.world, request))
+        .transpose()?;
+    let repository = Repository::create(root, &[install.into()], engineering.world.campaign())?;
     let mut worker = SaveWorker::start(repository.clone(), 2)?;
     let ticket = worker.try_submit(capture)?;
-    let instance = first
-        .instances
-        .iter()
-        .find(|instance| {
-            instance
-                .locals
-                .iter()
-                .any(|local| matches!(local.value, LocalValue::Number { .. }))
-        })
-        .ok_or("Probe needs a numeric local")?;
-    let local = instance
-        .locals
-        .iter()
-        .find(|local| matches!(local.value, LocalValue::Number { .. }))
-        .ok_or("Probe numeric local")?;
-    engineering.world.assign(
-        engineering.world.handle(instance.id)?,
-        &[(
-            local.index,
-            LocalValue::Number {
-                bits: 0x7ff8123456789abc,
-            },
-        )],
-    )?;
+    if event_commit.is_none() {
+        let instance = first
+            .instances
+            .iter()
+            .find(|instance| {
+                instance
+                    .locals
+                    .iter()
+                    .any(|local| matches!(local.value, LocalValue::Number { .. }))
+            })
+            .ok_or("Probe needs a numeric local")?;
+        let local = instance
+            .locals
+            .iter()
+            .find(|local| matches!(local.value, LocalValue::Number { .. }))
+            .ok_or("Probe numeric local")?;
+        engineering.world.assign(
+            engineering.world.handle(instance.id)?,
+            &[(
+                local.index,
+                LocalValue::Number {
+                    bits: 0x7ff8123456789abc,
+                },
+            )],
+        )?;
+    }
     let first_receipt = ticket.wait()?;
     let (restored, _) = repository.load(&catalogue, Limits::default(), Recovery::Strict)?;
     if restored.snapshot() != first {
@@ -116,19 +135,17 @@ pub(super) fn probe(install: &Path, order_path: &Path, root: &Path) -> Result<Va
     save_new(&repository.path().join("golden-previous.frsv"), &previous)?;
     // Fault injection is confined to this newly created native repository.
     fs::write(&current_path, b"deliberately truncated native probe")?;
-    if repository
-        .load(&catalogue, Limits::default(), Recovery::Strict)
-        .is_ok()
-    {
-        return Err("Truncated native current slot was accepted".into());
-    }
+    let current_failure = match repository.load(&catalogue, Limits::default(), Recovery::Strict) {
+        Ok(_) => return Err("Truncated native current slot was accepted".into()),
+        Err(error) => error.to_string(),
+    };
     let (recovered, recovery) = repository.load(
         &catalogue,
         Limits::default(),
         Recovery::PreviousIfCurrentInvalid,
     )?;
     if recovered.snapshot() != first
-        || recovery.current_failure.is_none()
+        || recovery.current_failure.as_deref() != Some(current_failure.as_str())
         || recovery.current_repaired
     {
         return Err("Explicit previous-slot recovery differs".into());
@@ -140,12 +157,16 @@ pub(super) fn probe(install: &Path, order_path: &Path, root: &Path) -> Result<Va
     }
     // Publish the later explicit host snapshot again for the cold-process proof.
     let final_receipt = repository.commit(&Captured::at_boundary(&engineering.world))?;
-    Ok(
-        json!({"schema_version":1,"profile":"nv-original","scope":"Filesystem engineering probe on explicit values using original compiled schemas; no original live-state capture",
+    let mut report = json!({"schema_version":1,"profile":"nv-original","scope":"Filesystem engineering probe on explicit values using original compiled schemas; no original live-state capture",
         "sources":catalogue.sources,"instances":engineering.world.instance_count(),"pending_events":engineering.world.pending_events().len(),
         "current":current_metadata,"previous":previous_metadata,"first_write":first_receipt,"second_write":second_receipt,"final_write":final_receipt,
         "worker_capture_isolated":true,"current_round_trip_equal":true,"strict_truncation_rejected":true,"recovery":recovery,"repair":repair,
         "previous_round_trip_equal":true,"canonical_snapshot_sha256":format!("{:x}",Sha256::digest(second.encode(Limits::default().max_snapshot_bytes)?)),
-        "original_live_state_captured":false,"retail_save_compatibility":false,"retail_parity_accepted":false}),
-    )
+        "original_live_state_captured":false,"retail_save_compatibility":false,"retail_parity_accepted":false});
+    if let Some(mut event_commit) = event_commit {
+        event_commit["strict_current_failure"] = json!(current_failure);
+        event_commit["worker_pre_post_boundaries_equal"] = json!(true);
+        report["engineering_event_commit"] = event_commit;
+    }
+    Ok(report)
 }

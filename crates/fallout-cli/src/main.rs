@@ -3058,6 +3058,14 @@ fn run_sources(command: SourcesCommand, output: Option<&Path>) -> Result<()> {
                 &package,
             )?;
         }
+        SourcesCommand::RetailProfileVerify {
+            package,
+            receipt_sha256,
+            require_process,
+        } => {
+            let report = retail_profile::verify(&package, &receipt_sha256, require_process)?;
+            emit(&report, output, &package)?;
+        }
         SourcesCommand::Census {
             install,
             inspect_checksum_mismatches,

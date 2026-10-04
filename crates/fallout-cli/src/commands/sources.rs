@@ -33,6 +33,16 @@ pub(crate) enum SourcesCommand {
         #[arg(long)]
         package: PathBuf,
     },
+    /// Verify sealed profile evidence; process-required mode refuses profile-only captures.
+    RetailProfileVerify {
+        #[arg(long)]
+        package: PathBuf,
+        /// Independently retained SHA-256 of capture.json.
+        #[arg(long)]
+        receipt_sha256: String,
+        #[arg(long)]
+        require_process: bool,
+    },
     /// Count all top-level ESM/ESP records and BSA entries, preserving unknowns.
     Census {
         #[arg(long)]

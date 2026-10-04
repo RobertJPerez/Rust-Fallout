@@ -1,5 +1,77 @@
 # NV animation source framing
 
+## V3-ASSET-06 explicit-time local visibility
+
+`nif_animation::visibility::evaluate` connects the existing raw Boolean/key
+decoders to one exact same-container scene object. The caller supplies object
+and controller block IDs plus a finite binary64 source time. The contract is
+`engineering-linked-local-visibility-v1`: the object must point directly to a
+`NiVisController`, its target must be that object, its next-controller link must
+be absent, and its interpolator must be `NiBoolInterpolator`. The object must
+be reachable from the footer and unresolved scene edges refuse. Timeline
+crossing, controller chains and manager state remain unavailable.
+
+The pinned NV `NiVisController` has the existing `NiTimeController` and single
+interpolator layout, with no legacy `NiVisData` field. That shared reader is
+reused without adding visibility to the default four-class source catalogue.
+Reserved flag bits, undefined cycle type3 and ManagerControlled refuse. The
+remaining recognized flag and clock fields are retained unapplied. This API
+evaluates a source channel at caller time; it does not advance a controller,
+compute effective parent visibility or interpret the source object flags.
+
+Linked `NiBoolData` must have nonempty constant tag5 keys with finite strictly
+increasing times and raw values0/1. Exact binary32 key times promote to
+binary64; the last key at or before caller time supplies the local Boolean.
+Both endpoints are included and extrapolation refuses. A single key requires
+its exact time. Duplicate/decreasing times and raw values2..255 refuse for the
+entire selected group, even if the invalid key would not be sampled. Keys are
+never sorted or repaired. Without a data link, only an authored interpolator
+pose0/1 is admitted at any finite time. Linked empty data does not fall back to
+the pose value. The source default/sentinel2 remains unavailable.
+
+The result carries whole-container SHA256, object/controller/interpolator/data
+block IDs and span hashes, caller time bits, selected key/index bits or explicit
+authored-pose selection, raw Boolean, local visibility, raw object flags,
+interpolator value, unapplied controller fields and logical work/storage usage.
+`retail_behavior_verified` remains false. Consumers must bind the whole source
+identity and apply their separate parent/actor visibility state explicitly.
+
+Default bounds are 16,384 source blocks, 32MiB source/scene logical arrays,
+64MiB combined retained animation/key source, 16MiB Boolean key arrays and one
+million Boolean key visits. Visibility adds a 1MiB logical result budget and
+one million work units, charging source-list visits, checked controller links,
+selected key validation and each binary-search iteration. All decoding borrows
+the same immutable bytes through existing decoders. These are logical retained
+budgets, excluding allocator overhead; they are not a process memory cap.
+
+`fallout nif-source-pose INPUT --object ID --controller ID --source-time TIME
+--local-visibility --output REPORT` emits a separate schema1 contract receipt.
+Omitting `--local-visibility` keeps the preceding explicit object-pose command.
+Failures retain whole-source identity and a contextual error, with no partial
+visibility result. `tools/nif-animation-oracle/check_visibility.py` authors a
+second small source independently and checks literal held-state boundaries,
+constant poses and intended refusals using a frozen production executable.
+Engineering sampling and measured original playback remain separate gates.
+
+All 26 focused data cases pass (eleven new visibility tests, eight raw Boolean
+tests and seven Boolean-key tests), along with 36 CLI tests, affected-package
+all-target Clippy with warnings denied, formatting and build. The independent
+frozen CLI checks pass nine authored cases and fifteen intended refusals.
+The preceding pose command produces byte-identical negative/positive/endpoint
+and outside-range receipts, and original player-skeleton source schemas1/6
+remain byte-identical to the preceding frozen binary.
+
+The preserved actor manifest's player skeleton (archive entry19065, source
+SHA256 `c6667dd94fd10392f851f748438b7c69c0d2cb407448becae6431d5ed1994c4c`)
+contains a real chain: node134 points to transform controller136, which points
+to visibility controller137. Independent preserved native node/controller
+fields confirm these exact links. Selecting controller137 directly refuses
+the object/controller mismatch. Chain resolution remains a concrete coverage
+gap; this refusal does not establish visible retail animation. Input, native
+receipts and frozen binaries stay unchanged. Private evidence is retained in
+`local/v3-asset-06`, including one wrapper rejection before Cargo caused by an
+incorrect worker status spelling, corrected before the passing run.
+
 ## V3-ASSET-03 explicit-time linked object pose
 
 `nif_animation::pose::evaluate(bytes, source, Request { object, controller,

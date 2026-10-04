@@ -144,7 +144,7 @@ impl Budget<'_> {
     }
 }
 
-fn span(bytes: &[u8], index: &nif::NifIndex, block: u32) -> SourceSpan {
+pub(super) fn span(bytes: &[u8], index: &nif::NifIndex, block: u32) -> SourceSpan {
     let selected = &index.blocks[block as usize];
     SourceSpan {
         block,

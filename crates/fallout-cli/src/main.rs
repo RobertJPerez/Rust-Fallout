@@ -94,6 +94,9 @@ enum Command {
     /// Evaluate linked translation/scale at explicit source time; playback unverified.
     NifSourcePose {
         input: PathBuf,
+        /// Sample exact NiVisController local visibility; parent/clock semantics unapplied.
+        #[arg(long)]
+        local_visibility: bool,
         #[arg(long)]
         object: u32,
         #[arg(long)]
@@ -1551,10 +1554,26 @@ fn run(args: Args) -> Result<()> {
         }
         Command::NifSourcePose {
             input,
+            local_visibility,
             object,
             controller,
             source_time,
         } => {
+            if local_visibility {
+                let report = nif_animation_inspection::inspect_visibility(
+                    &input,
+                    fallout_data::nif_animation::visibility::Request {
+                        object,
+                        controller,
+                        source_time,
+                    },
+                )?;
+                emit(&report, output, &input)?;
+                if report.failures != 0 {
+                    return Err("local visibility sample refused; see report".into());
+                }
+                return Ok(());
+            }
             let report = nif_animation_inspection::inspect_pose(
                 &input,
                 fallout_data::nif_animation::pose::Request {

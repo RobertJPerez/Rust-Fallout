@@ -72,36 +72,57 @@ pub struct Report {
 }
 
 #[derive(Serialize)]
-pub struct PoseReport {
+pub struct PoseReport<E> {
     schema_version: u32,
     contract: &'static str,
     input: PathBuf,
     sha256: String,
     pub failures: usize,
-    evaluation: Option<nif_animation::pose::ObjectPose>,
+    evaluation: Option<E>,
     error: Option<String>,
 }
 
-pub fn inspect_pose(input: &Path, request: nif_animation::pose::Request) -> Result<PoseReport> {
+pub fn inspect_pose(
+    input: &Path,
+    request: nif_animation::pose::Request,
+) -> Result<PoseReport<nif_animation::pose::ObjectPose>> {
+    inspect_linked(input, nif_animation::pose::CONTRACT, |bytes, source| {
+        nif_animation::pose::evaluate(bytes, source, request, Default::default())
+    })
+}
+
+pub fn inspect_visibility(
+    input: &Path,
+    request: nif_animation::visibility::Request,
+) -> Result<PoseReport<nif_animation::visibility::Evaluation>> {
+    inspect_linked(
+        input,
+        nif_animation::visibility::CONTRACT,
+        |bytes, source| {
+            nif_animation::visibility::evaluate(bytes, source, request, Default::default())
+        },
+    )
+}
+
+fn inspect_linked<E>(
+    input: &Path,
+    contract: &'static str,
+    evaluate: impl FnOnce(&[u8], &str) -> fallout_data::Result<E>,
+) -> Result<PoseReport<E>> {
     let mut reader = baseline::open_source(input)?.take(64 * 1024 * 1024 + 1);
     let mut bytes = Vec::new();
     reader.read_to_end(&mut bytes)?;
     if bytes.len() > 64 * 1024 * 1024 {
         return Err("linked source pose input exceeds byte budget".into());
     }
-    let evaluated = nif_animation::pose::evaluate(
-        &bytes,
-        &input.display().to_string(),
-        request,
-        Default::default(),
-    );
+    let evaluated = evaluate(&bytes, &input.display().to_string());
     let (evaluation, error) = match evaluated {
         Ok(pose) => (Some(pose), None),
         Err(error) => (None, Some(error.to_string())),
     };
     Ok(PoseReport {
         schema_version: 1,
-        contract: nif_animation::pose::CONTRACT,
+        contract,
         input: input.into(),
         sha256: format!("{:x}", Sha256::digest(&bytes)),
         failures: usize::from(error.is_some()),

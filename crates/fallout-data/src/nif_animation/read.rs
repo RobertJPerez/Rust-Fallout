@@ -133,6 +133,15 @@ impl Decode<'_, '_> {
     }
 }
 
+/// Shared NV NiTimeController/NiSingleInterpController layout. NiVisController
+/// has no additional payload in the already-admitted 20.2.0.7 tuple.
+pub(super) fn single_controller(reader: Reader<'_>, checks: &mut usize) -> Result<Controller> {
+    let mut input = Decode { reader, checks };
+    let controller = input.controller()?;
+    input.reader.finish()?;
+    Ok(controller)
+}
+
 pub(super) fn decode(reader: Reader<'_>, kind: &str, checks: &mut usize) -> Result<Data> {
     let mut input = Decode { reader, checks };
     let data = match kind {

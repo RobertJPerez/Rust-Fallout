@@ -63,6 +63,12 @@ pub(crate) enum PhysicsCommand {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Derive one exact NIF collision attachment and query its source geometry.
+    CollisionAttachment {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,

@@ -2453,6 +2453,10 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
             )?;
             emit(&report, output, &install)?;
         }
+        PhysicsCommand::CollisionAttachment { input, request } => {
+            let report = collision::attachment_query(&input, &request)?;
+            emit(&report, output, &input)?;
+        }
         PhysicsCommand::NifCollision {
             input,
             oracle_report,

@@ -2291,6 +2291,14 @@
       "repository": "https://github.com/awxkee/pxfm"
     },
     {
+      "name": "quick-xml",
+      "version": "0.42.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT",
+      "license_file": null,
+      "repository": "https://github.com/tafia/quick-xml"
+    },
+    {
       "name": "quote",
       "version": "1.0.47",
       "source": "registry+https://github.com/rust-lang/crates.io-index",

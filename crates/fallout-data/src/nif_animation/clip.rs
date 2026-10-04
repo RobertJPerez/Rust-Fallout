@@ -85,6 +85,18 @@ pub fn evaluate(
     request: Request<'_>,
     limits: Limits,
 ) -> Result<Evaluation> {
+    evaluate_with_scene(skeleton_bytes, clip_bytes, source, request, limits)
+        .map(|(_, _, sample)| sample)
+}
+
+/// Same evaluator and counters; decoded rig ownership remains crate-private.
+pub(crate) fn evaluate_with_scene(
+    skeleton_bytes: &[u8],
+    clip_bytes: &[u8],
+    source: &str,
+    request: Request<'_>,
+    limits: Limits,
+) -> Result<(crate::nif::NifIndex, nif_scene::Scene, Evaluation)> {
     let mut budget = Budget {
         source,
         bytes: limits.pose.array_bytes,
@@ -124,7 +136,7 @@ pub fn evaluate(
     };
     let bound = bind(view, request.into(), &mut budget)?;
     let mapping = SceneMapping::prepare(&scene, &skeleton_index, request.object, &mut budget)?;
-    evaluate_bound(
+    let sample = evaluate_bound(
         bound,
         request,
         limits.pose.into(),
@@ -135,7 +147,8 @@ pub fn evaluate(
             view,
             mapping: &mapping,
         },
-    )
+    )?;
+    Ok((skeleton_index, scene, sample))
 }
 
 mod prepared;

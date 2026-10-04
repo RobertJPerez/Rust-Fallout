@@ -1042,3 +1042,80 @@ no original process, original deformed coordinates or retail playback was used.
 Frozen executable, exact commands, source and evidence hashes, failed checks and
 immutable receipts remain in ignored `local/v3-asset-27`. Gameplay acceptance and
 checkpoint45 remain unchanged.
+
+## One exact external clip sample feeds the mapped rig palette (V3-ASSET-28)
+
+`external::sampled::evaluate(skin_bytes, rig_bytes, clip_bytes, source,
+Request{mapping: &external::Request, clip: nif_animation::clip::Request}, Limits)`
+connects one supported external clip packet to the reviewed external skin palette.
+The existing clip binder/sampler produces the complete source observation and
+privately transfers its decoded rig index/Scene to the existing external evaluator.
+Rig Scene decodes once; the skin binding/Scene and clip/key pipelines each retain
+their existing decoder. No public receipt or caller matrix supplies rig authority.
+
+All three whole-source SHA256 values, exact raw skin/rig node names, explicit
+bone ordinals/targets, selected sequence/packet and binary64 source time stay
+bound. The clip skeleton SHA must equal the explicitly mapped rig SHA. The selected
+node must occur strictly below the chosen rig root on at least one mapped bone
+path. A root-only or unrelated sample refuses. Other required rig controllers
+refuse; the selected object's stored controller link remains an unapplied raw
+field in the clip observation. Unrelated sibling controllers remain unrelated.
+Existing clip rules reject controlled ancestors, ambiguous raw names, packet
+property/identifier mappings, active rotation and missing source links.
+
+Only the selected rig local is substituted in existing root-relative composition.
+The palette remains `SkinTransform * X * RigBoneToRoot * SkinToBone`. The explicit
+root-space mapping X keeps corrected determinant certification and inverse
+requirements. Stored rig-root locals/worlds remain unapplied by this mapping;
+selected forward zero/reflected scales do not need a new inverse. Skin placement
+stays `SkinRootWorld * inverse(SkinTransform)` and is applied once. Existing source
+skin controllers, duplicate influences, weight policy and raw normals retain the
+stored external producer's observations and behavior.
+
+Defaults admit192 MiB combined input, one MiB combined raw request names,
+96 MiB extra logical elements and128 million work units. Existing external
+64 MiB/16 million and clip four MiB/one million phase caps each receive the
+aggregate remainder. Decoder arrays/checks are conservatively admitted under
+768 MiB/96 million. Rig Scene uses the minimum caps of both producers. Eight
+combined input-byte visits, raw-name work, complete result/private authority
+headers and both existing phase charges are admitted before work. Source
+catalogue/index/Scene caps remain separate. Late clip, mapping or weight failure
+returns no complete palette. These are logical caps including temporaries, not
+process-memory or speed measurements.
+
+The owned consumer is `fallout nif-external-clip-skin SKIN RIG CLIP --request
+REQUEST.json --output RECEIPT.json`. Strict schema1 carries the three whole-source
+hashes, existing complete external mapping/weight fields, `clip_object`, exact
+`clip_node_name_bytes`, `clip_sequence`, `clip_controlled_ordinal` and `source_time`.
+Each source/request is bounded to64 MiB/64 KiB, with at most4096 mapped bones.
+Output must stay outside all four input directories. Semantic refusal emits a null
+evaluation with nonzero exit. Explicit source sampling supplies no clock mapping,
+retargeting, rig alignment default, quaternion repair or measured retail playback.
+
+Validation passes132 focused skin/partition/pose/clip/attachment tests, including
+six three-source cases,38 serial CLI tests, affected all-target Clippy with
+warnings denied, formatting and the CLI build. Literal higher-ID ancestry,
+identity/name/packet/map refusal, other required controllers, zero/reflected
+forward scales, non-unit raw weights, absent normals and exact/one-under phase,
+aggregate, admission, source, sampler, name and depth caps are covered. The first
+test compile's shadowed writer name and initial CLI dispatcher return-type error
+remain preserved; corrected runs pass.
+
+The frozen second source uses different rig/bind/mesh values and a shear mapping.
+Four literal first/interior/last/zero-scale results verify every palette, weighted
+position, raw normal, global clip world, fixed skin placement and independently
+calculated selected packet span. Four reversed bone mappings preserve the full
+observation; signed-zero time words survive. Twenty semantic refusals publish no
+partial palette. Four old complete clip reports and a stored external report stay
+byte-identical, with each old clip observation equal to the nested sample.
+
+Seven strict request refusals and four independently separated input-tree output
+guards pass. Installed `618eb19e...` / `c6667dd9...` retains its complete prior
+stored external engineering receipt. Earlier complete-pose skin and prepared
+clip-batch reports also remain byte-identical to frozen27. The earlier original
+`3fe5a3ef...` / `9fed7a15...` two-source selection still refuses active XYZ rotation;
+its complete negative report is unchanged. That is an unchanged clip capability
+finding, not a valid original three-source rig mapping or retail playback proof.
+No original process was used. Commands, frozen binary, exact inputs, source and
+evidence hashes, failed checks and immutable receipts stay in ignored
+`local/v3-asset-28`. Gameplay acceptance and checkpoint45 remain unchanged.

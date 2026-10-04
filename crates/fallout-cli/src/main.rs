@@ -369,6 +369,32 @@ fn run(args: Args) -> Result<()> {
 
 fn run_assets(command: AssetsCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        AssetsCommand::NifExternalClipSkin {
+            input,
+            rig,
+            clip,
+            request,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &rig, &clip, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report =
+                nif_skin_inspection::inspect_external_clip_skin(&input, &rig, &clip, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("sampled external clip skin refused; see report".into());
+            }
+            return Ok(());
+        }
         AssetsCommand::NifSourcePoseSet { input, request } => {
             if let Some(path) = output {
                 let parent = path

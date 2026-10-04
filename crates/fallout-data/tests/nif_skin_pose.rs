@@ -1299,6 +1299,632 @@ fn raw_duplicate_weights_are_added_without_sorting_pruning_or_normalizing() {
     refusal(&blocks, "raw weight sum 1.5");
 }
 
+fn external_sample_keys(scales: [f32; 2]) -> Vec<u8> {
+    let mut out = Vec::new();
+    words(&mut out, &[0, 2, 1]);
+    floats(&mut out, &[0., -1., 2., 0., 1., 3., 6., 4.]);
+    words(&mut out, &[2, 1]);
+    floats(&mut out, &[0., scales[0], 1., scales[1]]);
+    out
+}
+fn external_sample_clip_blocks(scales: [f32; 2]) -> Vec<(&'static str, Vec<u8>)> {
+    let mut sequence = Vec::new();
+    words(&mut sequence, &[NULL, 1, 7, 1, NULL]);
+    sequence.push(25);
+    words(&mut sequence, &[0, NULL, 1, NULL, NULL]);
+    floats(&mut sequence, &[0.25]);
+    words(&mut sequence, &[NULL, 3]);
+    floats(&mut sequence, &[17., 100., 101.]);
+    words(&mut sequence, &[NULL, NULL]);
+    shorts(&mut sequence, &[2]);
+    words(&mut sequence, &[NULL, NULL]);
+    let mut interpolator = Vec::new();
+    floats(
+        &mut interpolator,
+        &[100., 200., 300., 2., -3., 4., -5., 12.],
+    );
+    words(&mut interpolator, &[2]);
+    vec![
+        ("NiControllerSequence", sequence),
+        ("NiTransformInterpolator", interpolator),
+        ("NiTransformData", external_sample_keys(scales)),
+    ]
+}
+fn external_sample_clip(scales: [f32; 2]) -> Vec<u8> {
+    named_container(
+        &external_sample_clip_blocks(scales),
+        &[0],
+        &[b"Rig-A\0", b"NiTransformController"],
+    )
+}
+fn external_sample_rig_blocks() -> Vec<(&'static str, Vec<u8>)> {
+    let old = external_rig_blocks();
+    let mut blocks = vec![
+        old[3].clone(),
+        old[0].clone(),
+        old[4].clone(),
+        old[2].clone(),
+        old[1].clone(),
+    ];
+    blocks[3].1 = node(R90, [0., 4., 0.], 2., &[0]);
+    blocks[3].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    blocks[3].1[8..12].copy_from_slice(&5u32.to_le_bytes());
+    blocks[4].1 = node(
+        [[-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]],
+        [100., 200., 300.],
+        5.,
+        &[3, 2],
+    );
+    let mut controller = Vec::new();
+    words(&mut controller, &[NULL]);
+    shorts(&mut controller, &[0x004C]);
+    floats(&mut controller, &[17., -9., 100., 101.]);
+    words(&mut controller, &[3, 6]);
+    let mut interpolator = Vec::new();
+    floats(
+        &mut interpolator,
+        &[1000., 2000., 3000., 2., -3., 4., -5., 12.],
+    );
+    words(&mut interpolator, &[7]);
+    blocks.extend([
+        ("NiTransformController", controller),
+        ("NiTransformInterpolator", interpolator),
+        ("NiTransformData", external_sample_keys([88., 99.])),
+    ]);
+    blocks
+}
+fn external_sample_fixture() -> (
+    Vec<u8>,
+    Vec<u8>,
+    Vec<u8>,
+    fallout_data::nif_skin::external::Request,
+) {
+    let (skin, _, mut mapping) = external_fixture();
+    let rig = named_container(&external_sample_rig_blocks(), &[4], &[b"Rig-A\0", b"Twin"]);
+    mapping.expected_rig_sha256 = source_digest(&rig);
+    mapping.rig_root = 4;
+    mapping.explicit_bone_mapping[0].rig_node = 3;
+    mapping.explicit_bone_mapping[1].rig_node = 0;
+    (skin, rig, external_sample_clip([1., 3.]), mapping)
+}
+fn external_sample_request(
+    rig: &[u8],
+    clip: &[u8],
+    time: f64,
+) -> fallout_data::nif_animation::clip::Request<'static> {
+    fallout_data::nif_animation::clip::Request {
+        expected_skeleton_sha256: source_digest(rig),
+        expected_clip_sha256: source_digest(clip),
+        object: 3,
+        node_name_bytes: b"Rig-A\0",
+        sequence: 0,
+        controlled_ordinal: 0,
+        source_time: time,
+    }
+}
+fn evaluate_external_sample(
+    skin: &[u8],
+    rig: &[u8],
+    clip: &[u8],
+    mapping: &fallout_data::nif_skin::external::Request,
+    time: f64,
+    limits: fallout_data::nif_skin::external::sampled::Limits,
+) -> fallout_data::Result<fallout_data::nif_skin::external::sampled::Evaluation> {
+    fallout_data::nif_skin::external::sampled::evaluate(
+        skin,
+        rig,
+        clip,
+        "literal three-source palette",
+        fallout_data::nif_skin::external::sampled::Request {
+            mapping,
+            clip: external_sample_request(rig, clip, time),
+        },
+        limits,
+    )
+}
+#[test]
+fn external_clip_sample_has_literal_noncommuting_higher_id_palette_vertices_and_world_frame() {
+    let (skin, rig, clip, mapping) = external_sample_fixture();
+    let result =
+        evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, Default::default()).unwrap();
+    assert_eq!(
+        result.external.skin.palette[0].matrix,
+        [[-1., 0., 0., 1.5], [0., -1., 0., -0.5], [0., 0., 2., 2.5]]
+    );
+    assert_eq!(
+        result.external.skin.palette[1].matrix,
+        [[1.5, 0., 0., -10.5], [0., 1.5, 0., -5.], [0., 0., 3., 4.5]]
+    );
+    assert_eq!(
+        result.external.skin.positions,
+        [[-6.625, -2.125, 12.25], [-2.5, 0.5, 6.5], [-15., -5., 7.5]]
+    );
+    assert_eq!(
+        result.external.skin.normals,
+        [[0., 0.875, 0.], [0., -1., 0.], [0., 1.5, 0.]]
+    );
+    assert_eq!(
+        result.external.skin.skin_to_source_world,
+        [[0., -6., 0., 10.], [6., 0., 0., 32.], [0., 0., 6., 30.]]
+    );
+    assert_eq!(
+        result.external.mappings[1].rig_bone_to_root,
+        [[6., 0., 0., 1.], [0., 6., 0., 8.], [0., 0., 6., 4.]]
+    );
+    assert_eq!(
+        result.sample.source_world,
+        [
+            [0., 10., 0., 95.],
+            [-10., 0., 0., 180.],
+            [0., 0., 10., 310.]
+        ]
+    );
+    assert_eq!(result.sample.object.block, 3);
+    assert_eq!(result.external.rig_root.block, 4);
+    assert_eq!(result.sample.node_name_bytes, b"Rig-A\0");
+    assert_eq!(result.sample.unapplied_object_controller, Some(5));
+    assert_eq!(
+        result
+            .external
+            .mappings
+            .iter()
+            .map(|m| m.rig_node.block)
+            .collect::<Vec<_>>(),
+        [3, 0]
+    );
+    assert_eq!(
+        (result.rig_scene_decodes, result.skin_scene_decodes),
+        (1, 1)
+    );
+    assert!(result.external.rig_unapplied_controllers.is_empty());
+    let prior = fallout_data::nif_animation::clip::evaluate(
+        &rig,
+        &clip,
+        "literal three-source palette",
+        external_sample_request(&rig, &clip, 0.5),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_vec(&result.sample).unwrap(),
+        serde_json::to_vec(&prior).unwrap()
+    );
+    assert!(!result.retail_behavior_verified);
+}
+#[test]
+fn external_clip_endpoints_signed_zero_zero_scale_and_reflection_preserve_forward_source_rules() {
+    let (skin, rig, clip, mapping) = external_sample_fixture();
+    for (time, positions) in [
+        (
+            0.,
+            [
+                [-3.5625, -2.3125, 5.375],
+                [-1.5, -1., 2.5],
+                [-7.75, -3.75, 3.],
+            ],
+        ),
+        (
+            -0.,
+            [
+                [-3.5625, -2.3125, 5.375],
+                [-1.5, -1., 2.5],
+                [-7.75, -3.75, 3.],
+            ],
+        ),
+        (
+            1.,
+            [
+                [-9.6875, -1.9375, 19.125],
+                [-3.5, 2., 10.5],
+                [-22.25, -6.25, 12.],
+            ],
+        ),
+    ] {
+        let result =
+            evaluate_external_sample(&skin, &rig, &clip, &mapping, time, Default::default())
+                .unwrap();
+        assert_eq!(result.external.skin.positions, positions);
+        assert_eq!(result.sample.requested_time_f64_bits, time.to_bits());
+    }
+    for (scales, positions, normals) in [
+        ([-1., 1.], [[-2.5, -0.5, 2.5]; 3], [[0.; 3]; 3]),
+        (
+            [-3., -1.],
+            [[1.625, 1.125, -7.25], [-2.5, -1.5, -1.5], [10., 4., -2.5]],
+            [[0., -0.875, 0.], [0., 1., 0.], [0., -1.5, 0.]],
+        ),
+    ] {
+        let clip = external_sample_clip(scales);
+        let result =
+            evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, Default::default())
+                .unwrap();
+        assert_eq!(result.external.skin.positions, positions);
+        assert_eq!(result.external.skin.normals, normals);
+        assert_eq!(
+            result.external.skin.skin_to_source_world,
+            [[0., -6., 0., 10.], [6., 0., 0., 32.], [0., 0., 6., 30.]]
+        );
+    }
+}
+#[test]
+fn external_clip_three_identities_raw_names_packet_mapping_and_late_failures_are_atomic() {
+    use fallout_data::nif_skin::external::sampled;
+    let (skin, rig, clip, mut mapping) = external_sample_fixture();
+    for time in [f64::NAN, -1., 2.] {
+        assert!(
+            evaluate_external_sample(&skin, &rig, &clip, &mapping, time, Default::default())
+                .is_err()
+        );
+    }
+    let request = external_sample_request(&rig, &clip, 0.5);
+    mapping.expected_skin_sha256[0] ^= 1;
+    assert!(
+        evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("skin source SHA256 differs")
+    );
+    mapping.expected_skin_sha256[0] ^= 1;
+    let mut wrong = request;
+    wrong.expected_clip_sha256[0] ^= 1;
+    assert!(
+        sampled::evaluate(
+            &skin,
+            &rig,
+            &clip,
+            "wrong clip",
+            sampled::Request {
+                mapping: &mapping,
+                clip: wrong
+            },
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("clip source SHA256 differs")
+    );
+    wrong = request;
+    wrong.expected_skeleton_sha256[0] ^= 1;
+    assert!(
+        sampled::evaluate(
+            &skin,
+            &rig,
+            &clip,
+            "different rig",
+            sampled::Request {
+                mapping: &mapping,
+                clip: wrong
+            },
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("identity differs")
+    );
+    mapping.expected_rig_sha256[0] ^= 1;
+    wrong = request;
+    wrong.expected_skeleton_sha256 = mapping.expected_rig_sha256;
+    assert!(
+        sampled::evaluate(
+            &skin,
+            &rig,
+            &clip,
+            "stale rig",
+            sampled::Request {
+                mapping: &mapping,
+                clip: wrong
+            },
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("rig source SHA256 differs")
+    );
+    mapping.expected_rig_sha256[0] ^= 1;
+    wrong = request;
+    wrong.node_name_bytes = b"Rig-A";
+    assert!(
+        sampled::evaluate(
+            &skin,
+            &rig,
+            &clip,
+            "raw name",
+            sampled::Request {
+                mapping: &mapping,
+                clip: wrong
+            },
+            Default::default()
+        )
+        .is_err()
+    );
+    wrong = request;
+    wrong.controlled_ordinal = 1;
+    assert!(
+        sampled::evaluate(
+            &skin,
+            &rig,
+            &clip,
+            "ordinal",
+            sampled::Request {
+                mapping: &mapping,
+                clip: wrong
+            },
+            Default::default()
+        )
+        .is_err()
+    );
+    let mut rotated = external_sample_clip_blocks([1., 3.]);
+    let mut keys = Vec::new();
+    words(&mut keys, &[1, 1]);
+    floats(&mut keys, &[0., 1., 0., 0., 0.]);
+    keys.extend(&rotated[2].1[4..]);
+    rotated[2].1 = keys;
+    let clip_rot = named_container(&rotated, &[0], &[b"Rig-A\0", b"NiTransformController"]);
+    assert!(
+        evaluate_external_sample(&skin, &rig, &clip_rot, &mapping, 0.5, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("rotation key mapping is unapplied")
+    );
+    mapping.explicit_bone_mapping[1].bone_ordinal = 0;
+    assert!(
+        evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, Default::default()).is_err()
+    );
+    mapping.explicit_bone_mapping[1].bone_ordinal = 1;
+    mapping.explicit_bone_mapping[1]
+        .expected_skin_bone_name_bytes
+        .push(0);
+    assert!(
+        evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, Default::default()).is_err()
+    );
+}
+#[test]
+fn external_clip_other_required_controller_ambiguous_name_and_unrelated_sample_refuse() {
+    let (skin, rig, clip, mut mapping) = external_sample_fixture();
+    let mut blocks = external_sample_rig_blocks();
+    blocks[0].1[8..12].copy_from_slice(&5u32.to_le_bytes());
+    let child_controlled = named_container(&blocks, &[4], &[b"Rig-A\0", b"Twin"]);
+    mapping.expected_rig_sha256 = source_digest(&child_controlled);
+    assert!(
+        evaluate_external_sample(
+            &skin,
+            &child_controlled,
+            &clip,
+            &mapping,
+            0.5,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("other required rig controller")
+    );
+    blocks = external_sample_rig_blocks();
+    blocks[4].1[8..12].copy_from_slice(&5u32.to_le_bytes());
+    let root_controlled = named_container(&blocks, &[4], &[b"Rig-A\0", b"Twin"]);
+    mapping.expected_rig_sha256 = source_digest(&root_controlled);
+    assert!(
+        evaluate_external_sample(
+            &skin,
+            &root_controlled,
+            &clip,
+            &mapping,
+            0.5,
+            Default::default()
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("ancestor 4 controller")
+    );
+    blocks = external_sample_rig_blocks();
+    blocks[2].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    let ambiguous = named_container(&blocks, &[4], &[b"Rig-A\0", b"Twin"]);
+    mapping.expected_rig_sha256 = source_digest(&ambiguous);
+    assert!(
+        evaluate_external_sample(&skin, &ambiguous, &clip, &mapping, 0.5, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("not unique")
+    );
+    // Exact selected packet remains supported, but neither mapped bone uses it.
+    blocks = external_sample_rig_blocks();
+    blocks[3].1[8..12].copy_from_slice(&NULL.to_le_bytes());
+    blocks[2].1[..4].copy_from_slice(&2u32.to_le_bytes());
+    let outside = named_container(&blocks, &[4], &[b"Rig-A\0", b"Twin", b"Unrelated"]);
+    mapping.expected_rig_sha256 = source_digest(&outside);
+    let unrelated_clip = named_container(
+        &external_sample_clip_blocks([1., 3.]),
+        &[0],
+        &[b"Unrelated", b"NiTransformController"],
+    );
+    let request = fallout_data::nif_animation::clip::Request {
+        object: 2,
+        node_name_bytes: b"Unrelated",
+        ..external_sample_request(&outside, &unrelated_clip, 0.5)
+    };
+    let error = fallout_data::nif_skin::external::sampled::evaluate(
+        &skin,
+        &outside,
+        &unrelated_clip,
+        "outside exact map",
+        fallout_data::nif_skin::external::sampled::Request {
+            mapping: &mapping,
+            clip: request,
+        },
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("outside strict mapped"));
+    // An unrelated stored controller never becomes a required channel.
+    blocks = external_sample_rig_blocks();
+    blocks[2].1[8..12].copy_from_slice(&5u32.to_le_bytes());
+    let sibling = named_container(&blocks, &[4], &[b"Rig-A\0", b"Twin"]);
+    mapping.expected_rig_sha256 = source_digest(&sibling);
+    assert!(
+        evaluate_external_sample(&skin, &sibling, &clip, &mapping, 0.5, Default::default()).is_ok()
+    );
+    assert_eq!(rig, external_sample_fixture().1);
+}
+#[test]
+fn external_clip_aggregate_phase_source_admission_sampler_names_and_depth_caps_are_exact() {
+    use fallout_data::nif_skin::external::sampled::Limits;
+    let (skin, rig, clip, mapping) = external_sample_fixture();
+    let baseline =
+        evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, Default::default()).unwrap();
+    let mut exact = Limits {
+        array_bytes: baseline.retained_bytes,
+        work_units: baseline.work_units,
+        source_bytes: skin.len() + rig.len() + clip.len(),
+        raw_name_bytes: b"Rig-A\0".len()
+            + mapping
+                .explicit_bone_mapping
+                .iter()
+                .map(|m| {
+                    m.expected_skin_bone_name_bytes.len() + m.expected_rig_node_name_bytes.len()
+                })
+                .sum::<usize>(),
+        decoder_array_admission_bytes: baseline.decoder_array_admission_bytes,
+        decoder_check_admission_units: baseline.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.external.array_bytes = baseline.external.retained_bytes;
+    exact.external.work_units = baseline.external.work_units;
+    exact.external.ancestry_depth = 2;
+    exact.clip.pose.array_bytes = baseline.sample.retained_bytes;
+    exact.clip.pose.work_units = baseline.sample.work_units;
+    exact.clip.pose.ancestry_depth = 2;
+    exact.clip.pose.sampling.validation_work = baseline.sample.sample_work.validation_units;
+    exact.clip.pose.sampling.sampling_work = baseline.sample.sample_work.sampling_units;
+    let admitted = evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, exact).unwrap();
+    let mut under = exact;
+    under.array_bytes -= 1;
+    let mut cases = vec![under];
+    under = exact;
+    under.work_units -= 1;
+    cases.push(under);
+    under = exact;
+    under.source_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.raw_name_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.external.array_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.external.work_units -= 1;
+    cases.push(under);
+    under = exact;
+    under.external.ancestry_depth -= 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.array_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.work_units -= 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.ancestry_depth -= 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.sampling.validation_work -= 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.sampling.sampling_work -= 1;
+    cases.push(under);
+    under = exact;
+    under.decoder_array_admission_bytes -= 1;
+    cases.push(under);
+    under = exact;
+    under.decoder_check_admission_units = admitted.decoder_check_admission_units - 1;
+    cases.push(under);
+    under = exact;
+    under.external.rig.input_bytes = rig.len() - 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.scene.input_bytes = rig.len() - 1;
+    cases.push(under);
+    under = exact;
+    under.clip.pose.keys.animation.input_bytes = clip.len() - 1;
+    cases.push(under);
+    under = exact;
+    under.external.skin.partition.skin.scene.input_bytes = skin.len() - 1;
+    cases.push(under);
+    under = exact;
+    under.external.mapping_bones = 1;
+    cases.push(under);
+    under = exact;
+    under.external.rig.blocks = 7;
+    cases.push(under);
+    for (ordinal, limits) in cases.into_iter().enumerate() {
+        assert!(
+            evaluate_external_sample(&skin, &rig, &clip, &mapping, 0.5, limits).is_err(),
+            "case {ordinal}"
+        );
+    }
+}
+#[test]
+fn external_clip_same_stored_local_preserves_old_palette_raw_weights_and_missing_normals() {
+    let (skin_bytes, rig, _, mut mapping) = external_sample_fixture();
+    let mut blocks = external_sample_clip_blocks([2., 2.]);
+    let mut keys = Vec::new();
+    words(&mut keys, &[0, 2, 1]);
+    floats(&mut keys, &[0., 0., 4., 0., 1., 0., 4., 0.]);
+    words(&mut keys, &[2, 1]);
+    floats(&mut keys, &[0., 2., 1., 2.]);
+    blocks[2].1 = keys;
+    let clip = named_container(&blocks, &[0], &[b"Rig-A\0", b"NiTransformController"]);
+    let sample =
+        evaluate_external_sample(&skin_bytes, &rig, &clip, &mapping, 0.5, Default::default())
+            .unwrap();
+    let old = fallout_data::nif_skin::external::evaluate(
+        &skin_bytes,
+        &rig,
+        "stored",
+        &mapping,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_vec(&sample.external.skin.palette).unwrap(),
+        serde_json::to_vec(&old.skin.palette).unwrap()
+    );
+    assert_eq!(sample.external.skin.positions, old.skin.positions);
+    assert_eq!(sample.external.skin.normals, old.skin.normals);
+    assert_eq!(
+        sample.external.skin.skin_to_source_world,
+        old.skin.skin_to_source_world
+    );
+    let mut skin_blocks = fixture();
+    skin_blocks[1].1[..4].copy_from_slice(&0u32.to_le_bytes());
+    skin_blocks[2].1[..4].copy_from_slice(&1u32.to_le_bytes());
+    skin_blocks[5].1 = skin(
+        &[vec![(0, 0.25), (0, 0.5), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        None,
+    );
+    let raw_skin = named_container(&skin_blocks, &[0], &[b"Skin-A\xff\0", b"Twin"]);
+    mapping.expected_skin_sha256 = source_digest(&raw_skin);
+    mapping.weights = WeightPolicy::PreserveRawNonnegative;
+    let clip = external_sample_clip([1., 3.]);
+    let result =
+        evaluate_external_sample(&raw_skin, &rig, &clip, &mapping, 0.5, Default::default())
+            .unwrap();
+    assert_eq!(result.external.skin.positions[0], [-6.375, -3.375, 16.5]);
+    assert_eq!(result.external.skin.normals[0], [0., 0.375, 0.]);
+    assert_eq!(result.external.skin.weight_sums, [1.5, 1., 1.]);
+    skin_blocks[6].1[47] = 0;
+    skin_blocks[6].1.drain(48..84);
+    let no_normals = named_container(&skin_blocks, &[0], &[b"Skin-A\xff\0", b"Twin"]);
+    mapping.expected_skin_sha256 = source_digest(&no_normals);
+    assert!(
+        evaluate_external_sample(&no_normals, &rig, &clip, &mapping, 0.5, Default::default())
+            .unwrap()
+            .external
+            .skin
+            .normals
+            .is_empty()
+    );
+}
+
 fn influence_fixture() -> Vec<(&'static str, Vec<u8>)> {
     let mut blocks = fixture();
     blocks[2].1 = node(R90, [0., 5., 0.], 2., &[]);

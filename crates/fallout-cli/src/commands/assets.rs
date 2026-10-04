@@ -6,6 +6,14 @@ use std::path::PathBuf;
 #[allow(clippy::enum_variant_names)]
 #[derive(Subcommand)]
 pub(crate) enum AssetsCommand {
+    /// Feed one exact three-source clip sample into an explicitly mapped rig skin.
+    NifExternalClipSkin {
+        input: PathBuf,
+        rig: PathBuf,
+        clip: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Compose an explicit supported set of parent/child channels; no blending.
     NifSourcePoseSet {
         input: PathBuf,

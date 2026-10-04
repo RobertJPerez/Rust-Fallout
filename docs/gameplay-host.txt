@@ -1,0 +1,34 @@
+Application host
+
+The application Host owns the existing canonical World. Source content stays
+immutable; inventory, references, events and native captures use runtime APIs.
+No second world, item bank or save representation is introduced.
+
+For the supported whole-lot transfer, select_transfer qualifies both registered
+owners against winning placed-reference headers and validates the item's source
+roles through the supplied explicit Policy. The returned private Selection binds
+host identity, scene generation, campaign, content fingerprint, canonical revision,
+item handle, complete quantity and source keys. Dropping it has no effects.
+
+Selection::command takes the caller's nonzero request identity. Host::transfer
+admits the existing bounded inventory stage and reserves receipt retention before
+committing once. Identical accepted retries return the same immutable receipt;
+reusing the identity with another selection refuses. Revision, source, quantity,
+bank initialization, scene, host and capacity refusals preserve canonical state.
+Receipts are retained without eviction until the host is dropped. A full ledger
+refuses new requests while existing same-scene retries remain available.
+
+advance_scene cancels prior scene selections without changing canonical state.
+Host identities and item handles expire across fresh restore. They are transient
+input guards, not a new durable request format. A saved inventory still comes from
+the canonical World and the existing SaveWorker.
+
+The first operation transfers an exact complete lot. Partial quantity, inferred
+inventory initialization, dynamic owners without source identity, equipment/crime
+rules and original activation scripts are unsupported. This is an explicit host
+command; it does not infer retail action semantics from source headers.
+
+application_inventory exercises the production adapter with independently authored
+plugin headers, canonical lots and complete snapshot comparisons. Visible input,
+original menus, Save/restart and independent frozen route acceptance remain required
+consumer work. The adapter is a dependency slice until the scene host consumes it.

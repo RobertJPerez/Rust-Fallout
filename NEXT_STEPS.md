@@ -9,6 +9,21 @@ worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
 coordinator reconciles Robert's latest instruction with local/team/control.json;
 that local file records whether the current run is active. A tested handoff does
 not end an authorized continuous run. Do not redo the historical tasks below.
+[Development batch 11](docs/integration/team-v3-development-11.json) passed 1,550
+data/runtime/CLI/preview Rust results, Clippy, formatting and executable builds;
+56 helpers remained ignored. The result total includes one explicitly launched
+cold helper. Twenty-five committed deltas cover 17 feature groups, their source
+corrections, and two coordinator test/format fixes. Forty-one fresh authored
+headless cases checked complete source reports, canonical/native save state,
+script copy/boot requests, actor source inputs, navigation, skinning and bounds.
+Two separate UI rendering cases checked one 6,144-pixel capture and refusal of
+depths that collapse to the same renderer sort key. All actual commands, inputs,
+outputs and sealed independent expectations are hash-bound. Actor source findings
+retain their expected failure status; no original activation, menu behavior,
+physics or gameplay parity is accepted. Later integration source is excluded.
+M1 remains unmet, and checkpoint45 is unchanged.
+
+
 [Development batch 10](docs/integration/team-v3-development-10.json) passed 1,415
 data/runtime/CLI/preview Rust results, Clippy, formatting and executable builds;
 49 helpers remained ignored. The result total includes one explicitly launched

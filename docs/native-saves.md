@@ -172,6 +172,16 @@ temporary is removed on ordinary failure. Interrupted processes can leave owned
 temporaries; those are not treated as valid save slots. A blocked backup write
 leaves current intact. Unknown or corrupt current state prevents a new commit.
 
+Publication checks intrinsic snapshot identities and links for both the proposed
+capture and the decoded current state before preparing any temporary or rotating
+previous. Restoration shares those checks: allocator bounds and unique identities,
+owners, local/context references, item/script links and pending-event order/clocks.
+A checksummed current snapshot with a dangling link therefore cannot overwrite
+a valid previous save. Rejection preserves both slots; recovery and repair remain
+explicit, followed by a fresh retry. The public APIs and native wire bytes are
+unchanged. Publication has no loaded catalogue: definition versions, complete
+local declaration kinds and compiled event sites still need source-bound loading.
+
 Strict loading is the default. Explicit fallback returns the restored previous
 state and the current failure without rewriting current. Explicit repair first
 fully restores previous against the catalogue, then copies it to current. Neither

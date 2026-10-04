@@ -13,12 +13,10 @@ use fallout_data::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::Write,
-};
+use std::{collections::BTreeMap, io::Write};
 
 mod admission;
+mod relationships;
 
 pub const SCHEMA_VERSION: u32 = 3;
 
@@ -242,6 +240,10 @@ impl Snapshot {
         snapshot.check_budgets(limits)?;
         Ok(snapshot)
     }
+    pub(crate) fn validate_intrinsic(&self, limits: Limits) -> Result<()> {
+        self.check_budgets(limits)?;
+        relationships::check(self, limits)
+    }
     fn check_budgets(&self, limits: Limits) -> Result<()> {
         if self.inventory_banks.len() > limits.max_inventory_banks {
             return Err(Error::Capacity("saved inventory banks"));
@@ -369,55 +371,23 @@ impl<'a> World<'a> {
         if snapshot.catalogue_sha256 != world.cohort {
             return Err(Error::DefinitionChanged);
         }
-        if snapshot.next_instance == 0
-            || snapshot.next_reference == 0
-            || snapshot.next_item == 0
-            || snapshot.next_event_sequence == 0
-        {
-            return Err(Error::Invalid("snapshot allocator cannot be zero".into()));
-        }
+        relationships::check(&snapshot, limits)?;
         world.next_instance = snapshot.next_instance;
         world.next_reference = snapshot.next_reference;
         world.next_sequence = snapshot.next_event_sequence;
         world.clocks = snapshot.clocks;
         world.revision = snapshot.state_revision;
         for reference in snapshot.references {
-            if reference.id.0.get() >= world.next_reference
-                || world.references.contains_key(&reference.id)
-            {
-                return Err(Error::Invalid(
-                    "duplicate reference or allocator would reuse an identity".into(),
-                ));
-            }
             if let Some(key) = &reference.authored {
-                crate::identity::valid_form(key)?;
-                if world
-                    .authored_references
-                    .insert(key.clone(), reference.id)
-                    .is_some()
-                {
-                    return Err(Error::Invalid(
-                        "duplicate authored reference identity".into(),
-                    ));
-                }
+                world.authored_references.insert(key.clone(), reference.id);
             }
             world.references.insert(reference.id, reference.authored);
         }
         for saved in snapshot.instances {
-            if saved.id.0.get() >= world.next_instance || world.instances.contains_key(&saved.id) {
-                return Err(Error::Invalid(
-                    "duplicate script instance or allocator would reuse an identity".into(),
-                ));
-            }
             world
                 .catalogue
                 .get_handle(&saved.definition)
                 .ok_or(Error::DefinitionChanged)?;
-            world.validate_owner(&saved.owner)?;
-            world.validate_context(&saved.context)?;
-            if world.owners.contains_key(&saved.owner) {
-                return Err(Error::Invalid("duplicate saved script owner".into()));
-            }
             let definition_schema = world.runtime_definition(&saved.definition)?;
             let schema = &definition_schema.locals;
             if schema.len() != saved.locals.len() {
@@ -433,9 +403,7 @@ impl<'a> World<'a> {
                         .ok_or(Error::MissingLocal(local.index))?,
                     &local.value,
                 )?;
-                if locals.insert(local.index, local.value).is_some() {
-                    return Err(Error::Invalid("duplicate saved local".into()));
-                }
+                locals.insert(local.index, local.value);
             }
             // Equal cardinality plus checked unique indices proves full schema
             // coverage. Unknown declarations are retained uninitialized.
@@ -456,25 +424,9 @@ impl<'a> World<'a> {
             });
         }
         world.restore_item_banks(snapshot.inventory_banks, snapshot.next_item)?;
-        let mut prior_sequence = 0;
-        let mut prior_clocks = Clocks::default();
-        let mut observed = BTreeSet::new();
         for event in snapshot.pending_events {
-            if event.sequence <= prior_sequence
-                || event.sequence >= world.next_sequence
-                || !observed.insert(event.sequence)
-                || !event.arrived.no_later_than(world.clocks)
-                || !prior_clocks.no_later_than(event.arrived)
-            {
-                return Err(Error::Invalid(
-                    "saved event order, clocks or allocator is invalid".into(),
-                ));
-            }
             let instance = world.instance(world.handle(event.instance)?)?;
             Self::validate_trigger(&instance.definition_schema, &event.trigger)?;
-            world.validate_context(&event.context)?;
-            prior_sequence = event.sequence;
-            prior_clocks = event.arrived;
             world.pending.push_back(event);
         }
         Ok(world)

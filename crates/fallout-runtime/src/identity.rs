@@ -79,3 +79,43 @@ pub(crate) fn valid_form(key: &FormKey) -> Result<()> {
     }
     Ok(())
 }
+
+pub(crate) fn check_reference(
+    value: &ReferenceValue,
+    exists: &impl Fn(ReferenceId) -> Result<()>,
+) -> Result<()> {
+    match value {
+        ReferenceValue::Null => Ok(()),
+        ReferenceValue::Content { key } => valid_form(key),
+        ReferenceValue::Live { id } => exists(*id),
+    }
+}
+pub(crate) fn check_owner(
+    owner: &Owner,
+    exists: &impl Fn(ReferenceId) -> Result<()>,
+) -> Result<()> {
+    match owner {
+        Owner::Quest { key } => valid_form(key),
+        Owner::Placed { reference } => exists(*reference),
+        Owner::Fragment { .. } => Ok(()),
+    }
+}
+pub(crate) fn check_context(
+    context: &crate::events::Context,
+    max_arguments: usize,
+    exists: &impl Fn(ReferenceId) -> Result<()>,
+) -> Result<()> {
+    if context.arguments.len() > max_arguments {
+        return Err(Error::Capacity("event arguments"));
+    }
+    for id in [context.calling_reference, context.containing_reference]
+        .into_iter()
+        .flatten()
+    {
+        exists(id)?;
+    }
+    for value in context.target.iter().chain(context.arguments.iter()) {
+        check_reference(value, exists)?;
+    }
+    Ok(())
+}

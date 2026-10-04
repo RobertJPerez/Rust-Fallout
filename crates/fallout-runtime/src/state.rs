@@ -261,33 +261,15 @@ impl<'a> World<'a> {
             .ok_or(Error::MissingReference)
     }
     pub(crate) fn validate_reference(&self, value: &ReferenceValue) -> Result<()> {
-        match value {
-            ReferenceValue::Null => Ok(()),
-            ReferenceValue::Content { key } => valid_form(key),
-            ReferenceValue::Live { id } => self.reference_origin(*id).map(|_| ()),
-        }
+        crate::identity::check_reference(value, &|id| self.reference_origin(id).map(|_| ()))
     }
     pub(crate) fn validate_context(&self, context: &Context) -> Result<()> {
-        if context.arguments.len() > self.limits.max_event_arguments {
-            return Err(Error::Capacity("event arguments"));
-        }
-        for id in [context.calling_reference, context.containing_reference]
-            .into_iter()
-            .flatten()
-        {
-            self.reference_origin(id)?;
-        }
-        for value in context.target.iter().chain(context.arguments.iter()) {
-            self.validate_reference(value)?;
-        }
-        Ok(())
+        crate::identity::check_context(context, self.limits.max_event_arguments, &|id| {
+            self.reference_origin(id).map(|_| ())
+        })
     }
     pub(crate) fn validate_owner(&self, owner: &Owner) -> Result<()> {
-        match owner {
-            Owner::Quest { key } => valid_form(key),
-            Owner::Placed { reference } => self.reference_origin(*reference).map(|_| ()),
-            Owner::Fragment { .. } => Ok(()),
-        }
+        crate::identity::check_owner(owner, &|id| self.reference_origin(id).map(|_| ()))
     }
     pub fn create_instance(
         &mut self,

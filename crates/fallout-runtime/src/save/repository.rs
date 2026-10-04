@@ -19,6 +19,7 @@ pub enum Slot {
     Current,
     Previous,
 }
+
 impl Slot {
     fn name(self) -> &'static str {
         match self {
@@ -286,6 +287,7 @@ impl Repository {
                 "captured campaign differs from repository identity",
             ));
         }
+        capture.snapshot.validate_intrinsic(capture.limits)?;
         let current = self.root.join(Slot::Current.name());
         let previous = if current.try_exists().map_err(|e| io(&current, e))? {
             let bytes = self.slot_bytes(Slot::Current, capture.limits)?;
@@ -297,6 +299,7 @@ impl Repository {
                     "campaign/content cohort changed; use a separate native repository",
                 ));
             }
+            decoded.snapshot.validate_intrinsic(capture.limits)?;
             if decoded.snapshot.state_revision > capture.snapshot.state_revision
                 || (decoded.snapshot.state_revision == capture.snapshot.state_revision
                     && decoded.snapshot != capture.snapshot)
@@ -440,5 +443,152 @@ impl Repository {
                 current_repaired: true,
             },
         ))
+    }
+}
+#[cfg(test)]
+mod publication_preflight_tests {
+    use super::*;
+    use crate::{
+        events::Clocks,
+        identity::ReferenceId,
+        inventory::{Bank, Facts, Item, ItemId, Ownership},
+        snapshot::{Reference, Snapshot},
+    };
+    use fallout_data::identity::{FormKey, ProfileId};
+
+    fn capture(revision: u64) -> Captured {
+        let owner = ReferenceId(1.try_into().unwrap());
+        let mut facts = Facts::unknown(FormKey {
+            profile: ProfileId::NvOriginal,
+            origin_plugin: "falloutnv.esm".into(),
+            local_id: 0x500,
+        });
+        facts.ownership = Some(Ownership::Live { reference: owner });
+        Captured {
+            limits: Limits {
+                max_snapshot_bytes: 4096,
+                ..Default::default()
+            },
+            snapshot: Snapshot {
+                schema_version: crate::snapshot::SCHEMA_VERSION,
+                campaign: CampaignId::from_bytes([0x4c; 16]).unwrap(),
+                state_revision: revision,
+                profile: ProfileId::NvOriginal,
+                // Publication needs intrinsic identity validation, not a source
+                // catalogue. Source-bound restoration remains a separate gate.
+                catalogue_sha256: "00".repeat(32),
+                next_item: 2,
+                next_instance: 1,
+                next_reference: 2,
+                next_event_sequence: 1,
+                clocks: Clocks::default(),
+                references: vec![Reference {
+                    id: owner,
+                    authored: None,
+                }],
+                instances: Vec::new(),
+                pending_events: Vec::new(),
+                inventory_banks: vec![Bank {
+                    owner,
+                    items: vec![Item {
+                        id: ItemId(1.try_into().unwrap()),
+                        owner,
+                        count: 7.try_into().unwrap(),
+                        facts,
+                    }],
+                }],
+            },
+        }
+    }
+    fn slots(repository: &Repository) -> [Vec<u8>; 2] {
+        ["current.frsv", "previous.frsv"]
+            .map(|name| fs::read(repository.path().join(name)).unwrap())
+    }
+    fn assert_no_temporary(repository: &Repository) {
+        assert_eq!(fs::read_dir(repository.path()).unwrap().count(), 4);
+    }
+
+    #[test]
+    fn checksummed_unrestorable_current_cannot_replace_a_valid_previous_slot() {
+        let directory = tempfile::tempdir().unwrap();
+        let first = capture(10);
+        let repository = Repository::create(
+            &directory.path().join("native"),
+            &[],
+            first.snapshot.campaign,
+        )
+        .unwrap();
+        repository.commit(&first).unwrap();
+        let second = capture(11);
+        repository.commit(&second).unwrap();
+        let original = slots(&repository);
+        let mut bad = second.clone();
+        bad.snapshot.inventory_banks[0].items[0].facts.ownership = Some(Ownership::Live {
+            reference: ReferenceId(99.try_into().unwrap()),
+        });
+        let bytes = format::encode(&bad, 2).unwrap();
+        // Framing/typed DTO validation succeeds; the persistent link is invalid.
+        format::decode(&bytes, bad.limits).unwrap();
+        fs::write(repository.path().join("current.frsv"), &bytes).unwrap();
+        assert!(matches!(
+            repository.commit(&capture(12)),
+            Err(Error::State(crate::Error::MissingReference))
+        ));
+        assert_eq!(slots(&repository), [bytes, original[1].clone()]);
+        assert_no_temporary(&repository);
+        fs::write(repository.path().join("current.frsv"), &original[0]).unwrap();
+        assert_eq!(
+            repository.commit(&capture(12)).unwrap().metadata.generation,
+            3
+        );
+        assert_eq!(slots(&repository)[1], original[0]);
+    }
+
+    #[test]
+    fn invalid_proposed_links_or_allocators_leave_both_slots_unchanged_and_allow_retry() {
+        let directory = tempfile::tempdir().unwrap();
+        let first = capture(10);
+        let repository = Repository::create(
+            &directory.path().join("native"),
+            &[],
+            first.snapshot.campaign,
+        )
+        .unwrap();
+        repository.commit(&first).unwrap();
+        repository.commit(&capture(11)).unwrap();
+        let original = slots(&repository);
+        let mut bad = capture(12);
+        bad.snapshot.inventory_banks[0].items[0]
+            .facts
+            .script_instance = Some(crate::identity::InstanceId(99.try_into().unwrap()));
+        assert!(matches!(
+            repository.commit(&bad),
+            Err(Error::State(crate::Error::MissingInstance))
+        ));
+        assert_eq!(slots(&repository), original);
+        assert_no_temporary(&repository);
+        let mut bad = capture(12);
+        bad.snapshot.next_item = 0;
+        assert_eq!(
+            repository.commit(&bad).unwrap_err().to_string(),
+            "runtime state is invalid: snapshot allocator cannot be zero"
+        );
+        assert_eq!(slots(&repository), original);
+        assert_no_temporary(&repository);
+        let mut bad = capture(12);
+        bad.snapshot
+            .references
+            .push(bad.snapshot.references[0].clone());
+        assert_eq!(
+            repository.commit(&bad).unwrap_err().to_string(),
+            "runtime state is invalid: duplicate reference or allocator would reuse an identity"
+        );
+        assert_eq!(slots(&repository), original);
+        assert_no_temporary(&repository);
+        assert_eq!(
+            repository.commit(&capture(12)).unwrap().metadata.generation,
+            3
+        );
+        assert_eq!(slots(&repository)[1], original[0]);
     }
 }

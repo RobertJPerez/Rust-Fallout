@@ -146,29 +146,12 @@ impl World<'_> {
         Ok(self.item_by_handle(handle)?.id)
     }
     pub(crate) fn restore_item_banks(&mut self, banks: Vec<Bank>, next: u64) -> Result<()> {
-        if next == 0 {
-            return Err(Error::Invalid("zero saved item allocator".into()));
-        }
+        // Snapshot preflight has already validated identities, owners and facts.
         self.next_item = next;
         for bank in banks {
-            self.reference_origin(bank.owner)?;
-            if self
-                .inventory_banks
-                .insert(bank.owner, std::collections::BTreeSet::new())
-                .is_some()
-            {
-                return Err(Error::Invalid("duplicate saved inventory bank".into()));
-            }
+            self.inventory_banks
+                .insert(bank.owner, std::collections::BTreeSet::new());
             for item in bank.items {
-                if item.owner != bank.owner
-                    || item.id.0.get() >= next
-                    || self.items.contains_key(&item.id)
-                {
-                    return Err(Error::Invalid(
-                        "saved item owner, duplicate identity or allocator is invalid".into(),
-                    ));
-                }
-                self.validate_item_facts(&item.facts)?;
                 let (links, bytes) = self.item_capacity(&item.facts, None)?;
                 let total = self
                     .count_total(item.owner, &item.facts.base)
@@ -234,42 +217,12 @@ impl World<'_> {
             .map(|id| &self.items[id]))
     }
     pub(crate) fn validate_item_facts(&self, f: &Facts) -> Result<()> {
-        valid_form(&f.base)?;
-        if f.links() > self.limits.max_item_links {
-            return Err(Error::Capacity("item extra links"));
-        }
-        if f.extra_bytes()? > self.limits.max_item_bytes {
-            return Err(Error::Capacity("per-item extra bytes"));
-        }
-        if let Some(owner) = &f.ownership {
-            match owner {
-                Ownership::Actor { key } | Ownership::Faction { key, .. } => valid_form(key)?,
-                Ownership::Live { reference } => {
-                    self.reference_origin(*reference)?;
-                }
-                Ownership::Unowned => {}
-            }
-        }
-        if let Some(ammo) = &f.ammo {
-            valid_form(&ammo.base)?;
-        }
-        if let Some(mods) = &f.modifications {
-            for key in mods {
-                valid_form(key)?;
-            }
-        }
-        if let Some(id) = f.script_instance {
-            self.handle(id)?;
-        }
-        if let Some(slots) = &f.equipped_slots {
-            let mut unique = std::collections::BTreeSet::new();
-            for slot in slots {
-                if !unique.insert(*slot) {
-                    return Err(Error::Invalid("duplicate supplied equipment slot".into()));
-                }
-            }
-        }
-        Ok(())
+        check_facts(
+            f,
+            self.limits,
+            &|id| self.reference_origin(id).map(|_| ()),
+            &|id| self.handle(id).map(|_| ()),
+        )
     }
     fn item_capacity(&self, f: &Facts, replacing: Option<&Facts>) -> Result<(usize, usize)> {
         let links = self
@@ -500,4 +453,48 @@ impl World<'_> {
             contributions,
         })
     }
+}
+
+pub(crate) fn check_facts(
+    f: &Facts,
+    limits: crate::Limits,
+    reference_exists: &impl Fn(ReferenceId) -> Result<()>,
+    instance_exists: &impl Fn(InstanceId) -> Result<()>,
+) -> Result<()> {
+    valid_form(&f.base)?;
+    if f.links() > limits.max_item_links {
+        return Err(Error::Capacity("item extra links"));
+    }
+    if f.extra_bytes()? > limits.max_item_bytes {
+        return Err(Error::Capacity("per-item extra bytes"));
+    }
+    if let Some(owner) = &f.ownership {
+        match owner {
+            Ownership::Actor { key } | Ownership::Faction { key, .. } => valid_form(key)?,
+            Ownership::Live { reference } => {
+                reference_exists(*reference)?;
+            }
+            Ownership::Unowned => {}
+        }
+    }
+    if let Some(ammo) = &f.ammo {
+        valid_form(&ammo.base)?;
+    }
+    if let Some(mods) = &f.modifications {
+        for key in mods {
+            valid_form(key)?;
+        }
+    }
+    if let Some(id) = f.script_instance {
+        instance_exists(id)?;
+    }
+    if let Some(slots) = &f.equipped_slots {
+        let mut unique = std::collections::BTreeSet::new();
+        for slot in slots {
+            if !unique.insert(*slot) {
+                return Err(Error::Invalid("duplicate supplied equipment slot".into()));
+            }
+        }
+    }
+    Ok(())
 }

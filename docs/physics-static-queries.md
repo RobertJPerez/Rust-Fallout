@@ -57,6 +57,11 @@ cross products, avoiding cancellation between squared axial distances. When a
 true surface entry is too small to distinguish from the closest approach in
 binary64, the query refuses the numerical input. Units and transform tolerance
 are immutable after scene construction; `units()` returns a copied description.
+The cross product uses the original direction, followed by scalar speed division;
+component normalization would change a distant skew ray. Inconclusive grazing
+error intervals refuse. Capsule axis projection also refuses when
+`128 * EPSILON * (origin-to-first distance + axis length) > radius`. This bounds
+an engineering numerical operation and can reject valid thin/distant geometry.
 
 ## Headless source consumer
 
@@ -77,8 +82,11 @@ For a model-local engineering fixture whose selected body is block 1:
 ```
 
 The report binds both input and request SHA-256, exposes the core/frozen query
-semantics and keeps faithful readiness false. Unsupported bodies return the exact
-block/capability error. Retail reports/geometry stay under ignored `local/`.
+semantics and keeps faithful readiness false.
+The `ray_numeric_input` field retains consumed binary64 words as hex strings,
+so independent predicates can bind the actual numeric inputs after JSON parsing.
+Unsupported bodies return the exact block/capability error. Retail reports/geometry
+stay under ignored `local/`.
 
 Format facts: nifxml revision
 `970a6238218a106daaeb89a61bcda0eeaf9d08c4`, complete relevant Matrix44,

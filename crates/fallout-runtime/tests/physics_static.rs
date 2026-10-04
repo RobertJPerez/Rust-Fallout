@@ -119,6 +119,18 @@ fn distant_sphere_and_capsule_rays_keep_perpendicular_misses_and_refuse_lost_ent
         let scene = scene(&[("bhkRigidBody", body(1)), (name, geometry)]);
         // Independently: the line's perpendicular distance is2, exceeding1.
         for far in [1e9, 1e20] {
+            if name == "bhkCapsuleShape" && far == 1e20 {
+                assert!(matches!(
+                    scene.ray_cast(
+                        ray([far, 2., 0.], [-1., 0., 0.], far),
+                        QueryBudget::default()
+                    ),
+                    Err(QueryError::Invalid(
+                        "capsule projection exceeds numerical precision"
+                    ))
+                ));
+                continue;
+            }
             assert!(
                 scene
                     .ray_cast(
@@ -161,9 +173,7 @@ fn distant_sphere_and_capsule_rays_keep_perpendicular_misses_and_refuse_lost_ent
                 ray([1e20, 0., 0.], [-1., 0., 0.], 1e20),
                 QueryBudget::default()
             ),
-            Err(QueryError::Invalid(
-                "ray surface entry exceeds numerical precision"
-            ))
+            Err(QueryError::Invalid(_))
         ));
         assert_eq!(
             scene
@@ -173,6 +183,62 @@ fn distant_sphere_and_capsule_rays_keep_perpendicular_misses_and_refuse_lost_ent
             0.
         );
     }
+}
+
+#[test]
+fn original_skew_direction_preserves_exact_rational_perpendicular_miss() {
+    let scene = scene(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))]);
+    // Exact rational calculation over these binary64 inputs gives perpendicular
+    // distance1.0185605679677912. Rescaling direction components must not alter it.
+    let origin = [111343779979437.78, -652654951280784.6, -910656179607209.4];
+    let direction = [-0.09889314254557549, 0.5796740432380284, 0.8088251664936846];
+    assert!(
+        scene
+            .ray_cast(
+                ray(origin, direction, 1125899906842626.),
+                QueryBudget::default()
+            )
+            .unwrap()
+            .is_empty()
+    );
+    // Skew grazing predicates without a decisive error interval explicitly refuse.
+    let tiny = std::f64::consts::FRAC_1_SQRT_2;
+    assert!(matches!(
+        scene.ray_cast(
+            ray([3., -3., 1.], [-tiny, tiny, 0.], 10.),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "sphere grazing predicate is numerically uncertain"
+        ))
+    ));
+    // Exact rational .6^2+.8^2 exceeds1, although hypot rounds to1.
+    assert!(matches!(
+        scene.ray_cast(
+            ray([0.6, 0.8, 0.], [0.6, 0.8, 0.], 0.),
+            QueryBudget::default()
+        ),
+        Err(QueryError::Invalid(
+            "sphere containment predicate is numerically uncertain"
+        ))
+    ));
+}
+
+#[test]
+fn near_grazing_literal_ray_matches_independent_rational_inputs() {
+    let scene = scene(&[("bhkRigidBody", body(1)), ("bhkSphereShape", sphere(1.))]);
+    let result = scene
+        .ray_cast(
+            ray(
+                [-229.11445911534562, 610.4858273951352, -758.1652980544283],
+                [0.23005015640173943, -0.6101330235002654, 0.7581652980544282],
+                2000.,
+            ),
+            QueryBudget::default(),
+        )
+        .unwrap();
+    // Python Fraction over these exact binary64 words: perpendicular^2 <1.
+    assert_eq!(result.len(), 1);
 }
 
 #[test]

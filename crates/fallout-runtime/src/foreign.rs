@@ -65,6 +65,13 @@ pub struct SourceForm {
     pub kind: [u8; 4],
     pub flags: u32,
 }
+impl SourceForm {
+    /// The existing header classification only. This does not establish source
+    /// cell membership, runtime initialization or authored actor behavior.
+    pub fn is_placed(&self) -> bool {
+        class(&self.kind) == 2
+    }
+}
 fn class(kind: &[u8; 4]) -> u8 {
     match kind {
         b"QUST" => 1,

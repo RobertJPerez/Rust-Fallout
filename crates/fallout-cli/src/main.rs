@@ -248,6 +248,9 @@ enum Command {
         /// Join raw actor scalars to source template categories; evaluated values remain unavailable.
         #[arg(long)]
         include_stat_requests: bool,
+        /// Report the exact refusal for a package operation; never execute AI.
+        #[arg(long, value_parser = actor_inspection::parse_package_operation)]
+        package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -983,6 +986,7 @@ fn run(args: Args) -> Result<()> {
             condition_executable,
             include_faction_requests,
             include_stat_requests,
+            package_capability,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -996,9 +1000,13 @@ fn run(args: Args) -> Result<()> {
                     condition_executable: condition_executable.as_deref(),
                     include_faction_requests,
                     include_stat_requests,
+                    package_capability,
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
+            if report.get("package_capability").is_some() {
+                return Err("actor package execution capability is unsupported; see refusal dependencies in report".into());
+            }
         }
         Command::BaseInventory {
             install,

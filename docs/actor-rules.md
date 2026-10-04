@@ -185,3 +185,62 @@ reader baseline under matching source receipts. All eleven original plugin and
 descriptor inputs, and all nine private snapshot/tool/baseline inputs, keep their
 before/after hashes. Proofs and earlier harness failures are preserved in
 `local/v3-act09-stats-20261004-01`; these checks accept no gameplay behavior.
+
+## Explicit package execution capabilities (V3-ACT-13)
+
+`actor_rules::packages::Requests::capability` accepts canonical `World`/`Content`,
+an optional explicit subject, an operation and narrowed capability limits. It
+reuses `observe` with faithful intent, preserving each shared adapter refusal
+and exact physical CTDA site. An engineering item-count observation never becomes
+condition truth or an execution grant.
+
+The report adds the existing complete actor fields and PACK scalar definitions,
+dependency findings, physical event fields and embedded loaded-script handles,
+versions, declarations, references and issues. These objects borrow the existing
+catalogues; no new condition, package or script decoder runs. Repeated PKID
+occurrences keep repeated inputs and consume repeated field/entry/visit budgets.
+Unavailable targets retain their original binding and have no package inputs.
+
+`physical_source_complete` only means that each declared package's physical body
+and prepared condition source are retained. It can be true for repeated/opaque
+fields, zero CTDA or an empty package list. Source findings and template requests
+remain explicit. That property grants no eligibility, schedule or AI behavior.
+
+`Capability::require_execution` always returns a typed refusal. Eligibility
+requires original condition truth and grouping rules. Selection additionally
+requires effective package-selection rules. Scheduling also requires measured
+schedule-word interpretation and package execution. All three operations refuse
+for empty/source-complete inputs. No actor instance, event or mutable AI state is
+created. Canonical campaign/cohort/content/reference checks precede the result;
+fields, event fields, scripts, entries, visits and compact projection are bounded.
+
+```powershell
+.\target\debug\fallout.exe actor-package-context --install LOCAL_INSTALL --load-order ORDER_JSON --actor-root FalloutNV.esm:104C0C --native-snapshot PRIVATE_SNAPSHOT --package-capability scheduling --output local/package-capability.json
+```
+
+This explicit operation request emits the detailed refusal and exits 1. Accepted
+choice strings are `eligibility`, `selection` and `scheduling`. Without this
+option the existing context report and exit behavior are unchanged. If an
+engineering observation is also requested, it remains separate from the
+capability's faithful refusals. Snapshot input and world state remain unchanged.
+The independent `package_capabilities.py` checks the complete request using the
+existing native scalar/association reader, the raw PACK dependency reader and
+the canonical snapshot's bookkeeping; no observed field supplies expected data.
+
+Validation on 2026-10-04 passed eight package tests (three new capability groups)
+and ten shared condition tests, format, data/runtime/CLI all-target Clippy and
+the CLI build. The three operations in four authored cases match complete
+independent source and canonical snapshot projections through the frozen CLI
+and direct restored host. Empty lists, zero conditions, unavailable targets,
+repeated declarations, event-kind findings and absent/compiled embedded units
+remain exact. Exact/one-less limits and campaign/content/reference mismatches
+refuse. Default context equals the preceding faithful observation; engineering
+counts of five stay separate from an identical faithful execution refusal.
+Changed execution admission or a missing refusal dependency rejects comparison.
+
+All three installed Doc Mitchell (`FalloutNV.esm:104C0C`) capabilities also match
+the full independent reader and refuse execution. They retain 230 fields,
+81 event fields, 27 embedded script declarations and 419 visits. All eleven
+original plugin/descriptor inputs and eight private tool/snapshot/order inputs
+keep their hashes. Evidence and earlier harness/oracle failures remain under
+`local/v3-act13-capability-20261004-01`; no gameplay behavior is accepted.

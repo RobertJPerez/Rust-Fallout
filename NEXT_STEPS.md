@@ -4,11 +4,15 @@ The next unmet gate is **M1: trustworthy, semantically useful content loading**.
 The current tools build and run; the original games have not been recreated yet.
 Keep the entire master brief in scope and progress through its dependency gates.
 
-The [eight-agent setup](docs/agents/team-v3/team-plan.md) is prepared and paused.
-Start its coordinator prompt first to activate a fresh run, then the seven workers.
-Use the reviewed common development base and
-[concrete lane backlogs](docs/agents/team-v3/backlog.json); do not redo the historical
-tasks below. Current run status lives in local/team/control.json.
+The [eight-agent workflow](docs/agents/team-v3/team-plan.md) has separate owned
+worktrees and [rolling lane backlogs](docs/agents/team-v3/backlog.json). The
+coordinator reconciles Robert's latest instruction with local/team/control.json;
+that local file records whether the current run is active. A tested handoff does
+not end an authorized continuous run. Do not redo the historical tasks below.
+[Development batch 04](docs/integration/team-v3-development-04.json) passed 843
+data/runtime/CLI test results, affected-package Clippy and formatting, five
+transport tests, and actual cold actor/cohort consumers. This is engineering
+validation; original gameplay acceptance remains open.
 [Checkpoint 45](reports/checkpoint-45.md) is the latest verified implementation. Later worker handoffs stay outside its frozen proof until separately reviewed and integrated.
 
 Checkpoint 14 is ready for a direct visual/input comparison. Run the verified build

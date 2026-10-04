@@ -269,6 +269,204 @@
         "acceptance": "A mixed supported/unsupported plan cannot commit earlier side effects or report whole-route ready; exercise real prepared dispatch with authored independent expectations.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-VM-15",
+        "state": "ready",
+        "title": "Prepare immutable source plans in bounded cooperative steps",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/programs.rs",
+          "crates/fallout-cli/src/definition_plan_inspection.rs",
+          "crates/fallout-runtime/tests/programs.rs"
+        ],
+        "existing_gap": "At scripts 5c9b388, PreparedSources::load synchronously loops the entire catalogue before returning. Existing aggregate limits bound total work but provide no host yield/cancel boundary.",
+        "consumer": "Source-plans and subsequent responsive boot preparation of the same existing cached plans.",
+        "preauthorize_boundary": "Add programs::PreparationJob::new(catalogue, model, signatures, Limits), advance(StepBudget)->Progress, finish()->Result<PreparedSources>. Borrow immutable inputs; progress is not a prepared source or execution token. Step budget bounds admitted definitions and source bytes; document that one admitted definition is indivisible, with its existing per-definition cap.",
+        "acceptance": [
+          "Actual CLI consumer advances a many-definition authored source over multiple calls and can cancel by dropping the job.",
+          "Completed results, decoder/source identities and errors equal existing load for the same limits; no reparsing previous definitions after a yield.",
+          "Failed or incomplete job cannot publish a partial PreparedSources; no false hard-time-slice promise."
+        ],
+        "excludes": [
+          "No VM10 expression admission redesign, no new parser, no worker threads/dependencies, no original scheduling semantics."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-16",
+        "state": "ready",
+        "title": "Prepare an explicit source subset without preparing every unrelated script",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/programs.rs",
+          "crates/fallout-cli/src/definition_plan_inspection.rs",
+          "crates/fallout-runtime/tests/programs.rs"
+        ],
+        "existing_gap": "PreparedSources::load prepares every compiled catalogue definition even when the real consumer supplies one exact handle. Existing source admission traverses a ready cache, so it cannot reduce that up-front cost.",
+        "consumer": "Explicit selected-root source-plans and standalone copy consumers in small scene boot.",
+        "preauthorize_boundary": "Add PreparedSources::load_selected(catalogue, model, signatures, exact_handles, Limits). Keep full source/decoder identity; private coverage set distinguishes NotSelected from missing/rejected source. Existing load and get behavior for full caches stay unchanged. Selection is explicit; never infer dynamic closure.",
+        "acceptance": [
+          "Real selected source CLI processes a chosen fixture while a large unrelated compiled definition remains unprepared, with exact accounting proving saved work.",
+          "Selected handles match full-cache plan/binding digests; duplicate/stale handles refuse or deterministically deduplicate under documented policy.",
+          "A consumer requiring an unselected dependency receives explicit NotSelected, never a ready or missing-script fiction."
+        ],
+        "excludes": [
+          "Independent of VM15; no change to VM03 graph priority, VM10 expression support, or VM14 route execution admission."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-17",
+        "state": "ready",
+        "title": "Run an existing saved pending own-local copy through the actual host",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/copy_probe.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "docs/vm-*.md"
+        ],
+        "existing_gap": "copy_probe::seeded always creates a new fragment instance and enqueues synthetic events. It does not expose a CLI operation on an explicitly supplied canonical snapshot's already pending journal head.",
+        "consumer": "Cold engineering Continue from an existing snapshot through the real local-copy adapter.",
+        "preauthorize_boundary": "Add an execution::copy_probe snapshot consumer accepting an already source-restored World, explicit pending sequence and Engineering intent; it uses the existing staged copy API without creating references, instances, locals or events. Add an owned CLI option to load a strict current snapshot and write a fresh output artifact only after successful commit.",
+        "acceptance": [
+          "Start with a source-bound snapshot containing unrelated reference/inventory state and a pending copy; actual fresh CLI commits the existing head and preserves unrelated fields.",
+          "Cold reload resulting snapshot; replay of the old sequence refuses and the event remains acknowledged exactly once.",
+          "Unsupported source/current head produces no replacement snapshot artifact. Caller-supplied engineering activation remains explicit."
+        ],
+        "excludes": [
+          "No new continuation/save schema, no measured VM06 scheduling, no new source semantics, no replay of VM11 fixture initialization tests."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-18",
+        "state": "ready",
+        "title": "Observe native calls from a caller-supplied canonical snapshot",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/native.rs",
+          "crates/fallout-cli/src/script_profile.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs"
+        ],
+        "existing_gap": "NativeCalls already supports exact live events, but inspected event-frame/operand CLI entrypoints construct engineering seed worlds. A real saved pending event cannot currently be selected as a direct headless native-call consumer.",
+        "consumer": "Inspect GetItemCount calls against actual restored canonical inventory and explicit context for debugging Continue and actor/script interaction.",
+        "preauthorize_boundary": "Add an additive strict-current-snapshot input plus explicit pending sequence/call selection to one existing owned inspector. Reuse NativeCalls, native::Inputs, Intent and contribution budgets; output is read-only source/campaign/revision evidence, not a mutation stage.",
+        "acceptance": [
+          "Actual CLI restores an authored saved bank and event then returns the same exact existing query result/contributions as direct runtime dispatch.",
+          "Missing subject, foreign/stale source, unsupported function and insufficient aggregate budget remain explicit; no event acknowledgement or state byte change.",
+          "Multiple requested calls share one contribution/report budget; caller/player/target roles never fall back to one another."
+        ],
+        "excludes": [
+          "No CTDA truth, GetItemCount numeric coercion, VM09 capture import, or replacement copy execution changes."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-19",
+        "state": "ready",
+        "title": "Prepare bounded condition request batches with one source validation pass",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/condition.rs",
+          "crates/fallout-data/src/condition_operands.rs",
+          "crates/fallout-cli/src/condition_dependency_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs"
+        ],
+        "existing_gap": "condition::Request::prepare hashes the same ordered source receipts and searches physical sites for each request. ACT02 explicitly charges triangular repeated-site search. Batch preparation can remove this repeated work without changing condition behavior.",
+        "consumer": "Actual multi-site condition inspector now; actor package and later dialogue consumers may adopt the additive API independently.",
+        "preauthorize_boundary": "Add condition::Requests::prepare(world, prepared_record, requested_offsets, BatchLimits) with one cohort validation and indexed physical offset lookup, preserving requested order/repeats. observe uses existing Request outcomes and one aggregate contribution budget. PreparedRecord indexing changes must preserve privately validated source provenance.",
+        "acceptance": [
+          "Existing CLI requests repeated/nonmonotonic selected CTDA offsets and produces identical per-site outcomes and source bytes to individual calls.",
+          "Exact search/admission accounting demonstrates no repeated full-record source hashing or quadratic site scans.",
+          "Missing site, changed source/campaign and aggregate limits refuse before returning a partial successful batch."
+        ],
+        "excludes": [
+          "No changes in actors-owned packages.rs; no new CTDA decoder, grouping, truth or eligibility; not VM05 semantics work."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-20",
+        "state": "ready",
+        "title": "Export bounded owned event observations for asynchronous inspection",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/preparation.rs",
+          "crates/fallout-runtime/src/event_operands.rs",
+          "crates/fallout-cli/src/event_frame_inspection.rs",
+          "crates/fallout-runtime/tests/preparation.rs"
+        ],
+        "existing_gap": "PreparedEvent and resolved operand observations borrow canonical/source state. Present consumers serialize while those borrows live; there is no bounded owned observation for a background inspector to retain after world replacement.",
+        "consumer": "Headless event-frame export and future presentation/debug views without retaining a World borrow across frames.",
+        "preauthorize_boundary": "Add an owned read-only preparation::EventObservation with campaign/cohort/revision, exact definition/pending sequence/source offsets and bounded selected operand/local observations. Constructor accepts an existing prepared frame; copied bytes/rows charged before cloning. Never Deserialize as authority and provide no commit method.",
+        "acceptance": [
+          "Existing CLI exports the selected frame, then an actual consumer thread reads it after the source World is dropped/replaced.",
+          "Observation retains captured identity/values exactly and remains visibly historical after later canonical mutations.",
+          "Strict limits cover source byte ranges, row count and copied variable-length fields; no implicit full snapshot clone."
+        ],
+        "excludes": [
+          "Different from runtime InventoryView/reference paging; no stale-authority mutation token, new census, or VM13 mismatch formatting task."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-21",
+        "state": "ready",
+        "title": "Bind explicit quest script startup to its authored source attachment",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-data/src/quest_scripts.rs",
+          "crates/fallout-runtime/src/execution/attachment_boot.rs",
+          "crates/fallout-cli/src/event_operand_inspection.rs",
+          "crates/fallout-runtime/tests/execution*.rs"
+        ],
+        "existing_gap": "The existing quest attachment catalogue and declaration joins identify scripts, while fixture producers select a raw definition handle/fragment. There is no exercised host path that chooses one explicit quest source attachment and creates its canonical owner without implying retail quest activation.",
+        "consumer": "Source-aware engineering boot of one explicitly selected quest script using existing QUST/SCRI provenance.",
+        "preauthorize_boundary": "Add execution::attachment_boot::prepare(sources, attachments, content, explicit_quest_key, explicit_initializer_request, Limits)->private BootPlan. Apply only to a private result World/new snapshot using existing create_instance/assign APIs; on any error discard that result. The plan requires a uniquely valid nondeleted attachment and exact source receipts; it never selects or starts quests automatically.",
+        "acceptance": [
+          "Actual owned CLI accepts an authored QUST selection, resolves its exact script and creates Owner::Quest with only explicitly supplied values; output source receipt ties both records.",
+          "Missing/deleted/wrong-kind/ambiguous attachment, existing duplicate owner or initializer failure returns no partially initialized snapshot.",
+          "Cold restore preserves the selected owner and source handle; no quest stage/completion/activation facts are fabricated."
+        ],
+        "excludes": [
+          "No runtime instance transaction API dependency, no source activation/callback inference, no VM03 dependency census, no new quest component."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-VM-22",
+        "state": "ready",
+        "title": "Stage a bounded multi-copy engineering event as one canonical transaction",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/execution/local_copy.rs",
+          "crates/fallout-runtime/src/execution/copy_probe.rs",
+          "crates/fallout-runtime/tests/execution*.rs",
+          "docs/vm-*.md"
+        ],
+        "existing_gap": "The current local-copy adapter admits only Begin/one Assignment/End although existing stage_event_changes already accepts a duplicate-free batch and acknowledges atomically.",
+        "consumer": "Engineering execution of a real source event containing several supported own-local copies, exercised through the standalone runner.",
+        "preauthorize_boundary": "Add a separate opt-in Engineering multi-copy adapter over the existing prepared statements/bindings. A bounded private overlay evaluates explicit bit-copy statements in physical order; collapse final destination values into the existing runtime stage_event_changes batch, retain ordered read/write traces, and acknowledge once. Faithful remains unsupported; single-copy API unchanged.",
+        "acceptance": [
+          "A->B then B->C and repeated writes demonstrate sequential engineering overlay values and one canonical revision/head acknowledgement.",
+          "Unsupported later literal/operator/native/foreign/branch or capacity failure produces no stage/effects; stale revision/campaign/epoch refuses existing opaque commit.",
+          "Runner reports one event ordinal for its multiple source observations, distinct from VM11's one-statement complete-event restriction."
+        ],
+        "excludes": [
+          "No original conversion semantics, new VM/AST/parser, persistent continuation, or VM14 whole-route ready claim; explicit engineering mode only."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
       }
     ],
     "runtime": [
@@ -410,6 +608,203 @@
         "acceptance": "Removed instances and canonical unload cannot invalidate queued publication context; context releases after terminal result and exact bounded failure case is independently checked.",
         "fallback_task_id": null,
         "selection_rule": "Take after preceding ready work or when an earlier dependency/build is blocked. Reproduce a concrete gap; extend existing consumer, never duplicate completed work."
+      },
+      {
+        "id": "V3-STATE-15",
+        "state": "ready",
+        "title": "Page canonical reference observations without cloning the whole world",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/reference_state/**",
+          "crates/fallout-runtime/tests/reference_state*.rs",
+          "docs/reference-state.md"
+        ],
+        "existing_gap": "World::reference_view observes one known ID and World::snapshot clones every component. No bounded cell-filtered traversal exists for a scene consumer discovering retained canonical reference state.",
+        "consumer": "World/presentation reconciliation after cell reload; a runtime-owned headless consumer exercises the API now.",
+        "preauthorize_boundary": "Add reference_state::PageRequest/PageLimits/Page/opaque Cursor and World::reference_state_page(request, limits). Cursor binds epoch/campaign/cohort/revision/filter and stable ReferenceId scan position. Bound visited references, returned rows and copied bytes; unavailable components remain explicit. No render IDs or saved cursor.",
+        "acceptance": [
+          "A multi-cell authored world is consumed in pages with complete deterministic coverage and no duplicates; zero-match scan can still yield progress.",
+          "Mutation/restore or changed filter invalidates a cursor before copying more rows.",
+          "Actual cold-restored consumer finds the same retained changed pose/enable values without making an entire Snapshot for each page."
+        ],
+        "excludes": [
+          "Not repeating STATE02 persistence or InventoryView work; no source cell membership/default evaluation and no dependency on world/presentation implementation."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-16",
+        "state": "ready",
+        "title": "Commit explicit reference changes in one bounded atomic batch",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/reference_state/**",
+          "crates/fallout-runtime/tests/reference_state*.rs",
+          "docs/reference-state.md"
+        ],
+        "existing_gap": "Only one reference state can be staged per commit. Initializing/updating a selected set using repeated calls exposes partially updated canonical scene state and invalidates peers' views after the first commit.",
+        "consumer": "Host cell initialization and explicit group transform/enable commands over several already registered references.",
+        "preauthorize_boundary": "Add World::stage_reference_batch(&[(reference_state::View, reference_state::State)], BatchLimits)->StagedReferenceBatch and commit_reference_batch(stage)->BatchReceipt. Private fields; exact same base revision/source/campaign/epoch; duplicate reference IDs refuse; validate all before mutation and increment once. Keep single-reference API compatible.",
+        "acceptance": [
+          "Real headless source-selected multi-reference consumer commits all explicit changes together then native-saves/cold-loads the same state.",
+          "Invalid last row, exhausted revision, duplicate ID, stale view or mismatched campaign yields exact unchanged state and no successful receipt.",
+          "No-op/drop semantics and aggregate copied-byte/row limits are explicit; no new persisted fields."
+        ],
+        "excludes": [
+          "Distinct from STATE08 race tests: supplies missing production batch operation. Does not choose enable defaults or authored relationships."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-17",
+        "state": "ready",
+        "title": "Initialize an explicit reference through source-kind admission atomically",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/reference_state/**",
+          "crates/fallout-runtime/src/foreign.rs",
+          "crates/fallout-runtime/src/state.rs",
+          "crates/fallout-runtime/tests/reference_state*.rs"
+        ],
+        "existing_gap": "register_reference accepts a syntactically valid key, then a separate operation initializes state. Callers must currently both verify source kinds and avoid leaving an identity after later initialization failure.",
+        "consumer": "Canonical host receiving an explicitly source-selected REFR/ACHR/ACRE and CELL from the world lane.",
+        "preauthorize_boundary": "Add a reference_state source-admission request requiring exact Content cohort, explicit allowed placed-record kinds, explicit CELL key, Pose and enable. World::stage_source_reference(request, content, limits)->private stage; consuming commit creates identity+component atomically, or reports an existing authored identity without resetting it. Source kind membership is validated; containing-cell membership/enable-parent evaluation remain the world caller's separately disclosed responsibility.",
+        "acceptance": [
+          "Actual authored source/header consumer rejects deleted, missing, wrong-kind reference/cell and invalid pose before allocating an identity or revision.",
+          "Fresh valid initialization publishes one revision; returning to the same authored identity preserves later explicit state rather than resetting source pose.",
+          "Native cold restore retains admitted keys/state and source mismatch refuses."
+        ],
+        "excludes": [
+          "No inferred cell membership, actor defaults, player spawn or retail initialization. Reuses Content::source_form; no second importer. Independent of STATE16 batch API."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-18",
+        "state": "ready",
+        "title": "Create a fully initialized script instance as one staged host operation",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/state.rs",
+          "crates/fallout-runtime/src/state/**",
+          "crates/fallout-runtime/tests/state.rs",
+          "crates/fallout-cli/src/script_state_inspection.rs"
+        ],
+        "existing_gap": "create_instance followed by assign is two mutations. A failed initializer leaves a created owner/instance and consumed IDs, which is unsuitable for all-or-none source-aware host boot.",
+        "consumer": "Existing script-state engineering host and explicitly chosen source attachment consumers.",
+        "preauthorize_boundary": "Add stage_instance_initialization(definition, owner, context, explicit_assignments, Limits)->StagedInstanceInitialization and commit_instance_initialization(stage)->receipt+InstanceHandle. No guessed zero initialization; omitted values retain existing Uninitialized semantics. Stage validates declaration/type/reference/source/owner/budgets without reserving public IDs; commit rechecks epoch/global revision and performs one atomic publication.",
+        "acceptance": [
+          "Actual script-state CLI creates an explicitly initialized source instance with one successful revision and exact allocator/owner receipt.",
+          "Wrong initializer, duplicate owner/local, exhausted IDs/capacity, stale stage or source mismatch preserves owner map, IDs, locals and revision.",
+          "Published state passes unchanged current-schema native save/cold restore."
+        ],
+        "excludes": [
+          "No automatic attachment selection or original startup order; does not duplicate existing assign transaction or require scripts VM21."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-19",
+        "state": "ready",
+        "title": "Expose canonical host readiness for explicitly requested inputs",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/state/**",
+          "crates/fallout-runtime/src/reference_state/**",
+          "crates/fallout-runtime/src/inventory.rs",
+          "crates/fallout-cli/src/script_state_inspection.rs"
+        ],
+        "existing_gap": "Consumers have individual lookups but no bounded read-only report identifying which explicitly required canonical components are unavailable before boot/Continue. A valid snapshot alone does not prove required reference state or inventory initialization exists.",
+        "consumer": "Standalone host deciding whether it has the explicit canonical data needed to enter a selected scene or run a chosen engineering request.",
+        "preauthorize_boundary": "Add state::HostRequirements with explicit reference-state IDs, inventory-owner IDs, owner/definition instance identities and optional expected journal head; World::check_host_requirements(..., limits)->HostReadiness. Report campaign/cohort/revision and deterministic missing/mismatched inputs. No opaque execution permission and never call the result faithful_ready.",
+        "acceptance": [
+          "Actual CLI checks an authored restored world with unknown versus empty inventory and unavailable versus explicit reference state, reports exact first unavailable requirement, then observes completion only after explicit existing mutations.",
+          "Changed source/definition identity and unbounded/duplicate requested requirements have explicit bounded behavior.",
+          "This read-only check never initializes fields, loads cells, executes scripts or acknowledges events."
+        ],
+        "excludes": [
+          "Separate from VM03/VM14 compiled capability admission and STATE11 migration. No graphics/physics readiness inferred."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-20",
+        "state": "ready",
+        "title": "Provide read-only source-bound Continue availability for both save slots",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/save/repository.rs",
+          "crates/fallout-runtime/src/save/mod.rs",
+          "crates/fallout-cli/src/native_save_inspection.rs",
+          "crates/fallout-runtime/tests/save*.rs"
+        ],
+        "existing_gap": "NativeSaveFile checks integrity/JSON shape and load selects one recovery policy. There is no small source-bound availability report for current and previous slots without trying a mutating repair or treating checksum validity as loadability.",
+        "consumer": "Host Continue/recovery chooser and existing native-save inspector.",
+        "preauthorize_boundary": "Add Repository::inspect_availability(catalogue, limits)->SlotAvailabilityReport with separate Missing/Rejected/Loadable metadata per slot, actual structured reason and campaign/cohort binding. Reuse existing format+World::restore checks; no repair, rotation, lockfile rewrite, or retained full World/snapshot in report. Add an explicit read-only CLI consumer.",
+        "acceptance": [
+          "Current valid/previous valid, invalid-current/valid-previous and source-schema-invalid but rehashed-current cases produce distinct truthful outcomes using real repository bytes.",
+          "Exact slot input hashes remain unchanged and successful report does not imply either slot was selected or repaired.",
+          "Report size/slot read size remain bounded; user/host must explicitly choose existing Recovery semantics."
+        ],
+        "excludes": [
+          "Not STATE07 crash matrix or STATE13 outbound save-failure status. No new slot/container schema or silent fallback."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-21",
+        "state": "ready",
+        "title": "Load a source-bound save off the host thread with explicit cancellation",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/save/**",
+          "crates/fallout-cli/src/native_save_inspection.rs",
+          "crates/fallout-runtime/tests/save*.rs"
+        ],
+        "existing_gap": "Repository::load is synchronous. SaveStatus only covers outbound publication; cold Continue currently performs disk decode/source restoration on its caller thread.",
+        "consumer": "Nonblocking host Continue and an actual command-line asynchronous load consumer.",
+        "preauthorize_boundary": "Add a single-job save::RestoreTask::start(repository, Arc<Catalogue>, Limits, Recovery, RequestIdentity), try_poll(), cancel()/drop. Worker returns an owned RestoredCandidate with request/campaign/cohort identity and existing LoadReceipt; it never mutates the active World. Caller explicitly takes the candidate only for its still-current host request. Bound one task/result and reuse Repository::load; no load queue/framework.",
+        "acceptance": [
+          "Actual CLI starts a load, polls pending without waiting on a gated read, obtains the correct complete restored world, and matches ordinary load.",
+          "Superseded/cancelled request cannot replace a newly selected campaign; late result storage releases with no slot writes, worker panic/failure is explicit.",
+          "Old runtime mutation stages cannot act on the accepted restored world; no automatic callback dispatch."
+        ],
+        "excludes": [
+          "Inbound restoration is separate from STATE12 outbound SaveTicket cancellation and STATE13 outbound status. No new persisted continuation, save format, or runtime profile isolation prerequisite."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
+      },
+      {
+        "id": "V3-STATE-22",
+        "state": "ready",
+        "title": "Stage explicit multi-lot inventory transfers atomically",
+        "depends_on": [],
+        "owned_paths": [
+          "crates/fallout-runtime/src/inventory.rs",
+          "crates/fallout-runtime/src/state/**",
+          "crates/fallout-runtime/tests/items.rs",
+          "crates/fallout-cli/src/item_state_inspection.rs"
+        ],
+        "existing_gap": "Existing transfer_item moves one lot and InventoryView supplies immutable observations. Hosts moving a selected set must issue several mutations and may leave partial transfers on a later refusal.",
+        "consumer": "Actor/container explicit transfer intents and existing item-state engineering CLI.",
+        "preauthorize_boundary": "Add stage_inventory_transfers(&[(ItemId, explicit_target_ReferenceId)], limits)->private StagedInventoryTransfers plus consuming commit with epoch/campaign/cohort/revision and exact observed lot ownership bound internally. Validate all source lots and initialized destination banks before mutation. Preserve lot IDs/count/facts, no automatic merge/split/equip rules; one global revision.",
+        "acceptance": [
+          "Real item-state consumer transfers multiple differing exact lots, cold-restores and observes conserved per-base totals, ownership and original fact bits.",
+          "Invalid last target, repeated lot, unknown/uninitialized owner, stale stage or exhausted revision leaves every bank/index/count/revision exact.",
+          "Bounds apply to staged rows and copied facts/links; successful commit does not invoke source item policy for unchanged facts or invent game rules."
+        ],
+        "excludes": [
+          "Not STATE10 view duplication or STATE08 generic race tests; adds missing atomic production consumer. Independent of new reference batch/instance APIs."
+        ],
+        "delivery": "One bounded implemented consumer plus focused checks and exact handoff; remain independently selectable without another lane or original runtime capture.",
+        "boundary_authorized_by": "coordinator; published with rolling backlog refill"
       }
     ],
     "actors": [
@@ -848,6 +1243,16 @@
         "consumer": "Presentation async decode/upload and physics query admission",
         "acceptance": "Narrow plan accessor so escaped clones cannot bypass retained-source quota; enforce worker ceiling1..2; make publication once per request epoch with failed-callback retry. Regression tests and exact standalone handoff; retain WORLD05 draft.",
         "fallback_task_id": "V3-WORLD-05"
+      },
+      {
+        "id": "V3-WORLD-16",
+        "state": "completed_engineering_review_pending",
+        "title": "Index conversation response fields and fragment roles in one pass",
+        "depends_on": [],
+        "consumer": "Actual conversation-sources CLI and retained subtitle/fragment requests.",
+        "acceptance": "Preserve order, raw spans, repeated/nonmonotonic response keys, orphan fields and role ambiguity; exercise maximum admitted records without repeated full-field scans.",
+        "handoff_commit": "62111ebe8a99ee763610456da72cc57d5b853aed",
+        "handoff_sha256": "efc402e006175b19d759e861a48719c0dae8809254b437201a903bb3a83d1aba"
       }
     ],
     "presentation": [
@@ -1155,7 +1560,7 @@
     ]
   },
   "selection": "Smallest ready task or a ready independent fallback; no per-task grant. Completed task IDs are recorded in worker status/outbox. Never repeat a completed ticket from this seed list.",
-  "updated_at": "2026-10-04T04:17:39.029034+00:00",
+  "updated_at": "2026-10-04T05:37:58.623145+00:00",
   "policy": "Assignments include the entire lane backlog. Select independent ready tasks without grants; producer-dependent tasks become ready after exact reviewed dependency. Coordinator replenishes at each handoff; source/fixture/consumer fixes proceed while checks are queued. Avoid repeating completed slices.",
   "queue_maintenance": {
     "refill_when_independent_ready_below": 6,

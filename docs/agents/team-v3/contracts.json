@@ -7,7 +7,12 @@
     {
       "id": "REF-STATE",
       "producer": "runtime",
-      "consumers": ["world", "presentation", "physics", "actors"],
+      "consumers": [
+        "world",
+        "presentation",
+        "physics",
+        "actors"
+      ],
       "producer_path": "crates/fallout-runtime/src/reference_state/",
       "invariants": [
         "Reuse canonical persistent reference identity and content/campaign version; never store render entity IDs as authority.",
@@ -20,7 +25,11 @@
     {
       "id": "CELL-RESIDENCY",
       "producer": "world",
-      "consumers": ["presentation", "physics", "runtime"],
+      "consumers": [
+        "presentation",
+        "physics",
+        "runtime"
+      ],
       "producer_path": "crates/fallout-data/src/world/",
       "invariants": [
         "Reuse resource_jobs, existing cache, source fingerprints and generation tokens; no new importer.",
@@ -34,7 +43,10 @@
     {
       "id": "SOURCE-POSE",
       "producer": "assets",
-      "consumers": ["presentation", "actors"],
+      "consumers": [
+        "presentation",
+        "actors"
+      ],
       "producer_path": "crates/fallout-data/src/nif_animation/",
       "invariants": [
         "Reuse decoded skin binding, controller, skeleton and ASSET06/09 sampler outputs. Inputs identify exact source/block/controller and explicit finite sample time.",
@@ -48,7 +60,11 @@
     {
       "id": "COLLISION-QUERY",
       "producer": "physics",
-      "consumers": ["world", "presentation", "actors"],
+      "consumers": [
+        "world",
+        "presentation",
+        "actors"
+      ],
       "producer_path": "crates/fallout-runtime/src/physics/",
       "invariants": [
         "Consume existing collision source shapes and generation-tagged placements. Return bounded query hits with stable source IDs; do not invent a second canonical mutable world.",
@@ -62,7 +78,11 @@
     {
       "id": "SEMANTIC-TRACE",
       "producer": "scripts",
-      "consumers": ["coordinator", "actors", "world"],
+      "consumers": [
+        "coordinator",
+        "actors",
+        "world"
+      ],
       "producer_path": "tools/retail-script-probes/",
       "invariants": [
         "Coordinator owns isolated executable/profile launch and capture transport; scripts owns compiled microfixtures, expected semantics and original/replacement trace comparison.",
@@ -72,6 +92,231 @@
         "Workers may implement fixture/trace consumers without capture readiness; missing captures remain blocked acceptance, never inferred success."
       ],
       "first_consumer": "One original source-less primitive measured and reproduced through prepared script plans and canonical commit."
+    },
+    {
+      "id": "V3-VM-15",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add programs::PreparationJob::new(catalogue, model, signatures, Limits), advance(StepBudget)->Progress, finish()->Result<PreparedSources>. Borrow immutable inputs; progress is not a prepared source or execution token. Step budget bounds admitted definitions and source bytes; document that one admitted definition is indivisible, with its existing per-definition cap.",
+      "invariants": [
+        "No VM10 expression admission redesign, no new parser, no worker threads/dependencies, no original scheduling semantics.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Source-plans and subsequent responsive boot preparation of the same existing cached plans."
+    },
+    {
+      "id": "V3-VM-16",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add PreparedSources::load_selected(catalogue, model, signatures, exact_handles, Limits). Keep full source/decoder identity; private coverage set distinguishes NotSelected from missing/rejected source. Existing load and get behavior for full caches stay unchanged. Selection is explicit; never infer dynamic closure.",
+      "invariants": [
+        "Independent of VM15; no change to VM03 graph priority, VM10 expression support, or VM14 route execution admission.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Explicit selected-root source-plans and standalone copy consumers in small scene boot."
+    },
+    {
+      "id": "V3-VM-17",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add an execution::copy_probe snapshot consumer accepting an already source-restored World, explicit pending sequence and Engineering intent; it uses the existing staged copy API without creating references, instances, locals or events. Add an owned CLI option to load a strict current snapshot and write a fresh output artifact only after successful commit.",
+      "invariants": [
+        "No new continuation/save schema, no measured VM06 scheduling, no new source semantics, no replay of VM11 fixture initialization tests.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Cold engineering Continue from an existing snapshot through the real local-copy adapter."
+    },
+    {
+      "id": "V3-VM-18",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add an additive strict-current-snapshot input plus explicit pending sequence/call selection to one existing owned inspector. Reuse NativeCalls, native::Inputs, Intent and contribution budgets; output is read-only source/campaign/revision evidence, not a mutation stage.",
+      "invariants": [
+        "No CTDA truth, GetItemCount numeric coercion, VM09 capture import, or replacement copy execution changes.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Inspect GetItemCount calls against actual restored canonical inventory and explicit context for debugging Continue and actor/script interaction."
+    },
+    {
+      "id": "V3-VM-19",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add condition::Requests::prepare(world, prepared_record, requested_offsets, BatchLimits) with one cohort validation and indexed physical offset lookup, preserving requested order/repeats. observe uses existing Request outcomes and one aggregate contribution budget. PreparedRecord indexing changes must preserve privately validated source provenance.",
+      "invariants": [
+        "No changes in actors-owned packages.rs; no new CTDA decoder, grouping, truth or eligibility; not VM05 semantics work.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Actual multi-site condition inspector now; actor package and later dialogue consumers may adopt the additive API independently."
+    },
+    {
+      "id": "V3-VM-20",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add an owned read-only preparation::EventObservation with campaign/cohort/revision, exact definition/pending sequence/source offsets and bounded selected operand/local observations. Constructor accepts an existing prepared frame; copied bytes/rows charged before cloning. Never Deserialize as authority and provide no commit method.",
+      "invariants": [
+        "Different from runtime InventoryView/reference paging; no stale-authority mutation token, new census, or VM13 mismatch formatting task.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Headless event-frame export and future presentation/debug views without retaining a World borrow across frames."
+    },
+    {
+      "id": "V3-VM-21",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add execution::attachment_boot::prepare(sources, attachments, content, explicit_quest_key, explicit_initializer_request, Limits)->private BootPlan. Apply only to a private result World/new snapshot using existing create_instance/assign APIs; on any error discard that result. The plan requires a uniquely valid nondeleted attachment and exact source receipts; it never selects or starts quests automatically.",
+      "invariants": [
+        "No runtime instance transaction API dependency, no source activation/callback inference, no VM03 dependency census, no new quest component.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Source-aware engineering boot of one explicitly selected quest script using existing QUST/SCRI provenance."
+    },
+    {
+      "id": "V3-VM-22",
+      "producer": "scripts",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add a separate opt-in Engineering multi-copy adapter over the existing prepared statements/bindings. A bounded private overlay evaluates explicit bit-copy statements in physical order; collapse final destination values into the existing runtime stage_event_changes batch, retain ordered read/write traces, and acknowledge once. Faithful remains unsupported; single-copy API unchanged.",
+      "invariants": [
+        "No original conversion semantics, new VM/AST/parser, persistent continuation, or VM14 whole-route ready claim; explicit engineering mode only.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Engineering execution of a real source event containing several supported own-local copies, exercised through the standalone runner."
+    },
+    {
+      "id": "V3-STATE-15",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add reference_state::PageRequest/PageLimits/Page/opaque Cursor and World::reference_state_page(request, limits). Cursor binds epoch/campaign/cohort/revision/filter and stable ReferenceId scan position. Bound visited references, returned rows and copied bytes; unavailable components remain explicit. No render IDs or saved cursor.",
+      "invariants": [
+        "Not repeating STATE02 persistence or InventoryView work; no source cell membership/default evaluation and no dependency on world/presentation implementation.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "World/presentation reconciliation after cell reload; a runtime-owned headless consumer exercises the API now."
+    },
+    {
+      "id": "V3-STATE-16",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add World::stage_reference_batch(&[(reference_state::View, reference_state::State)], BatchLimits)->StagedReferenceBatch and commit_reference_batch(stage)->BatchReceipt. Private fields; exact same base revision/source/campaign/epoch; duplicate reference IDs refuse; validate all before mutation and increment once. Keep single-reference API compatible.",
+      "invariants": [
+        "Distinct from STATE08 race tests: supplies missing production batch operation. Does not choose enable defaults or authored relationships.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Host cell initialization and explicit group transform/enable commands over several already registered references."
+    },
+    {
+      "id": "V3-STATE-17",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add a reference_state source-admission request requiring exact Content cohort, explicit allowed placed-record kinds, explicit CELL key, Pose and enable. World::stage_source_reference(request, content, limits)->private stage; consuming commit creates identity+component atomically, or reports an existing authored identity without resetting it. Source kind membership is validated; containing-cell membership/enable-parent evaluation remain the world caller's separately disclosed responsibility.",
+      "invariants": [
+        "No inferred cell membership, actor defaults, player spawn or retail initialization. Reuses Content::source_form; no second importer. Independent of STATE16 batch API.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Canonical host receiving an explicitly source-selected REFR/ACHR/ACRE and CELL from the world lane."
+    },
+    {
+      "id": "V3-STATE-18",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add stage_instance_initialization(definition, owner, context, explicit_assignments, Limits)->StagedInstanceInitialization and commit_instance_initialization(stage)->receipt+InstanceHandle. No guessed zero initialization; omitted values retain existing Uninitialized semantics. Stage validates declaration/type/reference/source/owner/budgets without reserving public IDs; commit rechecks epoch/global revision and performs one atomic publication.",
+      "invariants": [
+        "No automatic attachment selection or original startup order; does not duplicate existing assign transaction or require scripts VM21.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Existing script-state engineering host and explicitly chosen source attachment consumers."
+    },
+    {
+      "id": "V3-STATE-19",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add state::HostRequirements with explicit reference-state IDs, inventory-owner IDs, owner/definition instance identities and optional expected journal head; World::check_host_requirements(..., limits)->HostReadiness. Report campaign/cohort/revision and deterministic missing/mismatched inputs. No opaque execution permission and never call the result faithful_ready.",
+      "invariants": [
+        "Separate from VM03/VM14 compiled capability admission and STATE11 migration. No graphics/physics readiness inferred.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Standalone host deciding whether it has the explicit canonical data needed to enter a selected scene or run a chosen engineering request."
+    },
+    {
+      "id": "V3-STATE-20",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add Repository::inspect_availability(catalogue, limits)->SlotAvailabilityReport with separate Missing/Rejected/Loadable metadata per slot, actual structured reason and campaign/cohort binding. Reuse existing format+World::restore checks; no repair, rotation, lockfile rewrite, or retained full World/snapshot in report. Add an explicit read-only CLI consumer.",
+      "invariants": [
+        "Not STATE07 crash matrix or STATE13 outbound save-failure status. No new slot/container schema or silent fallback.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Host Continue/recovery chooser and existing native-save inspector."
+    },
+    {
+      "id": "V3-STATE-21",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add a single-job save::RestoreTask::start(repository, Arc<Catalogue>, Limits, Recovery, RequestIdentity), try_poll(), cancel()/drop. Worker returns an owned RestoredCandidate with request/campaign/cohort identity and existing LoadReceipt; it never mutates the active World. Caller explicitly takes the candidate only for its still-current host request. Bound one task/result and reuse Repository::load; no load queue/framework.",
+      "invariants": [
+        "Inbound restoration is separate from STATE12 outbound SaveTicket cancellation and STATE13 outbound status. No new persisted continuation, save format, or runtime profile isolation prerequisite.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Nonblocking host Continue and an actual command-line asynchronous load consumer."
+    },
+    {
+      "id": "V3-STATE-22",
+      "producer": "runtime",
+      "consumers": [
+        "coordinator"
+      ],
+      "boundary": "Add stage_inventory_transfers(&[(ItemId, explicit_target_ReferenceId)], limits)->private StagedInventoryTransfers plus consuming commit with epoch/campaign/cohort/revision and exact observed lot ownership bound internally. Validate all source lots and initialized destination banks before mutation. Preserve lot IDs/count/facts, no automatic merge/split/equip rules; one global revision.",
+      "invariants": [
+        "Not STATE10 view duplication or STATE08 generic race tests; adds missing atomic production consumer. Independent of new reference batch/instance APIs.",
+        "Backward compatible engineering consumer; no dependency/source-pin/persisted schema change.",
+        "Only assigned paths and declared minimal shared CLI/module wiring. Publish exact signatures before a downstream consumer binds."
+      ],
+      "first_consumer": "Actor/container explicit transfer intents and existing item-state engineering CLI."
     }
-  ]
+  ],
+  "updated_at": "2026-10-04T05:37:58.623145+00:00"
 }

@@ -20,6 +20,7 @@ use std::{
 static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
 
 pub mod event_commit;
+pub mod initialization;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -318,6 +319,17 @@ impl<'a> World<'a> {
             locals,
         };
         let revision = self.next_revision()?;
+        Ok(self.publish_instance(instance, owner, next, revision))
+    }
+    /// Caller checks source, capacities and arithmetic before publication.
+    fn publish_instance(
+        &mut self,
+        instance: Instance,
+        owner: Owner,
+        next: u64,
+        revision: u64,
+    ) -> InstanceHandle {
+        let id = instance.id;
         self.local_count += instance.locals.len();
         let slot = if let Some(slot) = self.free.pop() {
             self.slots[slot].value = Some(instance);
@@ -334,7 +346,7 @@ impl<'a> World<'a> {
         self.owners.insert(owner, id);
         self.next_instance = next;
         self.revision = revision;
-        Ok(self.handle_for_slot(slot))
+        self.handle_for_slot(slot)
     }
     fn handle_for_slot(&self, slot: usize) -> InstanceHandle {
         InstanceHandle {
@@ -423,7 +435,14 @@ impl<'a> World<'a> {
         assignments: &[(u32, Value)],
     ) -> Result<()> {
         let instance = self.instance(handle)?;
-        if assignments.len() > instance.locals.len() {
+        self.validate_schema_assignments(&instance.definition_schema.locals, assignments)
+    }
+    fn validate_schema_assignments(
+        &self,
+        declarations: &BTreeMap<u32, Local>,
+        assignments: &[(u32, Value)],
+    ) -> Result<()> {
+        if assignments.len() > declarations.len() {
             return Err(Error::Capacity("assignment batch"));
         }
         let mut seen = std::collections::BTreeSet::new();
@@ -432,11 +451,7 @@ impl<'a> World<'a> {
                 return Err(Error::Invalid("duplicate local assignment".into()));
             }
             self.validate_value(
-                instance
-                    .definition_schema
-                    .locals
-                    .get(index)
-                    .ok_or(Error::MissingLocal(*index))?,
+                declarations.get(index).ok_or(Error::MissingLocal(*index))?,
                 value,
             )?;
         }
@@ -534,16 +549,38 @@ impl<'a> World<'a> {
         }
     }
     pub(crate) fn runtime_definition(&mut self, handle: &Handle) -> Result<Arc<DefinitionSchema>> {
+        let schema = self.prepare_runtime_definition(handle, |_, _| Ok(()))?;
+        if !self.definitions.contains_key(&handle.key) {
+            self.block_count += schema.blocks.len();
+            self.definitions
+                .insert(handle.key.clone(), Arc::clone(&schema));
+        }
+        Ok(schema)
+    }
+    /// Preparing source data may allocate a private schema, but never installs
+    /// a live cache entry. The admission callback runs before schema/Arc copies.
+    fn prepare_runtime_definition(
+        &self,
+        handle: &Handle,
+        admit: impl FnOnce(usize, usize) -> Result<()>,
+    ) -> Result<Arc<DefinitionSchema>> {
         let script = self
             .catalogue
             .get_handle(handle)
             .ok_or(Error::DefinitionChanged)?;
         if let Some(schema) = self.definitions.get(&handle.key) {
+            admit(script.declarations().len(), schema.blocks.len())?;
             return Ok(Arc::clone(schema));
         }
         let program = script
             .program()
             .map_err(|e| Error::Invalid(e.to_string()))?;
+        let events = program
+            .iter()
+            .flat_map(|program| program.instructions.iter())
+            .filter(|instruction| instruction.event.is_some())
+            .count();
+        admit(script.declarations().len(), events)?;
         let blocks: BTreeSet<_> = program
             .iter()
             .flat_map(|program| program.instructions.iter())
@@ -561,14 +598,10 @@ impl<'a> World<'a> {
         {
             return Err(Error::Capacity("compiled event blocks"));
         }
-        let schema = Arc::new(DefinitionSchema {
+        Ok(Arc::new(DefinitionSchema {
             locals: schema::locals(script),
             blocks,
-        });
-        self.block_count += schema.blocks.len();
-        self.definitions
-            .insert(handle.key.clone(), Arc::clone(&schema));
-        Ok(schema)
+        }))
     }
     pub(crate) fn validate_trigger(schema: &DefinitionSchema, trigger: &Trigger) -> Result<()> {
         match trigger {

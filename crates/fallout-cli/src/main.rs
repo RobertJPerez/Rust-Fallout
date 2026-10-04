@@ -22,6 +22,7 @@ mod loaded_script_inspection;
 mod narrative_inspection;
 mod native_migration_inspection;
 mod native_save_inspection;
+mod navigation_inspection;
 mod nif_animation_inspection;
 mod nif_skin_inspection;
 mod operand_inspection;
@@ -96,6 +97,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Prepare one exact source once and sample an explicit bounded time list.
+    NifSourcePoseBatch {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Bind exact external source keys to one skeleton node; playback unverified.
     NifClipPose {
         skeleton: PathBuf,
@@ -264,6 +271,8 @@ enum Command {
         equipment_source: Option<identity::FormKey>,
         #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
         equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, value_parser = actor_inspection::parse_root)]
+        voice_root: Option<identity::FormKey>,
     },
     /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
     ActorPackageContext {
@@ -469,10 +478,13 @@ enum Command {
         #[arg(long, conflicts_with = "native_capabilities")]
         engineering_local_copy: Option<PathBuf>,
         /// Consume a saved journal head using explicit engineering activation/intent.
-        #[arg(long, requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_request: Option<PathBuf>,
+        /// Observe explicitly selected native occurrences from saved state.
+        #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_native_request: Option<PathBuf>,
         /// Strict current canonical snapshot; no migration or engineering seeding.
-        #[arg(long, requires = "snapshot_copy_request")]
+        #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
         #[arg(long, requires = "snapshot_copy_request")]
@@ -754,11 +766,27 @@ enum Command {
         #[arg(long, requires = "reconstruct_heights", value_parser = parse_cell_key)]
         neighbor_form: Option<identity::FormKey>,
     },
+    /// Inspect source-authored selected-cell navigation; optionally request a bounded route.
+    NavigationRoute {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: Option<PathBuf>,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,
         #[arg(long)]
         oracle_report: Option<PathBuf>,
+        /// Explicit frozen-body engineering ray/overlap request (one input file).
+        #[arg(long, conflicts_with = "oracle_report")]
+        query_request: Option<PathBuf>,
     },
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {
@@ -1139,6 +1167,7 @@ fn run(args: Args) -> Result<()> {
             include_template_dependencies,
             equipment_source,
             equipment_role,
+            voice_root,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -1158,6 +1187,7 @@ fn run(args: Args) -> Result<()> {
                     include_template_dependencies,
                     equipment_source,
                     equipment_role,
+                    voice_root,
                 },
             )?;
             if let Some(oracle) = compare_oracle {
@@ -1433,9 +1463,31 @@ fn run(args: Args) -> Result<()> {
             native_capabilities,
             engineering_local_copy,
             snapshot_copy_request,
+            snapshot_native_request,
             snapshot_input,
             snapshot_output,
         } => {
+            if let Some(request) = snapshot_native_request {
+                let report = event_operand_inspection::observe_saved_native(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["observations"]
+                    .as_array()
+                    .ok_or("Missing native observations")?
+                    .iter()
+                    .any(|row| row["observation"]["outcome"]["status"] != "engineering_observation")
+                {
+                    return Err(
+                        "Saved native observations retain unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_copy_request {
                 let report = event_operand_inspection::copy_saved(
                     &install,
@@ -2008,6 +2060,25 @@ fn run(args: Args) -> Result<()> {
                 return Err("compiled script framing or metadata has issues; see report".into());
             }
         }
+        Command::NifSourcePoseBatch { input, request } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_pose_batch(&input, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("prepared source pose batch refused; see report".into());
+            }
+        }
         Command::NifClipPose {
             skeleton,
             clip,
@@ -2210,10 +2281,32 @@ fn run(args: Args) -> Result<()> {
                 return Err("skin decoding or independent comparison failed; see report".into());
             }
         }
+        Command::NavigationRoute {
+            install,
+            load_order,
+            editor_id,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &editor_id,
+                request.as_deref(),
+            )?;
+            emit(&report, output, &install)?;
+        }
         Command::NifCollision {
             input,
             oracle_report,
+            query_request,
         } => {
+            if let Some(request) = query_request {
+                let report = collision::query(&input, &request)?;
+                emit(&report, output, &input)?;
+                return Ok(());
+            }
             let report = collision::inspect(&input, oracle_report.as_deref())?;
             emit(&report, output, &input)?;
             if report.failures != 0 {

@@ -25,6 +25,7 @@ pub mod loaded_scripts;
 pub mod model_probe;
 pub mod narrative;
 pub mod narrative_census;
+pub mod navigation;
 pub mod nif;
 pub mod nif_animation;
 pub mod nif_census;

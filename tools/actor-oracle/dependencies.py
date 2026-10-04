@@ -657,11 +657,29 @@ def render_manifest(reader, root, definitions, manifest, remaining, content_dige
         if kind == "NPC_" and sex is not None and counts["race"] == 0:
             issue("missing_actor_race_link", key)
         require(visits <= remaining["visits"], "render visit budget")
+    selected_keys = sorted(selected)
+    indices = {key: index for index, key in enumerate(selected_keys)}
+    children = [[] for _ in selected_keys]
+    visits += len(selected_keys) + len(edges)
+    require(visits <= remaining["visits"], "render selected graph visit budget")
+    for index in sorted(edges):
+        edge = manifest["model_edges"][index]
+        target = key_tuple(edge["binding"]["key"])
+        if edge["binding"]["status"] == "defined" and edge["schema_kind_allowed"] is True and target in indices:
+            children[indices[key_tuple(edge["source"])]].append(indices[target])
+    selected_cycles = cycles(children)
+    for component in selected_cycles:
+        for index in component:
+            issue("cyclic_selected_render_source", selected_keys[index])
+    admitted = bool(requests) and not issues and not selected_cycles and all(
+        not request["ambiguous_source"] and manifest["paths"][request["manifest_path_index"]]["lookup_status"] == "one_archive_candidate"
+        for request in requests)
     require(len(selected) <= remaining["sources"] and visits <= remaining["visits"], "render source/visit budget")
     result = dict(winning_content_sha256=content_digest, manifest=manifest,
         configuration=config, sex=sex,
         sources=[{name: definitions[key][name] for name in ["key", "source", "header"]} for key in sorted(selected)],
-        selected_edge_indices=sorted(edges), requests=requests, issues=issues, visits=visits,
+        selected_edge_indices=sorted(edges), selected_source_cycles=selected_cycles,
+        requests=requests, selected_requests_admitted=admitted, issues=issues, visits=visits,
         equipment_selection_supported=False,
         scope="Authored actor model/animation and explicit head-part/hair/eye links, sex-bound RACE declarations; no template inheritance, effective equipment, FaceGen composition, relative list base, animation playback or retail precedence")
     for name, count in dict(sources=len(selected), requests=len(requests), issues=len(issues), visits=visits).items():

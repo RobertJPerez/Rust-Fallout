@@ -7,6 +7,10 @@ use crate::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
+
+mod prepared;
+pub use prepared::{BatchLimits, PoseBatch, PreparationUsage, PreparedSource, SampleLimits};
 
 pub const CONTRACT: &str = "engineering-linked-source-pose-v1";
 
@@ -59,7 +63,7 @@ impl Default for Limits {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct SourceSpan {
     pub block: u32,
     pub offset: usize,
@@ -159,8 +163,8 @@ pub(super) fn span(bytes: &[u8], index: &nif::NifIndex, block: u32) -> SourceSpa
 
 pub(super) struct SceneMapping<'a> {
     scene: &'a nif_scene::Scene,
-    objects: Vec<Option<usize>>,
-    worlds: Vec<Option<usize>>,
+    objects: Cow<'a, [Option<usize>]>,
+    worlds: Cow<'a, [Option<usize>]>,
     selected_world: nif_scene::WorldTransform,
 }
 impl<'a> SceneMapping<'a> {
@@ -190,8 +194,8 @@ impl<'a> SceneMapping<'a> {
         }
         Ok(Self {
             scene,
-            objects,
-            worlds,
+            objects: Cow::Owned(objects),
+            worlds: Cow::Owned(worlds),
             selected_world: *selected_world,
         })
     }
@@ -202,6 +206,15 @@ impl<'a> SceneMapping<'a> {
         local: Affine,
         budget: &mut Budget<'_>,
         ancestry_depth: usize,
+    ) -> Result<(Affine, Vec<Ancestor>)> {
+        self.compose_with_spans(local, budget, ancestry_depth, |id| span(bytes, index, id))
+    }
+    fn compose_with_spans(
+        &self,
+        local: Affine,
+        budget: &mut Budget<'_>,
+        ancestry_depth: usize,
+        mut source_span: impl FnMut(u32) -> SourceSpan,
     ) -> Result<(Affine, Vec<Ancestor>)> {
         let mut world = local;
         let mut parent = self.selected_world.parent;
@@ -234,7 +247,7 @@ impl<'a> SceneMapping<'a> {
             budget.reserve::<u8>(64)?;
             world = compose(scene_affine(object.transform), world);
             ancestors.push(Ancestor {
-                source: span(bytes, index, id),
+                source: source_span(id),
                 local: object.transform.into(),
                 flags: object.flags,
                 parent: ancestor_world.parent,
@@ -275,6 +288,97 @@ pub(super) fn component_local(
     })
 }
 
+enum SourceStorage<'a> {
+    Borrowed(&'a [u8]),
+    Prepared(&'a PreparedSource),
+}
+struct SourceView<'a> {
+    source: &'a str,
+    index: &'a nif::NifIndex,
+    decoded: &'a keyframe::Source,
+    scene: &'a nif_scene::Scene,
+    storage: SourceStorage<'a>,
+}
+impl SourceView<'_> {
+    fn source_span(&self, block: u32) -> SourceSpan {
+        match &self.storage {
+            SourceStorage::Borrowed(bytes) => span(bytes, self.index, block),
+            SourceStorage::Prepared(prepared) => prepared.spans[block as usize].clone(),
+        }
+    }
+    fn source_sha256(&self) -> String {
+        match &self.storage {
+            SourceStorage::Borrowed(bytes) => format!("{:x}", Sha256::digest(bytes)),
+            SourceStorage::Prepared(prepared) => prepared.sha256.clone(),
+        }
+    }
+    fn object(&self, block: u32) -> Option<&nif_scene::Object> {
+        match &self.storage {
+            SourceStorage::Borrowed(_) => self.scene.objects.iter().find(|o| o.block == block),
+            SourceStorage::Prepared(p) => p
+                .objects
+                .get(block as usize)
+                .copied()
+                .flatten()
+                .map(|i| &p.scene.objects[i]),
+        }
+    }
+    fn animation(&self, block: u32) -> Option<&super::Block> {
+        match &self.storage {
+            SourceStorage::Borrowed(_) => self
+                .decoded
+                .animation
+                .blocks
+                .iter()
+                .find(|b| b.block == block),
+            SourceStorage::Prepared(p) => p
+                .animation
+                .get(block as usize)
+                .copied()
+                .flatten()
+                .map(|i| &p.decoded.animation.blocks[i]),
+        }
+    }
+    fn keys(&self, block: u32) -> Option<&keyframe::Block> {
+        match &self.storage {
+            SourceStorage::Borrowed(_) => {
+                self.decoded.keys.blocks.iter().find(|b| b.block == block)
+            }
+            SourceStorage::Prepared(p) => p
+                .keys
+                .get(block as usize)
+                .copied()
+                .flatten()
+                .map(|i| &p.decoded.keys.blocks[i]),
+        }
+    }
+    fn mapping(&self, object: u32, budget: &mut Budget<'_>) -> Result<SceneMapping<'_>> {
+        match &self.storage {
+            SourceStorage::Borrowed(_) => {
+                SceneMapping::prepare(self.scene, self.index, object, budget)
+            }
+            SourceStorage::Prepared(p) => {
+                let selected = p
+                    .worlds
+                    .get(object as usize)
+                    .copied()
+                    .flatten()
+                    .map(|i| p.scene.world_transforms[i])
+                    .ok_or_else(|| budget.fail("missing selected object ancestry"))?;
+                if !selected.reachable_from_footer {
+                    return Err(budget.fail("selected object is not reachable from footer"));
+                }
+                Ok(SceneMapping {
+                    scene: &p.scene,
+                    objects: Cow::Borrowed(&p.objects),
+                    worlds: Cow::Borrowed(&p.worlds),
+                    selected_world: selected,
+                })
+            }
+        }
+    }
+}
+
 /// Existing decoders build their own immutable index from these bytes. No public
 /// predecoded catalogue or name-based link can substitute stale source identity.
 pub fn evaluate(
@@ -283,7 +387,7 @@ pub fn evaluate(
     request: Request,
     limits: Limits,
 ) -> Result<ObjectPose> {
-    let mut budget = Budget {
+    let budget = Budget {
         source,
         bytes: limits.array_bytes,
         work: limits.work_units,
@@ -296,28 +400,58 @@ pub fn evaluate(
     }
     let (index, decoded) = keyframe::decode_with_limits(bytes, source, limits.keys)?;
     let (_, scene) = nif_scene::decode_with_limits(bytes, source, limits.scene)?;
+    evaluate_loaded(
+        SourceView {
+            source,
+            index: &index,
+            decoded: &decoded,
+            scene: &scene,
+            storage: SourceStorage::Borrowed(bytes),
+        },
+        request,
+        limits.into(),
+    )
+}
+
+fn evaluate_loaded(
+    view: SourceView<'_>,
+    request: Request,
+    limits: SampleLimits,
+) -> Result<ObjectPose> {
+    let mut budget = Budget {
+        source: view.source,
+        bytes: limits.array_bytes,
+        work: limits.work_units,
+    };
+    if !request.source_time.is_finite() {
+        return Err(budget.fail("requested source time must be finite"));
+    }
+    if limits.ancestry_depth == 0 {
+        return Err(budget.fail("ancestry depth budget exceeded"));
+    }
+    let scene = view.scene;
+    let decoded = view.decoded;
     if !scene.unsupported_scene_edges.is_empty() {
         return Err(budget.fail("unresolved scene ancestry"));
     }
-    budget.charge(
-        scene.objects.len() * 2
-            + scene.world_transforms.len()
-            + decoded.animation.blocks.len() * 2
-            + decoded.keys.blocks.len(),
-    )?;
-    let object = scene
-        .objects
-        .iter()
-        .find(|o| o.block == request.object)
+    let visits = match view.storage {
+        SourceStorage::Borrowed(_) => {
+            scene.objects.len() * 2
+                + scene.world_transforms.len()
+                + decoded.animation.blocks.len() * 2
+                + decoded.keys.blocks.len()
+        }
+        SourceStorage::Prepared(_) => 4,
+    };
+    budget.charge(visits)?;
+    let object = view
+        .object(request.object)
         .ok_or_else(|| budget.fail("selected object is not decoded"))?;
     if object.controller != Some(request.controller) {
         return Err(budget.fail("selected object.controller differs from requested controller"));
     }
-    let controller = decoded
-        .animation
-        .blocks
-        .iter()
-        .find(|b| b.block == request.controller)
+    let controller = view
+        .animation(request.controller)
         .and_then(|b| match &b.data {
             Data::TransformController { controller } => Some(controller),
             _ => None,
@@ -332,11 +466,8 @@ pub fn evaluate(
     let interpolator_id = controller
         .interpolator
         .ok_or_else(|| budget.fail("missing transform interpolator"))?;
-    let interpolator = decoded
-        .animation
-        .blocks
-        .iter()
-        .find(|b| b.block == interpolator_id)
+    let interpolator = view
+        .animation(interpolator_id)
         .and_then(|b| match &b.data {
             Data::TransformInterpolator { interpolator } => Some(interpolator),
             _ => None,
@@ -347,16 +478,13 @@ pub fn evaluate(
     let data_id = interpolator
         .data
         .ok_or_else(|| budget.fail("missing transform key data"))?;
-    let data = decoded
-        .keys
-        .blocks
-        .iter()
-        .find(|b| b.block == data_id)
+    let data = view
+        .keys(data_id)
         .ok_or_else(|| budget.fail("interpolator data is not decoded NiTransformData"))?;
     if !matches!(data.data.rotation, keyframe::Rotation::Absent) {
         return Err(budget.fail("rotation key mapping is unapplied"));
     }
-    let mapping = SceneMapping::prepare(&scene, &index, request.object, &mut budget)?;
+    let mapping = view.mapping(request.object, &mut budget)?;
     budget.reserve::<ObjectPose>(1)?;
     // Whole source, four spans and two borrowed-source sampling receipts.
     budget.reserve::<u8>(7 * 64)?;
@@ -375,14 +503,16 @@ pub fn evaluate(
     )?;
     let local = component_local(object.transform, &translation, &scale);
     let (world, ancestors) =
-        mapping.compose(bytes, &index, local, &mut budget, limits.ancestry_depth)?;
+        mapping.compose_with_spans(local, &mut budget, limits.ancestry_depth, |id| {
+            view.source_span(id)
+        })?;
     Ok(ObjectPose {
         contract: CONTRACT,
-        source_sha256: format!("{:x}", Sha256::digest(bytes)),
-        object: span(bytes, &index, request.object),
-        controller: span(bytes, &index, request.controller),
-        interpolator: span(bytes, &index, interpolator_id),
-        data: span(bytes, &index, data_id),
+        source_sha256: view.source_sha256(),
+        object: view.source_span(request.object),
+        controller: view.source_span(request.controller),
+        interpolator: view.source_span(interpolator_id),
+        data: view.source_span(data_id),
         requested_time_f64_bits: request.source_time.to_bits(),
         source_local: object.transform.into(),
         object_flags: object.flags,

@@ -36,16 +36,202 @@ struct SavedCopyRequest {
 }
 
 fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>> {
+    read_bounded_named(path, maximum, "saved copy input byte budget exceeded")
+}
+
+fn read_bounded_named(path: &Path, maximum: usize, capacity: &'static str) -> Result<Vec<u8>> {
     let file = fallout_data::baseline::open_source(path)?;
     if file.metadata()?.len() > maximum as u64 {
-        return Err("saved copy input byte budget exceeded".into());
+        return Err(capacity.into());
     }
     let mut bytes = Vec::new();
     file.take(maximum as u64 + 1).read_to_end(&mut bytes)?;
     if bytes.len() > maximum {
-        return Err("saved copy input byte budget exceeded".into());
+        return Err(capacity.into());
     }
     Ok(bytes)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SavedNativeIntent {
+    Faithful,
+    EngineeringObservation,
+}
+
+fn explicit_optional_reference<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<ReferenceId>, D::Error> {
+    serde::Deserialize::deserialize(deserializer)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedNativeSelection {
+    occurrence: usize,
+    intent: SavedNativeIntent,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    supplied_subject: Option<ReferenceId>,
+    #[serde(deserialize_with = "explicit_optional_reference")]
+    explicit_player: Option<ReferenceId>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedNativeRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    calls: Vec<SavedNativeSelection>,
+    maximum_contributions: usize,
+    maximum_report_bytes: usize,
+}
+
+#[derive(serde::Serialize)]
+struct SavedNativeRow<'a> {
+    occurrence: usize,
+    observation: native::Observation<'a>,
+}
+
+pub(super) fn observe_saved_native(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+) -> Result<Value> {
+    let request: SavedNativeRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        64 * 1024,
+        "saved native request byte budget exceeded",
+    )?)?;
+    if request.schema_version != 1
+        || request.calls.is_empty()
+        || request.calls.len() > 128
+        || request.maximum_contributions > 65_536
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("invalid saved native request schema, selection or budget".into());
+    }
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let limits = fallout_runtime::Limits::default();
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        limits.max_snapshot_bytes,
+        "saved native snapshot byte budget exceeded",
+    )?;
+    let snapshot = fallout_runtime::snapshot::Snapshot::decode(&input_bytes, limits)?;
+    let world = fallout_runtime::World::restore(Arc::clone(&catalogue), snapshot, limits)?;
+    let before = world.snapshot();
+    let pending = world
+        .pending_events()
+        .find(|event| event.sequence == request.sequence.get())
+        .ok_or("Saved native sequence is not present in the pending journal")?;
+    let definition = world
+        .instance(world.handle(pending.instance)?)?
+        .definition()
+        .clone();
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        &[definition],
+        Default::default(),
+    )?;
+    let calls = world.prepare_native_calls_with_sources(
+        request.sequence.get(),
+        &sources,
+        Default::default(),
+    )?;
+    // Validate the complete ordered selection before any host query. Repeated
+    // and nonmonotonic physical occurrences retain their requested order.
+    for selection in &request.calls {
+        calls
+            .calls()
+            .get(selection.occurrence)
+            .ok_or(native::Error::MissingCall(selection.occurrence))?;
+    }
+    let mut report = json!({"schema_version":1,"scope":"Read-only physical native observations from an explicitly supplied current snapshot",
+        "campaign":world.campaign(),"state_revision":world.revision(),"pending_sequence":request.sequence,
+        "physical_call_count":calls.calls().len(),"observations":[],
+        "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),
+            "decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},
+        "executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),
+        "input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),
+        "canonical_state_unchanged":true,"event_acknowledged":false,
+        "faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]});
+    let mut base = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_report_bytes,
+    };
+    serde_json::to_writer(&mut base, &report)?;
+    let mut retained = base.bytes.len();
+    let mut contributions = 0_usize;
+    let mut rows = Vec::with_capacity(request.calls.len());
+    for selection in request.calls {
+        let intent = match selection.intent {
+            SavedNativeIntent::Faithful => native::Intent::Faithful,
+            SavedNativeIntent::EngineeringObservation => native::Intent::EngineeringObservation,
+        };
+        let observation = calls.observe(
+            selection.occurrence,
+            &content,
+            native::Inputs {
+                supplied_subject: selection.supplied_subject,
+                player: selection.explicit_player,
+            },
+            intent,
+            request.maximum_contributions.saturating_sub(contributions),
+        )?;
+        if let native::Outcome::EngineeringObservation { trace } = &observation.outcome {
+            contributions = contributions
+                .checked_add(trace.query.contributions.len())
+                .filter(|&count| count <= request.maximum_contributions)
+                .ok_or("saved native aggregate contribution budget exceeded")?;
+        }
+        let separator = usize::from(!rows.is_empty());
+        let mut writer = BoundedJson {
+            bytes: Vec::new(),
+            maximum: request
+                .maximum_report_bytes
+                .saturating_sub(retained)
+                .saturating_sub(separator),
+        };
+        serde_json::to_writer(
+            &mut writer,
+            &SavedNativeRow {
+                occurrence: selection.occurrence,
+                observation,
+            },
+        )?;
+        retained += writer.bytes.len() + separator;
+        // Allocate an owned JSON row only after bounded serialization admits it.
+        rows.push(serde_json::from_slice::<Value>(&writer.bytes)?);
+    }
+    if world.snapshot() != before {
+        return Err("saved native observation changed canonical state or journal".into());
+    }
+    report["observations"] = json!(rows);
+    // Match the actual emitter's pretty report and trailing newline, including
+    // metadata, repeated context, separators and indentation in the one cap.
+    let mut final_report = BoundedJson {
+        bytes: Vec::new(),
+        maximum: request.maximum_report_bytes,
+    };
+    serde_json::to_writer_pretty(&mut final_report, &report)?;
+    final_report.write_all(b"\n")?;
+    Ok(report)
 }
 
 pub(super) fn copy_saved(

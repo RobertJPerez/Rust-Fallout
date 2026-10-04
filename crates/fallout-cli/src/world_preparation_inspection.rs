@@ -248,6 +248,29 @@ pub(super) fn conversation(
     // This is an exact source inspection, not a native function metadata capture.
     // Unknown function signatures remain explicit in each existing CTDA binding.
     let prepared = sources.prepare(&mut store, &request, &Signatures::new(), Limits::default())?;
+    let mut subtitle_payloads = Vec::new();
+    for (response_index, response) in prepared.metadata().responses.iter().enumerate() {
+        let mut occurrence = 0;
+        for &field_index in &response.fields {
+            let field = &prepared.metadata().info_fields[field_index];
+            if field.kind != *b"NAM1" {
+                continue;
+            }
+            // Indexed access over retained bytes avoids repeated nth scans when
+            // one response has many distinct NAM1 occurrences.
+            let bytes = prepared
+                .info_bytes(field_index)
+                .ok_or("prepared subtitle field has no retained source span")?;
+            let sha256 = format!("{:x}", Sha256::digest(bytes));
+            if sha256 != field.sha256 {
+                return Err("retained subtitle bytes differ from prepared source field".into());
+            }
+            subtitle_payloads.push(json!({"response":response_index,
+                "source_response_number":response.number,"occurrence":occurrence,
+                "info_field":field_index,"bytes":bytes.len(),"sha256":sha256}));
+            occurrence += 1;
+        }
+    }
     let fragments = if input.bind_result_fragments {
         let catalogue = Catalogue::load(&mut store, ScriptLimits::default(), |_, _| Ok(()))?;
         Some(prepared.metadata().fragments.iter().map(|fragment| {
@@ -262,7 +285,7 @@ pub(super) fn conversation(
         json!({"schema_version":1,"profile":"nv-original","explicit_load_order":order.names,
         "load_order_sha256":order.sha256,"plugins":store.source_receipts()?,
         "membership_metadata_bytes":sources.retained_bytes(),"retained_conversation_bytes":prepared.retained_bytes(),
-        "conversation":prepared.metadata(),"loaded_fragments":fragments,
+        "conversation":prepared.metadata(),"subtitle_payloads":subtitle_payloads,"loaded_fragments":fragments,
         "condition_signatures_supplied":false,"runtime_ready":false,"retail_parity_accepted":false}),
     )
 }
@@ -304,20 +327,23 @@ mod tests {
         .concat()
     }
     fn fixture(root: &Path) {
+        fixture_subtitles(root, &[b"authored_fixture_line\0"], None);
+    }
+    fn fixture_subtitles(root: &Path, subtitles: &[&[u8]], orphan: Option<&[u8]>) {
         fs::create_dir(root.join("Data")).unwrap();
         let mut schr = [0; 20];
         schr[8..12].copy_from_slice(&4_u32.to_le_bytes());
-        let info = record(
-            b"INFO",
-            0x300,
-            &[
-                field(b"TRDT", &[0; 24]),
-                field(b"NAM1", b"authored_fixture_line\0"),
-                field(b"SCHR", &schr),
-                field(b"SCDA", &[0x1d, 0, 0, 0]),
-            ]
-            .concat(),
-        );
+        let mut body = Vec::new();
+        if let Some(orphan) = orphan {
+            body.extend(field(b"NAM1", orphan));
+        }
+        body.extend(field(b"TRDT", &[0; 24]));
+        for subtitle in subtitles {
+            body.extend(field(b"NAM1", subtitle));
+        }
+        body.extend(field(b"SCHR", &schr));
+        body.extend(field(b"SCDA", &[0x1d, 0, 0, 0]));
+        let info = record(b"INFO", 0x300, &body);
         let group = [
             b"GRUP".as_slice(),
             &(info.len() as u32 + 24).to_le_bytes(),
@@ -367,6 +393,10 @@ mod tests {
         .unwrap();
         assert_eq!(report["conversation"]["info"]["key"]["local_id"], 0x300);
         assert_eq!(
+            report["subtitle_payloads"][0]["sha256"],
+            format!("{:x}", Sha256::digest(b"authored_fixture_line\0"))
+        );
+        assert_eq!(
             report["conversation"]["responses"]
                 .as_array()
                 .unwrap()
@@ -382,6 +412,42 @@ mod tests {
         assert_eq!(report["condition_signatures_supplied"], false);
         assert_eq!(report["retail_parity_accepted"], false);
         assert!(!report.to_string().contains("authored_fixture"));
+    }
+    #[test]
+    fn cli_subtitle_consumer_keeps_repeated_non_utf8_occurrences_and_orphans_distinct() {
+        let directory = directory();
+        let subtitles: [&[u8]; 3] = [b"same\0", &[0xff, 0x80, 0], b"same\0"];
+        fixture_subtitles(&directory, &subtitles, Some(b"orphan\0"));
+        let report = conversation(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            input("Base.esm:300"),
+        )
+        .unwrap();
+        let payloads = report["subtitle_payloads"].as_array().unwrap();
+        assert_eq!(payloads.len(), 3);
+        for (occurrence, (payload, bytes)) in payloads.iter().zip(subtitles).enumerate() {
+            assert_eq!(payload["response"], 0);
+            assert_eq!(payload["source_response_number"], 0);
+            assert_eq!(payload["occurrence"], occurrence);
+            assert_eq!(payload["info_field"], occurrence + 2);
+            assert_eq!(payload["bytes"], bytes.len());
+            assert_eq!(payload["sha256"], format!("{:x}", Sha256::digest(bytes)));
+            assert!(payload.get("text").is_none());
+        }
+        assert_eq!(
+            report["conversation"]["info_fields"][0]["sha256"],
+            format!("{:x}", Sha256::digest(b"orphan\0"))
+        );
+        assert_eq!(
+            report["conversation"]["info_fields"][0]["owner_section"],
+            serde_json::Value::Null
+        );
+        assert_eq!(report["loaded_fragments"].as_array().unwrap().len(), 1);
+        assert_eq!(report["runtime_ready"], false);
+        assert_eq!(report["conversation"]["voice_filename_verified"], false);
+        assert_eq!(report["conversation"]["condition_truth_verified"], false);
     }
     #[test]
     fn cli_consumer_refuses_info_outside_requested_winning_topic() {

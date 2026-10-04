@@ -21,6 +21,7 @@ use std::{
     time::Duration,
 };
 
+pub mod edit;
 #[cfg(test)]
 mod render_tests;
 
@@ -134,6 +135,7 @@ impl Session {
     /// Called by source preparation, outside render/input updates. Only returned
     /// owners are joined here; outstanding owners remain for final shutdown.
     pub fn start(self, origin: [f64; 3], shutdown: Shutdown) -> model::Result<(Host, Observation)> {
+        let provenance = copy_load(&self.load);
         let initial = observe(&self.world, &self.cell, &self.keys, origin, self.load)?;
         let (commands, receiver) = mpsc::sync_channel(1);
         let (results, replies) = mpsc::sync_channel(1);
@@ -174,6 +176,7 @@ impl Session {
                         self.cell,
                         self.keys,
                         origin,
+                        provenance,
                         receiver,
                         results,
                         closing,
@@ -191,9 +194,20 @@ impl Session {
                 title,
                 revision: initial.report.revision,
                 last_intent_sequence: 0,
+                last_edit_sequence: 0,
+                applied_edit: None,
             },
             initial,
         ))
+    }
+}
+
+fn copy_load(load: &LoadReceipt) -> LoadReceipt {
+    LoadReceipt {
+        slot: load.slot,
+        metadata: load.metadata.clone(),
+        current_failure: load.current_failure.clone(),
+        current_repaired: load.current_repaired,
     }
 }
 
@@ -291,10 +305,11 @@ fn observe(
     })
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum Request {
     Save,
     Continue,
+    Edit(Box<edit::Command>),
 }
 
 struct Command {
@@ -305,6 +320,7 @@ struct Command {
 pub enum Event {
     Saved(fallout_runtime::save::WriteReceipt),
     Continued(Box<Observation>),
+    Edited(Box<edit::Applied>),
     Failed(String),
 }
 
@@ -317,6 +333,8 @@ pub struct Host {
     title: String,
     revision: u64,
     last_intent_sequence: u64,
+    last_edit_sequence: u64,
+    applied_edit: Option<edit::Receipt>,
 }
 
 impl Host {
@@ -328,6 +346,39 @@ impl Host {
     }
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+    pub fn applied_edit(&self) -> Option<&edit::Receipt> {
+        self.applied_edit.as_ref()
+    }
+
+    /// The adapter supplies the actual current ECS observation, never a forged
+    /// runtime View. The owner repeats authority checks before stage/commit.
+    pub fn edit(
+        &mut self,
+        request: edit::Request,
+        displayed: &View,
+        scene_epoch: u64,
+        admitted: bool,
+    ) -> bool {
+        if request.intent_sequence <= self.last_edit_sequence {
+            return false;
+        }
+        self.last_edit_sequence = request.intent_sequence;
+        if self.pending {
+            return false;
+        }
+        if !admitted
+            || request.scene_epoch != scene_epoch
+            || request.expected_revision != self.revision
+            || edit::validate_display(&request, displayed).is_err()
+        {
+            self.failure("Reference edit belongs to a different displayed identity".into());
+            return false;
+        }
+        self.request(Request::Edit(Box::new(edit::Command {
+            request,
+            displayed: displayed.clone(),
+        })))
     }
 
     pub fn intent(
@@ -373,6 +424,12 @@ impl Host {
             self.failure("Native host admission closed".into());
             return false;
         }
+        let saving = matches!(request, Request::Save);
+        let title = match &request {
+            Request::Save => "Save pending publication",
+            Request::Continue => "Continue validating current native save",
+            Request::Edit(_) => "Engineering reference edit pending canonical commit",
+        };
         match self
             .commands
             .as_ref()
@@ -387,14 +444,10 @@ impl Host {
             }) {
             Ok(()) => {
                 self.pending = true;
-                if matches!(request, Request::Save) {
+                if saving {
                     self.published = false;
                 }
-                self.title = match request {
-                    Request::Save => "Save pending publication",
-                    Request::Continue => "Continue validating current native save",
-                }
-                .into();
+                self.title = title.into();
                 true
             }
             Err(error) => {
@@ -438,7 +491,17 @@ impl Host {
             }
             Event::Continued(observation) => {
                 self.revision = observation.report.revision;
+                self.applied_edit = None;
                 self.title = restored_title(observation, "Continue");
+            }
+            Event::Edited(applied) => {
+                self.revision = applied.observation.report.revision;
+                self.published = false;
+                self.applied_edit = Some(applied.receipt.clone());
+                self.title = format!(
+                    "Engineering edit committed revision {}; unsaved; F5 save; F9 Continue",
+                    self.revision
+                );
             }
             Event::Failed(error) => self.failure(error.clone()),
         }
@@ -480,6 +543,7 @@ fn run(
     cell: FormKey,
     keys: Vec<FormKey>,
     origin: [f64; 3],
+    mut provenance: LoadReceipt,
     commands: Receiver<Command>,
     results: SyncSender<Event>,
     closing: Arc<ShutdownState>,
@@ -513,14 +577,26 @@ fn run(
             continue;
         }
         let event = match request.request {
+            Request::Edit(command) => match edit::apply(
+                &mut world,
+                &cell,
+                &keys,
+                origin,
+                copy_load(&provenance),
+                *command,
+            ) {
+                Ok(applied) => Event::Edited(Box::new(applied)),
+                Err(error) => Event::Failed(error.to_string()),
+            },
             Request::Continue => {
                 let result =
                     repository.load(Arc::clone(&catalogue), Limits::default(), Recovery::Strict);
                 match result {
                     Ok((fresh, load)) if fresh.campaign() == world.campaign() => {
-                        match observe(&fresh, &cell, &keys, origin, load) {
+                        match observe(&fresh, &cell, &keys, origin, copy_load(&load)) {
                             Ok(observation) => {
                                 world = fresh;
+                                provenance = load;
                                 Event::Continued(Box::new(observation))
                             }
                             Err(error) => Event::Failed(error.to_string()),

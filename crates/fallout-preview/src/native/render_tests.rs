@@ -523,3 +523,274 @@ fn actual_cell_draw_continue_and_cold_restore_keep_canonical_identity() {
         );
     }
 }
+
+#[test]
+fn actual_displayed_edit_save_and_fresh_cold_continue() {
+    let (files, world, repository) = authored();
+    let root = &files.root;
+    let original = world.snapshot();
+    let selected = form(0x500);
+    let source_view = world
+        .reference_view(world.authored_reference(&selected).unwrap())
+        .unwrap();
+    let desired = State::new(
+        form(0x400),
+        Pose::from_source(
+            &SourceTransform {
+                position: [0., 40., 0.],
+                rotation: [0.; 3],
+            },
+            Some(1.),
+        )
+        .unwrap(),
+        true,
+    )
+    .unwrap();
+    let request = edit::Request {
+        schema_version: 1,
+        scene_epoch: 7,
+        intent_sequence: 1,
+        expected_campaign: world.campaign(),
+        expected_catalogue_sha256: world.catalogue_fingerprint().into(),
+        expected_revision: world.revision(),
+        key: selected.clone(),
+        reference: source_view.reference(),
+        state: desired.clone(),
+    };
+    let install = root.join("install");
+    let order = root.join("order.json");
+    let shutdown = Shutdown::default();
+    let request_shutdown = shutdown.clone();
+    let repository_path = repository.path().to_path_buf();
+    let mut job = crate::loading::Job::start(7, move |context| {
+        crate::scene::load_cell(
+            &install,
+            &order,
+            "NativeDraw",
+            &context,
+            Some(&repository_path),
+            request_shutdown,
+        )
+        .map_err(|error| error.to_string())
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let (prepared, _, sources) = loop {
+        match job.poll(7) {
+            crate::loading::Poll::Ready(value) => break value,
+            crate::loading::Poll::Pending => {
+                assert!(Instant::now() < deadline);
+                thread::yield_now();
+            }
+            _ => panic!("authored edit CELL failed to prepare"),
+        }
+    };
+    let queue = crate::DrawScene {
+        queue: crate::upload::Queue::new(7, prepared).unwrap(),
+        cell: Some(sources),
+    };
+    let mut app = crate::tests::loading_app(crate::Phase::Uploading(queue));
+    let original_file = fs::read(repository.path().join("current.frsv")).unwrap();
+    {
+        let mut options = app.world_mut().resource_mut::<crate::Options>();
+        options.native_edit_request = Some(Arc::new(request.clone()));
+        options.native_save_after_ready = true;
+    }
+    app.insert_resource(crate::EditRun {
+        request: Arc::new(request.clone()),
+        attempted: false,
+        receipt: None,
+        save_publication: None,
+        error: None,
+    });
+    loop {
+        app.update();
+        let edit = app.world().resource::<crate::EditRun>();
+        assert!(edit.error.is_none(), "{:?}", edit.error);
+        if edit.save_publication.is_some() {
+            break;
+        }
+        assert!(Instant::now() < deadline, "actual edit+Save did not return");
+        thread::yield_now();
+    }
+    let receipt = app
+        .world()
+        .resource::<crate::EditRun>()
+        .receipt
+        .as_ref()
+        .unwrap()
+        .clone();
+    assert_eq!(receipt.before.revision(), original.state_revision);
+    assert_eq!(receipt.after.state(), Some(&desired));
+    assert_eq!(receipt.after.reference(), source_view.reference());
+    assert_eq!(
+        receipt.canonical_commit.after_revision,
+        original.state_revision + 1
+    );
+    assert_ne!(
+        fs::read(repository.path().join("current.frsv")).unwrap(),
+        original_file
+    );
+    let mut expected = original.clone();
+    expected.state_revision += 1;
+    expected
+        .reference_states
+        .iter_mut()
+        .find(|entry| entry.id == source_view.reference())
+        .unwrap()
+        .state = desired;
+    let mut views = app
+        .world_mut()
+        .query::<(&crate::scene::ReferenceView, &Transform, &Visibility)>();
+    let (actual, draw, visible) = views
+        .iter(app.world())
+        .find(|(view, _, _)| view.key == selected)
+        .unwrap();
+    assert_eq!(
+        actual.canonical.as_ref().unwrap().reference(),
+        source_view.reference()
+    );
+    assert_eq!(
+        actual.canonical.as_ref().unwrap().revision(),
+        expected.state_revision
+    );
+    assert_eq!(draw.translation, Vec3::new(0., 0., -40.));
+    assert_eq!(*visible, Visibility::Inherited);
+    assert_eq!(
+        app.world()
+            .resource::<crate::input::NativeDisplay>()
+            .0
+            .unwrap()
+            .revision,
+        expected.state_revision
+    );
+    if files.retain {
+        let inputs = root.join("inputs");
+        fs::create_dir(&inputs).unwrap();
+        let mut cli_request = request.clone();
+        cli_request.scene_epoch = 1;
+        fs::write(
+            inputs.join("edit-enabled.json"),
+            serde_json::to_vec_pretty(&cli_request).unwrap(),
+        )
+        .unwrap();
+        let mut disabled = cli_request.clone();
+        disabled.state = State::new(form(0x400), disabled.state.pose().clone(), false).unwrap();
+        fs::write(
+            inputs.join("edit-disabled.json"),
+            serde_json::to_vec_pretty(&disabled).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("edit-expected-snapshot.json"),
+            serde_json::to_vec_pretty(&expected).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("edit-actual-receipt.json"),
+            serde_json::to_vec_pretty(&receipt).unwrap(),
+        )
+        .unwrap();
+        let fresh = Repository::create(
+            &root.join("native-edit-seed"),
+            std::slice::from_ref(&root.join("install")),
+            world.campaign(),
+        )
+        .unwrap();
+        fresh.commit(&Captured::at_boundary(&world)).unwrap();
+    }
+    app.world_mut()
+        .resource_mut::<crate::input::Actions>()
+        .close = true;
+    app.update();
+    drop(app);
+    shutdown.finish().unwrap();
+    let (cold, load) = repository
+        .load(
+            catalogue(&root.join("install")),
+            Limits::default(),
+            Recovery::Strict,
+        )
+        .unwrap();
+    assert_eq!(cold.snapshot(), expected);
+    assert_eq!(load.metadata.state_revision, expected.state_revision);
+    // New owner/strict source restore and actual fresh CELL admission use the saved pose.
+    let install = root.join("install");
+    let order = root.join("order.json");
+    let path = repository.path().to_path_buf();
+    let cold_shutdown = Shutdown::default();
+    let request_shutdown = cold_shutdown.clone();
+    let mut job = crate::loading::Job::start(9, move |context| {
+        crate::scene::load_cell(
+            &install,
+            &order,
+            "NativeDraw",
+            &context,
+            Some(&path),
+            request_shutdown,
+        )
+        .map_err(|error| error.to_string())
+    })
+    .unwrap();
+    let (prepared, _, sources) = loop {
+        match job.poll(9) {
+            crate::loading::Poll::Ready(v) => break v,
+            crate::loading::Poll::Pending => {
+                assert!(Instant::now() < deadline);
+                thread::yield_now();
+            }
+            _ => panic!("fresh cold CELL refused"),
+        }
+    };
+    let cold_draw = prepared
+        .instances
+        .iter()
+        .find(|instance| instance.key.as_ref() == Some(&selected))
+        .unwrap();
+    assert_eq!(prepared.origin, [0., 40., 0.]);
+    assert_eq!(cold_draw.transform.translation, Vec3::ZERO);
+    assert_eq!(cold_draw.visibility, Visibility::Inherited);
+    assert_eq!(
+        cold_draw.canonical.as_ref().unwrap().reference(),
+        source_view.reference()
+    );
+    assert_eq!(
+        cold_draw.canonical.as_ref().unwrap().revision(),
+        expected.state_revision
+    );
+    let queue = crate::DrawScene {
+        queue: crate::upload::Queue::new(9, prepared).unwrap(),
+        cell: Some(sources),
+    };
+    let mut cold_app = crate::tests::loading_app(crate::Phase::Uploading(queue));
+    cold_app.world_mut().resource_mut::<crate::Loading>().epoch = 9;
+    while !matches!(
+        cold_app.world().resource::<crate::Loading>().phase,
+        crate::Phase::Ready(_)
+    ) {
+        cold_app.update();
+        assert!(Instant::now() < deadline);
+    }
+    let mut views = cold_app
+        .world_mut()
+        .query::<(&crate::scene::ReferenceView, &Transform, &Visibility)>();
+    let (view, draw, visible) = views
+        .iter(cold_app.world())
+        .find(|(view, _, _)| view.key == selected)
+        .unwrap();
+    assert_eq!(draw.translation, Vec3::ZERO);
+    assert_eq!(*visible, Visibility::Inherited);
+    assert_eq!(
+        view.canonical.as_ref().unwrap().state(),
+        cold.reference_view(source_view.reference())
+            .unwrap()
+            .state()
+    );
+    cold_app
+        .world_mut()
+        .resource_mut::<crate::input::Actions>()
+        .close = true;
+    cold_app.update();
+    drop(cold_app);
+    cold_shutdown.finish().unwrap();
+}

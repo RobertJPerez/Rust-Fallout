@@ -694,3 +694,438 @@ fn missing_scale_disabled_outside_cell_and_changed_sources_never_invent_live_val
         .is_err()
     );
 }
+
+fn edit_request(world: &World<'_>, cell: &FormKey, selected: &FormKey) -> edit::Request {
+    let view = world
+        .reference_view(world.authored_reference(selected).unwrap())
+        .unwrap();
+    edit::Request {
+        schema_version: 1,
+        scene_epoch: 7,
+        intent_sequence: 1,
+        expected_campaign: view.campaign(),
+        expected_catalogue_sha256: view.catalogue_fingerprint().into(),
+        expected_revision: view.revision(),
+        key: selected.clone(),
+        reference: view.reference(),
+        state: State::new(
+            cell.clone(),
+            Pose::from_source(
+                &SourceTransform {
+                    position: [8193.25, -0.0, 32.5],
+                    rotation: [0., 0., std::f32::consts::FRAC_PI_2],
+                },
+                Some(2.),
+            )
+            .unwrap(),
+            true,
+        )
+        .unwrap(),
+    }
+}
+
+#[test]
+fn explicit_edit_ingress_preserves_all_source_words_and_enforces_exact_byte_bounds() {
+    let f = fixture();
+    let request = edit_request(&f.world, &f.cell, &f.keys[0]);
+    let path = f.root.join("edit.json");
+    let mut raw = serde_json::to_vec(&request).unwrap();
+    let length = raw.len();
+    fs::write(&path, &raw).unwrap();
+    assert!(edit::read_request(&path, length - 1).is_err());
+    let parsed = edit::read_request(&path, length).unwrap();
+    assert_eq!(parsed.state, request.state);
+    assert_eq!(
+        parsed
+            .state
+            .pose()
+            .source_transform()
+            .position
+            .map(f32::to_bits),
+        [8193.25f32.to_bits(), 0x80000000, 32.5f32.to_bits()]
+    );
+    raw.resize(edit::REQUEST_BYTES, b' ');
+    fs::write(&path, &raw).unwrap();
+    assert_eq!(
+        edit::read_request(&path, edit::REQUEST_BYTES)
+            .unwrap()
+            .state,
+        request.state
+    );
+    raw.push(b' ');
+    fs::write(&path, &raw).unwrap();
+    assert!(edit::read_request(&path, edit::REQUEST_BYTES).is_err());
+    assert!(edit::read_request(&path, edit::REQUEST_BYTES + 1).is_err());
+    assert_eq!(fs::read(&path).unwrap(), raw);
+}
+
+#[test]
+fn explicit_edit_ingress_rejects_missing_duplicate_unknown_and_invalid_component_words() {
+    let f = fixture();
+    let request = edit_request(&f.world, &f.cell, &f.keys[0]);
+    let value = serde_json::to_value(&request).unwrap();
+    let before = f.world.snapshot();
+    let mut refused = Vec::new();
+    for pointer in [
+        "/state/pose/scale_bits",
+        "/state/pose/rotation_bits",
+        "/state/pose/position_bits",
+        "/state/enabled",
+        "/scene_epoch",
+    ] {
+        let mut v = value.clone();
+        let (parent, name) = pointer.rsplit_once('/').unwrap();
+        v.pointer_mut(parent)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove(name);
+        refused.push(serde_json::to_vec(&v).unwrap());
+    }
+    for pointer in ["", "/key", "/state", "/state/cell", "/state/pose"] {
+        let mut v = value.clone();
+        v.pointer_mut(pointer)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("unknown".into(), true.into());
+        refused.push(serde_json::to_vec(&v).unwrap());
+    }
+    for pointer in ["/state/pose/position_bits/0", "/state/pose/rotation_bits/2"] {
+        for bits in [0x7f800000u32, 0xff800000, 0x7fc01234] {
+            let mut v = value.clone();
+            *v.pointer_mut(pointer).unwrap() = bits.into();
+            refused.push(serde_json::to_vec(&v).unwrap());
+        }
+    }
+    for bits in [0u32, 0x80000000, 0xbf800000, 0x7f800000] {
+        let mut v = value.clone();
+        v["state"]["pose"]["scale_bits"] = bits.into();
+        refused.push(serde_json::to_vec(&v).unwrap());
+    }
+    let raw = String::from_utf8(serde_json::to_vec(&request).unwrap()).unwrap();
+    refused.push(
+        raw.replacen(
+            "\"schema_version\":1",
+            "\"schema_version\":1,\"schema_version\":1",
+            1,
+        )
+        .into_bytes(),
+    );
+    refused.push(
+        raw.replacen(
+            "\"scale_bits\":1073741824",
+            "\"scale_bits\":1073741824,\"scale_bits\":1073741824",
+            1,
+        )
+        .into_bytes(),
+    );
+    let path = f.root.join("malformed.json");
+    for (index, raw) in refused.iter().enumerate() {
+        fs::write(&path, raw).unwrap();
+        assert!(
+            edit::read_request(&path, edit::REQUEST_BYTES).is_err(),
+            "case{index}"
+        );
+        assert_eq!(fs::read(&path).unwrap(), *raw);
+        assert_eq!(f.world.snapshot(), before);
+    }
+    let mut absent = value.clone();
+    absent["state"]["enabled"] = false.into();
+    absent["state"]["pose"]["scale_bits"] = serde_json::Value::Null;
+    fs::write(&path, serde_json::to_vec(&absent).unwrap()).unwrap();
+    assert!(
+        edit::read_request(&path, edit::REQUEST_BYTES)
+            .unwrap()
+            .state
+            .pose()
+            .source_scale()
+            .is_none()
+    );
+}
+
+#[test]
+fn sole_owner_edit_changes_only_one_complete_component_and_one_revision_with_literal_basis() {
+    let mut f = fixture();
+    let before = f.world.snapshot();
+    let request = edit_request(&f.world, &f.cell, &f.keys[0]);
+    let current = f.world.reference_view(request.reference).unwrap();
+    let load = f.session().load;
+    let applied = edit::apply(
+        &mut f.world,
+        &f.cell,
+        &f.keys,
+        [8192., -5., 30.],
+        load,
+        edit::Command {
+            request: request.clone(),
+            displayed: current,
+        },
+    )
+    .unwrap();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected
+        .reference_states
+        .iter_mut()
+        .find(|entry| entry.id == request.reference)
+        .unwrap()
+        .state = request.state.clone();
+    assert_eq!(f.world.snapshot(), expected);
+    assert_eq!(applied.receipt.before.revision(), before.state_revision);
+    assert_eq!(applied.receipt.after.state(), Some(&request.state));
+    assert_eq!(
+        applied.receipt.canonical_commit.before_revision,
+        before.state_revision
+    );
+    assert_eq!(
+        applied.receipt.canonical_commit.after_revision,
+        expected.state_revision
+    );
+    assert!(!applied.receipt.durable_publication);
+    let draw = applied.observation.draws[&f.keys[0]].unwrap();
+    assert_eq!(draw.translation, Vec3::new(1.25, 2.5, -5.));
+    for (point, expected) in [
+        (Vec3::X, Vec3::new(1.25, 2.5, -3.)),
+        (Vec3::Y, Vec3::new(1.25, 4.5, -5.)),
+        (Vec3::Z, Vec3::new(-0.75, 2.5, -5.)),
+    ] {
+        assert!((draw.transform_point(point) - expected).length() < 1e-5);
+    }
+    assert!(
+        applied
+            .observation
+            .report
+            .bindings
+            .iter()
+            .filter_map(|binding| binding.canonical.as_ref())
+            .all(|view| view.revision() == expected.state_revision)
+    );
+    let bytes = edit::receipt_bytes(&applied.receipt, edit::RECEIPT_BYTES).unwrap();
+    assert!(edit::receipt_bytes(&applied.receipt, bytes.len()).is_err());
+    assert_eq!(
+        edit::receipt_bytes(&applied.receipt, bytes.len() + 1).unwrap(),
+        bytes
+    );
+    assert!(edit::receipt_bytes(&applied.receipt, edit::RECEIPT_BYTES + 1).is_err());
+    assert_eq!(f.world.snapshot(), expected);
+}
+
+#[test]
+fn owner_edit_refusals_preserve_full_snapshot_for_identity_cell_invalid_pose_and_runtime_epoch() {
+    let mut f = fixture();
+    let before = f.world.snapshot();
+    let request = edit_request(&f.world, &f.cell, &f.keys[0]);
+    let displayed = f.world.reference_view(request.reference).unwrap();
+    for index in 0..12 {
+        let mut r = request.clone();
+        match index {
+            0 => r.expected_revision += 1,
+            1 => r.expected_campaign = CampaignId::from_bytes([3; 16]).unwrap(),
+            2 => r.expected_catalogue_sha256 = "a".repeat(64),
+            3 => r.key = f.keys[1].clone(),
+            4 => r.reference = fallout_runtime::identity::ReferenceId(999.try_into().unwrap()),
+            5 => r.state = State::new(key(0x401), r.state.pose().clone(), true).unwrap(),
+            6 => r.schema_version = 2,
+            7 => r.scene_epoch = 0,
+            8 => r.intent_sequence = 0,
+            9 => {
+                r.state = State::new(
+                    f.cell.clone(),
+                    Pose::from_source(
+                        &SourceTransform {
+                            position: [0.; 3],
+                            rotation: [0.; 3],
+                        },
+                        None,
+                    )
+                    .unwrap(),
+                    true,
+                )
+                .unwrap()
+            }
+            10 => {
+                let mut v = serde_json::to_value(&r.state).unwrap();
+                v["pose"]["position_bits"][0] = 0x7f800000u32.into();
+                r.state = serde_json::from_value(v).unwrap();
+            }
+            11 => {
+                r.state = State::new(
+                    f.cell.clone(),
+                    Pose::from_source(
+                        &SourceTransform {
+                            position: [0.; 3],
+                            rotation: [0.; 3],
+                        },
+                        Some(f32::MAX),
+                    )
+                    .unwrap(),
+                    true,
+                )
+                .unwrap()
+            }
+            _ => unreachable!(),
+        }
+        let origin = [0.; 3];
+        let load = f.session().load;
+        assert!(
+            edit::apply(
+                &mut f.world,
+                &f.cell,
+                &f.keys,
+                origin,
+                load,
+                edit::Command {
+                    request: r,
+                    displayed: displayed.clone()
+                }
+            )
+            .is_err(),
+            "case{index}"
+        );
+        assert_eq!(f.world.snapshot(), before);
+    }
+    // Same bytes/revision/campaign after cold replacement still have a new authority epoch.
+    f.world.replace_from_snapshot(before.clone()).unwrap();
+    let load = f.session().load;
+    assert!(
+        edit::apply(
+            &mut f.world,
+            &f.cell,
+            &f.keys,
+            [0.; 3],
+            load,
+            edit::Command { request, displayed }
+        )
+        .is_err()
+    );
+    assert_eq!(f.world.snapshot(), before);
+}
+
+#[test]
+fn host_edit_has_one_pending_consumed_sequence_and_real_save_cold_continue() {
+    let f = fixture();
+    let before = f.world.snapshot();
+    let request = edit_request(&f.world, &f.cell, &f.keys[0]);
+    let file_before = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    let (mut host, initial) = f
+        .session()
+        .start([8192., -5., 30.], Shutdown::default())
+        .unwrap();
+    let displayed = initial
+        .binding(&f.keys[0])
+        .unwrap()
+        .canonical
+        .as_ref()
+        .unwrap();
+    assert!(host.edit(request.clone(), displayed, 7, true));
+    assert!(!host.edit(request.clone(), displayed, 7, true));
+    let mut busy = request.clone();
+    busy.intent_sequence = 2;
+    assert!(!host.edit(busy.clone(), displayed, 7, true));
+    let Event::Edited(applied) = event(&mut host) else {
+        panic!("edit did not commit")
+    };
+    assert_eq!(host.revision(), before.state_revision + 1);
+    assert!(!host.published());
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        file_before
+    );
+    assert!(!host.edit(busy, displayed, 7, true));
+    assert!(!host.intent(
+        intent(before.state_revision, 1, crate::input::NativeAction::Save),
+        7,
+        true
+    ));
+    assert!(host.request(Request::Save));
+    let Event::Saved(saved) = event(&mut host) else {
+        panic!("save did not publish")
+    };
+    assert_eq!(
+        saved.metadata.state_revision,
+        applied.receipt.after.revision()
+    );
+    assert!(host.published());
+    let (cold, _) = f
+        .repository
+        .load(
+            Arc::clone(&f.catalogue),
+            Limits::default(),
+            Recovery::Strict,
+        )
+        .unwrap();
+    let mut expected = before.clone();
+    expected.state_revision += 1;
+    expected
+        .reference_states
+        .iter_mut()
+        .find(|entry| entry.id == request.reference)
+        .unwrap()
+        .state = request.state.clone();
+    assert_eq!(cold.snapshot(), expected);
+    assert!(host.request(Request::Continue));
+    let Event::Continued(observed) = event(&mut host) else {
+        panic!("Continue failed")
+    };
+    assert_eq!(
+        observed
+            .binding(&f.keys[0])
+            .unwrap()
+            .canonical
+            .as_ref()
+            .unwrap()
+            .state(),
+        Some(&request.state)
+    );
+    assert_eq!(observed.draws, applied.observation.draws);
+    // A View sampled before that byte-identical Continue cannot stage another edit.
+    let mut stale = request;
+    stale.expected_revision = host.revision();
+    stale.intent_sequence = 3;
+    assert!(host.edit(stale, &applied.receipt.after, 7, true));
+    assert!(matches!(event(&mut host), Event::Failed(_)));
+    assert_eq!(host.revision(), expected.state_revision);
+    stop(host);
+}
+
+#[test]
+fn edit_save_failure_keeps_unsaved_commit_distinct_from_durable_repository() {
+    let f = fixture();
+    let request = edit_request(&f.world, &f.cell, &f.keys[0]);
+    let (mut host, initial) = f.session().start([0.; 3], Shutdown::default()).unwrap();
+    let view = initial
+        .binding(&f.keys[0])
+        .unwrap()
+        .canonical
+        .as_ref()
+        .unwrap();
+    assert!(!host.edit(request.clone(), view, 8, true));
+    let mut accepted = request.clone();
+    accepted.intent_sequence = 2;
+    assert!(host.edit(accepted, view, 7, true));
+    let Event::Edited(edited) = event(&mut host) else {
+        panic!("edit failed")
+    };
+    fs::create_dir(f.repository.path().join("previous.frsv")).unwrap();
+    let exact = fs::read(f.repository.path().join("current.frsv")).unwrap();
+    assert!(host.request(Request::Save));
+    assert!(matches!(event(&mut host), Event::Failed(_)));
+    assert!(!host.published());
+    assert!(host.title().starts_with("Native failed:"));
+    assert_eq!(host.revision(), edited.receipt.after.revision());
+    assert_eq!(
+        fs::read(f.repository.path().join("current.frsv")).unwrap(),
+        exact
+    );
+    fs::remove_dir(f.repository.path().join("previous.frsv")).unwrap();
+    assert!(host.request(Request::Save));
+    let Event::Saved(saved) = event(&mut host) else {
+        panic!("save retry failed")
+    };
+    assert_eq!(
+        saved.metadata.state_revision,
+        edited.receipt.after.revision()
+    );
+    stop(host);
+}

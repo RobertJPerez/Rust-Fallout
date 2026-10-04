@@ -49,6 +49,8 @@ struct Options {
     #[arg(skip)]
     native_shutdown: native::Shutdown,
     #[arg(skip)]
+    native_edit_request: Option<Arc<native::edit::Request>>,
+    #[arg(skip)]
     rectangle_request: Option<Arc<ui::rectangles::Request>>,
     #[arg(skip)]
     image_request: Option<Arc<ui::images::Request>>,
@@ -147,6 +149,12 @@ struct Options {
     /// Engineering capture: submit one real save after complete draw admission.
     #[arg(long, requires_all = ["native_save", "headless"])]
     native_save_after_ready: bool,
+    /// One complete caller-authored pose/enable edit of an existing displayed reference.
+    #[arg(long, requires_all = ["native_save", "report"])]
+    native_edit: Option<PathBuf>,
+    /// Fresh receipt for the displayed canonical edit and actual GPU capture.
+    #[arg(long, requires_all = ["native_edit", "capture"])]
+    native_edit_receipt: Option<PathBuf>,
     /// Camera position in original source units (x,y,z).
     #[arg(long, num_args = 3, value_delimiter = ',', allow_negative_numbers = true,
         requires_all = ["camera_look_at", "load_order"])]
@@ -303,6 +311,15 @@ struct LivePose {
     error: Option<String>,
 }
 
+#[derive(Resource)]
+struct EditRun {
+    request: Arc<native::edit::Request>,
+    attempted: bool,
+    receipt: Option<native::edit::Receipt>,
+    save_publication: Option<serde_json::Value>,
+    error: Option<String>,
+}
+
 fn read_object_source(options: &Options) -> model::Result<Vec<u8>> {
     if let Some(path) = &options.model_file {
         let mut bytes = Vec::new();
@@ -426,6 +443,7 @@ fn retry_outputs(options: &Options) -> Result<(), String> {
         options.report.as_ref(),
         options.capture.as_ref(),
         options.pose_receipt.as_ref(),
+        options.native_edit_receipt.as_ref(),
     ]
     .into_iter()
     .flatten()
@@ -488,6 +506,18 @@ fn validate_pose_times(options: &Options) -> model::Result<()> {
 fn run() -> model::Result<AppExit> {
     let mut options = Options::parse();
     validate_pose_times(&options)?;
+    if let Some(path) = &options.native_edit {
+        options.native_edit_request = Some(Arc::new(native::edit::read_request(
+            path,
+            native::edit::REQUEST_BYTES,
+        )?));
+        if options.capture.is_some() && options.native_edit_receipt.is_none() {
+            return Err("Reference edit capture requires --native-edit-receipt".into());
+        }
+    }
+    if let Some(path) = &options.native_edit_receipt {
+        options.native_edit_receipt = Some(output_path(path, options.install.as_deref(), None)?);
+    }
     if let Some(path) = &options.pose_receipt {
         options.pose_receipt = Some(output_path(
             path,
@@ -516,6 +546,24 @@ fn run() -> model::Result<AppExit> {
         && (options.pose_receipt == options.report || options.pose_receipt == options.capture)
     {
         return Err("pose receipt, capture and report require different fresh paths".into());
+    }
+    if options.native_edit_receipt.is_some()
+        && (options.native_edit_receipt == options.capture
+            || options.native_edit_receipt == options.report)
+    {
+        return Err("Edit receipt, capture and report require different fresh paths".into());
+    }
+    if let Some(request) = &options.native_edit {
+        for path in [
+            options.report.as_ref(),
+            options.capture.as_ref(),
+            options.native_edit_receipt.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            output_path(path, options.native_save.as_deref(), Some(request))?;
+        }
     }
     if let Some(path) = &options.menu_font {
         let limits = ui::fonts::Limits::default();
@@ -730,6 +778,15 @@ fn run() -> model::Result<AppExit> {
         plugins = plugins.disable::<WinitPlugin>();
     }
     let mut app = App::new();
+    if let Some(request) = &options.native_edit_request {
+        app.insert_resource(EditRun {
+            request: Arc::clone(request),
+            attempted: false,
+            receipt: None,
+            save_publication: None,
+            error: None,
+        });
+    }
     let background = options
         .tile_viewport()
         .map_or(Color::srgb(0.035, 0.045, 0.055), |r| {
@@ -1091,6 +1148,7 @@ fn write_tile_report(
 struct LoadingOptions<'w> {
     options: Res<'w, Options>,
     live: Option<Res<'w, LivePose>>,
+    edit: Option<ResMut<'w, EditRun>>,
 }
 
 #[expect(
@@ -1099,7 +1157,7 @@ struct LoadingOptions<'w> {
 )]
 fn drive_loading(
     mut commands: Commands,
-    request: LoadingOptions,
+    mut request: LoadingOptions,
     actions: Res<input::Actions>,
     mut state: ResMut<Loading>,
     mut context: ResMut<input::Context>,
@@ -1120,6 +1178,7 @@ fn drive_loading(
 ) {
     let options = &*request.options;
     let live = &request.live;
+    let editing = &mut request.edit;
     let window_ready = created
         .read()
         .any(|event| windows.iter().any(|(id, _)| id == event.window));
@@ -1275,6 +1334,7 @@ fn drive_loading(
                 capture.started = Instant::now();
                 startup::stage("Source scene admitted; graphics settling before capture.");
                 if options.native_save_after_ready
+                    && options.native_edit_request.is_none()
                     && let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut())
                 {
                     host.request(native::Request::Save);
@@ -1304,6 +1364,62 @@ fn drive_loading(
             if let Some(host) = queue.cell.as_mut().and_then(|cell| cell.native.as_mut()) {
                 if let Some(event) = host.poll() {
                     match event {
+                        native::Event::Edited(applied) => {
+                            let valid = applied.receipt.scene_epoch == epoch
+                                && display.0
+                                    == Some(input::DisplayIdentity {
+                                        scene_epoch: epoch,
+                                        revision: applied.receipt.before.revision(),
+                                    })
+                                && editing.as_ref().is_some_and(|edit| {
+                                    edit.attempted
+                                        && edit.error.is_none()
+                                        && edit.request.intent_sequence
+                                            == applied.receipt.intent_sequence
+                                        && edit.request.key
+                                            == *applied
+                                                .receipt
+                                                .after
+                                                .authored()
+                                                .expect("authored edit")
+                                });
+                            if valid
+                                && apply_native_observation(
+                                    &mut references,
+                                    &applied.observation,
+                                    Some(applied.receipt.before.revision()),
+                                )
+                            {
+                                display.0 = Some(input::DisplayIdentity {
+                                    scene_epoch: epoch,
+                                    revision: applied.observation.report.revision,
+                                });
+                                if let Some(edit) = editing.as_mut() {
+                                    eprintln!(
+                                        "Canonical reference edit receipt: {}",
+                                        serde_json::to_string(&applied.receipt)
+                                            .expect("serializable edit receipt")
+                                    );
+                                    edit.receipt = Some(applied.receipt);
+                                }
+                                capture.frame = 0;
+                                capture.started = Instant::now();
+                                if options.native_save_after_ready {
+                                    host.request(native::Request::Save);
+                                }
+                            } else {
+                                let error =
+                                    "Discarded stale/incomplete canonical edit display result"
+                                        .to_string();
+                                host.failure(error.clone());
+                                if let Some(edit) = editing.as_mut() {
+                                    edit.error = Some(error);
+                                }
+                                if options.headless {
+                                    exit.write(AppExit::error());
+                                }
+                            }
+                        }
                         native::Event::Continued(observation) => {
                             // Validate the complete destination set before changing any entity.
                             let valid = references
@@ -1336,6 +1452,19 @@ fn drive_loading(
                             }
                         }
                         native::Event::Saved(receipt) => {
+                            if let Some(edit) = editing.as_mut()
+                                && edit.receipt.as_ref().is_some_and(|applied| {
+                                    applied.after.revision() == receipt.metadata.state_revision
+                                        && applied.after.campaign() == receipt.metadata.campaign
+                                        && applied.after.catalogue_fingerprint()
+                                            == receipt.metadata.catalogue_sha256
+                                })
+                            {
+                                edit.save_publication = Some(
+                                    serde_json::to_value(&receipt)
+                                        .expect("serializable publication receipt"),
+                                );
+                            }
                             eprintln!(
                                 "Native save publication receipt: {}",
                                 serde_json::to_string(&receipt).expect("serializable save receipt")
@@ -1343,9 +1472,42 @@ fn drive_loading(
                         }
                         native::Event::Failed(error) => {
                             error!("Native request failed: {error}");
-                            if options.native_save_after_ready {
+                            if let Some(edit) = editing.as_mut() {
+                                edit.error = Some(error.clone());
+                            }
+                            if options.native_save_after_ready
+                                || (options.native_edit_request.is_some() && options.headless)
+                            {
                                 exit.write(AppExit::error());
                             }
+                        }
+                    }
+                }
+                if let Some(edit) = editing.as_mut()
+                    && !edit.attempted
+                {
+                    edit.attempted = true;
+                    let mut selected = references
+                        .iter()
+                        .filter(|(view, _, _)| view.key == edit.request.key)
+                        .map(|(view, _, _)| view.canonical.clone());
+                    let current = selected.next().flatten();
+                    let unique = selected.next().is_none();
+                    let admitted = unique
+                        && display.0
+                            == Some(input::DisplayIdentity {
+                                scene_epoch: epoch,
+                                revision: edit.request.expected_revision,
+                            });
+                    let accepted = current.as_ref().is_some_and(|view| {
+                        host.edit((*edit.request).clone(), view, epoch, admitted)
+                    });
+                    if !accepted {
+                        let error = "Reference edit refused: current exact displayed identity unavailable/stale or host busy".to_string();
+                        host.failure(error.clone());
+                        edit.error = Some(error);
+                        if options.headless {
+                            exit.write(AppExit::error());
                         }
                     }
                 }
@@ -1720,6 +1882,47 @@ fn pose_capture_receipt(bytes: &[u8], path: &Path, dimensions: [u32; 2]) -> mode
     Ok(encoded)
 }
 
+fn apply_native_observation(
+    references: &mut Query<
+        (&mut scene::ReferenceView, &mut Transform, &mut Visibility),
+        Without<Camera3d>,
+    >,
+    observation: &native::Observation,
+    expected_revision: Option<u64>,
+) -> bool {
+    if !references.iter().all(|(view, _, _)| {
+        observation.draws.contains_key(&view.key)
+            && observation.binding(&view.key).is_some_and(|binding| {
+                match (&view.canonical, &binding.canonical) {
+                    (Some(before), Some(after)) => {
+                        expected_revision.is_none_or(|revision| before.revision() == revision)
+                            && before.reference() == after.reference()
+                            && before.authored() == after.authored()
+                            && before.campaign() == after.campaign()
+                            && before.catalogue_fingerprint() == after.catalogue_fingerprint()
+                            && after.revision() == observation.report.revision
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+            })
+    }) {
+        return false;
+    }
+    for (mut view, mut transform, mut visibility) in references.iter_mut() {
+        view.canonical = observation
+            .binding(&view.key)
+            .and_then(|binding| binding.canonical.clone());
+        if let Some(next) = observation.draws[&view.key] {
+            *transform = next;
+            *visibility = Visibility::Inherited;
+        } else {
+            *visibility = Visibility::Hidden;
+        }
+    }
+    true
+}
+
 fn capture(
     mut commands: Commands,
     options: Res<Options>,
@@ -1727,10 +1930,20 @@ fn capture(
     mut state: ResMut<Capture>,
     mut exit: MessageWriter<AppExit>,
     live: Option<Res<LivePose>>,
+    editing: Option<Res<EditRun>>,
 ) {
     if !matches!(loading.phase, Phase::Ready(_)) {
         return;
     }
+    if options.native_edit_request.is_some()
+        && editing.as_ref().is_none_or(|edit| {
+            edit.error.is_some() || edit.receipt.as_ref().is_none_or(|receipt| {
+                receipt.scene_epoch != loading.epoch
+                    || !matches!(&loading.phase,Phase::Ready(queue) if queue.cell.as_ref()
+                        .and_then(|cell|cell.native.as_ref()).is_some_and(|host|host.revision()==receipt.after.revision()))
+            })
+        })
+    { return; }
     if !options.pose_times.is_empty()
         && live.as_ref().is_none_or(|live| {
             live.epoch != loading.epoch
@@ -1772,6 +1985,42 @@ fn capture(
         .map(Screenshot::image)
         .unwrap_or_else(Screenshot::primary_window);
     let report_path = options.report.clone();
+    let edit_receipt_path = options.native_edit_receipt.clone();
+    let edit_identity = editing
+        .as_ref()
+        .and_then(|edit| edit.receipt.as_ref())
+        .map(|receipt| {
+            (
+                receipt.scene_epoch,
+                receipt.intent_sequence,
+                receipt.after.revision(),
+            )
+        });
+    let edit_bytes = match editing.as_ref().and_then(|edit| {
+        edit.receipt
+            .as_ref()
+            .map(|receipt| (receipt, &edit.save_publication))
+    }) {
+        Some((receipt, publication)) => {
+            if let Err(error) = native::edit::receipt_bytes(receipt, native::edit::RECEIPT_BYTES) {
+                error!("Edit capture receipt failed: {error}");
+                exit.write(AppExit::error());
+                return;
+            }
+            let bytes = serde_json::to_vec_pretty(&serde_json::json!({
+                "schema_version":1,"edit_commit":receipt,"save_publication":publication,
+                "displayed_revision":receipt.after.revision(),"original_gameplay_accepted":false
+            }))
+            .expect("serializable current edit capture receipt");
+            if bytes.len().saturating_add(1) > native::edit::RECEIPT_BYTES {
+                error!("Edit capture receipt exceeds 1 MiB");
+                exit.write(AppExit::error());
+                return;
+            }
+            Some(bytes)
+        }
+        None => None,
+    };
     let pose_receipt = options.pose_receipt.clone();
     let pose_identity = live
         .as_ref()
@@ -1802,8 +2051,19 @@ fn capture(
               mut exit: MessageWriter<AppExit>,
               mut fixture: Option<ResMut<fixture::Report>>,
               loading: Res<Loading>,
-              live: Option<Res<LivePose>>| {
+              live: Option<Res<LivePose>>,
+              editing: Option<Res<EditRun>>| {
             let mut save = || -> model::Result<()> {
+                if let Some((epoch,sequence,revision)) = edit_identity {
+                    if loading.epoch != epoch
+                        || !matches!(&loading.phase,Phase::Ready(queue) if queue.cell.as_ref()
+                            .and_then(|cell|cell.native.as_ref()).is_some_and(|host| {
+                                host.revision()==revision && host.applied_edit().is_some_and(|receipt|receipt.intent_sequence==sequence)
+                            }))
+                        || editing.as_ref().is_none_or(|edit|edit.error.is_some()
+                            || edit.receipt.as_ref().is_none_or(|receipt|receipt.intent_sequence!=sequence))
+                    { return Err("Discarded stale canonical edit capture readback".into()); }
+                }
                 if let Some((epoch, sequence, time)) = pose_identity {
                     let current = live.as_ref().and_then(|live| live.receipt.as_ref());
                     if loading.epoch != epoch
@@ -1826,6 +2086,16 @@ fn capture(
                 let image = event.image.clone().try_into_dynamic()?.to_rgb8();
                 image.write_to(&mut file, image::ImageFormat::Png)?;
                 file.sync_all()?;
+                if let Some(receipt_path) = &edit_receipt_path {
+                    let bytes = pose_capture_receipt(
+                        edit_bytes.as_ref().ok_or("Current edit receipt unavailable")?,
+                        &path,[image.width(),image.height()],
+                    )?;
+                    let mut receipt_file = OpenOptions::new().write(true).create_new(true).open(receipt_path)?;
+                    receipt_file.write_all(&bytes)?;
+                    receipt_file.write_all(b"\n")?;
+                    receipt_file.sync_all()?;
+                }
                 if let Some(receipt_path) = &pose_receipt {
                     let bytes = pose_bytes
                         .as_ref()

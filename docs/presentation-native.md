@@ -73,3 +73,40 @@ repository outside the installation.
 This consumer proves engineering restoration/display and publication behavior.
 It does not establish original gameplay, visual parity, Continue-menu parity,
 power-loss durability or compatibility with original save files.
+
+`--native-edit REQUEST` is an opt-in engineering request for one exact current
+displayed source reference. The strict JSON object supplies schema version 1,
+nonzero scene epoch and intent sequence, expected campaign/cohort/revision,
+authored `FormKey`, persistent reference ID and a complete component `State`.
+Every position/rotation float and the explicitly present scale field retains
+its source binary32 words; scale can be null for a disabled result. There are
+no inferred pose, enable, CELL or physical keyboard/controller movement rules.
+Input is limited to 4 KiB. Unknown fields, absent component fields, nonfinite
+words and invalid scales are refused. The existing canonical CELL stays fixed.
+
+The host adapter requires exactly one matching current `ReferenceView`. The
+existing sole native owner checks its current source/campaign/revision, obtains
+a fresh runtime view and uses `stage_reference_state` and
+`commit_reference_state`. It validates the entire prior observation, proposed
+finite renderer placement and bounded receipt before that commit. A consumed
+sequence is never replayed; the existing one-request host channel limits edits,
+Save and Continue together. An edited source pose passes through the existing
+source basis/origin conversion exactly once. The immutable postcommit
+observation updates current displayed identities, placement and visibility;
+an old epoch/revision/result cannot move the current draw.
+
+Edit acceptance does not publish a save. Its receipt includes the actual
+canonical commit and before/after source views, with durable publication false.
+F5 uses the existing writer, and F9 uses strict source-bound Continue. With
+`--native-save-after-ready`, an opted-in edit must first be committed and applied
+to the display before Save is submitted. Failed edit or Save produces failure,
+retains the appropriate prior boundary, and cannot produce a successful capture.
+
+Capturing an edited display requires a separate fresh `--native-edit-receipt`
+path. The final receipt retains the edit commit, displayed revision, actual Save
+publication when requested, and actual PNG path/hash/bytes/dimensions. Its 1 MiB
+ceiling includes the newline; PNG hashing uses the existing 8 MiB bound. The
+initial CELL report remains an immutable record of initial restoration. Output
+paths are distinct and stay outside the installation, edit-input directory and
+selected native repository. This demonstrates caller-authored canonical editing
+and persistence, without collision, movement simulation or retail gameplay proof.

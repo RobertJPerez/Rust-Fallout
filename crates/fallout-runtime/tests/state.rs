@@ -1595,3 +1595,522 @@ fn cold_instance_initialization_helper() {
         "atomic explicit source initializer: exact owner/IDs/typed bits/uninitialized omitted fields/context/compiled block and pending journal restored before consumer"
     );
 }
+
+fn observation_fixture(root: &std::path::Path) {
+    std::fs::create_dir_all(root).unwrap();
+    std::fs::write(
+        root.join("FalloutNV.esm"),
+        [
+            header(&[]),
+            record(
+                b"SCPT",
+                0x300,
+                0,
+                &unit(
+                    &[
+                        (42, 0),
+                        (2, 1),
+                        (90, 0),
+                        (91, 0),
+                        (92, 0),
+                        (93, 0),
+                        (94, 1),
+                        (42, 1),
+                        (99, 7),
+                        (0, 0),
+                    ],
+                    &[(b"SCRV", 90), (b"SCRV", 91), (b"SCRV", 92)],
+                ),
+            ),
+            record(b"ACTI", 0x100, 0, &[]),
+        ]
+        .concat(),
+    )
+    .unwrap();
+}
+fn observation_host(
+    catalogue: &fallout_data::loaded_scripts::Catalogue,
+) -> (World<'_>, fallout_runtime::state::InstanceHandle) {
+    use fallout_runtime::identity::CampaignId;
+    let mut world = World::with_campaign(
+        catalogue,
+        Limits::default(),
+        CampaignId::from_bytes([42; 16]).unwrap(),
+    )
+    .unwrap();
+    let reference = world.register_reference(None).unwrap();
+    let handle = world
+        .create_instance(
+            &definition(catalogue),
+            Owner::Quest { key: form(0x100) },
+            Context {
+                calling_reference: Some(reference),
+                containing_reference: Some(reference),
+                target: Some(ReferenceValue::Content { key: form(0x300) }),
+                arguments: vec![
+                    ReferenceValue::Null,
+                    ReferenceValue::Content { key: form(0x100) },
+                    ReferenceValue::Live { id: reference },
+                ],
+            },
+        )
+        .unwrap();
+    (world, handle)
+}
+fn observation_assignments(reference: fallout_runtime::identity::ReferenceId) -> Vec<(u32, Value)> {
+    vec![
+        (
+            2,
+            Value::Number {
+                bits: 0x8000000000000000,
+            },
+        ),
+        (
+            42,
+            Value::Number {
+                bits: 0x7ff8123456789abc,
+            },
+        ),
+        (
+            90,
+            Value::Reference {
+                value: ReferenceValue::Null,
+            },
+        ),
+        (
+            91,
+            Value::Reference {
+                value: ReferenceValue::Content { key: form(0x100) },
+            },
+        ),
+        (
+            92,
+            Value::Reference {
+                value: ReferenceValue::Live { id: reference },
+            },
+        ),
+        (
+            93,
+            Value::Number {
+                bits: 0x7ff8123456789abd,
+            },
+        ),
+    ]
+}
+const OBSERVATION_INDICES: [u32; 7] = [94, 92, 2, 42, 91, 90, 93];
+
+#[test]
+fn selected_observation_retains_literal_requested_order_raw_bits_and_source_declarations() {
+    use fallout_runtime::state::observation;
+    use serde_json::json;
+    let root = tempfile::tempdir().unwrap();
+    observation_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = observation_host(&catalogue);
+    let reference = world
+        .instance(handle)
+        .unwrap()
+        .context()
+        .calling_reference
+        .unwrap();
+    world
+        .assign(handle, &observation_assignments(reference))
+        .unwrap();
+    let before = world.snapshot();
+    let observed = world
+        .observe_locals(handle, &OBSERVATION_INDICES, observation::Limits::default())
+        .unwrap();
+    assert_eq!(
+        observed
+            .rows()
+            .iter()
+            .map(|row| row.index())
+            .collect::<Vec<_>>(),
+        OBSERVATION_INDICES
+    );
+    assert_eq!(observed.revision(), 3);
+    assert_eq!(observed.campaign(), world.campaign());
+    assert_eq!(observed.definition(), &definition(&catalogue));
+    assert_eq!(observed.owner(), &Owner::Quest { key: form(0x100) });
+    assert_eq!(
+        observed.context(),
+        world.instance(handle).unwrap().context()
+    );
+    assert_eq!(observed.rows()[0].value(), &Value::Uninitialized);
+    assert!(matches!(
+        world.instance(handle).unwrap().local(94),
+        Err(Error::UninitializedLocal(94))
+    ));
+    let rows = serde_json::to_value(observed.rows()).unwrap();
+    assert_eq!(
+        rows,
+        json!([
+            {"declaration":{"index":94,"declaration_decoded_offset":315,"kind":{"kind":"integer"}},"value":{"kind":"uninitialized"}},
+            {"declaration":{"index":92,"declaration_decoded_offset":225,"kind":{"kind":"reference"}},"value":{"kind":"reference","value":{"kind":"live","id":1}}},
+            {"declaration":{"index":2,"declaration_decoded_offset":91,"kind":{"kind":"integer"}},"value":{"kind":"number","bits":0x8000000000000000_u64}},
+            {"declaration":{"index":42,"declaration_decoded_offset":46,"kind":{"kind":"float"}},"value":{"kind":"number","bits":0x7ff8123456789abc_u64}},
+            {"declaration":{"index":91,"declaration_decoded_offset":180,"kind":{"kind":"reference"}},"value":{"kind":"reference","value":{"kind":"content","key":form(0x100)}}},
+            {"declaration":{"index":90,"declaration_decoded_offset":135,"kind":{"kind":"reference"}},"value":{"kind":"reference","value":{"kind":"null"}}},
+            {"declaration":{"index":93,"declaration_decoded_offset":270,"kind":{"kind":"float"}},"value":{"kind":"number","bits":0x7ff8123456789abd_u64}}
+        ])
+    );
+    assert_eq!(world.snapshot(), before);
+    let held = observed.clone();
+    world
+        .assign(handle, &[(42, Value::Number { bits: 0 })])
+        .unwrap();
+    assert_eq!(
+        held.rows()[3].value(),
+        &Value::Number {
+            bits: 0x7ff8123456789abc
+        }
+    );
+    assert_eq!(held.revision(), 3);
+    assert_eq!(
+        world
+            .observe_locals(handle, &[42], observation::Limits::default())
+            .unwrap()
+            .revision(),
+        4
+    );
+}
+
+#[test]
+fn selected_observation_refuses_missing_duplicate_unsupported_and_every_one_under_budget() {
+    use fallout_runtime::state::observation;
+    let root = tempfile::tempdir().unwrap();
+    observation_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = observation_host(&catalogue);
+    world
+        .assign(
+            handle,
+            &observation_assignments(
+                1.try_into()
+                    .map(fallout_runtime::identity::ReferenceId)
+                    .unwrap(),
+            ),
+        )
+        .unwrap();
+    let before = world.snapshot();
+    let usage = world
+        .observe_locals(handle, &OBSERVATION_INDICES, observation::Limits::default())
+        .unwrap()
+        .usage();
+    assert_eq!(usage.indices, 7);
+    assert_eq!(usage.source_keys, 5);
+    assert_eq!(usage.context_arguments, 3);
+    assert_eq!(
+        usage.source_key_bytes,
+        5 * (std::mem::size_of::<fallout_data::identity::FormKey>() + 13)
+    );
+    let exact = observation::Limits {
+        max_indices: 7,
+        max_source_keys: 5,
+        max_source_key_bytes: usage.source_key_bytes,
+        max_context_arguments: 3,
+        max_copied_bytes: usage.copied_bytes,
+    };
+    assert_eq!(
+        world
+            .observe_locals(handle, &OBSERVATION_INDICES, exact)
+            .unwrap()
+            .usage(),
+        usage
+    );
+    for (indices, error) in [
+        (vec![2, 42, 0], Error::UnsupportedLocal(0)),
+        (vec![2, 42, 99], Error::UnsupportedLocal(99)),
+        (vec![2, 42, 888], Error::MissingLocal(888)),
+    ] {
+        assert_eq!(
+            world
+                .observe_locals(handle, &indices, exact)
+                .unwrap_err()
+                .to_string(),
+            error.to_string()
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    assert!(matches!(
+        world.observe_locals(handle, &[42, 2, 42], exact),
+        Err(Error::Invalid(_))
+    ));
+    for (limits, reason) in [
+        (
+            observation::Limits {
+                max_indices: 6,
+                ..exact
+            },
+            "local observation indices",
+        ),
+        (
+            observation::Limits {
+                max_source_keys: 4,
+                ..exact
+            },
+            "local observation source keys",
+        ),
+        (
+            observation::Limits {
+                max_source_key_bytes: usage.source_key_bytes - 1,
+                ..exact
+            },
+            "local observation source key bytes",
+        ),
+        (
+            observation::Limits {
+                max_context_arguments: 2,
+                ..exact
+            },
+            "local observation context arguments",
+        ),
+        (
+            observation::Limits {
+                max_copied_bytes: usage.copied_bytes - 1,
+                ..exact
+            },
+            "local observation copied bytes",
+        ),
+    ] {
+        assert!(
+            matches!(world.observe_locals(handle,&OBSERVATION_INDICES,limits),Err(Error::Capacity(actual))if actual==reason)
+        );
+        assert_eq!(world.snapshot(), before);
+    }
+    let empty = world
+        .observe_locals(handle, &[], observation::Limits::default())
+        .unwrap();
+    assert!(empty.rows().is_empty());
+    assert_eq!(empty.usage().source_keys, 4);
+    assert_eq!(world.snapshot(), before);
+}
+
+#[test]
+fn restored_recycled_and_other_source_handles_cannot_observe_an_instance() {
+    use fallout_runtime::state::observation;
+    let root = tempfile::tempdir().unwrap();
+    observation_fixture(root.path());
+    let catalogue = load(root.path(), &["FalloutNV.esm"]);
+    let (mut world, handle) = observation_host(&catalogue);
+    let initial = world.snapshot();
+    let observation = world
+        .observe_locals(handle, &OBSERVATION_INDICES, observation::Limits::default())
+        .unwrap();
+    let id = observation.instance();
+    world.replace_from_snapshot(initial.clone()).unwrap();
+    assert!(matches!(
+        world.observe_locals(handle, &[42], observation::Limits::default()),
+        Err(Error::StaleHandle)
+    ));
+    let current = world.handle(id).unwrap();
+    assert_eq!(
+        world
+            .observe_locals(
+                current,
+                &OBSERVATION_INDICES,
+                observation::Limits::default()
+            )
+            .unwrap(),
+        observation
+    );
+    world.remove_instance(current).unwrap();
+    let replacement = world
+        .create_instance(&definition(&catalogue), owner(99), Context::default())
+        .unwrap();
+    let exact = world.snapshot();
+    assert!(matches!(
+        world.observe_locals(current, &[42], observation::Limits::default()),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(world.snapshot(), exact);
+    let other = tempfile::tempdir().unwrap();
+    write_fixture(other.path(), false);
+    let other_source = load(other.path(), &["FalloutNV.esm"]);
+    let other_world = World::new(&other_source, Limits::default()).unwrap();
+    let before = other_world.snapshot();
+    assert!(matches!(
+        other_world.observe_locals(replacement, &[42], observation::Limits::default()),
+        Err(Error::StaleHandle)
+    ));
+    assert_eq!(other_world.snapshot(), before);
+    assert!(matches!(
+        World::restore(&other_source, initial, Limits::default()),
+        Err(Error::DefinitionChanged)
+    ));
+}
+
+#[test]
+fn selected_local_observations_survive_native_before_current_and_two_fresh_reads() {
+    use fallout_runtime::{
+        save::{Captured, Repository},
+        state::observation,
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let retained =
+        std::env::var_os("FALLOUT_LOCAL_OBSERVATION_EVIDENCE").map(std::path::PathBuf::from);
+    let root = retained.as_deref().unwrap_or(temp.path());
+    observation_fixture(root);
+    let source_bytes = std::fs::read(root.join("FalloutNV.esm")).unwrap();
+    let catalogue = load(root, &["FalloutNV.esm"]);
+    let (mut world, handle) = observation_host(&catalogue);
+    let repository = Repository::create(&root.join("saved"), &[], world.campaign()).unwrap();
+    let before = world.snapshot();
+    let first = world
+        .observe_locals(handle, &OBSERVATION_INDICES, observation::Limits::default())
+        .unwrap();
+    repository.commit(&Captured::at_boundary(&world)).unwrap();
+    world
+        .assign(
+            handle,
+            &observation_assignments(
+                world
+                    .instance(handle)
+                    .unwrap()
+                    .context()
+                    .calling_reference
+                    .unwrap(),
+            ),
+        )
+        .unwrap();
+    let current = world.snapshot();
+    let second = world
+        .observe_locals(handle, &OBSERVATION_INDICES, observation::Limits::default())
+        .unwrap();
+    let capture = Captured::at_boundary(&world);
+    world
+        .assign(handle, &[(42, Value::Number { bits: 0 })])
+        .unwrap();
+    repository.commit(&capture).unwrap();
+    for (name, value) in [
+        ("before.snapshot.json", &before),
+        ("current.snapshot.json", &current),
+    ] {
+        std::fs::write(root.join(name), value.encode(1 << 20).unwrap()).unwrap();
+    }
+    for (name, value) in [
+        ("before.observation.json", &first),
+        ("current.observation.json", &second),
+    ] {
+        std::fs::write(root.join(name), serde_json::to_vec_pretty(value).unwrap()).unwrap();
+    }
+    drop(world);
+    drop(catalogue);
+    for mode in ["previous", "current"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "cold_local_observation_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FALLOUT_LOCAL_OBSERVATION_COLD_ROOT", root)
+            .env("FALLOUT_LOCAL_OBSERVATION_COLD_MODE", mode)
+            .output()
+            .unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stdout.txt")), &result.stdout).unwrap();
+        std::fs::write(root.join(format!("cold-{mode}.stderr.txt")), &result.stderr).unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    assert_eq!(
+        std::fs::read(root.join("FalloutNV.esm")).unwrap(),
+        source_bytes
+    );
+}
+
+#[test]
+#[ignore = "fresh bounded local observation child selected by parent"]
+fn cold_local_observation_helper() {
+    use fallout_runtime::{
+        save::{Captured, Recovery, Repository, format},
+        state::observation,
+    };
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_LOCAL_OBSERVATION_COLD_ROOT").unwrap());
+    let mode = std::env::var("FALLOUT_LOCAL_OBSERVATION_COLD_MODE").unwrap();
+    let phase = if mode == "previous" {
+        "before"
+    } else {
+        "current"
+    };
+    let catalogue = load(&root, &["FalloutNV.esm"]);
+    let expected = Snapshot::decode(
+        &std::fs::read(root.join(format!("{phase}.snapshot.json"))).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    let world = if mode == "current" || mode == "cli-native" {
+        Repository::open(
+            &root.join(if mode == "cli-native" {
+                "cold-native"
+            } else {
+                "saved"
+            }),
+            &[],
+        )
+        .unwrap()
+        .load(&catalogue, Limits::default(), Recovery::Strict)
+        .unwrap()
+        .0
+    } else if mode == "previous" {
+        World::restore(
+            &catalogue,
+            format::decode(
+                &std::fs::read(root.join("saved/previous.frsv")).unwrap(),
+                Limits::default(),
+            )
+            .unwrap()
+            .snapshot,
+            Limits::default(),
+        )
+        .unwrap()
+    } else {
+        assert_eq!(mode, "cli-snapshot");
+        World::restore(&catalogue, expected.clone(), Limits::default()).unwrap()
+    };
+    assert_eq!(world.snapshot(), expected);
+    let indices = if mode.starts_with("cli-") {
+        serde_json::from_str::<Vec<u32>>(
+            &std::env::var("FALLOUT_LOCAL_OBSERVATION_COLD_INDICES").unwrap(),
+        )
+        .unwrap()
+    } else {
+        OBSERVATION_INDICES.to_vec()
+    };
+    let observed = world
+        .observe_locals(
+            world.handle(expected.instances[0].id).unwrap(),
+            &indices,
+            observation::Limits::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&observed).unwrap(),
+        serde_json::from_slice::<serde_json::Value>(
+            &std::fs::read(root.join(format!("{phase}.observation.json"))).unwrap()
+        )
+        .unwrap()
+    );
+    assert_eq!(world.snapshot(), expected);
+    if mode == "cli-snapshot" {
+        Repository::create(&root.join("cold-native"), &[], world.campaign())
+            .unwrap()
+            .commit(&Captured::at_boundary(&world))
+            .unwrap();
+    }
+    std::fs::write(
+        root.join(format!("cold-{mode}.snapshot.json")),
+        world.snapshot().encode(1 << 20).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join(format!("cold-{mode}.observation.json")),
+        serde_json::to_vec_pretty(&observed).unwrap(),
+    )
+    .unwrap();
+}

@@ -1042,3 +1042,177 @@ no original process, original deformed coordinates or retail playback was used.
 Frozen executable, exact commands, source and evidence hashes, failed checks and
 immutable receipts remain in ignored `local/v3-asset-27`. Gameplay acceptance and
 checkpoint45 remain unchanged.
+
+## One exact external clip sample feeds the mapped rig palette (V3-ASSET-28)
+
+`external::sampled::evaluate(skin_bytes, rig_bytes, clip_bytes, source,
+Request{mapping: &external::Request, clip: nif_animation::clip::Request}, Limits)`
+connects one supported external clip packet to the reviewed external skin palette.
+The existing clip binder/sampler produces the complete source observation and
+privately transfers its decoded rig index/Scene to the existing external evaluator.
+Rig Scene decodes once; the skin binding/Scene and clip/key pipelines each retain
+their existing decoder. No public receipt or caller matrix supplies rig authority.
+
+All three whole-source SHA256 values, exact raw skin/rig node names, explicit
+bone ordinals/targets, selected sequence/packet and binary64 source time stay
+bound. The clip skeleton SHA must equal the explicitly mapped rig SHA. The selected
+node must occur strictly below the chosen rig root on at least one mapped bone
+path. A root-only or unrelated sample refuses. Other required rig controllers
+refuse; the selected object's stored controller link remains an unapplied raw
+field in the clip observation. Unrelated sibling controllers remain unrelated.
+Existing clip rules reject controlled ancestors, ambiguous raw names, packet
+property/identifier mappings, active rotation and missing source links.
+
+Only the selected rig local is substituted in existing root-relative composition.
+The palette remains `SkinTransform * X * RigBoneToRoot * SkinToBone`. The explicit
+root-space mapping X keeps corrected determinant certification and inverse
+requirements. Stored rig-root locals/worlds remain unapplied by this mapping;
+selected forward zero/reflected scales do not need a new inverse. Skin placement
+stays `SkinRootWorld * inverse(SkinTransform)` and is applied once. Existing source
+skin controllers, duplicate influences, weight policy and raw normals retain the
+stored external producer's observations and behavior.
+
+Defaults admit192 MiB combined input, one MiB combined raw request names,
+96 MiB extra logical elements and128 million work units. Existing external
+64 MiB/16 million and clip four MiB/one million phase caps each receive the
+aggregate remainder. Decoder arrays/checks are conservatively admitted under
+768 MiB/96 million. Rig Scene uses the minimum caps of both producers. Eight
+combined input-byte visits, raw-name work, complete result/private authority
+headers and both existing phase charges are admitted before work. Source
+catalogue/index/Scene caps remain separate. Late clip, mapping or weight failure
+returns no complete palette. These are logical caps including temporaries, not
+process-memory or speed measurements.
+
+The owned consumer is `fallout nif-external-clip-skin SKIN RIG CLIP --request
+REQUEST.json --output RECEIPT.json`. Strict schema1 carries the three whole-source
+hashes, existing complete external mapping/weight fields, `clip_object`, exact
+`clip_node_name_bytes`, `clip_sequence`, `clip_controlled_ordinal` and `source_time`.
+The new request's weight ingress uses private empty struct variants, so the raw
+policy rejects nested extra fields, including a unit-sum tolerance. The unit-sum
+policy requires its explicit tolerance and rejects extra fields. Both convert to
+the existing public `WeightPolicy`; older request types retain their prior schema
+and valid clip receipts keep their original policy tags and numeric behavior.
+Each source/request is bounded to64 MiB/64 KiB, with at most4096 mapped bones.
+Output must stay outside all four input directories. Semantic refusal emits a null
+evaluation with nonzero exit. Explicit source sampling supplies no clock mapping,
+retargeting, rig alignment default, quaternion repair or measured retail playback.
+
+Validation passes132 focused skin/partition/pose/clip/attachment tests, including
+six three-source cases,38 serial CLI tests, affected all-target Clippy with
+warnings denied, formatting and the CLI build. Literal higher-ID ancestry,
+identity/name/packet/map refusal, other required controllers, zero/reflected
+forward scales, non-unit raw weights, absent normals and exact/one-under phase,
+aggregate, admission, source, sampler, name and depth caps are covered. The first
+test compile's shadowed writer name and initial CLI dispatcher return-type error
+remain preserved; corrected runs pass.
+
+The frozen second source uses different rig/bind/mesh values and a shear mapping.
+Four literal first/interior/last/zero-scale results verify every palette, weighted
+position, raw normal, global clip world, fixed skin placement and independently
+calculated selected packet span. Four reversed bone mappings preserve the full
+observation; signed-zero time words survive. Twenty semantic refusals publish no
+partial palette. Four old complete clip reports and a stored external report stay
+byte-identical, with each old clip observation equal to the nested sample.
+
+Seven strict request refusals and four independently separated input-tree output
+guards pass. Installed `618eb19e...` / `c6667dd9...` retains its complete prior
+stored external engineering receipt. Earlier complete-pose skin and prepared
+clip-batch reports also remain byte-identical to frozen27. The earlier original
+`3fe5a3ef...` / `9fed7a15...` two-source selection still refuses active XYZ rotation;
+its complete negative report is unchanged. That is an unchanged clip capability
+finding, not a valid original three-source rig mapping or retail playback proof.
+No original process was used. Commands, frozen binary, exact inputs, source and
+evidence hashes, failed checks and immutable receipts stay in ignored
+`local/v3-asset-28`. Gameplay acceptance and checkpoint45 remain unchanged.
+
+## Exact bounds of internally evaluated CPU skin positions (V3-ASSET-29)
+
+`nif_skin::bounds::evaluate` takes original source bytes, their exact expected
+SHA256, one existing skin request and an explicit `Stored` or `Sampled` pose.
+The sampled variant takes the existing exact object/controller/time request and
+`RefuseOtherRequired` policy. It internally calls the existing stored or
+one-channel source evaluator. Callers cannot supply positions, a public pose
+receipt or a purported authoritative palette. There is no additional importer,
+deformer, source preparation requirement or implicit channel selection.
+
+The result identifies the source, geometry/data/instance/skin/root, raw weight
+policy and pose mode. Sampled results retain the complete existing `ObjectPose`
+observation, including block spans, requested time bits and channel provenance.
+Unapplied controllers retain the existing pose observations. Bounds use the
+`existing-cpu-source-skin-root-binary64-positions` frame. The separate
+`skin_to_source_world` placement is retained and never applied to the endpoints.
+Later presentation integration must interpret that frame explicitly.
+
+Each axis selects its minimum and maximum from the finite internally evaluated
+binary64 coordinates, using total order. Negative zero is the lower zero and
+positive zero the upper; endpoint bit words preserve both. No midpoint, extent,
+inverse, transformed-box or neighboring-float arithmetic occurs. Thus finite
+CPU output coordinates, including extreme/subnormal values, are enclosed even
+where computing a width or center would overflow or underflow. This contract
+encloses the CPU evaluator's actual rounded output. It does not bound exact-real
+source math, another shader's rounding, a world-space box or original hitboxes,
+culling and animation playback. Nonfinite/empty output refuses without a result.
+
+Raw duplicate and zero influence terms retain existing evaluation. No weight or
+normal normalization is added. Vertices with zero total weight still refuse,
+including under `PreserveRawNonnegative`; the existing deformer requires a
+positive finite weight sum. Missing normals remain permitted by that producer.
+
+Defaults admit64 MiB input and65,535 vertices, with extra logical elements/work
+limited to8 MiB/128 million and aggregate elements/work to80 MiB/146 million.
+Existing stored64 MiB/16 million and sampled72 MiB/18 million phase limits remain
+independent and receive the aggregate remainder before evaluation. Declared
+decoder arrays/checks are admitted under768 MiB/96 million. Source-index/Scene
+and sampler caps remain separate. Every selected input cap is checked before
+hashing. Six input-byte visits, the result header and nine endpoint scan units
+per vertex are charged to both extra and aggregate budgets before their work.
+Complete existing pose retention/work is charged to the aggregate, including
+released position, palette, normal, weight-sum and deformation intermediates.
+A compact bounds receipt cannot hide the cost of a large skin. These are
+conservative logical accounting limits, not measured process heap or speed.
+
+The owned headless consumer is `fallout nif-skin SOURCE --bounds-request
+REQUEST.json --output RECEIPT.json`. Strict schema1 requires
+`expected_source_sha256`, `geometry`, existing explicit `weights` and a tagged
+`pose`. Stored pose is `{"kind":"stored"}`. Sampled pose requires `kind`,
+`object`, `controller`, finite `source_time` and
+`controller_policy:"refuse_other_required"`. There are no defaults; unknown
+fields or missing policy refuse. Requests are bounded to64 KiB and the source
+to64 MiB. Output stays outside both input directories and this mode conflicts
+with existing source/pose/influence/partition/external/shared modes. Semantic
+refusals emit a null evaluation with nonzero exit.
+
+Authored tests cover literal noncommuting stored/one-channel bounds, separate
+root placement, complete sample provenance, raw nonunit duplicates/zero terms,
+zero-total/nonfinite refusal, absent normals, both scan budgets and exact/one-under
+input, phase, aggregate, decoder-admission and vertex ceilings. The4096-vertex
+case charges full deformation. Private endpoint arithmetic tests cover both
+finite binary64 extremes, subnormal endpoints and signed-zero permutations.
+The second independent source and frozen prior-pose comparison use
+`tools/nif-skin-oracle/check_bounds.py`; receipts stay in ignored
+`local/v3-asset-29`. Renderer adoption and retail gameplay remain separate work.
+
+Validation passes137 focused skin/partition/pose/clip/attachment tests, two bounds
+arithmetic tests,39 serial CLI tests, affected all-target Clippy with warnings
+denied, formatting and the CLI build. Seven second-source literal cases and
+eleven semantic refusals pass. Five full prior stored/sampled pose reports stay
+byte-identical; each nested complete channel and full pose charge agrees with
+the frozen prior evaluator. Nine strict schema refusals and both protected input
+directories pass, plus three nonfinite/oversized request refusals and eleven
+conflicting mode combinations.
+
+The installed `618eb19e...` skin's1706 frozen prior CPU positions are enclosed,
+with identical full deformation charges and placement. Eight prior complete
+receipts remain byte-identical: native source schemas1/2/3, stored CPU pose, raw
+influences, complete source pose-set skin, prepared clip batch and three-source
+sampled external skin. This is engineering compatibility against immutable
+earlier output, without an original process or measured retail culling.
+
+The first frozen consumer exposed serde's tagged unit variant accepting extra
+stored-pose fields. Empty struct variants and a private bounds-specific weight
+request now enforce every nested field without changing older request types.
+The new regression test's initial integer-versus-float expected JSON and two
+private compatibility receipt-path mistakes are preserved with their failures;
+corrected checks pass. Frozen executable and source/evidence hashes, exact
+requests and immutable failed/successful receipts stay in `local/v3-asset-29`.
+No saved state, dependencies, pins, runtime defaults or gameplay checkpoint move.

@@ -216,11 +216,17 @@ fn decoded(owner: &mut CellResidency) {
 }
 fn drained(owner: &mut CellResidency) {
     let deadline = Instant::now() + Duration::from_secs(10);
-    while owner.poll().unwrap().outstanding != 0 {
+    // A worker can release its payload before its plan and mapping pins.
+    while owner.poll().unwrap().stage != Stage::Unrequested {
         assert!(Instant::now() < deadline, "source pins did not drain");
         thread::sleep(Duration::from_millis(1));
     }
-    assert_eq!(owner.snapshot().pinned_source_bytes, 0);
+    let state = owner.snapshot();
+    assert_eq!(state.outstanding, 0);
+    assert_eq!(state.pinned_source_bytes, 0);
+    assert_eq!(state.retained_plans, 0);
+    assert_eq!(state.plan_metadata_bytes, 0);
+    assert_eq!(state.mapped_source_bytes, 0);
 }
 
 fn ready(owner: &mut CellResidency, ticket: &Ticket) {
@@ -442,8 +448,12 @@ fn empty_selected_batches_still_charge_retired_plan_metadata_and_pin_count() {
     decoded(&mut owner);
     let first_sources = owner.sources(&first).unwrap();
     owner.unload().unwrap();
-    assert_eq!(owner.snapshot().pinned_source_bytes, 0);
-    assert_eq!(owner.poll().unwrap().stage, Stage::Unloading);
+    let retired = owner.poll().unwrap();
+    assert_eq!(retired.outstanding, 0);
+    assert_eq!(retired.pinned_source_bytes, 0);
+    assert_eq!(retired.stage, Stage::Unloading);
+    assert_eq!(retired.retained_plans, 1);
+    assert!(retired.plan_metadata_bytes > 0);
     let second = owner.request(plan.clone()).unwrap();
     decoded(&mut owner);
     let second_sources = owner.sources(&second).unwrap();

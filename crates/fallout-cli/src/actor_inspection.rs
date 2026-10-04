@@ -43,6 +43,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) condition_executable: Option<&'a Path>,
     pub(super) include_faction_requests: bool,
     pub(super) include_stat_requests: bool,
+    pub(super) include_initialization_inputs: bool,
     pub(super) package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
     pub(super) include_actor_context: bool,
     pub(super) equipment_item: Option<std::num::NonZeroU64>,
@@ -71,6 +72,7 @@ pub(super) fn package_context(
     let scripts = loaded_scripts::Catalogue::load(&mut store, Default::default(), |_, _| Ok(()))?;
     let world = World::restore(&scripts, snapshot, limits)?;
     let before_observation = (options.include_actor_context
+        || options.include_initialization_inputs
         || options.equipment_item.is_some()
         || options.inventory_boot_request.is_some())
     .then(|| world.snapshot());
@@ -159,6 +161,27 @@ pub(super) fn package_context(
         )?;
         report["stat_requests"] =
             serde_json::to_value(requests.observe(&world, stats::Limits::default())?)?;
+    }
+    if options.include_initialization_inputs {
+        let races = actors::races::Catalogue::load(&mut store, Default::default())?;
+        let classes = actors::classes::Catalogue::load(&mut store, Default::default())?;
+        let manifest = actors::initialization_inputs::request(
+            &mut store,
+            &actors,
+            &associations,
+            &races,
+            &classes,
+            options.actor_root,
+            Default::default(),
+        )?;
+        let requests = fallout_runtime::actor_rules::initialization_inputs::Requests::prepare(
+            &world,
+            &content,
+            manifest,
+            Default::default(),
+        )?;
+        report["initialization_inputs"] =
+            serde_json::to_value(requests.observe(&world, &content, Default::default())?)?;
     }
     if let Some(operation) = options.package_capability {
         let capability = requests.capability(
@@ -278,6 +301,9 @@ pub(super) struct Options {
     pub(super) voice_root: Option<FormKey>,
     pub(super) script_root: Option<FormKey>,
     pub(super) ai_root: Option<FormKey>,
+    pub(super) initialization_root: Option<FormKey>,
+    pub(super) effect_root: Option<FormKey>,
+    pub(super) effect_field: Option<usize>,
     pub(super) creature_model_directory: Option<fallout_data::vfs::AssetPath>,
 }
 
@@ -403,6 +429,8 @@ pub(super) fn inspect(
     let associations = if options.include_associations
         || options.include_dependencies
         || options.voice_root.is_some()
+        || options.initialization_root.is_some()
+        || options.effect_root.is_some()
     {
         Some(actors::associations::Catalogue::load(
             &mut store,
@@ -421,9 +449,16 @@ pub(super) fn inspect(
             "Exact authored NPC_/CREA scalar fields and ordered source associations; no inheritance, initialization, effect, faction or AI execution"
         );
     }
+    let classes = if options.include_classes || options.initialization_root.is_some() {
+        Some(actors::classes::Catalogue::load(
+            &mut store,
+            Default::default(),
+        )?)
+    } else {
+        None
+    };
     if options.include_classes {
-        let classes =
-            actors::classes::Catalogue::load(&mut store, actors::classes::Limits::default())?;
+        let classes = classes.as_ref().expect("requested classes loaded");
         report["actor_classes"] = json!({"counts":classes.counts(),"definitions":classes.iter().map(|(_,definition)|definition).collect::<Vec<_>>()});
         report["scope"] = json!(format!(
             "{}; authored CLAS DATA/ATTR inputs, no class application",
@@ -448,7 +483,10 @@ pub(super) fn inspect(
             report["scope"].as_str().unwrap_or_default()
         ));
     }
-    let races = if options.include_races || options.voice_root.is_some() {
+    let races = if options.include_races
+        || options.voice_root.is_some()
+        || options.initialization_root.is_some()
+    {
         Some(actors::races::Catalogue::load(
             &mut store,
             actors::races::Limits::default(),
@@ -479,6 +517,33 @@ pub(super) fn inspect(
         let manifest =
             actors::ai_inputs::request(&mut store, &catalogue, root, Default::default())?;
         report["actor_ai_inputs"] = json!({"manifest": manifest});
+    }
+    if let Some(root) = &options.initialization_root {
+        let manifest = actors::initialization_inputs::request(
+            &mut store,
+            &catalogue,
+            associations
+                .as_ref()
+                .expect("initialization associations loaded"),
+            races.as_ref().expect("initialization races loaded"),
+            classes.as_ref().expect("initialization classes loaded"),
+            root,
+            Default::default(),
+        )?;
+        report["actor_initialization_inputs"] = json!({"manifest": manifest});
+    }
+    if let Some(root) = &options.effect_root {
+        let manifest = actors::effect_inputs::request(
+            &mut store,
+            &catalogue,
+            associations.as_ref().expect("effect associations loaded"),
+            root,
+            options
+                .effect_field
+                .ok_or("effect root requires a physical field index")?,
+            Default::default(),
+        )?;
+        report["actor_effect_inputs"] = json!({"manifest": manifest});
     }
     if let Some(root) = &options.script_root {
         let scripts =
@@ -766,6 +831,18 @@ pub(super) fn compare(report: &mut Value, oracle_path: &Path) -> Result<()> {
         && report.get("actor_ai_inputs") != oracle.get("actor_ai_inputs")
     {
         return Err("independent actor source comparison differs in actor_ai_inputs".into());
+    }
+    if report.get("actor_initialization_inputs").is_some()
+        && report.get("actor_initialization_inputs") != oracle.get("actor_initialization_inputs")
+    {
+        return Err(
+            "independent actor source comparison differs in actor_initialization_inputs".into(),
+        );
+    }
+    if report.get("actor_effect_inputs").is_some()
+        && report.get("actor_effect_inputs") != oracle.get("actor_effect_inputs")
+    {
+        return Err("independent actor source comparison differs in actor_effect_inputs".into());
     }
     let (oracle_bytes, oracle_sha256) = baseline::digest_file(oracle_path)?;
     report["independent_comparison"] = json!({"equal":true,"oracle_bytes":oracle_bytes,

@@ -1,7 +1,8 @@
 //! Explicit two-source engineering root/bone mapping, never automatic rig choice.
 mod determinant;
+pub mod sampled;
 use super::{Data, binding, pose};
-use crate::{Result, nif, nif_scene};
+use crate::{Result, nif, nif_animation::clip, nif_scene};
 use pose::{Affine, Budget};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -97,6 +98,12 @@ struct Forest<'a> {
     objects: Vec<Option<usize>>,
     worlds: Vec<Option<usize>>,
 }
+/// Created only by the exact three-source adapter from the existing clip core.
+struct SampledRig {
+    index: nif::NifIndex,
+    scene: nif_scene::Scene,
+    sample: clip::Evaluation,
+}
 impl<'a> Forest<'a> {
     fn new(scene: &'a nif_scene::Scene, blocks: usize, budget: &mut Budget<'_>) -> Result<Self> {
         budget.reserve::<Option<usize>>(
@@ -185,10 +192,17 @@ fn record(
     seen: &mut [bool],
     out: &mut Vec<pose::UnappliedController>,
     budget: &mut Budget<'_>,
+    applied: Option<u32>,
 ) -> Result<()> {
     if !seen[id as usize] {
         seen[id as usize] = true;
         if let Some(controller) = forest.object(id, budget)?.controller {
+            if let Some(applied) = applied {
+                if id != applied {
+                    return Err(budget.fail("other required rig controller is unapplied"));
+                }
+                return Ok(());
+            }
             budget.reserve::<pose::UnappliedController>(1)?;
             out.push(pose::UnappliedController {
                 object: id,
@@ -205,6 +219,17 @@ pub fn evaluate(
     source: &str,
     request: &Request,
     limits: Limits,
+) -> Result<Evaluation> {
+    evaluate_inner(skin_bytes, rig_bytes, source, request, limits, None)
+}
+
+fn evaluate_inner(
+    skin_bytes: &[u8],
+    rig_bytes: &[u8],
+    source: &str,
+    request: &Request,
+    limits: Limits,
+    sampled: Option<&SampledRig>,
 ) -> Result<Evaluation> {
     let mut budget = Budget {
         source,
@@ -283,7 +308,14 @@ pub fn evaluate(
     .ok_or_else(|| budget.fail("external combined decoder check admission exceeded"))?;
     let (skin_index, decoded, skin_scene) =
         binding::decode_with_scene(skin_bytes, source, limits.skin)?;
-    let (rig_index, rig_scene) = nif_scene::decode_with_limits(rig_bytes, source, limits.rig)?;
+    let decoded_rig;
+    let (rig_index, rig_scene) = match sampled {
+        Some(rig) => (&rig.index, &rig.scene),
+        None => {
+            decoded_rig = nif_scene::decode_with_limits(rig_bytes, source, limits.rig)?;
+            (&decoded_rig.0, &decoded_rig.1)
+        }
+    };
     if !skin_scene.unsupported_scene_edges.is_empty()
         || !rig_scene.unsupported_scene_edges.is_empty()
     {
@@ -356,7 +388,7 @@ pub fn evaluate(
         return Err(budget.fail("vertex positions unavailable"));
     }
     let skin_forest = Forest::new(&skin_scene, skin_index.blocks.len(), &mut budget)?;
-    let rig_forest = Forest::new(&rig_scene, rig_index.blocks.len(), &mut budget)?;
+    let rig_forest = Forest::new(rig_scene, rig_index.blocks.len(), &mut budget)?;
     skin_forest.node(skin_root, &budget)?;
     let skin_root_world = skin_forest.world(skin_root, &budget)?.matrix;
     let bound = decoded
@@ -385,6 +417,7 @@ pub fn evaluate(
     let mut skin_seen = vec![false; skin_index.blocks.len()];
     let mut rig_seen = vec![false; rig_index.blocks.len()];
     let mut relative = vec![IDENTITY; bones.len()];
+    let mut selected_on_mapped_path = false;
     // Complete map/type/name admission precedes output palette construction.
     for (i, mapping) in request.explicit_bone_mapping.iter().enumerate() {
         budget.charge(1)?;
@@ -411,7 +444,7 @@ pub fn evaluate(
             &mut budget,
         )?;
         verify_name(
-            &rig_index,
+            rig_index,
             rig_object,
             &mapping.expected_rig_node_name_bytes,
             &mut budget,
@@ -426,10 +459,20 @@ pub fn evaluate(
                 return Err(budget.fail("external ancestry depth budget exceeded"));
             }
             let object = rig_forest.object(node, &budget)?;
-            matrix = pose::finite(
-                pose::compose(pose::scene_affine(object.transform), matrix),
-                &budget,
-            )?;
+            let local = if let Some(rig) = sampled {
+                budget.charge(1)?;
+                if node == rig.sample.object.block {
+                    selected_on_mapped_path = true;
+                    rig.sample.local
+                } else if object.controller.is_some() {
+                    return Err(budget.fail("other required rig controller is unapplied"));
+                } else {
+                    pose::scene_affine(object.transform)
+                }
+            } else {
+                pose::scene_affine(object.transform)
+            };
+            matrix = pose::finite(pose::compose(local, matrix), &budget)?;
             node = rig_forest.world(node, &budget)?.parent.ok_or_else(|| {
                 budget.fail("external mapped bone does not reach chosen rig root")
             })?;
@@ -438,6 +481,9 @@ pub fn evaluate(
     }
     if ordinals.iter().any(Option::is_none) {
         return Err(budget.fail("external missing skin bone ordinal"));
+    }
+    if sampled.is_some() && !selected_on_mapped_path {
+        return Err(budget.fail("sampled rig node is outside strict mapped bone-to-root paths"));
     }
     let skin_matrix = pose::skin_affine(skin_transform);
     let display = pose::finite(
@@ -452,7 +498,11 @@ pub fn evaluate(
     budget.reserve::<[f64; 3]>(mesh.vertices.len() + mesh.normals.len())?;
     budget.reserve::<f64>(mesh.vertices.len())?;
     let mut skin = pose::Evaluation {
-        contract: "engineering-exact-external-rig-skin-v1",
+        contract: if sampled.is_some() {
+            sampled::CONTRACT
+        } else {
+            "engineering-exact-external-rig-skin-v1"
+        },
         source_sha256: format!("{skin_digest:x}"),
         geometry: request.geometry,
         geometry_data,
@@ -487,6 +537,7 @@ pub fn evaluate(
                 &mut skin_seen,
                 &mut skin.unapplied_controllers,
                 &mut budget,
+                None,
             )?;
             node = skin_forest.world(id, &budget)?.parent;
         }
@@ -497,6 +548,7 @@ pub fn evaluate(
         &mut rig_seen,
         &mut rig_controllers,
         &mut budget,
+        sampled.map(|rig| rig.sample.object.block),
     )?;
     for (ordinal, bone) in bones.iter().enumerate() {
         budget.charge(1)?;
@@ -524,7 +576,7 @@ pub fn evaluate(
                 &skin_index,
                 instance.bones[ordinal].expect("source node admitted"),
             ),
-            rig_node: location(&rig_index, mapping.rig_node),
+            rig_node: location(rig_index, mapping.rig_node),
             raw_skin_bone_name_bytes: mapping.expected_skin_bone_name_bytes.clone(),
             raw_rig_node_name_bytes: mapping.expected_rig_node_name_bytes.clone(),
             rig_bone_to_root: relative[ordinal],
@@ -539,6 +591,7 @@ pub fn evaluate(
                 &mut rig_seen,
                 &mut rig_controllers,
                 &mut budget,
+                sampled.map(|rig| rig.sample.object.block),
             )?;
             node = rig_forest
                 .world(node, &budget)?
@@ -586,10 +639,14 @@ pub fn evaluate(
     skin.retained_bytes = retained;
     skin.work_units = work;
     Ok(Evaluation {
-        contract: "engineering-exact-external-rig-skin-v1",
+        contract: if sampled.is_some() {
+            sampled::CONTRACT
+        } else {
+            "engineering-exact-external-rig-skin-v1"
+        },
         skin_source_sha256: format!("{skin_digest:x}"),
         rig_source_sha256: format!("{rig_digest:x}"),
-        rig_root: location(&rig_index, request.rig_root),
+        rig_root: location(rig_index, request.rig_root),
         unapplied_rig_root_local: pose::scene_affine(rig_root_object.transform),
         unapplied_rig_root_source_world: rig_root_world,
         explicit_root_space_mapping: request.explicit_root_space_mapping,

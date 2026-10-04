@@ -1,6 +1,6 @@
 //! Bounded admission to Bevy assets/entities. Decoders have already completed;
 //! these budgets count submitted draw bytes, not exact driver VRAM usage.
-use crate::{material, model, scene};
+use crate::{material, model, scene, ui::rectangles::TileView};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use std::vec::IntoIter;
 
@@ -25,6 +25,8 @@ pub struct Queue {
     images: IntoIter<Image>,
     models: Vec<IntoIter<model::Part>>,
     instances: IntoIter<scene::Instance>,
+    tile_views: IntoIter<TileView>,
+    current_tile: Option<TileView>,
     textures: Vec<Handle<Image>>,
     templates: Vec<Vec<Template>>,
     model: usize,
@@ -113,6 +115,8 @@ impl Queue {
                 .map(|model| model.parts.into_iter())
                 .collect(),
             instances: prepared.instances.into_iter(),
+            tile_views: Vec::new().into_iter(),
+            current_tile: None,
             textures: Vec::new(),
             model: 0,
             current: None,
@@ -126,6 +130,38 @@ impl Queue {
             retiring_model: 0,
             retiring_cpu_model: 0,
         })
+    }
+
+    /// Source labels follow the same instance admission and retirement budgets.
+    pub fn new_tiles(
+        epoch: u64,
+        prepared: scene::Prepared,
+        views: Vec<TileView>,
+    ) -> Result<Self, String> {
+        if views.len() != prepared.instances.len() || views.len() > 256 {
+            return Err("Tile labels must match every bounded draw instance".into());
+        }
+        let mut nodes = std::collections::BTreeSet::new();
+        for (view, instance) in views.iter().zip(&prepared.instances) {
+            if view.epoch != epoch
+                || view.span.start >= view.span.end
+                || instance.key.is_some()
+                || instance.canonical.is_some()
+                || !nodes.insert(view.node)
+            {
+                return Err("Tile label epoch/identity differs or is duplicated".into());
+            }
+            view.source.validate().map_err(|e| e.to_string())?;
+            if views.first().is_some_and(|first| {
+                !std::sync::Arc::ptr_eq(&first.source, &view.source)
+                    || first.root_node != view.root_node
+            }) {
+                return Err("Tile labels require one exact source receipt and subtree".into());
+            }
+        }
+        let mut queue = Self::new(epoch, prepared)?;
+        queue.tile_views = views.into_iter();
+        Ok(queue)
     }
 
     pub fn status(&self) -> String {
@@ -222,6 +258,10 @@ impl Queue {
                     };
                     parent.insert((Name::new(reference.label()), reference));
                 }
+                self.current_tile = self.tile_views.next();
+                if let Some(tile) = &self.current_tile {
+                    parent.insert(tile.clone());
+                }
                 self.current = Some((parent.id(), instance.model, 0));
                 self.owned_entities.push(parent.id());
                 entities += 1;
@@ -232,19 +272,22 @@ impl Queue {
                 if entities == FRAME_ENTITIES {
                     return Ok(false);
                 }
-                let child = commands
-                    .spawn((
-                        Mesh3d(mesh.clone()),
-                        MeshMaterial3d(material.clone()),
-                        ChildOf(parent),
-                    ))
-                    .id();
+                let mut child = commands.spawn((
+                    Mesh3d(mesh.clone()),
+                    MeshMaterial3d(material.clone()),
+                    ChildOf(parent),
+                ));
+                if let Some(tile) = &self.current_tile {
+                    child.insert(tile.clone());
+                }
+                let child = child.id();
                 self.owned_entities.push(child);
                 self.current = Some((parent, model, index + 1));
                 entities += 1;
                 self.admitted += 1;
             } else {
                 self.current = None;
+                self.current_tile = None;
             }
         }
     }
@@ -283,6 +326,7 @@ impl Queue {
         if !self.retiring {
             self.retiring = true;
             self.current = None;
+            self.current_tile = None;
             if let Some(root) = self.root {
                 commands.entity(root).insert(Visibility::Hidden);
             }
@@ -291,8 +335,11 @@ impl Queue {
         while entities < FRAME_ENTITIES {
             if let Some(entity) = self.owned_entities.pop() {
                 commands.entity(entity).despawn();
-            } else if self.instances.next().is_none() {
-                break;
+            } else {
+                if self.instances.next().is_none() {
+                    break;
+                }
+                self.tile_views.next();
             }
             entities += 1;
         }
@@ -599,5 +646,47 @@ mod tests {
         app.update();
         assert!(app.world().resource::<TestQueue>().0.root.is_none());
         assert!(app.world().resource::<Assets<Mesh>>().is_empty());
+    }
+
+    #[test]
+    fn tile_epoch_cardinality_receipt_and_unique_source_identity_refuse_before_admission() {
+        use crate::ui::rectangles::Receipt;
+        use std::sync::Arc;
+        let fixture = || {
+            let (mut prepared, _) = crate::fixture::prepare().unwrap();
+            prepared.instances.truncate(1);
+            let view = TileView {
+                source: Arc::new(Receipt {
+                    path: fallout_data::vfs::AssetPath::new(b"menus/authored.xml").unwrap(),
+                    archive_sha256: "0".repeat(64),
+                    payload_sha256: "1".repeat(64),
+                }),
+                node: 0,
+                span: crate::ui::Span { start: 0, end: 10 },
+                root_node: 0,
+                epoch: 7,
+            };
+            (prepared, view)
+        };
+        let (prepared, _) = fixture();
+        assert!(Queue::new_tiles(7, prepared, Vec::new()).is_err());
+        let (prepared, mut view) = fixture();
+        view.epoch = 8;
+        assert!(Queue::new_tiles(7, prepared, vec![view]).is_err());
+        let (prepared, mut view) = fixture();
+        view.span.end = 0;
+        assert!(Queue::new_tiles(7, prepared, vec![view]).is_err());
+        let (prepared, mut view) = fixture();
+        Arc::get_mut(&mut view.source).unwrap().archive_sha256 = "bad".into();
+        assert!(Queue::new_tiles(7, prepared, vec![view]).is_err());
+        let (mut prepared, view) = fixture();
+        prepared.instances.push(scene::Instance {
+            model: 0,
+            transform: Transform::IDENTITY,
+            key: None,
+            visibility: Visibility::Inherited,
+            canonical: None,
+        });
+        assert!(Queue::new_tiles(7, prepared, vec![view.clone(), view]).is_err());
     }
 }

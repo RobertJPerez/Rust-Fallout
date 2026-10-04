@@ -6,6 +6,14 @@ use std::path::PathBuf;
 #[allow(clippy::enum_variant_names)]
 #[derive(Subcommand)]
 pub(crate) enum AssetsCommand {
+    /// Feed one exact three-source clip sample into an explicitly mapped rig skin.
+    NifExternalClipSkin {
+        input: PathBuf,
+        rig: PathBuf,
+        clip: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Compose an explicit supported set of parent/child channels; no blending.
     NifSourcePoseSet {
         input: PathBuf,
@@ -143,4 +151,7 @@ pub(crate) struct NifSkinArgs {
     /// Apply the complete explicitly sampled required skin forest.
     #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request", "partition_pose_request"])]
     pub(crate) pose_set_request: Option<PathBuf>,
+    /// Enclose one stored or explicitly sampled CPU skin in its source frame.
+    #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request", "partition_streams_request", "partition_pose_request", "pose_set_request"])]
+    pub(crate) bounds_request: Option<PathBuf>,
 }

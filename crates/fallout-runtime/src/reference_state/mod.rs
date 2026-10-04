@@ -14,8 +14,10 @@ mod source;
 pub use batch::{BatchChange, BatchLimits, BatchReceipt, StagedReferenceBatch};
 pub use paging::{Cursor, Page, PageLimits, PageRequest, PageUsage};
 pub use source::{
-    SourceReferenceFailure, SourceReferenceLimits, SourceReferenceOutcome, SourceReferenceReceipt,
-    SourceReferenceRequest, StagedSourceReference,
+    SourceReferenceFailure, SourceReferenceGroupLimits, SourceReferenceGroupReceipt,
+    SourceReferenceGroupRow, SourceReferenceGroupUsage, SourceReferenceLimits,
+    SourceReferenceOutcome, SourceReferenceReceipt, SourceReferenceRequest, StagedSourceReference,
+    StagedSourceReferenceGroup,
 };
 
 pub const COMPONENT_VERSION: u32 = 1;

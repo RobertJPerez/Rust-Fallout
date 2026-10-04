@@ -1217,3 +1217,57 @@ A unique live SCPT link can select one existing standalone compiled definition w
 For the already observed actor header versions, a twenty-byte AIDT exposes raw aggression, confidence, energy, responsibility and mood, all three unused mood bytes, service flags, signed teaching/assistance bytes, training level, raw aggro-radius boolean and signed radius. Known enum membership is separate from the raw word. Every repeated occurrence remains visible. Unknown version/layout/enum, missing or repeated configuration, and the AI Data template bit (16) prevent admitting a unique authored AI input. Raw service flags and unused bytes remain uninterpreted; no service, training, hostility or radius behavior is evaluated.
 
 The independently gated Traits template bit (1) governs admission of a unique explicit ZNAM link to a live CSTY winner. The request exposes its existing FormID binding and full winning header without reading combat-style bodies or formulas. Null/missing/deleted/wrong-kind and repeated links stay visible and unavailable. A caller can request `actor-sources --ai-root PLUGIN:HEX`; the complete manifest is compared when an independent oracle is supplied, while default actor/stat/faction reports stay unchanged. Sources, physical visits, selected fields, retained raw bytes and full serialized output are bounded. No actor value, event, navigation request, mutable World or AI execution is created.
+
+## Selected race and class initialization inputs
+
+`actors::initialization_inputs::request(&mut RecordStore, &actors::Catalogue,
+&associations::Catalogue, &races::Catalogue, &classes::Catalogue, &FormKey, Limits)`
+joins the existing typed producers over one exact ordered source cohort. Its
+opaque manifest cannot be deserialized or constructed from an inspection report.
+Every physical NPC RNAM/CNAM occurrence retains its association, scalar field,
+raw bytes, index and offset. Live permitted targets borrow the complete existing
+RACE/CLAS definitions and full headers; deleted typed targets retain tombstones.
+Wrong-kind links never select a different producer. CREA RNAM/CNAM have different
+source roles and produce no race/class links.
+
+Repeated links, missing or repeated ACBS, and the Traits template bit leave direct
+binding unavailable. A unique direct link remains distinct from complete decoded
+target inputs: missing or repeated RACE DATA/PNAM/UNAM or CLAS DATA/ATTR prevents
+input completeness while preserving every declaration. Both sex height/weight
+arrays, signed skill/tag/training words, raw flags, unused bytes and float bits
+remain exactly as supplied by the existing decoders. No template is followed,
+effective race/class selected or actor value initialized.
+
+`actor-sources --initialization-root PLUGIN:HEX` emits the optional complete
+`actor_initialization_inputs.manifest`, with exact independent comparison.
+Sources, conservative physical visits, all retained actor/configuration/target
+fields, link count, decoded bytes and compact projection have separate limits.
+The independent oracle composes existing native actor/association/RACE/CLAS and
+inventory producers after fresh source/header/body/field validation. Default
+actor and ACT09 reports keep their existing projections.
+## Effect declaration source inputs
+
+`actor-sources --effect-root PLUGIN:HEX --effect-field INDEX` requests one exact
+physical SPLO or EITM occurrence. The request joins the existing actor and
+association catalogues to the winning SPEL or ENCH record and explicit EFID
+groups. It retains every physical declaration field, byte span, digest and raw
+payload, including unsupported versions and layouts. The tested typed profile
+is record version 15: SPIT/ENIT are 16 bytes, EFID is four bytes and EFIT is 20
+bytes. EFIT magnitude, area and duration stay unsigned words; actor value stays
+signed. Metadata flags and unused bytes remain raw.
+
+Each EFID starts a separate ordered group. Repeated links remain distinct.
+Missing or repeated EFIT, out-of-order members, unknown effect types and malformed
+layouts remain explicit. CTDA fields retain their exact ordered bytes; this
+request does not evaluate conditions. MGEF requests contain winning headers and
+source receipts without reading or interpreting MGEF bodies. It does not apply
+xEdit's editor-time actor-value rewrite.
+
+SPLO and EITM use the ActorEffectList template bit (8). Missing or repeated ACBS,
+template inheritance and repeated singleton EITM preserve their source evidence
+while withholding binding admission. Null, missing, deleted and wrong-kind links
+retain their binding status. Exact source cohorts and root bytes are checked;
+source count, depth, selected records, record bytes, decoded bytes, field visits,
+retained fields, bindings, groups, raw bytes and projection bytes are bounded.
+Typed source admission does not establish an active effect, condition truth,
+stacking, timing or gameplay behavior. Execution remains unavailable.

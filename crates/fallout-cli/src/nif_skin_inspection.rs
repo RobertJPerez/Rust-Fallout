@@ -267,6 +267,152 @@ impl InfluenceWeightPolicy {
         }
     }
 }
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum BoundsPoseRequest {
+    Stored {},
+    Sampled {
+        object: u32,
+        controller: u32,
+        source_time: f64,
+        controller_policy: String,
+    },
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct BoundsRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    weights: BoundsWeightPolicy,
+    pose: BoundsPoseRequest,
+}
+// Empty struct variants enforce deny_unknown_fields; tagged unit variants
+// otherwise accept ignored data alongside the tag in serde's current format.
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum BoundsWeightPolicy {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl BoundsWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+#[derive(Serialize)]
+pub struct BoundsReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    request: BoundsRequest,
+    evaluation: Option<nif_skin::bounds::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+
+#[cfg(test)]
+mod bounds_request_tests {
+    use super::*;
+
+    #[test]
+    fn every_nested_bounds_request_variant_rejects_unknown_fields_and_keeps_explicit_tags() {
+        let digest = [0u8; 32];
+        for pose in [
+            serde_json::json!({"kind":"stored"}),
+            serde_json::json!({"kind":"sampled","object":1,"controller":7,"source_time":-0.0,"controller_policy":"refuse_other_required"}),
+        ] {
+            for weights in [
+                serde_json::json!({"kind":"preserve_raw_nonnegative"}),
+                serde_json::json!({"kind":"require_unit_sum","absolute_tolerance":0.0}),
+            ] {
+                let valid = serde_json::json!({"schema_version":1,"expected_source_sha256":digest,"geometry":3,"weights":weights,"pose":pose});
+                let request: BoundsRequest = serde_json::from_value(valid.clone()).unwrap();
+                assert_eq!(serde_json::to_value(request).unwrap(), valid);
+                for field in [None, Some("pose"), Some("weights")] {
+                    let mut invalid = valid.clone();
+                    let object = match field {
+                        Some(key) => &mut invalid[key],
+                        None => &mut invalid,
+                    };
+                    object["extra"] = serde_json::json!(1);
+                    assert!(
+                        serde_json::from_value::<BoundsRequest>(invalid).is_err(),
+                        "variant {field:?}"
+                    );
+                }
+                for missing in ["pose", "weights", "expected_source_sha256"] {
+                    let mut invalid = valid.clone();
+                    invalid.as_object_mut().unwrap().remove(missing);
+                    assert!(serde_json::from_value::<BoundsRequest>(invalid).is_err());
+                }
+            }
+        }
+    }
+}
+
+pub fn inspect_bounds(input: &Path, request_path: &Path) -> Result<BoundsReport> {
+    let request: BoundsRequest = serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("skin bounds requires schema1".into());
+    }
+    let selected = match &request.pose {
+        BoundsPoseRequest::Stored {} => nif_skin::bounds::Pose::Stored,
+        BoundsPoseRequest::Sampled {
+            object,
+            controller,
+            source_time,
+            controller_policy,
+        } => {
+            if controller_policy != "refuse_other_required" {
+                return Err("sampled skin bounds requires refuse_other_required policy".into());
+            }
+            nif_skin::bounds::Pose::Sampled {
+                controller_policy: nif_skin::pose::ControllerPolicy::RefuseOtherRequired,
+                animation: fallout_data::nif_animation::pose::Request {
+                    object: *object,
+                    controller: *controller,
+                    source_time: *source_time,
+                },
+            }
+        }
+    };
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = nif_skin::bounds::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        nif_skin::bounds::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            skin: nif_skin::pose::Request {
+                geometry: request.geometry,
+                weights: request.weights.policy(),
+            },
+            pose: selected,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(BoundsReport {
+        schema_version: 1,
+        contract: nif_skin::bounds::CONTRACT,
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request,
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct InfluencesRequest {
@@ -579,6 +725,195 @@ pub fn inspect_external_skin(
         rig_input: rig.into(),
         skin_sha256: format!("{:x}", Sha256::digest(&skin_bytes)),
         rig_sha256: format!("{:x}", Sha256::digest(&rig_bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+// Keep the new clip request strict without changing older weight ingress.
+// Empty struct variants reject fields that serde's tagged unit variant ignores.
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum ExternalClipWeightPolicy {
+    PreserveRawNonnegative {},
+    RequireUnitSum { absolute_tolerance: f64 },
+}
+impl ExternalClipWeightPolicy {
+    fn policy(&self) -> nif_skin::pose::WeightPolicy {
+        match *self {
+            Self::PreserveRawNonnegative {} => nif_skin::pose::WeightPolicy::PreserveRawNonnegative,
+            Self::RequireUnitSum { absolute_tolerance } => {
+                nif_skin::pose::WeightPolicy::RequireUnitSum { absolute_tolerance }
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExternalClipSkinRequest {
+    schema_version: u32,
+    expected_skin_sha256: [u8; 32],
+    expected_rig_sha256: [u8; 32],
+    expected_clip_sha256: [u8; 32],
+    geometry: u32,
+    rig_root: u32,
+    explicit_bone_mapping: Vec<ExternalBoneRequest>,
+    explicit_root_space_mapping: nif_skin::pose::Affine,
+    weights: ExternalClipWeightPolicy,
+    clip_object: u32,
+    clip_node_name_bytes: Vec<u8>,
+    clip_sequence: u32,
+    clip_controlled_ordinal: usize,
+    source_time: f64,
+}
+
+#[cfg(test)]
+mod external_clip_request_tests {
+    use super::*;
+
+    #[test]
+    fn both_clip_weight_variants_are_strict_without_changing_older_ingress() {
+        let digest = [0u8; 32];
+        for weights in [
+            serde_json::json!({"kind":"preserve_raw_nonnegative"}),
+            serde_json::json!({"kind":"require_unit_sum","absolute_tolerance":0.0}),
+        ] {
+            let valid = serde_json::json!({
+                "schema_version":1,
+                "expected_skin_sha256":digest,"expected_rig_sha256":digest,"expected_clip_sha256":digest,
+                "geometry":3,"rig_root":4,"explicit_bone_mapping":[],
+                "explicit_root_space_mapping":[[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0]],
+                "weights":weights,"clip_object":3,"clip_node_name_bytes":[82,105,103,0],
+                "clip_sequence":0,"clip_controlled_ordinal":0,"source_time":-0.0
+            });
+            let request: ExternalClipSkinRequest = serde_json::from_value(valid.clone()).unwrap();
+            assert_eq!(serde_json::to_value(&request.weights).unwrap(), weights);
+            let old: InfluenceWeightPolicy = serde_json::from_value(weights.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(request.weights.policy()).unwrap(),
+                serde_json::to_value(old.policy()).unwrap()
+            );
+            for field in [None, Some("weights")] {
+                let mut invalid = valid.clone();
+                match field {
+                    Some(key) => invalid[key]["extra"] = serde_json::json!(1),
+                    None => invalid["extra"] = serde_json::json!(1),
+                }
+                assert!(serde_json::from_value::<ExternalClipSkinRequest>(invalid).is_err());
+            }
+            for missing in ["weights", "expected_skin_sha256", "source_time"] {
+                let mut invalid = valid.clone();
+                invalid.as_object_mut().unwrap().remove(missing);
+                assert!(serde_json::from_value::<ExternalClipSkinRequest>(invalid).is_err());
+            }
+        }
+        for invalid in [
+            serde_json::json!({"kind":"preserve_raw_nonnegative","absolute_tolerance":0.0}),
+            serde_json::json!({"kind":"require_unit_sum"}),
+            serde_json::json!({"kind":"require_unit_sum","absolute_tolerance":"0"}),
+            serde_json::json!({"kind":"normalize"}),
+            serde_json::json!({}),
+        ] {
+            assert!(serde_json::from_value::<ExternalClipWeightPolicy>(invalid).is_err());
+        }
+        // Older requests deliberately retain their previous tagged-unit behavior.
+        let old: InfluenceWeightPolicy = serde_json::from_value(
+            serde_json::json!({"kind":"preserve_raw_nonnegative","extra":1}),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(old.policy()).unwrap(),
+            serde_json::to_value(nif_skin::pose::WeightPolicy::PreserveRawNonnegative).unwrap()
+        );
+    }
+}
+#[derive(Serialize)]
+pub struct ExternalClipSkinReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    rig_input: PathBuf,
+    clip_input: PathBuf,
+    skin_sha256: String,
+    rig_sha256: String,
+    clip_sha256: String,
+    evaluation: Option<nif_skin::external::sampled::Evaluation>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_external_clip_skin(
+    input: &Path,
+    rig: &Path,
+    clip: &Path,
+    request_path: &Path,
+) -> Result<ExternalClipSkinReport> {
+    let request: ExternalClipSkinRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 || request.explicit_bone_mapping.len() > 4096 {
+        return Err(
+            "external clip skin requires schema1 and at most4096 explicit mapped bones".into(),
+        );
+    }
+    let skin_bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let rig_bytes = read_bounded(rig, 64 * 1024 * 1024)?;
+    let clip_bytes = read_bounded(clip, 64 * 1024 * 1024)?;
+    let mapping = nif_skin::external::Request {
+        expected_skin_sha256: request.expected_skin_sha256,
+        expected_rig_sha256: request.expected_rig_sha256,
+        geometry: request.geometry,
+        rig_root: request.rig_root,
+        explicit_bone_mapping: request
+            .explicit_bone_mapping
+            .into_iter()
+            .map(|m| nif_skin::external::BoneMapping {
+                bone_ordinal: m.bone_ordinal,
+                rig_node: m.rig_node,
+                expected_skin_bone_name_bytes: m.expected_skin_bone_name_bytes,
+                expected_rig_node_name_bytes: m.expected_rig_node_name_bytes,
+            })
+            .collect(),
+        explicit_root_space_mapping: request.explicit_root_space_mapping,
+        weights: request.weights.policy(),
+    };
+    let evaluated = nif_skin::external::sampled::evaluate(
+        &skin_bytes,
+        &rig_bytes,
+        &clip_bytes,
+        &format!(
+            "{} + {} + {}",
+            input.display(),
+            rig.display(),
+            clip.display()
+        ),
+        nif_skin::external::sampled::Request {
+            mapping: &mapping,
+            clip: fallout_data::nif_animation::clip::Request {
+                expected_skeleton_sha256: request.expected_rig_sha256,
+                expected_clip_sha256: request.expected_clip_sha256,
+                object: request.clip_object,
+                node_name_bytes: &request.clip_node_name_bytes,
+                sequence: request.clip_sequence,
+                controlled_ordinal: request.clip_controlled_ordinal,
+                source_time: request.source_time,
+            },
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(ExternalClipSkinReport {
+        schema_version: 1,
+        contract: nif_skin::external::sampled::CONTRACT,
+        input: input.into(),
+        rig_input: rig.into(),
+        clip_input: clip.into(),
+        skin_sha256: format!("{:x}", Sha256::digest(&skin_bytes)),
+        rig_sha256: format!("{:x}", Sha256::digest(&rig_bytes)),
+        clip_sha256: format!("{:x}", Sha256::digest(&clip_bytes)),
         failures: usize::from(error.is_some()),
         evaluation,
         error,

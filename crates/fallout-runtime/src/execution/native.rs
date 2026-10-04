@@ -126,10 +126,40 @@ pub(crate) enum Admission {
     Unsupported { reason: Unsupported, detail: String },
     Resolved(ResolvedCall),
 }
-fn admission_unsupported(reason: Unsupported, detail: impl ToString) -> Admission {
-    Admission::Unsupported {
+fn admission_unsupported(reason: Unsupported, detail: impl ToString) -> Result<Admission, Error> {
+    Ok(Admission::Unsupported {
         reason,
         detail: detail.to_string(),
+    })
+}
+
+/// Length metadata only; canonical resolution remains World-owned. Names have
+/// no canonical length maximum, so charge a borrowed dynamic/static content key
+/// before resolve_script_reference is allowed to clone it.
+pub(crate) fn reference_variable_bytes(
+    world: &World<'_>,
+    instance: &crate::state::Instance,
+    index: u16,
+) -> usize {
+    let Some(reference) = world
+        .catalogue()
+        .get_handle(instance.definition())
+        .and_then(|script| script.reference(u32::from(index)))
+    else {
+        return 0;
+    };
+    if reference.status == fallout_data::loaded_scripts::ReferenceStatus::DynamicVariable {
+        match instance.locals().get(&reference.value) {
+            Some(Value::Reference {
+                value: ReferenceValue::Content { key },
+            }) => key.origin_plugin.len(),
+            _ => 0,
+        }
+    } else {
+        reference
+            .form_key
+            .as_ref()
+            .map_or(0, |key| key.origin_plugin.len())
     }
 }
 
@@ -252,12 +282,13 @@ impl NativeCalls<'_, '_> {
         occurrence: usize,
         inputs: Inputs,
         intent: Intent,
+        maximum_reference_variable_bytes: usize,
     ) -> Result<Admission, Error> {
         let call = self
             .calls
             .get(occurrence)
             .ok_or(Error::MissingCall(occurrence))?;
-        Ok(self.admit(call, inputs, intent))
+        self.admit(call, inputs, intent, maximum_reference_variable_bytes)
     }
 
     pub fn observe(
@@ -298,7 +329,7 @@ impl NativeCalls<'_, '_> {
         intent: Intent,
         maximum_contributions: usize,
     ) -> Result<Outcome, Error> {
-        let resolved = match self.admit(call, inputs, intent) {
+        let resolved = match self.admit(call, inputs, intent, usize::MAX)? {
             Admission::Unsupported { reason, detail } => {
                 return Ok(Outcome::Unsupported { reason, detail });
             }
@@ -328,7 +359,13 @@ impl NativeCalls<'_, '_> {
         })
     }
 
-    fn admit(&self, call: &Call<'_>, inputs: Inputs, intent: Intent) -> Admission {
+    fn admit(
+        &self,
+        call: &Call<'_>,
+        inputs: Inputs,
+        intent: Intent,
+        maximum_reference_variable_bytes: usize,
+    ) -> Result<Admission, Error> {
         if !call.capability.engineering_host_read {
             return admission_unsupported(
                 Unsupported::MissingImplementation,
@@ -347,6 +384,11 @@ impl NativeCalls<'_, '_> {
         };
         let subject = match call.calling_reference_index {
             Some(index) => {
+                if reference_variable_bytes(self.world, self.frame.instance(), index)
+                    > maximum_reference_variable_bytes
+                {
+                    return Err(Error::Capacity("reference variable bytes"));
+                }
                 match self
                     .world
                     .resolve_script_reference(handle, u32::from(index), inputs.player)
@@ -408,6 +450,11 @@ impl NativeCalls<'_, '_> {
                 "Uninterpreted native argument tail",
             );
         }
+        if reference_variable_bytes(self.world, self.frame.instance(), *reference_index)
+            > maximum_reference_variable_bytes
+        {
+            return Err(Error::Capacity("reference variable bytes"));
+        }
         let argument = match self.world.resolve_script_reference(
             handle,
             u32::from(*reference_index),
@@ -422,6 +469,6 @@ impl NativeCalls<'_, '_> {
             }
             Err(error) => return admission_unsupported(Unsupported::ArgumentResolution, error),
         };
-        Admission::Resolved(ResolvedCall { subject, argument })
+        Ok(Admission::Resolved(ResolvedCall { subject, argument }))
     }
 }

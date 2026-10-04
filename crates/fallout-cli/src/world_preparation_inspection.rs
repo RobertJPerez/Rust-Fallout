@@ -7,6 +7,7 @@ use fallout_data::{
     store::RecordStore,
     vfs::MountIndex,
     world::{
+        cells::CellGridSources,
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
         preparation::CellModelPlan,
@@ -48,6 +49,61 @@ pub(super) fn residency(
 pub(super) struct DoorInput {
     pub source: ResidencyInput,
     pub door: FormKey,
+}
+
+pub(super) struct GridInput {
+    pub world: FormKey,
+    pub grid: [i32; 2],
+    pub source_timeout_ms: u64,
+}
+
+pub(super) fn grid_residency(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    resource_cache: Option<&Path>,
+    input: GridInput,
+) -> Result<Value> {
+    let deadline = source_deadline(input.source_timeout_ms)?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let sources = CellGridSources::load(&mut store, &input.world, Default::default())?;
+    let request = sources.request(input.grid);
+    let mut selected = None;
+    let plan = match request {
+        Ok(request) => {
+            selected = Some(serde_json::to_value(&request)?);
+            let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+            match sources.prepare_cell(&mut store, &request, assets.mounts(), Default::default()) {
+                Ok(plan) => Ok(consume_plan(
+                    install,
+                    resource_cache,
+                    deadline,
+                    plan,
+                    assets.mounts(),
+                )?),
+                Err(error) => Err(error.to_string()),
+            }
+        }
+        Err(error) => Err(error.to_string()),
+    };
+    let mut report = match plan {
+        Ok(report) => report,
+        Err(error) => json!({"schema_version":1,"profile":"nv-original",
+            "source_error":error,"cell_models":null,"cell_textures":null,
+            "texture_payloads":[],"residency":null,"captured_sources_available":false,
+            "lookup_precedence_verified":false,"runtime_ready":false,"retail_parity_accepted":false}),
+    };
+    provenance(&mut report, &order, &mut store)?;
+    report["cell_grid_sources"] = serde_json::to_value(sources.metadata())?;
+    report["explicit_grid"] = json!(input.grid);
+    report["cell_grid_request"] = json!(selected);
+    report["current_cell_changed"] = json!(false);
+    report["activation_applied"] = json!(false);
+    report["scope"] = json!(
+        "Explicit WRLD/XCLC source CELL model/texture jobs; persistent groups remain separate, no position/grid inference or runtime activation"
+    );
+    Ok(report)
 }
 
 pub(super) fn door_residency(
@@ -450,6 +506,223 @@ mod tests {
         ResidencyInput {
             cell: crate::parse_cell_key("Base.esm:200").unwrap(),
             source_timeout_ms: 10_000,
+        }
+    }
+    fn grid_fixture(root: &Path, duplicate: bool) {
+        cell_fixture(root, b"m.nif", b"t.dds");
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let grid = [-18_i32, 0]
+            .into_iter()
+            .flat_map(i32::to_le_bytes)
+            .collect::<Vec<_>>();
+        let cell = |id| {
+            record(
+                b"CELL",
+                id,
+                &[field(b"DATA", &[0]), field(b"XCLC", &grid)].concat(),
+            )
+        };
+        let mut persistent = record(b"CELL", 0x202, &field(b"DATA", &[0]));
+        persistent[8..12].copy_from_slice(&fallout_data::plugin::PERSISTENT.to_le_bytes());
+        let mut children = [
+            cell(0x200),
+            group(
+                0x200,
+                6,
+                &group(
+                    0x200,
+                    9,
+                    &record(
+                        b"REFR",
+                        0x300,
+                        &[
+                            field(b"NAME", &0x400_u32.to_le_bytes()),
+                            field(b"DATA", &[0; 24]),
+                        ]
+                        .concat(),
+                    ),
+                ),
+            ),
+            persistent,
+        ]
+        .concat();
+        if duplicate {
+            children.extend(cell(0x201));
+        }
+        fs::write(
+            root.join("Data/Base.esm"),
+            [
+                record(
+                    b"TES4",
+                    0,
+                    &field(
+                        b"HEDR",
+                        &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+                    ),
+                ),
+                record(b"STAT", 0x400, &field(b"MODL", b"m.nif\0")),
+                record(b"WRLD", 0x100, &[]),
+                group(0x100, 1, &children),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("grid-case.json"),
+            serde_json::to_vec(&json!({"duplicate":duplicate})).unwrap(),
+        )
+        .unwrap();
+    }
+    fn grid_input(grid: [i32; 2]) -> GridInput {
+        GridInput {
+            world: crate::parse_cell_key("Base.esm:100").unwrap(),
+            grid,
+            source_timeout_ms: 10_000,
+        }
+    }
+    #[test]
+    fn cli_grid_consumer_selects_explicit_cell_and_uses_existing_resident_sources() {
+        let directory = directory();
+        grid_fixture(&directory, false);
+        let before = Sha256::digest(fs::read(directory.join("Data/Base.esm")).unwrap());
+        let report = grid_residency(
+            &directory,
+            &directory.join("order.json"),
+            None,
+            None,
+            grid_input([-18, 0]),
+        )
+        .unwrap();
+        assert_eq!(report["cell_grid_sources"]["world"]["local_id"], 0x100);
+        assert_eq!(
+            report["cell_grid_sources"]["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            report["cell_grid_sources"]["entries"][1]["role"],
+            "persistent-group"
+        );
+        assert_eq!(report["explicit_grid"], json!([-18, 0]));
+        assert_eq!(report["cell_grid_request"]["cell"]["local_id"], 0x200);
+        assert_eq!(report["cell_models"]["root"]["local_id"], 0x200);
+        assert_eq!(
+            report["cell_models"]["source_cohort_sha256"],
+            report["cell_grid_sources"]["source_cohort_sha256"]
+        );
+        assert_eq!(report["residency"]["completed_models"], 1);
+        assert_eq!(report["residency"]["completed_textures"], 1);
+        assert_eq!(report["captured_sources_available"], true);
+        assert_eq!(
+            report["texture_payloads"][0]["sha256"],
+            format!("{:x}", Sha256::digest(b"authored-source-texture"))
+        );
+        assert_eq!(report["residency"]["dependencies"], "Pending");
+        assert_eq!(report["residency"]["simulation_ready"], false);
+        assert_eq!(report["activation_applied"], false);
+        assert_eq!(report["current_cell_changed"], false);
+        assert_eq!(report["runtime_ready"], false);
+        assert_eq!(
+            Sha256::digest(fs::read(directory.join("Data/Base.esm")).unwrap()),
+            before
+        );
+    }
+    #[test]
+    fn cli_grid_missing_and_ambiguous_requests_preserve_directory_without_residency() {
+        for (duplicate, grid, expected) in [
+            (false, [i32::MAX, i32::MIN], "no live"),
+            (true, [-18, 0], "ambiguous"),
+        ] {
+            let directory = directory();
+            grid_fixture(&directory, duplicate);
+            let report = grid_residency(
+                &directory,
+                &directory.join("order.json"),
+                None,
+                None,
+                grid_input(grid),
+            )
+            .unwrap();
+            assert!(report["source_error"].as_str().unwrap().contains(expected));
+            assert!(report["cell_grid_request"].is_null());
+            assert!(report["cell_models"].is_null());
+            assert!(report["residency"].is_null());
+            assert_eq!(report["captured_sources_available"], false);
+            assert_eq!(report["explicit_grid"], json!(grid));
+            assert_eq!(report["activation_applied"], false);
+            assert_eq!(report["current_cell_changed"], false);
+            assert_eq!(report["runtime_ready"], false);
+            assert_eq!(
+                report["cell_grid_sources"]["entries"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                if duplicate { 3 } else { 2 }
+            );
+        }
+    }
+    #[test]
+    fn cli_grid_flags_preserve_signed_values_and_refuse_out_of_domain_inputs() {
+        use clap::Parser;
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "grid-residency-sources",
+            "--install",
+            "fixture",
+            "--load-order",
+            "order.json",
+            "--world",
+            "Base.esm:100",
+            "--grid-x",
+            "-2147483648",
+            "--grid-y",
+            "2147483647",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::GridResidencySources {
+                grid_x: i32::MIN,
+                grid_y: i32::MAX,
+                ..
+            }
+        ));
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "grid-residency-sources",
+                "--install",
+                "fixture",
+                "--load-order",
+                "order.json",
+                "--world",
+                "Base.esm:100",
+                "--grid-x",
+                "2147483648",
+                "--grid-y",
+                "0"
+            ])
+            .is_err()
+        );
+        for timeout in [0, 120_001] {
+            let mut input = grid_input([-18, 0]);
+            input.source_timeout_ms = timeout;
+            assert!(
+                grid_residency(Path::new("absent"), Path::new("absent"), None, None, input)
+                    .is_err()
+            );
         }
     }
     fn door_fixture(root: &Path, target: u32) {

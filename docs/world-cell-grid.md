@@ -46,3 +46,20 @@ Malformed, tainted or over-quota requested cells produce no directory. The
 retained-byte estimate excludes allocator overhead and the caller's existing
 record index; source fingerprinting is separate from CELL body read accounting.
 `runtime_ready` stays false.
+
+`grid-residency-sources` is a read-only executable consumer of this request and
+the existing model/texture jobs. Supply `--install`, `--load-order`, `--world`
+(canonical origin-plugin:local-hex-id), `--grid-x` and `--grid-y` (signed i32).
+Optional private `--index-cache`, `--cache` and `--source-timeout-ms` follow the
+other residency source commands. The timeout bounds each worker polling stage,
+separately from source indexing, fingerprinting and planning.
+
+The report retains the directory, explicit grid, selected sealed request,
+plugin/order fingerprints and exact model/texture receipts and leased texture
+hashes. Missing or ambiguous selection retains its directory and source error
+without making a residency request. Planning refusal similarly retains the
+selected request. A completed source request uses the same protected ordered
+Store and existing importer/cache; it does not create a second resource route.
+An unavailable request emits its report and exits 1. Source availability does
+not satisfy original lookup precedence or activation acceptance, and
+`current_cell_changed`, `activation_applied` and `runtime_ready` remain false.

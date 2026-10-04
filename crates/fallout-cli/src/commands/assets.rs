@@ -99,6 +99,9 @@ pub(crate) enum AssetsCommand {
         /// Evaluate unique explicit geometries from one source decode.
         #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request"])]
         shared_skin_request: Option<PathBuf>,
+        /// Export exact authored partition influence and topology streams.
+        #[arg(long, conflicts_with_all = ["pose_geometry", "pose_weight_tolerance", "oracle_report", "include_partitions", "include_bindings", "sampled_pose_request", "influences_request", "external_rig", "external_skin_request", "shared_skin_request"])]
+        partition_streams_request: Option<PathBuf>,
     },
     /// Resolve and verify external texture dependencies from a NIF or model cache directory.
     NifAssets {

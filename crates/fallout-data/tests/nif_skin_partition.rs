@@ -150,6 +150,362 @@ fn failure(blocks: &[(&str, Vec<u8>)], expected: &str) {
     );
 }
 
+fn stream_fixture(packets: &[Vec<u8>]) -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = fixture(34, packets);
+    blocks[1].1.clear();
+    words(&mut blocks[1].1, &[NULL, 4, 0, 2, 5, 6]);
+    let mut leaf = av(34);
+    words(&mut leaf, &[0, 0]);
+    blocks.extend([("NiNode", leaf.clone()), ("NiNode", leaf)]);
+    blocks
+}
+fn stream_request(bytes: &[u8], ordinal: usize) -> partition::streams::Request {
+    use sha2::{Digest, Sha256};
+    partition::streams::Request {
+        expected_source_sha256: Sha256::digest(bytes).into(),
+        geometry: 3,
+        partition_block: 4,
+        partition_ordinal: ordinal,
+    }
+}
+fn stream_prepare(blocks: &[(&str, Vec<u8>)], ordinal: usize) -> partition::streams::Streams {
+    let bytes = container(blocks, 34);
+    partition::streams::prepare(
+        &bytes,
+        "authored streams",
+        stream_request(&bytes, ordinal),
+        Default::default(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn source_streams_keep_every_raw_slot_nonidentity_map_palette_and_independent_span() {
+    let blocks = stream_fixture(&[packet(false), packet(true)]);
+    let bytes = container(&blocks, 34);
+    let streams = stream_prepare(&blocks, 0);
+    let identity = streams.identity();
+    assert_eq!(
+        (
+            identity.geometry.block,
+            identity.geometry_data.block,
+            identity.instance.block,
+            identity.partition.block,
+            identity.partition_ordinal,
+            identity.source_vertex_count
+        ),
+        (3, 2, 1, 4, 0, 3)
+    );
+    let span_offset = bytes
+        .windows(blocks[4].1.len())
+        .position(|v| v == blocks[4].1)
+        .unwrap();
+    assert_eq!(
+        (identity.partition.offset, identity.partition.bytes),
+        (span_offset, blocks[4].1.len())
+    );
+    assert_eq!(
+        streams
+            .palette()
+            .iter()
+            .map(|p| (p.local_bone, p.global_bone_ordinal, p.source_bone_node))
+            .collect::<Vec<_>>(),
+        [(0, 1, 6), (1, 0, 5)]
+    );
+    assert_eq!(
+        streams
+            .vertices()
+            .iter()
+            .map(|v| (
+                v.local_vertex,
+                v.source_vertex,
+                v.influence_start,
+                v.influence_count
+            ))
+            .collect::<Vec<_>>(),
+        [(0, 2, 0, 4), (1, 0, 4, 4), (2, 1, 8, 4)]
+    );
+    let expected = [
+        (0, 0, 2, 0, 1, 0, 5, 0x8000_0000),
+        (1, 0, 2, 1, 0, 1, 6, 0xBE80_0000),
+        (2, 0, 2, 2, 1, 0, 5, 0x3FA0_0000),
+        (3, 0, 2, 3, 0, 1, 6, 0x3F80_0000),
+        (4, 1, 0, 0, 0, 1, 6, 0x8000_0000),
+        (5, 1, 0, 1, 1, 0, 5, 0xBE80_0000),
+        (6, 1, 0, 2, 0, 1, 6, 0x3FA0_0000),
+        (7, 1, 0, 3, 1, 0, 5, 0x3F80_0000),
+        (8, 2, 1, 0, 1, 0, 5, 0x8000_0000),
+        (9, 2, 1, 1, 1, 0, 5, 0xBE80_0000),
+        (10, 2, 1, 2, 0, 1, 6, 0x3FA0_0000),
+        (11, 2, 1, 3, 0, 1, 6, 0x3F80_0000),
+    ];
+    assert_eq!(
+        streams
+            .influences()
+            .iter()
+            .map(|v| (
+                v.source_weight_ordinal,
+                v.local_vertex,
+                v.source_vertex,
+                v.slot,
+                v.local_bone,
+                v.global_bone_ordinal,
+                v.source_bone_node,
+                v.weight_bits
+            ))
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert!(serde_json::to_value(&streams).unwrap()["retail_behavior_verified"] == false);
+}
+
+#[test]
+fn source_streams_preserve_typed_triangles_strips_lengths_and_degenerate_source_order() {
+    use partition::streams::Topology;
+    let blocks = stream_fixture(&[packet(false), packet(true)]);
+    let triangles = stream_prepare(&blocks, 0);
+    match triangles.topology() {
+        Topology::Triangles { triangles } => {
+            assert_eq!(triangles.len(), 1);
+            assert_eq!(triangles[0].local_vertices, [2, 0, 1]);
+            assert_eq!(triangles[0].source_vertices, [1, 2, 0]);
+        }
+        _ => panic!("authored triangle branch changed"),
+    }
+    let strips = stream_prepare(&blocks, 1);
+    match strips.topology() {
+        Topology::Strips { lengths, strips } => {
+            assert_eq!(lengths, &[4]);
+            assert_eq!(strips.len(), 1);
+            assert_eq!(strips[0].local_vertices, [2, 0, 1, 1]);
+            assert_eq!(strips[0].source_vertices, [1, 2, 0, 0]);
+        }
+        _ => panic!("authored strip branch triangulated"),
+    }
+    let observation = serde_json::to_value(&strips).unwrap();
+    assert_eq!(observation["declared_triangles"], 1);
+    assert_eq!(
+        (triangles.usage().draw_indices, strips.usage().draw_indices),
+        (3, 4)
+    );
+}
+
+#[test]
+fn source_streams_require_exact_identity_owner_partition_ordinal_and_complete_presence() {
+    use partition::streams;
+    let blocks = stream_fixture(&[packet(false)]);
+    let bytes = container(&blocks, 34);
+    let request = stream_request(&bytes, 0);
+    let mut wrong = request;
+    wrong.expected_source_sha256[0] ^= 1;
+    for (request, expected) in [
+        (wrong, "SHA256 differs"),
+        (
+            streams::Request {
+                geometry: 0,
+                ..request
+            },
+            "no decoded skin owner",
+        ),
+        (
+            streams::Request {
+                partition_block: 5,
+                ..request
+            },
+            "partition link differs",
+        ),
+        (
+            streams::Request {
+                partition_ordinal: 1,
+                ..request
+            },
+            "ordinal unavailable",
+        ),
+    ] {
+        let error = streams::prepare(&bytes, "refusal", request, Default::default()).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut absent = Vec::new();
+    shorts(&mut absent, &[3, 0, 2, 0, 4, 1, 0]);
+    absent.extend([0, 0, 0, 0]);
+    let absent = container(&stream_fixture(&[absent]), 34);
+    let error = streams::prepare(
+        &absent,
+        "absent",
+        stream_request(&absent, 0),
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("requires authored"), "{error}");
+    let mut body = blocks;
+    body[1].0 = "BSDismemberSkinInstance";
+    words(&mut body[1].1, &[2]);
+    shorts(&mut body[1].1, &[1, 0, 257, 42]);
+    let body = container(&body, 34);
+    let error = streams::prepare(
+        &body,
+        "dismember",
+        stream_request(&body, 0),
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("body-part association unavailable"),
+        "{error}"
+    );
+}
+
+#[test]
+fn source_streams_refuse_out_of_range_domains_and_unresolved_or_wrong_type_bone_links() {
+    use partition::streams;
+    let mut bad_local = packet(false);
+    bad_local[78] = 2;
+    let mut bad_global = packet(false);
+    set_short(&mut bad_global, 10, 2);
+    let mut bad_vertex = packet(false);
+    set_short(&mut bad_vertex, 15, 3);
+    let mut bad_draw = packet(false);
+    set_short(&mut bad_draw, 71, 3);
+    for (packet, expected) in [
+        (bad_local, "outside palette"),
+        (bad_global, "outside linked instance"),
+        (bad_vertex, "outside linked geometry"),
+        (bad_draw, "outside local vertices"),
+    ] {
+        let bytes = container(&stream_fixture(&[packet]), 34);
+        let error = streams::prepare(
+            &bytes,
+            "domain",
+            stream_request(&bytes, 0),
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    for (target, expected) in [
+        (NULL, "no source bone link"),
+        (2, "skin bone link has wrong target kind"),
+    ] {
+        let mut blocks = stream_fixture(&[packet(false)]);
+        blocks[1].1[16..20].copy_from_slice(&target.to_le_bytes());
+        let bytes = container(&blocks, 34);
+        let error = streams::prepare(
+            &bytes,
+            "bone",
+            stream_request(&bytes, 0),
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+}
+
+#[test]
+fn source_streams_rows_draw_storage_work_and_decoder_admissions_have_exact_ceilings() {
+    use partition::streams;
+    let bytes = container(&stream_fixture(&[packet(false), packet(true)]), 34);
+    let request = stream_request(&bytes, 1);
+    let baseline = streams::prepare(&bytes, "baseline", request, Default::default()).unwrap();
+    let usage = baseline.usage();
+    let mut exact = streams::Limits {
+        influence_rows: 12,
+        draw_indices: 4,
+        array_bytes: usage.retained_bytes,
+        work_units: usage.work_units,
+        decoder_array_admission_bytes: usage.decoder_array_admission_bytes,
+        decoder_check_admission_units: usage.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.source.skin.scene.input_bytes = bytes.len();
+    streams::prepare(&bytes, "exact", request, exact).unwrap();
+    for (limits, expected) in [
+        (
+            streams::Limits {
+                influence_rows: 11,
+                ..exact
+            },
+            "row product budget",
+        ),
+        (
+            streams::Limits {
+                draw_indices: 3,
+                ..exact
+            },
+            "draw index count budget",
+        ),
+        (
+            streams::Limits {
+                array_bytes: exact.array_bytes - 1,
+                ..exact
+            },
+            "array storage budget",
+        ),
+        (
+            streams::Limits {
+                work_units: exact.work_units - 1,
+                ..exact
+            },
+            "work budget",
+        ),
+        (
+            streams::Limits {
+                decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+                ..exact
+            },
+            "decoder array admission",
+        ),
+        (
+            streams::Limits {
+                decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+                ..exact
+            },
+            "decoder check admission",
+        ),
+    ] {
+        let error = streams::prepare(&bytes, "under", request, limits).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut short = exact;
+    short.source.skin.scene.input_bytes -= 1;
+    assert!(
+        streams::prepare(&bytes, "input", request, short)
+            .unwrap_err()
+            .to_string()
+            .contains("input byte budget")
+    );
+    let mut overflow = exact;
+    overflow.source.array_bytes = usize::MAX;
+    assert!(
+        streams::prepare(&bytes, "overflow", request, overflow)
+            .unwrap_err()
+            .to_string()
+            .contains("decoder array admission")
+    );
+}
+
+#[test]
+fn source_streams_empty_present_rows_keep_unused_width_and_do_not_synthesize_arrays() {
+    let mut empty = Vec::new();
+    shorts(&mut empty, &[0, 0, 0, 0, 17]);
+    empty.extend([1, 1, 1, 1]);
+    let streams = stream_prepare(&stream_fixture(&[empty]), 0);
+    assert!(
+        streams.vertices().is_empty()
+            && streams.influences().is_empty()
+            && streams.palette().is_empty()
+    );
+    assert_eq!(
+        serde_json::to_value(&streams).unwrap()["weights_per_vertex"],
+        17
+    );
+    assert_eq!(
+        (streams.usage().influence_rows, streams.usage().draw_indices),
+        (0, 0)
+    );
+}
+
 #[test]
 fn exact_raw_fields_on_all_admitted_streams_and_both_face_branches() {
     for stream in STREAMS {

@@ -805,3 +805,84 @@ remain byte-identical to frozen20. Engineering output does not establish origina
 deformation or playback. Immutable checks and the frozen executable stay in
 ignored `local/v3-asset-13`. This single producer also closes the coordinator's
 refined reusable-source alias ASSET21.
+
+## Source-qualified partition rows and draw indices
+
+`partition::streams::prepare(bytes, source, Request, Limits)` produces a sealed
+`Streams` from the existing partition decoder and its existing Scene. The request
+requires the exact whole-source SHA256, geometry ID, linked partition block and
+physical partition ordinal. Read-only identity, presence, palette, vertex,
+influence, topology and usage getters expose observations. Private fields and no
+deserialization prevent an outside catalogue from becoming source authority.
+
+The identity contains independent geometry/data/instance/partition block spans
+and payload hashes, physical partition ordinal and source vertex domain. Every
+local palette entry retains its authored global bone ordinal and decoded source
+node. Every physical vertex slot retains local/source vertex indices, slot order,
+local/global bone indices, node ID and binary32 weight word. Duplicate palette
+entries, vertex mappings and bone slots remain duplicated. Signed zeros, finite
+negative weights and non-unit sums remain raw. This producer performs no numeric
+weight policy or deformation; the existing skin decoder still refuses nonfinite
+weights. Missing source bone links and wrong node types refuse.
+
+Triangles retain local and mapped source index triples. Strips retain authored
+lengths and both complete ordered index streams, including repeated and degenerate
+indices. No triangulation or winding rule is inferred. The independent authored
+triangle-count word remains visible even when it differs from a simple strip
+length calculation. All four presence flags must explicitly admit their arrays;
+absent arrays are never synthesized. Empty present arrays retain the unused width.
+The admitted nonempty NV branch uses four weight slots per vertex. Exact shared
+owner constraints from the existing decoder apply; mismatched selected dismember
+body-part counts refuse before this producer returns a stream.
+
+Checked row products and topology counts default to four million influences and
+four million indices. All output and temporary elements are charged before
+allocation under 32 MiB, including headers, raw/mapped strip copies, palette/vertex/
+influence rows, span hash strings and the decoded-node membership map. Hash byte
+visits, owner lookup, map construction, row projection and draw-index projection
+default to 128 million work units. Strip-length/count work is charged before the
+index-count scan, including strips with no indices. Decoder array/check allowances
+are separately admitted under 448 MiB and 32 million units; default declared
+allowances are 384 MiB and 32 million units. Existing 64 MiB source input and
+block/index/Scene limits remain active. Source retention reports the existing
+skin and partition element counts; index/Scene storage remains independently
+bounded. These logical element/work counters include charged temporaries and
+exclude allocator overhead and process-memory measurements. Failure returns no
+usable `Streams` or partial output.
+
+The owned consumer is:
+
+```text
+fallout nif-skin INPUT --partition-streams-request REQUEST.json --output RECEIPT.json
+```
+
+Strict schema1 requires `expected_source_sha256` (32 byte integers), `geometry`,
+`partition_block` and `partition_ordinal`. Request/input limits are 64 KiB/64 MiB;
+output must be outside both input directories. Other source/pose modes conflict.
+Semantic refusal records `evaluation: null` and an error with nonzero exit.
+`tools/nif-skin-oracle/check_streams.py` supplies independent container spans and
+literal authored rows for both topology branches, repeated palette and vertex
+mapping, raw weight words and explicit request/domain refusals. This stream is an
+engineering source projection. Renderer adoption, partition deformation, shader
+weight/normal rules, original draw behavior and retail playback remain separate.
+
+Validation passes 93 focused partition/skin/animation tests, including six new
+stream cases, 38 serial CLI tests, affected all-target Clippy with warnings denied,
+formatting and the CLI build. Exact and one-under input, decoder admission, row,
+draw-index, element-storage and work ceilings are checked independently. The
+first stream-test run's wrong expected error remains preserved: the existing skin
+decoder correctly refused a wrong bone type before the new producer. A later
+budget-order tightening charges strip work before scanning; both full validation
+runs remain immutable, with the final executable frozen after the second run.
+
+The second independent source passes three complete literal partition outputs,
+36 raw influence rows, sixteen intended refusals and byte-identical earlier
+schemas1/2/3. Selected installed source `618eb19e...`, geometry1, partition block8,
+ordinal0 matches preserved pinned-native evidence exactly for 159 vertex rows,
+five palette entries, 636 raw influence rows and all 420 authored strip indices.
+Deliberately changed weight/index words fail the independent comparison. Earlier
+installed-source schemas1/2/3, stored pose and compact-influence receipts remain
+byte-identical to frozen corrected20. The native projection charges 25,460 logical
+element bytes and 360,078 work units; those numbers do not measure process memory
+or rendering speed. Frozen executable, commands, hashes and full immutable
+receipts stay in ignored `local/v3-asset-22`. Retail behavior remains unverified.

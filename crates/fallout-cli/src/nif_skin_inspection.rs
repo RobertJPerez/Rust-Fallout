@@ -252,6 +252,61 @@ pub fn inspect_influences(input: &Path, request_path: &Path) -> Result<Influence
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct PartitionStreamsRequest {
+    schema_version: u32,
+    expected_source_sha256: [u8; 32],
+    geometry: u32,
+    partition_block: u32,
+    partition_ordinal: usize,
+}
+#[derive(Serialize)]
+pub struct PartitionStreamsReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    evaluation: Option<partition::streams::Streams>,
+    error: Option<String>,
+    pub failures: usize,
+}
+pub fn inspect_partition_streams(
+    input: &Path,
+    request_path: &Path,
+) -> Result<PartitionStreamsReport> {
+    let request: PartitionStreamsRequest =
+        serde_json::from_slice(&read_bounded(request_path, 64 * 1024)?)?;
+    if request.schema_version != 1 {
+        return Err("partition streams request requires schema1".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let evaluated = partition::streams::prepare(
+        &bytes,
+        &input.display().to_string(),
+        partition::streams::Request {
+            expected_source_sha256: request.expected_source_sha256,
+            geometry: request.geometry,
+            partition_block: request.partition_block,
+            partition_ordinal: request.partition_ordinal,
+        },
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(value) => (Some(value), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PartitionStreamsReport {
+        schema_version: 1,
+        contract: "source-qualified-authored-partition-streams-v1",
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SharedGeometryRequest {
     geometry: u32,
     weights: InfluenceWeightPolicy,

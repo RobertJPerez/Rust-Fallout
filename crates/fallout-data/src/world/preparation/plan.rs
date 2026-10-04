@@ -188,6 +188,18 @@ impl CellModelPlan {
         &self.0.receipt.identity
     }
 
+    /// The residency consumer uses the same sealed selections and importer as
+    /// diagnostic preparation; receipts alone cannot manufacture an input.
+    pub(crate) fn member(&self, index: usize) -> Result<Member> {
+        self.0
+            .requests
+            .get(index)
+            .ok_or_else(|| {
+                Error::Resolution("cell model request index is outside sealed plan".into())
+            })?
+            .member()
+    }
+
     pub fn load(
         store: &mut RecordStore,
         root: &FormKey,

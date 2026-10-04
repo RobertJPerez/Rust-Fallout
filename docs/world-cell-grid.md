@@ -95,3 +95,45 @@ releases those leases and records the drained Unrequested state. These are sourc
 lifetime checks. Dependency, collision and behavior reports remain Pending;
 surface, render, simulation, current-cell change and activation remain unadmitted.
 Omitting the flag preserves the existing model/texture request scope.
+
+`request_set(&[[x, y], ...])` selects a nonempty, duplicate-free explicit list
+in caller order. Every coordinate must select one live exterior grid CELL;
+a missing, deleted, non-grid or ambiguous final selection refuses the whole
+request. The private `CellGridSetRequest` retains the same directory/world/source
+seal as its single requests. It performs no coordinate arithmetic.
+
+`prepare_cells(store, request_set, mounts, ModelSetLimits)` validates that seal
+and prepares a `CellModelPlanSet` through the existing factory. Its borrowed
+requests and plans preserve caller order and exact single-plan identities.
+The result cannot be constructed from report JSON. A refusal returns no partial
+bundle and releases any plans and protected archive inputs admitted earlier.
+
+Each factory receives the aggregate allowance remaining after earlier plans,
+before reading bodies, collecting metadata or opening archive mappings. Existing
+per-cell ceilings still apply. Model requests, model bytes, graph scans, source
+receipts and plan metadata count per cell, including coincident model requests.
+An exact container-bound protected `ArchiveInput` is reused across plans; its
+immutable mapping is charged once. Container aliases are not guessed equivalent.
+
+| Aggregate construction allowance | Ceiling |
+| --- | ---: |
+| Explicit grids/plans | 8 |
+| Source receipt occurrences | 2,048 |
+| Winning headers scanned | 8,000,000 |
+| Graph nodes / edges | 4,096 / 16,384 |
+| Base records / archive candidates / model requests | 1,024 / 8,192 / 1,024 |
+| Field sites | 262,144 |
+| max(stored, decoded) plugin-body reads | 64 MiB |
+| Decoded plugin bodies / model member bytes | 64 MiB / 64 MiB |
+| Conservative model probe metadata | 512 MiB |
+| Conservative retained plan/set metadata | 32 MiB |
+| Distinct protected archive inputs | 8 |
+| Actually shared mapped archive extents | 16 GiB |
+
+All allowances are lower-only. Set metadata is admitted before selection/source
+validation copies and retained plan collection. Directory construction and plugin
+fingerprinting are separate from these preparation counters. Estimates exclude
+allocator overhead and the caller's existing index. This caller-owned immutable
+construction budget is not a global process quota or a residency owner. Cloned
+individual plans retain their already admitted shared metadata and source inputs.
+The bundle creates no jobs and applies no activation or runtime readiness policy.

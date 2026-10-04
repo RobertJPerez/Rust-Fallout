@@ -1,6 +1,6 @@
 use super::super::{SourceField, dependencies, model_path};
 use crate::{
-    Error, Result,
+    Error, Result, baseline,
     identity::FormKey,
     plugin::{self, RecordHeader},
     resource_jobs::{ArchiveInput, Member},
@@ -52,7 +52,7 @@ impl Default for Limits {
 }
 
 impl Limits {
-    fn validate(self) -> Result<Self> {
+    pub(super) fn validate(self) -> Result<Self> {
         self.dependencies.validate()?;
         let ceiling = Self::default();
         for (value, maximum, name) in [
@@ -130,6 +130,8 @@ pub struct Usage {
     pub candidates: usize,
     pub archives: usize,
     pub record_decoded_bytes: usize,
+    /// Actual aggregate max(stored, decoded) strict plugin body reads.
+    pub source_read_bytes: usize,
     pub field_sites: usize,
     pub model_decoded_bytes: usize,
     pub metadata_bytes: usize,
@@ -174,6 +176,56 @@ pub(super) struct Inner {
 #[derive(Clone)]
 pub struct CellModelPlan(pub(super) Arc<Inner>);
 
+/// Only existing protected ArchiveInput instances are reused. A container lookup
+/// retains its exact immutable fingerprint/extent and still checks every member
+/// against that input's physical container/table; aliases are not guessed equal.
+pub(in crate::world) struct ArchivePool {
+    inputs: BTreeMap<String, Arc<ArchiveInput>>,
+    pub mapped_bytes: u64,
+    max_mapped_bytes: u64,
+    max_archives: usize,
+}
+impl ArchivePool {
+    pub fn new(max_mapped_bytes: u64, max_archives: usize) -> Self {
+        Self {
+            inputs: BTreeMap::new(),
+            mapped_bytes: 0,
+            max_mapped_bytes,
+            max_archives,
+        }
+    }
+    pub fn len(&self) -> usize {
+        self.inputs.len()
+    }
+    fn get(&mut self, container: &str) -> Result<Arc<ArchiveInput>> {
+        if let Some(input) = self.inputs.get(container) {
+            return Ok(input.clone());
+        }
+        if self.inputs.len() >= self.max_archives {
+            return Err(budget("shared archives", "exceeded"));
+        }
+        // Hold the protected file from extent admission through importer mapping.
+        let protected = baseline::open_source(Path::new(container))?;
+        let bytes = protected
+            .metadata()
+            .map_err(|error| crate::io(container, error))?
+            .len();
+        let mapped = self
+            .mapped_bytes
+            .checked_add(bytes)
+            .filter(|n| *n <= self.max_mapped_bytes)
+            .ok_or_else(|| budget("mapped source bytes", "exceeded"))?;
+        let input = ArchiveInput::open(Path::new(container))
+            .map_err(|error| Error::Resolution(error.to_string()))?;
+        if input.source_bytes() != bytes {
+            return Err(budget("mapped source bytes", "source extent changed"));
+        }
+        self.inputs.insert(container.to_owned(), input.clone());
+        self.mapped_bytes = mapped;
+        Ok(input)
+    }
+}
+
 impl CellModelPlan {
     pub fn graph(&self) -> &dependencies::Report {
         &self.0.graph
@@ -206,6 +258,24 @@ impl CellModelPlan {
         mounts: &MountIndex,
         limits: Limits,
     ) -> Result<Self> {
+        Self::load_with_archive_pool(
+            store,
+            root,
+            mounts,
+            limits,
+            usize::MAX,
+            &mut ArchivePool::new(u64::MAX, usize::MAX),
+        )
+    }
+
+    pub(in crate::world) fn load_with_archive_pool(
+        store: &mut RecordStore,
+        root: &FormKey,
+        mounts: &MountIndex,
+        limits: Limits,
+        max_read_bytes: usize,
+        archives: &mut ArchivePool,
+    ) -> Result<Self> {
         let limits = limits.validate()?;
         let mut graph_limits = limits.dependencies;
         graph_limits.max_record_bytes = graph_limits.max_record_bytes.min(limits.max_record_bytes);
@@ -216,9 +286,23 @@ impl CellModelPlan {
             .max_metadata_bytes
             .min(limits.max_metadata_bytes);
         graph_limits.max_field_sites = graph_limits.max_field_sites.min(limits.max_field_sites);
-        let graph = dependencies::inspect_cell_key(store, root, graph_limits)?;
+        let graph =
+            dependencies::inspect_cell_key_read_bounded(store, root, graph_limits, max_read_bytes)?;
+        let source_read_bytes = graph
+            .nodes
+            .iter()
+            .filter_map(|node| {
+                node.decoded_body
+                    .as_ref()
+                    .map(|body| body.len().max(node.header.stored_size as usize))
+            })
+            .try_fold(0usize, |sum, bytes| {
+                sum.checked_add(bytes)
+                    .ok_or_else(|| budget("source read bytes", "overflow"))
+            })?;
         let mut usage = Usage {
             record_decoded_bytes: graph.usage.decoded_bytes,
+            source_read_bytes,
             field_sites: graph.usage.field_sites,
             metadata_bytes: graph.usage.metadata_bytes,
             ..Default::default()
@@ -270,11 +354,20 @@ impl CellModelPlan {
             )?;
             let maximum = limits
                 .max_record_bytes
-                .min(limits.max_record_decoded_bytes - usage.record_decoded_bytes);
-            if maximum == 0 {
+                .min(limits.max_record_decoded_bytes - usage.record_decoded_bytes)
+                .min(max_read_bytes - usage.source_read_bytes);
+            if maximum == 0
+                && (max_read_bytes == usize::MAX || record_header_nonempty(store, location))
+            {
                 return Err(budget("record decoded bytes", "no allowance remains"));
             }
             let record = store.read_bounded(location, maximum)?;
+            charge(
+                &mut usage.source_read_bytes,
+                record.payload.len().max(record.header.stored_size as usize),
+                max_read_bytes,
+                "source read bytes",
+            )?;
             if record.integrity_issue.is_some() {
                 return Err(Error::Resolution(
                     "cell model plan refuses tainted base body".into(),
@@ -365,11 +458,11 @@ impl CellModelPlan {
                 status,
             });
         }
-        let mut archives: BTreeMap<String, Arc<ArchiveInput>> = BTreeMap::new();
+        let mut plan_archives: BTreeMap<String, Arc<ArchiveInput>> = BTreeMap::new();
         let mut planned = Vec::with_capacity(selected.len());
         let mut requests = Vec::with_capacity(selected.len());
         for (path, source) in selected {
-            if !archives.contains_key(&source.container) {
+            if !plan_archives.contains_key(&source.container) {
                 charge(&mut usage.archives, 1, limits.max_archives, "archives")?;
                 charge(
                     &mut usage.metadata_bytes,
@@ -377,11 +470,10 @@ impl CellModelPlan {
                     limits.max_metadata_bytes,
                     "metadata bytes",
                 )?;
-                let input = ArchiveInput::open(Path::new(&source.container))
-                    .map_err(|error| Error::Resolution(error.to_string()))?;
-                archives.insert(source.container.clone(), input);
+                let input = archives.get(&source.container)?;
+                plan_archives.insert(source.container.clone(), input);
             }
-            let input = archives[&source.container].clone();
+            let input = plan_archives[&source.container].clone();
             charge(
                 &mut usage.metadata_bytes,
                 1024 + 4 * path.bytes().len() + 4 * source.container.len(),
@@ -422,7 +514,7 @@ impl CellModelPlan {
             });
             planned.push(Planned { receipt, input });
         }
-        let archives = archives
+        let archives = plan_archives
             .iter()
             .map(|(container, input)| ArchiveReceipt {
                 container: container.clone(),
@@ -477,6 +569,9 @@ impl Write for HashWriter {
 
 fn budget(name: &str, reason: &str) -> Error {
     Error::Resolution(format!("cell model plan {name} budget: {reason}"))
+}
+fn record_header_nonempty(store: &RecordStore, location: crate::store::Location) -> bool {
+    store.definition(location).header.stored_size != 0
 }
 fn charge(current: &mut usize, add: usize, maximum: usize, name: &str) -> Result<()> {
     let value = current

@@ -2341,6 +2341,27 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
             )?;
             emit(&report, output, &install)?;
         }
+        PhysicsCommand::ReferenceCollision {
+            install,
+            load_order,
+            save_root,
+            editor_id,
+            index_cache,
+            source_cache,
+            request,
+        } => {
+            let report = collision::reference_query(
+                &install,
+                &load_order,
+                &save_root,
+                index_cache.as_deref(),
+                source_cache.as_deref(),
+                &editor_id,
+                &request,
+                output,
+            )?;
+            emit(&report, output, &install)?;
+        }
         PhysicsCommand::NifCollision {
             input,
             oracle_report,

@@ -4,6 +4,7 @@ pub mod cell;
 mod enclosure;
 mod index;
 mod math;
+pub mod reference;
 mod scene;
 mod shape;
 

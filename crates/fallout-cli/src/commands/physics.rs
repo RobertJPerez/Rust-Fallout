@@ -31,6 +31,23 @@ pub(crate) enum PhysicsCommand {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Query selected collision bound to existing canonical references in a strict saved World.
+    ReferenceCollision {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        save_root: PathBuf,
+        #[arg(long)]
+        editor_id: String,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        source_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Decode authored NV collision data; optionally compare a raw nifly oracle report.
     NifCollision {
         input: PathBuf,

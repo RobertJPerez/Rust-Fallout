@@ -178,6 +178,7 @@ impl Plan {
             self.occurrence,
             self.inputs,
             native::Intent::EngineeringObservation,
+            self.limits.maximum_query_variable_bytes,
         )? {
             native::Admission::Unsupported { reason, detail } => {
                 return Ok(native::Outcome::Unsupported { reason, detail });
@@ -239,7 +240,12 @@ pub fn prepare(
     }
     content.validate_world(world)?;
     let calls = world.prepare_native_calls_with_sources(sequence, sources, limits.native)?;
-    let resolved = match calls.admit_occurrence(occurrence, inputs, intent)? {
+    let resolved = match calls.admit_occurrence(
+        occurrence,
+        inputs,
+        intent,
+        limits.maximum_query_variable_bytes,
+    )? {
         native::Admission::Unsupported { reason, detail } => {
             return Ok(Preparation::Unsupported { reason, detail });
         }
@@ -259,8 +265,8 @@ pub fn prepare(
         .and_then(|size| size.checked_add(sources.decoder_sha256().len()))
         .filter(|&size| size <= limits.maximum_query_variable_bytes)
         .ok_or(Error::Capacity("query variable bytes"))?;
-    // Existing resolver's transient returned content key is canonically bounded.
-    // Charge all retained query/item/decoder strings before allocating them.
+    // Shared admission bounded the resolver's transient key clone. Charge both
+    // retained query/item copies and decoder/cohort strings before retaining.
     let source =
         preparation::EventObservation::capture(calls.frame(), &[], limits.source_projection)?;
     let query = match query::Request::prepare(

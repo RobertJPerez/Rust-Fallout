@@ -27,6 +27,11 @@ existing event-observation source bytes/rows/variable strings/full binding scan,
 and retained query/item/decoder strings before cloning. Default plan ceilings are
 4096 event instructions, 128 calls, 65539 argument bytes, the existing observation
 limits, and 1024 query variable bytes. Query contributions have a separate cap.
+Shared native admission also measures the borrowed current static/dynamic content
+key before the canonical resolver clones it. Canonical plugin names have no
+length maximum; the plan budget covers a large current reference key even when
+it would later be unavailable in the source content. The legacy one-shot native
+route retains its original admission and bounds.
 
 ## Strict saved consumer
 

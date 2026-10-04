@@ -593,6 +593,153 @@ fn owned_native_plan_exact_creation_limits_and_unsupported_admission_preserve_wo
     ));
     assert_eq!(world.snapshot(), before);
 }
+
+#[test]
+fn owned_native_plan_bounds_large_canonical_dynamic_reference_before_shared_resolution() {
+    use fallout_runtime::execution::native_plan::{self, Selection};
+    let (_directory, catalogue, content) = fixture(&event(&get(None, 2)));
+    let sources = prepared_sources(&catalogue);
+    let (mut world, handle, sequence, subject) = seed(Arc::clone(&catalogue), 0);
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: form(0x100) },
+                },
+            )],
+        )
+        .unwrap();
+    let selection = Selection {
+        sequence,
+        occurrence: 0,
+        inputs: Inputs {
+            supplied_subject: Some(subject),
+            player: None,
+        },
+        intent: Intent::EngineeringObservation,
+    };
+    let plan = owned_plan(
+        native_plan::prepare(&world, &sources, &content, selection, Default::default()).unwrap(),
+    );
+    let mut oversized = form(0x100);
+    oversized.origin_plugin = "x".repeat(32 * 1024);
+    world
+        .assign(
+            handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: oversized },
+                },
+            )],
+        )
+        .unwrap();
+    let before = world.snapshot();
+    assert!(matches!(
+        native_plan::prepare(&world, &sources, &content, selection, Default::default()),
+        Err(native_plan::Error::Native(native::Error::Capacity(
+            "reference variable bytes"
+        )))
+    ));
+    assert!(matches!(
+        plan.observe(&world, &sources, &content, 2),
+        Err(native_plan::Error::Native(native::Error::Capacity(
+            "reference variable bytes"
+        )))
+    ));
+    let calls = world
+        .prepare_native_calls_with_sources(sequence, &sources, Default::default())
+        .unwrap();
+    // Legacy admission has its original bounds and semantic refusal; the new
+    // plan's tighter variable budget does not alter existing one-shot behavior.
+    let legacy = calls
+        .observe(
+            0,
+            &content,
+            selection.inputs,
+            Intent::EngineeringObservation,
+            2,
+        )
+        .unwrap();
+    reason(&legacy.outcome, Unsupported::HostQueryUnavailable);
+    assert!(matches!(
+        native_plan::prepare(
+            &world,
+            &sources,
+            &content,
+            Selection {
+                intent: Intent::Faithful,
+                ..selection
+            },
+            native_plan::Limits {
+                maximum_query_variable_bytes: 0,
+                ..Default::default()
+            }
+        )
+        .unwrap(),
+        native_plan::Preparation::Unsupported {
+            reason: Unsupported::UnverifiedRetailSemantics,
+            ..
+        }
+    ));
+    assert_eq!(world.snapshot(), before);
+    let (_caller_directory, caller_catalogue, caller_content) = fixture(&event(&get(Some(2), 1)));
+    let caller_sources = prepared_sources(&caller_catalogue);
+    let (mut caller_world, caller_handle, caller_sequence, _) =
+        seed(Arc::clone(&caller_catalogue), 0);
+    let mut caller_key = form(0x100);
+    caller_key.origin_plugin = "q".repeat(32 * 1024);
+    caller_world
+        .assign(
+            caller_handle,
+            &[(
+                90,
+                Value::Reference {
+                    value: ReferenceValue::Content { key: caller_key },
+                },
+            )],
+        )
+        .unwrap();
+    let caller_before = caller_world.snapshot();
+    let caller_selection = Selection {
+        sequence: caller_sequence,
+        occurrence: 0,
+        inputs: Inputs::default(),
+        intent: Intent::EngineeringObservation,
+    };
+    assert!(matches!(
+        native_plan::prepare(
+            &caller_world,
+            &caller_sources,
+            &caller_content,
+            caller_selection,
+            Default::default()
+        ),
+        Err(native_plan::Error::Native(native::Error::Capacity(
+            "reference variable bytes"
+        )))
+    ));
+    let caller_calls = caller_world
+        .prepare_native_calls_with_sources(caller_sequence, &caller_sources, Default::default())
+        .unwrap();
+    reason(
+        &caller_calls
+            .observe(
+                0,
+                &caller_content,
+                Inputs::default(),
+                Intent::EngineeringObservation,
+                2,
+            )
+            .unwrap()
+            .outcome,
+        Unsupported::CallerNeedsLiveReference,
+    );
+    assert_eq!(caller_world.snapshot(), caller_before);
+}
+
 fn seed(
     catalogue: Arc<Catalogue>,
     offset: u32,
@@ -2042,6 +2189,42 @@ fn cli_owned_native_plan_helper() {
         dynamic["plan"]["call"]["argument_scda_bytes"],
         json!({"start":45,"end":50})
     );
+    let mut oversized = form(0x100);
+    oversized.origin_plugin = "x".repeat(32 * 1024);
+    let mut large_current = dynamic_initial.clone();
+    large_current.instances[0]
+        .locals
+        .iter_mut()
+        .find(|local| local.index == 90)
+        .unwrap()
+        .value = Value::Reference {
+        value: ReferenceValue::Content { key: oversized },
+    };
+    for (name, initial, current, selected) in [
+        (
+            "large-current-item",
+            &dynamic_initial,
+            &large_current,
+            &dynamic_request,
+        ),
+        (
+            "large-initial-item",
+            &large_current,
+            &large_current,
+            &dynamic_request,
+        ),
+        (
+            "large-initial-caller",
+            &large_current,
+            &large_current,
+            &prefixed,
+        ),
+    ] {
+        let (output, path) = run(name, initial, current, selected, &[], None);
+        assert!(!output.status.success());
+        assert!(!path.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("reference variable bytes"));
+    }
     for (name, value, reason) in [
         (
             "uninitialized-item",

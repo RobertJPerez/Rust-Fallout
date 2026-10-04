@@ -974,3 +974,66 @@ the corrected reader; final authored runs use the corrected reader directly.
 Earlier pilots, fixture setup failures and intermediate private helper drafts
 remain separate. These are source-decoding and engineering-bound receipts,
 with no actor initialization, scheduling, AI, save or gameplay acceptance.
+## Explicit equipment source roles (V3-ACT-08)
+
+`actors::dependencies::equipment::request` accepts an explicit actor root,
+equipment FormKey and source role. It checks the actor/store's exact ordered
+source receipts and winning-content identity before reading the selected winner.
+The existing physical field decoder retains every field hash and source offset.
+The default actor dependency catalogue remains unchanged; inventory presence does
+not select equipment, and an explicit choice can request an item outside CNTO.
+
+Armor and armor-addon requests distinguish male/female biped MODL/MOD3 and world
+MOD2/MOD4 declarations. Weapon requests distinguish the model modification mask
+0–7 (MODL/MWD1–7), shell MOD2, scope MOD3, world MOD4, and first-person mask 0–7
+(WNAM/WNM1–7). A unique defined first-person STAT link is followed only after its
+winning target kind/plugin/offset/flags match. Repeated links remain ambiguous
+and are not followed; absent, null, missing, deleted and wrong-kind inputs retain
+their source bindings. Missing female models do not acquire a male fallback.
+
+Complete selected records retain BMDT's raw slot/general flags and unused bytes,
+signed ETYP, model paths, first-person bindings and opaque texture-swap fields.
+The pinned xEdit FNV schema at revision
+`9fb016884bec138ea6c7b872cec831537d464c3e` supplies BMDT at 3898–3932,
+armor/addon roles at 3934–4037, ETYP at 3464–3465 and weapon roles at 8625–8705.
+Common 9512–9543 supplies textured model filenames. This slice admits observed
+version 15 source bodies; older STAT versions explicitly refuse. Slot conflicts,
+active weapon modifications, equipping, texture swaps, attachment node selection,
+NIF decoding and effective retail model choice remain unsupported.
+
+The producer reads at most the selected equipment and one singleton STAT. It
+bounds stored/decoded record bytes, physical fields, path bytes/strings, bindings,
+selection visits, requests/links/issues and aggregate archive candidates. Model
+lookup reuses the existing actor manifest path admission and `ArchiveAssets`;
+empty/unsafe/long/missing/colliding paths remain precise source requests.
+
+The headless consumer requires exactly one actor dependency root and both choice
+arguments. For example:
+
+```powershell
+.\target\debug\fallout.exe actor-sources --install LOCAL_INSTALL --load-order ORDER_JSON --include-dependencies --dependency-root ORIGIN:ACTOR_ID --equipment-source ORIGIN:ITEM_ID --equipment-role armor-female-biped --output local/equipment.json
+```
+
+Other role strings are `armor-male-biped`, `armor-male-world`,
+`armor-female-world`, `weapon-model:0` through `:7`, `weapon-first-person:0`
+through `:7`, `weapon-shell`, `weapon-scope` and `weapon-world`. Source requests
+do not establish equipped state or renderer readiness. The optional equipment
+projection is checked in full by `--compare-oracle`; default reports are preserved.
+
+Validation on 2026-10-04 passed six equipment tests plus 21 existing dependency
+tests (one unrelated installed test ignored), format, data/CLI warnings-denied
+Clippy and the CLI build. All 27 authored equipment choices matched complete
+independent raw plugin/BSA projections through the frozen CLI; invalid required
+arguments/masks/multiple roots and altered source paths rejected. Exact limits,
+current armor/STAT overrides, signed/raw slot extremes, absent equipment and
+duplicate paths/links were checked. No gameplay behavior is accepted by this work.
+
+Two complete installed CLI projections also match fresh independently decoded
+equipment requests for actor `FalloutNV.esm:104C0C`: an explicitly chosen female
+biped model from `OutfitJessupBandana` (`17409D`) and an explicitly chosen
+first-person model from `WeapShotgunSawedOffNPC` (`17B7B8`) through its winning
+STAT. They retain one and two source records respectively, with one request,
+one archive candidate and no source issues each. These choices do not imply
+that the selected actor wears or carries those items. The base ESM source audit
+observed all 389 ARMO, 131 ARMA and 261 WEAP headers at version 15, alongside
+older STAT versions that remain unsupported by this slice.

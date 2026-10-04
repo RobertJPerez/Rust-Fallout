@@ -215,6 +215,11 @@ enum Command {
         include_render_dependencies: bool,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"])]
         include_template_dependencies: bool,
+        /// Explicit caller-selected equipment winner; requires one actor root and a role.
+        #[arg(long, requires_all = ["include_dependencies", "dependency_roots", "equipment_role"], value_parser = actor_inspection::parse_root)]
+        equipment_source: Option<identity::FormKey>,
+        #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
+        equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
     },
     /// Observe authored PKID/CTDA requests over explicitly restored canonical state.
     ActorPackageContext {
@@ -896,6 +901,8 @@ fn run(args: Args) -> Result<()> {
             dependency_roots,
             include_render_dependencies,
             include_template_dependencies,
+            equipment_source,
+            equipment_role,
         } => {
             let mut report = actor_inspection::inspect(
                 &install,
@@ -913,6 +920,8 @@ fn run(args: Args) -> Result<()> {
                     dependency_roots,
                     include_render_dependencies,
                     include_template_dependencies,
+                    equipment_source,
+                    equipment_role,
                 },
             )?;
             if let Some(oracle) = compare_oracle {

@@ -64,6 +64,7 @@ pub enum LinkRole {
     ExtraHeadPart,
     Hair,
     Eyes,
+    FirstPersonModel,
 }
 impl LinkRole {
     fn allowed(self, kind: &[u8; 4]) -> bool {
@@ -71,6 +72,7 @@ impl LinkRole {
             Self::HeadPart | Self::ExtraHeadPart => kind == b"HDPT",
             Self::Hair => kind == b"HAIR",
             Self::Eyes => kind == b"EYES",
+            Self::FirstPersonModel => kind == b"STAT",
         }
     }
 }
@@ -97,6 +99,14 @@ pub enum Value {
     Links {
         role: LinkRole,
         bindings: Vec<Link>,
+    },
+    BipedSlots {
+        flags: u32,
+        general_flags: u8,
+        unused: [u8; 3],
+    },
+    EquipmentType {
+        raw: i32,
     },
 }
 
@@ -232,6 +242,13 @@ pub(super) fn decode(
             (b"RACE" | b"HAIR" | b"EYES", b"ICON") => Some(PathRole::Texture),
             (b"CREA", b"NIFZ") => Some(PathRole::ModelList),
             (b"NPC_" | b"CREA", b"KFFZ") => Some(PathRole::AnimationList),
+            (b"ARMO" | b"ARMA", b"MODL" | b"MOD2" | b"MOD3" | b"MOD4") => Some(PathRole::Model),
+            (
+                b"WEAP",
+                b"MODL" | b"MOD2" | b"MOD3" | b"MOD4" | b"MWD1" | b"MWD2" | b"MWD3" | b"MWD4"
+                | b"MWD5" | b"MWD6" | b"MWD7",
+            ) => Some(PathRole::Model),
+            (b"STAT", b"MODL") => Some(PathRole::Model),
             _ => None,
         };
         if let Some(role) = path_role {
@@ -240,7 +257,10 @@ pub(super) fn decode(
                 PathRole::Model | PathRole::Texture => {
                     let raw = world::terminated(field.data, name, record.header.offset)?;
                     string(&mut document, &mut strings, 0, raw, limits)?;
-                    if kind != *b"RACE" {
+                    if matches!(&kind, b"ARMO" | b"ARMA" | b"WEAP") {
+                        // Equipment singleton roles are distinguished by their
+                        // exact field kind in the explicit equipment consumer.
+                    } else if kind != *b"RACE" {
                         singleton = Some(usize::from(role == PathRole::Texture));
                     } else if context.region.is_none()
                         || context.sex.is_none()
@@ -296,6 +316,10 @@ pub(super) fn decode(
             (b"HDPT", b"HNAM") => Some((LinkRole::ExtraHeadPart, false)),
             (b"RACE", b"HNAM") => Some((LinkRole::Hair, true)),
             (b"RACE", b"ENAM") => Some((LinkRole::Eyes, true)),
+            (
+                b"WEAP",
+                b"WNAM" | b"WNM1" | b"WNM2" | b"WNM3" | b"WNM4" | b"WNM5" | b"WNM6" | b"WNM7",
+            ) => Some((LinkRole::FirstPersonModel, false)),
             _ => None,
         };
         if let Some((role, array)) = selected_link {
@@ -337,6 +361,32 @@ pub(super) fn decode(
                 document.counts.bindings += 1;
             }
             value = Value::Links { role, bindings };
+        }
+        if matches!(&kind, b"ARMO" | b"ARMA") && field.kind == *b"BMDT" {
+            if field.data.len() != 8 {
+                return Err(malformed(
+                    name,
+                    record.header.offset,
+                    "equipment BMDT needs 8 bytes",
+                ));
+            }
+            value = Value::BipedSlots {
+                flags: u32::from_le_bytes(field.data[..4].try_into().expect("checked slots")),
+                general_flags: field.data[4],
+                unused: field.data[5..].try_into().expect("checked slots"),
+            };
+        }
+        if matches!(&kind, b"ARMO" | b"ARMA" | b"WEAP") && field.kind == *b"ETYP" {
+            if field.data.len() != 4 {
+                return Err(malformed(
+                    name,
+                    record.header.offset,
+                    "equipment ETYP needs 4 bytes",
+                ));
+            }
+            value = Value::EquipmentType {
+                raw: i32::from_le_bytes(field.data.try_into().expect("checked equipment type")),
+            };
         }
         if let Some(index) = singleton {
             singletons[index] += 1;

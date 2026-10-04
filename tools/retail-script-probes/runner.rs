@@ -12,6 +12,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs::File, io::Read, path::Path};
 
+#[path = "differences.rs"]
+mod differences;
 #[path = "fixtures.rs"]
 pub(crate) mod fixtures;
 
@@ -112,6 +114,12 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
         actual_replacement,
         Default::default(),
     )?;
+    let difference_context = differences::describe(
+        &manifest,
+        original.as_ref().map(|(capture, _)| capture),
+        actual_replacement,
+        &comparison,
+    )?;
     Ok(json!({
         "schema_version": 1,
         "scope": "imported_semantic_observations_against_prepared_source",
@@ -124,6 +132,7 @@ pub(crate) fn inspect(inputs: Inputs<'_>) -> Result<Value> {
         "identity": manifest.identity,
         "purpose": manifest.purpose,
         "comparison": comparison,
+        "difference_context": difference_context,
         "retail_execution_performed": false,
         "capture_transport_authenticated": false,
         "faithful_execution_admitted": false,

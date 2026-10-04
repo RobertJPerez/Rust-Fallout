@@ -321,3 +321,15 @@ in the existing canonical snapshot schema. The result is engineering input and
 keeps `faithful_initialization_supported` false; the original loaded World is
 checked for equality before and after. The candidate can be cold restored by
 the existing strict native snapshot consumer.
+## Canonical observation of authored race and class inputs
+
+`actor_rules::initialization_inputs::Requests::prepare(&World, &Content,
+Manifest, Limits)` consumes the opaque actor source request and seals its campaign
+and content cohort. `observe(&World, &Content, Limits)` rechecks both, validates
+the existing canonical source header facts and bounds the complete observation.
+The optional `actor-package-context --include-initialization-inputs` path uses
+its strict current snapshot restore and confirms the before/after snapshots are
+identical. It exposes source input completeness, campaign and revision only;
+current actor values remain unavailable, actor reference binding is false, and
+initialization remains unsupported. No race/class formula, default, state write
+or snapshot schema is introduced.

@@ -228,6 +228,8 @@ enum Command {
         script_root: Option<identity::FormKey>,
         #[arg(long, value_parser = actor_inspection::parse_root)]
         ai_root: Option<identity::FormKey>,
+        #[arg(long, value_parser = actor_inspection::parse_root)]
+        initialization_root: Option<identity::FormKey>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
         creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },
@@ -256,6 +258,8 @@ enum Command {
         /// Join raw actor scalars to source template categories; evaluated values remain unavailable.
         #[arg(long)]
         include_stat_requests: bool,
+        #[arg(long)]
+        include_initialization_inputs: bool,
         /// Report the exact refusal for a package operation; never execute AI.
         #[arg(long, value_parser = actor_inspection::parse_package_operation)]
         package_capability: Option<fallout_runtime::actor_rules::packages::Operation>,
@@ -940,6 +944,7 @@ fn run(args: Args) -> Result<()> {
             voice_root,
             script_root,
             ai_root,
+            initialization_root,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -964,6 +969,7 @@ fn run(args: Args) -> Result<()> {
                     voice_root,
                     script_root,
                     ai_root,
+                    initialization_root,
                     creature_model_directory,
                 },
             )?;
@@ -1019,6 +1025,7 @@ fn run(args: Args) -> Result<()> {
             condition_executable,
             include_faction_requests,
             include_stat_requests,
+            include_initialization_inputs,
             package_capability,
             include_actor_context,
             equipment_item,
@@ -1036,6 +1043,7 @@ fn run(args: Args) -> Result<()> {
                     condition_executable: condition_executable.as_deref(),
                     include_faction_requests,
                     include_stat_requests,
+                    include_initialization_inputs,
                     package_capability,
                     include_actor_context,
                     equipment_item,

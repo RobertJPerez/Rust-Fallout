@@ -7,14 +7,19 @@ use fallout_data::{baseline, loaded_scripts};
 use fallout_runtime::{
     Limits,
     identity::Value as LocalValue,
-    save::{Captured, Recovery, Repository, SaveStatus, SaveWorker, format},
+    save::{
+        Captured, Recovery, Repository, RequestIdentity, RestoreError, RestorePoll, RestoreTask,
+        SaveStatus, SaveWorker, format,
+    },
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, OpenOptions},
     io::{Read, Write},
+    num::NonZeroU64,
     path::Path,
+    sync::Arc,
 };
 
 fn save_new(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -74,6 +79,163 @@ pub(super) fn availability(install: &Path, order_path: &Path, root: &Path) -> Re
         "pair_is_atomic":false,"slot_selected":false,"current_repaired":false,
         "original_live_state_captured":false,"retail_parity_accepted":false
     }))
+}
+pub(super) fn restore_probe(
+    install: &Path,
+    order_path: &Path,
+    root: &Path,
+    request_id: NonZeroU64,
+    recover_previous: bool,
+) -> Result<Value> {
+    let superseding_id = request_id
+        .get()
+        .checked_add(1)
+        .and_then(NonZeroU64::new)
+        .ok_or("Restore probe needs a request ID below u64::MAX")?;
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, None)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        loaded_scripts::Limits::default(),
+        |_, _| Ok(()),
+    )?);
+    let weak = Arc::downgrade(&catalogue);
+    let repository = Repository::open(root, &[install.into()])?;
+    let cohort = fallout_runtime::snapshot::cohort(&catalogue)?;
+    let identity = RequestIdentity::new(request_id, repository.campaign(), &cohort)?;
+    let current = RequestIdentity::new(superseding_id, repository.campaign(), &cohort)?;
+    let recovery = if recover_previous {
+        Recovery::PreviousIfCurrentInvalid
+    } else {
+        Recovery::Strict
+    };
+    let (mut task, admission) = RestoreTask::start_gated(
+        repository.clone(),
+        Arc::clone(&catalogue),
+        Limits::default(),
+        recovery,
+        identity.clone(),
+    )?;
+    if !matches!(task.try_poll(), RestorePoll::Pending)
+        || !matches!(task.try_poll(), RestorePoll::Pending)
+    {
+        return Err("Held restore read did not remain pending".into());
+    }
+    admission.release()?;
+    // A command-line proof may join off frame. A live host keeps polling.
+    task.finish()?;
+    let candidate = match task.try_poll() {
+        RestorePoll::Ready(candidate) => candidate,
+        RestorePoll::Failed(error) => return Err(error.into()),
+        state => return Err(format!("Restore did not complete: {state:?}").into()),
+    };
+    if !matches!(task.try_poll(), RestorePoll::Delivered) {
+        return Err("Restore candidate was delivered more than once".into());
+    }
+    let (mut restored, receipt) = candidate.take_for(&identity)?;
+    if task.cancel() {
+        return Err("Accepted world was revoked by later cancellation".into());
+    }
+    let snapshot = restored.snapshot();
+    let (ordinary, ordinary_receipt) =
+        repository.load(Arc::clone(&catalogue), Limits::default(), recovery)?;
+    if snapshot != ordinary.snapshot()
+        || serde_json::to_value(&receipt)? != serde_json::to_value(&ordinary_receipt)?
+        || receipt.current_repaired
+    {
+        return Err("Asynchronous restore differs from ordinary explicit-policy load".into());
+    }
+    let old_stage_rejected = if let Some(reference) = snapshot.reference_states.first() {
+        let stage = ordinary.stage_reference_state(
+            &ordinary.reference_view(reference.id)?,
+            reference.state.clone(),
+        )?;
+        if !matches!(
+            restored.commit_reference_state(stage),
+            Err(fallout_runtime::Error::StaleHandle)
+        ) || restored.snapshot() != snapshot
+        {
+            return Err("Old canonical stage acted on accepted restored epoch".into());
+        }
+        Some(true)
+    } else {
+        None
+    };
+    let (mut cancelled, held) = RestoreTask::start_gated(
+        repository.clone(),
+        Arc::clone(&catalogue),
+        Limits::default(),
+        recovery,
+        identity.clone(),
+    )?;
+    if !matches!(cancelled.try_poll(), RestorePoll::Pending)
+        || !cancelled.cancel()
+        || !matches!(cancelled.try_poll(), RestorePoll::Cancelled)
+    {
+        return Err("Held restore cancellation failed".into());
+    }
+    cancelled.finish()?;
+    if !matches!(held.release(), Err(RestoreError::Cancelled)) {
+        return Err("A retained admission revived a cancelled restore".into());
+    }
+    let mut superseded = RestoreTask::start(
+        repository.clone(),
+        Arc::clone(&catalogue),
+        Limits::default(),
+        recovery,
+        identity.clone(),
+    )?;
+    superseded.finish()?;
+    let RestorePoll::Ready(candidate) = superseded.try_poll() else {
+        return Err("Supersession proof needs a complete candidate".into());
+    };
+    if !matches!(candidate.take_for(&current), Err(RestoreError::Superseded))
+        || restored.snapshot() != snapshot
+    {
+        return Err("Superseded candidate changed selected host state".into());
+    }
+    for explicit in [true, false] {
+        let mut revoked = RestoreTask::start(
+            repository.clone(),
+            Arc::clone(&catalogue),
+            Limits::default(),
+            recovery,
+            identity.clone(),
+        )?;
+        revoked.finish()?;
+        let RestorePoll::Ready(candidate) = revoked.try_poll() else {
+            return Err("Revocation proof needs a delivered candidate".into());
+        };
+        if explicit && !revoked.cancel() {
+            return Err("Delivered restore cancellation failed".into());
+        }
+        drop(revoked);
+        if !matches!(candidate.take_for(&identity), Err(RestoreError::Cancelled)) {
+            return Err("Delivered candidate survived cancellation/drop".into());
+        }
+    }
+    let bytes = snapshot.encode(Limits::default().max_snapshot_bytes)?;
+    let report = json!({
+        "schema_version":1,"profile":"nv-original","request":identity,"superseding_request":current,
+        "receipt":receipt,"canonical_snapshot_sha256":format!("{:x}",Sha256::digest(&bytes)),
+        "canonical_snapshot_bytes":bytes.len(),"state_schema":snapshot.schema_version,
+        "instances":snapshot.instances.len(),"references":snapshot.references.len(),
+        "reference_states":snapshot.reference_states.len(),"inventory_banks":snapshot.inventory_banks.len(),
+        "pending_events":snapshot.pending_events.len(),"recovery_policy":if recover_previous {"previous_if_current_invalid"} else {"strict"},
+        "held_read_pending_polls":2,"single_candidate_delivered":true,"candidate_explicitly_accepted":true,
+        "complete_ordinary_restore_equal":true,"retained_gate_cancel_refused":true,
+        "superseded_candidate_refused":true,"delivered_candidate_cancel_and_drop_refused":true,
+        "accepted_world_survives_later_cancel":true,"old_reference_stage_rejected":old_stage_rejected,
+        "host_world_replaced":false,"callbacks_dispatched":false,"current_repaired":false,
+        "source_bound_restore":true,"original_live_state_captured":false,"retail_parity_accepted":false
+    });
+    drop(ordinary);
+    drop(restored);
+    drop(catalogue);
+    if weak.upgrade().is_some() {
+        return Err("Completed restore retained source catalogue storage".into());
+    }
+    Ok(report)
 }
 pub(super) fn probe(
     install: &Path,

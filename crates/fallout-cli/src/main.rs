@@ -297,6 +297,19 @@ enum Command {
         #[arg(long)]
         repository: PathBuf,
     },
+    /// Exercise a single asynchronous native restore and explicit host admission.
+    NativeRestoreProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        request_id: std::num::NonZeroU64,
+        #[arg(long)]
+        recover_previous: bool,
+    },
     /// Explicitly import our schema-2 native save into a new repository.
     NativeMigrateV2 {
         #[arg(long)]
@@ -1072,6 +1085,34 @@ fn run(args: Args) -> Result<()> {
                 }
             }
             let report = native_save_inspection::availability(&install, &load_order, &repository)?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
+        Command::NativeRestoreProbe {
+            install,
+            load_order,
+            repository,
+            request_id,
+            recover_previous,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                if parent.starts_with(repository.canonicalize()?) {
+                    return Err(
+                        "restore report output must be outside the native repository".into(),
+                    );
+                }
+            }
+            let report = native_save_inspection::restore_probe(
+                &install,
+                &load_order,
+                &repository,
+                request_id,
+                recover_previous,
+            )?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
         Command::NativeMigrateV2 {

@@ -113,6 +113,19 @@ pub(crate) enum RuntimeCommand {
         #[arg(long)]
         repository: PathBuf,
     },
+    /// Exercise a single asynchronous native restore and explicit host admission.
+    NativeRestoreProbe {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        repository: PathBuf,
+        #[arg(long)]
+        request_id: std::num::NonZeroU64,
+        #[arg(long)]
+        recover_previous: bool,
+    },
     /// Explicitly import our schema-2 native save into a new repository.
     NativeMigrateV2 {
         #[arg(long)]

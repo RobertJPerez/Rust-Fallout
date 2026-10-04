@@ -3,6 +3,7 @@
 //! are separate from original `.fos` compatibility and power-loss guarantees.
 pub mod format;
 mod repository;
+mod restore;
 mod source_validation;
 mod status;
 mod worker;
@@ -15,6 +16,9 @@ use crate::{Limits, World, snapshot::Snapshot};
 pub use repository::{
     LoadReceipt, Recovery, Repository, Slot, SlotAvailability, SlotAvailabilityReport,
     SlotRejection, SlotRejectionCode, Stage, WriteReceipt,
+};
+pub use restore::{
+    RequestIdentity, RestoreAdmission, RestoreError, RestorePoll, RestoreTask, RestoredCandidate,
 };
 pub use status::{SaveState, SaveStatus};
 pub use worker::{CompletionError, Rejection, SaveTicket, SaveWorker, SubmitFailure, WorkerError};

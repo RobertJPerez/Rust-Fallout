@@ -874,6 +874,34 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             let report = native_save_inspection::availability(&install, &load_order, &repository)?;
             emit(&report, output, &protected_tree(&install)?)?;
         }
+        RuntimeCommand::NativeRestoreProbe {
+            install,
+            load_order,
+            repository,
+            request_id,
+            recover_previous,
+        } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                if parent.starts_with(repository.canonicalize()?) {
+                    return Err(
+                        "restore report output must be outside the native repository".into(),
+                    );
+                }
+            }
+            let report = native_save_inspection::restore_probe(
+                &install,
+                &load_order,
+                &repository,
+                request_id,
+                recover_previous,
+            )?;
+            emit(&report, output, &protected_tree(&install)?)?;
+        }
         RuntimeCommand::NativeMigrateV2 {
             install,
             load_order,

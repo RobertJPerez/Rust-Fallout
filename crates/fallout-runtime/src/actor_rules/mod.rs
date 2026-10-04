@@ -7,6 +7,7 @@ pub mod factions;
 pub mod initialization_inputs;
 pub mod inventory_boot;
 pub mod packages;
+pub mod reference_intent;
 pub mod render_context;
 pub mod route_requests;
 pub mod stats;

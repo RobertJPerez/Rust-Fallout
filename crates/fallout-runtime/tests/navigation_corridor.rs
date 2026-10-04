@@ -543,11 +543,7 @@ fn corridor_cli_fixture_export() {
         )
         .unwrap();
     }
-    fs::write(
-        root.join("order.json"),
-        b"[\"FalloutNV.esm\"]",
-    )
-    .unwrap();
+    fs::write(root.join("order.json"), b"[\"FalloutNV.esm\"]").unwrap();
     let route = serde_json::json!({"start":id(4),"goal":id(2),"local_cost":1.,"portal_cost":1.,"special_costs":{},"allow_disabled_records":true,"triangle_forbidden_mask":0,"permit_door_triangles":true});
     fs::write(root.join("request.json"),serde_json::to_vec_pretty(&serde_json::json!({"cell":form(0x10),"route":route,"plane":{"contract":"axis_aligned_dyadic","normal_axis":2}})).unwrap()).unwrap();
 }

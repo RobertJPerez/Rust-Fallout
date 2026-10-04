@@ -9,9 +9,10 @@ also stops its build. Coordination files remain the source of authorization.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import ctypes
 from ctypes import wintypes
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 import json
 import os
@@ -121,6 +122,19 @@ class Authorization:
     branch: str
     target: Path
     slot: str
+    # Capacity can change in a live run without replacing the caller's identity.
+    resource_capacity: int = field(compare=False)
+
+
+def resource_capacity(control: dict, slot: str) -> int:
+    focused = control.get("maximum_focused_cargo_builds", 1)
+    heavy = control.get("maximum_heavy_commands", 1)
+    # bool is an int subclass; accepting it would hide malformed control files.
+    if type(focused) is not int or focused not in (1, 2):
+        raise ValueError("maximum_focused_cargo_builds must be an integer 1 or 2")
+    if type(heavy) is not int or heavy != 1:
+        raise ValueError("maximum_heavy_commands must be the integer 1")
+    return focused if slot == "focused" else heavy
 
 
 def check_authorization(
@@ -141,6 +155,7 @@ def check_authorization(
         raise RuntimeError("Team is stopped or inactive")
     if control.get("focused_build_policy") != "automatic_mutex":
         raise RuntimeError("Automatic build slots are not enabled")
+    capacity = resource_capacity(control, slot)
     workers = control.get("workers")
     if not isinstance(workers, list) or not all(isinstance(item, str) for item in workers):
         raise ValueError("Control must name the worker lanes")
@@ -195,7 +210,7 @@ def check_authorization(
             if row.get("run_id") == run_id and row.get("type") == "stop_requested":
                 raise RuntimeError("Current-run STOP message received")
 
-    actual = Authorization(generation, run_id, session, lane, worktree, branch, target, slot)
+    actual = Authorization(generation, run_id, session, lane, worktree, branch, target, slot, capacity)
     if expected is not None and actual != expected:
         raise RuntimeError("Build authorization changed while this command was running")
     return actual
@@ -442,25 +457,45 @@ def run(lane: str, session: str, slot: str, command: list[str], wait: bool = Fal
     if not command:
         raise ValueError("Provide a command to run")
     authorization = check_authorization(lane, session, slot)
-    with WindowsMutex(MUTEX_NAMES[slot]) as mutex:
+    with ExitStack() as stack:
+        mutexes = []
         while True:
-            check_authorization(lane, session, slot, authorization)
-            if mutex.acquire(0):
+            current = check_authorization(lane, session, slot, authorization)
+            while len(mutexes) < current.resource_capacity:
+                index = len(mutexes)
+                # Keep slot one unchanged so older wrappers still share its lock.
+                name = MUTEX_NAMES[slot] if index == 0 else f"{MUTEX_NAMES[slot]}-{index + 1}"
+                mutexes.append(stack.enter_context(WindowsMutex(name)))
+            acquired = None
+            for index, mutex in enumerate(mutexes[:current.resource_capacity]):
+                if mutex.acquire(0):
+                    acquired = index
+                    break
+            if acquired is not None:
                 break
             check_authorization(lane, session, slot, authorization)
             if not wait:
                 print(f"{lane}: {slot} slot busy; no command started (exit {BUSY})", flush=True)
                 return BUSY
             time.sleep(POLL_SECONDS)
-        check_authorization(lane, session, slot, authorization)
-        print(f"{lane}: {slot} slot acquired", flush=True)
+        current = check_authorization(lane, session, slot, authorization)
+        check_acquired_capacity(acquired, current)
+        print(f"{lane}: {slot} slot acquired ({acquired + 1}/{current.resource_capacity})", flush=True)
         with WindowsChild(command, authorization.worktree) as child:
             while True:
-                check_authorization(lane, session, slot, authorization)
+                current = check_authorization(lane, session, slot, authorization)
+                check_acquired_capacity(acquired, current)
                 result = child.poll()
                 if result is not None:
                     return result
                 time.sleep(POLL_SECONDS)
+
+
+def check_acquired_capacity(index: int, authorization: Authorization) -> None:
+    if index >= authorization.resource_capacity:
+        # Raising inside WindowsChild closes only this wrapper's job. Slot one,
+        # including a legacy writer, survives a reduction from two slots to one.
+        raise RuntimeError(f"{authorization.slot} slot {index + 1} is outside the current build budget")
 
 
 def main() -> int:

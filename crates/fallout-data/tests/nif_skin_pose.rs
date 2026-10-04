@@ -1,5 +1,6 @@
 //! Authored byte fixtures and analytic expectations independent of pose helpers.
 use fallout_data::nif_skin::pose::{self, Limits, Request, WeightPolicy};
+use sha2::Digest;
 
 const NULL: u32 = u32::MAX;
 const ID: [[f32; 3]; 3] = [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]];
@@ -215,6 +216,439 @@ fn shared_requests() -> [Request; 2] {
 fn source_digest(bytes: &[u8]) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     Sha256::digest(bytes).into()
+}
+
+fn subset_packet(map: &[u16], strip: bool) -> Vec<u8> {
+    let mut out = Vec::new();
+    shorts(
+        &mut out,
+        &[map.len() as u16, 1, 2, u16::from(strip), 4, 1, 0],
+    );
+    out.push(1);
+    shorts(&mut out, map);
+    out.push(1);
+    // Deliberately differs from NiSkinData: this producer projects that existing
+    // CPU geometry pose, without substituting a hardware partition weight rule.
+    for _ in map {
+        floats(&mut out, &[0.75, 0., 0.25, 0.]);
+    }
+    if strip {
+        shorts(&mut out, &[4]);
+    }
+    out.push(1);
+    shorts(&mut out, if strip { &[1, 0, 0, 1] } else { &[2, 0, 1] });
+    out.push(1);
+    for _ in map {
+        out.extend([0, 1, 0, 1]);
+    }
+    out
+}
+fn subset_fixture() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = fixture();
+    blocks[2].1 = node(R90, [0., 5., 0.], 2., &[]);
+    blocks[5].1 = skin(
+        &[vec![(0, 0.25), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    blocks[4].1[4..8].copy_from_slice(&7u32.to_le_bytes());
+    let mut part = Vec::new();
+    words(&mut part, &[2]);
+    part.extend(subset_packet(&[2, 0, 2], false));
+    part.extend(subset_packet(&[1, 2], true));
+    blocks.push(("NiSkinPartition", part));
+    blocks
+}
+fn subset_request(bytes: &[u8], ordinal: usize) -> pose::partition::Request {
+    pose::partition::Request {
+        expected_source_sha256: source_digest(bytes),
+        skin: request(),
+        partition_block: 7,
+        partition_ordinal: ordinal,
+    }
+}
+#[test]
+fn partition_subset_noncommuting_source_pose_has_literal_coordinates_palette_frame_and_identity() {
+    let bytes = container(&subset_fixture(), &[0]);
+    let result = pose::partition::evaluate(
+        &bytes,
+        "subset",
+        subset_request(&bytes, 0),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            result.geometry,
+            result.geometry_data,
+            result.instance,
+            result.skin_data,
+            result.skeleton_root,
+            result.partition.block,
+            result.partition.ordinal,
+            result.source_vertex_count
+        ),
+        (3, 6, 4, 5, 0, 7, 0, 3)
+    );
+    assert_eq!(
+        result
+            .vertices
+            .iter()
+            .map(|v| (
+                v.partition_vertex,
+                v.source_vertex,
+                v.position,
+                v.normal,
+                v.weight_sum
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (0, 2, [-6., -3., 6.], Some([-2., 0., 0.]), 1.),
+            (1, 0, [-9., 5., 10.], Some([-2., 0., 0.]), 1.),
+            (2, 2, [-6., -3., 6.], Some([-2., 0., 0.]), 1.)
+        ]
+    );
+    assert_eq!(
+        result.palette[0].matrix,
+        [[0., -2., 0., -2.], [2., 0., 0., 3.], [0., 0., 2., 4.]]
+    );
+    assert_eq!(
+        result.palette[1].matrix,
+        [[0., -2., 0., -6.], [2., 0., 0., 3.], [0., 0., 2., 4.]]
+    );
+    assert_eq!(
+        result.skin_to_source_world,
+        [[1.5, 0., 0., 13.], [0., 1.5, 0., 15.5], [0., 0., 1.5, 24.]]
+    );
+    assert_eq!(
+        result
+            .partition_palette
+            .iter()
+            .map(|p| (p.local_bone, p.global_bone_ordinal, p.source_bone_node))
+            .collect::<Vec<_>>(),
+        [(0, 1, 2), (1, 0, 1)]
+    );
+    assert_eq!(result.source_to_partition_offsets, [0, 1, 1, 3]);
+    assert_eq!(result.source_to_partition_vertices, [1, 0, 2]);
+    assert_eq!(
+        result.source_sha256,
+        format!("{:x}", sha2::Sha256::digest(&bytes))
+    );
+    let payload = &subset_fixture()[7].1;
+    let offset = bytes
+        .windows(payload.len())
+        .position(|p| p == payload)
+        .unwrap();
+    assert_eq!(
+        (result.partition.offset, result.partition.bytes),
+        (offset, payload.len())
+    );
+    assert_eq!(
+        (
+            result.usage.binding_decodes,
+            result.usage.scene_decodes,
+            result.usage.geometry_deformations
+        ),
+        (1, 1, 1)
+    );
+    assert!(!result.retail_behavior_verified);
+}
+#[test]
+fn partition_subset_retains_triangle_strip_order_repeated_vertices_and_observed_body_parts() {
+    let mut blocks = subset_fixture();
+    blocks[4].0 = "BSDismemberSkinInstance";
+    words(&mut blocks[4].1, &[2]);
+    shorts(&mut blocks[4].1, &[257, 7000, 1, 10]);
+    let bytes = container(&blocks, &[0]);
+    let tri =
+        pose::partition::evaluate(&bytes, "tri", subset_request(&bytes, 0), Default::default())
+            .unwrap();
+    let strip = pose::partition::evaluate(
+        &bytes,
+        "strip",
+        subset_request(&bytes, 1),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(tri.topology).unwrap(),
+        serde_json::json!({"kind":"triangles","triangles":[[2,0,1]]})
+    );
+    assert_eq!(
+        serde_json::to_value(strip.topology).unwrap(),
+        serde_json::json!({"kind":"strips","lengths":[4],"strips":[[1,0,0,1]]})
+    );
+    assert_eq!(
+        (
+            tri.body_part.unwrap().flags,
+            tri.body_part.unwrap().body_part
+        ),
+        (257, 7000)
+    );
+    assert_eq!(
+        (
+            strip.body_part.unwrap().flags,
+            strip.body_part.unwrap().body_part
+        ),
+        (1, 10)
+    );
+    assert_eq!(
+        strip
+            .vertices
+            .iter()
+            .map(|v| v.position)
+            .collect::<Vec<_>>(),
+        [[0., 11., 8.], [-6., -3., 6.]]
+    );
+    assert_eq!(strip.source_to_partition_offsets, [0, 0, 1, 2]);
+    assert_eq!(strip.source_to_partition_vertices, [0, 1]);
+    assert_eq!(strip.declared_triangles, 1);
+}
+#[test]
+fn partition_subset_identity_membership_body_count_and_missing_arrays_refuse_atomically() {
+    let blocks = subset_fixture();
+    let bytes = container(&blocks, &[0]);
+    let request = subset_request(&bytes, 0);
+    let mut stale = request;
+    stale.expected_source_sha256[0] ^= 1;
+    for (request, expected) in [
+        (stale, "SHA256 differs"),
+        (
+            pose::partition::Request {
+                skin: Request {
+                    geometry: 0,
+                    ..request.skin
+                },
+                ..request
+            },
+            "no decoded skin owner",
+        ),
+        (
+            pose::partition::Request {
+                partition_block: 5,
+                ..request
+            },
+            "partition link differs",
+        ),
+        (
+            pose::partition::Request {
+                partition_ordinal: 2,
+                ..request
+            },
+            "ordinal unavailable",
+        ),
+    ] {
+        let error =
+            pose::partition::evaluate(&bytes, "identity", request, Default::default()).unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    let mut body = blocks.clone();
+    body[4].0 = "BSDismemberSkinInstance";
+    words(&mut body[4].1, &[1]);
+    shorts(&mut body[4].1, &[257, 7000]);
+    let mut bad_palette = blocks.clone();
+    bad_palette[7].1[14..16].copy_from_slice(&2u16.to_le_bytes());
+    let mut absent = blocks;
+    let mut part = Vec::new();
+    words(&mut part, &[1]);
+    shorts(&mut part, &[3, 0, 2, 0, 4, 1, 0]);
+    part.extend([0, 0, 0, 0]);
+    absent[7].1 = part;
+    for (blocks, expected) in [
+        (body, "body-part association unavailable"),
+        (bad_palette, "outside linked instance"),
+        (absent, "requires authored vertex map and faces"),
+    ] {
+        let bytes = container(&blocks, &[0]);
+        let error = pose::partition::evaluate(
+            &bytes,
+            "source",
+            subset_request(&bytes, 0),
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+}
+#[test]
+fn partition_subset_full_pose_subset_aggregate_and_source_bounds_have_exact_ceilings() {
+    use pose::partition as subset;
+    let bytes = container(&subset_fixture(), &[0]);
+    let request = subset_request(&bytes, 1);
+    let baseline = subset::evaluate(&bytes, "baseline", request, Default::default()).unwrap();
+    let usage = baseline.usage;
+    assert_eq!(
+        usage.retained_bytes,
+        usage.full_pose_retained_bytes + usage.subset_retained_bytes
+    );
+    assert_eq!(
+        usage.work_units,
+        usage.full_pose_work_units + usage.subset_work_units
+    );
+    let mut exact = subset::Limits {
+        vertices: 2,
+        draw_indices: 4,
+        subset_array_bytes: usage.subset_retained_bytes,
+        subset_work_units: usage.subset_work_units,
+        array_bytes: usage.retained_bytes,
+        work_units: usage.work_units,
+        decoder_array_admission_bytes: usage.decoder_array_admission_bytes,
+        decoder_check_admission_units: usage.decoder_check_admission_units,
+        ..Default::default()
+    };
+    exact.skin.array_bytes = usage.full_pose_retained_bytes;
+    exact.skin.work_units = usage.full_pose_work_units;
+    exact.skin.source.partition.skin.scene.input_bytes = bytes.len();
+    subset::evaluate(&bytes, "exact", request, exact).unwrap();
+    for limits in [
+        subset::Limits {
+            vertices: 1,
+            ..exact
+        },
+        subset::Limits {
+            draw_indices: 3,
+            ..exact
+        },
+        subset::Limits {
+            subset_array_bytes: exact.subset_array_bytes - 1,
+            ..exact
+        },
+        subset::Limits {
+            subset_work_units: exact.subset_work_units - 1,
+            ..exact
+        },
+        subset::Limits {
+            array_bytes: exact.array_bytes - 1,
+            ..exact
+        },
+        subset::Limits {
+            work_units: exact.work_units - 1,
+            ..exact
+        },
+        subset::Limits {
+            decoder_array_admission_bytes: exact.decoder_array_admission_bytes - 1,
+            ..exact
+        },
+        subset::Limits {
+            decoder_check_admission_units: exact.decoder_check_admission_units - 1,
+            ..exact
+        },
+    ] {
+        assert!(subset::evaluate(&bytes, "under", request, limits).is_err());
+    }
+    for mode in 0..3 {
+        let mut under = exact;
+        match mode {
+            0 => under.skin.array_bytes -= 1,
+            1 => under.skin.work_units -= 1,
+            _ => under.skin.source.partition.skin.scene.input_bytes -= 1,
+        }
+        assert!(subset::evaluate(&bytes, "phase-under", request, under).is_err());
+    }
+    let mut overflow = exact;
+    overflow.skin.source.array_bytes = usize::MAX;
+    assert!(
+        subset::evaluate(&bytes, "overflow", request, overflow)
+            .unwrap_err()
+            .to_string()
+            .contains("decoder array admission")
+    );
+}
+#[test]
+fn partition_subset_keeps_raw_nonunit_weights_normals_and_missing_normals_as_full_pose_observations()
+ {
+    let mut blocks = subset_fixture();
+    blocks[5].1 = skin(
+        &[vec![(0, 0.25), (0, 0.5), (1, 1.)], vec![(0, 0.75), (2, 1.)]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    let bytes = container(&blocks, &[0]);
+    let mut request = subset_request(&bytes, 0);
+    assert!(
+        pose::partition::evaluate(&bytes, "unit", request, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("raw weight sum 1.5")
+    );
+    request.skin.weights = WeightPolicy::PreserveRawNonnegative;
+    let result = pose::partition::evaluate(&bytes, "raw", request, Default::default()).unwrap();
+    assert_eq!(
+        (
+            result.vertices[1].position,
+            result.vertices[1].normal,
+            result.vertices[1].weight_sum
+        ),
+        ([-12., 7.5, 15.], Some([-3., 0., 0.]), 1.5)
+    );
+    let mut no_normals = mesh();
+    no_normals[47] = 0;
+    no_normals.drain(48..84);
+    blocks[6].1 = no_normals;
+    let bytes = container(&blocks, &[0]);
+    let request = pose::partition::Request {
+        skin: Request {
+            weights: WeightPolicy::PreserveRawNonnegative,
+            ..request.skin
+        },
+        ..subset_request(&bytes, 0)
+    };
+    let result =
+        pose::partition::evaluate(&bytes, "absent normals", request, Default::default()).unwrap();
+    assert!(result.vertices.iter().all(|v| v.normal.is_none()));
+}
+#[test]
+fn partition_subset_tiny_output_still_charges_large_full_deformation_and_source_index_map() {
+    use pose::partition as subset;
+    let count = 4096u16;
+    let mut blocks = subset_fixture();
+    let mut mesh = Vec::new();
+    words(&mut mesh, &[0]);
+    shorts(&mut mesh, &[count]);
+    mesh.extend([0, 0, 1]);
+    for _ in 0..count {
+        floats(&mut mesh, &[1., 2., 3.]);
+    }
+    shorts(&mut mesh, &[0]);
+    mesh.push(0);
+    floats(&mut mesh, &[0., 0., 0., 10.]);
+    mesh.push(0);
+    shorts(&mut mesh, &[0]);
+    words(&mut mesh, &[NULL]);
+    shorts(&mut mesh, &[0]);
+    words(&mut mesh, &[0]);
+    mesh.push(0);
+    shorts(&mut mesh, &[0]);
+    blocks[6].1 = mesh;
+    blocks[5].1 = skin(
+        &[(0..count).map(|v| (v, 1.)).collect(), vec![]],
+        Some((R90, [-2., 3., 4.], 2.)),
+    );
+    let mut part = Vec::new();
+    words(&mut part, &[1]);
+    shorts(&mut part, &[1, 0, 1, 0, 4, 0]);
+    part.push(1);
+    shorts(&mut part, &[count - 1]);
+    part.push(1);
+    floats(&mut part, &[1., 0., 0., 0.]);
+    part.push(1);
+    part.push(1);
+    part.extend([0; 4]);
+    blocks[7].1 = part;
+    let bytes = container(&blocks, &[0]);
+    let request = subset_request(&bytes, 0);
+    let result = subset::evaluate(&bytes, "large", request, Default::default()).unwrap();
+    assert_eq!(result.vertices.len(), 1);
+    assert_eq!(result.vertices[0].source_vertex, count - 1);
+    assert_eq!(result.vertices[0].position, [-6., 5., 10.]);
+    assert!(result.usage.full_pose_retained_bytes >= usize::from(count) * 32);
+    assert!(result.usage.subset_retained_bytes >= usize::from(count) * 16);
+    let mut insufficient = subset::Limits {
+        array_bytes: result.usage.subset_retained_bytes,
+        ..Default::default()
+    };
+    assert!(subset::evaluate(&bytes, "full intermediate", request, insufficient).is_err());
+    insufficient = subset::Limits::default();
+    insufficient.skin.array_bytes = result.usage.full_pose_retained_bytes - 1;
+    assert!(subset::evaluate(&bytes, "full cap", request, insufficient).is_err());
 }
 
 #[test]

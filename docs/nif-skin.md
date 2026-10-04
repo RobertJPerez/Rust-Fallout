@@ -886,3 +886,73 @@ byte-identical to frozen corrected20. The native projection charges 25,460 logic
 element bytes and 360,078 work units; those numbers do not measure process memory
 or rendering speed. Frozen executable, commands, hashes and full immutable
 receipts stay in ignored `local/v3-asset-22`. Retail behavior remains unverified.
+
+## Deformed geometry projected through an authored partition
+
+`pose::partition::evaluate(bytes, source, Request, Limits)` accepts exact whole-
+source SHA256, the existing explicit geometry/weight-policy request, linked
+partition block and physical ordinal. It decodes once through the existing
+binding/partition/Scene pipeline and calls the existing private geometry pose
+evaluator once. No outside palette, matrix, catalogue or public receipt is
+accepted as authority. This adapter uses the existing CPU `NiSkinData` deformation,
+then selects positions, raw weighted normals and raw weight sums through the
+authored partition vertex map. It does not substitute the partition's weight
+words or invent a hardware shader rule.
+
+Each selected vertex carries partition-local and source vertex IDs. Repeated
+source IDs remain repeated; a source-to-partition CSR map records every occurrence
+in authored local order, including source vertices with no selected occurrence.
+Triangles/strips retain original local indices and strip lengths. Source body-part
+flags and identifiers are observed without selecting visibility or dismemberment.
+The exact palette and source-world placement stay in the existing skin-root frame;
+apply placement once. Missing normals remain `null` on every selected row. Source
+controllers remain recorded as unapplied. Owner/link/ordinal/palette mismatches,
+missing vertex-map/faces and mismatched dismember counts refuse atomically.
+
+Limits separately bound the existing full pose (64 MiB/sixteen million units),
+additional subset elements/work (32 MiB/128 million units), and their aggregate
+(96 MiB/144 million units). Whole-source hash visits and source/reverse-map work
+are charged in the adapter phase. The full pose's entire charged intermediate
+arrays/work remain counted even when the selected output has one vertex. Reverse
+maps are also charged across the full source vertex domain. Selected vertex and
+draw-index ceilings default to65,535/four million. Decoder allowances default to
+448 MiB/48 million declared, admitted under512 MiB/64 million. Existing input,
+block, index and Scene limits remain active. Output arrays and temporary cursors
+are admitted before allocation; later failure publishes no partial subset.
+Counters describe logical elements/work, including released intermediates, rather
+than process memory or rendering speed.
+
+The owned consumer is `fallout nif-skin INPUT --partition-pose-request REQUEST.json
+--output RECEIPT.json`. Strict schema1 requires the exact `expected_source_sha256`,
+`geometry`, `partition_block`, `partition_ordinal` and existing explicit `weights`
+policy. Source/request limits are64 MiB/64 KiB; output stays outside both input
+directories, and other pose/source modes conflict. Semantic refusal records a null
+evaluation and nonzero exit. `tools/nif-skin-oracle/check_partition_pose.py` supplies
+a second independent authored source and literal noncommuting subset coordinates,
+palettes, normals, raw non-unit sums, placement, CSR mappings and topology. This
+producer establishes an engineering subset; original partition deformation,
+weight/normal/shader rules, rendering, body-part behavior and playback remain
+unverified.
+
+Validation passes 99 focused partition/skin/animation tests, including six new
+subset cases, 38 serial CLI tests, affected all-target Clippy with warnings denied,
+formatting and the CLI build. Independent exact/one-under caps cover source input,
+decoder admission, full deformation, subset elements/work and aggregate output.
+A one-vertex subset of a4,096-vertex source still charges the entire deformation
+and source-domain reverse map. The initial test-build missing trait import is
+preserved; the corrected full validation passes without changing deformation.
+
+The second independent source passes three literal subsets (eight vertex rows),
+noncommuting full palettes/placement, raw non-unit sums, typed topology, reverse
+mapping and fifteen intended refusals. Earlier source schemas and stored pose
+remain byte-identical. Installed `618eb19e...` geometry1/block8/ordinal0 projects
+159 vertices from the previously frozen1,706-vertex engineering CPU pose at the
+exact vertex indices in preserved native evidence. Native body-part fields, five
+palette entries and all420 strip indices are retained; source-index, position and
+strip mutations are rejected. This comparison establishes source-index projection
+equivalence, not original deformed coordinates or a shader rule. Earlier source
+schemas1/2/3, stored pose, compact influences and partition-stream receipts remain
+byte-identical to frozen22. Full deformation charges99,834 element bytes/7,104 work
+units, and the additional subset charges40,648/198,751, both present in aggregate
+usage. Commands, hashes, frozen executable and immutable receipts stay in ignored
+`local/v3-asset-23`. Gameplay/playback acceptance remains unchanged.

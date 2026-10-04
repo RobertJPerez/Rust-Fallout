@@ -103,6 +103,12 @@ enum Command {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Collect exact source-local visibility along one required ancestry path.
+    NifVisibilityPath {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Bind exact external source keys to one skeleton node; playback unverified.
     NifClipPose {
         skeleton: PathBuf,
@@ -1705,6 +1711,25 @@ fn run(args: Args) -> Result<()> {
             emit(&report, output, &input)?;
             if report.failures != 0 {
                 return Err("prepared source pose batch refused; see report".into());
+            }
+        }
+        Command::NifVisibilityPath { input, request } => {
+            if let Some(path) = output {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."))
+                    .canonicalize()?;
+                for source in [&input, &request] {
+                    if parent.starts_with(protected_tree(source)?) {
+                        return Err("report output must be outside every source directory".into());
+                    }
+                }
+            }
+            let report = nif_animation_inspection::inspect_visibility_path(&input, &request)?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("required path local visibility refused; see report".into());
             }
         }
         Command::NifClipPose {

@@ -1414,3 +1414,68 @@ before a reusable binding or sample is published. Its complete prior one-shot
 negative receipt stays byte-identical. This is an unchanged unsupported capability,
 with no measured retail playback. Exact commands, frozen binaries, source hashes,
 failed/corrected checks and immutable receipts stay in ignored `local/v3-asset-25`.
+
+## Exact ancestry path local visibility (V3-ASSET-26)
+
+`visibility::path::evaluate(bytes, source, Request{expected_source_sha256, object,
+channels}, Limits)` observes the validated footer-root-to-selected-object path.
+Private maps follow existing Scene parent links independently of public block-ID
+order. One existing Boolean source decode and one Scene decode supply the complete
+path and every channel. A private source view reuses the unchanged local held-key
+evaluator; no second Boolean importer or sampler is added.
+
+Each path node retains its exact source span, parent, complete stored NiAV flags
+and controller link. Nodes with a required controller need exactly one explicit
+object/controller/time request for supported `NiVisController`. Chained, unknown,
+missing, duplicate, unrelated and wrong-link requests refuse. Existing finite-time,
+held-key, unavailable raw value, manager/flag and timeline rules stay active.
+Nodes without a controller retain a null local evaluation and their raw flags;
+no Boolean is synthesized. Unrelated sibling controllers do not become path
+authority. Output is parent-before-child regardless of caller request order.
+
+Per-node local evaluations preserve their complete original schema and counters,
+including raw0/1, held-key ordinal/time bits, signed-zero binary64 requests,
+interpolator constants, flags, source spans and unapplied clocks. Stored flags and
+local controller values remain distinct observations. No all-path conjunction,
+effective visibility, default rendering or object activation policy is supplied.
+
+Defaults admit256 explicit channels,4096 path nodes and1024 ancestry depth, with
+8 MiB additional logical elements and128 million work units. Existing individual
+source and per-local caps stay active, with each local evaluation also receiving
+the remaining aggregate. Declared Boolean-pipeline/Scene arrays default to96 MiB,
+admitted under128 MiB;81 million source check units are admitted under96 million.
+Container index/Scene object traversal and each source layer retain their own
+bounded limits. Source catalogue elements are reported separately from extra
+maps, path and outputs. Conservative source byte/hash visits, maps, path/reversal
+and complete outputs are precharged. A late channel failure publishes no partial
+path as a complete observation. Counters are logical bounds, not process-memory
+or timing measurements.
+
+The owned consumer is `fallout nif-visibility-path INPUT --request REQUEST.json
+--output RECEIPT.json`, using strict schema1 with `expected_source_sha256`, `object`
+and explicit `channels` entries. Request/input limits are64 KiB/64 MiB. Output
+must stay outside both source and request input trees. Semantic refusal emits a
+null evaluation with nonzero exit. `check_visibility_path.py` independently
+constructs a higher-ID-root ancestry with static and held channels, literal values,
+raw flags, boundary times and packet spans; it also compares complete old local
+reports against a frozen prior binary. This engineering observation does not
+establish original visibility propagation or measured retail playback.
+
+Validation passes86 focused visibility/Boolean/pose/attachment/clip tests,
+including six new path cases, plus38 serial CLI tests, affected all-target Clippy
+with warnings denied, formatting and the CLI build. Higher-ID-parent ordering,
+source identity, graph refusal, complete coverage, static flag-only nodes,
+late-channel failure and exact/one-under aggregate/local/source/admission/path
+limits have independent authored tests. Existing single-local observations retain
+all original fields and counters.
+
+The frozen second source passes six literal four-node paths, including binary64
+times immediately before/after the middle held key, and six reversed request
+permutations. Twenty-four output nodes preserve raw flags and ancestry; eighteen
+complete prior local-visibility reports remain byte-identical and equal to their
+corresponding nested local observations. Eighteen semantic refusals emit no
+partial path. Six strict request refusals, two independently separated input-tree
+output guards and the prior complete prepared-clip batch byte comparison also
+pass. No original process or inferred visibility/equipment/playback acceptance
+was used. Frozen executable, exact commands, inputs, source/evidence hashes and
+immutable receipts remain in ignored `local/v3-asset-26`.

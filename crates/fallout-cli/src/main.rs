@@ -91,6 +91,16 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Evaluate linked translation/scale at explicit source time; playback unverified.
+    NifSourcePose {
+        input: PathBuf,
+        #[arg(long)]
+        object: u32,
+        #[arg(long)]
+        controller: u32,
+        #[arg(long, allow_hyphen_values = true)]
+        source_time: f64,
+    },
     /// Decode bounded authored animation framing and compare raw native fields.
     NifAnimation {
         input: PathBuf,
@@ -1537,6 +1547,25 @@ fn run(args: Args) -> Result<()> {
             )?;
             if issues != 0 {
                 return Err("compiled script framing or metadata has issues; see report".into());
+            }
+        }
+        Command::NifSourcePose {
+            input,
+            object,
+            controller,
+            source_time,
+        } => {
+            let report = nif_animation_inspection::inspect_pose(
+                &input,
+                fallout_data::nif_animation::pose::Request {
+                    object,
+                    controller,
+                    source_time,
+                },
+            )?;
+            emit(&report, output, &input)?;
+            if report.failures != 0 {
+                return Err("linked source pose refused; see report".into());
             }
         }
         Command::NifAnimation {

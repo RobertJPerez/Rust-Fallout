@@ -70,6 +70,46 @@ pub struct Report {
     comparison: &'static str,
     runtime_ready: bool,
 }
+
+#[derive(Serialize)]
+pub struct PoseReport {
+    schema_version: u32,
+    contract: &'static str,
+    input: PathBuf,
+    sha256: String,
+    pub failures: usize,
+    evaluation: Option<nif_animation::pose::ObjectPose>,
+    error: Option<String>,
+}
+
+pub fn inspect_pose(input: &Path, request: nif_animation::pose::Request) -> Result<PoseReport> {
+    let mut reader = baseline::open_source(input)?.take(64 * 1024 * 1024 + 1);
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes)?;
+    if bytes.len() > 64 * 1024 * 1024 {
+        return Err("linked source pose input exceeds byte budget".into());
+    }
+    let evaluated = nif_animation::pose::evaluate(
+        &bytes,
+        &input.display().to_string(),
+        request,
+        Default::default(),
+    );
+    let (evaluation, error) = match evaluated {
+        Ok(pose) => (Some(pose), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    Ok(PoseReport {
+        schema_version: 1,
+        contract: nif_animation::pose::CONTRACT,
+        input: input.into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        failures: usize::from(error.is_some()),
+        evaluation,
+        error,
+    })
+}
+
 #[derive(Clone, Copy, clap::ValueEnum)]
 pub enum SampleChannel {
     Translation,

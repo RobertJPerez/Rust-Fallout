@@ -7,7 +7,7 @@ use fallout_data::{
     vfs::{AssetPath, AssetSource},
 };
 use quick_xml::{events::Event, reader::Reader};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     io::{self, Write},
@@ -40,7 +40,8 @@ impl Default for Limits {
 }
 
 /// Half-open offsets into the exact UTF-8 source, including its optional BOM.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -338,7 +339,7 @@ impl<W: Write> Write for BoundedOutput<W> {
         self.inner.flush()
     }
 }
-pub fn write_report(writer: impl Write, report: &Report, limit: usize) -> Result<()> {
+fn write_json(writer: impl Write, report: &impl Serialize, limit: usize) -> Result<()> {
     let mut writer = BoundedOutput {
         inner: writer,
         written: 0,
@@ -349,6 +350,12 @@ pub fn write_report(writer: impl Write, report: &Report, limit: usize) -> Result
     writer.flush()?;
     Ok(())
 }
+
+pub fn write_report(writer: impl Write, report: &Report, limit: usize) -> Result<()> {
+    write_json(writer, report, limit)
+}
+
+pub mod includes;
 
 #[cfg(test)]
 mod tests;

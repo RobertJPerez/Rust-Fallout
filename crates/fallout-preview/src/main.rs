@@ -59,6 +59,9 @@ struct Options {
     /// Select exactly one authored name attribute; ambiguous names are refused.
     #[arg(long, requires = "menu")]
     menu_tile: Option<String>,
+    /// Exact source-span/member/hash bindings for an opt-in menu include closure.
+    #[arg(long, requires = "menu")]
+    menu_includes: Option<PathBuf>,
     /// Display exactly this source skin geometry in its stored local pose.
     #[arg(long, requires_all = ["model_source", "skin_weight_tolerance"], conflicts_with = "pose_object")]
     skin_geometry: Option<u32>,
@@ -314,6 +317,31 @@ fn run() -> model::Result<AppExit> {
         return Err("capture and report must have different paths".into());
     }
     if let Some(menu) = &options.menu {
+        if let Some(request) = &options.menu_includes {
+            let limits = ui::includes::Limits::default();
+            let request = ui::includes::read_request(request, limits)?;
+            let report = ui::includes::inspect(
+                options
+                    .install
+                    .as_deref()
+                    .expect("menu requires installation"),
+                &AssetPath::new(menu.as_bytes())?,
+                options.menu_tile.as_deref(),
+                request,
+                limits,
+            )?;
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(options.report.as_ref().expect("menu requires report"))?;
+            ui::includes::write_report(file, &report, limits.output_bytes)?;
+            eprintln!(
+                "Menu include sources retained: {} files, {} exact edges; tile evaluation/display remains unavailable",
+                report.files.len(),
+                report.edges.len()
+            );
+            return Ok(AppExit::Success);
+        }
         let report = ui::inspect(
             options
                 .install

@@ -14,4 +14,5 @@ pub mod native_plan;
 pub mod pending_batch;
 pub mod reference_attachment_boot;
 pub mod reference_copy;
+pub mod reference_literal;
 pub mod trace;

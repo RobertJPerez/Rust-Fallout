@@ -415,3 +415,36 @@ effective equipment and live state mutation remain separate consumers.
 Nested context/render/structural limits remain in force. Additional bounds cover
 source count, selected occurrences, input identity bytes, logical visits, supplied
 view and complete serialized output. Index retention avoids repeated path clones.
+
+The package route consumer joins one explicit physical PACK destination operand
+to caller-selected navigation nodes and policy. `route_requests::observe` creates
+the reviewed ACT17 destination manifest internally, verifies its whole-source
+hash, record and field coordinates against the canonical content cohort, and
+loads only explicit cells through the existing source navigation loader. It
+builds the published `RouteGraph`; caller reports, meshes and graphs have no
+ingress. A repeated or unavailable operand returns a typed unavailable outcome
+and no route. A live binding must match the requested destination key.
+
+Endpoints specify both existing node identity and exact cell. A literal CELL
+operand must agree with the goal cell. Reference and object operands retain an
+explicit, unverified caller mapping to the goal node. Radius/count words remain
+source observations. The consumer neither searches for a destination nor chooses
+the nearest triangle. Door-bearing links use the caller's explicit pass, reject
+or unavailable policy. Local costs, special-link overrides and fallback costs are
+finite nonnegative raw `f64` words supplied by the caller. These choices establish
+engineering policy; they do not establish retail door or special-link behavior.
+
+`actor-package-context --package-route-request query.json` emits the complete
+`actor_package_route` source request and engineering proposal. When an explicit
+subject is supplied, its current private view must have an existing component;
+canonical staging validates its epoch and exact state, then the proposal is
+immediately dropped. This validation never commits state. No caller component
+means a refusal. Omitting the optional subject records no actor reference binding.
+Saved snapshots remain unchanged, and `require_execution()` always refuses
+faithful AI even when the engineering path is found.
+
+Source bytes, fields and elements are bounded across all selected cells. Existing
+graph and route budgets remain in force. Additional bounds cover cell/source/mesh
+counts, strict policy entries, request/view/output bytes and conservative logical
+work. The work total reserves the route's complete configured edge, policy,
+expansion and path budget before traversal; it is not a count of actual expansions.

@@ -50,6 +50,7 @@ pub(super) struct ContextOptions<'a> {
     pub(super) equipment_model_role: Option<actors::dependencies::equipment::Role>,
     pub(super) render_path_selection: Option<&'a Path>,
     pub(super) inventory_boot_request: Option<&'a Path>,
+    pub(super) package_route_request: Option<&'a Path>,
 }
 
 /// Restore the existing canonical snapshot, then make read-only host requests.
@@ -76,6 +77,7 @@ pub(super) fn package_context(
     let before_observation = (options.include_actor_context
         || options.include_initialization_inputs
         || options.equipment_item.is_some()
+        || options.package_route_request.is_some()
         || options.inventory_boot_request.is_some())
     .then(|| world.snapshot());
     let content = Content::load(&mut store, &scripts, 2_000_000)?;
@@ -321,6 +323,36 @@ pub(super) fn package_context(
         )?;
         let boot = plan.apply_private(&scripts, &content, &world.snapshot(), limits)?;
         report["actor_inventory_boot"] = serde_json::to_value(boot)?;
+    }
+    if let Some(query_path) = options.package_route_request {
+        use fallout_runtime::actor_rules::route_requests;
+        let mut query_source = baseline::open_source(query_path)?;
+        let mut bytes = Vec::new();
+        (&mut query_source)
+            .take(1024 * 1024 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > 1024 * 1024 {
+            return Err("package route request exceeds 1 MiB".into());
+        }
+        let query: route_requests::Query = serde_json::from_slice(&bytes)?;
+        let caller = options
+            .explicit_subject
+            .map(fallout_runtime::identity::ReferenceId)
+            .map(|reference| world.reference_view(reference))
+            .transpose()?;
+        let proposal = route_requests::observe(
+            &world,
+            &content,
+            &mut store,
+            &package_sources,
+            &query,
+            caller.as_ref(),
+            Default::default(),
+        )?;
+        proposal
+            .require_execution()
+            .expect_err("faithful AI is unverified");
+        report["actor_package_route"] = serde_json::to_value(proposal)?;
     }
     if before_observation
         .as_ref()

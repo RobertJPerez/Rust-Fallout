@@ -289,6 +289,8 @@ enum Command {
         render_path_selection: Option<PathBuf>,
         #[arg(long, requires = "explicit_subject")]
         inventory_boot_request: Option<PathBuf>,
+        #[arg(long)]
+        package_route_request: Option<PathBuf>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {
@@ -1068,6 +1070,7 @@ fn run(args: Args) -> Result<()> {
             equipment_model_role,
             render_path_selection,
             inventory_boot_request,
+            package_route_request,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1088,6 +1091,7 @@ fn run(args: Args) -> Result<()> {
                     equipment_model_role,
                     render_path_selection: render_path_selection.as_deref(),
                     inventory_boot_request: inventory_boot_request.as_deref(),
+                    package_route_request: package_route_request.as_deref(),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

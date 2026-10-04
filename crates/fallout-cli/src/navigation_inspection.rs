@@ -34,48 +34,62 @@ fn validate_request(request: &Request) -> Result<()> {
     }
     Ok(())
 }
+fn eligible(request: &Request, node: &route::Node) -> bool {
+    (request.allow_disabled_records || node.record_flags & plugin::INITIALLY_DISABLED == 0)
+        && node.triangle_flags & request.triangle_forbidden_mask == 0
+        && (request.permit_door_triangles || node.doors.is_empty())
+}
+fn validate_endpoint(
+    request: &Request,
+    endpoint: &TriangleId,
+    node: Option<&route::Node>,
+) -> Result<()> {
+    let node = node.ok_or("selected-cell endpoint triangle is unavailable")?;
+    if !eligible(request, node) {
+        return Err(format!(
+            "navigation endpoint {endpoint:?} rejected by explicit source eligibility policy"
+        )
+        .into());
+    }
+    Ok(())
+}
+fn route_cost(
+    request: &Request,
+    from: &route::Node,
+    link: &route::Link,
+    to: Option<&route::Node>,
+) -> route::CostDecision {
+    if !eligible(request, from) || to.is_some_and(|v| !eligible(request, v)) {
+        return Ok(None);
+    }
+    match link.kind {
+        LinkKind::Local => Ok(Some(request.local_cost)),
+        LinkKind::External { link_type: 0, .. } => request
+            .portal_cost
+            .map(|v| Ok(Some(v)))
+            .unwrap_or_else(|| Err("portal cost/admission is unavailable".into())),
+        LinkKind::External { link_type, .. } => request
+            .special_costs
+            .get(&link_type)
+            .map(|v| Ok(Some(*v)))
+            .unwrap_or_else(|| {
+                Err(format!(
+                    "authored special link type {link_type} has no declared cost/admission"
+                ))
+            }),
+    }
+}
 fn requested_route(
     graph: &RouteGraph,
     request: &Request,
     limits: route::RouteLimits,
 ) -> Result<route::Route> {
-    let eligible = |node: &route::Node| {
-        (request.allow_disabled_records || node.record_flags & plugin::INITIALLY_DISABLED == 0)
-            && node.triangle_flags & request.triangle_forbidden_mask == 0
-            && (request.permit_door_triangles || node.doors.is_empty())
-    };
     for endpoint in [&request.start, &request.goal] {
-        let node = graph
-            .node(endpoint)
-            .ok_or("selected-cell endpoint triangle is unavailable")?;
-        if !eligible(node) {
-            return Err(format!(
-                "navigation endpoint {endpoint:?} rejected by explicit source eligibility policy"
-            )
-            .into());
-        }
+        validate_endpoint(request, endpoint, graph.node(endpoint))?;
     }
     Ok(
         graph.route(&request.start, &request.goal, limits, |from, link, to| {
-            if !eligible(from) || to.is_some_and(|v| !eligible(v)) {
-                return Ok(None);
-            }
-            match link.kind {
-                LinkKind::Local => Ok(Some(request.local_cost)),
-                LinkKind::External { link_type: 0, .. } => request
-                    .portal_cost
-                    .map(|v| Ok(Some(v)))
-                    .unwrap_or_else(|| Err("portal cost/admission is unavailable".into())),
-                LinkKind::External { link_type, .. } => request
-                    .special_costs
-                    .get(&link_type)
-                    .map(|v| Ok(Some(*v)))
-                    .unwrap_or_else(|| {
-                        Err(format!(
-                            "authored special link type {link_type} has no declared cost/admission"
-                        ))
-                    }),
-            }
+            route_cost(request, from, link, to)
         })?,
     )
 }
@@ -461,36 +475,7 @@ pub fn inspect_cells(
         validate_request(r)?;
     }
     let order = Order::read(order_path)?;
-    let mut cohort_bytes = 0u64;
-    for name in &order.names {
-        fallout_data::identity::plugin_name(name)?;
-        cohort_bytes = cohort_bytes
-            .checked_add(std::fs::metadata(install.join("Data").join(name))?.len())
-            .ok_or("navigation source byte overflow")?;
-        if cohort_bytes > source_limits.source_bytes {
-            return Err("navigation plugin cohort exceeds source byte budget".into());
-        }
-    }
-    let index_limits = plugin::Limits {
-        max_records: 4_000_000 / order.names.len() as u64,
-        max_record_bytes: source_limits.records.record_bytes,
-        max_decoded_bytes: 4 * 1024 * 1024 * 1024 / order.names.len() as u64,
-        ..Default::default()
-    };
-    let mut store = if let Some(cache) = cache {
-        fallout_data::store::RecordStore::open_nv_headers_cached(
-            &install.join("Data"),
-            &order.names,
-            index_limits,
-            cache,
-        )?
-    } else {
-        fallout_data::store::RecordStore::open_nv_headers(
-            &install.join("Data"),
-            &order.names,
-            index_limits,
-        )?
-    };
+    let mut store = bounded_store(install, &order, cache, source_limits)?;
     let sources = store.source_receipts()?;
     let set = navigation::load_cells(&mut store, &request.cells, source_limits)?;
     let admission = graph_admission(&set, request.source_limits, request.graph_limits)?;
@@ -513,6 +498,138 @@ pub fn inspect_cells(
         route: result,
         faithful_ready: false,
         semantics: "explicit exact live CELL set; source-key ordering and whole-cohort/winner/master provenance; one graph and zero-heuristic route with caller costs/eligibility; raw portals remain in separate source cell frames; no NAVI policy, movement, funnel, dynamic obstacles or actor package execution",
+    };
+    serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
+    Ok(report)
+}
+fn bounded_store(
+    install: &Path,
+    order: &Order,
+    cache: Option<&Path>,
+    source_limits: navigation::CellSetLimits,
+) -> Result<fallout_data::store::RecordStore> {
+    let mut cohort_bytes = 0u64;
+    for name in &order.names {
+        fallout_data::identity::plugin_name(name)?;
+        cohort_bytes = cohort_bytes
+            .checked_add(std::fs::metadata(install.join("Data").join(name))?.len())
+            .ok_or("navigation source byte overflow")?;
+        if cohort_bytes > source_limits.source_bytes {
+            return Err("navigation plugin cohort exceeds source byte budget".into());
+        }
+    }
+    let index_limits = plugin::Limits {
+        max_records: 4_000_000 / order.names.len() as u64,
+        max_record_bytes: source_limits.records.record_bytes,
+        max_decoded_bytes: 4 * 1024 * 1024 * 1024 / order.names.len() as u64,
+        ..Default::default()
+    };
+    Ok(if let Some(cache) = cache {
+        fallout_data::store::RecordStore::open_nv_headers_cached(
+            &install.join("Data"),
+            &order.names,
+            index_limits,
+            cache,
+        )?
+    } else {
+        fallout_data::store::RecordStore::open_nv_headers(
+            &install.join("Data"),
+            &order.names,
+            index_limits,
+        )?
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorridorRequest {
+    cell: FormKey,
+    route: CellRouteRequest,
+    plane: route::corridor::PlaneContract,
+    #[serde(default)]
+    source_limits: SourceWork,
+    #[serde(default)]
+    graph_limits: GraphWork,
+    #[serde(default)]
+    route_limits: RouteWork,
+    #[serde(default)]
+    corridor_limits: route::corridor::CorridorLimits,
+}
+#[derive(Serialize)]
+pub struct CorridorReport {
+    schema_version: u32,
+    load_order_sha256: String,
+    request_sha256: String,
+    sources: Vec<fallout_data::store::SourceReceipt>,
+    source_usage: route::corridor::InputUsage,
+    source_limits: SourceWork,
+    graph_limits: GraphWork,
+    route_limits: RouteWork,
+    corridor_limits: route::corridor::CorridorLimits,
+    result: route::corridor::CorridorOutcome,
+    faithful_ready: bool,
+    semantics: &'static str,
+}
+pub fn inspect_corridor(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+) -> Result<CorridorReport> {
+    let mut bytes = Vec::new();
+    baseline::open_source(request_path)?
+        .take(1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 1024 * 1024 {
+        return Err("navigation corridor request exceeds1 MiB".into());
+    }
+    let request: CorridorRequest = serde_json::from_slice(&bytes)?;
+    let source = request.source_limits.limits()?;
+    let graph = request.graph_limits.limits()?;
+    let route_limits = request.route_limits.limits()?;
+    if source.cells == 0 {
+        return Err("navigation selected cell budget exceeded".into());
+    }
+    let policy = Request::from(request.route);
+    validate_request(&policy)?;
+    let order = Order::read(order_path)?;
+    let mut store = bounded_store(install, &order, cache, source)?;
+    let query = route::corridor::CorridorQuery::load(
+        &mut store,
+        &request.cell,
+        route::corridor::InputLimits {
+            source_bytes: source.source_bytes,
+            index_visits: source.index_visits,
+            meshes: source.meshes,
+            records: source.records,
+            retained_bytes: source.identity_metadata_bytes,
+            graph,
+        },
+    )?;
+    for endpoint in [&policy.start, &policy.goal] {
+        validate_endpoint(&policy, endpoint, query.node(endpoint))?;
+    }
+    let result = query.route(
+        &policy.start,
+        &policy.goal,
+        route_limits,
+        request.corridor_limits,
+        request.plane,
+        |from, link, to| route_cost(&policy, from, link, to),
+    )?;
+    let report = CorridorReport {
+        schema_version: 1,
+        load_order_sha256: order.sha256,
+        request_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        sources: store.source_receipts()?,
+        source_usage: query.usage().clone(),
+        source_limits: request.source_limits,
+        graph_limits: request.graph_limits,
+        route_limits: request.route_limits,
+        corridor_limits: request.corridor_limits,
+        result,
+        faithful_ready: false,
+        semantics: "protected single-cell source owner generates route internally; exact axis-plane dyadic predicates, reciprocal reverse directed vertex identity and opposite portal sides; raw binary32 vertices and source annotations; explicit costs/eligibility; no external/door traversal, smoothing, endpoints, funnel, canonical movement or gameplay",
     };
     serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
     Ok(report)

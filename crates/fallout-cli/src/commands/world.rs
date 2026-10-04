@@ -71,6 +71,17 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve exact FNV CELL owner and signed rank source inputs.
+    CellOwnershipSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        cell: String,
+    },
     /// Preserve exact CELL region arrays and winning REGN header inputs.
     CellRegionSources {
         #[arg(long)]

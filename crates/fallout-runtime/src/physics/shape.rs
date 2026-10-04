@@ -191,6 +191,78 @@ fn segment_distance2(p: V, a: V, b: V) -> f64 {
     dot(delta, delta)
 }
 
+fn predicate_dot(a: V, b: V) -> Option<super::enclosure::Interval> {
+    use super::enclosure::Interval as I;
+    let mut sum = I::point(0.);
+    for i in 0..3 {
+        sum = predicate_sum(sum, predicate_product(I::point(a[i]), I::point(b[i]))?)?;
+    }
+    Some(sum)
+}
+
+fn capsule_overlap(p: V, a: V, b: V, query_radius: f64, source_radius: f64) -> QueryResult<bool> {
+    use super::enclosure::Interval as I;
+    let uncertain = || QueryError::Invalid("capsule overlap predicate is numerically uncertain");
+    let relative = |anchor: V| -> QueryResult<V> {
+        let delta = sub(p, anchor);
+        if (0..3).any(|i| difference_error(p[i], anchor[i], delta[i]) != 0.) {
+            return Err(uncertain());
+        }
+        Ok(delta)
+    };
+    let endpoint = |anchor: V| {
+        sphere_overlap(relative(anchor)?, query_radius, source_radius).map_err(|_| uncertain())
+    };
+    let edge = sub(b, a);
+    if edge.iter().filter(|v| **v != 0.).count() <= 1 {
+        // Clamp in the original authored axis before subtraction. A rounded
+        // projection and reconstructed closest point cannot change this line.
+        let mut closest = a;
+        if let Some(axis) = edge.iter().position(|v| *v != 0.) {
+            closest[axis] = p[axis].clamp(a[axis].min(b[axis]), a[axis].max(b[axis]));
+        }
+        return endpoint(closest);
+    }
+    if (0..3).any(|i| difference_error(b[i], a[i], edge[i]) != 0.) {
+        return Err(uncertain());
+    }
+    let w = relative(a)?;
+    let length_squared = predicate_dot(edge, edge).ok_or_else(uncertain)?;
+    let projection = predicate_dot(w, edge).ok_or_else(uncertain)?;
+    if projection.upper <= 0. {
+        return endpoint(a);
+    }
+    if projection.lower >= length_squared.upper {
+        return endpoint(b);
+    }
+    let remainder = predicate_sum(length_squared, projection.negate()).ok_or_else(uncertain)?;
+    if length_squared.lower <= 0. || projection.lower < 0. || remainder.lower < 0. {
+        return Err(uncertain());
+    }
+    // For an interior projection, distance^2 * |edge|^2 equals
+    // |w|^2 * |edge|^2 - (w.edge)^2. Compare without dividing, normalizing
+    // the axis, or rounding an interpolated closest point into the capsule.
+    let norm_squared = predicate_dot(w, w).ok_or_else(uncertain)?;
+    let norm_product = predicate_product(norm_squared, length_squared).ok_or_else(uncertain)?;
+    let projection_squared = predicate_product(projection, projection).ok_or_else(uncertain)?;
+    let distance_numerator =
+        predicate_sum(norm_product, projection_squared.negate()).ok_or_else(uncertain)?;
+    let radius =
+        predicate_sum(I::point(query_radius), I::point(source_radius)).ok_or_else(uncertain)?;
+    let radius_squared = predicate_product(radius, radius).ok_or_else(uncertain)?;
+    let radius_numerator =
+        predicate_product(radius_squared, length_squared).ok_or_else(uncertain)?;
+    let separation =
+        predicate_sum(radius_numerator, distance_numerator.negate()).ok_or_else(uncertain)?;
+    if separation.lower >= 0. {
+        Ok(true)
+    } else if separation.upper < 0. {
+        Ok(false)
+    } else {
+        Err(uncertain())
+    }
+}
+
 fn capsule_contains(p: V, a: V, b: V, radius: f64) -> QueryResult<bool> {
     let edge = sub(b, a);
     let relative = sub(p, a);
@@ -716,9 +788,7 @@ impl Shape {
             Self::ConvexCuboid {
                 minimum, maximum, ..
             } => cuboid_overlap(p, r, minimum, maximum)?,
-            Self::Capsule { a, b, radius } => {
-                segment_distance2(p, a, b) <= (r + radius) * (r + radius)
-            }
+            Self::Capsule { a, b, radius } => capsule_overlap(p, a, b, r, radius)?,
             Self::Triangle(vertices) => triangle_distance2(p, vertices) <= r * r,
         })
     }

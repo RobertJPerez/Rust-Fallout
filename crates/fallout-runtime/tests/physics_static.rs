@@ -691,6 +691,330 @@ fn sphere_overlap_cli_fixture_export() {
     }
 }
 
+#[test]
+fn capsule_overlap_rejects_literal_false_hits_from_original_endpoints_and_radii() {
+    let tiny = f64::from_bits(1);
+    for (a, b, radius, p, query, uncertain) in [
+        (
+            [-1., 0., 0.],
+            [1., 0., 0.],
+            1.,
+            [0., 1., 2f64.powi(-27)],
+            0.,
+            true,
+        ),
+        (
+            [-1., 0., 0.],
+            [1., 0., 0.],
+            1.,
+            [0., 2., 0.],
+            1f64.next_down(),
+            false,
+        ),
+        ([1., 0., 0.], [2., 0., 0.], 1., [-tiny, 0., 0.], 0., true),
+        ([0.; 3], [0.; 3], 1., [1., 2f64.powi(-27), 0.], 0., true),
+        ([0.; 3], [1., 1., 0.], 1., [1., 0., 0.5f64.sqrt()], 0., true),
+        ([-1., 0., 0.], [1., 0., 0.], 0., [0., tiny, 0.], 0., false),
+    ] {
+        let scene = scene(&[
+            ("bhkRigidBody", body(1)),
+            ("bhkCapsuleShape", capsule(a, b, radius)),
+        ]);
+        let result = scene.overlap_sphere(p, query, QueryBudget::default());
+        if uncertain {
+            assert!(
+                matches!(
+                    result,
+                    Err(QueryError::Invalid(
+                        "capsule overlap predicate is numerically uncertain"
+                    ))
+                ),
+                "{a:?} {b:?} {p:?}: {result:?}"
+            );
+        } else {
+            assert!(result.unwrap().is_empty());
+        }
+    }
+}
+
+#[test]
+fn capsule_overlap_raw_scales_cyclic_axes_and_reversed_endpoint_family() {
+    for exponent in [-149, -80, -40, 0, 40, 80, 120] {
+        let source = if exponent == -149 {
+            f32::from_bits(1)
+        } else {
+            2f32.powi(exponent)
+        };
+        let radius = f64::from(source);
+        for axis in 0..3 {
+            let rotate = |p: [f64; 3]| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]];
+            let rotate_source = |p: [f32; 3]| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]];
+            for reverse in [false, true] {
+                let (a, b) = if reverse {
+                    ([source, 0., 0.], [-source, 0., 0.])
+                } else {
+                    ([-source, 0., 0.], [source, 0., 0.])
+                };
+                let axis_scene = scene(&[
+                    ("bhkRigidBody", body(1)),
+                    (
+                        "bhkCapsuleShape",
+                        capsule(rotate_source(a), rotate_source(b), source),
+                    ),
+                ]);
+                for sy in [-1., 1.] {
+                    for sz in [-1., 1.] {
+                        let p = rotate([0., sy * radius, sz * radius * 2f64.powi(-27)]);
+                        assert!(
+                            axis_scene
+                                .overlap_sphere(p, 0., QueryBudget::default())
+                                .is_err(),
+                            "shell {exponent} {axis} {reverse}"
+                        );
+                    }
+                    assert!(
+                        axis_scene
+                            .overlap_sphere(
+                                rotate([0., sy * 2. * radius, 0.]),
+                                radius * 1f64.next_down(),
+                                QueryBudget::default()
+                            )
+                            .unwrap()
+                            .is_empty()
+                    );
+                }
+                assert!(
+                    axis_scene
+                        .overlap_sphere(
+                            rotate([0., 2. * radius, radius * 2f64.powi(-25)]),
+                            radius * 1f64.next_up(),
+                            QueryBudget::default()
+                        )
+                        .is_err()
+                );
+                let (a, b) = if reverse {
+                    ([source, source, 0.], [0.; 3])
+                } else {
+                    ([0.; 3], [source, source, 0.])
+                };
+                let skew_scene = scene(&[
+                    ("bhkRigidBody", body(1)),
+                    (
+                        "bhkCapsuleShape",
+                        capsule(rotate_source(a), rotate_source(b), source),
+                    ),
+                ]);
+                // Exact squared distance R^2*(1/2 + literal_sqrt(1/2)^2)
+                // exceeds R^2, despite the old closest-point norm rounding it.
+                assert!(
+                    skew_scene
+                        .overlap_sphere(
+                            rotate([radius, 0., radius * 0.5f64.sqrt()]),
+                            0.,
+                            QueryBudget::default()
+                        )
+                        .is_err(),
+                    "skew {exponent} {axis} {reverse}"
+                );
+            }
+        }
+        let point = scene(&[
+            ("bhkRigidBody", body(1)),
+            ("bhkCapsuleShape", capsule([0.; 3], [0.; 3], source)),
+        ]);
+        assert!(
+            point
+                .overlap_sphere(
+                    [radius, radius * 2f64.powi(-27), 0.],
+                    0.,
+                    QueryBudget::default()
+                )
+                .is_err()
+        );
+        assert!(
+            point
+                .overlap_sphere(
+                    [2. * radius, 0., 0.],
+                    radius * 1f64.next_down(),
+                    QueryBudget::default()
+                )
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn capsule_overlap_closed_contacts_metadata_and_zero_radius_core_remain_available() {
+    for (a, b, radius, p, query, count) in [
+        ([-1., 0., 0.], [1., 0., 0.], 1., [0., 1., 0.], 0., 1),
+        ([-1., 0., 0.], [1., 0., 0.], 1., [-2., 0., 0.], 0., 1),
+        ([1., 2., 3.], [1., 2., 7.], 5., [4., 6., 5.], 0., 1),
+        ([0.; 3], [4., 4., 0.], 1., [2., 2., 1.], 0., 1),
+        ([0.; 3], [4., 4., 0.], 1., [-1., 0., 0.], 0., 1),
+        ([0.; 3], [4., 4., 0.], 1., [5., 4., 0.], 0., 1),
+        ([0.; 3], [4., 4., 0.], 1., [10., 10., 0.], 0., 0),
+        ([1., 2., 3.], [1., 2., 3.], 5., [4., 6., 3.], 0., 1),
+        ([-1., 0., 0.], [1., 0., 0.], 0., [0.; 3], 0., 1),
+        ([0.; 3], [4., 4., 0.], 0., [2., 2., 0.], 0., 1),
+        (
+            [-1., 0., 0.],
+            [1., 0., 0.],
+            0.,
+            [0., f64::from_bits(1), 0.],
+            0.,
+            0,
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            let scene = scene(&[
+                ("bhkRigidBody", body(1)),
+                ("bhkCapsuleShape", capsule(a, b, radius)),
+            ]);
+            let hits = scene
+                .overlap_sphere(p, query, QueryBudget::default())
+                .unwrap();
+            assert_eq!(hits.len(), count, "{a:?} {b:?} {p:?}");
+            if let Some(hit) = hits.first() {
+                assert_eq!(hit.position, p);
+                assert_eq!(hit.material, 17);
+                assert_eq!(hit.body_filter.flags_and_parts, 0xe7);
+                assert_eq!(hit.body_filter.group, 0x1234);
+                assert_eq!(hit.authored_shell_radius, 0.);
+            }
+        }
+    }
+}
+
+fn capsule_overlap_mixed_blocks() -> Vec<(&'static str, Vec<u8>)> {
+    let mut blocks = overlap_mixed_blocks();
+    blocks[1] = ("bhkCapsuleShape", capsule([-1., 0., 0.], [1., 0., 0.], 1.));
+    blocks
+}
+
+#[test]
+fn capsule_overlap_uncertainty_discards_earlier_indexed_and_unindexed_hits() {
+    let (_, collision) = nif_collision::decode(
+        &container(&capsule_overlap_mixed_blocks()),
+        "capsule after valid boxes",
+    )
+    .unwrap();
+    let p = [0., 1., 2f64.powi(-27)];
+    for boxes in [1, 7] {
+        let mut placements: Vec<_> = (2..2 + boxes)
+            .map(|body_block| BodyPlacement {
+                body_block,
+                ..placement()
+            })
+            .collect();
+        let earlier =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        assert_eq!(
+            earlier
+                .overlap_sphere(p, 0., QueryBudget::default())
+                .unwrap()
+                .len(),
+            boxes as usize
+        );
+        placements.push(placement());
+        let scene =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        assert!(scene.overlap_sphere(p, 0., QueryBudget::default()).is_err());
+        assert!(matches!(
+            scene.overlap_sphere(
+                p,
+                0.,
+                QueryBudget {
+                    hits: 0,
+                    ..QueryBudget::default()
+                }
+            ),
+            Err(QueryError::Budget("query hits"))
+        ));
+        assert!(matches!(
+            scene.overlap_sphere(
+                p,
+                0.,
+                QueryBudget {
+                    primitive_tests: 0,
+                    ..QueryBudget::default()
+                }
+            ),
+            Err(QueryError::Budget(_))
+        ));
+        for place in &mut placements {
+            place.attachment_to_source.rows =
+                [[-2., 0., 0., 0.], [0., 2., 0., 0.], [0., 0., 2., 0.]];
+        }
+        let transformed =
+            StaticScene::build(&collision, &placements, units(), QueryLimits::default()).unwrap();
+        assert!(
+            transformed
+                .overlap_sphere([0., 2., 2. * p[2]], 0., QueryBudget::default())
+                .is_err()
+        );
+    }
+}
+
+#[test]
+#[ignore = "explicit private corrected capsule-overlap source fixture export"]
+fn capsule_overlap_cli_fixture_export() {
+    use std::io::Write;
+    let root =
+        std::path::PathBuf::from(std::env::var_os("FALLOUT_CAPSULE_OVERLAP_FIXTURE").unwrap());
+    std::fs::create_dir(&root).unwrap();
+    let write = |name: String, blocks: Vec<(&str, Vec<u8>)>| {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(root.join(name))
+            .unwrap();
+        file.write_all(&container(&blocks)).unwrap();
+    };
+    for exponent in [-149, -80, -40, 0, 40, 80, 120] {
+        let radius = if exponent == -149 {
+            f32::from_bits(1)
+        } else {
+            2f32.powi(exponent)
+        };
+        for axis in 0..3 {
+            let rotate = |p: [f32; 3]| [p[axis], p[(axis + 1) % 3], p[(axis + 2) % 3]];
+            write(
+                format!("axis-{exponent}-{axis}.nif"),
+                vec![
+                    ("bhkRigidBody", body(1)),
+                    (
+                        "bhkCapsuleShape",
+                        capsule(rotate([-radius, 0., 0.]), rotate([radius, 0., 0.]), radius),
+                    ),
+                ],
+            );
+            for reverse in [false, true] {
+                let (a, b) = if reverse {
+                    ([radius, radius, 0.], [0.; 3])
+                } else {
+                    ([0.; 3], [radius, radius, 0.])
+                };
+                write(
+                    format!("skew-{exponent}-{axis}-{reverse}.nif"),
+                    vec![
+                        ("bhkRigidBody", body(1)),
+                        ("bhkCapsuleShape", capsule(rotate(a), rotate(b), radius)),
+                    ],
+                );
+            }
+        }
+        write(
+            format!("point-{exponent}.nif"),
+            vec![
+                ("bhkRigidBody", body(1)),
+                ("bhkCapsuleShape", capsule([0.; 3], [0.; 3], radius)),
+            ],
+        );
+    }
+    write("mixed-boxes.nif".into(), capsule_overlap_mixed_blocks());
+}
+
 fn shape_list(children: &[u32]) -> Vec<u8> {
     let mut list = Vec::new();
     words(&mut list, &[children.len() as u32]);

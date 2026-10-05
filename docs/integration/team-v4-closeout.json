@@ -1174,5 +1174,11 @@
     "provenance": "Pinned Mutagen writer --write-condition-fixture creates one GLOB and synthetic COBJ conditions; original corpus file excluded by ignore rule, original source preserved"
   },
   "privacy": "Only source, small authored fixtures and published summary reports imported; retail inputs, settings, extracted assets, caches, targets and private corpus evidence remain local",
-  "stop": "Robert closed all other sessions; immediate worker authorization revoked; coordinator completes publication then final global STOP"
+  "stop": "Robert closed all other sessions; immediate worker authorization revoked; coordinator completes publication then final global STOP",
+  "promotion_validation": {
+    "checked_source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+    "main_core_and_companions_equal_candidate": true,
+    "subsequent_changes": "Documentation only",
+    "build_admission_scope": "Existing v4 bootstrap proof in docs/agents/team-v4/build-wrapper-proof.json"
+  }
 }

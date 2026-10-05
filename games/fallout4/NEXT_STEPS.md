@@ -1,3 +1,5 @@
+> Integrated October 5 copy: the team is stopped at Robert's request. This copy uses `../../crates/fallout-data`; original pinned-revision notes below are historical. Read [INTEGRATION.md](INTEGRATION.md) and the root [closeout report](../../reports/closeout-2026-10-05.md) for current checks, commands and limits. Original source/research remain preserved. Root AGENTS.md and current stop control govern future work.
+
 # Next Fallout 4 dependency slices
 
 This workspace prepares FO4 alongside the New Vegas team. Reuse its reviewed

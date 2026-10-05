@@ -710,8 +710,12 @@ mod tests {
 
     #[test]
     fn output_is_local_new_and_separate_from_analysis_and_install_inputs() {
-        let root =
-            tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join("local")).unwrap();
+        let root = tempfile::tempdir_in({
+            let local = Path::new(env!("CARGO_MANIFEST_DIR")).join("local");
+            fs::create_dir_all(&local).unwrap();
+            local
+        })
+        .unwrap();
         let install = root.path().join("game");
         let evidence = root.path().join("evidence");
         fs::create_dir_all(install.join("Data")).unwrap();

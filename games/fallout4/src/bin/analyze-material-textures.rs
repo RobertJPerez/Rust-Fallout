@@ -601,8 +601,12 @@ mod tests {
 
     #[test]
     fn output_must_be_new_local_and_separate_from_install_and_oracle() {
-        let root =
-            tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join("local")).unwrap();
+        let root = tempfile::tempdir_in({
+            let local = Path::new(env!("CARGO_MANIFEST_DIR")).join("local");
+            fs::create_dir_all(&local).unwrap();
+            local
+        })
+        .unwrap();
         let install = root.path().join("game");
         let evidence = root.path().join("oracle");
         fs::create_dir_all(install.join("Data")).unwrap();

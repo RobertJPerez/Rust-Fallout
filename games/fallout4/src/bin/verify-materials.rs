@@ -565,8 +565,12 @@ mod tests {
 
     #[test]
     fn comparison_output_is_confined_to_local_and_outside_inputs() {
-        let root =
-            tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join("local")).unwrap();
+        let root = tempfile::tempdir_in({
+            let local = Path::new(env!("CARGO_MANIFEST_DIR")).join("local");
+            fs::create_dir_all(&local).unwrap();
+            local
+        })
+        .unwrap();
         let install = root.path().join("game");
         let extraction = root.path().join("extract");
         let oracle = root.path().join("oracle");

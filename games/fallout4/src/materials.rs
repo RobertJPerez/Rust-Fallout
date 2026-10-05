@@ -298,8 +298,9 @@ mod tests {
 
     #[test]
     fn rejects_output_under_retail_root_and_never_reuses_an_existing_path() {
-        let dir =
-            tempfile::tempdir().unwrap();
+        let local = Path::new(env!("CARGO_MANIFEST_DIR")).join("local");
+        fs::create_dir_all(&local).unwrap();
+        let dir = tempfile::tempdir_in(&local).unwrap();
         let install = dir.path().join("game");
         fs::create_dir_all(install.join("Data")).unwrap();
         let inside = install.join("local-materials");

@@ -39,10 +39,15 @@ cancels active and queued requests from the previous scene. Each handle exposes 
 sticky success or error result and can cancel only its own request. Scene systems
 poll results rather than waiting on the worker.
 
-The current preview has no output-device backend. Its sink explicitly fails each
-admitted request instead of reporting silent success. A successful test sink result
-means only that the sink accepted the source frames; it does not provide a device
-drain time, audible playback clock, mixing, resampling or spatial behavior.
+The audio-04 draft adds a Bevy/Rodio sink that feeds one bounded four-chunk PCM
+queue to a custom source and samples `AudioSinkPlayback.position()` as its observable
+source clock. It reports decoder, queue and startup failures through the request
+handle. The worker completes after Bevy reports the source sink empty; this is not
+proof that physical device buffers drained or that audio was audible. The focused
+decoder tests use generated samples and do not open an output device. The production
+host still needs to register this plugin with the approved Bevy Audio feature, and
+presentation still needs to select and submit dialogue cues. Those integration
+steps are not claimed here.
 
 The audio-03 music interface reuses the same finite request queue and worker. It
 accepts source-frame seeks through a per-track queue capped at eight commands; each
@@ -61,15 +66,24 @@ music MP3/Ogg or choose a music cue.
 unsupported. `world::conversation` retains the source `Sound` form link, but does
 not identify a localized filename. These layers do not infer a dialogue cue, select
 language, resolve localization, parse LIP or schedule voice/music/radio. Synthetic
-sink tests cover queue and PCM-only music stream mechanics; they do not establish
-original audio fidelity or device playback, and they do not cover dialogue
-selection/subtitle timing or source music-cue behavior.
+sink and decoder tests cover queue and PCM stream mechanics; they do not establish
+original audio fidelity, device playback, dialogue selection/subtitle timing or
+source music-cue behavior.
 
 The WAVE subset follows Microsoft's `WAVEFORMATEX` fields and PCM constraints:
 <https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatex>
 and its RIFF/WAVE chunk description:
 <https://learn.microsoft.com/en-us/windows/win32/xaudio2/resource-interchange-file-format--riff->.
 No external decoder implementation or retail asset is copied into this repository.
+
+The original-media cue audit found no checked-in menu or authored-sequence cue
+mapping. The existing source request accepts an unambiguous archive member; it
+does not mount loose media files. A local read-only installation inventory found
+loose MP3 media, including a `Music/Special/MainTitle.mp3` candidate, but the
+filename alone does not establish that a current route selects it. MP3 is outside
+the admitted WAVE subset. Do not infer a route cue or treat the candidate as
+playable. Audio-08 remains open until the host supplies an explicit source cue
+and source-selection policy, and the required format has a bounded consumer.
 
 ## Synthetic verification
 

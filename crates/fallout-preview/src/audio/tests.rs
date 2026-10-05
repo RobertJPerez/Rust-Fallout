@@ -129,23 +129,29 @@ impl ProbeSink {
 }
 
 impl PcmSink for ProbeSink {
-    fn begin(&mut self, format: WaveFormat) -> Result<(), String> {
+    fn begin(
+        &mut self,
+        format: WaveFormat,
+        _frame_count: u64,
+        _control: Arc<PlaybackControl>,
+    ) -> Result<(), PlaybackFailure> {
         self.observation.lock().unwrap().format = Some(format);
         Ok(())
     }
 
-    fn write(&mut self, chunk: PcmChunk) -> Result<(), String> {
+    fn write(&mut self, chunk: PcmChunk) -> Result<(), PlaybackFailure> {
         if let Some(started) = self.started.take() {
-            started
-                .send(())
-                .map_err(|error| format!("test start signal failed: {error}"))?;
+            started.send(()).map_err(|error| {
+                PlaybackFailure::Sink(format!("test start signal failed: {error}"))
+            })?;
         }
         if let Some(gate) = self.gate.take() {
-            gate.recv_timeout(Duration::from_secs(3))
-                .map_err(|error| format!("test output gate failed: {error}"))?;
+            gate.recv_timeout(Duration::from_secs(3)).map_err(|error| {
+                PlaybackFailure::Sink(format!("test output gate failed: {error}"))
+            })?;
         }
         if self.fail_write {
-            return Err("synthetic sink failure".into());
+            return Err(PlaybackFailure::Sink("synthetic sink failure".into()));
         }
         let mut observation = self.observation.lock().unwrap();
         observation.chunk_first_frames.push(chunk.first_frame);
@@ -153,7 +159,7 @@ impl PcmSink for ProbeSink {
         Ok(())
     }
 
-    fn finish(&mut self) -> Result<(), String> {
+    fn finish(&mut self) -> Result<(), PlaybackFailure> {
         self.observation.lock().unwrap().finished = true;
         Ok(())
     }

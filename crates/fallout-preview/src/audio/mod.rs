@@ -4,6 +4,9 @@
 //! worker; completion means all source frames were accepted by that sink, not
 //! that a physical device rendered them or that an original playback clock ran.
 
+mod device;
+#[cfg(test)]
+mod device_tests;
 #[cfg(test)]
 mod tests;
 
@@ -34,26 +37,46 @@ const MUSIC_SEEK_QUEUE_CAPACITY: usize = 8;
 /// `write` must return after one bounded chunk; device implementations must
 /// apply their own finite buffering and backpressure policy.
 pub(super) trait PcmSink: Send + 'static {
-    fn begin(&mut self, format: WaveFormat) -> Result<(), String>;
-    fn write(&mut self, chunk: PcmChunk) -> Result<(), String>;
-    fn finish(&mut self) -> Result<(), String>;
+    fn begin(
+        &mut self,
+        format: WaveFormat,
+        frame_count: u64,
+        control: Arc<PlaybackControl>,
+    ) -> Result<(), PlaybackFailure>;
+    fn write(&mut self, chunk: PcmChunk) -> Result<(), PlaybackFailure>;
+    fn finish(&mut self) -> Result<(), PlaybackFailure>;
+
+    fn supports_music(&self) -> bool {
+        true
+    }
 }
 
 /// The current preview build has no output-device backend. Requests are
 /// admitted through the same queue contract, then complete with this explicit
 /// error until a supported backend is installed.
+#[cfg(test)]
 struct UnavailableSink;
 
+#[cfg(test)]
 impl PcmSink for UnavailableSink {
-    fn begin(&mut self, _format: WaveFormat) -> Result<(), String> {
-        Err("preview audio output backend is unavailable".into())
+    fn begin(
+        &mut self,
+        _format: WaveFormat,
+        _frame_count: u64,
+        _control: Arc<PlaybackControl>,
+    ) -> Result<(), PlaybackFailure> {
+        Err(PlaybackFailure::Sink(
+            "preview audio output backend is unavailable".into(),
+        ))
     }
 
-    fn write(&mut self, _chunk: PcmChunk) -> Result<(), String> {
-        Err("preview audio output backend is unavailable".into())
+    fn write(&mut self, _chunk: PcmChunk) -> Result<(), PlaybackFailure> {
+        Err(PlaybackFailure::Sink(
+            "preview audio output backend is unavailable".into(),
+        ))
     }
 
-    fn finish(&mut self) -> Result<(), String> {
+    fn finish(&mut self) -> Result<(), PlaybackFailure> {
         Ok(())
     }
 }
@@ -147,6 +170,19 @@ pub(super) struct PlaybackReceipt {
 
 type PlaybackResult = Result<PlaybackReceipt, PlaybackFailure>;
 
+#[derive(Clone)]
+enum DevicePlaybackPhase {
+    Pending,
+    Playing,
+    Ended,
+    Failed(PlaybackFailure),
+}
+
+struct DevicePlaybackState {
+    phase: DevicePlaybackPhase,
+    position: Option<Duration>,
+}
+
 struct PlaybackControl {
     request_id: u64,
     scene_generation: u64,
@@ -154,6 +190,8 @@ struct PlaybackControl {
     cancelled: AtomicBool,
     completion: Mutex<Option<PlaybackResult>>,
     completed: Condvar,
+    device: Mutex<DevicePlaybackState>,
+    device_changed: Condvar,
 }
 
 impl PlaybackControl {
@@ -165,6 +203,11 @@ impl PlaybackControl {
             cancelled: AtomicBool::new(false),
             completion: Mutex::new(None),
             completed: Condvar::new(),
+            device: Mutex::new(DevicePlaybackState {
+                phase: DevicePlaybackPhase::Pending,
+                position: None,
+            }),
+            device_changed: Condvar::new(),
         }
     }
 
@@ -190,6 +233,7 @@ impl PlaybackControl {
     fn cancel(&self) {
         self.cancelled.store(true, Ordering::Release);
         self.current_token().cancel();
+        self.fail_device(PlaybackFailure::Cancelled);
     }
 
     fn replace_token(&self, token: JobToken) -> Result<(), PlaybackFailure> {
@@ -214,6 +258,87 @@ impl PlaybackControl {
             *completion = Some(result);
             self.completed.notify_all();
         }
+    }
+
+    fn update_device_position(&self, position: Duration) {
+        let mut device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if matches!(device.phase, DevicePlaybackPhase::Pending) {
+            device.phase = DevicePlaybackPhase::Playing;
+        }
+        if matches!(device.phase, DevicePlaybackPhase::Playing) {
+            device.position = Some(position);
+        }
+        self.device_changed.notify_all();
+    }
+
+    fn end_device_playback(&self) {
+        let mut device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if matches!(
+            device.phase,
+            DevicePlaybackPhase::Pending | DevicePlaybackPhase::Playing
+        ) {
+            device.phase = DevicePlaybackPhase::Ended;
+        }
+        self.device_changed.notify_all();
+    }
+
+    fn fail_device(&self, failure: PlaybackFailure) {
+        let mut device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if matches!(
+            device.phase,
+            DevicePlaybackPhase::Pending | DevicePlaybackPhase::Playing
+        ) {
+            device.phase = DevicePlaybackPhase::Failed(failure);
+        }
+        self.device_changed.notify_all();
+    }
+
+    fn device_outcome(&self) -> Option<Result<(), PlaybackFailure>> {
+        let device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match &device.phase {
+            DevicePlaybackPhase::Pending | DevicePlaybackPhase::Playing => None,
+            DevicePlaybackPhase::Ended => Some(Ok(())),
+            DevicePlaybackPhase::Failed(error) => Some(Err(error.clone())),
+        }
+    }
+
+    fn wait_for_device_end(&self) -> Result<(), PlaybackFailure> {
+        let mut device = self
+            .device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        loop {
+            match &device.phase {
+                DevicePlaybackPhase::Ended => return Ok(()),
+                DevicePlaybackPhase::Failed(error) => return Err(error.clone()),
+                DevicePlaybackPhase::Pending | DevicePlaybackPhase::Playing => {
+                    device = self
+                        .device_changed
+                        .wait_timeout(device, Duration::from_millis(25))
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .0;
+                }
+            }
+        }
+    }
+
+    fn device_position(&self) -> Option<Duration> {
+        self.device
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .position
     }
 }
 
@@ -249,6 +374,25 @@ impl PlaybackHandle {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
+    }
+
+    /// Latest Bevy/Rodio source position observed through `AudioSinkPlayback`.
+    /// The host refreshes this from the backend, not from render-frame deltas.
+    /// It is a source clock and does not claim hardware drain or audible acceptance.
+    pub(super) fn playback_clock(
+        &self,
+        current_scene_generation: u64,
+    ) -> Result<Option<Duration>, PlaybackFailure> {
+        if current_scene_generation != self.control.scene_generation {
+            return Err(PlaybackFailure::StaleScene {
+                request_generation: self.control.scene_generation,
+                current_generation: current_scene_generation,
+            });
+        }
+        if let Some(Err(error)) = self.control.device_outcome() {
+            return Err(error);
+        }
+        Ok(self.control.device_position())
     }
 
     /// Wait only from an audio/background thread. Scene systems should use
@@ -681,10 +825,19 @@ fn audio_worker<S: PcmSink>(
             AudioJob::Music(job) => Some(job.seek_closed.clone()),
         };
         let result = catch_unwind(AssertUnwindSafe(|| match job {
-            AudioJob::Sound(job) => consume_sound(job.sound, &job.control, &mut sink),
-            AudioJob::Music(job) => consume_music(job, &mut sink),
+            AudioJob::Sound(job) => consume_sound(job.sound, job.control.clone(), &mut sink),
+            AudioJob::Music(job) if sink.supports_music() => consume_music(job, &mut sink),
+            AudioJob::Music(job) => {
+                let _ = job;
+                Err(PlaybackFailure::Sink(
+                    "configured audio backend does not support music seeks".into(),
+                ))
+            }
         }))
         .unwrap_or(Err(PlaybackFailure::WorkerPanicked));
+        if let Err(error) = &result {
+            control.fail_device(error.clone());
+        }
         if let Some(seek_closed) = seek_closed {
             close_music_seek_queue(&seek_closed);
         }
@@ -697,12 +850,13 @@ fn audio_worker<S: PcmSink>(
 
 fn consume_sound<S: PcmSink>(
     sound: PreparedSound,
-    control: &PlaybackControl,
+    control: Arc<PlaybackControl>,
     sink: &mut S,
 ) -> PlaybackResult {
     let token = control.check()?;
     let format = sound.format();
-    sink.begin(format).map_err(PlaybackFailure::Sink)?;
+    let frame_count = sound.frame_count();
+    sink.begin(format, frame_count, control.clone())?;
     control.check()?;
     let mut stream = sound.stream(token).map_err(map_audio_error)?;
     let mut frames_submitted = 0u64;
@@ -711,12 +865,15 @@ fn consume_sound<S: PcmSink>(
         let next_frames = frames_submitted
             .checked_add(chunk.frame_count as u64)
             .ok_or_else(|| PlaybackFailure::Decode("frame count overflow".into()))?;
-        sink.write(chunk).map_err(PlaybackFailure::Sink)?;
+        if let Err(error) = sink.write(chunk) {
+            control.check()?;
+            return Err(error);
+        }
         control.check()?;
         frames_submitted = next_frames;
     }
     control.check()?;
-    sink.finish().map_err(PlaybackFailure::Sink)?;
+    sink.finish()?;
     Ok(PlaybackReceipt {
         request_id: control.request_id,
         scene_generation: control.scene_generation,
@@ -736,7 +893,7 @@ fn consume_music<S: PcmSink>(job: MusicJob, sink: &mut S) -> PlaybackResult {
     } = job;
     let format = sound.format();
     let mut token = control.check()?;
-    sink.begin(format).map_err(PlaybackFailure::Sink)?;
+    sink.begin(format, job.sound.frame_count(), job.control.clone())?;
     let mut stream = sound.stream(token.clone()).map_err(map_audio_error)?;
     let mut frames_submitted = 0u64;
 
@@ -768,7 +925,10 @@ fn consume_music<S: PcmSink>(job: MusicJob, sink: &mut S) -> PlaybackResult {
                 let next_frames = frames_submitted
                     .checked_add(chunk.frame_count as u64)
                     .ok_or_else(|| PlaybackFailure::Decode("frame count overflow".into()))?;
-                sink.write(chunk).map_err(PlaybackFailure::Sink)?;
+                if let Err(error) = sink.write(chunk) {
+                    job.control.check()?;
+                    return Err(error);
+                }
                 control.check()?;
                 frames_submitted = next_frames;
             }
@@ -802,7 +962,7 @@ fn consume_music<S: PcmSink>(job: MusicJob, sink: &mut S) -> PlaybackResult {
         }
     }
 
-    sink.finish().map_err(PlaybackFailure::Sink)?;
+    sink.finish()?;
     Ok(PlaybackReceipt {
         request_id: control.request_id,
         scene_generation: control.scene_generation,
@@ -858,12 +1018,13 @@ pub(super) struct AudioPlugin;
 
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
-        let adapter = AudioAdapter::with_sink(DEFAULT_QUEUE_CAPACITY, UnavailableSink)
-            .unwrap_or_else(|error| AudioAdapter::unavailable(error.to_string()));
-        app.insert_resource(adapter).add_systems(
-            Update,
-            synchronize_scene_generation.after(super::drive_loading),
-        );
+        if let Err(error) = device::install(app) {
+            let adapter = AudioAdapter::unavailable(error.to_string());
+            app.insert_resource(adapter).add_systems(
+                Update,
+                synchronize_scene_generation.after(super::drive_loading),
+            );
+        }
     }
 }
 

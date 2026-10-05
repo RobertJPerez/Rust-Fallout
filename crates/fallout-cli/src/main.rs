@@ -1646,6 +1646,12 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             equipment_model_role,
             render_path_selection,
             inventory_boot_request,
+            package_route_request,
+            actor_reference_intent,
+            actor_inventory_transfer,
+            actor_equipment_intent,
+            actor_context_batch,
+            actor_faction_pair,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1666,6 +1672,14 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     equipment_model_role,
                     render_path_selection: render_path_selection.as_deref(),
                     inventory_boot_request: inventory_boot_request.as_deref(),
+                    package_route_request: package_route_request.as_deref().map(PathBuf::as_path),
+                    actor_reference_intent: actor_reference_intent.as_deref().map(PathBuf::as_path),
+                    actor_inventory_transfer: actor_inventory_transfer
+                        .as_deref()
+                        .map(PathBuf::as_path),
+                    actor_equipment_intent: actor_equipment_intent.as_deref().map(PathBuf::as_path),
+                    actor_context_batch: actor_context_batch.as_deref().map(PathBuf::as_path),
+                    actor_faction_pair: actor_faction_pair.as_deref().map(PathBuf::as_path),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;

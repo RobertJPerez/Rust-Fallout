@@ -111,6 +111,18 @@ pub(crate) enum ActorsCommand {
         render_path_selection: Option<PathBuf>,
         #[arg(long, requires = "explicit_subject")]
         inventory_boot_request: Option<PathBuf>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        package_route_request: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_reference_intent: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_inventory_transfer: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_equipment_intent: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_context_batch: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_faction_pair: Option<Box<PathBuf>>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {

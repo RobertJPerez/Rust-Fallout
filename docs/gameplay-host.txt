@@ -19,6 +19,11 @@ Receipts are retained without eviction until the host is dropped or publishes an
 admitted Continue. A full ledger
 refuses new requests while existing same-scene retries remain available.
 
+TransferResult::belongs_to_host checks issuing host/scene and exact retained
+request/receipt identity. Public observation fields cannot substitute a receipt
+from another command or host. matches_current_boundary also checks the committed
+revision: historical success cannot acknowledge a newer canonical boundary.
+
 advance_scene cancels prior scene selections without changing canonical state.
 Host identities and item handles expire across fresh restore. They are transient
 input guards, not a new durable request format. A saved inventory still comes from

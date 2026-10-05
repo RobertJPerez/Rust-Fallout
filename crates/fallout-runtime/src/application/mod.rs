@@ -137,6 +137,7 @@ pub struct TransferResult {
     pub request: NonZeroU64,
     pub replayed: bool,
     pub receipt: Arc<TransferReceipt>,
+    issued_request: NonZeroU64,
     host: HostIdentity,
     scene: NonZeroU64,
 }
@@ -146,6 +147,22 @@ impl TransferResult {
     }
     pub fn scene_generation(&self) -> NonZeroU64 {
         self.scene
+    }
+    /// This observation must name a receipt retained by the issuing host and
+    /// scene. Public request/receipt fields cannot substitute another result.
+    pub fn belongs_to_host(&self, host: &Host<'_>) -> bool {
+        self.request == self.issued_request
+            && self.host == host.identity()
+            && self.scene == host.scene_generation()
+            && host
+                .accepted
+                .get(&self.request)
+                .is_some_and(|accepted| Arc::ptr_eq(&accepted.receipt, &self.receipt))
+    }
+    /// A retained older commit remains historical success; it cannot acknowledge
+    /// the canonical revision produced by a later command or publication.
+    pub fn matches_current_boundary(&self, host: &Host<'_>) -> bool {
+        self.belongs_to_host(host) && self.receipt.after_revision() == host.world().revision()
     }
 }
 struct Accepted {
@@ -284,6 +301,7 @@ impl<'a> Host<'a> {
                 request: command.request,
                 replayed: true,
                 receipt: Arc::clone(&accepted.receipt),
+                issued_request: command.request,
                 host: self.identity(),
                 scene: self.scene,
             });
@@ -331,6 +349,7 @@ impl<'a> Host<'a> {
             request: command.request,
             replayed: false,
             receipt: Arc::clone(&receipt),
+            issued_request: command.request,
             host: self.identity(),
             scene: self.scene,
         };

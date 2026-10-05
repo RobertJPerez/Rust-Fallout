@@ -1,5 +1,24 @@
 # Resume here
 
+Robert requested closeout and STOP on October 5, then closed the other Codex
+sessions. Do not resume implementation, builders or preserved drafts without
+fresh authorization and a new valid control/assignment/lease check. The
+[closeout report](reports/closeout-2026-10-05.md) and
+[source/preservation ledger](docs/integration/team-v4-closeout.json) supersede
+the historical active-run notes below.
+
+The reviewed producer stack is integrated. Remaining event-prefix, scene/camera,
+cell-ticket, inventory, audio-device, dialogue and acceptance drafts are retained
+on named preservation branches. Their presence does not constitute tested
+feature completion. Fallout 4 and Skyrim preparation code is incorporated under
+`games/`, reusing the shared data library; gameplay support remains open.
+
+When Robert authorizes another run, first reconcile the preserved drafts against
+the closeout source, repair their documented failed or missing checks, and finish
+the actual connected renderer/input/collision/script/save consumer. Keep original
+isolation, full reference coverage, visible upload completion and physical input/
+audio evidence explicit. M1 is still unmet; checkpoint 45 is unchanged.
+
 The next unmet gate is **M1: trustworthy, semantically useful content loading**.
 The current tools build and run; the original games have not been recreated yet.
 Keep the entire master brief in scope and progress through its dependency gates.

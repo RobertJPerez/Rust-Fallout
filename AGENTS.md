@@ -1,5 +1,12 @@
 # Working together on Rust Fallout
 
+Robert's October 5 instruction is CLOSEOUT THEN STOP. He closed the other Codex
+sessions. No implementation task, build, preserved draft or old continuous-run
+directive may resume without fresh authorization. Root alone may complete the
+already authorized review, preservation, integration, documentation and GitHub
+publication, then must publish final stopped control. Read
+[the closeout report](reports/closeout-2026-10-05.md) before any future restart.
+
 Read [the thirteen-role plan](docs/agents/team-v4/team-plan.txt),
 [operating contract](docs/agents/team-v4/operating-contract.txt),
 [ownership map](docs/agents/team-v4/ownership.json),

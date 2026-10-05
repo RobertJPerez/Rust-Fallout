@@ -5,6 +5,26 @@ The full direction is preserved in [the master brief](docs/references/Fallout_Ru
 Original-game profiles come first; FO3/TTW, FO4, FO76 research, and a separate crossover
 profile remain in scope. Their runtime support is not implemented yet.
 
+The October 5 closeout integrates the reviewed v4 engine and behavior packages.
+The team is stopped at Robert's request. Unfinished lane drafts are preserved in
+`preserved/closeout-20261005/*` branches; see the
+[closeout report](reports/closeout-2026-10-05.md) for checks, exact source scope
+and remaining work. This is still an engineering runtime and inspection project;
+no original gameplay scenario has passed acceptance.
+
+The source now also contains the [Fallout 4 preparation adapter](games/fallout4/INTEGRATION.md)
+and [Skyrim preparation adapter](games/skyrim/INTEGRATION.md). Both reuse the
+shared `fallout-data` crate through a local path dependency, with separate
+lockfiles and game-specific formats. Their original source, research and evidence
+remain preserved in their original workspaces. Standard Cargo commands are:
+
+```powershell
+cargo test --locked --manifest-path games/fallout4/Cargo.toml --all-targets --jobs 1
+cargo test --locked --manifest-path games/skyrim/Cargo.toml --all-targets --jobs 1
+cargo run --locked --manifest-path games/fallout4/Cargo.toml --bin fallout4-prep -- --help
+cargo run --locked --manifest-path games/skyrim/Cargo.toml --bin skyrim-prep -- --help
+```
+
 **The content pipeline now renders a real interior.** It reads the installation
 directly, decodes scene geometry and material fields, resolves archived textures,
 and assembles Doc Mitchell's house from winning plugin references in Bevy. The CLI also provides corpus inspection,
@@ -72,8 +92,8 @@ and weights with bounded owner validation, partition payloads and decoded
 source-forest bindings; see [skin sources](docs/nif-skin.md).
 Their [integrated verification](docs/source-lane-verification.md) binds both
 worker slices to a fixed source revision and independent native readers.
-[Checkpoint 45](reports/checkpoint-45.md) is published; the team is active
-under the current control file, with later work preserved separately.
+[Checkpoint 45](reports/checkpoint-45.md) remains the latest verified checkpoint.
+The current control file records the team's stopped state.
 Retail rendering, physics, player simulation, combat, dialogue, the script VM and
 saves remain unfinished. No campaign or gameplay scenario has passed acceptance.
 

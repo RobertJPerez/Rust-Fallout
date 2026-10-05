@@ -144,6 +144,24 @@ fn bounds_keep_raw_duplicate_nonunit_zero_terms_and_refuse_zero_total_or_nonfini
     let bytes = container(&blocks, &[0]);
     let mut selected = bounds_request(&bytes, bounds::Pose::Stored);
     assert!(bounds::evaluate(&bytes, "unit", selected, Default::default()).is_err());
+    let mut negative_blocks = fixture();
+    negative_blocks[5].1 = skin(&[vec![(0, -0.25), (1, 1.)], vec![(0, 1.), (2, 1.)]], None);
+    let negative_bytes = container(&negative_blocks, &[0]);
+    let mut negative_request = bounds_request(&negative_bytes, bounds::Pose::Stored);
+    negative_request.skin.weights = WeightPolicy::PreserveRawNonnegative;
+    let negative_error = bounds::evaluate(
+        &negative_bytes,
+        "negative bounds weight",
+        negative_request,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        negative_error
+            .to_string()
+            .contains("negative or nonfinite raw weight"),
+        "{negative_error}"
+    );
     selected.skin.weights = WeightPolicy::PreserveRawNonnegative;
     let with_normals = bounds::evaluate(&bytes, "raw", selected, Default::default()).unwrap();
     assert_eq!(with_normals.coordinates.min, [-3.5, -0.5, 0.5]);

@@ -594,3 +594,20 @@ summary is `local/v4-evidence/actors-01-team-v4-20261004-20261004T222612Z-0f8c3e
 These are authored-fixture/source-reader results only: retail parity remains
 unaccepted, current faction membership and reaction evaluation remain unsupported,
 and gameplay scenarios accepted remains zero.
+
+### Dialogue speaker context inputs (actors-07)
+
+dialogue_context::Requests requires an explicitly selected winning INFO and
+explicit current speaker/target reference IDs. It accepts exactly one physical
+ANAM speaker field, verifies its winning actor source, and joins that actor key
+to the speaker reference's fresh ACT15 context before gathering authored stat
+template candidates and directed faction/relationship inputs. A mismatch,
+missing/deleted/wrong-kind speaker, or repeated ANAM refuses.
+
+These are source inputs for a future dialogue consumer. Stat candidates remain
+unevaluated, current actor values are absent, faction template selection and
+effective membership remain unsupported, and relationship modifiers are not
+evaluated. Response membership/order, CTDA truth, scripts, eligibility, and
+original dialogue behavior remain open; dialogue_eligibility_supported and
+response_selection_supported are false. This producer does not initialize or
+mutate canonical actor state.

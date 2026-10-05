@@ -2,6 +2,7 @@
 //! Source declarations do not establish retail initialization or AI behavior.
 pub mod context;
 pub mod context_batch;
+pub mod dialogue_context;
 pub mod equipment;
 pub mod equipment_intent;
 pub mod equipment_render;

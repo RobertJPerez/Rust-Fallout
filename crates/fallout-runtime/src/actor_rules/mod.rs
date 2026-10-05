@@ -8,4 +8,5 @@ pub mod initialization_inputs;
 pub mod inventory_boot;
 pub mod packages;
 pub mod render_context;
+pub mod spawn_state;
 pub mod stats;

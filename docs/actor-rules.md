@@ -293,6 +293,31 @@ the full independent reader and refuse execution. They retain 230 fields,
 original plugin/descriptor inputs and eight private tool/snapshot/order inputs
 keep their hashes. Evidence and earlier harness/oracle failures remain under
 `local/v3-act13-capability-20261004-01`; no gameplay behavior is accepted.
+
+# Source-backed placed actor spawn inputs
+
+`actor_rules::spawn_state::Requests::prepare` joins one existing canonical
+reference through the actor context consumer, resolves its authored ACHR/ACRE
+placement to the winning NPC_/CREA base, and combines the existing race/class
+initialization-input and template/stat requests. It also publishes every
+physical CNTO occurrence with its signed source count, attached COED fields,
+binding status and winning item identity when that identity is available.
+
+Direct item definitions are reported as source resolution only. LVLI/LVLC/LVLN
+entries retain `leveled_selection_required`; missing, deleted, null and
+wrong-kind entries keep explicit reasons. ARMO/ARMA/WEAP kinds are exposed as
+possible equipment candidates when their direct winner is resolved. This does
+not select an item count, interpret COED, create inventory, choose equipped
+state, or evaluate template inheritance and current actor values. The aggregate
+keeps actor initialization, inventory initialization and equipment selection
+unsupported until their source behavior is admitted. All subrequests remain
+campaign/cohort-bound and the complete projection is byte-bounded.
+
+The authored fixture verifies the placement-to-base join, race/class links,
+direct armor and leveled-list inventory entries, exact signed counts and COED
+retention. It confirms that host state is unchanged and that an undersized item
+budget refuses before an observation is published.
+
 # Private engineering actor inventory boot
 
 `actor_rules::inventory_boot::prepare` admits a current source-bound World,

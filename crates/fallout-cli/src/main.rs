@@ -1227,6 +1227,7 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             engineering_local_copy,
             snapshot_copy_request,
             snapshot_copy_batch_request,
+            snapshot_multi_copy_request,
             snapshot_foreign_copy_request,
             snapshot_reference_copy_request,
             reference_boot_request,
@@ -1379,6 +1380,26 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
                 if report["outcome"]["status"] != "engineering_observation" {
                     return Err(
                         "Saved native plan retains unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
+            if let Some(request) = snapshot_multi_copy_request {
+                let report = event_operand_inspection::copy_saved_multi_owned(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_multi_copy"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved named multi-copy remains unsupported; see engineering report".into(),
                     );
                 }
                 return Ok(());

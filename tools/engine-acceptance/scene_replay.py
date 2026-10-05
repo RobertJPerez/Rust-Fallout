@@ -24,6 +24,7 @@ import zlib
 
 SCHEMA_VERSION = 1
 TOOL_VERSION = "scene-replay-1"
+MAX_JSON_BYTES = 64 * 1024 * 1024
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_FILES = (
     "Cargo.toml",
@@ -116,14 +117,22 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def read_json(path: Path) -> object:
     try:
+        if path.stat().st_size > MAX_JSON_BYTES:
+            raise AcceptanceError(f"JSON file exceeds the {MAX_JSON_BYTES}-byte input budget: {path}")
+        with path.open("rb") as stream:
+            data = stream.read(MAX_JSON_BYTES + 1)
+        if len(data) > MAX_JSON_BYTES:
+            raise AcceptanceError(f"JSON file exceeds the {MAX_JSON_BYTES}-byte input budget: {path}")
         return json.loads(
-            path.read_text(encoding="utf-8"),
+            data.decode("utf-8"),
             object_pairs_hook=_unique_object,
             parse_constant=lambda value: (_ for _ in ()).throw(
                 AcceptanceError(f"Non-finite JSON number: {value}")
             ),
         )
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+    except AcceptanceError:
+        raise
+    except (OSError, UnicodeError, ValueError) as error:
         raise AcceptanceError(f"Cannot read JSON {path}: {error}") from error
 
 
@@ -155,6 +164,33 @@ def _string(value: object, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise AcceptanceError(f"{name} must be a non-empty string")
     return value
+
+
+def _integer(
+    value: object, name: str, minimum: int | None = None, maximum: int | None = None
+) -> int:
+    if type(value) is not int:
+        raise AcceptanceError(f"{name} must be an integer")
+    if minimum is not None and value < minimum:
+        raise AcceptanceError(f"{name} must be at least {minimum}")
+    if maximum is not None and value > maximum:
+        raise AcceptanceError(f"{name} must be at most {maximum}")
+    return value
+
+
+def _strict_json_equal(left: object, right: object) -> bool:
+    """Compare JSON values without Python's bool/int or int/float coercions."""
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _strict_json_equal(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _strict_json_equal(a, b) for a, b in zip(left, right)
+        )
+    return left == right
 
 
 def _sha256(value: object, name: str) -> str:
@@ -238,15 +274,24 @@ def attach_failed_artifacts(
         row["artifact_errors"] = errors
 
 
-def validate_file_record(root: Path, record: object, started_ns: int, finished_ns: int, name: str) -> Path:
+def validate_file_record(
+    root: Path,
+    record: object,
+    started_ns: int,
+    finished_ns: int,
+    name: str,
+    allow_empty: bool = False,
+) -> Path:
     row = _object(record, name)
     path = _safe_child(root, row.get("path"), name)
     if not path.is_file():
         raise AcceptanceError(f"{name} is missing: {row.get('path')}")
     stat = path.stat()
-    if stat.st_size != row.get("bytes") or stat.st_size <= 0:
+    recorded_bytes = _integer(row.get("bytes"), f"{name}.bytes", minimum=0 if allow_empty else 1)
+    if stat.st_size != recorded_bytes:
         raise AcceptanceError(f"{name} length changed or is empty")
-    if stat.st_mtime_ns != row.get("mtime_ns"):
+    recorded_mtime = _integer(row.get("mtime_ns"), f"{name}.mtime_ns", minimum=1)
+    if stat.st_mtime_ns != recorded_mtime:
         raise AcceptanceError(f"{name} timestamp changed after capture")
     if stat.st_mtime_ns < started_ns or stat.st_mtime_ns > finished_ns:
         raise AcceptanceError(f"{name} is stale or outside its run interval")
@@ -257,12 +302,14 @@ def validate_file_record(root: Path, record: object, started_ns: int, finished_n
 
 def validate_capture_config(config: object) -> list[dict]:
     doc = _object(config, "scenario config")
-    if doc.get("schema_version") != 1:
+    if _integer(doc.get("schema_version"), "scenario config.schema_version") != 1:
         raise AcceptanceError("scenario config schema_version must be 1")
     _string(doc.get("cell_editor_id"), "cell_editor_id")
     viewport = doc.get("viewport", {"width": 1280, "height": 900})
     viewport = _object(viewport, "viewport")
-    if viewport.get("width") != 1280 or viewport.get("height") != 900:
+    width = _integer(viewport.get("width"), "viewport.width")
+    height = _integer(viewport.get("height"), "viewport.height")
+    if width != 1280 or height != 900:
         raise AcceptanceError("This preview host captures cells at exactly 1280x900")
     runs = doc.get("runs")
     if not isinstance(runs, list) or not runs:
@@ -283,12 +330,8 @@ def validate_capture_config(config: object) -> list[dict]:
         if position == target:
             raise AcceptanceError(f"{run_id}: camera position and target must differ")
         tolerance = _object(row.get("image_tolerance", {}), f"runs[{index}].image_tolerance")
-        max_delta = tolerance.get("max_channel_delta", 0)
-        max_pixels = tolerance.get("max_changed_pixels", 0)
-        if isinstance(max_delta, bool) or not isinstance(max_delta, int) or not 0 <= max_delta <= 255:
-            raise AcceptanceError(f"{run_id}: max_channel_delta must be an integer from 0 to 255")
-        if isinstance(max_pixels, bool) or not isinstance(max_pixels, int) or max_pixels < 0:
-            raise AcceptanceError(f"{run_id}: max_changed_pixels must be a non-negative integer")
+        max_delta = _integer(tolerance.get("max_channel_delta", 0), f"{run_id}.max_channel_delta", 0, 255)
+        max_pixels = _integer(tolerance.get("max_changed_pixels", 0), f"{run_id}.max_changed_pixels", 0)
         required = row.get("required", True)
         if not isinstance(required, bool):
             raise AcceptanceError(f"{run_id}: required must be boolean")
@@ -358,7 +401,9 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
         (snapshot.get("completed_models"), snapshot.get("requested_models"), "models"),
         (snapshot.get("completed_textures"), snapshot.get("requested_textures"), "textures"),
     ):
-        if not isinstance(completed, int) or not isinstance(requested, int) or completed != requested:
+        completed = _integer(completed, f"completed {label}", 0)
+        requested = _integer(requested, f"requested {label}", 0)
+        if completed != requested:
             raise AcceptanceError(f"Cell {label} did not complete every requested resource job")
 
     models = []
@@ -406,8 +451,8 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
             raise AcceptanceError(
                 f"Selected model resource was not observed: {row['path']}: {row['error'] or 'no report'}"
             )
-        model_index = row["model_index"]
-        if not isinstance(model_index, int) or model_index < 0 or model_index in model_by_index:
+        model_index = _integer(row["model_index"], f"models[{index}].model_index", 0)
+        if model_index in model_by_index:
             raise AcceptanceError(f"Invalid or duplicate model index: {model_index}")
         model_by_index[model_index] = row
         models.append(row)
@@ -416,10 +461,12 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
     placement_rows = []
     for index, raw in enumerate(placements):
         placement = _object(raw, f"placements[{index}]")
-        key = placement.get("key")
+        key = _object(placement.get("key"), f"placements[{index}].key")
         model_index = placement.get("model")
-        if model_index is not None and model_index not in model_by_index:
-            raise AcceptanceError(f"Placement references missing model index {model_index}")
+        if model_index is not None:
+            model_index = _integer(model_index, f"placements[{index}].model", 0)
+            if model_index not in model_by_index:
+                raise AcceptanceError(f"Placement references missing model index {model_index}")
         pose_rows.append({
             "key": key,
             "source_affine": placement.get("source_affine"),
@@ -715,6 +762,9 @@ def pixels_differ_from_first(pixels: bytes) -> int:
 
 
 def compare_png(expected_path: Path, actual_path: Path, tolerance: dict) -> dict:
+    tolerance = _object(tolerance, "image tolerance")
+    max_channel_delta = _integer(tolerance.get("max_channel_delta"), "max_channel_delta", 0, 255)
+    max_changed_pixels = _integer(tolerance.get("max_changed_pixels"), "max_changed_pixels", 0)
     expected_width, expected_height, expected = read_rgb_png(expected_path)
     actual_width, actual_height, actual = read_rgb_png(actual_path)
     if (expected_width, expected_height) != (actual_width, actual_height):
@@ -732,13 +782,13 @@ def compare_png(expected_path: Path, actual_path: Path, tolerance: dict) -> dict
         )
         max_delta = max(max_delta, *deltas)
         changed_pixels += int(any(delta != 0 for delta in deltas))
-    if max_delta > tolerance["max_channel_delta"]:
+    if max_delta > max_channel_delta:
         raise AcceptanceError(
-            f"Image maximum channel delta {max_delta} exceeds {tolerance['max_channel_delta']}"
+            f"Image maximum channel delta {max_delta} exceeds {max_channel_delta}"
         )
-    if changed_pixels > tolerance["max_changed_pixels"]:
+    if changed_pixels > max_changed_pixels:
         raise AcceptanceError(
-            f"Image changed pixels {changed_pixels} exceeds {tolerance['max_changed_pixels']}"
+            f"Image changed pixels {changed_pixels} exceeds {max_changed_pixels}"
         )
     return {
         "width": actual_width,
@@ -756,13 +806,17 @@ def validate_completion(manifest: object) -> dict[str, int | str]:
     results = doc.get("scenarios")
     if not isinstance(results, list) or not results:
         raise AcceptanceError("Capture manifest has no per-run results")
-    required = [row for row in results if _object(row, "scenario result").get("required") is True]
+    rows = [_object(row, f"scenarios[{index}]") for index, row in enumerate(results)]
+    for index, row in enumerate(rows):
+        if not isinstance(row.get("required"), bool):
+            raise AcceptanceError(f"scenarios[{index}].required must be boolean")
+    required = [row for row in rows if row["required"] is True]
     if not required:
         raise AcceptanceError("Capture manifest has no required scenarios")
-    ids = [row.get("id") for row in results]
+    ids = [row.get("id") for row in rows]
     if any(not isinstance(item, str) or not item for item in ids) or len(set(ids)) != len(ids):
         raise AcceptanceError("Scenario result ids must be unique non-empty strings")
-    states = [row.get("state") for row in required]
+    states = [_string(row.get("state"), f"scenario {row.get('id')} state") for row in required]
     if all(state == "skipped" for state in states):
         raise AcceptanceError("An all-skipped run cannot pass")
     completed = sum(state == "completed" for state in states)
@@ -774,12 +828,13 @@ def validate_completion(manifest: object) -> dict[str, int | str]:
     declared = doc.get("completion")
     if declared is not None:
         declared = _object(declared, "completion")
-        if (
-            declared.get("required") != len(required)
-            or declared.get("completed") != completed
-            or declared.get("failed") != failed
-            or declared.get("skipped") != skipped
-            or declared.get("state") != state
+        declared_required = _integer(declared.get("required"), "completion.required", 0)
+        declared_completed = _integer(declared.get("completed"), "completion.completed", 0)
+        declared_failed = _integer(declared.get("failed"), "completion.failed", 0)
+        declared_skipped = _integer(declared.get("skipped"), "completion.skipped", 0)
+        declared_state = _string(declared.get("state"), "completion.state")
+        if (declared_required, declared_completed, declared_failed, declared_skipped, declared_state) != (
+            len(required), completed, failed, skipped, state
         ):
             raise AcceptanceError("Aggregate completion disagrees with per-run results")
     return {"state": state, "required": len(required), "completed": completed, "failed": failed, "skipped": skipped}
@@ -787,7 +842,9 @@ def validate_completion(manifest: object) -> dict[str, int | str]:
 
 def validate_manifest_files(manifest_path: Path, manifest: object) -> dict[str, Path]:
     doc = _object(manifest, "capture manifest")
-    if doc.get("schema_version") != SCHEMA_VERSION or doc.get("tool_version") != TOOL_VERSION:
+    schema_version = _integer(doc.get("schema_version"), "manifest.schema_version")
+    tool_version = _string(doc.get("tool_version"), "manifest.tool_version")
+    if schema_version != SCHEMA_VERSION or tool_version != TOOL_VERSION:
         raise AcceptanceError("Capture manifest schema or harness version is unsupported")
     summary = validate_completion(doc)
     if summary["state"] != "complete":
@@ -807,25 +864,27 @@ def validate_manifest_files(manifest_path: Path, manifest: object) -> dict[str, 
         interval = _object(interval, "scenario interval")
         start = interval.get("started_ns")
         finish = interval.get("finished_ns")
-        if not isinstance(start, int) or not isinstance(finish, int) or start <= 0 or finish < start:
-            raise AcceptanceError(f"Invalid capture interval for {scenario.get('id')}")
+        start = _integer(start, f"{scenario.get('id')}.interval.started_ns", 1)
+        finish = _integer(finish, f"{scenario.get('id')}.interval.finished_ns", start)
         files = _object(scenario.get("files"), "scenario files")
         image_path = validate_file_record(root, files.get("image"), start, finish, "image")
         report_path = validate_file_record(root, files.get("report"), start, finish, "report")
         validate_file_record(root, files.get("log"), start, finish, "log", allow_empty=True)
         width, height, _ = read_rgb_png(image_path)
         image_meta = _object(scenario.get("image"), "image metadata")
-        if image_meta.get("width") != width or image_meta.get("height") != height:
+        image_width = _integer(image_meta.get("width"), f"{scenario.get('id')}.image.width", 1)
+        image_height = _integer(image_meta.get("height"), f"{scenario.get('id')}.image.height", 1)
+        if image_width != width or image_height != height:
             raise AcceptanceError(f"Image dimensions disagree with receipt for {scenario.get('id')}")
         if sha256_file(report_path) != scenario.get("report_sha256"):
             raise AcceptanceError(f"Scene report digest changed for {scenario.get('id')}")
         evidence = scene_evidence(read_json(report_path), cell_editor_id, load_order_sha)
-        if evidence != scenario.get("evidence"):
+        if not _strict_json_equal(evidence, scenario.get("evidence")):
             raise AcceptanceError(f"Scene evidence projection changed for {scenario.get('id')}")
         image_meta = _object(scenario.get("image"), "image metadata")
         camera_request = _object(scenario.get("camera_request"), "camera request")
         expected_observations = scene_observations(evidence, camera_request, image_meta)
-        if expected_observations != scenario.get("observations"):
+        if not _strict_json_equal(expected_observations, scenario.get("observations")):
             raise AcceptanceError(f"Observation statuses changed for {scenario.get('id')}")
         paths[scenario["id"]] = image_path, report_path
     return paths
@@ -833,7 +892,7 @@ def validate_manifest_files(manifest_path: Path, manifest: object) -> dict[str, 
 
 def compare_scene_evidence(expected: dict, actual: dict) -> None:
     for field in ("cell", "inputs", "camera_origin", "coordinates", "scene_report", "poses", "resources"):
-        if expected.get(field) != actual.get(field):
+        if not _strict_json_equal(expected.get(field), actual.get(field)):
             raise AcceptanceError(f"Frozen scene {field} changed")
 
 
@@ -844,13 +903,13 @@ def compare_capture_manifests(expected_path: Path, actual_path: Path) -> dict:
     actual_files = validate_manifest_files(actual_path, actual)
     completion = validate_completion(actual)
     failures = []
-    if expected.get("source") != actual.get("source"):
+    if not _strict_json_equal(expected.get("source"), actual.get("source")):
         failures.append("source manifest changed")
-    if expected.get("binary") != actual.get("binary"):
+    if not _strict_json_equal(expected.get("binary"), actual.get("binary")):
         failures.append("binary identity changed")
-    if expected.get("config_sha256") != actual.get("config_sha256"):
+    if not _strict_json_equal(expected.get("config_sha256"), actual.get("config_sha256")):
         failures.append("scenario input changed")
-    if expected.get("load_order_file") != actual.get("load_order_file"):
+    if not _strict_json_equal(expected.get("load_order_file"), actual.get("load_order_file")):
         failures.append("load-order input changed")
     expected_rows = {row["id"]: row for row in expected.get("scenarios", [])}
     actual_rows = {row["id"]: row for row in actual.get("scenarios", [])}
@@ -863,9 +922,9 @@ def compare_capture_manifests(expected_path: Path, actual_path: Path) -> dict:
         new = actual_rows[scenario_id]
         checks = []
         try:
-            if old.get("required") != new.get("required"):
+            if not _strict_json_equal(old.get("required"), new.get("required")):
                 raise AcceptanceError("scenario required flag changed")
-            if old.get("camera_request") != new.get("camera_request"):
+            if not _strict_json_equal(old.get("camera_request"), new.get("camera_request")):
                 raise AcceptanceError("camera request changed")
             compare_scene_evidence(_object(old.get("evidence"), "expected evidence"), _object(new.get("evidence"), "actual evidence"))
             pixel_result = compare_png(

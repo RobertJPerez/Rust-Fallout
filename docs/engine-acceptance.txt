@@ -57,6 +57,12 @@ poses, resource manifest, and pixels match that candidate. A changed pose or
 missing model/texture resource fails the frozen assertion. This tests replay
 stability; it does not validate retail behavior.
 
+Verification bounds each JSON input to 64 MiB, rejects malformed scenario and
+resource rows with structured acceptance errors, and validates integer fields
+without accepting JSON booleans as numbers. Frozen JSON values are compared by
+type as well as value. Empty logs are valid artifacts when their path, size,
+digest, timestamp, and run interval all match the manifest.
+
 Observation states remain explicit. The current host provides a PNG, source
 placement transforms, input camera coordinates, and model/texture/residency
 reports. It does not report the applied camera transform, a canonical player

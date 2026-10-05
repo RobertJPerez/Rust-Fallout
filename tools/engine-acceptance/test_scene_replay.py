@@ -7,6 +7,7 @@ import struct
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 import zlib
 
 
@@ -122,6 +123,61 @@ def sample_report() -> dict:
     }
 
 
+def write_complete_manifest(root: Path) -> Path:
+    report = sample_report()
+    report_path = root / "view.json"
+    image_path = root / "view.png"
+    log_path = root / "view.log"
+    report_path.write_bytes(scene_replay.canonical_json(report) + b"\n")
+    pixels = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
+    image_path.write_bytes(rgb_png(2, 2, pixels))
+    log_path.write_bytes(b"")
+    started_ns = min(path.stat().st_mtime_ns for path in (report_path, image_path, log_path)) - 1
+    finished_ns = time.time_ns() + 1_000_000
+    files = {
+        "report": scene_replay._file_record(report_path, root, started_ns, finished_ns),
+        "image": scene_replay._file_record(image_path, root, started_ns, finished_ns),
+        "log": scene_replay._file_record(log_path, root, started_ns, finished_ns, allow_empty=True),
+    }
+    load_order_sha = "a" * 64
+    evidence = scene_replay.scene_evidence(report, "GSDocMitchellHouse", load_order_sha)
+    camera_request = {"source_position": [1.0, 2.0, 3.0], "source_target": [4.0, 5.0, 6.0]}
+    image = {
+        "width": 2,
+        "height": 2,
+        "sha256": scene_replay.sha256_file(image_path),
+        "pixels_differing_from_first": scene_replay.pixels_differ_from_first(pixels),
+    }
+    scenario = {
+        "id": "view",
+        "required": True,
+        "state": "completed",
+        "interval": {"started_ns": started_ns, "finished_ns": finished_ns},
+        "files": files,
+        "report_sha256": scene_replay.sha256_file(report_path),
+        "image": image,
+        "image_tolerance": {"max_channel_delta": 0, "max_changed_pixels": 0},
+        "camera_request": camera_request,
+        "evidence": evidence,
+        "observations": scene_replay.scene_observations(evidence, camera_request, image),
+    }
+    manifest = {
+        "schema_version": scene_replay.SCHEMA_VERSION,
+        "tool_version": scene_replay.TOOL_VERSION,
+        "run_id": "complete-self-compare",
+        "cell_editor_id": "GSDocMitchellHouse",
+        "load_order_file": {"path": "load-order.txt", "sha256": load_order_sha},
+        "source": {"tree_sha256": "b" * 64},
+        "binary": {"path": "preview.exe", "sha256": "c" * 64, "bytes": 1},
+        "config_sha256": "d" * 64,
+        "scenarios": [scenario],
+        "completion": {"state": "complete", "required": 1, "completed": 1, "failed": 0, "skipped": 0},
+    }
+    manifest_path = root / "manifest.json"
+    manifest_path.write_bytes(scene_replay.canonical_json(manifest) + b"\n")
+    return manifest_path
+
+
 class SceneReportMutationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.expected = scene_replay.scene_evidence(sample_report(), "GSDocMitchellHouse", "a" * 64)
@@ -152,6 +208,24 @@ class SceneReportMutationTests(unittest.TestCase):
         changed_report["placements"] = []
         with self.assertRaisesRegex(scene_replay.AcceptanceError, "no observed model placements"):
             scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+
+    def test_boolean_resource_count_is_not_an_integer_count(self) -> None:
+        changed_report = sample_report()
+        changed_report["source_residency"]["completed_models"] = True
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "completed models must be an integer"):
+            scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+
+    def test_array_placement_model_index_is_a_structured_refusal(self) -> None:
+        changed_report = sample_report()
+        changed_report["placements"][0]["model"] = []
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, r"placements\[0\].model must be an integer"):
+            scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+
+    def test_json_comparison_does_not_treat_boolean_as_integer(self) -> None:
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "Frozen scene cell changed"):
+            scene_replay.compare_scene_evidence(
+                {"cell": {"count": 1}}, {"cell": {"count": True}}
+            )
 
     def test_zero_visible_render_count_is_not_scene_evidence(self) -> None:
         changed_report = sample_report()
@@ -197,6 +271,24 @@ class CompletionAndObservationTests(unittest.TestCase):
         self.assertEqual(completion["completed"], 1)
         self.assertEqual(completion["failed"], 1)
 
+    def test_boolean_manifest_schema_is_not_schema_version_one(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            with self.assertRaisesRegex(scene_replay.AcceptanceError, "manifest.schema_version must be an integer"):
+                scene_replay.validate_manifest_files(path, {"schema_version": True})
+
+    def test_boolean_scenario_config_schema_is_not_schema_version_one(self) -> None:
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "scenario config.schema_version must be an integer"):
+            scene_replay.validate_capture_config({"schema_version": True})
+
+    def test_boolean_completion_count_is_not_an_integer_count(self) -> None:
+        manifest = {
+            "scenarios": [{"id": "one", "required": True, "state": "completed"}],
+            "completion": {"required": 1, "completed": True, "failed": 0, "skipped": 0, "state": "complete"},
+        }
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "completion.completed must be an integer"):
+            scene_replay.validate_completion(manifest)
+
     def test_absent_observations_are_not_reported_as_passes(self) -> None:
         evidence = scene_replay.scene_evidence(sample_report(), "GSDocMitchellHouse", "a" * 64)
         observations = scene_replay.scene_observations(
@@ -238,6 +330,21 @@ class CompletionAndObservationTests(unittest.TestCase):
 
 
 class ImageAndFreshnessTests(unittest.TestCase):
+    def test_complete_manifest_compares_against_itself_with_empty_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = write_complete_manifest(Path(directory))
+            result = scene_replay.compare_capture_manifests(manifest, manifest)
+            self.assertEqual(result["harness_status"], "pass", result["failures"])
+            self.assertEqual(result["scenarios"][0]["status"], "pass")
+
+    def test_json_size_budget_is_checked_before_read(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "oversized.json"
+            path.write_bytes(b"{}")
+            with patch.object(scene_replay, "MAX_JSON_BYTES", 1):
+                with self.assertRaisesRegex(scene_replay.AcceptanceError, "exceeds the 1-byte input budget"):
+                    scene_replay.read_json(path)
+
     def test_failed_run_keeps_fresh_artifact_receipts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

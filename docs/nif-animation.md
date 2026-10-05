@@ -1269,6 +1269,8 @@ The sampled object must be the explicit socket node. Both whole-source SHA256
 values, exact node ID/raw name, selected controller/time words and original spans
 remain bound. Neither a caller-supplied `ObjectPose` nor an arbitrary matrix may
 replace the internal source animation evaluation.
+Both stored and sampled CLI requests require an explicit finite
+`attachment_parent_to_node` mapping; omitting it fails request decoding.
 
 The existing pose evaluator transfers its decoded skeleton index and Scene only
 through a private helper. The adapter decodes the attachment Scene once and calls

@@ -1901,6 +1901,47 @@ mod tests {
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    #[test]
+    fn attachment_requests_require_explicit_parent_mapping() {
+        let mut request = json!({
+            "schema_version": 1,
+            "expected_skeleton_sha256": vec![0u8; 32],
+            "expected_attachment_sha256": vec![0u8; 32],
+            "node": 0,
+            "node_name_bytes": [115, 111, 99, 107, 101, 116],
+            "attachment_root": 0,
+            "source_policy": "stored_ni_av_locals"
+        });
+        let error = serde_json::from_value::<AttachmentRequest>(request.clone())
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("missing field `attachment_parent_to_node`"));
+
+        let stored_mapping = json!([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0]
+        ]);
+        request["attachment_parent_to_node"] = stored_mapping.clone();
+        assert!(serde_json::from_value::<AttachmentRequest>(request.clone()).is_ok());
+
+        request["object"] = json!(0);
+        request["controller"] = json!(1);
+        request["source_time"] = json!(0.0);
+        let mut sampled = request.clone();
+        sampled
+            .as_object_mut()
+            .unwrap()
+            .remove("attachment_parent_to_node");
+        let error = serde_json::from_value::<SampledAttachmentRequest>(sampled)
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("missing field `attachment_parent_to_node`"));
+        assert!(serde_json::from_value::<SampledAttachmentRequest>(request).is_ok());
+    }
+
     fn compact_pose_source() -> Vec<u8> {
         const NULL: u32 = u32::MAX;
         const NAME: &[u8] = b"Compact Node\0\xff";

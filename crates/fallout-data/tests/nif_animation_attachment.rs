@@ -834,3 +834,267 @@ fn sampled_attachment_keeps_stored_reference_exact_and_time_bits_distinct_withou
         17f32.to_bits()
     );
 }
+
+#[test]
+#[ignore = "Requires the retained first-person skeleton and razor source blobs plus a new local evidence directory"]
+fn capture_original_first_person_weapon_attachment_sources() {
+    use fallout_data::nif_scene::{self, ObjectKind};
+    use serde_json::json;
+    use std::{
+        fs::OpenOptions,
+        io::Write,
+        path::{Path, PathBuf},
+    };
+
+    const SKELETON_SHA256: &str =
+        "3fe5a3ef9718c8bff773b328c93bf6e522e85b16afd0de1b9af33cfba550b121";
+    const WEAPON_SHA256: &str = "facb4a340f34c7217efb359390e3ff78613c56ca8eff3ecab2bd99feffc76b79";
+    const SELECTED_NODE: u32 = 12;
+    const NODE_CONTROLLER: u32 = 13;
+    const EXPLICIT_PARENT_TO_NODE: Affine = [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]];
+    let limits = Limits::default();
+
+    let skeleton_input = PathBuf::from(
+        std::env::var("ASSET_ATTACHMENT_SKELETON_BLOB").expect("explicit skeleton blob required"),
+    );
+    let weapon_input = PathBuf::from(
+        std::env::var("ASSET_ATTACHMENT_WEAPON_BLOB").expect("explicit weapon blob required"),
+    );
+    let output = PathBuf::from(
+        std::env::var("ASSET_ATTACHMENT_EVIDENCE").expect("new evidence directory required"),
+    );
+    assert!(output.is_absolute(), "evidence path must be absolute");
+    let local = std::env::current_dir()
+        .unwrap()
+        .join("../../local")
+        .canonicalize()
+        .unwrap();
+    let parent = output.parent().unwrap().canonicalize().unwrap();
+    assert!(
+        parent.starts_with(&local),
+        "evidence must stay in this lane's local tree"
+    );
+    std::fs::create_dir(&output).unwrap();
+    let inputs = output.join("inputs");
+    std::fs::create_dir(&inputs).unwrap();
+
+    let read_exact_source = |path: &Path, expected: &str| {
+        let bytes = std::fs::read(path).unwrap();
+        assert!(
+            bytes.len() <= 64 * 1024 * 1024,
+            "source input exceeds per-file cap"
+        );
+        assert_eq!(format!("{:x}", Sha256::digest(&bytes)), expected);
+        bytes
+    };
+    let skeleton_bytes = read_exact_source(&skeleton_input, SKELETON_SHA256);
+    let weapon_bytes = read_exact_source(&weapon_input, WEAPON_SHA256);
+    assert!(skeleton_bytes.len() + weapon_bytes.len() <= limits.combined_input_bytes);
+
+    for (name, bytes) in [
+        ("first-person-skeleton.nif", &skeleton_bytes),
+        ("first-person-straight-razor.nif", &weapon_bytes),
+    ] {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(inputs.join(name))
+            .unwrap();
+        file.write_all(bytes).unwrap();
+    }
+
+    let (skeleton_index, skeleton_scene) = nif_scene::decode_with_limits(
+        &skeleton_bytes,
+        "Fallout - Meshes.bsa:meshes\\characters\\_1stperson\\skeleton.nif",
+        limits.scene,
+    )
+    .unwrap();
+    let (weapon_index, weapon_scene) = nif_scene::decode_with_limits(
+        &weapon_bytes,
+        "Fallout - Meshes.bsa:meshes\\weapons\\1handmelee\\1stpersonstraightrazor.nif",
+        limits.scene,
+    )
+    .unwrap();
+    let selected_node = skeleton_scene
+        .objects
+        .iter()
+        .find(|object| object.block == SELECTED_NODE)
+        .expect("retained selected source node must decode");
+    assert!(matches!(&selected_node.kind, ObjectKind::Node { .. }));
+    assert_eq!(selected_node.controller, Some(NODE_CONTROLLER));
+    let node_name = skeleton_index.strings[selected_node.name.unwrap() as usize].clone();
+    assert_eq!(node_name.as_slice(), b"Bip01 Rotate");
+    let node_world = skeleton_scene
+        .world_transforms
+        .iter()
+        .find(|world| world.block == SELECTED_NODE)
+        .expect("selected node must have a source-world transform");
+    assert!(node_world.reachable_from_footer);
+
+    let weapon_roots: Vec<u32> = weapon_index.roots.iter().flatten().copied().collect();
+    assert_eq!(
+        weapon_roots.len(),
+        1,
+        "weapon footer root must be unambiguous"
+    );
+    let weapon_root_id = weapon_roots[0];
+    let weapon_root = weapon_scene
+        .objects
+        .iter()
+        .find(|object| object.block == weapon_root_id)
+        .expect("weapon footer root must decode");
+    assert!(matches!(&weapon_root.kind, ObjectKind::Node { .. }));
+
+    let request = Request {
+        expected_skeleton_sha256: Sha256::digest(&skeleton_bytes).into(),
+        expected_attachment_sha256: Sha256::digest(&weapon_bytes).into(),
+        node: SELECTED_NODE,
+        node_name_bytes: &node_name,
+        attachment_root: weapon_root_id,
+        attachment_parent_to_node: EXPLICIT_PARENT_TO_NODE,
+        source_policy: SourcePolicy::StoredNiAvLocals,
+    };
+    let result = attachment::evaluate(
+        &skeleton_bytes,
+        &weapon_bytes,
+        "retained first-person attachment pair",
+        request,
+        limits,
+    )
+    .unwrap();
+    assert_eq!(result.skeleton_path[0].source.block, SELECTED_NODE);
+    assert_eq!(
+        result.skeleton_path[0].unapplied_controller,
+        Some(NODE_CONTROLLER)
+    );
+    assert_eq!(result.skeleton_path.last().unwrap().parent, None);
+    assert!(result.skeleton_path.len() > 1);
+    assert!(result.skeleton_path.len() <= limits.ancestry_depth);
+    assert_eq!(result.attachment_root.source.block, weapon_root_id);
+    assert!(
+        result
+            .attachment_source_to_skeleton_source
+            .iter()
+            .flatten()
+            .all(|value| value.is_finite())
+    );
+    assert!(
+        result
+            .root_to_skeleton_source
+            .iter()
+            .flatten()
+            .all(|value| value.is_finite())
+    );
+    assert!(result.retained_bytes <= limits.array_bytes);
+    assert!(result.work_units <= limits.work_units);
+    assert!(!result.retail_behavior_verified);
+
+    let absent_node = attachment::evaluate(
+        &skeleton_bytes,
+        &weapon_bytes,
+        "missing explicit node",
+        Request {
+            node: u32::MAX,
+            ..request
+        },
+        limits,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(absent_node.contains("selected skeleton node is not decoded"));
+    let absent_name = attachment::evaluate(
+        &skeleton_bytes,
+        &weapon_bytes,
+        "missing exact node name",
+        Request {
+            node_name_bytes: b"unbound-source-name",
+            ..request
+        },
+        limits,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(absent_name.contains("selected skeleton raw node name differs"));
+    let bounded = attachment::evaluate(
+        &skeleton_bytes,
+        &weapon_bytes,
+        "under ancestry bound",
+        request,
+        Limits {
+            ancestry_depth: 1,
+            ..limits
+        },
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(bounded.contains("ancestry depth budget exceeded"));
+
+    let sampled_refusal = attachment::evaluate_sampled(
+        &skeleton_bytes,
+        &weapon_bytes,
+        "retained original sampled attachment",
+        attachment::SampledRequest {
+            binding: request,
+            sample: fallout_data::nif_animation::pose::Request {
+                object: SELECTED_NODE,
+                controller: NODE_CONTROLLER,
+                source_time: 0.,
+            },
+        },
+        Default::default(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(sampled_refusal.contains("missing transform interpolator"));
+
+    let receipt = json!({
+        "schema_version": 1,
+        "scope": "source-local first-person weapon attachment composition; no confirmed actor/equipment selection or retail alignment",
+        "source_manifest": {
+            "path": "G:\\Rust-Fallout-worktrees\\assets\\local\\asset-04-dev-20261003-01\\retail-sample-01\\source-manifest.json",
+            "sha256": "4d53c00ecdc7217bf9acd8764543dea231e4f16d9714db1428e8b8cf321fcdb1"
+        },
+        "skeleton": {
+            "archive": "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas\\Data\\Fallout - Meshes.bsa",
+            "entry_index": 10514,
+            "path_bytes": b"meshes\\characters\\_1stperson\\skeleton.nif".to_vec(),
+            "sha256": SKELETON_SHA256,
+            "decoded_bytes": skeleton_bytes.len(),
+            "node": SELECTED_NODE,
+            "raw_name_bytes": node_name,
+            "controller": NODE_CONTROLLER,
+            "source_world": node_world
+        },
+        "attachment": {
+            "archive": "G:\\SteamLibrary\\steamapps\\common\\Fallout New Vegas\\Data\\Fallout - Meshes.bsa",
+            "entry_index": 4757,
+            "path_bytes": b"meshes\\weapons\\1handmelee\\1stpersonstraightrazor.nif".to_vec(),
+            "sha256": WEAPON_SHA256,
+            "decoded_bytes": weapon_bytes.len(),
+            "footer_roots": weapon_roots,
+            "selected_root": weapon_root_id,
+            "root_local": weapon_root.transform
+        },
+        "explicit_parent_to_node": EXPLICIT_PARENT_TO_NODE,
+        "mapping_basis": "caller-supplied identity matrix recorded in this diagnostic request; not inferred by the API",
+        "evaluation": result,
+        "refusals": {
+            "unknown_node_id": absent_node,
+            "mismatched_raw_name": absent_name,
+            "one_level_ancestry_limit": bounded,
+            "sampled_node_controller": sampled_refusal
+        },
+        "retail_behavior_verified": false,
+        "visible_consumer_verified": false
+    });
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output.join("attachment-source-receipt.json"))
+        .unwrap();
+    serde_json::to_writer_pretty(&mut file, &receipt).unwrap();
+    writeln!(file).unwrap();
+    println!(
+        "Captured and composed exact source node12/controller13 with weapon root {weapon_root_id}; sampled path refusal preserved"
+    );
+}

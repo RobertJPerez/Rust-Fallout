@@ -29,14 +29,30 @@ pulls are capped at 4096 frames. These engineering bounds limit memory and
 cancellation latency; they are not measured original-game duration or playback
 rules.
 
+## Scene-host request adapter
+
+The preview host admits prepared PCM sounds through a nonblocking `sync_channel`
+with a default capacity of eight queued requests and one worker processing at most
+one request at a time. The single worker decodes and hands off one bounded PCM
+chunk at a time. Requests carry the current `Loading.epoch`; advancing the epoch
+cancels active and queued requests from the previous scene. Each handle exposes a
+sticky success or error result and can cancel only its own request. Scene systems
+poll results rather than waiting on the worker.
+
+The current preview has no output-device backend. Its sink explicitly fails each
+admitted request instead of reporting silent success. A successful test sink result
+means only that the sink accepted the source frames; it does not provide a device
+drain time, audible playback clock, mixing, resampling or spatial behavior.
+
 ## Deliberate open work
 
 `actors::voices` records that effective actor voice and audio-path selection are
 unsupported. `world::conversation` retains the source `Sound` form link, but does
-not identify a localized filename. This module therefore does not infer a dialogue
-cue, select language, resolve localization, parse LIP, schedule voice/music/radio,
-or provide a device backend. In particular, it is not audio-02/03/04 acceptance and
-does not establish original audio fidelity.
+not identify a localized filename. These layers do not infer a dialogue cue, select
+language, resolve localization, parse LIP or schedule voice/music/radio. Synthetic
+sink tests cover request-queue mechanics only; they do not establish original audio
+fidelity or device playback, and they do not cover the separate music and dialogue
+tasks.
 
 The WAVE subset follows Microsoft's `WAVEFORMATEX` fields and PCM constraints:
 <https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatex>

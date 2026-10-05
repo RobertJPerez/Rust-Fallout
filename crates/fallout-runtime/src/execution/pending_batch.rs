@@ -141,6 +141,10 @@ struct BatchRequest {
     expected_owner: Owner,
     identity_error: &'static str,
 }
+struct BatchProjection {
+    owner_bytes: usize,
+    include_ordered_events: bool,
+}
 enum StepOutcome {
     Single(local_copy::CommittedCopy),
     Multi(local_copy::CommittedMultiCopy),
@@ -223,7 +227,18 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
                 identity_error: "explicit fragment activation differs from the saved owner",
             })
             .collect();
-        Self::new_inner(world, sources, content, requests, 0, false, intent, limits)
+        Self::new_inner(
+            world,
+            sources,
+            content,
+            requests,
+            BatchProjection {
+                owner_bytes: 0,
+                include_ordered_events: false,
+            },
+            intent,
+            limits,
+        )
     }
 
     /// Admit an exact ordered prefix for a behavior tick. Quest and Placed
@@ -267,8 +282,10 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
             sources,
             content,
             requests,
-            owner_bytes,
-            true,
+            BatchProjection {
+                owner_bytes,
+                include_ordered_events: true,
+            },
             intent,
             limits,
         )
@@ -279,15 +296,14 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
         sources: &'p PreparedSources<'s>,
         content: &'p Content,
         requests: Vec<BatchRequest>,
-        owner_bytes: usize,
-        include_ordered_events: bool,
+        projection: BatchProjection,
         intent: local_copy::Intent,
         limits: Limits,
     ) -> Result<Self, Error> {
         let mut remaining = limits.trace_projection;
         remaining.maximum_variable_bytes = remaining
             .maximum_variable_bytes
-            .checked_sub(owner_bytes)
+            .checked_sub(projection.owner_bytes)
             .ok_or(Error::Capacity("trace variable bytes"))?;
         let mut job = Self {
             world: Some(world),
@@ -303,7 +319,7 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
                 trace_projection: preparation::ObservationCounts {
                     source_bytes: 0,
                     rows: 0,
-                    variable_bytes: owner_bytes,
+                    variable_bytes: projection.owner_bytes,
                     binding_uses: 0,
                 },
             },
@@ -315,7 +331,7 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
             committed: Vec::new(),
             committed_multi: Vec::new(),
             ordered_events: Vec::new(),
-            include_ordered_events,
+            include_ordered_events: projection.include_ordered_events,
             state: State::Pending,
         };
         if intent == local_copy::Intent::Faithful {
@@ -347,7 +363,7 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
         }
         job.committed = Vec::with_capacity(job.requests.len());
         job.committed_multi = Vec::with_capacity(job.requests.len());
-        if include_ordered_events {
+        if projection.include_ordered_events {
             job.ordered_events = Vec::with_capacity(job.requests.len());
         }
         Ok(job)
@@ -580,12 +596,14 @@ impl<'w, 'p, 's> Job<'w, 'p, 's> {
                 }
             },
             Owner::Quest { .. } | Owner::Placed { .. } => {
-                let mut multi_limits = local_copy::MultiLimits::default();
-                multi_limits.maximum_event_instructions = instructions;
-                multi_limits.maximum_statement_bytes = limits
-                    .maximum_statement_bytes
-                    .saturating_sub(statement_bytes_before);
-                multi_limits.observation = event_observation_limits;
+                let multi_limits = local_copy::MultiLimits {
+                    maximum_event_instructions: instructions,
+                    maximum_statement_bytes: limits
+                        .maximum_statement_bytes
+                        .saturating_sub(statement_bytes_before),
+                    observation: event_observation_limits,
+                    ..local_copy::MultiLimits::default()
+                };
                 match world.stage_source_multi_copy_with_sources(
                     request.sequence.get(),
                     sources,

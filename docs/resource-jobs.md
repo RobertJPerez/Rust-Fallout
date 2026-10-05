@@ -56,16 +56,44 @@ markers stage in temporary files, sync, and publish without clobbering. Complete
 orphan blobs are checked against freshly extracted source bytes before retry
 publishes a marker. Corrupt markers/blobs are errors; names alone never admit a
 partial result. Cold and warm paths both bind source/transform identity and
-verify payload length/digest. No source files, persistent instances or save
-formats are written.
+verify payload length/digest. A `ResourceJobs` artifact must also match the
+decoded length pinned in its source member, so a shorter payload with a
+self-consistent blob and manifest is refused. These manifests certify one
+artifact each; they do not define a required multi-resource set or certify that
+an external batch contains every mandatory resource. That completeness contract
+is supplied by an owning consumer through `verify_required_cache_set`. The
+caller passes an immutable required set of artifact identities, the decoded
+length pinned by each source member, and a SHA-256 digest for its sealed
+source/options plan. The API does not infer requirements from filenames or a
+rendered subset. It refuses an empty set, duplicate or inconsistent identities,
+missing members, length or digest mismatches, and over-budget input. Defaults cap
+the set at 1,024 members, metadata at 1 MiB, and each payload at 256 MiB; callers
+can lower these limits. It verifies with `read_verified` one member at a time
+and drops that payload before reading the next.
+
+The returned cache-set receipt is ephemeral. Its versioned fingerprint binds the
+source/options digest, sorted artifact keys, and pinned member lengths. Sequential
+verification is not an atomic cache snapshot, persistent format, or scene,
+simulation, collision, or GPU readiness claim. The consumer remains responsible
+for supplying the complete mandatory set from its sealed source plan and
+reporting coverage gaps. No source files, persistent instances or save formats
+are written.
 
 Validation covers authored compressed/uncompressed BSA104 bytes, a real
 model-inspector consumer with an authored NIF container, late/stale extraction
 and completion, cancellation after marker staging, retry, queue/byte rejection,
 wrong source/controller identity and release of source/output reservations.
-The existing cache regression terminates actual writer processes at blob staging,
-blob publication and marker staging. Commands and actual results belong in the
-private handoff; these tests do not establish retail behavior or gameplay parity.
+Pool shutdown is also checked while a marker is staged: it joins its owned
+worker, and the closed generation prevents that worker from committing the
+marker. The cache regression terminates actual writer processes at blob staging,
+blob publication, marker staging and immediately after marker publication.
+Pre-marker deaths rebuild on retry; a post-marker death verifies and reuses the
+complete entry. Changed source and transform identities select new entries
+while an unrelated entry remains readable, and interruption fixtures leave
+their source input unchanged. Cache-set tests cover deterministic membership
+fingerprints and refusal of missing, duplicate, inconsistent, corrupt, and
+over-budget members. Commands and actual results belong in the private handoff;
+these tests do not establish retail behavior or gameplay parity.
 
 The preparation index plan remains a dry run. A persistent dependency graph/job
 journal, full transitive conversion invalidation, streaming cell activation,

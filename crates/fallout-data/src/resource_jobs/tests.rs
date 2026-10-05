@@ -323,6 +323,51 @@ fn cancelled_staged_marker_leaves_verified_orphan_for_retry() {
 }
 
 #[test]
+fn dropping_pool_joins_cancelled_writer_before_marker_commit() {
+    let fixture = Fixture::new(b"payload", false);
+    let input = fixture.input();
+    let identity = fixture.member(&input).identity.clone();
+    let (generation, jobs) = fixture.pool(Limits::default());
+    let pause = Pause::new(true);
+    let root = fixture.cache.path().canonicalize().unwrap();
+    CACHE_HOOKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap()
+        .insert(root.clone(), pause.clone());
+    let hook = CacheHook(root, pause.clone());
+    let handle = jobs
+        .submit(
+            fixture.member(&input),
+            generation.token().unwrap(),
+            fixture.destination(),
+        )
+        .unwrap();
+
+    pause.reached();
+    generation.close();
+    let joiner = std::thread::spawn(move || drop(jobs));
+    assert!(
+        !joiner.is_finished(),
+        "pool drop must wait for its paused cache writer"
+    );
+    pause.release();
+    joiner.join().unwrap();
+    assert!(handle.wait().is_err());
+    drop(handle);
+    drop(hook);
+
+    let key = identity.key().unwrap();
+    assert!(fixture.cache.path().join(format!("{key}.blob")).is_file());
+    assert!(!fixture.cache.path().join(format!("{key}.json")).exists());
+    assert!(
+        cache::read_verified(fixture.cache.path(), fixture.source.path(), &identity, 64)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
 fn completed_output_remains_bounded_and_stale_admission_releases_it() {
     let fixture = Fixture::new(b"payload", false);
     let input = fixture.input();

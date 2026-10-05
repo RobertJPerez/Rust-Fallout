@@ -37,11 +37,67 @@ pub struct CacheResult {
     pub manifest: Manifest,
 }
 
+const MAX_CACHE_SET_MEMBERS: usize = 1024;
+const MAX_CACHE_SET_METADATA_BYTES: usize = 1024 * 1024;
+const MAX_CACHE_SET_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
+
+/// One caller-declared required resource and its pinned decoded member length.
+#[derive(Debug, Clone)]
+pub struct RequiredCacheArtifact {
+    pub identity: ArtifactIdentity,
+    pub decoded_bytes: u64,
+}
+
+/// Lowerable limits for an ephemeral required-cache-set observation.
+#[derive(Debug, Clone, Copy)]
+pub struct CacheSetLimits {
+    pub max_members: usize,
+    pub max_metadata_bytes: usize,
+    pub max_artifact_bytes: usize,
+}
+
+impl Default for CacheSetLimits {
+    fn default() -> Self {
+        Self {
+            max_members: MAX_CACHE_SET_MEMBERS,
+            max_metadata_bytes: MAX_CACHE_SET_METADATA_BYTES,
+            max_artifact_bytes: MAX_CACHE_SET_ARTIFACT_BYTES,
+        }
+    }
+}
+
+/// Verification observed for one explicit required set; it is not a durable
+/// snapshot and does not imply scene, simulation, or GPU readiness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CacheSetReceipt {
+    pub source_options_sha256: String,
+    pub fingerprint_sha256: String,
+    pub member_count: usize,
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn identity_metadata_bound(identity: &ArtifactIdentity) -> Result<usize> {
+    if !is_sha256_hex(&identity.source_sha256) {
+        return Err(Error::Resolution(
+            "cache identity needs a SHA-256 source digest".into(),
+        ));
+    }
+    // JSON byte arrays use at most four characters per path byte; string
+    // escapes use at most six bytes per UTF-8 byte. The fixed allowance covers
+    // field names, profile, delimiters, and the enclosing object.
+    256usize
+        .checked_add(identity.source_sha256.len())
+        .and_then(|size| size.checked_add(identity.path_bytes.len().checked_mul(4)?))
+        .and_then(|size| size.checked_add(identity.transform_version.len().checked_mul(6)?))
+        .ok_or_else(|| Error::Resolution("cache set metadata size overflow".into()))
+}
+
 impl ArtifactIdentity {
     pub fn key(&self) -> Result<String> {
-        if self.source_sha256.len() != 64
-            || !self.source_sha256.bytes().all(|b| b.is_ascii_hexdigit())
-        {
+        if !is_sha256_hex(&self.source_sha256) {
             return Err(Error::Resolution(
                 "cache identity needs a SHA-256 source digest".into(),
             ));
@@ -114,6 +170,139 @@ pub fn read_verified(
         },
         bytes,
     )))
+}
+
+/// Verify every artifact in a caller-supplied required set, one payload at a
+/// time. The caller owns the required-resource policy and supplies the digest
+/// of its sealed source/options plan; this function never infers membership.
+///
+/// The returned fingerprint is deterministic over the explicit digest, sorted
+/// artifact keys, and pinned decoded lengths. Verification is an observation at
+/// the time each entry is read, not an atomic cache snapshot or readiness gate.
+pub fn verify_required_cache_set(
+    root: &Path,
+    source_tree: &Path,
+    source_options_sha256: &str,
+    required: &[RequiredCacheArtifact],
+    limits: CacheSetLimits,
+) -> Result<CacheSetReceipt> {
+    if !is_sha256_hex(source_options_sha256) {
+        return Err(Error::Resolution(
+            "cache set needs a SHA-256 source/options digest".into(),
+        ));
+    }
+    if limits.max_members == 0
+        || limits.max_members > MAX_CACHE_SET_MEMBERS
+        || limits.max_metadata_bytes == 0
+        || limits.max_metadata_bytes > MAX_CACHE_SET_METADATA_BYTES
+        || limits.max_artifact_bytes == 0
+        || limits.max_artifact_bytes > MAX_CACHE_SET_ARTIFACT_BYTES
+    {
+        return Err(Error::Resolution(
+            "invalid cache set member, metadata, or artifact limit".into(),
+        ));
+    }
+    if required.is_empty() {
+        return Err(Error::Resolution(
+            "required cache set cannot be empty".into(),
+        ));
+    }
+    if required.len() > limits.max_members {
+        return Err(Error::Resolution(
+            "required cache set exceeds member limit".into(),
+        ));
+    }
+
+    // Bound all identity/key bookkeeping before serializing identities or
+    // allocating the verification list. This metadata cap is independently
+    // lowerable from the hard member ceiling.
+    let mut metadata_bytes = 128usize
+        .checked_add(source_options_sha256.len())
+        .ok_or_else(|| Error::Resolution("cache set metadata size overflow".into()))?;
+    for artifact in required {
+        if artifact.decoded_bytes > limits.max_artifact_bytes as u64 {
+            return Err(Error::Resolution(
+                "required cache artifact exceeds byte limit".into(),
+            ));
+        }
+        let member_bytes = identity_metadata_bound(&artifact.identity)?
+            .checked_add(72)
+            .ok_or_else(|| Error::Resolution("cache set metadata size overflow".into()))?;
+        metadata_bytes = metadata_bytes
+            .checked_add(member_bytes)
+            .ok_or_else(|| Error::Resolution("cache set metadata size overflow".into()))?;
+        if metadata_bytes > limits.max_metadata_bytes {
+            return Err(Error::Resolution(
+                "required cache set exceeds metadata budget".into(),
+            ));
+        }
+    }
+
+    struct Entry<'a> {
+        key: String,
+        identity: &'a ArtifactIdentity,
+        decoded_bytes: u64,
+    }
+    let mut entries = Vec::with_capacity(required.len());
+    for artifact in required {
+        entries.push(Entry {
+            key: artifact.identity.key()?,
+            identity: &artifact.identity,
+            decoded_bytes: artifact.decoded_bytes,
+        });
+    }
+    entries.sort_by(|left, right| left.key.cmp(&right.key));
+    for pair in entries.windows(2) {
+        if pair[0].key == pair[1].key {
+            let reason = if pair[0].identity == pair[1].identity
+                && pair[0].decoded_bytes == pair[1].decoded_bytes
+            {
+                "required cache set contains a duplicate member"
+            } else {
+                "required cache set contains inconsistent duplicate identity or length"
+            };
+            return Err(Error::Resolution(reason.into()));
+        }
+    }
+
+    let mut fingerprint = Sha256::new();
+    fingerprint.update(b"fallout-required-cache-set-v1\0");
+    fingerprint.update(source_options_sha256.as_bytes());
+    let count = u32::try_from(entries.len())
+        .map_err(|_| Error::Resolution("required cache set member count overflow".into()))?;
+    fingerprint.update(count.to_le_bytes());
+
+    for entry in &entries {
+        let max_bytes = usize::try_from(entry.decoded_bytes)
+            .map_err(|_| Error::Resolution("required cache artifact size overflow".into()))?;
+        let Some((cache_result, payload)) =
+            read_verified(root, source_tree, entry.identity, max_bytes)?
+        else {
+            return Err(Error::Resolution(format!(
+                "required cache member is missing: {}",
+                entry.key
+            )));
+        };
+        if cache_result.key != entry.key
+            || cache_result.manifest.bytes != entry.decoded_bytes
+            || payload.len() as u64 != entry.decoded_bytes
+        {
+            return Err(Error::Resolution(format!(
+                "required cache member identity or decoded length mismatch: {}",
+                entry.key
+            )));
+        }
+        drop(payload);
+
+        fingerprint.update(entry.key.as_bytes());
+        fingerprint.update(entry.decoded_bytes.to_le_bytes());
+    }
+
+    Ok(CacheSetReceipt {
+        source_options_sha256: source_options_sha256.to_owned(),
+        fingerprint_sha256: format!("{:x}", fingerprint.finalize()),
+        member_count: entries.len(),
+    })
 }
 
 /// Files are synced before publication. This rebuildable cache does not promise
@@ -229,6 +418,8 @@ fn publish_guarded(
     let manifest =
         serde_json::to_vec_pretty(&expected).map_err(|e| Error::Resolution(e.to_string()))?;
     publish_file(&root, &marker, &manifest, token)?;
+    #[cfg(test)]
+    pause_publication_test(&root, "marker-published")?;
     Ok(CacheResult {
         key,
         reused: false,
@@ -395,6 +586,288 @@ mod tests {
         changed.transform_version = "archive-decode-v2".into();
         assert_ne!(original.key().unwrap(), changed.key().unwrap());
     }
+
+    #[test]
+    fn source_and_transform_changes_leave_unrelated_cache_entries_readable() {
+        let cache = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let original = identity();
+        let mut unrelated = identity();
+        unrelated.profile = ProfileId::Fo3Original;
+        unrelated.source_sha256 = "b".repeat(64);
+        unrelated.path_bytes = b"textures/independent.dds".to_vec();
+
+        publish(cache.path(), source.path(), original.clone(), b"source-v1").unwrap();
+        publish(
+            cache.path(),
+            source.path(),
+            unrelated.clone(),
+            b"other-source",
+        )
+        .unwrap();
+
+        let mut changed_source = original.clone();
+        changed_source.source_sha256 = "c".repeat(64);
+        let mut changed_transform = original.clone();
+        changed_transform.transform_version = "archive-decode-v2".into();
+        assert_ne!(original.key().unwrap(), changed_source.key().unwrap());
+        assert_ne!(original.key().unwrap(), changed_transform.key().unwrap());
+        assert!(
+            read_verified(cache.path(), source.path(), &changed_source, 64)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            read_verified(cache.path(), source.path(), &changed_transform, 64)
+                .unwrap()
+                .is_none()
+        );
+
+        publish(
+            cache.path(),
+            source.path(),
+            changed_source.clone(),
+            b"source-v2",
+        )
+        .unwrap();
+        publish(
+            cache.path(),
+            source.path(),
+            changed_transform.clone(),
+            b"transformed-v2",
+        )
+        .unwrap();
+
+        for (id, expected) in [
+            (&changed_source, b"source-v2".as_slice()),
+            (&changed_transform, b"transformed-v2".as_slice()),
+            (&unrelated, b"other-source".as_slice()),
+        ] {
+            let (_, bytes) = read_verified(cache.path(), source.path(), id, 64)
+                .unwrap()
+                .unwrap();
+            assert_eq!(bytes, expected);
+        }
+    }
+
+    fn required_artifact(identity: ArtifactIdentity, decoded_bytes: u64) -> RequiredCacheArtifact {
+        RequiredCacheArtifact {
+            identity,
+            decoded_bytes,
+        }
+    }
+
+    #[test]
+    fn required_cache_set_fingerprint_binds_members_options_and_is_order_independent() {
+        let cache = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let first = identity();
+        let mut second = identity();
+        second.source_sha256 = "b".repeat(64);
+        second.path_bytes = b"textures/independent.dds".to_vec();
+        publish(cache.path(), source.path(), first.clone(), b"first").unwrap();
+        publish(cache.path(), source.path(), second.clone(), b"second").unwrap();
+
+        let requirements = [required_artifact(first, 5), required_artifact(second, 6)];
+        let options = "c".repeat(64);
+        let forward = verify_required_cache_set(
+            cache.path(),
+            source.path(),
+            &options,
+            &requirements,
+            CacheSetLimits::default(),
+        )
+        .unwrap();
+        let reversed = [requirements[1].clone(), requirements[0].clone()];
+        let reverse = verify_required_cache_set(
+            cache.path(),
+            source.path(),
+            &options,
+            &reversed,
+            CacheSetLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(forward.member_count, 2);
+        assert_eq!(forward.fingerprint_sha256, reverse.fingerprint_sha256);
+
+        let changed_options = verify_required_cache_set(
+            cache.path(),
+            source.path(),
+            &"d".repeat(64),
+            &requirements,
+            CacheSetLimits::default(),
+        )
+        .unwrap();
+        assert_ne!(
+            forward.fingerprint_sha256,
+            changed_options.fingerprint_sha256
+        );
+
+        let one_member = verify_required_cache_set(
+            cache.path(),
+            source.path(),
+            &options,
+            &requirements[..1],
+            CacheSetLimits::default(),
+        )
+        .unwrap();
+        assert_ne!(forward.fingerprint_sha256, one_member.fingerprint_sha256);
+    }
+
+    #[test]
+    fn required_cache_set_refuses_missing_duplicate_inconsistent_and_unbounded_inputs() {
+        let cache = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let options = "d".repeat(64);
+        let present = identity();
+        publish(cache.path(), source.path(), present.clone(), b"whole").unwrap();
+        let required = required_artifact(present.clone(), 5);
+
+        let mut missing = present.clone();
+        missing.path_bytes = b"meshes/mandatory-missing.nif".to_vec();
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[required_artifact(missing, 9)],
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("required cache member is missing")
+        ));
+
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[required.clone(), required.clone()],
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("duplicate member")
+        ));
+
+        let lower_member_limit = CacheSetLimits {
+            max_members: 1,
+            ..CacheSetLimits::default()
+        };
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[required.clone(), required.clone()],
+                lower_member_limit,
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("exceeds member limit")
+        ));
+
+        let inconsistent_length = required_artifact(present.clone(), 4);
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[required.clone(), inconsistent_length],
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("inconsistent duplicate")
+        ));
+
+        let lower_limit = CacheSetLimits {
+            max_metadata_bytes: 64,
+            ..CacheSetLimits::default()
+        };
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                std::slice::from_ref(&required),
+                lower_limit,
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("metadata budget")
+        ));
+
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[],
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("cannot be empty")
+        ));
+    }
+
+    #[test]
+    fn required_cache_set_rejects_member_length_and_payload_digest_mismatches() {
+        let cache = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let id = identity();
+        publish(cache.path(), source.path(), id.clone(), b"whole").unwrap();
+        let options = "e".repeat(64);
+
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[required_artifact(id.clone(), 6)],
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("decoded length mismatch")
+        ));
+
+        fs::write(
+            cache.path().join(format!("{}.blob", id.key().unwrap())),
+            b"wrong",
+        )
+        .unwrap();
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &options,
+                &[required_artifact(id, 5)],
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("digest")
+        ));
+    }
+
+    #[test]
+    fn required_cache_set_rejects_invalid_options_digest_and_member_limit() {
+        let cache = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let required = [required_artifact(identity(), 5)];
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                "not-a-digest",
+                &required,
+                CacheSetLimits::default(),
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("source/options digest")
+        ));
+        let no_members = CacheSetLimits {
+            max_members: 0,
+            ..CacheSetLimits::default()
+        };
+        assert!(matches!(
+            verify_required_cache_set(
+                cache.path(),
+                source.path(),
+                &"f".repeat(64),
+                &required,
+                no_members,
+            ),
+            Err(Error::Resolution(reason)) if reason.contains("invalid cache set")
+        ));
+    }
+
     #[test]
     fn cannot_publish_inside_source_tree() {
         let source = tempfile::tempdir().unwrap();
@@ -435,7 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn killed_publication_processes_leave_no_committed_partial_artifact() {
+    fn killed_publication_processes_recover_at_each_marker_boundary() {
         use std::{
             process::{Child, Command, Stdio},
             time::{Duration, Instant},
@@ -447,7 +920,12 @@ mod tests {
                 let _ = self.0.wait();
             }
         }
-        for phase in ["blob-staged", "blob-published", "marker-staged"] {
+        for phase in [
+            "blob-staged",
+            "blob-published",
+            "marker-staged",
+            "marker-published",
+        ] {
             let root = tempfile::tempdir().unwrap();
             let source = tempfile::tempdir().unwrap();
             let source_path = source.path().join("untouched.txt");
@@ -485,25 +963,41 @@ mod tests {
             child.0.kill().unwrap();
             assert!(!child.0.wait().unwrap().success());
             let id = identity();
-            assert!(
-                !root
-                    .path()
-                    .join(format!("{}.json", id.key().unwrap()))
-                    .exists()
-            );
-            assert!(
-                read_verified(root.path(), source.path(), &id, 64)
-                    .unwrap()
-                    .is_none()
-            );
-            publish(root.path(), source.path(), id.clone(), b"original fixture").unwrap();
-            assert_eq!(
-                read_verified(root.path(), source.path(), &id, 64)
-                    .unwrap()
-                    .unwrap()
-                    .1,
-                b"original fixture"
-            );
+            let marker = root.path().join(format!("{}.json", id.key().unwrap()));
+            if phase == "marker-published" {
+                assert!(marker.is_file());
+                assert_eq!(
+                    read_verified(root.path(), source.path(), &id, 64)
+                        .unwrap()
+                        .unwrap()
+                        .1,
+                    b"original fixture"
+                );
+                assert!(
+                    publish(root.path(), source.path(), id.clone(), b"original fixture")
+                        .unwrap()
+                        .reused
+                );
+            } else {
+                assert!(!marker.exists());
+                assert!(
+                    read_verified(root.path(), source.path(), &id, 64)
+                        .unwrap()
+                        .is_none()
+                );
+                assert!(
+                    !publish(root.path(), source.path(), id.clone(), b"original fixture")
+                        .unwrap()
+                        .reused
+                );
+                assert_eq!(
+                    read_verified(root.path(), source.path(), &id, 64)
+                        .unwrap()
+                        .unwrap()
+                        .1,
+                    b"original fixture"
+                );
+            }
             assert_eq!(fs::read(&source_path).unwrap(), b"read-only source fixture");
         }
     }

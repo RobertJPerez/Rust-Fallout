@@ -281,6 +281,33 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(result["classification"], "invalid_receipt")
         self.assertEqual(result["status"], "failed")
 
+    def test_cli_maps_integer_decoder_limit_to_structured_exit_two(self):
+        digits = "9" * 5000
+        with self.assertRaises(ValueError):
+            int(digits)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture_path = root / "capture.json"
+            expectation_path = root / "expectation.json"
+            capture_path.write_text('{"value":' + digits + "}", encoding="utf-8")
+            expectation_path.write_text(json.dumps(fixture_expectation()), encoding="utf-8")
+            output = io.StringIO()
+            error_output = io.StringIO()
+            with patch.object(
+                sys,
+                "argv",
+                ["replay.py", "replay", str(capture_path), str(expectation_path)],
+            ), patch.object(sys, "stdout", output), patch.object(
+                sys, "stderr", error_output
+            ):
+                exit_code = replay._cli()
+        self.assertEqual(exit_code, 2)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["classification"], "invalid_receipt")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("integer exceeding the decoder limit", result["mismatches"][0]["reason"])
+        self.assertEqual(error_output.getvalue(), "")
+
     def test_input_readers_bound_read_before_loading_oversized_files(self):
         with tempfile.TemporaryDirectory() as directory:
             oversized = Path(directory) / "oversized.bin"
@@ -498,6 +525,10 @@ class ReplayTests(unittest.TestCase):
                 replay.collect(manifest_path, timeline_path, root / "gap.json")
             with self.assertRaisesRegex(replay.ReceiptError, "duplicate JSON property"):
                 replay._decode_json(b'{"x":1,"x":2}', "duplicate-test")
+            with self.assertRaisesRegex(
+                replay.ReceiptError, "non-finite JSON number is not allowed: NaN"
+            ):
+                replay._decode_json(b'{"x":NaN}', "nonfinite-test")
 
 
 if __name__ == "__main__":

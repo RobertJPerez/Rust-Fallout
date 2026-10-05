@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MaterialLibRoot)\BaseMaterialFile.cs" Link="Reference\BaseMaterialFile.cs" />
+    <Compile Include="$(MaterialLibRoot)\BGSM.cs" Link="Reference\BGSM.cs" />
+    <Compile Include="$(MaterialLibRoot)\BGEM.cs" Link="Reference\BGEM.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,338 @@
+{
+  "schema": 1,
+  "date": "2026-10-05",
+  "status": "verified-physical-workshop-and-raw-formlink-census-not-runtime-identity",
+  "workspace_base_revision": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "shared_nv_checkout_head_observed_read_only": "b9662efc7da927e9fdbf2097661d05ccd95ef71c",
+  "shared_nv_checkout_clean_observed": false,
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "implementation": {
+    "binary": "local/target/debug/audit-workshop.exe",
+    "binary_sha256": "595cd3ad6e66a0d49011a1bcf102cd0f02ae72934f12b2bd051c9c6e471d547d",
+    "source_sha256": {
+      "src/condition.rs": "db3731d395d98ce525c698c16ffda0e141ac3cc850fd874150de0611a75bd613",
+      "src/workshop.rs": "714b9a39335f36e2970adeea1df3abb74c4ad3acdf3c933a64941d9fdc34b3e6",
+      "src/bin/audit-workshop.rs": "5206f7d3b610ba56266b586dbf1a501d6a4aafa93c97dcaf5322377de5c3dd44",
+      "src/lib.rs": "169ada293f0eb198aab0ced08728267cb80f3fc8d8ecc8e4222b675ddaa13e36",
+      "tools/workshop-oracle/Program.cs": "8229cdf976454e024359c44a1c9dbd620e15986d97abeb6fe0cb46e0836fce62",
+      "tools/workshop-oracle/workshop-oracle.csproj": "063b8631910eb1563f80ced26c5624a0dc43a3fbbc8b327ee20d0fc9a85d5a28",
+      "tools/workshop-oracle/Directory.Build.props": "64b6103b38bcb9d2907e872301cc04cf955df384d4e403797360147f3a477669",
+      "tools/build-workshop-oracle.ps1": "9ce37892500f1ae04c56d7476f636214b33da55a3bb093138cd856184d8e0693",
+      "src/condition/condition_schema.rs": "5eda042d38b8734943b372a83a6dbf720f42c3e06039fd1d41e490b196de74be",
+      "tools/generate-condition-schema.py": "86039957c6ec194ed9eb222ae0a8fe87f9312a87d02735b9460f52edcff2e488"
+    }
+  },
+  "reference": {
+    "id": "mutagen-vmad-oracle",
+    "revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+    "checkout_revision_verified": true,
+    "checkout_clean": true,
+    "inspected_schema": [
+      "Fallout4Mod/ConstructibleObject.xml: COBJ field composition",
+      "Condition.xml: 32-byte CTDA header/data fields and CIS1/CIS2 companion types",
+      "Condition.cs: packed flag/operator masks, function-index framing, and common trailing fields",
+      "Enums/CompareOperator.cs: comparison operator values",
+      "Component.xml/Component_Generated.cs: CMPO CraftingSound (CUSD), ScrapItem (MNAM), ModScrapScalar (GNAM)",
+      "MiscItem.xml/MiscItem_Generated.cs: MISC PreviewTransform, sounds, Keywords, FeaturedItemMessage and CVPA links",
+      "Condition.xml/Condition.cs: CTDA Reference, global comparison link and function-typed parameter link categories",
+      "Condition.cs: complete Fallout 4 function enum, explicit three-slot parameter map and parameter-category table"
+    ],
+    "implementation_code_copied": false
+  },
+  "input": {
+    "retail_installation": "G:/SteamLibrary/steamapps/common/Fallout 4",
+    "proof_directory": "local/proof-fo4-002",
+    "proof_census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "proof_complete_sha256": "f2c8f0e93be29a21b18f4a47f78a047c1b3caf94ddb108c4affdeba22c5484d7"
+  },
+  "rust_audit": {
+    "private_directory": "local/workshop-recipe-018",
+    "complete_sha256": "6b78531edf9314b3e2536c8e66eb7eff36693f140d5c79ae3ee56c7d3adf0a9c",
+    "recipes_jsonl_sha256": "e9798e470f5377fb228db1e3009506dfb9719a741622ec7433254335dccb13dd",
+    "plugins": 16,
+    "physical_cobj_records": 4611,
+    "components": 14916,
+    "categories": 1612,
+    "output_counts": 4611,
+    "conditions_preserved_and_decoded": 3626,
+    "condition_payload_width_bytes": {
+      "32": 3626
+    },
+    "condition_function_index_histogram_raw": {
+      "47": 1,
+      "58": 12,
+      "59": 187,
+      "67": 56,
+      "71": 5,
+      "74": 650,
+      "300": 17,
+      "310": 6,
+      "359": 3,
+      "448": 2335,
+      "543": 13,
+      "562": 46,
+      "651": 17,
+      "691": 19,
+      "749": 259
+    },
+    "function_parameter_mapping_status": {
+      "explicit": 3609,
+      "function-enum-known-parameter-map-defaulted": 17,
+      "unknown-function-index": 0
+    },
+    "parameter_slots_remain_raw": true,
+    "run_on_values_raw": {
+      "0": 2365,
+      "2": 1261
+    },
+    "condition_flag_patterns_raw": {
+      "0": 3466,
+      "1": 160
+    },
+    "comparison_operator_patterns_raw": {
+      "0": 3538,
+      "1": 29,
+      "2": 4,
+      "3": 55
+    },
+    "comparison_value_formids": 0,
+    "comparison_value_float_bit_patterns": 3626,
+    "condition_companion_cis1_cis2": 0,
+    "malformed_supported_fields": 0,
+    "duplicate_singleton_diagnostics": 0,
+    "source_hashes_stable_before_and_after": true,
+    "component_scrap_jsonl_sha256": "5c434b01e0640fef08c89bd2c055e0e75d501b0cf734b7c6ae5eac1677d41b16",
+    "misc_scrap_breakdowns_jsonl_sha256": "e72439557a0255d7494d09538ea28c9fa2d029ff74c8fa52c4f683d5bb08b6db",
+    "global_values_jsonl_sha256": "12fae0d979ea1a754f7377515c0b7f2175021c0ece0f44acfb97fe06a7beede1",
+    "cmpo_records": 34,
+    "misc_records": 3651,
+    "misc_cvpa_component_entries": 1012,
+    "misc_cdix_display_index_bytes": 29,
+    "glob_records": 1943,
+    "global_value_subrecords": 1943,
+    "sources_rehashed_before_and_after_each_plugin": true,
+    "formid_slots": 50303,
+    "formid_slots_jsonl_sha256": "0a31478d5cc29c7981af2371f96dde306034ca4860086860306b32632f1030d2",
+    "nested_formid_slots": 40064,
+    "formid_slot_patterns_by_field": {
+      "CMPO.CraftingSound": {
+        "FullWidthPattern": 34
+      },
+      "CMPO.MajorRecord.FormID": {
+        "FullWidthPattern": 34
+      },
+      "CMPO.ModScrapScalar": {
+        "FullWidthPattern": 33
+      },
+      "CMPO.ScrapItem": {
+        "FullWidthPattern": 34
+      },
+      "COBJ.Category": {
+        "FullWidthPattern": 1612
+      },
+      "COBJ.Component": {
+        "FullWidthPattern": 14916
+      },
+      "COBJ.Condition.ParameterOneRecord": {
+        "FullWidthPattern": 3609
+      },
+      "COBJ.Condition.Reference": {
+        "FullWidthPattern": 1261,
+        "ZeroValue": 2365
+      },
+      "COBJ.CreatedObject": {
+        "FullWidthPattern": 4576
+      },
+      "COBJ.MajorRecord.FormID": {
+        "FullWidthPattern": 4611
+      },
+      "COBJ.MenuArtObject": {
+        "FullWidthPattern": 50
+      },
+      "COBJ.PickUpSound": {
+        "FullWidthPattern": 1310
+      },
+      "COBJ.PutDownSound": {
+        "FullWidthPattern": 1311
+      },
+      "COBJ.WorkbenchKeyword": {
+        "FullWidthPattern": 1133
+      },
+      "GLOB.MajorRecord.FormID": {
+        "FullWidthPattern": 1943
+      },
+      "MISC.Component": {
+        "FullWidthPattern": 1012
+      },
+      "MISC.FeaturedItemMessage": {
+        "FullWidthPattern": 20
+      },
+      "MISC.Keyword": {
+        "FullWidthPattern": 3186
+      },
+      "MISC.MajorRecord.FormID": {
+        "FullWidthPattern": 3651
+      },
+      "MISC.PickUpSound": {
+        "FullWidthPattern": 41
+      },
+      "MISC.PreviewTransform": {
+        "FullWidthPattern": 3522
+      },
+      "MISC.PutDownSound": {
+        "FullWidthPattern": 39
+      }
+    },
+    "raw_zero_formid_slots": 2365,
+    "schema_formlink_runtime_identity_assigned": false,
+    "condition_function_schema_jsonl_sha256": "a40eade697bb0804cfb68b2c6e02f7ab1a3860995565a9ecc3f4b98d9080406c",
+    "condition_function_schema_rows": 479
+  },
+  "condition_structure": {
+    "payload_byte_0": "comparison operator in upper three bits; condition flags in lower five bits",
+    "payload_bytes_1_to_3": "unknown bytes retained",
+    "payload_bytes_4_to_7": "comparison value bits retained raw; UseGlobal flag records global-FormID encoding",
+    "payload_bytes_8_to_9": "function index retained as UInt16",
+    "payload_bytes_10_to_11": "unknown UInt16 retained",
+    "payload_bytes_12_to_15": "first parameter slot retained as raw UInt32",
+    "payload_bytes_16_to_19": "second parameter slot retained as raw UInt32",
+    "payload_bytes_20_to_23": "run-on value retained as raw UInt32",
+    "payload_bytes_24_to_27": "reference slot retained as raw UInt32",
+    "payload_bytes_28_to_31": "unknown Int32 retained",
+    "payloads_are_also_kept_exactly": true
+  },
+  "independent_comparison": {
+    "private_directory": "local/workshop-oracle-027",
+    "comparison_sha256": "0fecc46a1f879bb37d91b5ca98621afa6ea43d959877d6eece9d649d50c389a3",
+    "completion_sha256": "0a826170384063ab865f4fc201f98df343309997972adba76cff019fe5ca7227",
+    "oracle_binary_sha256": "dba640f16f910801ff0a3fe1235ed2f282f39ec3a7be06ae8a4a7c5ae3f2c5de",
+    "plugins_compared": 16,
+    "rust_cobj_records": 4611,
+    "mutagen_cobj_records": 4611,
+    "matched_dimensions": [
+      "per-record version",
+      "component entry and quantity sequences",
+      "category counts",
+      "CTDA count",
+      "CTDA raw condition flags including global encoding, comparison operator, function index, and run-on value",
+      "created-object and workbench-link presence",
+      "INTV counts and optional priorities",
+      "strict same-plugin record joins for 8,296 COBJ/CMPO/MISC records",
+      "all 37,699 non-null schema-declared COBJ/CMPO/MISC FormLink local-ID candidates",
+      "CTDA reference fields and explicitly mapped parameter links; zero values remain raw",
+      "all 479 pinned condition function names and three-slot parameter mappings compared independently",
+      "259 known functions with defaulted maps preserved unresolved; 220 explicit mappings type/category matched",
+      "all three parameter type/categories compared for each of 3,626 observed COBJ conditions",
+      "schema fixture checks CTDA comparison/reference offsets and both FormLink parameter-word offsets"
+    ],
+    "structural_histograms_match": true,
+    "sources_hash_stable_before_and_after": true,
+    "numeric_form_link_targets_compared": true,
+    "oracle_source_sha256": "8229cdf976454e024359c44a1c9dbd620e15986d97abeb6fe0cb46e0836fce62",
+    "condition_parameter_schema_match": true,
+    "raw_scrap_record_structure_match": true,
+    "raw_global_field_structure_match": true,
+    "raw_schema_form_links_match": true,
+    "raw_schema_form_links": {
+      "scope": "COBJ/CMPO/MISC schema-declared FormLink fields, including only explicitly mapped CTDA parameter slots; strict same-plugin physical record local-ID joins; Mutagen FormKeys are reduced to local-ID candidates for comparison",
+      "source_census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+      "rust_slots": 40064,
+      "rust_records": 8296,
+      "mutagen_records": 8296,
+      "joined_records": 8296,
+      "non_null_slots_compared": 37699,
+      "local_id_candidates_matched": 37699,
+      "raw_form_ids_resolved": false,
+      "matches": true
+    },
+    "raw_formlink_ids_resolved": false,
+    "condition_schema_functions_compared": 15,
+    "condition_records_compared": 3626,
+    "condition_parameter_schema_checks_all_three_slots": true,
+    "condition_function_schema_table_match": true,
+    "condition_function_schema_table": {
+      "mutagen_function_count": 479,
+      "rust_schema_rows": 479,
+      "joined_functions": 479,
+      "names_matched": 479,
+      "mapping_statuses_matched": 479,
+      "explicit_parameter_type_rows_matched": 220,
+      "explicit_parameter_category_rows_matched": 220,
+      "explicit_mapping_rows": 220,
+      "defaulted_named_rows": 259,
+      "defaulted_rows_retained_unresolved": 259,
+      "unknown_rows": 0,
+      "counts_match": true,
+      "all_rows_match": true
+    }
+  },
+  "validation": {
+    "rust_toolchain": "1.99.0-x86_64-pc-windows-msvc",
+    "cargo_fmt_check": "passed",
+    "cargo_test_locked_all_targets": "passed; 94 tests",
+    "cargo_clippy_locked_all_targets_warnings_denied": "passed",
+    "cargo_build_locked_bins_single_job": "passed; audit-workshop rebuilt",
+    "dotnet_reference_oracle_build": "passed at the pinned Mutagen revision; upstream NuGet NU1902 warning for Microsoft.Build.Tasks.Git 10.0.300",
+    "retail_sources_read_only": true,
+    "outputs_under_ignored_local": true,
+    "cargo_lock_unchanged": true,
+    "cargo_retail_audit": "passed; fresh local/workshop-recipe-018; 16 plugins rehashed before and after; 50,303 raw FormID slots plus 479 schema rows emitted",
+    "independent_formlink_comparison": "passed; fresh local/workshop-oracle-027; 37,699 non-null local-ID candidates matched, 2,365 raw zeros retained",
+    "ctda_formid_slot_offset_regression_test": "passed; global comparison +4, FormLink parameter-one +12, FormLink parameter-two +16, Reference +24; numeric and defaulted slots omitted",
+    "condition_schema_regeneration": "passed; clean locked checkout regenerated 479 names and 220 maps reproducibly",
+    "condition_function_schema_table_comparison": "passed; 479/479 names and map statuses; 220 explicit type/category rows matched; 259 defaulted rows remain unresolved",
+    "mutagen_ctda_writer_fixture": "passed; two COBJ CTDA payloads emitted and reader-round-tripped by pinned Mutagen, then decoded by Rust tests; exact hashes and local evidence recorded in writer_authored_condition_fixtures"
+  },
+  "remaining_gates": [
+    "CTDA function semantics, the defaulted IsInInterior parameter map, and unknown future function indices",
+    "FormID/master identity, active load order and override selection",
+    "ingredient names, perks, inventory, and recipe eligibility",
+    "settlement placement, transaction commit/cancel/refund, power and production",
+    "gameplay, native API and save compatibility",
+    "General record-family FormLink scanning, VMAD object values, and placed-reference identity",
+    "Profile-aware active plugin order, ESL runtime slots, and override selection"
+  ],
+  "runtime_ready": false,
+  "condition_function_schema_table": {
+    "generated_source": "src/condition/condition_schema.rs",
+    "generator": "tools/generate-condition-schema.py",
+    "schema_revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+    "schema_source_sha256": "1d7658bc37b09a8cf8366d61650d13b712100d223e4aced134c1f04fcd3bb3d2",
+    "generated_table_sha256": "5eda042d38b8734943b372a83a6dbf720f42c3e06039fd1d41e490b196de74be",
+    "named_functions": 479,
+    "explicit_parameter_maps": 220,
+    "named_functions_defaulted_unresolved": 259,
+    "ctda_raw_parameter_words": 2,
+    "third_parameter_metadata_retained_without_a_wire_slot": true
+  },
+  "writer_authored_condition_fixtures": {
+    "private_directory": "local/workshop-condition-fixture-002",
+    "receipt_sha256": "80e7bc7c192b1a587b0acf65b3c4c6a05ad54d9ba76a33d0532be8af801c3465",
+    "mutagen_revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+    "plugin_sha256": "7c4a2a033eebc78783d16bdf1a92b744d6923cd8a3b264ba5a402a4f1dc00bc2",
+    "condition_count": 2,
+    "mutagen_writer_reader_round_trip": true,
+    "rust_decoder_tests": 2,
+    "payloads": [
+      {
+        "kind": "float-comparison",
+        "sha256": "8ad926f9a195cf1fc189a6190c81a93236091fb29c4d4e3d4639f3961810e4ca",
+        "bytes": 32,
+        "test_fixture": "tests/fixtures/condition/mutagen-ctda-v1.bin"
+      },
+      {
+        "kind": "global-formlink-comparison",
+        "sha256": "8e1e560dcee289d02c91b3bf1b99f6b652790aa1a595fcf803c6b47b719c7efb",
+        "bytes": 32,
+        "test_fixture": "tests/fixtures/condition/mutagen-global-ctda-v1.bin"
+      }
+    ],
+    "fixture_links_are_local": true,
+    "runtime_formid_identity_assigned": false,
+    "condition_evaluation_performed": false
+  }
+}

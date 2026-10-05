@@ -1,0 +1,262 @@
+{
+    "schema_version":  1,
+    "checkpoint":  9,
+    "research_date":  "2026-10-04",
+    "status":  "Skyrim generic-model source-field census across installed plugin kinds outside STAT; source-to-archive trace for one unsupported legacy NIF; no runtime acceptance",
+    "game_profile":  {
+                         "edition_install":  "Skyrim Special Edition updated runtime",
+                         "steam_build":  24914197,
+                         "executable_version":  "1.7.104.0",
+                         "installed_plugins":  10,
+                         "ae_coverage":  "not complete; four installed Creation plugin/archive pairs do not establish the full paid Anniversary corpus",
+                         "original_game_data_modified":  false
+                     },
+    "implementation":  {
+                           "command":  "export-generic-models --plugin \u003cESM/ESP/ESL\u003e",
+                           "source":  "src/generic_models.rs",
+                           "schema_record_kinds":  39,
+                           "stat_uses_separate_adapter":  true,
+                           "record_reader":  "pinned fallout-data selected-record visitor",
+                           "asset_path_normalization":  "pinned fallout-data AssetPath",
+                           "archive_backend":  "unchanged pinned dream_archive BSA 105 backend",
+                           "source_hashing":  "pinned fallout-data digest_reader",
+                           "record_framing_or_decompression_duplicated":  false,
+                           "unknown_path_shapes_visible":  true,
+                           "override_or_archive_winner_selection":  false
+                       },
+    "source_scan":  {
+                        "plugin_files":  10,
+                        "schema_selected_records":  19636,
+                        "model_path_fields":  15079,
+                        "normalized_model_references":  15079,
+                        "malformed_model_paths":  0,
+                        "per_plugin":  [
+                                           {
+                                               "file":  "_ResourcePack.esl",
+                                               "record_count":  89,
+                                               "record_kinds":  10,
+                                               "records_without_modl":  5,
+                                               "records_with_multiple_modl":  0,
+                                               "model_path_fields":  84,
+                                               "normalized_references":  84,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "ccBGSSSE001-Fish.esm",
+                                               "record_count":  429,
+                                               "record_kinds":  18,
+                                               "records_without_modl":  131,
+                                               "records_with_multiple_modl":  4,
+                                               "model_path_fields":  310,
+                                               "normalized_references":  310,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "ccBGSSSE025-AdvDSGS.esm",
+                                               "record_count":  180,
+                                               "record_kinds":  20,
+                                               "records_without_modl":  33,
+                                               "records_with_multiple_modl":  6,
+                                               "model_path_fields":  165,
+                                               "normalized_references":  165,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "ccBGSSSE037-Curios.esl",
+                                               "record_count":  73,
+                                               "record_kinds":  10,
+                                               "records_without_modl":  3,
+                                               "records_with_multiple_modl":  0,
+                                               "model_path_fields":  70,
+                                               "normalized_references":  70,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "ccQDRSSE001-SurvivalMode.esl",
+                                               "record_count":  139,
+                                               "record_kinds":  4,
+                                               "records_without_modl":  10,
+                                               "records_with_multiple_modl":  0,
+                                               "model_path_fields":  129,
+                                               "normalized_references":  129,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "Dawnguard.esm",
+                                               "record_count":  1376,
+                                               "record_kinds":  35,
+                                               "records_without_modl":  477,
+                                               "records_with_multiple_modl":  46,
+                                               "model_path_fields":  1037,
+                                               "normalized_references":  1037,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "Dragonborn.esm",
+                                               "record_count":  2294,
+                                               "record_kinds":  34,
+                                               "records_without_modl":  454,
+                                               "records_with_multiple_modl":  32,
+                                               "model_path_fields":  1922,
+                                               "normalized_references":  1922,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "HearthFires.esm",
+                                               "record_count":  788,
+                                               "record_kinds":  17,
+                                               "records_without_modl":  95,
+                                               "records_with_multiple_modl":  0,
+                                               "model_path_fields":  693,
+                                               "normalized_references":  693,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "Skyrim.esm",
+                                               "record_count":  13759,
+                                               "record_kinds":  38,
+                                               "records_without_modl":  3797,
+                                               "records_with_multiple_modl":  99,
+                                               "model_path_fields":  10259,
+                                               "normalized_references":  10259,
+                                               "malformed_paths":  0
+                                           },
+                                           {
+                                               "file":  "Update.esm",
+                                               "record_count":  509,
+                                               "record_kinds":  25,
+                                               "records_without_modl":  180,
+                                               "records_with_multiple_modl":  27,
+                                               "model_path_fields":  410,
+                                               "normalized_references":  410,
+                                               "malformed_paths":  0
+                                           }
+                                       ],
+                        "records_without_modl":  5185,
+                        "records_with_multiple_modl":  214
+                    },
+    "legacy_mesh_trace":  {
+                              "plugin_file":  "Update.esm",
+                              "record_kind":  "ACTI",
+                              "file_local_form_id":  "0x01003206",
+                              "record_offset":  808329,
+                              "editor_ids":  [
+                                                 "ccBGS_ARTrigPressurePlate01"
+                                             ],
+                              "field_path":  "CreationClub\\_Shared\\Dungeons\\AyleidRuins\\Interior\\Triggers\\ARTrigPressurePlate01.NIF",
+                              "normalized_field_path":  "creationclub/_shared/dungeons/ayleidruins/interior/triggers/artrigpressureplate01.nif",
+                              "archive_candidate_path":  "meshes/creationclub/_shared/dungeons/ayleidruins/interior/triggers/artrigpressureplate01.nif",
+                              "archive":  "Skyrim - Meshes0.bsa",
+                              "archive_version":  105,
+                              "archive_member_path":  "meshes\\creationclub\\_shared\\dungeons\\ayleidruins\\interior\\triggers\\artrigpressureplate01.nif",
+                              "asset_bytes":  20755,
+                              "asset_sha256":  "b1a96a9c034e90ac4ea81fdaf44983ebfaea33ce368648dae4555a5b8c45ba9e",
+                              "nif_header":  {
+                                                 "text_line":  "Gamebryo File Format, Version 20.2.0.7",
+                                                 "textual_version":  "20.2.0.7",
+                                                 "binary_version":  335675399,
+                                                 "endian_marker":  1,
+                                                 "user_version":  12,
+                                                 "block_count":  46,
+                                                 "user_version_2":  83,
+                                                 "tuple_bytes_hex":  "07000214010c0000002e00000053000000",
+                                                 "classification":  "Skyrim legacy stream header tuple; distinct from stream-100 profile; runtime use unverified",
+                                                 "skyrim_se_header_tuple":  false
+                                             },
+                              "source_export":  "local/generic-models-09a-Update.esm.jsonl",
+                              "stat_exact_path_references_in_ten_plugins":  0
+                          },
+    "other_unmatched_ayleid_stat_paths":  {
+                                              "targets":  [
+                                                              "creationclub/_shared/dungeons/ayleidruins/interior/arrubblepile05.nif",
+                                                              "creationclub/_shared/dungeons/ayleidruins/interior/arrubblepile03.nif",
+                                                              "creationclub/_shared/dungeons/ayleidruins/interior/arrubblepile02.nif",
+                                                              "creationclub/_shared/dungeons/ayleidruins/interior/argreatwelkyndstonestatic01.nif"
+                                                          ],
+                                              "generic_model_match_count":  0,
+                                              "matches":  [
+
+                                                          ]
+                                          },
+    "validation":  {
+                       "rust_tests_passed":  59,
+                       "rust_tests_failed":  0,
+                       "format_check":  "passed",
+                       "clippy":  "passed with warnings denied",
+                       "build":  "passed; one build job",
+                       "installed_scan_exit_status":  0
+                   },
+    "local_evidence":  [
+                           {
+                               "path":  "local/generic-models-09a-_ResourcePack.esl.jsonl",
+                               "bytes":  165370,
+                               "sha256":  "c23342d3da1c1f93e718e036d6d2a321a73f08026ec92ee28ce5ae62b69508c6"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-ccBGSSSE001-Fish.esm.jsonl",
+                               "bytes":  620829,
+                               "sha256":  "84702ad47c63040301d608ee91e04383236821dd16786d542c45a9ab2fc7afb9"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-ccBGSSSE025-AdvDSGS.esm.jsonl",
+                               "bytes":  324300,
+                               "sha256":  "674ea5eea0d55563513a144b0410b3f4009d9478360175a4807d5b564419c8e6"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-ccBGSSSE037-Curios.esl.jsonl",
+                               "bytes":  147692,
+                               "sha256":  "ae94f3f9753eb937e4b4da3ada7d1eb51ee9f80e457216c80f864dec6e50d90a"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-ccQDRSSE001-SurvivalMode.esl.jsonl",
+                               "bytes":  198386,
+                               "sha256":  "d3839aa5bc5a39559392faeb093e15773dd77603986be0ab1293fec1555657b9"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-Dawnguard.esm.jsonl",
+                               "bytes":  1795830,
+                               "sha256":  "22589c1302a88ea7446f9f9388344205f81a11057ebf4309428ea34aa0d397d3"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-Dragonborn.esm.jsonl",
+                               "bytes":  3384192,
+                               "sha256":  "36908642cc47705493d485058e7f6b0e650b2ab06a92c967fac789648987b9ce"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-HearthFires.esm.jsonl",
+                               "bytes":  1451887,
+                               "sha256":  "c3bd0f14ebb30ce550c885f3369041920241da70b3616f970cde901c6e703da9"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-Skyrim.esm.jsonl",
+                               "bytes":  16751859,
+                               "sha256":  "de8742503ead8b1a60f1ae5643f4c22cf9bac26ca06a0999bef80ef90ce548c4"
+                           },
+                           {
+                               "path":  "local/generic-models-09a-Update.esm.jsonl",
+                               "bytes":  647369,
+                               "sha256":  "5bc096881bb61f26740d3e8dee62b4add54a5c862b1db9ba22c61960176dc679"
+                           },
+                           {
+                               "path":  "local/model-trace-09a-legacy-stream83.json",
+                               "bytes":  30281,
+                               "sha256":  "6658f0522b0b038f2de15fa5076e74fd792e46eecef1eb887e6c584be9dc456a"
+                           },
+                           {
+                               "path":  "local/nif-header-08-meshes0-stream83-confirmed.json",
+                               "bytes":  1638,
+                               "sha256":  "09a8b1b2c086e04885485501c2946ec8e1c235b849620ed4e14e997acbb938b2"
+                           }
+                       ],
+    "source_manifest":  {
+                            "path":  "reports/source-manifest-09.json",
+                            "bytes":  15003,
+                            "sha256":  "3cd36a40aa3cfc2614270997ff6a95672e3b0d7a97f9ff351ddeba00f8580091"
+                        },
+    "schema_reference":  {
+                             "repository":  "TES5Edit/TES5Edit",
+                             "revision":  "9fb016884bec138ea6c7b872cec831537d464c3e",
+                             "role":  "pinned Skyrim on-disk schema reference; generic model structure and record-family allowlist",
+                             "independent_runtime_oracle":  false
+                         }
+}

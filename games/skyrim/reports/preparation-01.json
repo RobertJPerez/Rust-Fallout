@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "verified_date": "2026-10-03",
+  "timezone": "America/New_York",
+  "status": "content-preparation checkpoint; not playable",
+  "runtime_version": "1.7.104.0",
+  "steam_build_id": "24914197",
+  "game_executable_sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+  "shared_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "source_manifest_sha256": "cad3526e1f148e7423bd62c80ce636db881686323f735352b929bdec3dc8ddce",
+  "inspector_executable_sha256": "f863f65e8370cacb8f6b5fc5cfbe043cb65c7b8b439a0dda9424d687068437e9",
+  "census": {
+    "path": "local/census-20261004T012805Z-589420db.json",
+    "sha256": "2495614e0b917a2967d0b27698c87f6ddf79e4ddc0e95131775f99dffcef4246",
+    "plugins": 10,
+    "archives": 23,
+    "records_including_headers": 1188920,
+    "groups": 139287,
+    "archive_entries": 172961,
+    "archived_pex_members": 14302,
+    "vmad_prefixes": 24631,
+    "vmad_properties": 73386,
+    "vmad_prefix_failures": 0,
+    "vmad_undecoded_tails": 10178,
+    "referenced_primary_script_paths": 12499,
+    "absent_script_paths": 7,
+    "input_findings": 7,
+    "inspector_exit_code": 2,
+    "hashed_input_bytes": 16073271805,
+    "input_hashes_match_initial_scan": true
+  },
+  "validation": {
+    "rust_tests_passed": 17,
+    "rust_tests_failed": 0,
+    "formatting": "passed",
+    "clippy_warnings_denied": "passed for application and offline oracle",
+    "metadata_oracle": {
+      "path": "local/plugin-oracle-final.json",
+      "sha256": "d5838dcca167481bfd7eea15b4255f003ba45bcf1916fd98db4e671c62e6b819",
+      "plugins_compared": 10,
+      "passed": true,
+      "altered_count_rejected": true,
+      "scope": "Physical record counts, HEDR versions, master lists and light-plugin status only"
+    }
+  },
+  "accepted_gameplay_scenarios": 0,
+  "paid_anniversary_content_validation": "not performed; complete corpus unavailable",
+  "next_gate": "Skyrim VMAD fragment and quest-alias decoding, followed by integration with shared Papyrus work"
+}

@@ -1,0 +1,77 @@
+﻿[
+    {
+        "path":  "Cargo.lock",
+        "bytes":  11911,
+        "sha256":  "67811f9c2d4e6becfcc284c966bfce368ccb7753a81f1d06d64c99eddb0cb167"
+    },
+    {
+        "path":  "Cargo.toml",
+        "bytes":  679,
+        "sha256":  "0b3fa68e04325b65aae700b88fdbd2434d26cfcf219e677dc127bc0ecf8d9acf"
+    },
+    {
+        "path":  "rust-toolchain.toml",
+        "bytes":  86,
+        "sha256":  "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e"
+    },
+    {
+        "path":  "src/archive.rs",
+        "bytes":  6804,
+        "sha256":  "96521896ef2c871074830f73824d5c04c7e1b89d6657d911c813eb8e969a9ea5"
+    },
+    {
+        "path":  "src/census.rs",
+        "bytes":  8969,
+        "sha256":  "6548febe2cb1a4bccbe13013e6ed4c6fc48b8ac42d177a57ba5ad1e3992faaab"
+    },
+    {
+        "path":  "src/lib.rs",
+        "bytes":  916,
+        "sha256":  "29c7d7875c771b8dae289d27d4a64ece8bc1ee3a2cbdb7890b7dd15d87f55a0b"
+    },
+    {
+        "path":  "src/main.rs",
+        "bytes":  4056,
+        "sha256":  "681bae7de8890459ce1dfadefb4521a0a1b5ebacfca9e28ce347be62298d672f"
+    },
+    {
+        "path":  "src/plugin.rs",
+        "bytes":  10516,
+        "sha256":  "a95208d4dfd8bdc5479e8d1173b5723f281897818c3d1c0f7f79d98ff0e0dd25"
+    },
+    {
+        "path":  "src/vmad.rs",
+        "bytes":  9980,
+        "sha256":  "00a3350dedf61a248e1ba8374ef4c84510390caa616415319a8e31ce28a78381"
+    },
+    {
+        "path":  "tests/preparation.rs",
+        "bytes":  7122,
+        "sha256":  "54c9d13d5a0a7e82c04c579bc8c88ddfc72ebe2d05b381a37ec337a2e3c2304b"
+    },
+    {
+        "path":  "tools/cargo.ps1",
+        "bytes":  717,
+        "sha256":  "7c15a19f4b845bad384917f02c7c68d7df7c722133bb1c187a258be0a7694684"
+    },
+    {
+        "path":  "tools/inspect-install.ps1",
+        "bytes":  3447,
+        "sha256":  "bcffacbe96bb4f325f6dfee23551d38243d4f238b0b796d14e29ca3287813f0a"
+    },
+    {
+        "path":  "tools/plugin-oracle/Cargo.lock",
+        "bytes":  4808,
+        "sha256":  "9b6baa172cf5909570f6c6f0c9c2009ab72435d2649622f9a3c30a916c9bf62d"
+    },
+    {
+        "path":  "tools/plugin-oracle/Cargo.toml",
+        "bytes":  336,
+        "sha256":  "a30d8de7d3843863317f80fb675248cb0738793697774b1ba1c1fd846f4dc224"
+    },
+    {
+        "path":  "tools/plugin-oracle/src/main.rs",
+        "bytes":  2724,
+        "sha256":  "3cc6f4fceba3deeac93e5a50e3f379d2ccd4da91271440fabb718204ce46c29f"
+    }
+]

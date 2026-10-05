@@ -2,7 +2,7 @@
 members = ["crates/fallout-data", "crates/fallout-runtime", "crates/fallout-cli", "crates/fallout-preview", "tools/archive-compare"]
 default-members = ["crates/fallout-cli", "crates/fallout-data", "crates/fallout-runtime"]
 resolver = "3"
-exclude = ["tools/plugin-oracle"]
+exclude = ["tools/plugin-oracle", "games/fallout4", "games/skyrim"]
 
 [workspace.package]
 edition = "2024"

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "checkpoint": 12,
+  "research_date": "2026-10-04",
+  "status": "read-only Skyrim landscape-layer source links; no renderer or gameplay acceptance",
+  "game_profile": {
+    "edition_install": "Skyrim Special Edition updated runtime",
+    "steam_build": 24914197,
+    "executable_version": "1.7.104.0",
+    "executable_sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+    "scanned_plugin_files": 10,
+    "indexed_bsa_files": 23,
+    "installed_creation_pairs": 4,
+    "ae_coverage": "not complete; installed Creation files do not establish the full paid Anniversary corpus",
+    "current_census_blocking_findings": 8,
+    "current_census_reader_failures": 0,
+    "original_game_data_modified": false
+  },
+  "implementation": {
+    "command": "trace-landscape-links --data <Data> --plugin <plugin path> [--plugin <another plugin path> ...] [--output <new JSONL path>]",
+    "source": "src/landscape_links.rs",
+    "shared_record_reader": "pinned fallout-data selected-record and subrecord visitors",
+    "record_scope": [
+      "LAND",
+      "LTEX",
+      "TXST",
+      "MATT",
+      "GRAS"
+    ],
+    "field_layouts": {
+      "LAND.BTXT": "8-byte layer header: LTEX FormID, quadrant byte, auxiliary byte, signed 16-bit layer index",
+      "LAND.ATXT": "8-byte layer header: LTEX FormID, quadrant byte, auxiliary byte, signed 16-bit layer index",
+      "LTEX.TNAM": "4-byte TXST FormID",
+      "LTEX.MNAM": "4-byte MATT FormID",
+      "LTEX.GNAM": "repeated 4-byte GRAS FormIDs"
+    },
+    "identity": "physical source record keys and ordinary references resolved through each plugin master list; cross-file FE references require an explicit active profile",
+    "candidate_join": "record kind plus SourceKey; physical record rows emitted once, edge candidate count retained, no override winner selected",
+    "limits": "300000 selected records and 1000000 visited LAND/LTEX subrecords across inputs; raw per-field previews capped at 32 bytes; full field length and SHA-256 retained",
+    "opaque": [
+      "LAND geometry",
+      "height and normal payloads",
+      "vertex paint and alpha data",
+      "TXST body",
+      "MATT body",
+      "GRAS body",
+      "unknown subrecord semantics"
+    ],
+    "record_framing_decompression_or_identity_normalization_duplicated": false
+  },
+  "scan": {
+    "plugin_files_scanned": 10,
+    "selected_records": 55139,
+    "land_records": 54079,
+    "ltex_records": 130,
+    "txst_records": 790,
+    "matt_records": 80,
+    "gras_records": 60,
+    "land_ltex_subrecords_scanned": 526715,
+    "base_layer_headers": 49345,
+    "alpha_layer_headers": 152844,
+    "tnam_fields": 129,
+    "mnam_fields": 130,
+    "gnam_fields": 60,
+    "non_null_form_links_resolved_to_source_keys": 187175,
+    "links_with_scanned_target_records": 187074,
+    "links_without_scanned_target_records": 101,
+    "unmatched_target_groups": [
+      {
+        "target_kind": "LTEX",
+        "origin_plugin": "skyrim.esm",
+        "local_id": "0x00000844",
+        "incoming_btxt_fields": 74,
+        "incoming_atxt_fields": 27,
+        "interpretation": "no target record in the ten supplied plugin files; not proof of invalidity or complete-content absence"
+      }
+    ],
+    "null_form_links": 15333,
+    "cross_file_light_links_requiring_profile": 0,
+    "malformed_link_payloads": 0,
+    "malformed_layer_payloads": 0,
+    "duplicate_layer_slots": 0,
+    "out_of_range_quadrants": 0,
+    "invalid_master_indices": 0,
+    "nonzero_auxiliary_layer_bytes": 111450,
+    "opaque_subrecords": 324077,
+    "unknown_subrecords": 63364,
+    "interpretation": "physical source links and candidate presence only; no winner, optional-content ownership, terrain decoding, texture payload, or runtime use inferred"
+  },
+  "validation": {
+    "rust_tests_passed": 68,
+    "rust_tests_failed": 0,
+    "format_check": "passed",
+    "clippy": "passed with warnings denied",
+    "build": "passed; one build job",
+    "installed_landscape_trace_exit_status": 2,
+    "installed_landscape_trace_exit_reason": "101 resolved layer links had no scanned LTEX candidate; completion trailer written",
+    "current_census_and_landscape_plugin_hashes": "all ten plugin byte counts and SHA-256 values match",
+    "checkpoint_11_texture_set_plugin_hashes": "all ten plugin byte counts and SHA-256 values match current census"
+  },
+  "local_evidence": {
+    "landscape_report": {
+      "path": "local/landscape-links-12e.jsonl",
+      "bytes": 231844755,
+      "sha256": "5d430cd815f4ee4ff15299936d19d414b47e95e7fb09dd9d757d8e429b6363de"
+    },
+    "current_install_census": {
+      "path": "local/census-20261004T222237Z-6a88a6f8.json",
+      "bytes": 37414379,
+      "sha256": "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+    },
+    "install_receipt": {
+      "path": "local/install-20261004T222237Z-6a88a6f8.json",
+      "bytes": 634,
+      "sha256": "c63163e07d1f29a6bed9c57e6a6cf15efead372718f5159e6fb737069f564daf"
+    },
+    "texture_set_report": {
+      "path": "local/texture-sets-11c.jsonl",
+      "bytes": 6077510,
+      "sha256": "326fbcfffec3b77d5c6ed45d4984ca7797e73caf5a323e7c356a58429846ea93"
+    },
+    "source_manifest": {
+      "path": "reports/source-manifest-12.json",
+      "files": 68,
+      "bytes": 544475,
+      "sha256": "9c7bd262ba8dd06cbc5d979e04fdf96641e9cef525b93c4a054428b58edcb2ab"
+    }
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "checkpoint": 20,
+  "research_date": "2026-10-04",
+  "status": "Skyrim CELL context and water-environment-map evidence with source-aware FormID and names-only asset candidates",
+  "game_profile": {
+    "edition_install": "Skyrim Special Edition updated Steam runtime",
+    "steam_build": "24914197",
+    "executable_version": "1.7.104.0",
+    "executable_sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+    "plugin_files_scanned": 10,
+    "indexed_archive_files": 23,
+    "installed_creation_pairs": 4,
+    "paid_anniversary_coverage": "incomplete; installed Creation pairs do not establish the full paid content set",
+    "census_blocking_findings": 8,
+    "reader_failures": 0,
+    "original_game_data_modified": false
+  },
+  "implementation": {
+    "command": "trace-landscape-links --data <Data> --plugin <plugin path> [--plugin <another plugin path> ...] [--output <new JSONL path>]",
+    "source_files": [
+      "src/landscape_links.rs",
+      "src/asset_lookup.rs",
+      "src/main.rs",
+      "docs/landscape-links.md",
+      "sources.lock.json",
+      "NEXT_STEPS.md"
+    ],
+    "record_reader": "pinned fallout-data visitor and archive backend; record framing, decompression and source locking are not duplicated",
+    "cell_context": "Skyrim XCCM links to REGN and XLCN links to LCTN; other selected context links retain their Skyrim-specific target kinds",
+    "xwem_schema": "CELL XWEM is a pinned string field; NUL termination and a case-insensitive Data root are supported by installed source evidence",
+    "xwem_path_handling": "strip only the Data root, normalize with shared fallout-data AssetPath, and query the existing loose-file/BSA name lookup",
+    "xwem_evidence": "exact field byte length and SHA-256, up to 4,096 raw bytes, terminator offset, trailing-byte status, normalized path and lookup candidates",
+    "asset_payloads_or_archive_members_read": false,
+    "archive_winner_selected": false,
+    "water_or_rendering_behavior_decoded": false,
+    "record_framing_decompression_path_normalization_or_hashing_duplicated": false
+  },
+  "scan": {
+    "selected_records": 135023,
+    "land_records": 54079,
+    "cell_records": 77337,
+    "regn_records": 389,
+    "location_records": 841,
+    "cell_context_form_links": 85754,
+    "cell_context_links_with_scanned_target_candidates": 9354,
+    "cell_context_links_without_scanned_target_candidates": 0,
+    "cell_context_links_unresolved_without_profile": 0,
+    "cell_context_links_by_tag": {
+      "LTMP": 77337,
+      "XLCN": 2891,
+      "XCWT": 1583,
+      "XCIM": 1100,
+      "XCMO": 1051,
+      "XCAS": 968,
+      "XEZN": 486,
+      "XCCM": 338
+    },
+    "cell_region_links": 83516,
+    "cell_region_links_with_scanned_target_candidates": 83486,
+    "cell_region_links_without_scanned_target_candidates": 30,
+    "xwem_fields": 109,
+    "xwem_fields_normalized": 109,
+    "xwem_malformed_fields": 0,
+    "xwem_unique_asset_paths": 16,
+    "xwem_references_with_loose_file": 0,
+    "xwem_references_with_archive_member": 106,
+    "xwem_references_without_named_candidate": 3,
+    "xwem_by_plugin": [
+      {"plugin": "ccBGSSSE001-Fish.esm", "fields": 10},
+      {"plugin": "ccBGSSSE025-AdvDSGS.esm", "fields": 2},
+      {"plugin": "Dawnguard.esm", "fields": 20},
+      {"plugin": "Dragonborn.esm", "fields": 13},
+      {"plugin": "Skyrim.esm", "fields": 56},
+      {"plugin": "Update.esm", "fields": 8}
+    ],
+    "xwem_unmatched": {
+      "normalized_asset_path": "textures/cubemaps/lavacubemap_e.dds",
+      "references": 3,
+      "source_plugin": "Dawnguard.esm",
+      "source_form_ids": ["0x0201A68A", "0x020064B5", "0x02003358"],
+      "loose_file_status": "absent",
+      "named_archive_candidates": [],
+      "interpretation": "no candidate among the scanned loose files and named members of the 23 indexed archives; this does not establish invalidity or complete AE coverage"
+    },
+    "xwem_archive_index": {
+      "archives_indexed": 23,
+      "archive_index_failures": 0,
+      "hash_only_entries": 0,
+      "invalid_archive_paths": 0,
+      "matched_paths_found_in": "Skyrim - Textures3.bsa"
+    },
+    "existing_landscape_candidate_gaps": {
+      "land_to_ltex_references_without_candidate": 101,
+      "cell_to_regn_references_without_candidate": 30,
+      "classification": "source-key-resolved candidate gaps within the ten supplied plugins only"
+    }
+  },
+  "validation": {
+    "rust_tests_passed": 69,
+    "rust_tests_failed": 0,
+    "format": "passed",
+    "clippy": "passed with warnings denied",
+    "build": "passed with one build job after the final Rust source changes",
+    "trace_completion_trailer_present": true,
+    "original_game_data_read_only": true
+  },
+  "local_evidence": {
+    "installed_trace": {
+      "path": "local/cell-context-links-20e.jsonl",
+      "bytes": 448928990,
+      "sha256": "71051B4981AD4F8DCC6C5649B6C3D38ACFEF9C92D718D890EF27FACDB50FC9BA",
+      "completion_trailer": true
+    },
+    "current_install_census": {
+      "path": "local/census-20261004T222237Z-6a88a6f8.json",
+      "bytes": 37414379,
+      "sha256": "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+    },
+    "source_manifest": {
+      "path": "reports/source-manifest-20.json",
+      "files": 69,
+      "source_bytes": 624884,
+      "bytes": 16933,
+      "sha256": "1FE1450944124AD236EB21C1AE1DDAA81E5E1C674B71BCDA2BD6C541AE2922E6",
+      "scope": "source, tests, project configuration and documentation; excludes local evidence, build targets, VCS metadata and reports"
+    }
+  }
+}

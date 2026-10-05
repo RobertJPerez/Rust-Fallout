@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "completed-static-pex-call-and-branch-inventory",
+  "implementation": {
+    "binary": "local/target/debug/link-pex.exe",
+    "binary_sha256": "b3bb823f52690b630a1e2b200f69aa1470c7be53c156ccd38476e6d5f45851ee",
+    "source_sha256": {
+      "src/bin/link-pex.rs": "a98c2e0d10c0af6f96c497c27b0f78ebae5b079b67422ac7cfed7651774d974d",
+      "src/executable.rs": "4f57969d65dd611b9a9d36ac92e3d74290a446b44095f94d9d2a16879644c1d3",
+      "src/link.rs": "c30d9b2631032d06d6563dbd8045e7175ed231e49fb02b577942cf823bd5068a"
+    },
+    "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+    "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+    "new_dependency_revision": false
+  },
+  "input": {
+    "private_directory": "local/proof-fo4-002",
+    "proof_complete_sha256": "f2c8f0e93be29a21b18f4a47f78a047c1b3caf94ddb108c4affdeba22c5484d7",
+    "census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "frozen_archived_pex_files": 10342
+  },
+  "reference": {
+    "id": "caprica",
+    "revision": "e4dee0860914d75e770d3f9ab374f7aba474b701",
+    "checkout_revision_verified": true,
+    "source_contracts": [
+      "CALLSTATIC operands are class, function, destination",
+      "CALLMETHOD operands are function, receiver, destination",
+      "CALLPARENT operands are function, destination",
+      "call variadic values follow the fixed operands",
+      "branch displacement is relative to the current instruction index",
+      "the PEX instruction reader preserves the call argument order"
+    ],
+    "compiler_authored_fixture_executed": true,
+    "compiler_authored_fixture_report": "reports/papyrus-compiler-checkpoint.json",
+    "compiler_authored_fixture_report_sha256": "c111dd2a4f90dea35eb791b5fae0c0045bc614ddcd2ec5d1420214fce4539273"
+  },
+  "results": {
+    "private_directory": "local/pex-executable-003",
+    "complete_sha256": "6e62573905d85627b5061437586e1be1171aacea6c9a6c919cfe2504d62a287a",
+    "declarations_sha256": "38167bf12414558bc15358ca4ba2b135ec72b54d535a2fdef23432e044f56b44",
+    "executable_rows_sha256": "51b975c254fd2ae2bdab8eafc1d196e7faf837df6b34b59637e4cee788622cca",
+    "class_definitions": 10342,
+    "functions": 30727,
+    "instructions": 269294,
+    "calls": {
+      "total": 122952,
+      "call_method_runtime_dispatch_unresolved": 114186,
+      "call_parent_dispatch_unresolved": 60,
+      "call_static": 8706,
+      "call_static_one_same_name_direct_declaration_candidate": 8706,
+      "call_static_with_native_flagged_declaration_candidate": 7844
+    },
+    "branches": {
+      "total": 54780,
+      "destination_is_instruction": 40126,
+      "destination_is_function_end_boundary": 14654
+    },
+    "opcode_histogram": {
+      "1": 1983,
+      "10": 4684,
+      "11": 9,
+      "12": 29,
+      "13": 8854,
+      "14": 41224,
+      "15": 14841,
+      "16": 2141,
+      "17": 340,
+      "18": 1202,
+      "19": 672,
+      "2": 508,
+      "20": 24492,
+      "21": 1394,
+      "22": 28894,
+      "23": 114186,
+      "24": 60,
+      "25": 8706,
+      "26": 1228,
+      "27": 309,
+      "28": 3352,
+      "29": 2940,
+      "3": 371,
+      "30": 207,
+      "31": 1091,
+      "32": 2503,
+      "33": 238,
+      "34": 82,
+      "36": 121,
+      "37": 18,
+      "38": 1455,
+      "39": 181,
+      "4": 194,
+      "40": 42,
+      "42": 143,
+      "43": 17,
+      "45": 54,
+      "46": 48,
+      "5": 55,
+      "6": 256,
+      "7": 37,
+      "8": 128,
+      "9": 5
+    },
+    "fo4_struct_array_opcode_counts_by_id": {
+      "31": 1091,
+      "32": 2503,
+      "33": 238,
+      "38": 1455,
+      "39": 181
+    },
+    "fo4_struct_array_instruction_total": 5468
+  },
+  "validation": {
+    "format_check": "passed",
+    "cargo_test_locked_all_targets": "passed; 92 tests",
+    "clippy_locked_all_targets_warnings_denied": "passed",
+    "build_locked_single_job": "passed",
+    "frozen_input_member_hashes_rechecked_during_both_passes": true,
+    "completion_marker_written_last": true,
+    "no_retail_or_new_vegas_writes": true
+  },
+  "limitations": [
+    "This is a physical PEX corpus inventory, not an active archive/plugin winner or runtime call graph.",
+    "CALLSTATIC candidates match the named physical class and function identifier only; no inheritance, state selection, overload, arity, argument type or return type rule is applied.",
+    "CALLMETHOD receiver type/dispatch and CALLPARENT dispatch remain unresolved.",
+    "Native flags identify declarations; no host API is implemented or proven available.",
+    "Branch indices and the one-past-end boundary are reported without assigning VM continuation behavior.",
+    "Compiler-authored executable microtests are still required before runtime values, dispatch, type rules or continuation behavior are implemented."
+  ]
+}

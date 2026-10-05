@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "checkpoint": 10,
+  "research_date": "2026-10-04",
+  "status": "source-only reverse REFR NAME trace for a Skyrim ACTI model record; no runtime acceptance",
+  "game_profile": {
+    "edition_install": "Skyrim Special Edition updated runtime",
+    "steam_build": 24914197,
+    "executable_version": "1.7.104.0",
+    "scanned_plugin_files": 10,
+    "ae_coverage": "not complete; the measured four installed Creation plugin/archive pairs do not establish the full paid Anniversary corpus",
+    "original_game_data_modified": false
+  },
+  "implementation": {
+    "command": "trace-placed-uses --data <Data> --target-plugin <filename> --form-id <0xXXXXXXXX> [--plugin <filename> ...]",
+    "source": "src/placed_uses.rs",
+    "record_scope": "placed REFR records with NAME subrecords",
+    "target_scope": "one exact ACTI FormID per invocation",
+    "record_reader": "pinned fallout-data selected-record visitor",
+    "identity": "declared plugin masters preserve origin-plugin and local-ID identity",
+    "archive_path_normalization": "pinned fallout-data AssetPath",
+    "source_hashing": "pinned fallout-data digest_reader",
+    "cross_file_fe_links": "unresolved without explicit active light-slot mapping",
+    "record_framing_or_decompression_duplicated": false,
+    "activation_override_or_archive_winner_selection": false
+  },
+  "target": {
+    "plugin": "Update.esm",
+    "plugin_sha256": "b298b0f65fa0127fd13c1f5ef6bb30eaf9d21fd19f5e6f8f91f829c9007d3280",
+    "record_kind": "ACTI",
+    "file_local_form_id": "0x01003206",
+    "source_key": {
+      "origin_plugin": "update.esm",
+      "local_id": "0x003206"
+    },
+    "editor_id": "ccBGS_ARTrigPressurePlate01",
+    "normalized_model_path": "creationclub/_shared/dungeons/ayleidruins/interior/triggers/artrigpressureplate01.nif",
+    "record_offset": 808329
+  },
+  "source_scan": {
+    "plugins": 10,
+    "placed_references": 866250,
+    "name_fields": 866240,
+    "resolved_name_fields": 866240,
+    "matching_placements": 0,
+    "unresolved_name_fields": 0,
+    "malformed_name_fields": 0,
+    "per_plugin": [
+      {"file": "Update.esm", "placed_references": 9620, "name_fields": 9619, "matches": 0},
+      {"file": "_ResourcePack.esl", "placed_references": 1, "name_fields": 0, "matches": 0},
+      {"file": "ccBGSSSE001-Fish.esm", "placed_references": 3834, "name_fields": 3833, "matches": 0},
+      {"file": "ccBGSSSE025-AdvDSGS.esm", "placed_references": 2121, "name_fields": 2120, "matches": 0},
+      {"file": "ccBGSSSE037-Curios.esl", "placed_references": 1, "name_fields": 0, "matches": 0},
+      {"file": "ccQDRSSE001-SurvivalMode.esl", "placed_references": 25, "name_fields": 24, "matches": 0},
+      {"file": "Dawnguard.esm", "placed_references": 66095, "name_fields": 66094, "matches": 0},
+      {"file": "Dragonborn.esm", "placed_references": 78755, "name_fields": 78754, "matches": 0},
+      {"file": "HearthFires.esm", "placed_references": 12464, "name_fields": 12463, "matches": 0},
+      {"file": "Skyrim.esm", "placed_references": 693334, "name_fields": 693333, "matches": 0}
+    ],
+    "interpretation": "No matching placed REFR NAME was found in these ten physical plugin sources; this is not proof of runtime non-use or inactivity."
+  },
+  "validation": {
+    "rust_tests_passed": 63,
+    "rust_tests_failed": 0,
+    "format_check": "passed",
+    "clippy": "passed with warnings denied",
+    "build": "passed; one build job",
+    "installed_trace_exit_status": 0
+  },
+  "local_evidence": {
+    "path": "local/placed-uses-10-final.json",
+    "bytes": 9181,
+    "sha256": "aae4cf5815610ad042a114e305f52b2c7edbcf3768784a0588d87047140d9343"
+  },
+  "source_manifest": {
+    "path": "reports/source-manifest-10.json",
+    "bytes": 15499,
+    "sha256": "abd63c360724e471ecab10482e2febc5db6f5190d66f7210bf7e07d32cc4f44b"
+  }
+}

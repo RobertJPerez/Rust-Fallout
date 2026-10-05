@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "verified-vmad-content",
+  "implementation_revision": "4ea740feccfb3f1d0dc04748d23c6c38165fb826",
+  "shared_nv_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "reference_revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+  "corpus": {
+    "plugins": 16,
+    "attachments": 20374,
+    "named_script_entries": 27652,
+    "empty_script_entries": 20,
+    "properties_and_struct_members": 78234,
+    "fragment_sections": 4870,
+    "fragments": 14929,
+    "phases": 738,
+    "aliases": 3322,
+    "independently_matched_semantic_tokens": 726906,
+    "source_plugin_fingerprints_rechecked": 16,
+    "reference_normalization_findings": 4
+  },
+  "validation": {
+    "rust_tests_passed": 19,
+    "clippy_all_targets_warnings_denied": "passed",
+    "formatting": "passed",
+    "rust_and_dotnet_builds": "passed",
+    "independent_comparison_exit_code": 0,
+    "dotnet_sdk": "10.0.102",
+    "oracle_harness_dll_sha256": "f7cee7933656915857a1684cdfa58dbbc696b8bb9fd9cb39f92656ccb24e54fb",
+    "upstream_fallout4_dll_sha256": "150282ac21a6f2f16edaa130178085fed278c7fdf3a83ed7306c8132f00f31c9"
+  },
+  "evidence": {
+    "scan_directory": "local/vmad-001",
+    "reference": "local/vmad-reference-002.jsonl",
+    "verification": "local/vmad-result-001.json",
+    "verification_sha256": "0087225a6582e955f74dc50fa123ccbc0b1927df2ddbba2f1177e3356b4a771b",
+    "manifest_sha256": "372ca8731bba03d989cb040e1984ff2507beab5aa840f214cfc25f291a8070cb",
+    "reference_sha256": "3401c1cd1f2c29577f2778abf06133a2d7d6d54d6518aeef9f349c5c7fde6473",
+    "scan_sha256": "10a9cad830e203b756f58dd868591eea05df48c3c08f83f71e4cccad4f842e94"
+  },
+  "raw_small_master_header_audit": {
+    "report": "reports/formid-checkpoint.json",
+    "private_directory": "local/esl-id-audit-001",
+    "physical_small_flag_plugins": 9,
+    "record_headers_observed": 5682,
+    "record_header_reference_fields_parsed": false,
+    "runtime_esl_slots_assigned": false,
+    "previous_four_vmad_slot_findings_resolved": false
+  },
+  "scope": "Complete structural attachments, all typed property/member values and scalar bits, original string bytes, raw form IDs, alias-local formats, fragment/phase fields. Raw IDs captured at upstream decoder identity boundary before canonicalization.",
+  "remaining": [
+    "PEX attachment/property/function linking",
+    "Variable VMAD types 6/16 unsupported and absent from installed corpus",
+    "Packed fragment/stage/phase high-half semantics remain disputed between reference sources",
+    "Four out-of-range source master-slot IDs retained unchanged; retail resolution behavior unknown",
+    "Active profile and script removal/override semantics; ESL runtime/load-order identity remains open after a raw header-pattern audit",
+    "Papyrus execution, native APIs, rendering and gameplay acceptance"
+  ]
+}

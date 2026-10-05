@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "verified_date": "2026-10-04",
+  "status": "Skyrim actor-source trace and ESL-owned identity preparation; gameplay unimplemented",
+  "shared_dependency": {
+    "revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+    "verified_checkpoint": 45,
+    "current_nv_main_observed": "84a6e582116c5b40abdaba462dbf85d43c6f3519",
+    "nv_development_batch": 10,
+    "nv_run_state": "active eight-agent run; no NV files or worktrees edited",
+    "fo4_main_observed": "69f12091aa8b1b22530a8e203bdfbafc71c72a71"
+  },
+  "installation": {
+    "path": "G:/SteamLibrary/steamapps/common/Skyrim Special Edition",
+    "runtime_version": "1.7.104.0",
+    "steam_build_id": "24914197",
+    "steam_manifest_sha256": "dcda6d91d93bf9ca33c8f488478a765910d82b3964be97ff8bcb720561e30da5",
+    "steam_state_flags": 4,
+    "plugins": 10,
+    "archives": 23,
+    "archive_versions": [105],
+    "creation_plugins_observed": [
+      "ccBGSSSE001-Fish.esm",
+      "ccBGSSSE025-AdvDSGS.esm",
+      "ccBGSSSE037-Curios.esl",
+      "ccQDRSSE001-SurvivalMode.esl"
+    ],
+    "resource_pack_plugin": "_ResourcePack.esl",
+    "paid_anniversary_corpus_complete": false,
+    "input_findings": 8
+  },
+  "census": {
+    "path": "local/census-20261004T142342Z-5f112b59.json",
+    "bytes": 37414082,
+    "sha256": "8b23cf0b6839133b7d294cbbdd32cd2c03500b9c57e0d697192df6dd1cd209e8",
+    "byte_identical_to_previous_verified_census": true,
+    "install_receipt": {
+      "path": "local/install-20261004T142342Z-5f112b59.json",
+      "bytes": 634,
+      "sha256": "86b46f48468529b6c7bb9cdb7fc0d59a71e061e2260cd683911f991ef8aac0f0"
+    }
+  },
+  "trace": {
+    "path": "local/missing-trace-04-verified.json",
+    "bytes": 48986,
+    "sha256": "663f1db694c4b3885512b57da627e4a416dab158758930e050cbc3678a892a16",
+    "schema_version": 2,
+    "exit_code": 0,
+    "plugins_hashed_twice": 10,
+    "missing_script_paths": 7,
+    "attachments": 9,
+    "definition_candidates": 9,
+    "direct_references": 4,
+    "containing_cells": 3,
+    "missing_script_effects": 2,
+    "spell_candidates": 2,
+    "actor_path_definitions": 0,
+    "actor_path_links": 0,
+    "unresolved_actor_links": 0,
+    "light_plugins_seen": 3
+  },
+  "independent_trace_oracle": {
+    "implementation": "Mutagen.Bethesda.Skyrim 0.54.4",
+    "revision": "0188012c607ce8bb283d2704400d37737f089134",
+    "control_path": "local/negative-trace-20261004T144852Z-01efd0c8/control-result.json",
+    "control_sha256": "aa8f04c067718ae54eb2a74be77c671bc09addb32211d0313188cc8645a181f4",
+    "passed": true,
+    "distinct_records": 16,
+    "comparisons": 176,
+    "mismatches": 0,
+    "expected_direct_edges": 4,
+    "independent_direct_edges": 4,
+    "expected_actor_edges": 0,
+    "independent_actor_edges": 0,
+    "expected_actor_definitions": 0,
+    "independent_actor_definitions": 0
+  },
+  "mutation_control": {
+    "receipt_path": "local/negative-trace-20261004T144852Z-01efd0c8/receipt.json",
+    "passed": true,
+    "mutation": "Flip one direct target FormID bit with unchanged record/edge counts",
+    "altered_exit_code": 2,
+    "mismatches": 2
+  },
+  "validation": {
+    "rust_tests_passed": 34,
+    "rust_tests_failed": 0,
+    "formatting": "passed",
+    "clippy_warnings_denied": "passed",
+    "binary_build": "passed",
+    "dotnet_oracle_build_warnings": 0,
+    "original_files_modified": false,
+    "accepted_gameplay_scenarios": 0
+  },
+  "next_gate": "Verify profile/load-order input and Skyrim full/light reference mapping before active winners; keep the paid AE content set separate"
+}

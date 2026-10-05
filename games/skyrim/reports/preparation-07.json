@@ -1,0 +1,312 @@
+{
+    "schema_version":  1,
+    "checkpoint":  7,
+    "verified_date":  "2026-10-04",
+    "status":  "All installed-plugin Skyrim STAT model/LOD extraction and BSA names-only candidate tracing; no NIF blocks or gameplay accepted",
+    "upstream":  {
+                     "shared_dependency_revision":  "9265ef63f714cdf01ff02028640a582be9639c7a",
+                     "nv_checkpoint":  45,
+                     "nv_main_observed":  "d35da72af8af1cb5f0ea062862e3d35d8f5f22c4",
+                     "nv_main_worktree_clean":  true,
+                     "nv_current_nif_scope":  "NV-specific scene/mesh, material/texture, skin, collision and runtime lanes; not used to decode Skyrim NIF payloads",
+                     "fo4_main_observed":  "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+                     "fo4_worktree_dirty_observed":  true,
+                     "fo4_pex_scope":  "FO4 3.9/game-2 Papyrus parser remains external owner; no Skyrim PEX decoder or VM added",
+                     "shared_dependency_changed":  false,
+                     "other_project_worktrees_modified":  false
+                 },
+    "installation":  {
+                         "path":  "G:/SteamLibrary/steamapps/common/Skyrim Special Edition",
+                         "runtime_version":  "1.7.104.0",
+                         "steam_build_id":  "24914197",
+                         "skyrim_esm_bytes":  249752131,
+                         "skyrim_esm_sha256":  "e198c3b85e5e48e0c92a6580d8f66e644256b68d812ee32b61735cf9b753df73",
+                         "bsa_archives_indexed":  23,
+                         "bsa_archive_index_failures":  0,
+                         "bsa_hash_only_entries":  0,
+                         "bsa_invalid_asset_paths":  0,
+                         "paid_anniversary_corpus_complete":  false,
+                         "original_game_files_modified":  false
+                     },
+    "implementation":  {
+                           "commands":  [
+                                            "export-stat-models",
+                                            "trace-stat-assets"
+                                        ],
+                           "plugin_framing":  "pinned fallout-data selected-record visitor; TES4 header selected by shared reader and Skyrim STAT bodies selected; other record bodies skipped",
+                           "asset_path_normalization":  "pinned fallout-data AssetPath",
+                           "archive_backend":  "pinned dream_archive BSA 105 index; no member payloads decompressed by trace",
+                           "source_fields":  [
+                                                 "STAT/EDID source identifier bytes and terminated UTF-8 text",
+                                                 "STAT/MODL model path",
+                                                 "STAT/MODT opaque payload hash",
+                                                 "STAT/MODS opaque alternate-texture payload hash",
+                                                 "STAT/MNAM four fixed 260-byte LOD path slots"
+                                             ],
+                           "preserves_source_form_ids_and_field_offsets":  true,
+                           "reports_exact_and_meshes_rooted_candidates_separately":  true,
+                           "selects_plugin_override_or_archive_winner":  false,
+                           "report_destination_inside_source_installation_refused":  true
+                       },
+    "source_scan":  {
+                        "plugin":  "all 10 installed plugin sources",
+                        "stat_records":  12626,
+                        "editor_id_fields":  12626,
+                        "malformed_editor_ids":  0,
+                        "records_without_modl":  8,
+                        "modl_fields":  12618,
+                        "opaque_modt_mods_payloads":  14007,
+                        "mnam_fields":  1096,
+                        "mnam_path_strings":  3085,
+                        "unexpected_mnam_lengths":  0,
+                        "malformed_model_paths":  0,
+                        "duplicate_modl_records":  0,
+                        "per_plugin":  [
+                                           {
+                                               "stat_records":  223,
+                                               "mnam_path_strings":  0,
+                                               "modl_fields":  223,
+                                               "unmatched_source_paths":  0,
+                                               "mnam_fields":  0,
+                                               "file":  "_ResourcePack.esl",
+                                               "path_references":  223,
+                                               "archive_matches":  223
+                                           },
+                                           {
+                                               "stat_records":  55,
+                                               "mnam_path_strings":  0,
+                                               "modl_fields":  55,
+                                               "unmatched_source_paths":  0,
+                                               "mnam_fields":  0,
+                                               "file":  "ccBGSSSE001-Fish.esm",
+                                               "path_references":  55,
+                                               "archive_matches":  55
+                                           },
+                                           {
+                                               "stat_records":  45,
+                                               "mnam_path_strings":  0,
+                                               "modl_fields":  45,
+                                               "unmatched_source_paths":  0,
+                                               "mnam_fields":  0,
+                                               "file":  "ccBGSSSE025-AdvDSGS.esm",
+                                               "path_references":  45,
+                                               "archive_matches":  45
+                                           },
+                                           {
+                                               "stat_records":  0,
+                                               "mnam_path_strings":  0,
+                                               "modl_fields":  0,
+                                               "unmatched_source_paths":  0,
+                                               "mnam_fields":  0,
+                                               "file":  "ccBGSSSE037-Curios.esl",
+                                               "path_references":  0,
+                                               "archive_matches":  0
+                                           },
+                                           {
+                                               "stat_records":  3,
+                                               "mnam_path_strings":  0,
+                                               "modl_fields":  3,
+                                               "unmatched_source_paths":  0,
+                                               "mnam_fields":  0,
+                                               "file":  "ccQDRSSE001-SurvivalMode.esl",
+                                               "path_references":  3,
+                                               "archive_matches":  3
+                                           },
+                                           {
+                                               "stat_records":  930,
+                                               "mnam_path_strings":  352,
+                                               "modl_fields":  930,
+                                               "unmatched_source_paths":  6,
+                                               "mnam_fields":  106,
+                                               "file":  "Dawnguard.esm",
+                                               "path_references":  1282,
+                                               "archive_matches":  1276
+                                           },
+                                           {
+                                               "stat_records":  1085,
+                                               "mnam_path_strings":  453,
+                                               "modl_fields":  1085,
+                                               "unmatched_source_paths":  1,
+                                               "mnam_fields":  155,
+                                               "file":  "Dragonborn.esm",
+                                               "path_references":  1538,
+                                               "archive_matches":  1537
+                                           },
+                                           {
+                                               "stat_records":  186,
+                                               "mnam_path_strings":  0,
+                                               "modl_fields":  186,
+                                               "unmatched_source_paths":  0,
+                                               "mnam_fields":  0,
+                                               "file":  "HearthFires.esm",
+                                               "path_references":  186,
+                                               "archive_matches":  186
+                                           },
+                                           {
+                                               "stat_records":  9720,
+                                               "mnam_path_strings":  2256,
+                                               "modl_fields":  9712,
+                                               "unmatched_source_paths":  33,
+                                               "mnam_fields":  824,
+                                               "file":  "Skyrim.esm",
+                                               "path_references":  11968,
+                                               "archive_matches":  11935
+                                           },
+                                           {
+                                               "stat_records":  379,
+                                               "mnam_path_strings":  24,
+                                               "modl_fields":  379,
+                                               "unmatched_source_paths":  4,
+                                               "mnam_fields":  11,
+                                               "file":  "Update.esm",
+                                               "path_references":  403,
+                                               "archive_matches":  399
+                                           }
+                                       ],
+                        "model_export_files":  10
+                    },
+    "asset_trace":  {
+                        "valid_source_path_references":  15703,
+                        "unique_candidate_paths":  19886,
+                        "references_with_loose_file":  0,
+                        "references_with_archive_member":  15659,
+                        "references_without_candidate_match":  44,
+                        "references_matching_multiple_archives":  30,
+                        "malformed_editor_id_findings":  0,
+                        "duplicate_normalized_entries_for_candidates":  0,
+                        "multi_archive_example":  {
+                                                      "form_id":  "00090E67",
+                                                      "path":  "Architecture\\Solitude\\SBluePalaceEntrance.nif",
+                                                      "winner_selected":  false,
+                                                      "source_field":  "MODL",
+                                                      "archives":  [
+                                                                       "Skyrim - Meshes0.bsa",
+                                                                       "Skyrim - Animations.bsa"
+                                                                   ]
+                                                  },
+                        "references_matching_exact_field_path":  0,
+                        "references_matching_meshes_rooted_candidate":  15659,
+                        "unmatched_evidence_path":  "local/stat-asset-gaps-07c.tsv",
+                        "multi_archive_evidence_path":  "local/stat-asset-overlaps-07c.tsv"
+                    },
+    "nif_header_crosscheck":  {
+                                  "source_field_path":  "LoadScreenArt\\LoadScreenMRaltar01.nif",
+                                  "candidate_archive_path":  "meshes/LoadScreenArt/LoadScreenMRaltar01.nif",
+                                  "archive":  "Skyrim - Meshes1.bsa",
+                                  "decoded_bytes":  39133,
+                                  "asset_sha256":  "4f0ad3a5c7a902defc85ec10aeb121fe96a9ec4e4057dbf4df4165bed972f4fd",
+                                  "text_version":  "20.2.0.7",
+                                  "user_version":  12,
+                                  "user_version_2":  100,
+                                  "scope":  "header tuple only; no block or runtime compatibility claim"
+                              },
+    "schema_reference":  {
+                             "repository":  "TES5Edit/TES5Edit",
+                             "revision":  "9fb016884bec138ea6c7b872cec831537d464c3e",
+                             "role":  "Skyrim STAT and generic-model on-disk schema reference",
+                             "runtime_or_behavior_oracle":  false
+                         },
+    "validation":  {
+                       "rust_tests_passed":  52,
+                       "rust_tests_failed":  0,
+                       "format_check":  "passed",
+                       "clippy_warnings_denied":  "passed",
+                       "binary_build":  "passed",
+                       "cargo_jobs":  1,
+                       "cargo_home":  "local/cargo-home",
+                       "target_directory":  "target",
+                       "gameplay_scenarios_accepted":  0
+                   },
+    "local_evidence":  [
+                           {
+                               "path":  "local/stat-asset-trace-07c-all-installed.jsonl",
+                               "sha256":  "e90f27f1c80e46b10e0d67a628dd6fae8f9142f0ecd5b680384a88b556a98a84",
+                               "bytes":  31493799
+                           },
+                           {
+                               "path":  "local/nif-header-07-stat-meshes1.json",
+                               "sha256":  "6f1ab48ed80f1c7a744ab1d4e69d4e433c774149284c18215ca66ccc93cd154a",
+                               "bytes":  1172
+                           },
+                           {
+                               "path":  "local/stat-asset-gaps-07c.tsv",
+                               "sha256":  "41d12e8831e8608d5e0117cebda96900e0ad7535f8b928b0e0a44aeb05092196",
+                               "bytes":  6039
+                           },
+                           {
+                               "path":  "local/stat-asset-overlaps-07c.tsv",
+                               "sha256":  "af7bdf8501eef02f181aef6d0e03e20b7146206af8ef30d8460af4a3caae49cf",
+                               "bytes":  6812
+                           },
+                           {
+                               "path":  "local/stat-models-07c-_ResourcePack.esl.jsonl",
+                               "sha256":  "9af6c5293185ea38d646334f6f0c1844f382330384e920e26d120230ab6087d4",
+                               "bytes":  494140
+                           },
+                           {
+                               "path":  "local/stat-models-07c-ccBGSSSE001-Fish.esm.jsonl",
+                               "sha256":  "759690a2d1e4175e973ec603f6ea9fb1b3e773ff7f644f4ed71012e41356439a",
+                               "bytes":  124010
+                           },
+                           {
+                               "path":  "local/stat-models-07c-ccBGSSSE025-AdvDSGS.esm.jsonl",
+                               "sha256":  "4a52fc7e1575e81cc30bf6d80c75b249c633aa337dbc144c8dd8f1cf48973096",
+                               "bytes":  108769
+                           },
+                           {
+                               "path":  "local/stat-models-07c-ccBGSSSE037-Curios.esl.jsonl",
+                               "sha256":  "c544bed46f841c3c6e7ff4e647e4c1e0dde0fb9ad94695d8aa1be2000314ad0d",
+                               "bytes":  724
+                           },
+                           {
+                               "path":  "local/stat-models-07c-ccQDRSSE001-SurvivalMode.esl.jsonl",
+                               "sha256":  "47d089492334eaf917a7b2aa1db5e05c60a226ec95ee9688b38f53405bb3f81d",
+                               "bytes":  6834
+                           },
+                           {
+                               "path":  "local/stat-models-07c-Dawnguard.esm.jsonl",
+                               "sha256":  "3a82aa567f32d4e39060099e53a9ae2184e499f51f1a78578abaa8475676d82d",
+                               "bytes":  2392787
+                           },
+                           {
+                               "path":  "local/stat-models-07c-Dragonborn.esm.jsonl",
+                               "sha256":  "da84d116a163d07639f6af822ccdfbf8523868c95b54908617bbfcdfce268679",
+                               "bytes":  2890172
+                           },
+                           {
+                               "path":  "local/stat-models-07c-HearthFires.esm.jsonl",
+                               "sha256":  "7a53414372736bebb5ae67b5efd86cf42dbf9f67c451aff503452cef43e6b77a",
+                               "bytes":  411267
+                           },
+                           {
+                               "path":  "local/stat-models-07c-Skyrim.esm.jsonl",
+                               "sha256":  "842d3ce9c1af202e8ed0db2e1e5179af184319a315abe7d6b4ce5d4e3fa78d22",
+                               "bytes":  23033767
+                           },
+                           {
+                               "path":  "local/stat-models-07c-Update.esm.jsonl",
+                               "sha256":  "9e9a5132844e229b7be642a83e0acffb86df8cc1a965630a37a6e188912ede2d",
+                               "bytes":  895774
+                           }
+                       ],
+    "source_manifest":  {
+                            "path":  "reports/source-manifest-07.json",
+                            "bytes":  14277,
+                            "sha256":  "02ccb24f25ac4f38154db02223223da6799efb8317c25a3d8c313303e9ba6cd8"
+                        },
+    "source_trace":  {
+                         "scope":  "names-only BSA indexes and loose-file presence; no payload decompression or winner/load-order claim",
+                         "path_references":  15703,
+                         "unmatched":  44,
+                         "plugins_scanned":  10,
+                         "unique_candidates":  19886,
+                         "archive_matches":  15659
+                     },
+    "nif_container_reference":  {
+                                    "revision":  "970a6238218a106daaeb89a61bcda0eeaf9d08c4",
+                                    "path":  "nif.xml",
+                                    "runtime_or_behavior_oracle":  false,
+                                    "role":  "SSE user-12/stream-100 header and outer-table field order plus Bethesda 20.2 geometry inheritance notes",
+                                    "repository":  "niftools/nifxml"
+                                }
+}

@@ -1,0 +1,157 @@
+{
+    "schema_version":  2,
+    "verified_date":  "2026-10-03",
+    "timezone":  "America/New_York",
+    "status":  "content-preparation checkpoint; one independent source-reference discrepancy remains; not playable",
+    "runtime_version":  "1.7.104.0",
+    "steam_build_id":  "24914197",
+    "game_executable_sha256":  "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+    "shared_revision":  "9265ef63f714cdf01ff02028640a582be9639c7a",
+    "source_manifest":  {
+                            "path":  "reports/source-manifest-02.json",
+                            "bytes":  6825,
+                            "sha256":  "109d88d9a766dbce21da98fece685d96b920209b87dad5e96d472db58030d4e9"
+                        },
+    "inspector":  {
+                      "path":  "target/debug/skyrim-prep.exe",
+                      "bytes":  873984,
+                      "sha256":  "cbb3c92a63ba547a49d3098b91eb5215d8be95f0c8b33d4d5fe93f335951939c"
+                  },
+    "census":  {
+                   "evidence":  {
+                                    "path":  "local/census-20261004T015436Z-fb0e2b91.json",
+                                    "bytes":  37414082,
+                                    "sha256":  "8b23cf0b6839133b7d294cbbdd32cd2c03500b9c57e0d697192df6dd1cd209e8"
+                                },
+                   "receipt":  {
+                                   "path":  "local/install-20261004T015436Z-fb0e2b91.json",
+                                   "bytes":  634,
+                                   "sha256":  "e9d774c724779bf001a1d79f1db9045d9d7b10f4a31ef7e9b992adb7f57ba266"
+                               },
+                   "plugins":  10,
+                   "archives":  23,
+                   "records_including_headers":  1188920,
+                   "groups":  139287,
+                   "vmad_bindings":  24631,
+                   "vmad_decoded_tails":  10178,
+                   "vmad_prefix_failures":  0,
+                   "vmad_tail_failures":  0,
+                   "primary_properties":  73386,
+                   "quest_aliases":  3228,
+                   "alias_properties":  7060,
+                   "fragment_kinds":  {
+                                          "INFO":  8120,
+                                          "PACK":  605,
+                                          "SCEN":  739,
+                                          "QUST":  7940,
+                                          "SCEN-phase":  804,
+                                          "PERK":  22
+                                      },
+                   "required_script_paths":  13279,
+                   "absent_script_paths":  [
+                                               "scripts/dlc01soulcairnskullpuzzlescript.pex",
+                                               "scripts/dlc1testphilatronach.pex",
+                                               "scripts/dlc1testphilvortexscript.pex",
+                                               "scripts/dlc1testphilvortextrigscript.pex",
+                                               "scripts/dlc2benthiclurkerfxscript.pex",
+                                               "scripts/draguremergescript.pex",
+                                               "scripts/lokirsdraugrresurrection.pex"
+                                           ],
+                   "vmad_object_index_findings":  1,
+                   "input_findings":  8,
+                   "inspector_exit_code":  2,
+                   "input_hashes_match_checkpoint_01":  true,
+                   "input_open_parse_failures":  0
+               },
+    "validation":  {
+                       "rust_tests_passed":  27,
+                       "rust_tests_failed":  0,
+                       "formatting":  "passed",
+                       "clippy_warnings_denied":  "passed",
+                       "dotnet_locked_restore":  "passed for both tools",
+                       "dotnet_build_warnings_as_errors":  "passed for both tools",
+                       "vmad_oracle":  {
+                                           "evidence":  {
+                                                            "path":  "local/bindings-20261004T015645Z-96afe0c9/receipt.json",
+                                                            "bytes":  10542,
+                                                            "sha256":  "8ea0be5d490d0b9691ee518ec56f361bb47595543629dead8496a7d897632529"
+                                                        },
+                                           "assembly":  {
+                                                            "path":  "local/vmad-oracle/bin/Debug/net9.0/vmad-oracle.dll",
+                                                            "bytes":  33280,
+                                                            "sha256":  "d65ecb9ce6b1f8b9beec58ea26e37c07712e905629d453a5932007028d10895a"
+                                                        },
+                                           "passed":  false,
+                                           "plugins":  10,
+                                           "bindings":  24631,
+                                           "matched_bindings":  24630,
+                                           "decoded_tails":  10178,
+                                           "comparisons":  1242554,
+                                           "mismatches":  1,
+                                           "expected_exit_code":  2,
+                                           "unresolved":  "Dawnguard.esm ACTI 02014760, DLC1VampireLordBlockerSCRIPT.Collision: stored 0307B5B9; independent FormKey fallback reconstructs 0207B5B9",
+                                           "direct_source_read":  {
+                                                                      "offset":  786615,
+                                                                      "bytes_hex":  "B9 B5 07 03",
+                                                                      "record_compressed":  false,
+                                                                      "runtime_interpretation":  "unverified"
+                                                                  }
+                                       },
+                       "archive_oracle":  {
+                                              "evidence":  {
+                                                               "path":  "local/archive-oracle-02-probe.json",
+                                                               "bytes":  10482,
+                                                               "sha256":  "5b63e434fb85c9b7c41bcaa1488fd13a5a212089335e655880db468d2bcbc5bb"
+                                                           },
+                                              "assembly":  {
+                                                               "path":  "local/archive-oracle/bin/Debug/net9.0/archive-oracle.dll",
+                                                               "bytes":  20992,
+                                                               "sha256":  "1d2980eee80a3416dbe934a1a280dde744bdd9fb660447d10743c726013ccbac"
+                                                           },
+                                              "input_census":  {
+                                                                   "path":  "local/census-20261004T014623Z-f2393cdf.json",
+                                                                   "bytes":  36901102,
+                                                                   "sha256":  "7ac24b3ac3dfaef4408ad66f319d04297f3bfb0a44aaa95a44a3e76fa925b9ec"
+                                                               },
+                                              "archive_reports_identical_to_final_census":  true,
+                                              "passed":  true,
+                                              "archives":  23,
+                                              "entries":  172961,
+                                              "scripts":  14302,
+                                              "script_bytes":  17650570,
+                                              "scope":  "Entry count, extension histogram, duplicate path count, and every script path/uncompressed length/SHA-256. Header fields, non-script payload contents and runtime mounting precedence are not certified."
+                                          },
+                       "metadata_oracle":  {
+                                               "evidence":  {
+                                                                "path":  "local/plugin-oracle-02.json",
+                                                                "bytes":  4325,
+                                                                "sha256":  "c459f7e0c73b8fea66ff175a4d556ae9fd6cbf528c74100042e6db30386733c2"
+                                                            },
+                                               "passed":  true,
+                                               "plugins":  10
+                                           },
+                       "fragment_name_mutation":  {
+                                                      "evidence":  {
+                                                                       "path":  "local/negative-vmad-20261004T015217Z-49cc837e/receipt.json",
+                                                                       "bytes":  409,
+                                                                       "sha256":  "2259692e9e1d231505f23eef28c95c358d3ac28bf936184e1c8836f951dcab44"
+                                                                   },
+                                                      "passed":  true,
+                                                      "expected_exit_code":  2,
+                                                      "actual_exit_code":  2
+                                                  },
+                       "script_hash_mutation":  {
+                                                    "evidence":  {
+                                                                     "path":  "local/negative-archive-20261004T015411Z-ff844ae6/receipt.json",
+                                                                     "bytes":  425,
+                                                                     "sha256":  "0de851a650bcf7f48311f6f7d5f543fc071adf93cd9490b44b22d2f67583e9ef"
+                                                                 },
+                                                    "passed":  true,
+                                                    "expected_exit_code":  2,
+                                                    "actual_exit_code":  2
+                                                }
+                   },
+    "accepted_gameplay_scenarios":  0,
+    "paid_anniversary_content_validation":  "not performed; complete corpus unavailable",
+    "next_gate":  "Resolve source-reference behavior and integrate verified binding exports with the existing Papyrus work through a Skyrim dialect API"
+}

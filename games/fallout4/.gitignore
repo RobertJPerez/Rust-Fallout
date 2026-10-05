@@ -1,0 +1,9 @@
+/target/
+/local/
+*.ba2
+*.esm
+*.esp
+*.esl
+*.pex
+*.fos
+__pycache__/

@@ -1,0 +1,165 @@
+{
+    "schema_version":  1,
+    "research_date":  "2026-10-05",
+    "sources":  [
+                    {
+                        "id":  "shared-rust-data",
+                        "location":  "G:/Rust-Fallout",
+                        "revision":  "9265ef63f714cdf01ff02028640a582be9639c7a",
+                        "role":  "local user-project dependency",
+                        "paths":  [
+                                      "crates/fallout-data/src/plugin.rs",
+                                      "crates/fallout-data/src/baseline.rs",
+                                      "crates/fallout-data/src/vfs.rs",
+                                      "crates/fallout-data/src/identity.rs",
+                                      "crates/fallout-data/src/archive.rs"
+                                  ],
+                        "limits":  "Checkpoint 45; no Skyrim gameplay acceptance inherited; local redistribution policy not established"
+                    },
+                    {
+                        "id":  "archive-backend",
+                        "url":  "https://github.com/DreamWeave-MP/dream_archive",
+                        "revision":  "a6ba4c9416e5c7bc211e7a3762420e5bf5c9c049",
+                        "role":  "existing shared production archive dependency",
+                        "license":  "MIT OR Apache-2.0",
+                        "license_files":  [
+                                              "LICENSE-MIT",
+                                              "LICENSE-APACHE"
+                                          ],
+                        "paths":  [
+                                      "Cargo.toml",
+                                      "src/bsa/tes4/archive.rs",
+                                      "src/bsa/tes4/builder.rs",
+                                      "src/bsa/tes4/mod.rs"
+                                  ],
+                        "limits":  "PC BSA 105 adapter; non-PEX retail payloads are not decompressed by this census"
+                    },
+                    {
+                        "id":  "nif-header-format-reference",
+                        "url":  "https://github.com/niftools/nifxml",
+                        "revision":  "970a6238218a106daaeb89a61bcda0eeaf9d08c4",
+                        "role":  "external header-version reference only; not a dependency",
+                        "license":  "GPL-3.0 repository; nif.xml-specific licensing is unresolved in issue 86",
+                        "license_files":  [
+                                              "LICENSE"
+                                          ],
+                        "paths":  [
+                                      "nif.xml",
+                                      "issues/69",
+                                      "issues/70",
+                                      "issues/86"
+                                  ],
+                        "limits":  "Checked the 20.2.0.7 / User Version 12 / SSE stream-version 100 tuple and outer Header table fields; documented Bethesda 20.2 geometry inheritance changes. No implementation or specification text copied; stream-100 block decoding remains unimplemented and NIF XML licensing is unresolved."
+                    },
+                    {
+                        "id":  "skyrim-record-definitions",
+                        "url":  "https://github.com/TES5Edit/TES5Edit",
+                        "revision":  "9fb016884bec138ea6c7b872cec831537d464c3e",
+                        "role":  "on-disk layout reference; no runtime dependency",
+                        "license":  "MPL-2.0",
+                        "license_files":  [
+                                              "LICENSE.txt",
+                                              "Core/wbDefinitionsTES5.pas file notice"
+                                          ],
+                        "paths":  [
+                                      "Core/wbDefinitionsTES5.pas",
+                                      "Core/wbDefinitionsCommon.pas"
+                                  ],
+                        "limits":  "Pinned on-disk definitions identify the generic model structure, 40 record kinds that use it, STAT four fixed MNAM LOD strings, CELL XCLC signed 32-bit X/Y plus optional flags and three reserved bytes, CELL XCLW as a four-byte IEEE 754 water-height member, optional CELL XCLL lighting members, inherited LCTN EDID, NPC_ RNAM to RACE, the six RACE movement defaults and MTYP to MOVT, eleven-float RACE SPED overrides, and MOVT SPED's version-28 eleventh float plus three-float INAM; extraction covers 39 non-STAT kinds plus the dedicated STAT adapter; source inspection is not an independent runtime behavior oracle"
+                    },
+                    {
+                        "id":  "esm4-cell-reader-cross-check",
+                        "url":  "https://github.com/OpenMW/openmw",
+                        "revision":  "4969186f349bda47c93313b85ae57076d55821c3",
+                        "role":  "secondary on-disk CELL reader comparison; not a runtime dependency",
+                        "license":  "GPL-3.0",
+                        "license_files":  [
+                                              "LICENSE"
+                                          ],
+                        "paths":  [
+                                      "components/esm4/loadcell.cpp"
+                                  ],
+                        "limits":  "CELL XCLR is handled as a vector of 32-bit FormIDs; CELL XCCM, XCWT, XCIM, XEZN, XCAS, XCMO and LTMP are read as four-byte FormIDs. Target record kinds remain game-specific: Skyrim XCCM is Sky/Weather from Region and resolves to REGN, while the other selected CELL fields resolve to WATR, IMGS, ECZN, ASPC, MUSC and LGTM. Format comparison only; no source text or implementation copied, and no Skyrim runtime behavior inferred"
+                    },
+                    {
+                        "id":  "light-plugin-metadata",
+                        "url":  "https://github.com/Ortham/esplugin",
+                        "revision":  "b33bd81aae02dd5cc797769705b093e407cd4a66",
+                        "role":  "independent offline metadata oracle and range reference; not linked into the runtime",
+                        "license":  "GPL-3.0",
+                        "license_files":  [
+                                              "LICENSE",
+                                              "Cargo.toml"
+                                          ],
+                        "paths":  [
+                                      "src/plugin.rs",
+                                      "src/game_id.rs"
+                                  ],
+                        "limits":  "Record counts, header versions, masters and light status compared on the installed 10-plugin corpus; compressed payload/VMAD behavior and runtime load-order mapping are not certified"
+                    },
+                    {
+                        "id":  "historical-vmad-layout",
+                        "url":  "https://github.com/TES5Edit/meta",
+                        "revision":  "d89f5057d222ebeaee17653b466ef7f6bf125f57",
+                        "role":  "VMAD version-dependent field presence reference; no implementation copied",
+                        "paths":  [
+                                      "UESPWiki/VMADDef.wiki"
+                                  ],
+                        "limits":  "Version 4 status bytes share the v5 prefix; arrays require v5. Older fragment documentation is superseded by pinned xEdit code. License for copying documentation not audited; no documentation text bundled."
+                    },
+                    {
+                        "id":  "independent-vmad-and-bsa-oracles",
+                        "url":  "https://github.com/Mutagen-Modding/Mutagen",
+                        "revision":  "0188012c607ce8bb283d2704400d37737f089134",
+                        "packages":  [
+                                         "Mutagen.Bethesda.Skyrim 0.54.4",
+                                         "Mutagen.Bethesda.Core 0.54.4"
+                                     ],
+                        "role":  "separate offline VMAD, BSA and source-provenance comparisons plus TXST and CELL/location schema references; not runtime dependencies",
+                        "license":  "GPL-3.0-only",
+                        "license_files":  [
+                                              "LICENSE.txt",
+                                              "NuGet package nuspec metadata"
+                                          ],
+                        "paths":  [
+                                      "Mutagen.Bethesda.Skyrim/Records/Common Subrecords/VirtualMachineAdapter.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Common Subrecords/AVirtualMachineAdapter.cs",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/Quest.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/Scene.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/Package.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/Perk.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/TextureSet.xml",
+                                              "Mutagen.Bethesda.Skyrim/Records/Major Records/Cell.xml",
+                                              "Mutagen.Bethesda.Skyrim/Records/Major Records/Location.xml",
+                                              "Mutagen.Bethesda.Skyrim/Records/Major Records/Region.xml",
+                                      "Mutagen.Bethesda.Core/Plugins/Masters/SeparatedMasterPackage.cs",
+                                      "Mutagen.Bethesda.Core/Archives/Archive.cs",
+                                      "Mutagen.Bethesda.Core/Archives/Bsa/BsaFileRecord.cs",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/PlacedNpc.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/Npc.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/Race.xml",
+                                      "Mutagen.Bethesda.Skyrim/Records/Major Records/MovementType.xml"
+                                  ],
+                        "limits":  "NuGet nuspec pins this repository commit; package content hashes and transitive dependencies are in separate packages.lock.json files. VMAD oracle preserves the observed Dawnguard source-index normalization disagreement as a failing comparison. Archive oracle compares all script payload hashes, not non-script payload contents; TXST slots have not been independently parsed by this oracle. The pinned CELL schema identifies XLCN as an LCTN FormLink, XCCM as a REGN FormLink, and XWEM as a string. The pinned Location schema identifies LCTN PNAM as a parent-location FormLink to LCTN. The pinned NPC, Race and MovementType schemas identify NPC_ RNAM to RACE, RACE movement defaults and MTYP links to MOVT, and the MOVT SPED/INAM and RACE SPED float slots. Skyrim's adapter keeps their raw bits and candidate links without a runtime movement claim. Installed XWEM values are Data-rooted strings; the adapter checks their terminator and root, then uses the shared Skyrim asset path and archive lookup. No source implementation is copied and no runtime water or location behavior is inferred."
+                    },
+                    {
+                        "id":  "runtime-version-evidence",
+                        "url":  "https://skse.silverlock.org/",
+                        "observed_date":  "2026-10-03",
+                        "role":  "version distinction only; not a dependency",
+                        "observation":  "Page lists Steam 1.7.104, GOG 1.6.1179 and older SE 1.5.97 separately; actual installed executable is measured locally"
+                    },
+                    {
+                        "id":  "champollion-pex-prefix-reference",
+                        "url":  "https://github.com/Orvid/Champollion",
+                        "revision":  "bc961a0bdfb4831f8240e6dacee0818b4bf81e00",
+                        "role":  "on-disk PEX magic and byte-order reference only; not a dependency",
+                        "license":  "LGPL-3.0",
+                        "paths":  [
+                                      "Pex/FileReader.cpp",
+                                      "LICENSE"
+                                  ],
+                        "limits":  "The pinned reader identifies Skyrim magic as big-endian while Fallout 4 uses little-endian; this project observes only Skyrim's first eight raw bytes and does not copy or implement the PEX reader."
+                    }
+                ]
+}

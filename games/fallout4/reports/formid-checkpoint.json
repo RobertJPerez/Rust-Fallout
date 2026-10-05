@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "completed-raw-small-master-record-header-observation",
+  "implementation": {
+    "binary": "local/target/debug/audit-esl-ids.exe",
+    "binary_sha256": "d89db9218fbf8c5f9e9a0dc65105503ce2821802522439ae10ef316eb71a73df",
+    "source_sha256": {
+      "src/bin/audit-esl-ids.rs": "12804b984dab7492275043491523326c498ae1f65494fb6ffdeed815128f097f",
+      "src/formid.rs": "f4a53bda32797222d009243653b3b5b135557c49146a2c0fd2c9046f281fc900"
+    },
+    "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+    "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb"
+  },
+  "reference": {
+    "id": "mutagen-vmad-oracle",
+    "revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+    "checkout_revision_verified": true,
+    "inspected_source": [
+      "Fallout4ModHeader.cs: Fallout 4 small-master flag",
+      "FormID.cs: full, small-marker and medium-marker bit masks",
+      "SeparatedMasterPackage.cs: source-level identity mapping behavior"
+    ],
+    "implementation_code_copied": false
+  },
+  "input": {
+    "retail_installation": "G:/SteamLibrary/steamapps/common/Fallout 4",
+    "proof_directory": "local/proof-fo4-002",
+    "proof_census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "proof_complete_sha256": "f2c8f0e93be29a21b18f4a47f78a047c1b3caf94ddb108c4affdeba22c5484d7"
+  },
+  "results": {
+    "private_directory": "local/esl-id-audit-001",
+    "complete_sha256": "ed7a503633e0cdcfe0c8e7e86461971a63340c33a91bc04f219d3e017aa62a4c",
+    "plugins_sha256": "609307adc04ca9ddaec4eeda73c2b09dbef0a8014dd3708b80a1a523f3773d87",
+    "record_ids_sha256": "517589c9e53ff851834958a92bfa95adf2b3abb95e25226ac47e596ca5c5805a",
+    "small_master_flag": "0x00000200",
+    "plugins": 9,
+    "plugins_with_one_listed_master": 9,
+    "record_headers": 5682,
+    "zero_raw_values": 9,
+    "full_width_patterns": 5673,
+    "small_marker_0xFE_patterns": 0,
+    "medium_marker_0xFD_patterns": 0,
+    "raw_high_byte_counts": {
+      "0x00": 168,
+      "0x01": 5514
+    },
+    "raw_0x01_outside_listed_master_count": 5514,
+    "source_hash_changes": 0
+  },
+  "validation": {
+    "format_check": "passed",
+    "cargo_test_locked_all_targets": "passed; 66 tests",
+    "clippy_locked_all_targets_warnings_denied": "passed",
+    "build_locked_single_job": "passed",
+    "plugin_record_count_matches_frozen_census": true,
+    "plugin_size_and_hash_match_before_read": true,
+    "plugin_hash_matches_after_read": true,
+    "output_rows_equal_record_header_count": true,
+    "completion_marker_written_last": true
+  },
+  "limits": [
+    "Counts only record-header FormIDs in plugins carrying the physical FO4 small-master flag.",
+    "Does not parse VMAD object IDs or other record reference fields.",
+    "Does not assign raw selectors to the current plugin, a master, an ESL slot or a FormKey.",
+    "Does not prove the inspected plugins are currently active or establish ESL load order and override behavior.",
+    "The four earlier VMAD master-slot observations remain unresolved."
+  ]
+}

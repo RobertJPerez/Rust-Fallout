@@ -1,0 +1,670 @@
+{
+    "schema_version":  1,
+    "checkpoint":  8,
+    "research_date":  "2026-10-04",
+    "game_profile":  {
+                         "edition_install":  "Skyrim Special Edition updated runtime",
+                         "steam_build":  24914197,
+                         "executable_version":  "1.7.104.0",
+                         "ae_coverage":  "not complete; the measured profile includes four Creation plugins and archives, not the full paid Anniversary corpus",
+                         "original_data_modified":  false
+                     },
+    "implementation":  {
+                           "command":  "nif-index --archive \u003cBSA\u003e --member \u003cpath.nif\u003e",
+                           "source":  "src/nif_index.rs",
+                           "required_tuple":  {
+                                                  "text_version":  "20.2.0.7",
+                                                  "binary_version":  335675399,
+                                                  "endian":  1,
+                                                  "user_version":  12,
+                                                  "stream_version":  100
+                                              },
+                           "scope":  "bounded Skyrim SSE outer-table index; block payloads remain opaque; exact span/footer accounting",
+                           "shared_dependency":  "fallout-data pinned at 9265ef63f714cdf01ff02028640a582be9639c7a; unchanged",
+                           "archive_backend":  "existing pinned dream_archive BSA 105 backend",
+                           "no_nif_payload_semantics":  true,
+                           "nif_list_pagination":  "Offset pages, limit 1..512, maximum offset 1,000,000; synthetic test proves adjacent page order and no payload decompression"
+                       },
+    "samples":  {
+                    "count":  6,
+                    "all_tuple_matches":  true,
+                    "all_block_spans_contiguous_and_end_at_footer":  true,
+                    "all_files_fully_consumed":  true,
+                    "details":  [
+                                    {
+                                        "report":  "local/nif-index-08-base-skeleton.json",
+                                        "archive":  "Skyrim - Meshes0.bsa",
+                                        "member":  "meshes\\actors\\character\\character assets\\skeleton.nif",
+                                        "asset_bytes":  24207,
+                                        "asset_sha256":  "139827f3ff6d60377314f761ea1d1ab675d5d25f8619d1ed7d2e06633c007928",
+                                        "version":  335675399,
+                                        "user_version":  12,
+                                        "stream_version":  100,
+                                        "blocks":  268,
+                                        "block_types":  22,
+                                        "strings":  166,
+                                        "groups":  0,
+                                        "roots":  1,
+                                        "payload_start":  5685,
+                                        "footer_offset":  24199,
+                                        "end_offset":  24207,
+                                        "report_bytes":  91346,
+                                        "report_sha256":  "61111bd44fad0494195c5883ccd2d9cbfe26845077cc3316b789d11c7883de0c"
+                                    },
+                                    {
+                                        "report":  "local/nif-index-08-curios.json",
+                                        "archive":  "ccBGSSSE037-Curios.bsa",
+                                        "member":  "meshes\\creationclub\\bgssse037\\clutter\\heartoforder\\heartoforder.nif",
+                                        "asset_bytes":  8554,
+                                        "asset_sha256":  "3ab61f0e4ea3cf38802bac372fb0e764cccd5477032cb1ab8bdf3abba5c82c9d",
+                                        "version":  335675399,
+                                        "user_version":  12,
+                                        "stream_version":  100,
+                                        "blocks":  14,
+                                        "block_types":  12,
+                                        "strings":  4,
+                                        "groups":  0,
+                                        "roots":  1,
+                                        "payload_start":  454,
+                                        "footer_offset":  8546,
+                                        "end_offset":  8554,
+                                        "report_bytes":  5147,
+                                        "report_sha256":  "a3e8a66522f5919b09f5b6078451a9c54b01c09d79d04511920896de7de6f24d"
+                                    },
+                                    {
+                                        "report":  "local/nif-index-08-fish.json",
+                                        "archive":  "ccBGSSSE001-Fish.bsa",
+                                        "member":  "meshes\\creationclub\\bgssse001\\critters\\fish\\fishflameangelfish\\fishflameangelfish01inv.nif",
+                                        "asset_bytes":  15453,
+                                        "asset_sha256":  "0a7f6f8efd5456d8164b89056c03f2c643a101fe723b3e3ca3167edcf1291cc3",
+                                        "version":  335675399,
+                                        "user_version":  12,
+                                        "stream_version":  100,
+                                        "blocks":  10,
+                                        "block_types":  10,
+                                        "strings":  4,
+                                        "groups":  0,
+                                        "roots":  1,
+                                        "payload_start":  410,
+                                        "footer_offset":  15445,
+                                        "end_offset":  15453,
+                                        "report_bytes":  4763,
+                                        "report_sha256":  "dfc1d32d3551f55aac04054253097d72c79fc708122518d0721a5fbaa22d2e62"
+                                    },
+                                    {
+                                        "report":  "local/nif-index-08-probe.json",
+                                        "archive":  "Skyrim - Meshes1.bsa",
+                                        "member":  "meshes\\loadscreenart\\loadscreenmraltar01.nif",
+                                        "asset_bytes":  39133,
+                                        "asset_sha256":  "4f0ad3a5c7a902defc85ec10aeb121fe96a9ec4e4057dbf4df4165bed972f4fd",
+                                        "version":  335675399,
+                                        "user_version":  12,
+                                        "stream_version":  100,
+                                        "blocks":  7,
+                                        "block_types":  4,
+                                        "strings":  3,
+                                        "groups":  0,
+                                        "roots":  1,
+                                        "payload_start":  291,
+                                        "footer_offset":  39125,
+                                        "end_offset":  39133,
+                                        "report_bytes":  3604,
+                                        "report_sha256":  "008e5e92c434a81b83fd483bab81b2208a297ba5fdeb7f02a709f0518de8ce5d"
+                                    },
+                                    {
+                                        "report":  "local/nif-index-08-saints.json",
+                                        "archive":  "ccBGSSSE025-AdvDSGS.bsa",
+                                        "member":  "meshes\\creationclub\\bgssse025\\loadscreenart\\loadscreendarkseducerbattleaxe.nif",
+                                        "asset_bytes":  85025,
+                                        "asset_sha256":  "9dd5c690f94b3c503cc63c807fa97379ea68bc62619c093739b9b6aa3d77c009",
+                                        "version":  335675399,
+                                        "user_version":  12,
+                                        "stream_version":  100,
+                                        "blocks":  4,
+                                        "block_types":  4,
+                                        "strings":  2,
+                                        "groups":  0,
+                                        "roots":  1,
+                                        "payload_start":  258,
+                                        "footer_offset":  85017,
+                                        "end_offset":  85025,
+                                        "report_bytes":  3129,
+                                        "report_sha256":  "66edb6ee91485b9da2ba3e496adfc9c82435f495079c54ee90ee2a5524d33c1d"
+                                    },
+                                    {
+                                        "report":  "local/nif-index-08-survival.json",
+                                        "archive":  "ccQDRSSE001-SurvivalMode.bsa",
+                                        "member":  "meshes\\survival\\maginvhungerpenaltyspellart.nif",
+                                        "asset_bytes":  23716,
+                                        "asset_sha256":  "54bed585c19934d1d50da43482fec4c59d761fa953b2476d0d52e9edb25d9f6e",
+                                        "version":  335675399,
+                                        "user_version":  12,
+                                        "stream_version":  100,
+                                        "blocks":  93,
+                                        "block_types":  39,
+                                        "strings":  40,
+                                        "groups":  0,
+                                        "roots":  1,
+                                        "payload_start":  2362,
+                                        "footer_offset":  23708,
+                                        "end_offset":  23716,
+                                        "report_bytes":  30644,
+                                        "report_sha256":  "98c305bbfdb1e5c6c89b6782ce4623d000823cf4385d6a2bcdcf588e75e27f89"
+                                    }
+                                ],
+                    "additional_archive_sample":  {
+                                                      "archive":  "Skyrim - Meshes0.bsa",
+                                                      "archive_nif_paths":  18862,
+                                                      "attempted":  512,
+                                                      "indexed":  512,
+                                                      "findings":  0,
+                                                      "returned_list_truncated":  true,
+                                                      "duplicate_paths":  0,
+                                                      "hash_only_entries":  0,
+                                                      "invalid_paths":  0,
+                                                      "scope":  "first 512 NIF paths in BSA index order; exact SSE outer tables and byte spans only; payloads opaque; not a full-archive census"
+                                                  },
+                    "installed_creation_archives":  [
+                                                        {
+                                                            "archive":  "ccBGSSSE001-Fish.bsa",
+                                                            "nif_paths":  231,
+                                                            "indexed":  231,
+                                                            "findings":  0,
+                                                            "truncated":  false,
+                                                            "duplicate_paths":  0,
+                                                            "hash_only_entries":  0,
+                                                            "invalid_paths":  0,
+                                                            "path_report":  "local/nif-list-08-all-ccBGSSSE001-Fish.json"
+                                                        },
+                                                        {
+                                                            "archive":  "ccBGSSSE025-AdvDSGS.bsa",
+                                                            "nif_paths":  266,
+                                                            "indexed":  266,
+                                                            "findings":  0,
+                                                            "truncated":  false,
+                                                            "duplicate_paths":  0,
+                                                            "hash_only_entries":  0,
+                                                            "invalid_paths":  0,
+                                                            "path_report":  "local/nif-list-08-all-ccBGSSSE025-AdvDSGS.json"
+                                                        },
+                                                        {
+                                                            "archive":  "ccBGSSSE037-Curios.bsa",
+                                                            "nif_paths":  65,
+                                                            "indexed":  65,
+                                                            "findings":  0,
+                                                            "truncated":  false,
+                                                            "duplicate_paths":  0,
+                                                            "hash_only_entries":  0,
+                                                            "invalid_paths":  0,
+                                                            "path_report":  "local/nif-list-08-all-ccBGSSSE037-Curios.json"
+                                                        },
+                                                        {
+                                                            "archive":  "ccQDRSSE001-SurvivalMode.bsa",
+                                                            "nif_paths":  4,
+                                                            "indexed":  4,
+                                                            "findings":  0,
+                                                            "truncated":  false,
+                                                            "duplicate_paths":  0,
+                                                            "hash_only_entries":  0,
+                                                            "invalid_paths":  0,
+                                                            "path_report":  "local/nif-list-08-all-ccQDRSSE001-SurvivalMode.json"
+                                                        }
+                                                    ],
+                    "additional_base_archive_sample":  {
+                                                           "archive":  "Skyrim - Meshes1.bsa",
+                                                           "archive_nif_paths":  3185,
+                                                           "attempted":  512,
+                                                           "indexed":  512,
+                                                           "findings":  0,
+                                                           "returned_list_truncated":  true,
+                                                           "duplicate_paths":  0,
+                                                           "hash_only_entries":  0,
+                                                           "invalid_paths":  0,
+                                                           "scope":  "first 512 NIF paths in archive index order; exact SSE outer tables only; payloads opaque; partial archive sample"
+                                                       },
+                    "complete_base_archive_sample":  {
+                                                         "archive":  "Skyrim - Meshes1.bsa",
+                                                         "archive_nif_paths":  3185,
+                                                         "indexed":  3185,
+                                                         "findings":  0,
+                                                         "distinct_block_types":  125,
+                                                         "block_instances":  92887,
+                                                         "decoded_member_bytes":  150444203,
+                                                         "path_pages":  7,
+                                                         "all_paths_enumerated":  3185,
+                                                         "unique_normalized_paths":  3185,
+                                                         "list_report":  "local/nif-list-08-meshes1-complete-pages.json",
+                                                         "inventory_report":  "local/nif-type-inventory-08-meshes1-complete.json"
+                                                     },
+                    "complete_base_archive_coverage":  [
+                                                           {
+                                                               "archive":  "Skyrim - Meshes0.bsa",
+                                                               "path_entries":  18862,
+                                                               "stream100_indexed":  18861,
+                                                               "unsupported_header_findings":  1,
+                                                               "pages":  37,
+                                                               "path_duplicates":  0
+                                                           },
+                                                           {
+                                                               "archive":  "Skyrim - Meshes1.bsa",
+                                                               "path_entries":  3185,
+                                                               "stream100_indexed":  3185,
+                                                               "unsupported_header_findings":  0,
+                                                               "pages":  7,
+                                                               "path_duplicates":  0
+                                                           },
+                                                           {
+                                                               "archive_set":  "four installed Creation BSAs",
+                                                               "path_entries":  566,
+                                                               "stream100_indexed":  566,
+                                                               "unsupported_header_findings":  0,
+                                                               "path_duplicates":  0
+                                                           }
+                                                       ],
+                    "mesh0_legacy_tuple_finding":  {
+                                                       "archive":  "Skyrim - Meshes0.bsa",
+                                                       "member":  "meshes\\creationclub\\_shared\\dungeons\\ayleidruins\\interior\\triggers\\artrigpressureplate01.nif",
+                                                       "bytes":  20755,
+                                                       "sha256":  "b1a96a9c034e90ac4ea81fdaf44983ebfaea33ce368648dae4555a5b8c45ba9e",
+                                                       "text_version":  "20.2.0.7",
+                                                       "user_version":  12,
+                                                       "stream_version":  83,
+                                                       "classification":  "Skyrim legacy stream header tuple; distinct from stream-100 profile; runtime use unverified",
+                                                       "outer_table_indexed":  false,
+                                                       "header_report":  "local/nif-header-08-meshes0-stream83-confirmed.json"
+                                                   },
+                    "block_type_inventory_comparison":  {
+                                                            "base_archive_entries":  22047,
+                                                            "base_indexed_files":  22046,
+                                                            "base_unsupported_files":  1,
+                                                            "base_block_types":  143,
+                                                            "base_block_instances":  758687,
+                                                            "base_decoded_member_bytes":  2207492842,
+                                                            "installed_creation_files":  566,
+                                                            "creation_block_types":  89,
+                                                            "creation_block_instances":  22853,
+                                                            "creation_decoded_member_bytes":  72444076,
+                                                            "shared_type_names":  89,
+                                                            "base_only_type_names":  54,
+                                                            "creation_names_not_seen_in_base":  0,
+                                                            "interpretation":  "case-sensitive outer type-name inventory only; no payload semantics or edition/content exclusivity inferred"
+                                                        }
+                },
+    "validation":  {
+                       "rust_tests_passed":  57,
+                       "rust_tests_failed":  0,
+                       "format_check":  "passed",
+                       "clippy_warnings_denied":  "passed",
+                       "binary_build":  "passed",
+                       "cargo_jobs":  1,
+                       "gameplay_scenarios_accepted":  0,
+                       "synthetic_tests":  "table accounting, every truncation boundary, unsupported tuple, invalid type/root indices, trailing bytes, compressed BSA CLI path"
+                   },
+    "local_evidence":  [
+                           {
+                               "path":  "local/nif-index-08-base-skeleton.json",
+                               "bytes":  91346,
+                               "sha256":  "61111bd44fad0494195c5883ccd2d9cbfe26845077cc3316b789d11c7883de0c"
+                           },
+                           {
+                               "path":  "local/nif-index-08-curios.json",
+                               "bytes":  5147,
+                               "sha256":  "a3e8a66522f5919b09f5b6078451a9c54b01c09d79d04511920896de7de6f24d"
+                           },
+                           {
+                               "path":  "local/nif-index-08-fish.json",
+                               "bytes":  4763,
+                               "sha256":  "dfc1d32d3551f55aac04054253097d72c79fc708122518d0721a5fbaa22d2e62"
+                           },
+                           {
+                               "path":  "local/nif-index-08-probe.json",
+                               "bytes":  3604,
+                               "sha256":  "008e5e92c434a81b83fd483bab81b2208a297ba5fdeb7f02a709f0518de8ce5d"
+                           },
+                           {
+                               "path":  "local/nif-index-08-saints.json",
+                               "bytes":  3129,
+                               "sha256":  "66edb6ee91485b9da2ba3e496adfc9c82435f495079c54ee90ee2a5524d33c1d"
+                           },
+                           {
+                               "path":  "local/nif-index-08-survival.json",
+                               "bytes":  30644,
+                               "sha256":  "98c305bbfdb1e5c6c89b6782ce4623d000823cf4385d6a2bcdcf588e75e27f89"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0.json",
+                               "bytes":  36168,
+                               "sha256":  "340e84edce0178396c2f0d02f4136bb543b7075bf188034b48d5c672e2c22a0c"
+                           },
+                           {
+                               "path":  "local/nif-scan-08-meshes0-first64.json",
+                               "bytes":  6147,
+                               "sha256":  "d6205eeeb2e434f7bcd0c3fa679d8807428d378c8556d406377f154775a5a7b6"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-512.json",
+                               "bytes":  338898,
+                               "sha256":  "fb8480d6645ed749e31d799c8cbb05a5aa11f0822865cf6bc763161b58174b1d"
+                           },
+                           {
+                               "path":  "local/nif-scan-08-meshes0-first512.json",
+                               "bytes":  49923,
+                               "sha256":  "ee8dc3f6fece44570644d8eea0f740bcfc10320af860042b863c184ad1002dde"
+                           },
+                           {
+                               "path":  "local/nif-scan-08-installed-creations.json",
+                               "bytes":  76810,
+                               "sha256":  "bf0a5257237ef8400517c5a8f2950c0b1d75073a638c8d1b40c17c8ab520c77e"
+                           },
+                           {
+                               "path":  "local/nif-list-08-all-ccBGSSSE001-Fish.json",
+                               "bytes":  190647,
+                               "sha256":  "7bce3df08fd8a3e9912a672ff1dbdcc46ddc1bd97c1893418a0e7a4c7bbce89c"
+                           },
+                           {
+                               "path":  "local/nif-list-08-all-ccBGSSSE025-AdvDSGS.json",
+                               "bytes":  209458,
+                               "sha256":  "36225a2ba055761052aed16abb72a7562ee3a69195760353339de7a92522f9d8"
+                           },
+                           {
+                               "path":  "local/nif-list-08-all-ccBGSSSE037-Curios.json",
+                               "bytes":  47061,
+                               "sha256":  "f76981093f98978ffcc03675407e6fb99446e0ed7e2f58c6b7e5a5fd0779310c"
+                           },
+                           {
+                               "path":  "local/nif-list-08-all-ccQDRSSE001-SurvivalMode.json",
+                               "bytes":  2290,
+                               "sha256":  "f4047446fe0366ef7d486f737e0981eb19ca19a099c0f1d7c72e4284317862d0"
+                           },
+                           {
+                               "path":  "local/nif-type-inventory-08-installed-creations.json",
+                               "bytes":  753345,
+                               "sha256":  "2cbcfe58d19bb14fc3149662726206d4844d6b5c767ccd84663efffc678bca6c"
+                           },
+                           {
+                               "path":  "local/nif-type-inventory-08-meshes0-first512.json",
+                               "bytes":  578820,
+                               "sha256":  "ddf630d5d3c8aade6c3bd3333d76e0f396506464e1a5cf4b2048792e90b4289c"
+                           },
+                           {
+                               "path":  "local/nif-type-comparison-08.json",
+                               "bytes":  53963,
+                               "sha256":  "3aef7357e1b8012c8770ebbb6c2c559144d39a8f6c692828732b4123495f2052"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-512.json",
+                               "bytes":  274689,
+                               "sha256":  "f7e05fb4129b585c15ea6e33f17055ba5722fa950b2949fbd486a7627a1ee858"
+                           },
+                           {
+                               "path":  "local/nif-scan-08-meshes1-first512.json",
+                               "bytes":  43839,
+                               "sha256":  "028ba9899db401488ff775623109d77c788c9612c4048d4c97de4325cd4e4e1c"
+                           },
+                           {
+                               "path":  "local/nif-type-inventory-08-meshes1-first512.json",
+                               "bytes":  494853,
+                               "sha256":  "0ea19be13e07eeaa8851a239e913cda0057ebadb1c01e3e9c61ea7ddbdacabe4"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-complete-pages.json",
+                               "bytes":  230583,
+                               "sha256":  "33c0bca723a0364549a6b3d40afc381acb94bc503e7fb2e30f10f658918f20d0"
+                           },
+                           {
+                               "path":  "local/nif-type-inventory-08-meshes1-complete.json",
+                               "bytes":  3899838,
+                               "sha256":  "880ad1bbe2f324eb50e33bd6ecc34ec51ca89b6c112b0f79209d7e2a6070c3ad"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-0.json",
+                               "bytes":  274704,
+                               "sha256":  "cfbd2c7669d94a6d148e40133baeae9bc63c3fc4d6d09fb7b393609aa1c22f0e"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-512.json",
+                               "bytes":  265489,
+                               "sha256":  "320ee6ccb501d1febb328e5e153a6de197afb0b06f7d31cdf18d1e391fa44d8d"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-1024.json",
+                               "bytes":  240674,
+                               "sha256":  "c26c8dd20518d21ff4e9976a5f7ed3f5857e8e2339f516f3c27ffb0548dffadc"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-1536.json",
+                               "bytes":  255924,
+                               "sha256":  "158b083aed0e049580f19c3fd0243060e4b90f40b96934e08512ce6fb3a4cdc5"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-2048.json",
+                               "bytes":  250987,
+                               "sha256":  "5eb99687d8ec73c4319fd85ea4dccabb3df96d8a558c91da8999a82f6a123f79"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-2560.json",
+                               "bytes":  289618,
+                               "sha256":  "3df1479c1a07abee52814654ac1d20f6f85a8341cdf8ddad54c2c7a7d3ac64e4"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes1-page-3072.json",
+                               "bytes":  58094,
+                               "sha256":  "a03319136435bf3e4b73194705a7c6f80ab21683f6aa287b66fb6ddd3aa93e8d"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-complete-pages.json",
+                               "bytes":  1552027,
+                               "sha256":  "25ebc0d9639b655e61f9a0470f883f9a880a6cdfc5edf03ad6d39b4223b107a3"
+                           },
+                           {
+                               "path":  "local/nif-type-inventory-08-meshes0-complete.json",
+                               "bytes":  31367,
+                               "sha256":  "05764004bdf52f06737455bf5c0891a83767d3376223d325a96e4475c0f5da59"
+                           },
+                           {
+                               "path":  "local/nif-inventory-08-meshes0-complete.jsonl",
+                               "bytes":  8545710,
+                               "sha256":  "c76b02fbd2ba02edded05a76a4da25709bc41bf730fa1adb7460d8a61edacad8"
+                           },
+                           {
+                               "path":  "local/nif-header-08-meshes0-stream83-confirmed.json",
+                               "bytes":  1638,
+                               "sha256":  "09a8b1b2c086e04885485501c2946ec8e1c235b849620ed4e14e997acbb938b2"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-0.json",
+                               "bytes":  338913,
+                               "sha256":  "12f5df00772fc0186727442c6995ca1b8ab3b2c8ef4a7b2b7bd08d9e923ab8a4"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-512.json",
+                               "bytes":  302919,
+                               "sha256":  "6402c5b4b60f316226ed2eabde12a1a35bd2bf8b31fcda574334c90d061ac064"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-1024.json",
+                               "bytes":  298787,
+                               "sha256":  "89a08caa74e115701db7d5778970fd24af08d028c9f20a4d8a56ddc426e49982"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-1536.json",
+                               "bytes":  308328,
+                               "sha256":  "239537310cf92cc249bd57310baca2ad72671f2dbcb80355538857f67575e396"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-2048.json",
+                               "bytes":  366031,
+                               "sha256":  "30d65fc572cbb7528ff49cfb5144c4957cdd5be3876c0dce3fc230b01958b2a3"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-2560.json",
+                               "bytes":  285000,
+                               "sha256":  "0a24fca890300a163e4acc09d185acdb6a31e02da5c8158f66361a445e150977"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-3072.json",
+                               "bytes":  372033,
+                               "sha256":  "1dbbc03e220a2b4b9ef9845afae679f837ca62b9b5a8c4e30a64a35ddfbfa48f"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-3584.json",
+                               "bytes":  307534,
+                               "sha256":  "441697678588515fea3af27bbcd77450c7facd4030f27b47c61beeb004f71938"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-4096.json",
+                               "bytes":  299614,
+                               "sha256":  "a3721e13c1d883a7b27376ad80a55b08a1e1b3ae55eae865e477d9b1761ec0cd"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-4608.json",
+                               "bytes":  298891,
+                               "sha256":  "ba357a330713d7a0aec906b0d4f8f82b515c275d14b20240fcdb7b78befc63de"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-5120.json",
+                               "bytes":  288412,
+                               "sha256":  "31058ca1483582e56d2a93a058a94e80418f06a50556204d9980f49712b1f88b"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-5632.json",
+                               "bytes":  266013,
+                               "sha256":  "09cef251c89b2a7e79e39ac8e89389b741ebcd6a04f5db9f2dbc8dab497fe8e8"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-6144.json",
+                               "bytes":  307669,
+                               "sha256":  "89a93b6cdd2347fab982d789d56650875f1bc2dd1c67c1bc9c845540712efa60"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-6656.json",
+                               "bytes":  335981,
+                               "sha256":  "c43a1695e5421544daf602fa3c0293f972866f2b9c84c212165deae0fd1d7a95"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-7168.json",
+                               "bytes":  309943,
+                               "sha256":  "c2e1127f3c5c7ce97d4505243918dcb4389e5f2c15ed71eae135f4f50150f823"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-7680.json",
+                               "bytes":  375463,
+                               "sha256":  "6129af893ce58adef8661e8cd24396b1dc6eadca021b8f21c506a2239a9fba44"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-8192.json",
+                               "bytes":  375720,
+                               "sha256":  "03ed2a09f0205afff13f183307c3adb7618ab020ac9f4d7ecb544513bd9d26ee"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-8704.json",
+                               "bytes":  375486,
+                               "sha256":  "52a5a6ef6a114bec7fe7d0018d98798487f120eacef65b716bb980f56a39e851"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-9216.json",
+                               "bytes":  375726,
+                               "sha256":  "46946dc60d24effc0cf202086a3f42afd1176a27e8d43fe7777b08cd6c37f265"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-9728.json",
+                               "bytes":  363037,
+                               "sha256":  "366e1a0e25d876543b1361c6d0481ae75bb43c3da95649eec23ed3d3f8e25ed4"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-10240.json",
+                               "bytes":  310702,
+                               "sha256":  "c887f04ca3ea73479adac23ca4a533f312be93846ad94c19e50dc833c7e9f363"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-10752.json",
+                               "bytes":  324212,
+                               "sha256":  "da26f9dfbe3d6d9458b0a85381ddb3b6a32fd8b7cc7b489b4534fa3966832492"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-11264.json",
+                               "bytes":  306109,
+                               "sha256":  "0d46c8436ee7e7e629c8342a22e2e41d59777a33b234811db4d605a54e0397a4"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-11776.json",
+                               "bytes":  267249,
+                               "sha256":  "812492c6932652153bf085a5c8391ebcff06853450ce35f63cc9e9cf3f046971"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-12288.json",
+                               "bytes":  306931,
+                               "sha256":  "967fc17dd5c4df6b1104bdaf4c7fbdc101a7119ba9a2224375aef8adb8e16d4c"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-12800.json",
+                               "bytes":  312277,
+                               "sha256":  "446e8f490798e097970c65092a201cfdfc3d1147525e4839bf2ccd07eb66261a"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-13312.json",
+                               "bytes":  325605,
+                               "sha256":  "5887792115368ae80c113df0de2fabb3dcd130dad28d187b9a770624ed38bddc"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-13824.json",
+                               "bytes":  319244,
+                               "sha256":  "f15d9fac971b8c7fc3858cbf90b6bbbae1d7cdc6ca514c8e9ed89ce8893e7ab6"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-14336.json",
+                               "bytes":  323567,
+                               "sha256":  "97b038d304ea1b2f65875dbbe5e8a7c02f23358a906ff91e4e018b7952390ff9"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-14848.json",
+                               "bytes":  294228,
+                               "sha256":  "b3f216e1877806494997ed860ea42df41e0d34f284d75051c821b27e9116be6e"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-15360.json",
+                               "bytes":  312238,
+                               "sha256":  "563fc44147ab19d5b97be4b3de333d831173b9da38e57ec9167cbd8edcb9319a"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-15872.json",
+                               "bytes":  343068,
+                               "sha256":  "a076ea7a9917bf251136560f8de3d38d974e84df0d2141a915d06e0c5a29049f"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-16384.json",
+                               "bytes":  326727,
+                               "sha256":  "9dd2745c15869ce0d9a61d5425506a9ae75ae71d4fe49e871835e882bc4931ab"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-16896.json",
+                               "bytes":  283847,
+                               "sha256":  "bba22cf31c74ffc649baed3adeb5790a6b5cdff721e7148bdd6798be13911a12"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-17408.json",
+                               "bytes":  288749,
+                               "sha256":  "5c781ca7e43e87ed2999f7b7dd5ca9966521f7a8761dda7a33ec754dc72ddab0"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-17920.json",
+                               "bytes":  247789,
+                               "sha256":  "330ac292a041eb49a09d9e3831605a7938ab5e46907dcbfe550e2d03e9512591"
+                           },
+                           {
+                               "path":  "local/nif-list-08-meshes0-page-18432.json",
+                               "bytes":  240165,
+                               "sha256":  "d94f264fbebff038f77a672146aa794d2bf0fb1508dd16540045873f3a232b28"
+                           }
+                       ],
+    "source_manifest":  {
+                            "path":  "reports/source-manifest-08.json",
+                            "bytes":  14515,
+                            "sha256":  "086bf1191a3d03c05bc4aa4c6244bff2fc63b840fd98358e291d420b7142c083"
+                        },
+    "schema_reference":  {
+                             "repository":  "niftools/nifxml",
+                             "revision":  "970a6238218a106daaeb89a61bcda0eeaf9d08c4",
+                             "role":  "pinned SSE tuple and outer table field-order reference; not a dependency or behavior oracle"
+                         }
+}

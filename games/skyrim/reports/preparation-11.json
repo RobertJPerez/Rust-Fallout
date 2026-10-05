@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "checkpoint": 11,
+  "research_date": "2026-10-04",
+  "status": "read-only Skyrim TXST source and names-only texture candidate census; no runtime acceptance",
+  "game_profile": {
+    "edition_install": "Skyrim Special Edition updated runtime",
+    "steam_build": 24914197,
+    "executable_version": "1.7.104.0",
+    "executable_sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+    "scanned_plugin_files": 10,
+    "indexed_bsa_files": 23,
+    "installed_creation_pairs": 4,
+    "ae_coverage": "not complete; installed Creation files do not establish the full paid Anniversary corpus",
+    "original_game_data_modified": false
+  },
+  "implementation": {
+    "command": "trace-texture-sets --data <Data> --plugin <ESM/ESP/ESL path> [--plugin <another path> ...] [--output <new JSONL path>]",
+    "source": "src/texture_sets.rs",
+    "shared_asset_lookup": "src/asset_lookup.rs",
+    "record_scope": "physical TXST records; TX00-TX07 fields",
+    "record_reader": "pinned fallout-data selected-record and subrecord visitors",
+    "texture_path_rule": "normalize the texture-root-relative field with pinned fallout-data AssetPath after prepending exactly one textures/ root",
+    "archive_lookup": "pinned dream_archive BSA 105 backend; names only; no payload decompression",
+    "limits": "100000 TXST records and 100000 visited subrecords across supplied plugins; raw field evidence capped at 1024 bytes per field",
+    "output": "JSONL source fingerprints, archive-index results, texture-set rows, exact path candidates, findings and completion summary",
+    "opaque_fields": ["OBND", "DODT", "DNAM", "unknown subrecords"],
+    "override_order_material_semantics_or_runtime_use": false,
+    "record_framing_decompression_or_asset_path_normalization_duplicated": false
+  },
+  "scan": {
+    "plugin_files": 10,
+    "archives_indexed": 23,
+    "texture_set_records": 790,
+    "subrecords_scanned": 4606,
+    "texture_fields": 2182,
+    "unique_lookup_paths": 1149,
+    "references_with_loose_file": 0,
+    "references_with_archive_member": 2153,
+    "references_without_candidate_match": 29,
+    "malformed_texture_paths": 0,
+    "duplicate_texture_slots": 0,
+    "empty_texture_slots": 0,
+    "opaque_auxiliary_fields": 1634,
+    "unknown_subrecords": 0,
+    "archive_index_failures": 0,
+    "archive_hash_only_entries": 0,
+    "archive_invalid_paths": 0,
+    "duplicate_archive_candidate_entries": 0,
+    "unmatched_by_plugin": [
+      {"plugin": "_ResourcePack.esl", "texture_set_records": 34, "texture_fields": 72, "unmatched": 0},
+      {"plugin": "ccBGSSSE001-Fish.esm", "texture_set_records": 28, "texture_fields": 61, "unmatched": 2},
+      {"plugin": "ccBGSSSE025-AdvDSGS.esm", "texture_set_records": 13, "texture_fields": 39, "unmatched": 2},
+      {"plugin": "ccBGSSSE037-Curios.esl", "texture_set_records": 3, "texture_fields": 6, "unmatched": 1},
+      {"plugin": "ccQDRSSE001-SurvivalMode.esl", "texture_set_records": 0, "texture_fields": 0, "unmatched": 0},
+      {"plugin": "Dawnguard.esm", "texture_set_records": 53, "texture_fields": 144, "unmatched": 0},
+      {"plugin": "Dragonborn.esm", "texture_set_records": 59, "texture_fields": 127, "unmatched": 0},
+      {"plugin": "HearthFires.esm", "texture_set_records": 21, "texture_fields": 42, "unmatched": 0},
+      {"plugin": "Skyrim.esm", "texture_set_records": 572, "texture_fields": 1677, "unmatched": 24},
+      {"plugin": "Update.esm", "texture_set_records": 7, "texture_fields": 14, "unmatched": 0}
+    ],
+    "interpretation": "Exact names-only candidate coverage for the installed files; unmatched entries are not evidence of invalid paths, missing ownership or runtime failure."
+  },
+  "validation": {
+    "rust_tests_passed": 65,
+    "rust_tests_failed": 0,
+    "format_check": "passed",
+    "clippy": "passed with warnings denied",
+    "build": "passed; one build job",
+    "installed_trace_exit_status": 2,
+    "installed_trace_exit_reason": "29 exact path references had no loose or indexed archive candidate; report completed with findings"
+  },
+  "local_evidence": {
+    "path": "local/texture-sets-11c.jsonl",
+    "bytes": 6077510,
+    "sha256": "326fbcfffec3b77d5c6ed45d4984ca7797e73caf5a323e7c356a58429846ea93"
+  },
+  "source_manifest": {
+    "path": "reports/source-manifest-11.json",
+    "files": 66,
+    "bytes": 16218,
+    "sha256": "16e88fe0dacc256a69fe98040811a32da6877b7154c4271b7e03fbf0c1151eb9"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "observed_utc": "2026-10-05T00:21:21.3519546+00:00",
+  "status": "verified-current-metadata-recheck-no-active-profile-or-vfs-proof",
+  "workspace_base_revision": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "implementation": {
+    "tool": "tools/audit-profile-state.ps1",
+    "tool_sha256": "f388e31fd5d28098da19d0de011925127299ddd8340f91e43a95310b1b0f9b1d",
+    "source_sha256": {
+      "tools/audit-profile-state.ps1": "f388e31fd5d28098da19d0de011925127299ddd8340f91e43a95310b1b0f9b1d",
+      "docs/profile-observation.md": "49eb0cb0a7e639b05fc9616254501a361fc7dcdc091b0ee591e0bc584d2c583a",
+      "docs/architecture.md": "b8265674382c068530f702b3c11e8c1038eec687da870a28f607aa588967a667",
+      "README.md": "41cce7346e5772766883ed674904974ab061f490479999da002c53238247b6a3",
+      "NEXT_STEPS.md": "1438d7bb08615172055715562693c19961cf7bb37e85f8167c4823abc029a089",
+      "sources.lock.json": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb"
+    },
+    "source_contents_or_profile_names_published": false,
+    "retail_install_modified": false,
+    "writes_confined_to_local": true
+  },
+  "observation": {
+    "vortex_profile_directories": 2,
+    "vortex_process_running_at_observation": false,
+    "deployment_manifest_present_in_data": false,
+    "historical_vortex_marker_present_in_data": false,
+    "global_plugins_file": {
+      "bytes": 7052,
+      "modified_utc": "2026-04-27T03:27:23.5021665Z",
+      "sha256": "37ec327f5dfb1d6c5fa0eed09e31dc9bc2eced4817f762471af85986410f678d"
+    },
+    "global_loadorder_file": {
+      "bytes": 12022,
+      "modified_utc": "2026-04-27T03:27:23.5007405Z",
+      "sha256": "6b496133c4f3df6af50b184c5fab88a5a04f3a6ae19ef6186294e67084e1b751"
+    },
+    "newer_vortex_profile_matches_global_files": true,
+    "older_vortex_profile": {
+      "plugins_sha256": "7beed9fb5461944303aaaf0271d38f97679c6c921aeb98e5b6e1954c8e3f1fd5",
+      "loadorder_sha256": "346f7e7584c0e8b8b62f16fac55a63178272b797af426e3a2f78e4b2738d52d8"
+    },
+    "deployment_snapshot": {
+      "modified_utc": "2026-04-27T03:27:21.4512962Z",
+      "bytes": 854111,
+      "sha256": "2a50d5288831d39270e017a7bfcab94630ed6a98315da79001034a638857f0b3"
+    },
+    "profile_file_hashes_match_prior_observation": true,
+    "configuration_reference": "reports/configuration-checkpoint.json; Fallout4Prefs.ini is a current candidate, not proof of loaded settings"
+  },
+  "private_evidence": {
+    "directory": "local/profile-recheck-002",
+    "manifest_sha256": "50766b7d17c653194d38c31cad6dd2120830473711707627a2b9e4ba63f354eb",
+    "completion_marker_sha256": "63359ec793fe69e39420d82e18c581074ab696581127cf40490a637ba4689cad"
+  },
+  "validation": {
+    "powershell_parser": "passed",
+    "retail_profile_metadata_read": "passed; seven regular files fingerprinted and verified unchanged during hashing",
+    "repeatability_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/audit-profile-state.ps1 -OutputDirectory 'local/profile-recheck-NNN'",
+    "runtime_ready": false
+  },
+  "interpretation": "The October 5 recheck confirms that the known global/Vortex plugin, load-order and deployment artifacts remain the same April/May snapshot. The October Fallout4Prefs.ini is a current configuration candidate, but this observation does not identify the active profile, VFS, plugin winners or loaded settings.",
+  "limits": [
+    "The command inspects the known LocalAppData Fallout4 and Roaming Vortex Fallout4 metadata locations only; it does not rule out another profile manager, custom Vortex root or alternate deployment mechanism.",
+    "A Vortex process not running at observation time says nothing about which profile was used by an earlier game launch.",
+    "No plugin content, INI values, archive winners, gameplay or save behavior were inspected."
+  ]
+}

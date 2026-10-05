@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "checkpoint": 6,
+  "verified_date": "2026-10-04",
+  "status": "Skyrim BSA NIF path and header preparation; no NIF blocks or gameplay accepted",
+  "upstream": {
+    "shared_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+    "nv_checkpoint": 45,
+    "nv_main_observed": "4a4bb7a1e8f23cc378c45ce2519e6fdf542559e9",
+    "nv_main_worktree_clean": true,
+    "nv_current_nif_scope": "NV-specific bounded container, scene/mesh, material/texture, skin and collision paths; not used to parse Skyrim NIF payloads",
+    "fo4_main_observed": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+    "fo4_worktree_dirty_observed": true,
+    "fo4_pex_scope": "FO4 3.9/game-2 structural PEX and static call/branch tooling; no decoder or VM added here",
+    "shared_dependency_changed": false,
+    "other_project_worktrees_modified": false
+  },
+  "installation": {
+    "path": "G:/SteamLibrary/steamapps/common/Skyrim Special Edition",
+    "runtime_version": "1.7.104.0",
+    "steam_build_id": "24914197",
+    "steam_manifest_sha256": "dcda6d91d93bf9ca33c8f488478a765910d82b3964be97ff8bcb720561e30da5",
+    "base_plugins": 5,
+    "creation_plugins_observed": [
+      "ccBGSSSE001-Fish.esm",
+      "ccBGSSSE025-AdvDSGS.esm",
+      "ccBGSSSE037-Curios.esl",
+      "ccQDRSSE001-SurvivalMode.esl"
+    ],
+    "paid_anniversary_corpus_complete": false,
+    "original_game_files_modified": false
+  },
+  "implementation": {
+    "commands": [
+      "nif-list",
+      "nif-header"
+    ],
+    "archive_backend": "pinned dream_archive TES4 BSA 105 backend",
+    "path_normalization": "pinned fallout-data AssetPath",
+    "member_read_limit_bytes": 67108864,
+    "header_scope": "NIF text line and fixed header tuple; no block payload decoding",
+    "duplicate_normalized_member_paths_refused": true,
+    "nif_list_payload_decompression": false,
+    "nif_list_maximum_returned_paths": 512,
+    "report_destination_inside_game_installation_refused": true
+  },
+  "nif_evidence": {
+    "expected_sse_header": {
+      "text_version": "20.2.0.7",
+      "binary_version_hex": "0x14020007",
+      "endian_marker": 1,
+      "user_version": 12,
+      "user_version_2": 100,
+      "classification": "header format evidence only"
+    },
+    "base_game_sample": {
+      "archive": "Skyrim - Meshes0.bsa",
+      "archive_version": 105,
+      "member": "meshes\\actors\\character\\character assets\\skeleton.nif",
+      "decoded_bytes": 24207,
+      "sha256": "139827f3ff6d60377314f761ea1d1ab675d5d25f8619d1ed7d2e06633c007928",
+      "block_count_observed_in_header": 268,
+      "user_version": 12,
+      "user_version_2": 100
+    },
+    "creation_archives": [
+      {
+        "archive": "ccBGSSSE001-Fish.bsa",
+        "nif_path_count": 231,
+        "returned_paths": 64,
+        "truncated": true,
+        "duplicate_normalized_paths": 0,
+        "hash_only_entries": 0,
+        "invalid_asset_paths": 0,
+        "sample_member": "meshes/creationclub/bgssse001/critters/fish/fishflameangelfish/fishflameangelfish01inv.nif",
+        "decoded_bytes": 15453,
+        "asset_sha256": "0a7f6f8efd5456d8164b89056c03f2c643a101fe723b3e3ca3167edcf1291cc3",
+        "block_count_observed_in_header": 10,
+        "user_version": 12,
+        "user_version_2": 100
+      },
+      {
+        "archive": "ccBGSSSE025-AdvDSGS.bsa",
+        "nif_path_count": 266,
+        "returned_paths": 64,
+        "truncated": true,
+        "duplicate_normalized_paths": 0,
+        "hash_only_entries": 0,
+        "invalid_asset_paths": 0,
+        "sample_member": "meshes/creationclub/bgssse025/loadscreenart/loadscreendarkseducerbattleaxe.nif",
+        "decoded_bytes": 85025,
+        "asset_sha256": "9dd5c690f94b3c503cc63c807fa97379ea68bc62619c093739b9b6aa3d77c009",
+        "block_count_observed_in_header": 4,
+        "user_version": 12,
+        "user_version_2": 100
+      },
+      {
+        "archive": "ccBGSSSE037-Curios.bsa",
+        "nif_path_count": 65,
+        "returned_paths": 64,
+        "truncated": true,
+        "duplicate_normalized_paths": 0,
+        "hash_only_entries": 0,
+        "invalid_asset_paths": 0,
+        "sample_member": "meshes/creationclub/bgssse037/clutter/heartoforder/heartoforder.nif",
+        "decoded_bytes": 8554,
+        "asset_sha256": "3ab61f0e4ea3cf38802bac372fb0e764cccd5477032cb1ab8bdf3abba5c82c9d",
+        "block_count_observed_in_header": 14,
+        "user_version": 12,
+        "user_version_2": 100
+      },
+      {
+        "archive": "ccQDRSSE001-SurvivalMode.bsa",
+        "nif_path_count": 4,
+        "returned_paths": 4,
+        "truncated": false,
+        "duplicate_normalized_paths": 0,
+        "hash_only_entries": 0,
+        "invalid_asset_paths": 0,
+        "sample_member": "meshes/survival/maginvhungerpenaltyspellart.nif",
+        "decoded_bytes": 23716,
+        "asset_sha256": "54bed585c19934d1d50da43482fec4c59d761fa953b2476d0d52e9edb25d9f6e",
+        "block_count_observed_in_header": 93,
+        "user_version": 12,
+        "user_version_2": 100
+      }
+    ],
+    "retail_block_decode_performed": false,
+    "anniversary_runtime_or_paid_content_certified": false
+  },
+  "format_reference": {
+    "repository": "niftools/nifxml",
+    "revision": "970a6238218a106daaeb89a61bcda0eeaf9d08c4",
+    "checked_version": "20.2.0.7 / user 12 / SSE stream 100",
+    "license_note": "repository GPL-3.0; nif.xml-specific licensing is marked unresolved in issue 86",
+    "implementation_or_spec_text_copied": false
+  },
+  "validation": {
+    "rust_tests_passed": 47,
+    "rust_tests_failed": 0,
+    "formatting": "passed",
+    "clippy_warnings_denied": "passed",
+    "binary_build": "passed",
+    "cargo_jobs": 1,
+    "cargo_home": "local/cargo-home",
+    "target_directory": "target",
+    "gameplay_scenarios_accepted": 0
+  },
+  "local_evidence": [
+    {
+      "path": "local/nif-header-06-base-skeleton.json",
+      "bytes": 1250,
+      "sha256": "7d0b8d2615027fa7903baf835cf0b8834a2f9c894aa8f3d72fc1957941a7e06f"
+    },
+    {
+      "path": "local/nif-list-06-ccBGSSSE001-Fish.json",
+      "bytes": 48209,
+      "sha256": "02b3de2814ac193549f4100fb12a1383789cc9de8e697ba2d942090d53c99b97"
+    },
+    {
+      "path": "local/nif-list-06-ccBGSSSE025-AdvDSGS.json",
+      "bytes": 49049,
+      "sha256": "b39f45bda2d6c7e7c6cbc5504ad1e7ef073932f1ceecb4041c16143231b59b49"
+    },
+    {
+      "path": "local/nif-list-06-ccBGSSSE037-Curios.json",
+      "bytes": 46439,
+      "sha256": "d4b5f5780176b64323c5c39737f3f5274b247dc369f269f4d72ec6cb0375c56b"
+    },
+    {
+      "path": "local/nif-list-06-ccQDRSSE001-SurvivalMode.json",
+      "bytes": 2290,
+      "sha256": "f4047446fe0366ef7d486f737e0981eb19ca19a099c0f1d7c72e4284317862d0"
+    },
+    {
+      "path": "local/nif-header-06-ccBGSSSE001-Fish.json",
+      "bytes": 1577,
+      "sha256": "aa108f978c6586bf23aad1fd5f779c44826eb08b2da23558d1020b6fc4225ef2"
+    },
+    {
+      "path": "local/nif-header-06-ccBGSSSE025-AdvDSGS.json",
+      "bytes": 1470,
+      "sha256": "a3288be14d5c8b597b712c48cd6cf5c11dbe7df01b2f9b1831a8187f06ce82da"
+    },
+    {
+      "path": "local/nif-header-06-ccBGSSSE037-Curios.json",
+      "bytes": 1376,
+      "sha256": "dc62ed4117ddc24a0a536e38c249f728de2668459670bbc1057e67c8941cf9ca"
+    },
+    {
+      "path": "local/nif-header-06-ccQDRSSE001-SurvivalMode.json",
+      "bytes": 1213,
+      "sha256": "3f2e0d03674edcd02f7db6e3484c6e3865a929b66cd21b962405fc72908d5264"
+    }
+  ],
+  "source_manifest": {
+    "path": "reports/source-manifest-06.json",
+    "bytes": 13308,
+    "sha256": "9d927a017e749ccd230f5cbbd8681144d06dd3dcb3e48ca897f9ad2a273ec436"
+  }
+}

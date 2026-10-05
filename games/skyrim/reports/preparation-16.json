@@ -1,0 +1,349 @@
+{
+    "schema_version":  1,
+    "checkpoint":  16,
+    "research_date":  "2026-10-04",
+    "status":  "bounded structural CELL XCLC field extraction and LAND-associated physical CELL candidate coordinate agreement; no coordinate conversion or runtime cell-behavior claim",
+    "game_profile":  {
+                         "edition_install":  "Skyrim Special Edition updated Steam runtime",
+                         "steam_build":  "24914197",
+                         "executable_version":  "1.7.104.0",
+                         "executable_sha256":  "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+                         "plugin_files_scanned":  10,
+                         "indexed_archive_files":  23,
+                         "installed_creation_pairs":  4,
+                         "paid_anniversary_coverage":  "incomplete; installed Creation pairs do not establish the full paid content set",
+                         "census_blocking_findings":  8,
+                         "reader_failures":  0,
+                         "original_game_data_modified":  false
+                     },
+    "implementation":  {
+                           "command":  "trace-landscape-links --data \u003cData\u003e --plugin \u003cplugin path\u003e [--plugin \u003canother plugin path\u003e ...] [--output \u003cnew JSONL path\u003e]",
+                           "source":  "src/landscape_links.rs",
+                           "shared_context_helper":  "src/trace.rs group-label extraction and SourceKey resolver",
+                           "record_scope":  [
+                                                "LAND",
+                                                "LTEX",
+                                                "TXST",
+                                                "MATT",
+                                                "GRAS",
+                                                "CELL",
+                                                "WRLD"
+                                            ],
+                           "cell_adapter":  "Visits CELL subrecord framing and structurally decodes XCLC lengths 8 and 12 only; preserves full length, SHA-256, and bounded raw preview; unsupported lengths, repeated fields, and absent fields remain visible",
+                           "identity_join":  "LAND kind-6 labels resolve through declared masters to physical CELL source-key candidates; all physical candidates remain separate; no winning override is selected",
+                           "full_cell_bodies_decoded":  false,
+                           "coordinate_unit_conversion":  false,
+                           "runtime_cell_behavior_claimed":  false,
+                           "record_framing_decompression_path_normalization_or_hashing_duplicated":  false
+                       },
+    "scan":  {
+                 "selected_records":  132570,
+                 "land_records":  54079,
+                 "cell_records":  77337,
+                 "cell_subrecords_scanned":  400969,
+                 "cell_records_with_xclc":  76356,
+                 "cell_records_without_xclc":  981,
+                 "cell_records_with_multiple_xclc":  0,
+                 "malformed_xclc_fields":  0,
+                 "xclc_payload_length_counts":  {
+                                                    "12":  76356
+                                                },
+                 "xclc_flag_byte_counts":  {
+                                               "0":  76260,
+                                               "1":  2,
+                                               "3":  5,
+                                               "4":  3,
+                                               "5":  2,
+                                               "12":  5,
+                                               "13":  4,
+                                               "14":  1,
+                                               "15":  74
+                                           },
+                 "xclc_reserved_byte_length_counts":  {
+                                                          "3":  76356
+                                                      },
+                 "distinct_grid_coordinate_pairs":  34565,
+                 "grid_x_min_max":  [
+                                        -98,
+                                        127
+                                    ],
+                 "grid_y_min_max":  [
+                                        -94,
+                                        127
+                                    ],
+                 "land_records_with_cell_group_label":  54079,
+                 "land_cell_group_labels_resolved":  54079,
+                 "land_cell_groups_with_candidates":  54079,
+                 "land_cell_groups_without_candidates":  0,
+                 "land_cell_candidate_count_distribution":  {
+                                                                "1":  49483,
+                                                                "2":  3571,
+                                                                "3":  861,
+                                                                "4":  151,
+                                                                "5":  12,
+                                                                "6":  1
+                                                            },
+                 "distinct_land_containing_cell_source_keys":  52181,
+                 "distinct_world_cell_source_key_pairs":  52181,
+                 "coordinate_agreement":  {
+                                              "distinct_cell_source_keys_with_candidates":  52181,
+                                              "distinct_cell_source_keys_with_one_supported_coordinate_shared_by_all_candidates":  52181,
+                                              "land_rows_with_candidate_coordinate_agreement":  54079,
+                                              "land_rows_with_candidate_coordinate_disagreement":  0,
+                                              "referenced_cell_keys_with_candidate_missing_or_unsupported_xclc":  0
+                                          },
+                 "world_records":  94,
+                 "ltex_records":  130,
+                 "txst_records":  790,
+                 "matt_records":  80,
+                 "gras_records":  60,
+                 "links_resolved_to_source_keys":  187175,
+                 "links_with_scanned_target_candidates":  187074,
+                 "links_without_scanned_target_candidates":  101,
+                 "unmatched_land_layer_target":  "Skyrim.esm LTEX local ID 0x00000844: 74 BTXT and 27 ATXT fields; absence is only within supplied files",
+                 "cell_subrecord_shape_tag_count":  25,
+                 "cell_subrecord_shapes":  {
+                                               "DATA":  {
+                                                            "occurrences":  77337,
+                                                            "payload_length_counts":  {
+                                                                                          "1":  331,
+                                                                                          "2":  77006
+                                                                                      }
+                                                        },
+                                               "EDID":  {
+                                                            "occurrences":  3718,
+                                                            "payload_length_counts":  {
+                                                                                          "10":  22,
+                                                                                          "11":  120,
+                                                                                          "12":  134,
+                                                                                          "13":  82,
+                                                                                          "14":  68,
+                                                                                          "15":  166,
+                                                                                          "16":  235,
+                                                                                          "17":  171,
+                                                                                          "18":  180,
+                                                                                          "19":  276,
+                                                                                          "20":  276,
+                                                                                          "21":  277,
+                                                                                          "22":  244,
+                                                                                          "23":  359,
+                                                                                          "24":  199,
+                                                                                          "25":  190,
+                                                                                          "26":  228,
+                                                                                          "27":  123,
+                                                                                          "28":  135,
+                                                                                          "29":  64,
+                                                                                          "30":  27,
+                                                                                          "31":  41,
+                                                                                          "32":  22,
+                                                                                          "33":  23,
+                                                                                          "34":  11,
+                                                                                          "35":  8,
+                                                                                          "36":  2,
+                                                                                          "37":  3,
+                                                                                          "38":  3,
+                                                                                          "5":  1,
+                                                                                          "6":  6,
+                                                                                          "7":  2,
+                                                                                          "8":  8,
+                                                                                          "9":  12
+                                                                                      }
+                                                        },
+                                               "FULL":  {
+                                                            "occurrences":  969,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  969
+                                                                                      }
+                                                        },
+                                               "LNAM":  {
+                                                            "occurrences":  837,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  837
+                                                                                      }
+                                                        },
+                                               "LTMP":  {
+                                                            "occurrences":  77337,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  77337
+                                                                                      }
+                                                        },
+                                               "MHDT":  {
+                                                            "occurrences":  33093,
+                                                            "payload_length_counts":  {
+                                                                                          "1028":  33093
+                                                                                      }
+                                                        },
+                                               "TVDT":  {
+                                                            "occurrences":  9078,
+                                                            "payload_length_counts":  {
+                                                                                          "684":  9078
+                                                                                      }
+                                                        },
+                                               "XCAS":  {
+                                                            "occurrences":  968,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  968
+                                                                                      }
+                                                        },
+                                               "XCCM":  {
+                                                            "occurrences":  338,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  338
+                                                                                      }
+                                                        },
+                                               "XCIM":  {
+                                                            "occurrences":  1100,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  1100
+                                                                                      }
+                                                        },
+                                               "XCLC":  {
+                                                            "occurrences":  76356,
+                                                            "payload_length_counts":  {
+                                                                                          "12":  76356
+                                                                                      }
+                                                        },
+                                               "XCLL":  {
+                                                            "occurrences":  981,
+                                                            "payload_length_counts":  {
+                                                                                          "64":  1,
+                                                                                          "92":  980
+                                                                                      }
+                                                        },
+                                               "XCLR":  {
+                                                            "occurrences":  34008,
+                                                            "payload_length_counts":  {
+                                                                                          "12":  897,
+                                                                                          "16":  1595,
+                                                                                          "20":  2260,
+                                                                                          "24":  2390,
+                                                                                          "28":  1498,
+                                                                                          "32":  775,
+                                                                                          "36":  394,
+                                                                                          "4":  22722,
+                                                                                          "40":  174,
+                                                                                          "44":  90,
+                                                                                          "48":  53,
+                                                                                          "52":  15,
+                                                                                          "8":  1145
+                                                                                      }
+                                                        },
+                                               "XCLW":  {
+                                                            "occurrences":  77337,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  77337
+                                                                                      }
+                                                        },
+                                               "XCMO":  {
+                                                            "occurrences":  1051,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  1051
+                                                                                      }
+                                                        },
+                                               "XCWT":  {
+                                                            "occurrences":  1583,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  1583
+                                                                                      }
+                                                        },
+                                               "XEZN":  {
+                                                            "occurrences":  486,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  486
+                                                                                      }
+                                                        },
+                                               "XILL":  {
+                                                            "occurrences":  182,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  182
+                                                                                      }
+                                                        },
+                                               "XLCN":  {
+                                                            "occurrences":  2891,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  2891
+                                                                                      }
+                                                        },
+                                               "XNAM":  {
+                                                            "occurrences":  837,
+                                                            "payload_length_counts":  {
+                                                                                          "1":  837
+                                                                                      }
+                                                        },
+                                               "XOWN":  {
+                                                            "occurrences":  329,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  329
+                                                                                      }
+                                                        },
+                                               "XWCN":  {
+                                                            "occurrences":  2,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  2
+                                                                                      }
+                                                        },
+                                               "XWCS":  {
+                                                            "occurrences":  20,
+                                                            "payload_length_counts":  {
+                                                                                          "4":  20
+                                                                                      }
+                                                        },
+                                               "XWCU":  {
+                                                            "occurrences":  22,
+                                                            "payload_length_counts":  {
+                                                                                          "48":  20,
+                                                                                          "64":  2
+                                                                                      }
+                                                        },
+                                               "XWEM":  {
+                                                            "occurrences":  109,
+                                                            "payload_length_counts":  {
+                                                                                          "37":  8,
+                                                                                          "38":  19,
+                                                                                          "39":  7,
+                                                                                          "40":  3,
+                                                                                          "41":  5,
+                                                                                          "42":  2,
+                                                                                          "43":  36,
+                                                                                          "44":  18,
+                                                                                          "46":  11
+                                                                                      }
+                                                        }
+                                           }
+             },
+    "validation":  {
+                       "rust_tests_passed":  68,
+                       "rust_tests_failed":  0,
+                       "format_check":  "passed",
+                       "clippy":  "passed with warnings denied",
+                       "build":  "passed with one build job",
+                       "installed_trace_exit_status":  2,
+                       "installed_trace_exit_reason":  "101 resolved layer links had no scanned LTEX candidate; every LAND cell group had at least one CELL candidate and candidate XCLC coordinates agreed",
+                       "all_ten_source_plugin_fingerprints_match_current_install_census":  true,
+                       "original_game_data_read_only":  true
+                   },
+    "local_evidence":  {
+                           "landscape_xclc_report":  {
+                                                         "path":  "local/landscape-grid-16b.jsonl",
+                                                         "bytes":  344740915,
+                                                         "sha256":  "0ea38ef95f59d0e55b934ddcf4c22b20a24a2adb9a1c63921b0df0817181ab96"
+                                                     },
+                           "current_install_census":  {
+                                                          "path":  "local/census-20261004T222237Z-6a88a6f8.json",
+                                                          "bytes":  37414379,
+                                                          "sha256":  "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+                                                      },
+                           "install_receipt":  {
+                                                   "path":  "local/install-20261004T222237Z-6a88a6f8.json",
+                                                   "bytes":  634,
+                                                   "sha256":  "c63163e07d1f29a6bed9c57e6a6cf15efead372718f5159e6fb737069f564daf"
+                                               },
+                           "source_manifest":  {
+                                                   "path":  "reports/source-manifest-16.json",
+                                                   "files":  68,
+                                                   "source_bytes":  574244,
+                                                   "bytes":  16703,
+                                                   "sha256":  "ecf25ed7191024d3c67fe293f9fa9e5c66324cb3cbef284c73758c4237489ebe"
+                                               }
+                       }
+}

@@ -1600,6 +1600,201 @@ pub(super) fn assign_saved_native(
     Ok(report)
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedMultiCopyRequest {
+    schema_version: u32,
+    sequence: std::num::NonZeroU64,
+    owner: fallout_runtime::identity::Owner,
+    intent: SavedForeignIntent,
+    maximum_source_instructions: usize,
+    maximum_statements: usize,
+    maximum_operand_uses: usize,
+    maximum_statement_bytes: usize,
+    maximum_trace_source_bytes: usize,
+    maximum_trace_rows: usize,
+    maximum_trace_variable_bytes: usize,
+    maximum_trace_binding_uses: usize,
+    maximum_trace_bytes: usize,
+    maximum_result_snapshot_bytes: usize,
+    maximum_report_bytes: usize,
+}
+#[derive(serde::Serialize)]
+struct SavedMultiCopyReport<'a> {
+    #[serde(flatten)]
+    metadata: Value,
+    snapshot_multi_copy: SavedCopyOutcome<'a, local_copy::CommittedMultiCopy>,
+}
+
+pub(super) fn copy_saved_multi_owned(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+    snapshot_path: &Path,
+    result_path: &Path,
+    report_path: Option<&Path>,
+) -> Result<Value> {
+    let request: SavedMultiCopyRequest = serde_json::from_slice(&read_bounded_named(
+        request_path,
+        16 * 1024,
+        "saved named multi-copy request byte budget exceeded",
+    )?)?;
+    let defaults = local_copy::MultiLimits::default();
+    let world_limits = fallout_runtime::Limits::default();
+    let owner_bytes = match &request.owner {
+        fallout_runtime::identity::Owner::Quest { key } => key.origin_plugin.len(),
+        fallout_runtime::identity::Owner::Placed { .. } => 0,
+        fallout_runtime::identity::Owner::Fragment { .. } => {
+            return Err("saved named multi-copy requires a Quest or Placed owner".into());
+        }
+    };
+    if request.schema_version != 1
+        || request.maximum_source_instructions > defaults.maximum_event_instructions
+        || request.maximum_statements > defaults.maximum_statements
+        || request.maximum_operand_uses > defaults.maximum_operand_uses
+        || request.maximum_statement_bytes > defaults.maximum_statement_bytes
+        || request.maximum_trace_source_bytes > defaults.observation.maximum_source_bytes
+        || request.maximum_trace_rows > defaults.observation.maximum_rows
+        || request.maximum_trace_variable_bytes > defaults.observation.maximum_variable_bytes
+        || request.maximum_trace_binding_uses > defaults.observation.maximum_binding_uses
+        || owner_bytes > request.maximum_trace_variable_bytes
+        || request.maximum_trace_bytes == 0
+        || request.maximum_trace_bytes > 2 * 1024 * 1024
+        || request.maximum_result_snapshot_bytes == 0
+        || request.maximum_result_snapshot_bytes > world_limits.max_snapshot_bytes
+        || request.maximum_report_bytes == 0
+        || request.maximum_report_bytes > 8 * 1024 * 1024
+    {
+        return Err("unsupported saved named multi-copy schema/budget ceiling".into());
+    }
+    admit_saved_copy_outputs(install, result_path, report_path, "saved named multi-copy")?;
+    let descriptors = command_catalogue::inspect(&install.join("FalloutNV.exe"))?;
+    let operators = script_profile::operators(&descriptors)?;
+    let model = obscript::expression_plan::Model::vanilla(&operators)?;
+    let signatures = script_profile::signatures(&descriptors);
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, cache)?;
+    let catalogue = Arc::new(loaded_scripts::Catalogue::load(
+        &mut store,
+        Default::default(),
+        |_, _| Ok(()),
+    )?);
+    let content = Content::load(&mut store, &catalogue, 1_000_000)?;
+    let input_bytes = read_bounded_named(
+        snapshot_path,
+        world_limits.max_snapshot_bytes,
+        "saved named multi-copy snapshot byte budget exceeded",
+    )?;
+    let mut world = fallout_runtime::World::restore(
+        Arc::clone(&catalogue),
+        fallout_runtime::snapshot::Snapshot::decode(&input_bytes, world_limits)?,
+        world_limits,
+    )?;
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|pending| pending.sequence == request.sequence.get())
+        .ok_or("saved named multi-copy must name the existing journal head")?;
+    let instance = world.instance(world.handle(pending.instance)?)?;
+    // Borrowed metadata admission precedes the selected handle's allocation.
+    // Its payload is subsequently included in the unchanged frame admission.
+    let definition = instance.definition();
+    definition
+        .key
+        .record
+        .origin_plugin
+        .len()
+        .checked_add(definition.version_sha256.len())
+        .filter(|&bytes| bytes <= request.maximum_trace_variable_bytes - owner_bytes)
+        .ok_or("saved named multi-copy selected definition variable byte budget exceeded")?;
+    let sources = programs::PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &signatures,
+        std::slice::from_ref(definition),
+        Default::default(),
+    )?;
+    let before_revision = world.revision();
+    let prepared = copy_probe::stage_pending_multi_owned(
+        &world,
+        &sources,
+        &content,
+        request.sequence.get(),
+        &request.owner,
+        match request.intent {
+            SavedForeignIntent::Faithful => local_copy::Intent::Faithful,
+            SavedForeignIntent::Engineering => local_copy::Intent::Engineering,
+        },
+        local_copy::MultiLimits {
+            maximum_event_instructions: request.maximum_source_instructions,
+            maximum_statements: request.maximum_statements,
+            maximum_operand_uses: request.maximum_operand_uses,
+            maximum_statement_bytes: request.maximum_statement_bytes,
+            observation: preparation::ObservationLimits {
+                maximum_source_bytes: request.maximum_trace_source_bytes,
+                maximum_rows: request.maximum_trace_rows,
+                maximum_variable_bytes: request.maximum_trace_variable_bytes,
+                maximum_binding_uses: request.maximum_trace_binding_uses,
+            },
+        },
+    )?;
+    let mut trace_bytes = None;
+    let (committed, unsupported) = match prepared {
+        local_copy::MultiPreparation::Unsupported { reason, detail } => {
+            (None, Some((reason, detail)))
+        }
+        local_copy::MultiPreparation::Staged(stage) => {
+            let mut encoded = BoundedJson {
+                bytes: Vec::new(),
+                maximum: request.maximum_trace_bytes,
+            };
+            serde_json::to_writer(&mut encoded, stage.trace())
+                .map_err(|_| "saved named multi-copy trace byte budget exceeded")?;
+            trace_bytes = Some(encoded.bytes.len());
+            drop(encoded);
+            (Some(stage.commit(&mut world)?), None)
+        }
+    };
+    let mut artifact = Value::Null;
+    let result_bytes = if committed.is_some() {
+        let snapshot = world.snapshot();
+        let bytes = snapshot.encode(request.maximum_result_snapshot_bytes)?;
+        let cold = fallout_runtime::World::restore(
+            Arc::clone(&catalogue),
+            fallout_runtime::snapshot::Snapshot::decode(&bytes, world_limits)?,
+            world_limits,
+        )?;
+        if cold.snapshot() != snapshot {
+            return Err("saved named multi-copy complete cold result differs".into());
+        }
+        artifact = json!({"path":result_path,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes)),"schema_version":snapshot.schema_version,"decode_restore_equal":true,"remaining_head":snapshot.pending_events.first()});
+        Some(bytes)
+    } else {
+        None
+    };
+    let outcome = match (&committed, &unsupported) {
+        (Some(committed), _) => SavedCopyOutcome::EngineeringCommitted { committed },
+        (_, Some((reason, detail))) => SavedCopyOutcome::Unsupported {
+            reason: *reason,
+            detail,
+        },
+        _ => unreachable!("complete multi-copy preparation outcome"),
+    };
+    let report = SavedMultiCopyReport {
+        metadata: json!({"schema_version":1,"scope":"Explicit engineering complete numeric copy event for an existing named Quest/Placed owner","campaign":world.campaign(),"owner":request.owner,"before_revision":before_revision,"after_revision":world.revision(),"input_snapshot_sha256":format!("{:x}",Sha256::digest(&input_bytes)),"result_snapshot":artifact,"trace_bytes":trace_bytes,"explicit_owner_variable_bytes":owner_bytes,
+            "prepared_sources":{"source_cohort_sha256":sources.source_cohort_sha256(),"decoder_sha256":sources.decoder_sha256(),"counts":sources.counts()},"executable_source_sha256":descriptors.source_sha256,"index_cache":store.index_cache_report(),"private_result_discarded":committed.is_none(),"faithful_execution_admitted":false,"retail_parity_accepted":false,"accepted_scenarios":[]}),
+        snapshot_multi_copy: outcome,
+    };
+    let report = admit_saved_copy_report(
+        &report,
+        request.maximum_report_bytes,
+        "saved named multi-copy",
+    )?;
+    write_saved_copy_result(result_path, result_bytes)?;
+    Ok(report)
+}
+
 pub(super) fn copy_saved_batch(
     install: &Path,
     order_path: &Path,

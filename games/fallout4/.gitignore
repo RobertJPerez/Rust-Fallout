@@ -7,3 +7,6 @@
 *.pex
 *.fos
 __pycache__/
+
+# 368-byte synthetic Mutagen writer fixture, not installed game content.
+!tests/fixtures/condition/mutagen-workshop-v1.esp

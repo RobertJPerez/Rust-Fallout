@@ -314,8 +314,8 @@ pub(crate) enum RuntimeCommand {
         #[arg(long, requires = "quest_boot_request")]
         quest_boot_output: Option<PathBuf>,
         /// Strict current canonical snapshot; no migration or engineering seeding.
-        #[arg(long, requires = "saved_snapshot_request")]
-        snapshot_input: Option<PathBuf>,
+        #[arg(long, requires = "saved_snapshot_request", value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        snapshot_input: Option<Box<PathBuf>>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
         #[arg(long, requires = "saved_snapshot_request", value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))))]
         snapshot_output: Option<Box<PathBuf>>,

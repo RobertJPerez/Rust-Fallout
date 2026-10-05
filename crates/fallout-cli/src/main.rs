@@ -1242,6 +1242,7 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_input,
             snapshot_output,
         } => {
+            let snapshot_input = snapshot_input.map(|path| *path);
             if let Some(request) = snapshot_native_assignment_request {
                 let report = event_operand_inspection::assign_saved_native(
                     &install,

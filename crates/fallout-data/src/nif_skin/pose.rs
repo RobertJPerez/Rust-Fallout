@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 mod batch;
 pub mod partition;
 mod set;
+pub mod palette_packet;
 pub use batch::{
     BatchEvaluationLimits, BatchLimits, GeometryBatch, GeometryLimits, PreparationLimits,
     PreparationUsage, PreparedSkinSource, evaluate_many,

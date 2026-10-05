@@ -21,10 +21,12 @@ use std::{
 static NEXT_HOST: AtomicU64 = AtomicU64::new(1);
 
 mod continuation;
+mod event_prefix;
 mod persistence;
 pub use continuation::{
     ContinueBoundary, ContinueReceipt, ContinueRequest, PreparedContinue, ScenePublisher,
 };
+pub use event_prefix::{EventPrefixError, EventPrefixPreparation, PreparedEventPrefix};
 pub use persistence::{SaveRequest, SaveSubmission};
 
 pub type Result<T> = std::result::Result<T, Failure>;

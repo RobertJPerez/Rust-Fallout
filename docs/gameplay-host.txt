@@ -2,7 +2,8 @@ Application host
 
 The application Host owns the existing canonical World. Source content stays
 immutable; inventory, references, events and native captures use runtime APIs.
-No second world, item bank or save representation is introduced.
+The Host remains the active World authority. Private preparations use the same
+runtime data and native snapshot representation.
 
 For the supported whole-lot transfer, select_transfer qualifies both registered
 owners against winning placed-reference headers and validates the item's source
@@ -79,3 +80,17 @@ quest-stage semantics. The scene fixture is not the native renderer or GPU proof
 Visible input, original menus, the legacy native-host failure reproduction and
 independent frozen route acceptance remain required consumer work. These adapters
 are dependency slices until the real scene host consumes them.
+
+Host::prepare_event_prefix consumes an explicit existing ordered journal prefix
+through the reviewed Scripts adapter in a private restored World. It retains the
+Host's exact source catalogue and schemas, World limits and immutable Content.
+Input and candidate encoding use the existing snapshot byte cap. All failure or
+unsupported paths discard private effects and preserve the complete active state.
+
+The resulting PreparedEventPrefix exposes immutable engineering observations and
+binds HostIdentity, scene generation, campaign, source cohort, input revision and
+decoder fingerprint. matches_current_boundary checks those current inputs;
+it grants no gameplay publication authority. Preparation accepts no application
+request ID, changes no accepted-request ledger or clock, and creates no event.
+Faithful intent retains the producer's unsupported result. Scene admission,
+active publication and mutation acknowledgements remain subsequent consumer work.

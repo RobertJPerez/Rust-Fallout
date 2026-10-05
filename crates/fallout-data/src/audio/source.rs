@@ -55,6 +55,10 @@ pub enum AudioError {
     InvalidLimits,
     #[error("PCM chunk allocation failed: {0}")]
     Allocation(String),
+    #[error("PCM seek frame {frame} exceeds the source frame count {frame_count}")]
+    SeekOutOfRange { frame: u64, frame_count: u64 },
+    #[error("PCM seek token belongs to a different source identity")]
+    SeekSourceMismatch,
 }
 
 /// An admitted archive source request. The source is read on the bounded

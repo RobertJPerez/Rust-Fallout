@@ -9,7 +9,7 @@ mod tests;
 
 use bevy::prelude::*;
 use fallout_data::{
-    audio::{AudioError, PcmChunk, PreparedSound, WaveFormat},
+    audio::{AudioError, PcmChunk, PcmStream, PreparedSound, WaveFormat},
     resource_jobs::{Generation, JobError, JobToken},
 };
 use std::{
@@ -19,6 +19,7 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
         Arc, Condvar, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender, TrySendError},
     },
     thread::{self, JoinHandle},
@@ -27,6 +28,7 @@ use std::{
 
 const DEFAULT_QUEUE_CAPACITY: usize = 8;
 const MAX_QUEUE_CAPACITY: usize = 64;
+const MUSIC_SEEK_QUEUE_CAPACITY: usize = 8;
 
 /// A sink receives one source-format stream from the single audio worker.
 /// `write` must return after one bounded chunk; device implementations must
@@ -148,12 +150,61 @@ type PlaybackResult = Result<PlaybackReceipt, PlaybackFailure>;
 struct PlaybackControl {
     request_id: u64,
     scene_generation: u64,
-    token: JobToken,
+    token: Mutex<JobToken>,
+    cancelled: AtomicBool,
     completion: Mutex<Option<PlaybackResult>>,
     completed: Condvar,
 }
 
 impl PlaybackControl {
+    fn new(request_id: u64, scene_generation: u64, token: JobToken) -> Self {
+        Self {
+            request_id,
+            scene_generation,
+            token: Mutex::new(token),
+            cancelled: AtomicBool::new(false),
+            completion: Mutex::new(None),
+            completed: Condvar::new(),
+        }
+    }
+
+    fn current_token(&self) -> JobToken {
+        self.token
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    fn check(&self) -> Result<JobToken, PlaybackFailure> {
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(PlaybackFailure::Cancelled);
+        }
+        let token = self.current_token();
+        token.check().map_err(map_resource_error)?;
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(PlaybackFailure::Cancelled);
+        }
+        Ok(token)
+    }
+
+    fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+        self.current_token().cancel();
+    }
+
+    fn replace_token(&self, token: JobToken) -> Result<(), PlaybackFailure> {
+        let mut current = self
+            .token
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if self.cancelled.load(Ordering::Acquire) {
+            token.cancel();
+            return Err(PlaybackFailure::Cancelled);
+        }
+        *current = token;
+        Ok(())
+    }
+
     fn complete(&self, result: PlaybackResult) {
         let mut completion = self
             .completion
@@ -181,7 +232,7 @@ impl PlaybackHandle {
     /// Cancel only this request. The worker observes the token at source chunk
     /// boundaries and returns a sticky `Cancelled` completion.
     pub(super) fn cancel(&self) {
-        self.control.token.cancel();
+        self.control.cancel();
     }
 
     /// Poll without waiting. A result from a replaced scene is refused even if
@@ -239,7 +290,93 @@ impl PlaybackHandle {
 
 impl Drop for PlaybackHandle {
     fn drop(&mut self) {
-        self.control.token.cancel();
+        self.control.cancel();
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum MusicSeekError {
+    OutOfRange { frame: u64, frame_count: u64 },
+    QueueFull,
+    Closed,
+    Cancelled,
+}
+
+impl fmt::Display for MusicSeekError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OutOfRange { frame, frame_count } => write!(
+                f,
+                "music seek frame {frame} exceeds the source frame count {frame_count}"
+            ),
+            Self::QueueFull => write!(f, "music seek queue is full"),
+            Self::Closed => write!(f, "music stream is already closed"),
+            Self::Cancelled => write!(f, "music stream was cancelled"),
+        }
+    }
+}
+
+impl Error for MusicSeekError {}
+
+enum MusicCommand {
+    Seek { frame: u64 },
+}
+
+// This handle owns the bounded seek channel and cancellation for one music job.
+// Dropping it cancels only its own playback via the contained PlaybackHandle.
+#[allow(dead_code)]
+pub(super) struct MusicHandle {
+    playback: PlaybackHandle,
+    commands: SyncSender<MusicCommand>,
+    seek_closed: Arc<Mutex<bool>>,
+    frame_count: u64,
+}
+
+#[allow(dead_code)]
+impl MusicHandle {
+    pub(super) fn request_id(&self) -> u64 {
+        self.playback.request_id()
+    }
+
+    pub(super) fn seek(&self, frame: u64) -> Result<(), MusicSeekError> {
+        if frame > self.frame_count {
+            return Err(MusicSeekError::OutOfRange {
+                frame,
+                frame_count: self.frame_count,
+            });
+        }
+        let closed = self
+            .seek_closed
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *closed {
+            return Err(MusicSeekError::Closed);
+        }
+        if self.playback.control.cancelled.load(Ordering::Acquire) {
+            return Err(MusicSeekError::Cancelled);
+        }
+        self.commands
+            .try_send(MusicCommand::Seek { frame })
+            .map_err(|error| match error {
+                mpsc::TrySendError::Full(_) => MusicSeekError::QueueFull,
+                mpsc::TrySendError::Disconnected(_) => MusicSeekError::Closed,
+            })
+    }
+
+    pub(super) fn stop(&self) {
+        self.playback.cancel();
+    }
+
+    pub(super) fn try_completion(&self, current_scene_generation: u64) -> Option<PlaybackResult> {
+        self.playback.try_completion(current_scene_generation)
+    }
+
+    pub(super) fn wait(
+        &self,
+        current_scene_generation: u64,
+        timeout: Duration,
+    ) -> Option<PlaybackResult> {
+        self.playback.wait(current_scene_generation, timeout)
     }
 }
 
@@ -248,10 +385,33 @@ struct PlaybackJob {
     control: Arc<PlaybackControl>,
 }
 
+struct MusicJob {
+    sound: PreparedSound,
+    control: Arc<PlaybackControl>,
+    owner: Generation,
+    source_identity: String,
+    commands: Receiver<MusicCommand>,
+    seek_closed: Arc<Mutex<bool>>,
+}
+
+enum AudioJob {
+    Sound(PlaybackJob),
+    Music(MusicJob),
+}
+
+impl AudioJob {
+    fn control(&self) -> &Arc<PlaybackControl> {
+        match self {
+            Self::Sound(job) => &job.control,
+            Self::Music(job) => &job.control,
+        }
+    }
+}
+
 struct AdapterState {
     scene_generation: u64,
     next_request_id: u64,
-    sender: Option<SyncSender<PlaybackJob>>,
+    sender: Option<SyncSender<AudioJob>>,
     startup_error: Option<String>,
 }
 
@@ -322,7 +482,7 @@ impl AudioAdapter {
                 return false;
             };
             if control.scene_generation != generation {
-                control.token.cancel();
+                control.cancel();
             }
             true
         });
@@ -362,13 +522,7 @@ impl AudioAdapter {
         let next_request_id = request_id
             .checked_add(1)
             .ok_or(AudioAdmissionError::RequestIdsExhausted)?;
-        let control = Arc::new(PlaybackControl {
-            request_id,
-            scene_generation,
-            token,
-            completion: Mutex::new(None),
-            completed: Condvar::new(),
-        });
+        let control = Arc::new(PlaybackControl::new(request_id, scene_generation, token));
         let job = PlaybackJob {
             sound,
             control: control.clone(),
@@ -379,10 +533,85 @@ impl AudioAdapter {
             .lock()
             .map_err(|_| AudioAdmissionError::HostPoisoned)?;
         active.insert(request_id, Arc::downgrade(&control));
-        match sender.try_send(job) {
+        match sender.try_send(AudioJob::Sound(job)) {
             Ok(()) => {
                 state.next_request_id = next_request_id;
                 Ok(PlaybackHandle { control })
+            }
+            Err(TrySendError::Full(job)) => {
+                drop(job);
+                active.remove(&request_id);
+                Err(AudioAdmissionError::QueueFull)
+            }
+            Err(TrySendError::Disconnected(job)) => {
+                drop(job);
+                active.remove(&request_id);
+                Err(AudioAdmissionError::Closed)
+            }
+        }
+    }
+
+    /// Admit one source-bounded music stream on the same finite audio queue and
+    /// worker as short sound requests.
+    #[allow(dead_code)]
+    pub(super) fn submit_music(
+        &self,
+        sound: PreparedSound,
+        scene_generation: u64,
+    ) -> Result<MusicHandle, AudioAdmissionError> {
+        let source_identity = sound.source().archive_sha256.clone();
+        let owner = Generation::new(source_identity.clone())
+            .map_err(|error| AudioAdmissionError::InvalidSource(error.to_string()))?;
+        let token = owner
+            .token()
+            .map_err(|error| AudioAdmissionError::InvalidSource(error.to_string()))?;
+        let frame_count = sound.frame_count();
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| AudioAdmissionError::HostPoisoned)?;
+        if let Some(error) = &state.startup_error {
+            return Err(AudioAdmissionError::WorkerStart(error.clone()));
+        }
+        if state.sender.is_none() {
+            return Err(AudioAdmissionError::Closed);
+        }
+        if scene_generation != state.scene_generation {
+            return Err(AudioAdmissionError::StaleScene {
+                requested_generation: scene_generation,
+                current_generation: state.scene_generation,
+            });
+        }
+        let request_id = state.next_request_id;
+        let next_request_id = request_id
+            .checked_add(1)
+            .ok_or(AudioAdmissionError::RequestIdsExhausted)?;
+        let control = Arc::new(PlaybackControl::new(request_id, scene_generation, token));
+        let (commands, command_receiver) = mpsc::sync_channel(MUSIC_SEEK_QUEUE_CAPACITY);
+        let seek_closed = Arc::new(Mutex::new(false));
+        let job = AudioJob::Music(MusicJob {
+            sound,
+            control: control.clone(),
+            owner,
+            source_identity,
+            commands: command_receiver,
+            seek_closed: seek_closed.clone(),
+        });
+        let sender = state.sender.as_ref().ok_or(AudioAdmissionError::Closed)?;
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|_| AudioAdmissionError::HostPoisoned)?;
+        active.insert(request_id, Arc::downgrade(&control));
+        match sender.try_send(job) {
+            Ok(()) => {
+                state.next_request_id = next_request_id;
+                Ok(MusicHandle {
+                    playback: PlaybackHandle { control },
+                    commands,
+                    seek_closed,
+                    frame_count,
+                })
             }
             Err(TrySendError::Full(job)) => {
                 drop(job);
@@ -419,7 +648,7 @@ impl AudioAdapter {
                 let Some(control) = weak.upgrade() else {
                     return false;
                 };
-                control.token.cancel();
+                control.cancel();
                 true
             });
         }
@@ -441,16 +670,24 @@ impl Drop for AudioAdapter {
 }
 
 fn audio_worker<S: PcmSink>(
-    receiver: Receiver<PlaybackJob>,
+    receiver: Receiver<AudioJob>,
     active: Arc<Mutex<BTreeMap<u64, Weak<PlaybackControl>>>>,
     mut sink: S,
 ) {
     while let Ok(job) = receiver.recv() {
-        let PlaybackJob { sound, control } = job;
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            consume_sound(sound, &control, &mut sink)
+        let control = job.control().clone();
+        let seek_closed = match &job {
+            AudioJob::Sound(_) => None,
+            AudioJob::Music(job) => Some(job.seek_closed.clone()),
+        };
+        let result = catch_unwind(AssertUnwindSafe(|| match job {
+            AudioJob::Sound(job) => consume_sound(job.sound, &job.control, &mut sink),
+            AudioJob::Music(job) => consume_music(job, &mut sink),
         }))
         .unwrap_or(Err(PlaybackFailure::WorkerPanicked));
+        if let Some(seek_closed) = seek_closed {
+            close_music_seek_queue(&seek_closed);
+        }
         control.complete(result);
         if let Ok(mut active) = active.lock() {
             active.remove(&control.request_id);
@@ -463,24 +700,22 @@ fn consume_sound<S: PcmSink>(
     control: &PlaybackControl,
     sink: &mut S,
 ) -> PlaybackResult {
-    control.token.check().map_err(map_resource_error)?;
+    let token = control.check()?;
     let format = sound.format();
     sink.begin(format).map_err(PlaybackFailure::Sink)?;
-    control.token.check().map_err(map_resource_error)?;
-    let mut stream = sound
-        .stream(control.token.clone())
-        .map_err(map_audio_error)?;
+    control.check()?;
+    let mut stream = sound.stream(token).map_err(map_audio_error)?;
     let mut frames_submitted = 0u64;
     while let Some(chunk) = stream.next_chunk().map_err(map_audio_error)? {
-        control.token.check().map_err(map_resource_error)?;
+        control.check()?;
         let next_frames = frames_submitted
             .checked_add(chunk.frame_count as u64)
             .ok_or_else(|| PlaybackFailure::Decode("frame count overflow".into()))?;
         sink.write(chunk).map_err(PlaybackFailure::Sink)?;
-        control.token.check().map_err(map_resource_error)?;
+        control.check()?;
         frames_submitted = next_frames;
     }
-    control.token.check().map_err(map_resource_error)?;
+    control.check()?;
     sink.finish().map_err(PlaybackFailure::Sink)?;
     Ok(PlaybackReceipt {
         request_id: control.request_id,
@@ -488,6 +723,119 @@ fn consume_sound<S: PcmSink>(
         frames_submitted,
         format,
     })
+}
+
+fn consume_music<S: PcmSink>(job: MusicJob, sink: &mut S) -> PlaybackResult {
+    let MusicJob {
+        sound,
+        control,
+        owner,
+        source_identity,
+        commands,
+        seek_closed,
+    } = job;
+    let format = sound.format();
+    let mut token = control.check()?;
+    sink.begin(format).map_err(PlaybackFailure::Sink)?;
+    let mut stream = sound.stream(token.clone()).map_err(map_audio_error)?;
+    let mut frames_submitted = 0u64;
+
+    loop {
+        control.check()?;
+        for _ in 0..MUSIC_SEEK_QUEUE_CAPACITY {
+            match commands.try_recv() {
+                Ok(MusicCommand::Seek { frame }) => {
+                    seek_music_stream(
+                        frame,
+                        &mut stream,
+                        &owner,
+                        &source_identity,
+                        &control,
+                        &mut token,
+                    )?;
+                }
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    return Err(PlaybackFailure::Cancelled);
+                }
+            }
+        }
+
+        control.check()?;
+        match stream.next_chunk().map_err(map_audio_error)? {
+            Some(chunk) => {
+                control.check()?;
+                let next_frames = frames_submitted
+                    .checked_add(chunk.frame_count as u64)
+                    .ok_or_else(|| PlaybackFailure::Decode("frame count overflow".into()))?;
+                sink.write(chunk).map_err(PlaybackFailure::Sink)?;
+                control.check()?;
+                frames_submitted = next_frames;
+            }
+            None => {
+                let mut closed = seek_closed
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                control.check()?;
+                match commands.try_recv() {
+                    Ok(MusicCommand::Seek { frame }) => {
+                        drop(closed);
+                        seek_music_stream(
+                            frame,
+                            &mut stream,
+                            &owner,
+                            &source_identity,
+                            &control,
+                            &mut token,
+                        )?;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {
+                        *closed = true;
+                        break;
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        *closed = true;
+                        return Err(PlaybackFailure::Cancelled);
+                    }
+                }
+            }
+        }
+    }
+
+    sink.finish().map_err(PlaybackFailure::Sink)?;
+    Ok(PlaybackReceipt {
+        request_id: control.request_id,
+        scene_generation: control.scene_generation,
+        frames_submitted,
+        format,
+    })
+}
+
+fn seek_music_stream(
+    frame: u64,
+    stream: &mut PcmStream<'_>,
+    owner: &Generation,
+    source_identity: &str,
+    control: &PlaybackControl,
+    token: &mut JobToken,
+) -> Result<(), PlaybackFailure> {
+    control.check()?;
+    owner
+        .advance(source_identity.to_owned())
+        .map_err(map_resource_error)?;
+    let next_token = owner.token().map_err(map_resource_error)?;
+    control.replace_token(next_token.clone())?;
+    stream
+        .seek(frame, next_token.clone())
+        .map_err(map_audio_error)?;
+    *token = next_token;
+    Ok(())
+}
+
+fn close_music_seek_queue(seek_closed: &Mutex<bool>) {
+    *seek_closed
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
 }
 
 fn map_audio_error(error: AudioError) -> PlaybackFailure {

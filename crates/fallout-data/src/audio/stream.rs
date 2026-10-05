@@ -97,6 +97,25 @@ impl<'a> PcmStream<'a> {
         }))
     }
 
+    /// Cancel this stream's current generation and resume at a source frame
+    /// owned by a fresh token for the same source identity.
+    pub fn seek(&mut self, first_frame: u64, token: JobToken) -> Result<(), AudioError> {
+        token.check()?;
+        if token.source_identity() != self.token.source_identity() {
+            return Err(AudioError::SeekSourceMismatch);
+        }
+        if first_frame > self.sound.frame_count() {
+            return Err(AudioError::SeekOutOfRange {
+                frame: first_frame,
+                frame_count: self.sound.frame_count(),
+            });
+        }
+        self.token.cancel();
+        self.token = token;
+        self.next_frame = first_frame;
+        Ok(())
+    }
+
     /// Cancel only this stream's generation token. It does not drop the source
     /// lease; the owner releases that by dropping `PreparedSound` after drain.
     pub fn cancel(&self) {

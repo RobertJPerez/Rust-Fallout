@@ -98,6 +98,7 @@ impl SoundFixture {
 struct Observation {
     format: Option<WaveFormat>,
     frames: usize,
+    chunk_first_frames: Vec<u64>,
     finished: bool,
 }
 
@@ -146,7 +147,9 @@ impl PcmSink for ProbeSink {
         if self.fail_write {
             return Err("synthetic sink failure".into());
         }
-        self.observation.lock().unwrap().frames += chunk.frame_count;
+        let mut observation = self.observation.lock().unwrap();
+        observation.chunk_first_frames.push(chunk.first_frame);
+        observation.frames += chunk.frame_count;
         Ok(())
     }
 
@@ -338,4 +341,109 @@ fn sink_failure_is_a_sticky_error_and_unavailable_output_never_succeeds() {
         ))
     );
     adapter.shutdown();
+}
+
+#[test]
+fn music_seek_replaces_its_source_token_and_completes_only_at_natural_end() {
+    let (started, began) = mpsc::channel();
+    let (release, gate) = mpsc::channel();
+    let (sink, observation) = ProbeSink::new(Some(started), Some(gate), false);
+    let adapter = make_adapter(1, sink);
+    adapter.set_scene_generation(17).unwrap();
+    let mut fixture = SoundFixture::new(2048);
+    let handle = adapter.submit_music(fixture.take(), 17).unwrap();
+    let previous_token = handle.playback.control.current_token();
+    began.recv_timeout(Duration::from_secs(2)).unwrap();
+
+    handle.seek(1024).unwrap();
+    assert_eq!(
+        handle.seek(2049),
+        Err(MusicSeekError::OutOfRange {
+            frame: 2049,
+            frame_count: 2048,
+        })
+    );
+    release.send(()).unwrap();
+
+    let receipt = handle.wait(17, Duration::from_secs(2)).unwrap().unwrap();
+    assert_eq!(receipt.frames_submitted, 1152);
+    assert!(previous_token.check().is_err());
+    let observed = observation.lock().unwrap();
+    assert_eq!(observed.frames, 1152);
+    assert_eq!(observed.chunk_first_frames[0], 0);
+    assert_eq!(observed.chunk_first_frames[1], 1024);
+    assert_eq!(observed.chunk_first_frames.last(), Some(&1920));
+    assert!(observed.finished);
+    drop(observed);
+    adapter.shutdown();
+}
+
+#[test]
+fn music_seek_queue_is_finite_and_stop_cancels_the_current_stream() {
+    let (started, began) = mpsc::channel();
+    let (release, gate) = mpsc::channel();
+    let (sink, _) = ProbeSink::new(Some(started), Some(gate), false);
+    let adapter = make_adapter(1, sink);
+    adapter.set_scene_generation(18).unwrap();
+    let mut fixture = SoundFixture::new(2048);
+    let handle = adapter.submit_music(fixture.take(), 18).unwrap();
+    let active_token = handle.playback.control.current_token();
+    began.recv_timeout(Duration::from_secs(2)).unwrap();
+
+    for frame in 0..MUSIC_SEEK_QUEUE_CAPACITY as u64 {
+        handle.seek(frame).unwrap();
+    }
+    assert_eq!(handle.seek(8), Err(MusicSeekError::QueueFull));
+    handle.stop();
+    assert_eq!(handle.seek(9), Err(MusicSeekError::Cancelled));
+    assert!(active_token.check().is_err());
+    release.send(()).unwrap();
+    assert_eq!(
+        handle.wait(18, Duration::from_secs(2)),
+        Some(Err(PlaybackFailure::Cancelled))
+    );
+    adapter.shutdown();
+}
+
+#[test]
+fn music_decode_failure_is_not_reported_as_natural_end() {
+    let (sink, _) = ProbeSink::new(None, None, false);
+    let adapter = make_adapter(2, sink);
+    adapter.set_scene_generation(19).unwrap();
+    let mut fixture = SoundFixture::new(4);
+    let handle = adapter.submit_music(fixture.take(), 19).unwrap();
+    let natural_end = handle.wait(19, Duration::from_secs(2)).unwrap();
+    let decoder_failure = map_audio_error(AudioError::Allocation(
+        "synthetic bounded decoder failure".into(),
+    ));
+    assert!(natural_end.is_ok());
+    assert!(matches!(decoder_failure, PlaybackFailure::Decode(_)));
+    adapter.shutdown();
+}
+
+#[test]
+fn pcm_stream_seek_rejects_out_of_range_without_cancelling_the_current_stream() {
+    let fixture = SoundFixture::new(4);
+    let sound = fixture.sound.as_ref().unwrap();
+    let identity = sound.source().archive_sha256.clone();
+    let owner = Generation::new(identity.clone()).unwrap();
+    let old_token = owner.token().unwrap();
+    let mut stream = sound.stream(old_token.clone()).unwrap();
+
+    assert!(matches!(
+        stream.seek(5, old_token.clone()),
+        Err(AudioError::SeekOutOfRange {
+            frame: 5,
+            frame_count: 4,
+        })
+    ));
+    assert!(old_token.check().is_ok());
+
+    owner.advance(identity).unwrap();
+    let next_token = owner.token().unwrap();
+    stream.seek(3, next_token).unwrap();
+    assert!(old_token.check().is_err());
+    let chunk = stream.next_chunk().unwrap().unwrap();
+    assert_eq!(chunk.first_frame, 3);
+    assert_eq!(chunk.frame_count, 1);
 }

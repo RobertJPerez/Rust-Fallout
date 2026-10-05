@@ -44,15 +44,26 @@ admitted request instead of reporting silent success. A successful test sink res
 means only that the sink accepted the source frames; it does not provide a device
 drain time, audible playback clock, mixing, resampling or spatial behavior.
 
+The audio-03 music interface reuses the same finite request queue and worker. It
+accepts source-frame seeks through a per-track queue capped at eight commands; each
+accepted seek invalidates the previous stream token before decoding from the new
+frame. Stop cancels that track's active token. Success is reported only when the
+bounded PCM stream reaches natural end and the sink finishes; decoder and sink
+errors remain separate failures. The worker does not loop a track, and each PCM
+pull stays within the existing 4096-frame maximum. The prepared archive member and
+its `ResourceJobs` budget lease remain pinned for that finite request. This
+interface still accepts only the existing PCM WAVE subset; it does not decode
+music MP3/Ogg or choose a music cue.
+
 ## Deliberate open work
 
 `actors::voices` records that effective actor voice and audio-path selection are
 unsupported. `world::conversation` retains the source `Sound` form link, but does
 not identify a localized filename. These layers do not infer a dialogue cue, select
 language, resolve localization, parse LIP or schedule voice/music/radio. Synthetic
-sink tests cover request-queue mechanics only; they do not establish original audio
-fidelity or device playback, and they do not cover the separate music and dialogue
-tasks.
+sink tests cover queue and PCM-only music stream mechanics; they do not establish
+original audio fidelity or device playback, and they do not cover dialogue
+selection/subtitle timing or source music-cue behavior.
 
 The WAVE subset follows Microsoft's `WAVEFORMATEX` fields and PCM constraints:
 <https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatex>

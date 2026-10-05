@@ -3894,20 +3894,26 @@ fn sampled_palette_packet_refuses_stale_missing_or_unadmitted_bindings() {
     .unwrap_err();
     assert!(error.to_string().contains("missing bone"), "{error}");
 
-    let mut limits = transport::SampledLimits::default();
-    limits.channels = channels.len() - 1;
+    let limits = transport::SampledLimits {
+        channels: channels.len() - 1,
+        ..Default::default()
+    };
     let error = transport::prepare_sampled_set(&bytes, "channel bound", request, &channels, limits)
         .unwrap_err();
     assert!(error.to_string().contains("channel limit"), "{error}");
 
-    let mut limits = transport::SampledLimits::default();
-    limits.palette_entries = 1;
+    let limits = transport::SampledLimits {
+        palette_entries: 1,
+        ..Default::default()
+    };
     let error = transport::prepare_sampled_set(&bytes, "palette bound", request, &channels, limits)
         .unwrap_err();
     assert!(error.to_string().contains("palette entry limit"), "{error}");
 
-    let mut limits = transport::SampledLimits::default();
-    limits.max_combined_retained_bytes = 1;
+    let limits = transport::SampledLimits {
+        max_combined_retained_bytes: 1,
+        ..Default::default()
+    };
     let error =
         transport::prepare_sampled_set(&bytes, "combined bound", request, &channels, limits)
             .unwrap_err();

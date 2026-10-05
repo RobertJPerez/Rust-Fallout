@@ -15,6 +15,9 @@ scenario exits successfully and produces fresh report and image files. An
 all-skipped or partially completed matrix cannot pass.
 Failed runs retain hashes and timestamps for any fresh report, image, or log
 that was produced, while remaining failed and ineligible for replay acceptance.
+Completed resource jobs do not prove complete placement coverage: jobs cover the
+source-derived requests, while the separate coverage flags account for unresolved
+model and texture references.
 
 The scenario input is a private JSON file. Its schema is:
 
@@ -76,3 +79,11 @@ handling, stale capture rejection, per-run completion, absent-observation
 status, and negative missing-resource and changed-pose mutations:
 
     python tools/engine-acceptance/test_scene_replay.py
+
+An omitted placement is not evidence that the original game hides it. In this
+static adapter, `no-supported-modl` means the resolved base record did not yield
+a non-empty `MODL` path; alternate runtime model selection remains deferred.
+Actor model selection is a separate unimplemented path. `initially-disabled`
+records are skipped by the non-canonical inspection path. Preserve these rows
+and the incomplete coverage flags instead of counting them as rendered or
+dropping them from the report.

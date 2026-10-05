@@ -77,8 +77,9 @@ generation remains strictly loadable. The same target rejects a container with a
 damaged whole-container digest, a checksum-valid foreign profile adapter, and a
 save bound to a changed source cohort. Previous-slot fallback does not repair the
 current file; explicit recovery does. This is repository and state-engineering
-acceptance only. The assigned source tree has no application Host consumer, so this
-does not prove host-level Continue, renderer behavior, retail initialization, or
-gameplay parity. Set `FALLOUT_ROUTE_ACCEPTANCE_EVIDENCE` to a private evidence
+acceptance only. It exercises public Repository and World restore APIs but does not
+exercise the application Host consumer, so Host-level Continue and renderer behavior
+remain unproven; it also does not prove retail initialization or gameplay parity.
+Set `FALLOUT_ROUTE_ACCEPTANCE_EVIDENCE` to a private evidence
 directory to retain the child stdout/stderr and synthetic JSON receipts; without it,
 the interruption logs remain inside the temporary fixture directory.

@@ -97,3 +97,29 @@ Actor model selection is a separate unimplemented path. `initially-disabled`
 records are skipped by the non-canonical inspection path. Preserve these rows
 and the incomplete coverage flags instead of counting them as rendered or
 dropping them from the report.
+
+## Movement acceptance gate
+
+The current movement pieces expose separate proposals. Actor package route
+endpoints identify a cell and NAVM triangle; they carry no exact point or
+admitted actor body profile. The local-motion producer needs exact start and
+goal points plus an explicit planar footprint radius, and marks every emitted
+segment as requiring a collision sweep. A caller-supplied radius is an input,
+not evidence that an actor body profile was admitted.
+
+The physics sweep returns an immutable proposal for its explicitly supported
+zero-tagged frozen sphere-core profile. The resident `CellCollision` owner
+currently exposes ray and overlap queries, reports collision readiness as
+unsupported, and has no sweep entry point. The CLI sweep consumes an offline
+collision source and an explicit request file; its report does not move an
+actor. The actor package candidate likewise reports movement and execution as
+unsupported, leaves state unchanged, and refuses execution.
+
+Acceptance-03 remains open until a tested scene consumer joins the actor's
+source-qualified route, exact endpoint positions, an admitted body footprint,
+and a sweep against the active collision scene and source epoch. It must
+validate the proposal against the current actor revision before committing a
+canonical pose. Camera transform observations stay independent from that pose.
+Then run the assigned wall, step, doorway, frame-rate, and cold-restore cases;
+verify blocked motion preserves pose and camera-only changes preserve pose.
+Producer tests and offline sweep reports do not satisfy these scene cases.

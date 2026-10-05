@@ -263,16 +263,9 @@ struct QueryRequest {
     attachment_rows: [[f64; 4]; 3],
     units: fallout_runtime::physics::EngineeringUnits,
     ray: Option<fallout_runtime::physics::Ray>,
-    ray_first: Option<FirstRayRequest>,
     segment_cast: Option<SegmentCastRequest>,
     ray_intervals: Option<RayIntervalsRequest>,
     overlap: Option<SphereRequest>,
-}
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FirstRayRequest {
-    ray: fallout_runtime::physics::Ray,
-    budget: fallout_runtime::physics::FirstHitBudget,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -365,13 +358,6 @@ struct OverlapNumericInput {
     center_binary64_hex: [String; 3],
     radius_binary64_hex: String,
 }
-#[derive(Serialize)]
-struct FirstRayReport {
-    numeric_input: RayNumericInput,
-    budget: fallout_runtime::physics::FirstHitBudget,
-    hit: Option<fallout_runtime::physics::Hit>,
-    query_semantics: &'static str,
-}
 fn ray_numeric_input(ray: fallout_runtime::physics::Ray) -> RayNumericInput {
     RayNumericInput {
         origin_binary64_hex: ray.origin.map(|v| format!("{:016x}", v.to_bits())),
@@ -392,8 +378,6 @@ pub struct QueryReport {
     units: fallout_runtime::physics::EngineeringUnits,
     ray_numeric_input: Option<RayNumericInput>,
     overlap_numeric_input: Option<OverlapNumericInput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    first_ray: Option<FirstRayReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     segment_cast: Option<SegmentCastReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -418,20 +402,17 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
     if request.body_blocks.is_empty()
         || request.body_blocks.len() > 10_000
         || (request.ray.is_none()
-            && request.ray_first.is_none()
             && request.overlap.is_none()
             && request.segment_cast.is_none()
             && request.ray_intervals.is_none())
     {
-        return Err("collision request needs 1..10000 bodies and a ray or overlap".into());
-    }
-    if request.ray.is_some() && request.ray_first.is_some() {
-        return Err("collision request cannot combine ray and ray_first".into());
+        return Err(
+            "collision request needs 1..10000 bodies and at least one query: ray, overlap, segment cast, or ray intervals".into(),
+        );
     }
     let finite_request = request.segment_cast.is_some() || request.ray_intervals.is_some();
     if finite_request
         && (request.ray.is_some()
-            || request.ray_first.is_some()
             || request.overlap.is_some()
             || (request.segment_cast.is_some() && request.ray_intervals.is_some()))
     {
@@ -505,18 +486,6 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
             )
         })?
         .unwrap_or_default();
-    let first_ray = request.ray_first.map(|first| {
-        let numeric_input = self::ray_numeric_input(first.ray);
-        let hit = scene.ray_first(first.ray,first.budget).map_err(|error| {
-            format!("collision first ray refused: {error}; ray_numeric_input={}",serde_json::to_string(&numeric_input).expect("string-only numeric audit"))
-        })?;
-        Ok::<_,String>(FirstRayReport {
-            numeric_input,
-            budget:first.budget,
-            hit,
-            query_semantics:"existing authored core predicates and original bounded ray; one distance/source-ordered result; uncertifiably farther candidates remain visited; complete result refuses numerical uncertainty or exhausted cumulative work; no retail movement or exact entry-distance certificate",
-        })
-    }).transpose()?;
     let overlap_hits = request
         .overlap
         .map(|s| scene.overlap_sphere(s.center, s.radius, QueryBudget::default()))
@@ -534,7 +503,6 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
         units: request.units,
         ray_numeric_input,
         overlap_numeric_input,
-        first_ray,
         segment_cast,
         ray_intervals,
         primitive_count: scene.primitive_count(),

@@ -51,10 +51,20 @@ def _reject_constant(value: str) -> None:
 def _decode_json(data: bytes, label: str) -> Any:
     if len(data) > MAX_ARTIFACT_BYTES:
         _fail(f"{label} exceeds the {MAX_ARTIFACT_BYTES}-byte limit")
+
+    def parse_integer(token: str) -> int:
+        try:
+            return int(token)
+        except ValueError as error:
+            raise ReceiptError(
+                f"{label} contains an integer exceeding the decoder limit"
+            ) from error
+
     try:
         return json.loads(
             data.decode("utf-8-sig"),
             object_pairs_hook=_pairs_without_duplicates,
+            parse_int=parse_integer,
             parse_constant=_reject_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as error:

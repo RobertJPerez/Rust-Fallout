@@ -206,4 +206,25 @@ fn placed_spawn_inputs_join_existing_sources_without_applying_them() {
         Err(Error::Capacity("inventory item"))
     ));
     assert_eq!(world.snapshot(), before);
+
+    assert!(matches!(
+        spawn_state::Requests::prepare(
+            &mut store,
+            &world,
+            &content,
+            &placements,
+            &actors,
+            &associations,
+            &races,
+            &classes,
+            &dependencies,
+            reference,
+            spawn_state::Limits {
+                max_extra_fields: 0,
+                ..Default::default()
+            },
+        ),
+        Err(Error::Capacity("extra field"))
+    ));
+    assert_eq!(world.snapshot(), before);
 }

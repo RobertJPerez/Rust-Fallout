@@ -189,11 +189,11 @@ fn inventory_items<'a>(
             } => (item, *count, *schema_kind_allowed),
             _ => return Err(Error::Source("CNTO field has no item declaration")),
         };
-        let mut coed = Vec::with_capacity(source_item.coed_fields.len());
         extra_fields = extra_fields
             .checked_add(source_item.coed_fields.len())
             .ok_or(Error::Capacity("extra field"))?;
         admit(extra_fields, limits.max_extra_fields, "extra field")?;
+        let mut coed = Vec::with_capacity(source_item.coed_fields.len());
         for &field_index in &source_item.coed_fields {
             visits = visits.checked_add(1).ok_or(Error::Capacity("visit"))?;
             let field = definition

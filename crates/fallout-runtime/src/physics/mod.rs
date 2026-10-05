@@ -7,6 +7,7 @@ mod finite;
 mod index;
 mod math;
 pub mod multi;
+pub mod movement;
 pub mod reference;
 mod scene;
 mod shape;

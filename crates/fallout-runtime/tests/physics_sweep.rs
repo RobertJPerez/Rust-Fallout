@@ -2,7 +2,7 @@
 use fallout_data::{coordinates::Affine, nif_collision};
 use fallout_runtime::{
     identity::ReferenceId,
-    physics::{sweep::*, *},
+    physics::{movement::*, sweep::*, *},
 };
 use std::num::NonZeroU64;
 fn words(bytes: &mut Vec<u8>, values: &[u32]) {
@@ -120,6 +120,147 @@ fn sweep(scene: &StaticScene, r: SphereSweep) -> SweepProposal {
 fn json(proposal: &SweepProposal) -> serde_json::Value {
     serde_json::to_value(proposal).unwrap()
 }
+
+#[test]
+fn movement_admits_only_clear_caller_body_profile_and_exact_requested_source() {
+    let scene = scene();
+    let support_segment = Segment {
+        start: [0., -2., 0.],
+        end: [0., 2., 0.],
+    };
+    let support_source = scene
+        .segment_cast(support_segment, SegmentQueryLimits::default())
+        .unwrap()
+        .results
+        .into_iter()
+        .next()
+        .unwrap()
+        .provenance
+        .source;
+
+    let proposal = propose_movement(
+        &scene,
+        MovementRequest {
+            body: request([-5., 3., 0.], [5., 3., 0.], 0.25),
+            sweep_limits: SweepLimits::default(),
+            required_support: Some(SupportRequirement {
+                segment: support_segment,
+                source: support_source.clone(),
+                limits: SegmentQueryLimits::default(),
+            }),
+        },
+    )
+    .unwrap();
+    assert_eq!(proposal.sweep().state(), SweepState::Clear);
+    assert_eq!(proposal.accepted_center(), Some([5., 3., 0.]));
+    assert_eq!(
+        proposal.support_witness().unwrap().provenance.source,
+        support_source
+    );
+    assert!(proposal.refusal().is_none());
+
+    let missing = propose_movement(
+        &scene,
+        MovementRequest {
+            body: request([-5., 3., 0.], [5., 3., 0.], 0.25),
+            sweep_limits: SweepLimits::default(),
+            required_support: Some(SupportRequirement {
+                segment: Segment {
+                    start: [10., 0., 0.],
+                    end: [12., 0., 0.],
+                },
+                source: support_source.clone(),
+                limits: SegmentQueryLimits::default(),
+            }),
+        },
+    )
+    .unwrap();
+    assert_eq!(missing.accepted_center(), None);
+    assert_eq!(
+        missing.refusal(),
+        Some(&MovementRefusal::RequiredSupportMissing {
+            expected_source: support_source.clone()
+        })
+    );
+
+    let mut mismatched_source = support_source.clone();
+    mismatched_source.shape_block += 1;
+    let mismatched = propose_movement(
+        &scene,
+        MovementRequest {
+            body: request([-5., 3., 0.], [5., 3., 0.], 0.25),
+            sweep_limits: SweepLimits::default(),
+            required_support: Some(SupportRequirement {
+                segment: support_segment,
+                source: mismatched_source.clone(),
+                limits: SegmentQueryLimits::default(),
+            }),
+        },
+    )
+    .unwrap();
+    assert_eq!(mismatched.accepted_center(), None);
+    assert_eq!(
+        mismatched.refusal(),
+        Some(&MovementRefusal::RequiredSupportMissing {
+            expected_source: mismatched_source
+        })
+    );
+}
+
+#[test]
+fn movement_refuses_wall_floor_overlap_and_end_contact_without_destination() {
+    let scene = scene();
+    for (body, expected) in [
+        (
+            request([-5., 0., 0.], [5., 0., 0.], 0.25),
+            SweepState::Contact,
+        ),
+        (
+            request([0., 0., 0.], [2., 0., 0.], 0.25),
+            SweepState::StartOverlap,
+        ),
+        (
+            request([-5., 0., 0.], [-1.25, 0., 0.], 0.25),
+            SweepState::Contact,
+        ),
+    ] {
+        let proposal = propose_movement(
+            &scene,
+            MovementRequest {
+                body,
+                sweep_limits: SweepLimits::default(),
+                required_support: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(proposal.sweep().state(), expected);
+        assert_eq!(proposal.accepted_center(), None);
+        assert_eq!(
+            proposal.refusal(),
+            Some(&MovementRefusal::SweepNotClear { state: expected })
+        );
+    }
+}
+
+#[test]
+fn movement_fails_closed_when_authored_shape_is_unsupported() {
+    let box_scene = build(
+        &[("bhkRigidBody", body(1)), ("bhkBoxShape", bx())],
+        identity(),
+    );
+    assert!(matches!(
+        propose_movement(
+            &box_scene,
+            MovementRequest {
+                body: request([-5., 100., 0.], [5., 100., 0.], 0.25),
+                sweep_limits: SweepLimits::default(),
+                required_support: None,
+            },
+        ),
+        Err(QueryError::Unsupported { .. })
+    ));
+}
+
 #[test]
 fn finite_radius_contact_preserves_full_source_and_original_segment() {
     let scene = scene();

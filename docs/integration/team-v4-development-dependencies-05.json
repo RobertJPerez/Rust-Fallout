@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "run_id": "team-v4-20261004-20261004T222612Z-0f8c3e22",
+  "status": "checked_development_slices_with_open_workspace_gate",
+  "source": "019ab5ef793860fab678932f18f72dba722053ed",
+  "tree": "acbb88d77759013b8830e8aa7b9f3500bd726d5c",
+  "seed": "d622128fb3fca1c67a1285dec85fd48c7526031f",
+  "prior_receipt": "docs/integration/team-v4-development-dependencies-04.json",
+  "total_mapped_commits": 31,
+  "additional_packages": [
+    {
+      "revision": "aa14e131c9ee00d0afc6b448677c9cfc2e4a9c4f",
+      "owner": "engine-lead",
+      "producer": "afd69c3ad27e91f5a3fa864005a4e8adcf00e103",
+      "scope": "Bounded sampled palette producer; rendered actor consumer remains open",
+      "exact_diff_bytes": 18160,
+      "exact_diff_sha256": "6d883719ca02823a84653e41a7db92b298396dfb6ef39a3428b12261a41cb051"
+    },
+    {
+      "revision": "60db53ad65a806d2289428454952eda18a50a19f",
+      "owner": "behavior-lead",
+      "producer": "ebe2f4e9649103ca646091c1670697c8c6384c2f",
+      "scope": "Caller-qualified actor route observations; canonical motion remains open",
+      "exact_diff_bytes": 27388,
+      "exact_diff_sha256": "464623d5c05918c63494328edb2d3b1ff21441c1c2a0be9c625fb8240fd32a8d"
+    },
+    {
+      "revision": "ebb9f5ad5a462a2931d8f12d09fc73211c8cfbb5",
+      "owner": "engine-lead",
+      "producer": "159c27dbb3f32b03cd5d31a16c6b5189d66e514b",
+      "scope": "Existing12 scene lifetime tests import public library; fixes duplicate test-module lints",
+      "exact_diff_bytes": 773,
+      "exact_diff_sha256": "37c8b0ca9ca495608729a54304e69c6e4df575bad368e0c3b4d9d8059d1bd658"
+    },
+    {
+      "revision": "6a522750cb90289159f841a8ceaf059bf279aa4e",
+      "owner": "behavior-lead",
+      "producer": "ed73df6eccc38054c11282d89bb10810440f56ae",
+      "scope": "Malformed-source differential and runtime fixtures; production semantics unchanged",
+      "exact_diff_bytes": 8059,
+      "exact_diff_sha256": "aa9c5d02853fef356f43164d7594d9d44734b7e990ca794647045c625dc92d8c"
+    },
+    {
+      "revision": "5322921ca1d4c7e184d101da36d25738c4475de9",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Minimal private palette module export ordering",
+      "exact_diff_bytes": 615,
+      "exact_diff_sha256": "52a9906f717f861de28c5bb5b7097bc0d23c9e77db268b283afbc5cb3c692546"
+    },
+    {
+      "revision": "56a9db6a6f0e15b9e6a672666463e76bfef10fab",
+      "owner": "engine-lead",
+      "producer": "628ba3bf39775b36f340ccc6fd51510f773da507",
+      "scope": "Five new real Bevy admission/schedule refusal cases; successful GPU completion remains open",
+      "exact_diff_bytes": 9238,
+      "exact_diff_sha256": "4e436698f8d53b1c3a82a832d6661b76ef397d11dbb9447d0594ca4b74dcff74"
+    },
+    {
+      "revision": "7179676b00016ad5c42d0bbe77abc5b3b3d564a4",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Only pinned bevy_audio feature and lock; actual device consumer remains open",
+      "exact_diff_bytes": 14042,
+      "exact_diff_sha256": "4c512af25f11a19f45d704fcb6389953f4fc20f9ce52538a73de5f6efc358b1e"
+    },
+    {
+      "revision": "16f8501f238e791f6e7da47b90da5c54b69486f7",
+      "owner": "behavior-lead",
+      "producer": "cd22a7c2f5d943e6faa04f3a5a0089ea0b1cb13d",
+      "scope": "Save cold-child and interrupted publication fixture; actual Native scene join remains open",
+      "exact_diff_bytes": 17231,
+      "exact_diff_sha256": "4b8fccbea904b799789c092fcdd56bcfed3e4c7e5bde3c52b2ebe56f4f371424"
+    },
+    {
+      "revision": "315dc587efb8038c1ceca65d5a78794f50eb502c",
+      "owner": "behavior-lead",
+      "producer": "f0e116c14ea7928c0c28863c6d9665d2c14bbe1f",
+      "scope": "Transfer acknowledgements bind issuing host, scene, request and retained receipt",
+      "exact_diff_bytes": 7604,
+      "exact_diff_sha256": "af346f3bf592ef8b3191d0dd35baf3d747b1fc6e0b09001dd3b862af3cfc0981"
+    },
+    {
+      "revision": "019ab5ef793860fab678932f18f72dba722053ed",
+      "owner": "engine-lead",
+      "producer": "d1322cfc20bf0d471b42644210b6468140f5e839",
+      "scope": "Bounded source local-route proposals; explicit body profile and collision sweep required",
+      "exact_diff_bytes": 24490,
+      "exact_diff_sha256": "9137a28a1944f1f43be5f5a42312e601ada807272df61ffb88a98a525c039d56"
+    }
+  ],
+  "checks": [
+    {
+      "source": "5f55aeb9e9418c0629cab6b10544faefe4287a85",
+      "kind": "workspace Rust tests",
+      "passed": 1752,
+      "failed": 0,
+      "ignored": 66,
+      "scope": "Exact earlier source; count includes explicitly spawned cold helpers"
+    },
+    {
+      "source": "5322921ca1d4c7e184d101da36d25738c4475de9",
+      "kind": "format and affected palette/actor/scene/malformed-source tests",
+      "passed": 16,
+      "failed": 0
+    },
+    {
+      "source": "56a9db6a6f0e15b9e6a672666463e76bfef10fab",
+      "kind": "new Bevy admission/schedule cases",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "source": "7179676b00016ad5c42d0bbe77abc5b3b3d564a4",
+      "kind": "Windows audio feature tree and preview library compile",
+      "result": "passed",
+      "device_audio_accepted": false
+    },
+    {
+      "source": "019ab5ef793860fab678932f18f72dba722053ed",
+      "kind": "composed inventory acknowledgement, cold Save and local-route tests plus scoped Clippy",
+      "passed": 14,
+      "failed": 0,
+      "default_ignored_helpers": 2
+    }
+  ],
+  "private_mapping_receipt_sha256": "b11ae578d8bfe8b8effd0a600b7b1e0ed795f4527b792cb766e7819e44c258b7",
+  "last_combined_proved_source": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+  "workspace_gate": {
+    "last_attempt_source": "56a9db6a6f0e15b9e6a672666463e76bfef10fab",
+    "clippy": "failed: three palette fixture field_reassign_with_default errors; owner correction requested",
+    "current_cli_preview_build": "pending",
+    "promoted": false
+  },
+  "consumer_rule": "Use exact reviewed local candidate source and source-bound receipts. Complete immutable435 resident/draw membership and actual Native Continue publication remain presentation requirements. Frozen preview9cfa belongs to earlier source832.",
+  "limitations": [
+    "Tests from different sources are not summed into a whole-current-source pass.",
+    "Actual visible Native/ECS/GPU/input/device audio and original gameplay acceptance remain open.",
+    "V1 Continue rewind remains refused; no new durable policy or source-derived behavior inferred.",
+    "Development publication is separate from main code promotion or a checkpoint."
+  ],
+  "checkpoint": 45,
+  "M1_met": false,
+  "gameplay_accepted": false
+}

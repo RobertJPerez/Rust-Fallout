@@ -129,7 +129,7 @@ fn forward_rust_and_backward_cpp_planners_reject_the_same_mutated_sources() {
         ("body-byte-limit-plus-one", body_limit),
         ("instruction-limit-plus-one", instruction_limit),
     ] {
-        let encoded = bundle(&[body.clone()]);
+        let encoded = bundle(std::slice::from_ref(&body));
         assert!(control_flow_bundle::inspect(&encoded).is_err(), "{name}");
         assert!(
             control_flow_bundle::inspect_diagnostic(&encoded).is_err(),

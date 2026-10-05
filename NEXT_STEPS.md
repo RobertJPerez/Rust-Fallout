@@ -23,6 +23,13 @@ Bevy preview crate. The real preview executable and test images are frozen with
 source and evidence hashes. These scopes do not establish a connected input/
 renderer route, actual GPU upload completion or device audio acceptance.
 
+[The next dependency slice](docs/integration/team-v4-development-dependencies-04.json)
+adds the corrected behavior receipt reader and actual Bevy upload observer.
+Its 21 receipt checks and combined preview-library Clippy pass. The observer's
+four callback protocol fixtures do not execute GPU work; presentation must wire
+the complete immutable draw inventory and prove actual completion and visibility.
+The previously frozen preview binary remains bound to source832.
+
 The [old Native Continue regression](docs/integration/team-v4-native-continue-regression-01.json)
 was reproduced independently with a frozen CPU executable. A missing source
 view keeps the displayed revision at 1 after canonical state advances to 2;

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "run_id": "team-v4-20261004-20261004T222612Z-0f8c3e22",
+  "status": "scoped_development_dependencies_checked",
+  "source": "5f55aeb9e9418c0629cab6b10544faefe4287a85",
+  "tree": "72ce57becad4cba3fbbe7afaf00cf6423c5aa09e",
+  "prior_common_api_source": "832e4efd12b25b3e9f23fd93cc7190dba27d1527",
+  "prior_receipt": "docs/integration/team-v4-development-dependencies-03.json",
+  "seed": "d622128fb3fca1c67a1285dec85fd48c7526031f",
+  "last_combined_proved_source": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+  "additional_packages": [
+    {
+      "revision": "2afcdc15f08a885f6b390d190bbda012659d8b39",
+      "owner": "behavior-lead",
+      "producer": "793a8eda944bcfddcaccd80bad260a92f56031c9",
+      "staging": "033d3a51786a9bea4412c89749c7e5e8d16fcbdc",
+      "scope": "Synthetic behavior receipt capability and its bounded review corrections",
+      "exact_diff_bytes": 56782,
+      "exact_diff_sha256": "ac28d21d380d59e8abf4e2326fedd4c2f1fb783e60b264531206f8191bbddc70"
+    },
+    {
+      "revision": "6cd18389779bfd6524438834d020e61e1987fccf",
+      "owner": "behavior-lead",
+      "producer": "c89cb1c1f54fb3f0ceba663cfb1ab494bffd1ffd",
+      "staging": "26f803bcfdc95823eb8449efb82cc3f0e53a412f",
+      "scope": "Synthetic behavior receipt capability and its bounded review corrections",
+      "exact_diff_bytes": 10305,
+      "exact_diff_sha256": "ec165e71a9a6fa9247da3e9781c85db7c808d3a130a9c28e48610c3941d14293"
+    },
+    {
+      "revision": "d0cd8c85d7bad09d773024ab792025f293a4abc1",
+      "owner": "behavior-lead",
+      "producer": "53555d6cf29770b9bbdd0ff6103535555ee8e1dd",
+      "staging": "82854d48fb90495c5056e57cce70e2d98b46acd8",
+      "scope": "Synthetic behavior receipt capability and its bounded review corrections",
+      "exact_diff_bytes": 3573,
+      "exact_diff_sha256": "db405023230d7e1a176846f66a14d0cb2f1947100aa69b497c1b3f7c70b62008"
+    },
+    {
+      "revision": "3009bf05b6c3856b7a74b7e62fbbb6ab64881f12",
+      "owner": "behavior-lead",
+      "producer": "f0140d2dd05b8ca00229a57f64391158daf124fb",
+      "staging": "72ddb85ffdb4856b60b891b5d60631128cbd96aa",
+      "scope": "Synthetic behavior receipt capability and its bounded review corrections",
+      "exact_diff_bytes": 4704,
+      "exact_diff_sha256": "1cc31e1a32ba218fc077d9ba706be83b53e5ac779d16640db7f4b9b16c04bc88"
+    },
+    {
+      "revision": "6c5e604bc3a2a804217a8905af42d811a7cdf45b",
+      "owner": "behavior-lead",
+      "producer": "34effe4f22d60daf5bdfd3e53ccd228c22e6ad73",
+      "staging": "c48c6a554278162518bb85b62d3a855d8525baed",
+      "scope": "Synthetic behavior receipt capability and its bounded review corrections",
+      "exact_diff_bytes": 13449,
+      "exact_diff_sha256": "7742daa128642c5bd91700bd3e6104c7cc82bf4f40237326ee86944123b92333"
+    },
+    {
+      "revision": "266bc6dd052c35efa920430957c9ddfdba890eb1",
+      "owner": "behavior-lead",
+      "producer": "1270004818179d2a24bb05c8c90572f9a812db6f",
+      "staging": "cd487f6276da93e74cc55bf6ea7b03f4e9fc19e1",
+      "scope": "Synthetic behavior receipt capability and its bounded review corrections",
+      "exact_diff_bytes": 4501,
+      "exact_diff_sha256": "0014dba0c2d592faf4d7667140704fa58f7ab9190b75eaf400263b48a1f87f9c"
+    },
+    {
+      "revision": "5f55aeb9e9418c0629cab6b10544faefe4287a85",
+      "owner": "engine-lead",
+      "producer": "ee29b261c4dd03df0d5a4eef21290f36a06fd285",
+      "scope": "Actual Bevy upload observer compiled; callback protocol producer fixtures only, actual GPU consumer open",
+      "exact_diff_bytes": 18995,
+      "exact_diff_sha256": "d27a1f85bc731c26cbbb609a7b1b7dac805560f1e2f5f22a3ea1de1a59a2b3b2"
+    }
+  ],
+  "total_mapped_commits": 21,
+  "checks": {
+    "receipt_tests": 21,
+    "receipt_test_source": "266bc6dd052c35efa920430957c9ddfdba890eb1",
+    "receipt_sources_unchanged_in_final_source": true,
+    "combined_preview_library_clippy": "passed -D warnings",
+    "producer_callback_protocol_tests": 4,
+    "actual_gpu_executed": false
+  },
+  "private_mapping_receipt_sha256": "6bd05f521e24508247e1c2c0844a8d1f8a0627312618ce4c773fa650cf46999a",
+  "combined_check_receipt_sha256": "16976311216eea42cfa2ae789a354cf8d1b0fe25ba850aae0ea8667e60910e5d",
+  "consumer_rule": "Presentation consumes ee29 observer on the checked scene/application dependencies, supplying complete immutable draw inventory. Frozen preview9cfa remains source832 and must not be attributed to this source.",
+  "limitations": [
+    "Synthetic receipt and callback protocol fixtures are not gameplay/GPU acceptance",
+    "Actual Native/main repair, input, visible renderer and device audio remain open",
+    "Historical maps41-51 still need fresh whole-package validation",
+    "V1 Continue rewind remains refused; no durable format change"
+  ],
+  "checkpoint": 45,
+  "M1_met": false,
+  "gameplay_accepted": false
+}

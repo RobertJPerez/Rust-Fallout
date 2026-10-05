@@ -1,0 +1,1178 @@
+{
+  "schema_version": 1,
+  "run_id": "team-v4-20261004-20261004T222612Z-0f8c3e22",
+  "status": "checked_source_closeout_at_user_stop",
+  "created_at": "2026-10-05T06:33:19.011660+00:00",
+  "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+  "tree": "c81c321ea44cb5e9cf2e5ce8745015f4f3dda0d6",
+  "seed": "d622128fb3fca1c67a1285dec85fd48c7526031f",
+  "integration_commits": [
+    {
+      "revision": "6b472fdee7a84d6cea3a0532d189db97b823efe1",
+      "subject": "Add scene lifetime admission over retained source residency"
+    },
+    {
+      "revision": "b516cda51f8d8e445e3f203f5a67da64a0bd52e5",
+      "subject": "Export the reviewed scene lifetime adapter for host consumers"
+    },
+    {
+      "revision": "f0c863f23dc5bb086bef56c2af26ee95d70c1a8e",
+      "subject": "Ignore assigned private v4 build targets"
+    },
+    {
+      "revision": "2383851c6d7d0ea2594185a27388808f82dedc2c",
+      "subject": "Apply preserved World command family test wiring correction"
+    },
+    {
+      "revision": "cfb5e03a70c2d8b26410a7f41ed0855d0e5acdd9",
+      "subject": "Verify retained original profile receipts without admitting execution"
+    },
+    {
+      "revision": "b513a4a4f0658fdbbb4c4b2c30bb59ec3180d47b",
+      "subject": "Add source-qualified whole-lot application transactions"
+    },
+    {
+      "revision": "ae6cc6c4ff44f73560f7df9ab0ad236696e721f9",
+      "subject": "Export the tested canonical application adapter"
+    },
+    {
+      "revision": "6bc17ddcd79a5492d14fecfb1d6b8b6c537885d1",
+      "subject": "Prepare canonical Continue before complete scene publication"
+    },
+    {
+      "revision": "20dd23b886356291a0c46833a183b7bc3fae773f",
+      "subject": "Add bounded audio source preparation"
+    },
+    {
+      "revision": "e86d840ad21b2a3e362ef6382188413a1d132db7",
+      "subject": "Wire audio source producer for focused validation"
+    },
+    {
+      "revision": "c5ddc46dddaa9416314288d1612741bcd591a93b",
+      "subject": "Bind native save acknowledgements to the application boundary"
+    },
+    {
+      "revision": "7e06d3e7af6eb320425d328509dbd8a1c10de999",
+      "subject": "Remove unused audio source import"
+    },
+    {
+      "revision": "c409326a4dbf09748a68dbb32ab9b60d026605f1",
+      "subject": "Admit complete source reference updates before display publication"
+    },
+    {
+      "revision": "832e4efd12b25b3e9f23fd93cc7190dba27d1527",
+      "subject": "Join prepared canonical Continue with admitted display stage"
+    },
+    {
+      "revision": "2afcdc15f08a885f6b390d190bbda012659d8b39",
+      "subject": "Add behavior receipt replay acceptance"
+    },
+    {
+      "revision": "6cd18389779bfd6524438834d020e61e1987fccf",
+      "subject": "Require pinned provenance in engineering receipts"
+    },
+    {
+      "revision": "d0cd8c85d7bad09d773024ab792025f293a4abc1",
+      "subject": "Add event replay fault acceptance cases"
+    },
+    {
+      "revision": "3009bf05b6c3856b7a74b7e62fbbb6ab64881f12",
+      "subject": "Fix strict receipt scalar comparisons"
+    },
+    {
+      "revision": "6c5e604bc3a2a804217a8905af42d811a7cdf45b",
+      "subject": "Bound receipt reads and guard enum inputs"
+    },
+    {
+      "revision": "266bc6dd052c35efa920430957c9ddfdba890eb1",
+      "subject": "Structure oversized JSON integer failures"
+    },
+    {
+      "revision": "5f55aeb9e9418c0629cab6b10544faefe4287a85",
+      "subject": "Observe retained scene assets through actual render queue completion"
+    },
+    {
+      "revision": "aa14e131c9ee00d0afc6b448677c9cfc2e4a9c4f",
+      "subject": "Map tested sampled palette producer onto engine parent"
+    },
+    {
+      "revision": "60db53ad65a806d2289428454952eda18a50a19f",
+      "subject": "actor: import corrected source-backed spawn request"
+    },
+    {
+      "revision": "ebb9f5ad5a462a2931d8f12d09fc73211c8cfbb5",
+      "subject": "Check scene lifetime through the published preview library"
+    },
+    {
+      "revision": "6a522750cb90289159f841a8ceaf059bf279aa4e",
+      "subject": "Test malformed source control flow on current parent"
+    },
+    {
+      "revision": "5322921ca1d4c7e184d101da36d25738c4475de9",
+      "subject": "Order imported palette module exports for workspace formatting"
+    },
+    {
+      "revision": "56a9db6a6f0e15b9e6a672666463e76bfef10fab",
+      "subject": "Verify scene upload admission through actual Bevy schedules"
+    },
+    {
+      "revision": "7179676b00016ad5c42d0bbe77abc5b3b3d564a4",
+      "subject": "Enable pinned Bevy audio backend for custom PCM consumers"
+    },
+    {
+      "revision": "16f8501f238e791f6e7da47b90da5c54b69486f7",
+      "subject": "Compose Save cold restore and interrupted publication test"
+    },
+    {
+      "revision": "315dc587efb8038c1ceca65d5a78794f50eb502c",
+      "subject": "Bind transfer acknowledgements to retained host receipts"
+    },
+    {
+      "revision": "019ab5ef793860fab678932f18f72dba722053ed",
+      "subject": "Adopt reviewed bounded source local-motion planner"
+    },
+    {
+      "revision": "4dfad3da40de90520cf217e3f15bbb83a1bbc309",
+      "subject": "Integrate corrected ordered script batch transport"
+    },
+    {
+      "revision": "206eb4a3b97bc6a9fc3aa8f2cdcf7617670cb0c1",
+      "subject": "Integrate native fork and source-bound Continue consumers"
+    },
+    {
+      "revision": "7f71d3fe2d31a8ccf93d9156a1cf5ddca84e06e2",
+      "subject": "Wire explicit saved named-owner multi-copy CLI request"
+    },
+    {
+      "revision": "27546eea3ea0b3a44adfb9c27bcc5b02413ea0ff",
+      "subject": "Integrate reviewed actor context and package lifecycle sources"
+    },
+    {
+      "revision": "bb5bb4894f1ea22b0e4c8256e9665de9cd9fea99",
+      "subject": "assets-review: initialize sampled limits fixtures"
+    },
+    {
+      "revision": "5ddb22f4c7c77f502fbd5d1ad3e4a6e16340300c",
+      "subject": "Wire bounded actor engineering inspectors into current CLI"
+    },
+    {
+      "revision": "21a4184147601a26e291cca6324ef891384648e3",
+      "subject": "Import reviewed finite physics queries and mapped CLI correction"
+    },
+    {
+      "revision": "3ef3e0d6be3becfcb1aeabb30f0ae43db9a5ffff",
+      "subject": "Integrate reviewed bounded multi-cell and adjacent residency transport"
+    },
+    {
+      "revision": "1c986de9d141061cfc940f452317f90c531df355",
+      "subject": "Integrate Fallout 4 and Skyrim preparation adapters using shared data"
+    },
+    {
+      "revision": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "subject": "Bound runtime command storage and retain companion dependency versions"
+    },
+    {
+      "revision": "5f3cbafe7d981d1eb29f533de150610cf0bda320",
+      "subject": "Include authored Fallout 4 condition plugin fixture required by tests"
+    },
+    {
+      "revision": "211ef751f7398ca506cda7a56d8586eb4f51df93",
+      "subject": "Make material refusal test independent of private local directories"
+    },
+    {
+      "revision": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "subject": "Initialize ignored material test storage on fresh companion checkouts"
+    }
+  ],
+  "checks": [
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "workspace-format",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 fmt --all -- --check",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "workspace-clippy",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 clippy --locked --jobs 1 --workspace --all-targets -- -D warnings",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 356,
+        "sha256": "d5e719cc9545af48ce2d7c1e6f82881243bba42f3407f64afc6bc5965547231d"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "fallout-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\fallout.exe --test-threads=1",
+      "passed": 110,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 12364,
+        "sha256": "aabbcb5f263ff882909a94a914bbfa20ab0d0daf140e6635d36126b23360d50c"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_context-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_context.exe --test-threads=1",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 1,
+      "log": {
+        "bytes": 828,
+        "sha256": "5c02a3af1239ef3ad97a59dea48355fce3204f9d93e80f191e88e00b1cdafef7"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_context_batch-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_context_batch.exe --test-threads=1",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 586,
+        "sha256": "68fda3a15079c0777dfe9e6258800907c77864c48374fd8785170b38d817d7c7"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_equipment_intent-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_equipment_intent.exe --test-threads=1",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 572,
+        "sha256": "ffe605cc481d001de205971f3209da6a2698e18cb6cdb76ade1093304c246029"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_faction_pair-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_faction_pair.exe --test-threads=1",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 737,
+        "sha256": "02fe7032cf68ee1c3fe6d40d954bad936436dc1ab576f39e758d98ce09f69e9a"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_inventory_transfer-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_inventory_transfer.exe --test-threads=1",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 460,
+        "sha256": "06f48667dd655cc007256bc273d3a4902848023d90c5e6b4489857da68eb707c"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_reference_intent-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_reference_intent.exe --test-threads=1",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 621,
+        "sha256": "7a4f300cc3444ebd708f06b63dfc03b25c5e39028e3c25bdc9188cae29e3187f"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_route_requests-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_route_requests.exe --test-threads=1",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 814,
+        "sha256": "151aadadfa402132acd6714cf042d7d126557ad8f95c0424adb010e240f829d0"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "actor_rules_spawn_state-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\actor_rules_spawn_state.exe --test-threads=1",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 188,
+        "sha256": "7f28bda7a20a9cd78e01abac42f3e03865f35729a59cdef622fad5a522f8f06b"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "navigation_corridor-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\navigation_corridor.exe --test-threads=1",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 1,
+      "log": {
+        "bytes": 906,
+        "sha256": "948a9ea91ecee1c3a620f4f590493afefcc77bc70ab0f72644b9a2d9137cf5e9"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "navigation_search-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\navigation_search.exe --test-threads=1",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 497,
+        "sha256": "47df85f4d97441c3ce1a765793db850eeb14b16f6339f22ff78ecd71295e9e41"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "physics_finite-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\physics_finite.exe --test-threads=1",
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 1208,
+        "sha256": "08d93f9ccae568657f34786d7454fbd47274458ed1d8102dd14173850d7a0632"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "physics_static-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\physics_static.exe --test-threads=1",
+      "passed": 40,
+      "failed": 0,
+      "ignored": 3,
+      "log": {
+        "bytes": 3602,
+        "sha256": "3635d3553426581173cfcce83ae423c4c15fa27c31c579232167ebc0cbb44649"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "physics_sweep-tests",
+      "exit_code": 0,
+      "command": "G:\\Rust-Fallout\\local\\v4-evidence\\bootstrap-20261004-01\\closeout-final-42\\frozen\\physics_sweep.exe --test-threads=1",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 1,
+      "log": {
+        "bytes": 723,
+        "sha256": "45625d8ab1ff87d0b878039065c146b92f143a01472474f1d2251ebde92def52"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "world-residency-tests",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 test --locked --jobs 1 --config profile.dev.package.fallout-data.opt-level=0 -p fallout-data --lib world::residency:: -- --test-threads=1",
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 4394,
+        "sha256": "d585a132840cd10067a40ed5efba97878a446e71c811b240e7cfe33b9afef29e"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "palette-tests",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 test --locked --jobs 1 --config profile.dev.package.fallout-data.opt-level=0 -p fallout-data --test nif_skin_pose -- --test-threads=1",
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 6175,
+        "sha256": "a4944dfe7118de0a791d34374e0051612533c1b3bdabb91d90f74380e84c14ba"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "native-fork-tests",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 test --locked --jobs 1 --config profile.dev.package.fallout-data.opt-level=0 -p fallout-runtime --lib save::fork::tests -- --test-threads=1",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 959,
+        "sha256": "368c527d2bcff8306a80d3d83b1c1be976a0c6e04f4b8b1f05952edc532f4d3a"
+      }
+    },
+    {
+      "source": "bb9789cba880f3c4a6df806d7d5f82f7af8a5e34",
+      "name": "fallout4-format",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 fmt --manifest-path games/fallout4/Cargo.toml --all -- --check",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "name": "fallout4-format",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 fmt --manifest-path games/fallout4/Cargo.toml --all -- --check",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "name": "fallout4-tests",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 test --locked --jobs 1 --config profile.dev.opt-level=0 --manifest-path games/fallout4/Cargo.toml --all-targets -- --test-threads=1",
+      "passed": 96,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 12431,
+        "sha256": "c240797cfb16cb1fa2729441f01a05d4828a6e69118302558d3a84517885e348"
+      }
+    },
+    {
+      "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "name": "fallout4-clippy",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 clippy --locked --jobs 1 --manifest-path games/fallout4/Cargo.toml --all-targets -- -D warnings",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 1448,
+        "sha256": "d32ba5246f358270ccf3ea30cb3f75f8fe13f1f81391b18b19ce1af1802ca1ac"
+      }
+    },
+    {
+      "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "name": "skyrim-format",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 fmt --manifest-path games/skyrim/Cargo.toml --all -- --check",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "name": "skyrim-tests",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 test --locked --jobs 1 --config profile.dev.opt-level=0 --manifest-path games/skyrim/Cargo.toml --all-targets -- --test-threads=1",
+      "passed": 76,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 8331,
+        "sha256": "364efa9875d86725737ee1b80520a32c9d65c0e5b7b13b29eb51c0eb4c5c2c4f"
+      }
+    },
+    {
+      "source": "0ed151f925c67ea9fb6a519d976cbb397f591195",
+      "name": "skyrim-clippy",
+      "exit_code": 0,
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File G:\\Rust-Fallout\\tools\\cargo.ps1 clippy --locked --jobs 1 --manifest-path games/skyrim/Cargo.toml --all-targets -- -D warnings",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "bytes": 412,
+        "sha256": "c0e766f51652caa9d39c52b75223afa467cd913598ef97e7e15598a7c75c1e7c"
+      }
+    }
+  ],
+  "validation_receipt": {
+    "bytes": 24775,
+    "sha256": "6cdad1b5bb6557178a13bf9357c36a7d16ed561655e45a0a0aad73856f0a1ceb"
+  },
+  "prior_failed_gate": {
+    "bytes": 3558,
+    "sha256": "de3c7db6c990478c0079b9857e6eb586a030c7df7ff73665b4b8670a95b1d4db"
+  },
+  "incremental_link_failure": {
+    "bytes": 3065,
+    "sha256": "e32706d81e727a3beec0da70c184f610b9bfce1b6419ccf48c6ef3a06e6a8512"
+  },
+  "frozen_images": [
+    {
+      "name": "fallout",
+      "image": {
+        "bytes": 11564544,
+        "sha256": "9e32cb415c2732c0c91fea2aa4312a5d095870eb475af3b2a8d46bf8a4a3fbfa"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\fallout-96b0e9175c24ed8e.exe",
+      "compiled_at": "2026-10-05T06:01:51.402393+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_context",
+      "image": {
+        "bytes": 4578816,
+        "sha256": "c621b9b5ebde93ef3a51292c81585849db10d33d9772d4d5d16ca38d85b17033"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_context-c820aca9abf89ec2.exe",
+      "compiled_at": "2026-10-05T06:05:21.585128+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_context_batch",
+      "image": {
+        "bytes": 4284928,
+        "sha256": "0a8abbe70d60b9c9dc317ee7dbb24c397c2495a4c04aa9f0a01db0c5221711c7"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_context_batch-bc58b73bbded7dfc.exe",
+      "compiled_at": "2026-10-05T06:02:15.812477+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_equipment_intent",
+      "image": {
+        "bytes": 5171712,
+        "sha256": "f81dce2e18d33f2475f17f619a4f6220777c6dffdd65836a47f32b49e02e4177"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_equipment_intent-de991f0343409d1e.exe",
+      "compiled_at": "2026-10-05T06:02:35.294309+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_faction_pair",
+      "image": {
+        "bytes": 4484608,
+        "sha256": "14d7c34bee9d09b66b6c44946bd50062fb2ef1bfca934cdfc51362a1babfe055"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_faction_pair-f70ee24a4f9caf3e.exe",
+      "compiled_at": "2026-10-05T06:05:43.441831+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_inventory_transfer",
+      "image": {
+        "bytes": 5099520,
+        "sha256": "3d5e3578586158ba2f0730e435c7e5d508ba3ae75821911c05bb04ab2a708abd"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_inventory_transfer-78993bc815507154.exe",
+      "compiled_at": "2026-10-05T06:05:38.001776+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_reference_intent",
+      "image": {
+        "bytes": 5110784,
+        "sha256": "6f214c7c33d6e1e3080cbfdba7d6970eb271074408e86c6051eeb3f983143948"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_reference_intent-a0a369541a78dbb6.exe",
+      "compiled_at": "2026-10-05T06:02:29.782152+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_route_requests",
+      "image": {
+        "bytes": 5544448,
+        "sha256": "9cdae3ec3a6116c2af865fdc62336242edc175c9c0b2ddd567719f163ef9651b"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_route_requests-af2f47ee33ea6822.exe",
+      "compiled_at": "2026-10-05T06:03:05.886312+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "actor_rules_spawn_state",
+      "image": {
+        "bytes": 3764224,
+        "sha256": "21c8a8dd5eec6215b47b0062f8e04bebae547aa2d4c95b75ebeb5225c451eea4"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\actor_rules_spawn_state-d089fdbbdb00c567.exe",
+      "compiled_at": "2026-10-05T06:05:56.618091+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "navigation_corridor",
+      "image": {
+        "bytes": 2869248,
+        "sha256": "e2c50c8bce545fb64b41411a23c8877273ef77f1d5315b18442f2c0dedf8d885"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\navigation_corridor-7ff93dbd88165051.exe",
+      "compiled_at": "2026-10-05T06:03:08.932501+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "navigation_search",
+      "image": {
+        "bytes": 1520128,
+        "sha256": "d93fc909ae916b22e6bc493fd61c9718e1ae7196b96d91e14393bd25c87b51b7"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\navigation_search-96d3f43cd0d3f38e.exe",
+      "compiled_at": "2026-10-05T06:05:40.015573+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "physics_finite",
+      "image": {
+        "bytes": 1672704,
+        "sha256": "4b781b639fc7e0108027978d072b00460501f5db199d5b59dadcc29d187a848f"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\physics_finite-35ff8d08d214a350.exe",
+      "compiled_at": "2026-10-05T06:05:18.168933+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "physics_static",
+      "image": {
+        "bytes": 1896960,
+        "sha256": "c368bfe5ae1630c072d9450697ca12e2b9dbfdc5adc849b0914cb8b56621ff59"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\physics_static-8b5a6ad5defb6bf1.exe",
+      "compiled_at": "2026-10-05T06:03:37.919536+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    },
+    {
+      "name": "physics_sweep",
+      "image": {
+        "bytes": 1819136,
+        "sha256": "d881f1a6f6f22d6b0b16eb5a44af37b2b4aa3c45d488b4ab2787efd0268bb446"
+      },
+      "original_path": "G:\\Rust-Fallout-worktrees\\integration\\target-v4\\debug\\deps\\physics_sweep-a6da1d2b4a6837e8.exe",
+      "compiled_at": "2026-10-05T06:03:54.260391+00:00",
+      "provenance": "Only coordinator owns target; binary linked during immutable source37 workspace build before own cancellation; source unchanged."
+    }
+  ],
+  "preservation_receipt": {
+    "bytes": 13261,
+    "sha256": "d5dbbea9215c70017f9fbf181f9211c5d0d75a379aa3ad724dac2ee6bacd9cac"
+  },
+  "preserved_lanes": [
+    {
+      "lane": "actors",
+      "original_head": "0c5e473c66fd0e971c60cfd4c1d42a9dafb155c4",
+      "snapshot_commit": "ea2ff1055b20f0481ac6025c621119291540adc3",
+      "branch": "preserved/closeout-20261005/actors",
+      "paths": {
+        "crates/fallout-runtime/src/actor_rules/dialogue_context.rs": "1f302dc83d57e9131d4248c3c22b3284dea97a62ffe3920c513eb3f64a986e02",
+        "crates/fallout-runtime/src/actor_rules/mod.rs": "055987647bd77eeae4bc5c18ec1d4697bb9c6eeadca5ec322f603ab6b62fb9fa",
+        "crates/fallout-runtime/tests/actor_rules_dialogue_context.rs": "1dac6ff2a2bf9c6db251cc0c44ac9bc7ad70c6c0478f6a76c74d201d6fee8038",
+        "docs/actor-rules.md": "5a1581eb1a79a382c828c4e47ed09dd91cfc5dab78545ddb06777b0630e5d925"
+      },
+      "status_state_at_capture": "active",
+      "status_updated_at": "2026-10-05T03:15:03.387573Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "assets",
+      "original_head": "b1be5269dbfb6135dd930c611fcb5a9ce238d200",
+      "snapshot_commit": "1e49c8e83a2ab478c181273c4e91c6cea7625f36",
+      "branch": "preserved/closeout-20261005/assets",
+      "paths": {
+        "crates/fallout-data/src/nif_animation/markers.rs": "0900bffa66ccaa4ad6181c83fb12a331bc356e5a14654d16dc4f9a9dd941c132",
+        "crates/fallout-data/src/nif_animation/markers/playback.rs": "050535e7335ab8f294b132f80f86fb1ec3f14185d52cd313edceeec294194508",
+        "crates/fallout-data/tests/nif_animation_markers.rs": "feee7d2c20545ff5025689d7c8bfbf561ba4bb5221dffe95689ee97447ca374f",
+        "crates/fallout-data/tests/nif_animation_splines.rs": "b15789ecbf8f31d8a4243b9d579009a8a4b996d40497b7b6645ef5204b96837e",
+        "docs/nif-animation.md": "98f21286e764a717eff3e8318af784b7e9a78e08753d6ff4d81f76aa0e2987da"
+      },
+      "status_state_at_capture": "waiting_for_build",
+      "status_updated_at": "2026-10-05T05:14:45.1285031Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "audio",
+      "original_head": "08b685531b2aaa8d32e36627c416ede816da1748",
+      "snapshot_commit": "44d4827780300ce5df1307cc09afaf0530905041",
+      "branch": "preserved/closeout-20261005/audio",
+      "paths": {
+        "crates/fallout-preview/src/audio/device.rs": "3a403ff42d2f150899526f44905f95189a3234a0c6144a8af73aa4633b17e3a5",
+        "crates/fallout-preview/src/audio/device_tests.rs": "52c21a7e4cf1b31a43a3a6ee185c7ef04ec954edfe830fa09371a2c3b07042e3",
+        "crates/fallout-preview/src/audio/mod.rs": "3a98ee11c508e41f1c48a92bc6da180da17291c1a67662c146efff45ea0b175a",
+        "crates/fallout-preview/src/audio/tests.rs": "9350b856bbee0fcf44666ae077f0fd0cf9099a319b1dc79f3c96a74a40044e40",
+        "docs/audio-media.txt": "8c34f71b992912d892fc4f4bccc3e4941445b90957d1bd1868cb53466b7418f6"
+      },
+      "status_state_at_capture": "working",
+      "status_updated_at": "2026-10-05T05:20:49.0432923Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "behavior-acceptance",
+      "original_head": "8ec02cc38c6d64ac6fedd9004fe9409fdfb38eed",
+      "snapshot_commit": "897ab6536018916d5a279e8381c68f4290efb904",
+      "branch": "preserved/closeout-20261005/behavior-acceptance",
+      "paths": {
+        "docs/behavior-acceptance.txt": "1b52496af2a33ef49a19fa8a720e6659d9de89f2f393408ec05f3c9be5db4351",
+        "tools/behavior-acceptance/tests/test_verify_test_run.py": "dc80ff594ee3a876ce9257ee84817e620de838bc90de99fbabac76b6d4dd5a40",
+        "tools/behavior-acceptance/verify_test_run.py": "35b70c6cc9a9fd6da5005f9cc4cc7d28926682282a1dc7e114dccc85dd8df834"
+      },
+      "status_state_at_capture": "working",
+      "status_updated_at": "2026-10-05T05:20:33.6091227+00:00",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "behavior-lead",
+      "original_head": "ee6a7b771c8a67ebe8ea2fe2e49015c57f6fbb47",
+      "snapshot_commit": "ac9abf3525f0bf372a1312b631065a9612317d5e",
+      "branch": "preserved/closeout-20261005/behavior-lead",
+      "paths": {
+        "crates/fallout-runtime/src/application/event_prefix.rs": "0d1b6359334b846c7c06ee6bc1424bf9ec6242d0b1d67c34162f63349cc9e919",
+        "crates/fallout-runtime/src/application/mod.rs": "a64f561b00c43bda3da18c0a35e4f69d15bbda86e045a023b555d87da715f412",
+        "crates/fallout-runtime/tests/application_event_prefix.rs": "75e033bc656e8356c8223b2e6cfb7698eb051fceef1455a01c9dfe2357e31dab",
+        "crates/fallout-runtime/tests/route_acceptance.rs": "9914cb8c6f553d20fc6a486a2d8be66e2d9a14cb724913997266636de1bdd47c",
+        "docs/behavior-acceptance.txt": "bc739169aeede0be5e5f2a6c4b6b295ec346a5ddb0d71004a308135ff500ea2c",
+        "docs/gameplay-host.txt": "7b746ed6ba7ec4afe4026d12d4cb256afead06d6b5030001aaeea1e144c16859"
+      },
+      "status_state_at_capture": "stopped",
+      "status_updated_at": "2026-10-05T05:30:05.884244+00:00",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "engine-acceptance",
+      "original_head": "fad73cafa3c5963696a97dcf5703ad8899c5ca8f",
+      "snapshot_commit": "bc9f71253b2be55bb663d8b964d8db15f1455ef2",
+      "branch": "preserved/closeout-20261005/engine-acceptance",
+      "paths": {
+        "docs/engine-acceptance.txt": "434fb21d44e6162fb0fad5b1b476397e778011937d9a2a406660b3e97a1e2feb",
+        "tools/engine-acceptance/scene_replay.py": "5f13d3d6f6fc271412a53996a8578f3f527c80fe640e84655ea2164522482483",
+        "tools/engine-acceptance/test_scene_replay.py": "a0d5796306ccc1902f65af01b92c2355bf2a9b7f4ebdbdc02cf9c7b8828a5d63"
+      },
+      "status_state_at_capture": "working",
+      "status_updated_at": "2026-10-05T05:24:13.8188614Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "engine-lead",
+      "original_head": "d5af63be9efeda1d05f11baf0d24a84c65629c04",
+      "snapshot_commit": "55c0db8f8d82fcfef2d460937728622e9884a097",
+      "branch": "preserved/closeout-20261005/engine-lead",
+      "paths": {
+        "crates/fallout-data/src/world/residency.rs": "5b1fad73c1f774df6b99520daba3fd07c548e61dd7c92694a69435ba2d6c4943",
+        "crates/fallout-data/src/world/residency/adjacent.rs": "e9c3f2e4d1a4cea615e23eb3936fd736f61b5bb8bb52ddc9f57f2060a460a71e",
+        "crates/fallout-data/src/world/residency/adjacent/tests.rs": "b27fb504e252c81449f5c2fe67899337fded3fa6bb974c56fc1f756958320feb",
+        "crates/fallout-data/src/world/residency/set.rs": "475602d54494141835811facfdfab89fa36521ad29398f379ffb531f1d82bab3",
+        "crates/fallout-data/src/world/residency/set/tests.rs": "2130c84d3aa0304631da786e23569b230af627b6af80f06c2a74dfce179038f3",
+        "crates/fallout-data/src/world/residency/test_sources.rs": "c4d96d3e1d3c0b99d7db45627d4b18056929882e15e896e1e82436a29dc2325e"
+      },
+      "status_state_at_capture": "stopped",
+      "status_updated_at": "2026-10-05T05:30:12.004046+00:00",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "physics",
+      "original_head": "147f9d224d011193d548f6c740ea2523cf46d586",
+      "snapshot_commit": "b72591b746fe0743763550bf034a384677a711c8",
+      "branch": "preserved/closeout-20261005/physics",
+      "paths": {
+        "crates/fallout-runtime/src/physics/mod.rs": "206e818cf278cf5e42d1a90ac4131e069aa08918ccc33dada63bc119ee1574b4",
+        "crates/fallout-runtime/src/physics/movement.rs": "8d57e43d8c512e495c43cd8b4cad0b95b2d521e62cc272ccdc70cd7a9631aab9",
+        "crates/fallout-runtime/tests/physics_sweep.rs": "73f0ac5a5967dcfc71f6925f220c38bcf698f547b9cccb2c9f1e31df0ae5ca28"
+      },
+      "status_state_at_capture": "stopped",
+      "status_updated_at": "2026-10-05T05:30:03.5455140Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "presentation",
+      "original_head": "d59c5cc487540ec1f2e257d453b05b1e6fd99444",
+      "snapshot_commit": "b3ec8644e5ebed07bd2f02cf499ae1f5eb6723b6",
+      "branch": "preserved/closeout-20261005/presentation",
+      "paths": {
+        "crates/fallout-preview/src/capture.rs": "a79cab4f236860e0946a278d39e47bbfa34793dd38aa21c057bcfe111f262f49",
+        "crates/fallout-preview/src/main.rs": "166d3cbba9658ffe263b1f0f45cf207342c519ad6f4f74eb8071cc80babb9b5c"
+      },
+      "status_state_at_capture": "active",
+      "status_updated_at": "2026-10-05T05:12:08.7007195Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "runtime",
+      "original_head": "3ec97ee92fde3589fb46a3bb3ede9b0fd2ed9594",
+      "snapshot_commit": "0ed19746a5617e5440f7a1fc679b59003785b012",
+      "branch": "preserved/closeout-20261005/runtime",
+      "paths": {
+        "crates/fallout-runtime/src/inventory.rs": "ed8249a88b97245c88064358a79dfa2d5dac82b297481e6f8fb361abdb6bc0ca",
+        "crates/fallout-runtime/src/reference_state/mod.rs": "b5300ec78af98200b14634c5f6a1a7232a8cef9f89c4401d7e4954330148d8d4",
+        "crates/fallout-runtime/src/reference_state/ticket.rs": "370194331a1c84f75a78220f2ca03a2c2fae6ee3709db621a422d6e738175f97",
+        "crates/fallout-runtime/src/state/inventory_transfers.rs": "9229add7a5f078023317c60bd2220874788b8ed8a70799e3432ebfc512eda074",
+        "crates/fallout-runtime/tests/save_cell_transitions.rs": "5a6f7afecbe6bc5592e7a8fcd4da2cba21c24f92f59d833f1c65be69703ae126"
+      },
+      "status_state_at_capture": "working",
+      "status_updated_at": "2026-10-05T05:12:39.5245584Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "scripts",
+      "original_head": "214597b7e6a56a724d36d330b4678ad4b739d2f8",
+      "snapshot_commit": "df2314a83fed14c701252c0951ac43f3329412b3",
+      "branch": "preserved/closeout-20261005/scripts",
+      "paths": {
+        "crates/fallout-cli/src/main.rs": "508f2ee5d845e86ef6e3e3664d3044c5efb8a03bd24be1b997fc162476e6652b",
+        "crates/fallout-runtime/tests/execution_pending_batch.rs": "fe9292492427d06db6e4acd6d34beef2873ffbbebde2900b02110daa2bf12c78",
+        "crates/fallout-runtime/tests/programs.rs": "f4dbdc51cf182d235886fcbc590665cab6185e050a9a5e103da0b623b92aad33"
+      },
+      "status_state_at_capture": "active",
+      "status_updated_at": "2026-10-05T05:04:07.6619317Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    },
+    {
+      "lane": "world",
+      "original_head": "7e8fb01fa261ee813e028d3d56a3c94fb581f4dc",
+      "snapshot_commit": "de4c90ecd3507fa914e0598215a9353a60cbd2c6",
+      "branch": "preserved/closeout-20261005/world",
+      "paths": {
+        "crates/fallout-data/src/cache.rs": "a8a71b9b87d0c30ff23d45a45dc02081e8cca661b5bdb3dd822aeabb6c25c322",
+        "crates/fallout-data/src/resource_jobs/tests.rs": "25fcd0e9a56e33e6dc85790eae08ad1bb69ed2a0140d6dc5d5f52a336ad99e4f",
+        "docs/resource-jobs.md": "b66b3e95e088c861fcad2a1be56f23917752df14e6481ca7fa854104a509d824"
+      },
+      "status_state_at_capture": "stopped",
+      "status_updated_at": "2026-10-05T05:30:01.5953613Z",
+      "draft_acceptance": "Preservation only; prior immutable receipts retain their own exact source scope"
+    }
+  ],
+  "original_isolation_draft": {
+    "state": "preserved_uncompiled_unexecuted",
+    "branch": "refs/heads/preserved/closeout-20261005/original-isolation",
+    "commit": "b9b24cb2f3cd12e7124b6fddb7a2578a6f324c99",
+    "parent": "1c986de9d141061cfc940f452317f90c531df355",
+    "files": {
+      "research/original-isolation-drafts/appcontainer_canary.rs": "daba2c7aaaf54fa3c1843634d2abf4cdfb2f75d1ec3fbce3bb42282e2dc54b0e",
+      "research/original-isolation-drafts/prove_appcontainer_canary.py": "f51899f94031e4757ec960e2cb065df74c9b2beceba0421f6060f7d3ebd8ec30"
+    }
+  },
+  "companions": [
+    {
+      "destination": "games/fallout4",
+      "files": 126,
+      "original_directory": "G:\\Rust-Fallout4",
+      "original_source_sha256": {
+        ".gitignore": "b87a0df13b0d023e81b6fdb61e300da2dc829a7fa6d91776336637e799313df3",
+        "AGENTS.md": "1be797db89b2e09a65b518d243163c664db8885778808fb2acda226eaf2089e0",
+        "Cargo.lock": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+        "Cargo.toml": "f87bfbdb08826797fc27cb24a0893a5cd641b23dcaf7698ddec8cd11eef6204c",
+        "NEXT_STEPS.md": "84c422dcb447e55567f699d808ea4d4d8ded4d77667e5f42d9b68fc1e60d7f0f",
+        "README.md": "fccdcac65f2366900991ed6fb9bdd8e1625e4ce6229a6291ebf5290f8d56ee3e",
+        "docs/architecture.md": "ff12dfb8ab76b383197963a35324efd17e4ca76822c96a4aace875d290ea58cc",
+        "docs/baseline.md": "b6aa834b64c92f012b60784e80932039673549161db866d1cdc109867c50e9f6",
+        "docs/configuration-observation.md": "9bb24790ab2e86f0adc537129e4538b3b87cd491cc34e3b7e18205c6fd4183a0",
+        "docs/data-tree.md": "dfd794cc11770fcb9a0999bf081b91b6153c1d775ffa3e1ecf6e1215a6c49312",
+        "docs/esl-identities.md": "3e8d3abef5b72518fde929b3fd9ece22090ecc9b8c39ebd9b4141e1b1f3db9e7",
+        "docs/header-count.md": "7dde2d51751524ca295221e0b770f338a7cf813470e6bca0ff0548e010e193a5",
+        "docs/localization.md": "c91b9715701c225ba6909125643a27c0a836cef951063a2ea0c6837ee6a67fa7",
+        "docs/material-assets.md": "86793b04fb8475d31045f9ba7944b49c2c6e618f00cf6eaa9c98ff48823b7774",
+        "docs/papyrus-linking.md": "3acfc026edd71c4b8d3ff609485440bad1fe23d5d6fa9bf1711e1bd295515f73",
+        "docs/plugin-dependencies.md": "a6c5cd134a6329c7f16bf40a6e6e8214bfd5e9c0bf2d0115d0d56ab1beb53243",
+        "docs/profile-observation.md": "49eb0cb0a7e639b05fc9616254501a361fc7dcdc091b0ee591e0bc584d2c583a",
+        "docs/source-audit.md": "6c91636b8cfe05fe5b4401c4800c8045db906efd9a168020e0b8989d679b8441",
+        "docs/validation.md": "4bb275771f8a52055baed113e2221900eb692aa8bf2bd24ac8a547749f48a559",
+        "docs/vmad.md": "2e06957cdc2d139e12737038636bb0b082a9ce6594aa2ef51cd872a1c0fe68f9",
+        "docs/workshop-recipes.md": "e09462a413fbdd6d9d115a01e25a0602be95e4f1082b78277732433dd5648af1",
+        "parity/requirements.json": "5b56c8ada7fededcb2f80a53c9568c74be61e16a94c15fec2328c8a253487854",
+        "reports/checkpoint.json": "faecc5f64c287274cbbd4a4d9cb6172f7f884ddf4e908c27a82b17f8dd60e756",
+        "reports/configuration-checkpoint.json": "1f2f644a595e575be8b1b113fa6cb28fbb2944d377a2629f128cd74c6638bce0",
+        "reports/data-tree-checkpoint.json": "d9919dedc334e818a1ff1f11f70c52cd6452f7c6aa43d337af7c8a0809d14972",
+        "reports/deployment-checkpoint.json": "94832679adbe7a8424ad91619e1cc9d15e3c2d4cf390514927178720253a1e61",
+        "reports/executable-checkpoint.json": "2a6c10640212f19d4f5df45823dbe0824cc12f0911646d82a22446dceaa34ea6",
+        "reports/formid-checkpoint.json": "bcddbd5c5ca0d559f73a70d20e8844fd7cbd5418c5360a56bcfbf1764fc56c7e",
+        "reports/header-count-checkpoint.json": "a6540d0c15a2687496a39589cff7ab54e3845353c77676f24918182afd2b77e7",
+        "reports/localization-checkpoint.json": "6c03ba1779d857ef23b1497b02791569035f47d61eca964bcd9f9035aedc9b0e",
+        "reports/material-checkpoint.json": "ae1e838eedc93bac8974a99a73a0e1155af2fe48dafb89da4fcc68f5c8408103",
+        "reports/nv-compatibility-checkpoint.json": "2d5851772acff184c0f7abaaee96e4fde797942b425f799d6717d05825ca5dd9",
+        "reports/papyrus-checkpoint.json": "a3db39e30b8237b3262bd155c51a5d2f7274607ec08ba0ed80f6c78c32c9a30e",
+        "reports/papyrus-compiler-checkpoint.json": "c111dd2a4f90dea35eb791b5fae0c0045bc614ddcd2ec5d1420214fce4539273",
+        "reports/plugin-dependency-checkpoint.json": "9070fdfcf17ceacc9758a37e0cd9dfed6b1107934959cc90834c5f38e8c7c2e9",
+        "reports/profile-checkpoint.json": "7cb958933204099f34f43b7454f2731bb7d51c394f9001c46fd827cfafcc3dbf",
+        "reports/profile-recheck-checkpoint.json": "ac8baac22ebfbfb88e42c441d2086780a424cf5a84c2fea47432bc70143dbc30",
+        "reports/vmad-checkpoint.json": "f320ac50a24dc5bc785167def58d3a96facb6829982e0926edf2ab09e3b08472",
+        "reports/workshop-checkpoint.json": "c8e329d0c71d1fc0ad6e4a987649d17879358383197ec1256ea35ba68eb045ec",
+        "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+        "sources.lock.json": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+        "src/archive.rs": "318378f715c2e21c555997da770a0cb4a73fd6042cb1a6e617f8265accf1c9d3",
+        "src/attachments.rs": "a55fc0dd577970e23088a924aa66c6559a32a6e856358ef121327dc48a6e2101",
+        "src/bin/analyze-material-textures.rs": "890009f23eb70e5b3dd807827991b0f9c3b8cc83eec65aa796e9bb89ab7dd72f",
+        "src/bin/audit-esl-ids.rs": "12804b984dab7492275043491523326c498ae1f65494fb6ffdeed815128f097f",
+        "src/bin/audit-groups.rs": "347bc0b9779fb1e1a3b8cfc5a059eeb1189939ece1726a713683db94be78e16e",
+        "src/bin/audit-plugin-deps.rs": "4284e9d9305577d42512dde09f6a84a1bb84ad04a48abe20ac8ae2921c95d073",
+        "src/bin/audit-strings.rs": "5873681282e30301eaafb1aabc55756e3538cefc4b2f2cee46fcc27935611a47",
+        "src/bin/audit-workshop.rs": "5206f7d3b610ba56266b586dbf1a501d6a4aafa93c97dcaf5322377de5c3dd44",
+        "src/bin/extract-texture-candidates.rs": "12bfc74f788646b92db3c9904bcd0b8658e21c8ef13e25f10d0617381f2eae36",
+        "src/bin/link-pex.rs": "a98c2e0d10c0af6f96c497c27b0f78ebae5b079b67422ac7cfed7651774d974d",
+        "src/bin/link-vmad.rs": "dd145477378e099df51f53b2c14f87ed7c387e11148523dcf5f286194c6494df",
+        "src/bin/scan-vmad.rs": "ac40c24b74c270cb9101fa991aa763b2c41e17eeb0d3ef15c385693b700dc88f",
+        "src/bin/verify-materials.rs": "f53c04b7284956eb37e6ed7fee086323980722c18420498a6a3e6a30c75a21f6",
+        "src/bin/verify-pex-corpus.rs": "747e0d69922a6cd095f29390768540960baf3800dcb3cea10b846a8e535ba9be",
+        "src/bin/verify-pex.rs": "d2bbef3dbe7d8fc3a065a99d6368b958f8e98656e00c50bc3a77da409bdb836c",
+        "src/bin/verify-retail.rs": "8780254adccbee9a284df2c4ae8cdd1f7989445216f06e9710bedc29eb9b0e4f",
+        "src/bin/verify-vmad.rs": "81f56a783fbdf07c1758cfca9446708045f9b92c9d857c80547f3e63a9272acb",
+        "src/census.rs": "94359c8bdbcf0c10ab9b39c93e88031c5624b07ec071772dd692188d34596f2c",
+        "src/condition.rs": "238541c184673ab5ffb40c3d67c9b2ef82ec82e4b7adc8f3c57495de6a1980a3",
+        "src/condition/condition_schema.rs": "5eda042d38b8734943b372a83a6dbf720f42c3e06039fd1d41e490b196de74be",
+        "src/executable.rs": "4f57969d65dd611b9a9d36ac92e3d74290a446b44095f94d9d2a16879644c1d3",
+        "src/formid.rs": "f4a53bda32797222d009243653b3b5b135557c49146a2c0fd2c9046f281fc900",
+        "src/lib.rs": "169ada293f0eb198aab0ced08728267cb80f3fc8d8ecc8e4222b675ddaa13e36",
+        "src/link.rs": "c30d9b2631032d06d6563dbd8045e7175ed231e49fb02b577942cf823bd5068a",
+        "src/main.rs": "34cb3d70e890e517b44c78429dc8049f8405444260bef2c36614d162eec9ce39",
+        "src/material.rs": "3bcfcf12f97b59641851b49560402e1f13581887bf3d78e11b4baa1207177fa3",
+        "src/materials.rs": "e066281c2b9c7acebc41a78b4f86feaa85a019e445d619e9b0b454f9dd31a039",
+        "src/pex.rs": "9c49dfe64072ee81374484f5872982f23dfab72b62db5f4c9279e1f106192422",
+        "src/pex_evidence.rs": "a2d5ecc70358bd6ced8b01aadf622d4a87f251ca5edb1afc1c3f7ae69a84eca8",
+        "src/profile.rs": "23a961daaecf33485c345e7964d625b71e813c468bb528c96dbece6ce3d0bbc8",
+        "src/vmad.rs": "f7281381903e87451831a1504beebff58c3f5d77a0d8713ca3dd5bdd84c55856",
+        "src/workshop.rs": "2fc4abb25c7179517e73f0f7c012fbd80f3b8f0207a4dca3a70b363e4b1b1e70",
+        "tests/archive.rs": "f483e929c86470d4e77eec6a62233ce37e21f2bc72515758f2acb12e7dfc25cd",
+        "tests/fixtures/condition/mutagen-cis1-v1.bin": "95ae08b8cb93b1bd9eb2431d0431cf9b9766e3538cdfa5a7b13cc6b5b622301f",
+        "tests/fixtures/condition/mutagen-cis2-v1.bin": "63c1552e29175f53a37e64f967d12ce5be6e4c25410a903ad0d000c494279529",
+        "tests/fixtures/condition/mutagen-ctda-v1.bin": "8ad926f9a195cf1fc189a6190c81a93236091fb29c4d4e3d4639f3961810e4ca",
+        "tests/fixtures/condition/mutagen-global-ctda-v1.bin": "8e1e560dcee289d02c91b3bf1b99f6b652790aa1a595fcf803c6b47b719c7efb",
+        "tests/fixtures/condition/mutagen-vmscript-ctda-v1.bin": "e6f9e86d5cfd041341f4d1cd114b7118079fe3a70cf5baf9a408f82dd533347a",
+        "tests/fixtures/papyrus-compiler/CodexOperandChild.psc": "096ae94f095d8082206de57e83fc65dba781beabdf17c56b7b0d3ea9af5131ef",
+        "tests/fixtures/papyrus-compiler/CodexOperandParent.psc": "48085e71ca20cb4ba29f924eca0e987bc6e6baef3c2e2fb3a72238288caedaba",
+        "tests/fixtures/papyrus-compiler/CodexStructFixture.psc": "7d19030b77c6f97d48065ebcd015be5cdd338f7aaf43fc42951d2b0e162e9426",
+        "tests/fixtures/papyrus-compiler/ScriptObject.psc": "a9229ab2e0c20539054b9a08b196de6bc69188d3ad24a2e2e413a587e6c692c3",
+        "tests/pex.rs": "822fde3881f313d040a71a6552158bbd4840660d5cc9e9f83e366866103f0983",
+        "tests/plugin.rs": "728d24730d90963fcef3c2bdbbd660cbd44c03a5c44d7def3b49821b772e2480",
+        "tests/test_papyrus_compiler_fixture.py": "e6836f61d56596292bdd6fc29cd01eda8b5dc6bb4ab0928d4f3944a8e219f6b8",
+        "tests/vmad.rs": "39a8dc633f8b3230e388609145fde4c364ac2781cb614c306c4ace55dece0ea1",
+        "tools/audit-game-config.ps1": "2c1583b953bc62fe7dacb9ae4cc13e818b86d599536ddf6a80b6ba48597c30bb",
+        "tools/audit-profile-state.ps1": "f388e31fd5d28098da19d0de011925127299ddd8340f91e43a95310b1b0f9b1d",
+        "tools/audit-recursive-data.ps1": "b344d95840a402ebef932a2ca25037fece5b209c3f14193815e571c821cddbf7",
+        "tools/ba2-oracle/Cargo.lock": "9ee63dd227c6a60087c641723eab42d341e3ce78c229d03443750667111ee446",
+        "tools/ba2-oracle/Cargo.toml": "c09d9882241f2ae3c524516c861c7ede34a755911e279c6e0586d8b532520634",
+        "tools/ba2-oracle/src/main.rs": "1c196edd0f5799648392925631312ac9b58e4f9a20c457cf0c8200ff0f6b11da",
+        "tools/build-material-gallery.py": "630406302797d0defc425321be1ddc2e4734121cf15fe71c1dec2fc21dd55509",
+        "tools/build-pex-oracle.ps1": "463400d4eb2808ca9879231e07ad88487627f928852d80245836e32d80d41b1d",
+        "tools/build-record-count-oracle.ps1": "ae0fd469693b7ae58d9f7aefa699b69f0806c2fc925adf3edd815cce9b27a72a",
+        "tools/build-strings-oracle.ps1": "d166344854d283fa18a133d33e4552762e2d6d1bf1a480284109d1a13c54fadb",
+        "tools/build-vmad-oracle.ps1": "305fed7d01927c9a40c2915ae1bcf866d3e17e8b9688d3d6c371661944283f81",
+        "tools/build-workshop-oracle.ps1": "9ce37892500f1ae04c56d7476f636214b33da55a3bb093138cd856184d8e0693",
+        "tools/build_papyrus_reference.ps1": "e07bffa3ba5e33e9000004d7e9a7aab8688e8a976562dad57ddb511fd0ed3d37",
+        "tools/cargo.ps1": "a66a5b2ea578da7e408c0aa2f789fb49867570bb69f02a55b451a7e24b964cab",
+        "tools/cmake/caprica-pugixml-compat.cmake": "07a6c7a75d2acdfb872f7f33a8397548c89c8157933182de99642299e3e126ed",
+        "tools/finalize_recursive_data.py": "7995b22dc37844f7041fe7fcc8cbf6e6063b940a1b122d0d3af69796ef35a292",
+        "tools/generate-condition-schema.py": "86039957c6ec194ed9eb222ae0a8fe87f9312a87d02735b9460f52edcff2e488",
+        "tools/material-oracle.ps1": "30fab5d7f8888897f4f3554f8e2dcfe16a6b77c40a7f1386b84e438cf513b35b",
+        "tools/material-oracle/MaterialOracle.csproj": "a261aa1ba25e925b3323d75bd1e59656880653a3564195efdd2517295453ad9b",
+        "tools/material-oracle/Program.cs": "1927453f905f9247e93aa32a4202da3355cb7e75cf78a097b5657d3f7bf800cc",
+        "tools/pex-oracle/CMakeLists.txt": "287998eb6d76a27d7ca76455ba6c696d7c42de754843400bb74d6308a3779111",
+        "tools/pex-oracle/main.cpp": "b03a43de1a44ae0b50769216a103bd61d2492ded70c884f0b41e382bb0c98217",
+        "tools/pex-oracle/values.hpp": "17d9da81167b32ae26628d7bcfd31f1d5bb25ede58ec585fc6651de200a04159",
+        "tools/record-count-oracle/Program.cs": "42f4cfba7a0dbcb4b5aaeb7f224421787c45417d86413a02b1081f5e31a03970",
+        "tools/record-count-oracle/record-count-oracle.csproj": "50d5e9e874213b57b2b6f1820e2d458fb61d991949c28a3888df3aa2ff8f5052",
+        "tools/strings-oracle/Program.cs": "935d828dd723d965fda05d4d00a66e5367430c5663cf50d95186eb51ed10a468",
+        "tools/strings-oracle/strings-oracle.csproj": "063b8631910eb1563f80ced26c5624a0dc43a3fbbc8b327ee20d0fc9a85d5a28",
+        "tools/summarize_localization.py": "075b7044da381b0a949527a9063ec5a2c3bf66c69b4b794195e2dc5a838a84b7",
+        "tools/test_material_pixel_decoding.py": "99053ee7941b5c643f1d2f5889d0e34097951c32e41bfdae15502d1185cf7998",
+        "tools/verify-localization-archives.ps1": "d92d29b1aea15140194f711ecf08fe274bec67ce2aca5ab0220e474561f5aafe",
+        "tools/verify_material_pixel_decoding.py": "18c7ba29146e038c48a808f6698aaa46509d5d82a04f684c7b4d71047f745b99",
+        "tools/verify_papyrus_compiler_fixture.py": "538f5ba916a4a21aa331fe13bdcac88d54d119be780b7e0f0aed375927798873",
+        "tools/vmad-oracle/Directory.Build.props": "a7887441dd47c9c4f682efa692456cdf31324822b03ccc01847d3150319471da",
+        "tools/vmad-oracle/Program.cs": "c6342ae4ab891627723e5b867445fdc7626550ff1468e058a7c6f3ea2a4bd8f2",
+        "tools/vmad-oracle/vmad-oracle.csproj": "063b8631910eb1563f80ced26c5624a0dc43a3fbbc8b327ee20d0fc9a85d5a28",
+        "tools/workshop-oracle/Directory.Build.props": "64b6103b38bcb9d2907e872301cc04cf955df384d4e403797360147f3a477669",
+        "tools/workshop-oracle/Program.cs": "c82bec5752741b3cc64cc6682859327205509aaef97126c30e5232eec3168e0f",
+        "tools/workshop-oracle/workshop-oracle.csproj": "063b8631910eb1563f80ced26c5624a0dc43a3fbbc8b327ee20d0fc9a85d5a28"
+      },
+      "adaptation": "One shared fallout-data path dependency plus standalone workspace declaration; game semantics unchanged"
+    },
+    {
+      "destination": "games/skyrim",
+      "files": 138,
+      "original_directory": "G:\\Rust-Skyrim",
+      "original_source_sha256": {
+        ".gitignore": "79ca89953b593fae06dc8082bbc51554f31608b5af1357841d8dcf7465999e4c",
+        "AGENTS.md": "6f925f7ace53ca6fe7ac73a9b1c43f87af3fe78bf82c4efca42d61f3d1f8233b",
+        "Cargo.lock": "67811f9c2d4e6becfcc284c966bfce368ccb7753a81f1d06d64c99eddb0cb167",
+        "Cargo.toml": "0b3fa68e04325b65aae700b88fdbd2434d26cfcf219e677dc127bc0ecf8d9acf",
+        "NEXT_STEPS.md": "1e902e4f185ae9e33be2970e8b5f941f0a3362f8e09defe59646abdf0e18e01f",
+        "README.md": "b51e832373ca919d67eafad511237561a4fa4dc51a8b9df27c704d2bf8b87e0e",
+        "THIRD_PARTY_NOTICES.md": "3f907d8c2e22f8f75cb84f49ea255872162954358981addd5f946766fe1dc688",
+        "docs/binding-contract.md": "9cc044ca47998e1f1da6701e35afb128788a6cc8d3851a45dba99ad39b03b534",
+        "docs/generic-model-assets.md": "93a5e5fccb5b64c2f66dff64931d9074b02bfbbb1fc0e113253612a05e0f6868",
+        "docs/landscape-links.md": "e249778c4da93fe0ece2787f0665c60a6d069c85b227c3cc1e98af9c20e95c02",
+        "docs/movement-profile.md": "ffbd03c77d6b46018a7ffb6acca677bf30309b9d64aedfe2ee85145afc79ad00",
+        "docs/nif-header-probe.md": "8ee1cd5601c2108da459d7ec4ea01b2ab17dd206cc87cbfbe506465dc6a4a6eb",
+        "docs/placed-model-uses.md": "530fcf42d8cbf2a5d30b774778433fe3b40ac0668b42a46bcbfdba152ec84a32",
+        "docs/profile-mapping.md": "e88cdba5a7d06eef0dae4e02d98a0bc255eedfcfe3dc5003136a1f9817635aee",
+        "docs/script-provenance.md": "78d3c128d3a0e64a129b1c7c3772c9c1c3512dfd6d1ab23b7a7801c05674dd96",
+        "docs/shared-integration.md": "b455f90f4b1f27be8d25dfd1bfef5e838ff7f5e2d4cb27d9daf4980ff867fc9f",
+        "docs/static-model-assets.md": "7f1bc1769e4baf630f3a9242eb199adb4fa7a44fcca3ffbcca8bf7ab0a5483a7",
+        "docs/texture-set-assets.md": "92fa1e7f5c7b5a9fef80768a6854343183cdf3214d2b833022b7d5a21fabcfe9",
+        "global.json": "a97385ba41542256aadfcc3a7f6ba18689347abc45e61d1a19980583f8c502a2",
+        "parity/requirements.json": "3c5492cde26387765a0d321fd820806cee89ddb673a77fd76fb15e55ed037fd7",
+        "reports/preparation-01.json": "0874e4f32ddd9a0e8992b6a4c5f7fa6370338eb63a940581227f178a72831942",
+        "reports/preparation-01.md": "3aea1857c10fd330c1ba2cef53d86a0803234d7c5243eea58c9a465a6b1d8a31",
+        "reports/preparation-02.json": "4df82ee94c5bfaa89fa71e7dd886ffcf490df5adfdab018e128de19cd0afc7f4",
+        "reports/preparation-02.md": "00595535d8c437ecee87d52f4b57a9e205a64e943f050b4aa70c9faf0dbc9a45",
+        "reports/preparation-03.json": "d7b1f487b8ad8926e4f536f73434d4672be036823176999a9e6eb0cf20e50b2b",
+        "reports/preparation-03.md": "2a9a633f37816e33217c2ce78fd01cbe8fdc0d9d4ef08d5b3038236822d5563c",
+        "reports/preparation-04.json": "7a861fd8c5d70044cf811e3afdffea117396a572f4dc4d014eb6ef3e3f48211f",
+        "reports/preparation-04.md": "f4a5eb6781a49f1c55a309a02ebb0e8ca17208c702720499722432e6900c2aca",
+        "reports/preparation-05.json": "4f342d2efa323f15e1179997929abad27f06c4c4f09e2a6e762a4f746c6443fd",
+        "reports/preparation-05.md": "be7f75756afc71d708dbeeaefc6b87481e5e32bbe8eec4a8a88a1387d868d3c3",
+        "reports/preparation-06.json": "2c9d8a8f7e51e0ee524f315aa0c7e9c1a1c7ecb6b1025f331f196f6c919d1ae7",
+        "reports/preparation-06.md": "a4b73526cebff9faca5a667acdd127f0945dfad93239f25f438bf3af2368a6d8",
+        "reports/preparation-07.json": "2b27e228c3e10aecfe6f4130c0f05bf9365057dcb4092cb189143840b7ef795c",
+        "reports/preparation-07.md": "168f1ac6aaf2598c091aa820dc82cf5336e710da0beefe9a41b1ece22db6bae7",
+        "reports/preparation-08.json": "ef2df4f203e1dd3cbad17183123a5829a81d2d861d96db7242e9786338914597",
+        "reports/preparation-08.md": "1a356093db852ea868ef85ef7bc2a53bb1c4e2796743a1145bb40ab29f3147ec",
+        "reports/preparation-09.json": "8bb512e9f3ee7748fc9a2af482aedbdb44e5707f5ed65e54e189d3d11b8bf0f5",
+        "reports/preparation-09.md": "097fa74af956cb10c762083f5f705f16d710d42b9fdd99b1b625d2fb63a0f10a",
+        "reports/preparation-10.json": "5eb2ab40b2ed7210496c524e09d5cfb0b16c9397c4ece485d929dc76631ea4fb",
+        "reports/preparation-10.md": "2c657d747f1f5eebff544c0fb25f12b4a494bc0de92097b0c3ea90c55c21a4e9",
+        "reports/preparation-11.json": "0f5adda4c8ba05ee1102b86c7b777f812798cf9e85e2041df67a02d7cc0a190d",
+        "reports/preparation-11.md": "e0d6e9371c4f9627ede0478f7c337d938328bd1d9ae601aa08896222eb8d5633",
+        "reports/preparation-12.json": "c9578872547376b79be756587edaa62921648d88dd90bfaa8a186d0bdb6bdd32",
+        "reports/preparation-12.md": "27fe886982d85aa3e06e9ced9098bf02ad4c9ca0ee841079f16bcde8a00a255b",
+        "reports/preparation-13.json": "e8310d9bb3b26956bed36ef41b5be66207240ef95782a698b720cadd5ba08d57",
+        "reports/preparation-13.md": "5421c8f8c80099b70e9efe391a554bd6a6418c0b761c61587892c97614c765c9",
+        "reports/preparation-14.json": "69bc35f8976cf13b2babba2a61e6ee77c763cb5e57f283a178948fbb8bdb9f59",
+        "reports/preparation-14.md": "8a958cda47b413c9cac6be2d0c38b0b9417c695e28e8f29d75b928a5830f147b",
+        "reports/preparation-15.json": "c740fecc8eaa0fc9c5e3a016d09a4a05722970d465676d04a47e474a31d49d82",
+        "reports/preparation-15.md": "b7e2227b4faa4f5e80db3910d78bb0d7dffb0f7ec0404bb9e01d3467abad24b5",
+        "reports/preparation-16.json": "c57a1134267dbddad3c212d60ddaa3dce014b8ec5ef1eeb7c854799e609cc0fa",
+        "reports/preparation-16.md": "91357b00b4577a8247cd489e94974941747a8e64e73b84f61cbaea57dd6d6a88",
+        "reports/preparation-17.json": "44d58692b8b087e1c757fbd9ea0320aa3636ece59a4eb26d3e2959fdbf6e9e1c",
+        "reports/preparation-17.md": "0e9eb1e5300b2106134464ec2ac5a03fd8daf6b8dca231773d473db7724fd165",
+        "reports/preparation-18.json": "54ebab9624b19adfbf72661e49bf3b6e80265dbaebb49a3c7db2ac0ba9459a8b",
+        "reports/preparation-18.md": "83d960037068721ca37b677f9cc8b438c424fedaa4e4e2761b87d2c700b861a2",
+        "reports/preparation-19.json": "704db88fcc674081d63b41ecf85889f5a86ef4998a53ade036a7d8b7ef574d49",
+        "reports/preparation-19.md": "5504f860f7adc92a975463adda6d6614d4a7f7786a79104456091efdc7fb7a99",
+        "reports/preparation-20.json": "29b127726004af9e8e7afe7740e86086cc3d077551e029ae42520ea56819f7a7",
+        "reports/preparation-20.md": "6f6baf91013c64895cc03bcb8af10c8111f888fb157d2d5dcf98a5169d40970b",
+        "reports/preparation-21.json": "bf246d75592f31f40f8bc73af391aeb11f80c6242d40d283cf905bffd2ed9cfb",
+        "reports/preparation-21.md": "cd1c53514c9b4ff6859ddd3a9380d192546582276806fc16cd39fbb54ee928bc",
+        "reports/preparation-22.json": "1c0196aab1c0f172c89506e62f959e06f82239866c163098c42112b40d6b3a81",
+        "reports/preparation-22.md": "3fc90f44b2deff10fbf6bb4a315577a7c58eed71b8a7ab5b396254ca1e3b758b",
+        "reports/source-manifest-02.json": "109d88d9a766dbce21da98fece685d96b920209b87dad5e96d472db58030d4e9",
+        "reports/source-manifest-03.json": "40a63c5a1831f2645923f9b19b5cb91e4d0efd3c2df861db503294096e087a3c",
+        "reports/source-manifest-05.json": "68deed2e3775b68fa355066ea9f94bcd16611952306dbd786b786a890ce0e420",
+        "reports/source-manifest-06.json": "9d927a017e749ccd230f5cbbd8681144d06dd3dcb3e48ca897f9ad2a273ec436",
+        "reports/source-manifest-07.json": "02ccb24f25ac4f38154db02223223da6799efb8317c25a3d8c313303e9ba6cd8",
+        "reports/source-manifest-08.json": "086bf1191a3d03c05bc4aa4c6244bff2fc63b840fd98358e291d420b7142c083",
+        "reports/source-manifest-09.json": "3cd36a40aa3cfc2614270997ff6a95672e3b0d7a97f9ff351ddeba00f8580091",
+        "reports/source-manifest-10.json": "abd63c360724e471ecab10482e2febc5db6f5190d66f7210bf7e07d32cc4f44b",
+        "reports/source-manifest-11.json": "16e88fe0dacc256a69fe98040811a32da6877b7154c4271b7e03fbf0c1151eb9",
+        "reports/source-manifest-12.json": "9c7bd262ba8dd06cbc5d979e04fdf96641e9cef525b93c4a054428b58edcb2ab",
+        "reports/source-manifest-13.json": "5ea6388bd877e830ae705f247a778aabcc42b9a2d16d9d218d1b2bbcec4765b3",
+        "reports/source-manifest-14.json": "1269ba55d0a39ac388311e61859aa19583653768762466b086be8426a4581a76",
+        "reports/source-manifest-15.json": "07e254d37ba6bfd83076cac9f65b94665a2e6e2d6d92f65d153ee7774a9c5ac8",
+        "reports/source-manifest-16.json": "ecf25ed7191024d3c67fe293f9fa9e5c66324cb3cbef284c73758c4237489ebe",
+        "reports/source-manifest-17.json": "a18c867f5edb68a60fc431ec546d2f09f32b91f63ceace5e465c50802b83f6e4",
+        "reports/source-manifest-18.json": "364d855af3ab488e81e46574fec2c33a7eb6475fb8d8105ab8c36b34dc87ee8c",
+        "reports/source-manifest-19.json": "bc2c3941d40dfe3955325defdeef8ab2b247539b82014f38e0f3ac8a55fe1de3",
+        "reports/source-manifest-20.json": "1fe1450944124ad236eb21c1ae1ddaa81e5e1c674b71bcda2bd6c541ae2922e6",
+        "reports/source-manifest-21.json": "e1f023e669752089194d14c4cf697743526f048b23050a6647ab59e329ef42a5",
+        "reports/source-manifest-22.json": "bada614c32628329e820c465aa0e402fe1a261456f5944a879e04aa8f3680310",
+        "reports/source-manifest.json": "cad3526e1f148e7423bd62c80ce636db881686323f735352b929bdec3dc8ddce",
+        "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+        "sources.lock.json": "87a40a9b9adfc53175c619436caf325306e52c6a1ef4fd96185fe7e5b8e79fe7",
+        "src/archive.rs": "2f56f43ba7b5e5175b33022474a845c01309a5ce61f48ed81af367c2ec3a1044",
+        "src/asset_lookup.rs": "8abd6154fed9f4e66c398c897d0fc1129708395f4308a4b1ad32abc1580b07bc",
+        "src/bindings.rs": "8da1f6fc64100ab79a02e068d5df94fa418d2f7edcbabf159b173a0f62621119",
+        "src/census.rs": "958c35937dfe2af7f96633f509afb4324b436930f0a509767af3920d74527117",
+        "src/generic_models.rs": "80e2f65bd24df78a544d1d197e6856d7771b7fa5ebddc742e0ab9ce7943435a9",
+        "src/landscape_links.rs": "be04fa3bc38e7bda3fe6342ac393e3a9e94447bdce4b03985f4d94f3ccf6bf25",
+        "src/lib.rs": "d7b7590bd51f98712ddcf9709f719966f4c19d4dfaa6c13476b011c69f09dcc5",
+        "src/main.rs": "ca40f30cc9b8296570368c8196c892332f0623618f9c5fd63939042bbff0b3bd",
+        "src/movement_profile.rs": "b7b7b1d55be64e6d9d63ce1a0a5857f6d6588fc956c0dfa2b0824ce236c1118a",
+        "src/nif_header.rs": "57c81fcec503c4e0d495e9c4226c7d51ceae931e8166779ea42208e3578f605e",
+        "src/nif_index.rs": "819a7228649639d05273dcd3b87967a18116a755121030362d3d0e24f3a5fbe7",
+        "src/pex_header.rs": "12e5fe786c081b8f2d3e3798f18de73dbeff7b0c3177bd8e350dddaa5bb5a87b",
+        "src/placed_uses.rs": "f7c5fcd00be513538360b8881bcb5517c1b04c596d72cd167833568e749f4aca",
+        "src/plugin.rs": "5d9e099909040d1d8eecacb33ad8b5e02debc762121ab6c6773a89c751023be8",
+        "src/profile.rs": "968224141f9289be411f826c799e74615f91eed8e9f0f30c09bfd2235e04c08d",
+        "src/static_asset_trace.rs": "22f7448686d46fc39039e923fb408c3263b8577d57df192304ac3160ab39c55e",
+        "src/static_models.rs": "6e1acb40ba1d88467c075f6ce8b8bc4121a5b25dad7a1bb20a7c094b9f0601ad",
+        "src/texture_sets.rs": "d970d6ab76b4e94ba2d2b853f59e738cd3521e334727a7dcf8a7689ebf58bb7b",
+        "src/trace.rs": "ee22b88b04a3f2af372f63949d15d2b9b0859964ce43556ccb439d4b49c92294",
+        "src/vmad.rs": "e80a4807abe696815352b5f368c296f1f4faf68be051cda5a58f6244f94d08f4",
+        "src/vmad/fragments.rs": "2841cd9de48ee9d136f3ce470b929927eb4d2a7428c6251ae3723eaa0b37a190",
+        "tests/fragments.rs": "6cd073cd3ac8584a80e2738ee1e30ed36ee07f8cdd7323b7dbc9582363b393dc",
+        "tests/movement_profile.rs": "5ab2c2f6011e69a327164fb982e86feb42c4ab8f010ff727ef2ce9755f91ea0a",
+        "tests/nif_header.rs": "25cf6036078b6e38556d0ad81a13817fe0c4cb70411b047e529950790ff821ec",
+        "tests/placed_uses.rs": "edcd394b404ae7dd33ee0064d0fa00867d877212fb2e44f447c8819505bec45c",
+        "tests/preparation.rs": "4cd684aecf34ad74a382ee46c8fd272a0efb47e015ccd57c308905c5d7301d92",
+        "tests/profile.rs": "7fc3a52da67c23fcc57034b261fde8784d7313ef8ac192babb9509aa3344c100",
+        "tests/static_models.rs": "6f76a1813c34d857b0f2699f4db41663bf7caa6ae800e9154174133e8c077e72",
+        "tests/trace.rs": "1a8ad08e6cb51e9e4916ff37cca530552a6372ffe1ad73819c7daea3014e8479",
+        "tools/archive-oracle/Directory.Build.props": "3280951ff45c03d1251d7e3c7bcb045cedb28f06958a40c8fb64bbecc6a65fb6",
+        "tools/archive-oracle/Program.cs": "6ceb80f5341bf82cbad0a273073fb26e1dad0adb3bed47d6bf422f056110a19c",
+        "tools/archive-oracle/archive-oracle.csproj": "080b3f7ac0b47c32b2cc7786b62bcebf28827ba6190f01b5febcd7b6503b93f9",
+        "tools/archive-oracle/packages.lock.json": "03b489bcfbdda9b62db81d290e22efd00ca64fb00007ed44c0a8ba0cfbe4b244",
+        "tools/cargo.ps1": "7c15a19f4b845bad384917f02c7c68d7df7c722133bb1c187a258be0a7694684",
+        "tools/dotnet.ps1": "f283e5f1e2509aea52a917ae046915d8da44eea91df81f5a21992923541599f4",
+        "tools/inspect-install.ps1": "bcffacbe96bb4f325f6dfee23551d38243d4f238b0b796d14e29ca3287813f0a",
+        "tools/plugin-oracle/Cargo.lock": "9b6baa172cf5909570f6c6f0c9c2009ab72435d2649622f9a3c30a916c9bf62d",
+        "tools/plugin-oracle/Cargo.toml": "a30d8de7d3843863317f80fb675248cb0738793697774b1ba1c1fd846f4dc224",
+        "tools/plugin-oracle/src/main.rs": "3cc6f4fceba3deeac93e5a50e3f379d2ccd4da91271440fabb718204ce46c29f",
+        "tools/test-archive-oracle.ps1": "8bba3d8d56b17c095d0eecae0da293b8d468f0b9afc78ece44242310b0ac0f0d",
+        "tools/test-trace-oracle.ps1": "cf76a8311fb09d9ac6af416e6561e0c32393c155f3d7df49e71f35cb234f481d",
+        "tools/test-vmad-oracle.ps1": "2da6a301e981bf77219d61b7a6deb580d58b01e758c2ee86b743b999e66f4457",
+        "tools/trace-oracle/Directory.Build.props": "25cdf54f955fd66185e5186e087984f568c9c20e0f4705991245d0440bebab22",
+        "tools/trace-oracle/Program.cs": "4d49ac0b82e0b4bb248ededafd08eac7708c0a1edc0a1c61085542e4b4b8fe2f",
+        "tools/trace-oracle/packages.lock.json": "e59e6a00939ec87e08447724562371913590055d37b887c1654e6b2e35a02ee1",
+        "tools/trace-oracle/trace-oracle.csproj": "6d230d328ecab8bddae8ac35086c5fb5fbaddde145c0e9bc959a58bd6a1b3a45",
+        "tools/verify-bindings.ps1": "0c7b913e03ad06da7bea0dc83c65157ee7ee132318323f1b2abafdf360ab77a5",
+        "tools/vmad-oracle/Directory.Build.props": "c439ff6ee4f0056e0602ca73d93e064a69d434829effb67130ee36de86f7ffde",
+        "tools/vmad-oracle/Program.cs": "aafcaff5b08d552a9f940744c7c71a6e2bf94397b79c2e3bcbed66f6c2f10a02",
+        "tools/vmad-oracle/packages.lock.json": "e59e6a00939ec87e08447724562371913590055d37b887c1654e6b2e35a02ee1",
+        "tools/vmad-oracle/vmad-oracle.csproj": "6d230d328ecab8bddae8ac35086c5fb5fbaddde145c0e9bc959a58bd6a1b3a45"
+      },
+      "adaptation": "One shared fallout-data path dependency plus standalone workspace declaration; game semantics unchanged"
+    }
+  ],
+  "checkpoint": 45,
+  "M1_met": false,
+  "original_gameplay_scenarios_accepted": 0,
+  "limitations": [
+    "Authored CPU tests and compile/lint gates only; no new original gameplay/GPU/audio acceptance",
+    "Historical receipts and frozen binaries retain their original source scopes",
+    "Companion lockfiles deliberately replace checkpoint45 Git data with the integrated shared path; dependency changes recorded",
+    "Full workspace tests canceled before execution. Only the named targets are executed here.",
+    "Default incremental focused CLI rebuild failed with LLVM anonymous-symbol LNK2019/LNK1120; failure retained. Current-source workspace-linked CLI is executed directly; subsequent focused Cargo checks disable incremental compilation and use opt-level 0.",
+    "All Rust/manifests/lockfiles unchanged from bb9789c; only authored FO4 fixture/ignore exception and four test private-directory initialization corrections added. Previous passing CPU checks retain source bb9789c."
+  ],
+  "authored_fixture": {
+    "source": "5f3cbafe7d981d1eb29f533de150610cf0bda320",
+    "path": "G:\\Rust-Fallout-worktrees\\integration\\games\\fallout4\\tests\\fixtures\\condition\\mutagen-workshop-v1.esp",
+    "bytes": 368,
+    "sha256": "877ab4908ed58e2f2a04aa0ddf98421bab83450ab467511aae8d25c44dbc9d23",
+    "provenance": "Pinned Mutagen writer --write-condition-fixture creates one GLOB and synthetic COBJ conditions; original corpus file excluded by ignore rule, original source preserved"
+  },
+  "privacy": "Only source, small authored fixtures and published summary reports imported; retail inputs, settings, extracted assets, caches, targets and private corpus evidence remain local",
+  "stop": "Robert closed all other sessions; immediate worker authorization revoked; coordinator completes publication then final global STOP"
+}

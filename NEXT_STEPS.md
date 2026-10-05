@@ -15,12 +15,13 @@ admission and preservation checks. Source51 is the preserved development seed;
 source40 alone carries the last combined proof. Leads adopt held legacy slices
 once, while workers finish their exact stopped drafts and missing validations.
 
-[Checked v4 core dependencies](docs/integration/team-v4-development-dependencies-02.json)
-add prepared Continue, Save acknowledgements and source-qualified bounded PCM.
-The exported core source passed 26 affected API tests and Clippy, including a
-fresh-process restore. The scene adapters passed 12 producer fixtures and a real
-Bevy library check; combined preview validation is still running. These scopes
-do not establish a connected input/renderer route or device audio acceptance.
+[Checked v4 application and scene dependencies](docs/integration/team-v4-development-dependencies-03.json)
+add prepared Continue, Save acknowledgements, source-qualified bounded PCM and
+protected scene publication. The combined source passed 38 affected tests and
+Clippy, including a fresh-process restore and 12 scene fixtures in the actual
+Bevy preview crate. The real preview executable and test images are frozen with
+source and evidence hashes. These scopes do not establish a connected input/
+renderer route, actual GPU upload completion or device audio acceptance.
 
 The [old Native Continue regression](docs/integration/team-v4-native-continue-regression-01.json)
 was reproduced independently with a frozen CPU executable. A missing source

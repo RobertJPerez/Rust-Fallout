@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "run_id": "team-v4-20261004-20261004T222612Z-0f8c3e22",
+  "status": "checked_core_api_dependencies_available",
+  "source": "7e06d3e7af6eb320425d328509dbd8a1c10de999",
+  "tree": "fac6fd51df61dc758024835510d753a7c1baecd0",
+  "seed": "d622128fb3fca1c67a1285dec85fd48c7526031f",
+  "last_combined_proved_source": "d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc",
+  "packages": [
+    {
+      "revision": "6b472fdee7a84d6cea3a0532d189db97b823efe1",
+      "owner": "engine-lead",
+      "producer": "d37e48444974615abf09fd517f312ad08cd4716f",
+      "scope": "Scene lifetime producer; four source-backed fixtures, actual GPU consumer open",
+      "exact_diff_bytes": 23265,
+      "exact_diff_sha256": "c6a7c943f489e8bf1c1c515e8d13bb672cd12ea3046fde1e530970343ce75726"
+    },
+    {
+      "revision": "b516cda51f8d8e445e3f203f5a67da64a0bd52e5",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Additive preview library export; real host compile/GPU consumer open",
+      "exact_diff_bytes": 294,
+      "exact_diff_sha256": "f56936409c931421a765634d85ada891d48e24363eb3c445462d8cb5a7cab668"
+    },
+    {
+      "revision": "f0c863f23dc5bb086bef56c2af26ee95d70c1a8e",
+      "owner": "coordinator",
+      "producer": "c9831c2919800e5ca698f86ea811a773822fb162",
+      "scope": "Ignore private assigned target-v4",
+      "exact_diff_bytes": 175,
+      "exact_diff_sha256": "3cbf218808e3c80288570ad7dc1f488e7a47f498dbe6bec03c023ee15e047557"
+    },
+    {
+      "revision": "2383851c6d7d0ea2594185a27388808f82dedc2c",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Preserved shared World CLI test wiring, two test-context hunks",
+      "exact_diff_bytes": 1061,
+      "exact_diff_sha256": "1a7f2f9a10468397717c835e3c7c09ce0a58f04471d4449316ebc3465ade5c8a"
+    },
+    {
+      "revision": "cfb5e03a70c2d8b26410a7f41ed0855d0e5acdd9",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Retained profile verifier;108 CLI tests,Clippy/build,four actual CLI cases; no isolated original execution",
+      "exact_diff_bytes": 32262,
+      "exact_diff_sha256": "c266ebcdf83df461fdb1d226d5553f22491814dd3a5d4c8bfb643ca9dc6d806a"
+    },
+    {
+      "revision": "b513a4a4f0658fdbbb4c4b2c30bb59ec3180d47b",
+      "owner": "behavior-lead",
+      "producer": "c1101b6311f192f44affdc9775a69099fd25eb7a",
+      "scope": "Whole-lot canonical application producer; seven fixtures, real input/scene consumer open",
+      "exact_diff_bytes": 24430,
+      "exact_diff_sha256": "6548c98c6f74018e93c69e71d3cc9d67ef3c8b818d78784ba3a91d207a3419b0"
+    },
+    {
+      "revision": "ae6cc6c4ff44f73560f7df9ab0ad236696e721f9",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Additive application export; seven affected tests and runtime library Clippy checked on this combined dependency source",
+      "exact_diff_bytes": 454,
+      "exact_diff_sha256": "ccdbfc654bb4803b88bbd70ec3f09c1736394afcc441b9d8df97c05c08113564"
+    },
+    {
+      "revision": "6bc17ddcd79a5492d14fecfb1d6b8b6c537885d1",
+      "owner": "behavior-lead",
+      "producer": "9cef351c89515dbda20166634d930b87e88870f1",
+      "scope": "Prepared canonical Continue; real renderer consumer remains open",
+      "exact_diff_bytes": 34696,
+      "exact_diff_sha256": "9ff3de89a61c35d1471124bb1aac1e0791fcf29e05cf5bf38abc50824a0207d3"
+    },
+    {
+      "revision": "20dd23b886356291a0c46833a183b7bc3fae773f",
+      "owner": "audio",
+      "producer": "e421e3d8edba1061d8d297a64fe83a0003086909",
+      "scope": "Source-qualified bounded classic PCM producer; device playback remains open",
+      "exact_diff_bytes": 36310,
+      "exact_diff_sha256": "71b39c822adf0bdb2fdb33c7787da0292e1ac260852800cbf9e3d9018e67827b"
+    },
+    {
+      "revision": "e86d840ad21b2a3e362ef6382188413a1d132db7",
+      "owner": "coordinator",
+      "producer": null,
+      "scope": "Additive public audio module export",
+      "exact_diff_bytes": 394,
+      "exact_diff_sha256": "bcbc4d07ab6d82652a3b5112a5e051b08b4ba8d9276c717e292ece80dcf3dba0"
+    },
+    {
+      "revision": "c5ddc46dddaa9416314288d1612741bcd591a93b",
+      "owner": "behavior-lead",
+      "producer": "00a59f7cf1311ae47134f0d508b9ca3c6b250689",
+      "scope": "Save request and acknowledgement boundary over existing writer",
+      "exact_diff_bytes": 17787,
+      "exact_diff_sha256": "06cf1e47ca21327e3e32e342b5c23c9396e9667e73874e0df6b407cf8f157896"
+    },
+    {
+      "revision": "7e06d3e7af6eb320425d328509dbd8a1c10de999",
+      "owner": "audio",
+      "producer": "029281a2c9b06f8c5d5830e2b4a3801d894b2d88",
+      "scope": "Remove unused import; combined exported API tests and Clippy pass",
+      "exact_diff_bytes": 510,
+      "exact_diff_sha256": "6fe9b7e30c8264b7c3fc0a62f32cfd553973307ee761e583f305d0cb659fbe9b"
+    }
+  ],
+  "checks": {
+    "audio_source": 5,
+    "save_continue": 14,
+    "inventory": 7,
+    "fresh_child_restore": true,
+    "affected_clippy": "passed -D warnings",
+    "frozen_test_images": 3
+  },
+  "private_mapping_receipt_sha256": "fc4175a58f4c23cf5c777ae2d23ec654791b3e819fd9e5637709541155af4a56",
+  "sealed_root_checks_sha256": "32682982677225026e404c7661add964820291d326deb08b77bcb19b5169fb06",
+  "scene_dependencies": {
+    "producers": [
+      "c70fb7c03f1b366fc9638464a8795e5ab6bceaa0",
+      "398f7390c41631e05c160bf1ed4eff7275527f02"
+    ],
+    "producer_tests": 12,
+    "producer_real_bevy_library_check": "passed",
+    "candidate": "832e4efd12b25b3e9f23fd93cc7190dba27d1527",
+    "root_combined_validation": "in progress"
+  },
+  "consumer_rule": "Import named producers and shared exports once; retain exact base/source pins and held work. Actual main/scene wiring is presentation owned.",
+  "limitations": [
+    "Historical maps 41-51 have no combined proof",
+    "Actual Native renderer/input consumer and GPU acceptance remain open",
+    "Device audio and original media fidelity remain open",
+    "Original execution isolation transport remains open"
+  ],
+  "checkpoint": 45,
+  "M1_met": false,
+  "gameplay_accepted": false
+}

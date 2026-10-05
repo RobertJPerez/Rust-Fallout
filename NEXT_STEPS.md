@@ -14,6 +14,22 @@ Robert submitted the v4 coordinator startup prompt on October 4, 2026. Its
 admission and preservation checks. Source51 is the preserved development seed;
 source40 alone carries the last combined proof. Leads adopt held legacy slices
 once, while workers finish their exact stopped drafts and missing validations.
+
+[Checked v4 core dependencies](docs/integration/team-v4-development-dependencies-02.json)
+add prepared Continue, Save acknowledgements and source-qualified bounded PCM.
+The exported core source passed 26 affected API tests and Clippy, including a
+fresh-process restore. The scene adapters passed 12 producer fixtures and a real
+Bevy library check; combined preview validation is still running. These scopes
+do not establish a connected input/renderer route or device audio acceptance.
+
+The [old Native Continue regression](docs/integration/team-v4-native-continue-regression-01.json)
+was reproduced independently with a frozen CPU executable. A missing source
+view keeps the displayed revision at 1 after canonical state advances to 2;
+the next actual Native Save captures revision 2. Presentation must finish all
+scene checks before replacing canonical and displayed state, then prove the
+actual fixed consumer. Source40 remains the last combined proof and checkpoint45
+is unchanged.
+
 Development batch 12 proves source `d7399c3e62518ade9fe7ddaa8f2dccb1c749c7fc`:
 1,636 Rust passing results, 63 ignored helpers, Clippy, formatting and actual CLI/
 preview builds. Fresh frozen consumers passed 24 headless cases and 4 GPU cases:

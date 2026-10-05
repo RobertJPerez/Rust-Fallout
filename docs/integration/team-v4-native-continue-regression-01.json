@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "run_id": "team-v4-20261004-20261004T222612Z-0f8c3e22",
+  "status": "known_native_failure_reproduced_independently",
+  "source_base": "d622128fb3fca1c67a1285dec85fd48c7526031f",
+  "native_source_sha256": "951cc2d13a530b8924c597473c04341c329b1b860409c7917b307c5683bfd8bb",
+  "frozen_probe_sha256": "a25070245265393c5d72a198c65ffe76fa685d9431d02929bc462ab7180541c4",
+  "private_review_sha256": "a1b2cb8d4d31e1c46a4d711c65a68b3b23ad4effce767585b9b247cc7b996438",
+  "cases": [
+    {
+      "membership": "missing",
+      "prior_revision": 1,
+      "displayed_revision": 1,
+      "canonical_and_saved_revision": 2
+    },
+    {
+      "membership": "complete",
+      "prior_revision": 1,
+      "displayed_revision": 2,
+      "canonical_and_saved_revision": 2
+    }
+  ],
+  "scope": "Unmodified Native controller/runtime/Save plus exact main membership predicate; independent CPU replay compared complete snapshots",
+  "next_action": "Presentation admits the complete owned renderer stage before publishing canonical and displayed state; prove the actual fixed consumer separately",
+  "fixed_native_accepted": false,
+  "ECS_or_GPU_exercised": false,
+  "original_process_started": false,
+  "gameplay_accepted": false,
+  "checkpoint": 45
+}

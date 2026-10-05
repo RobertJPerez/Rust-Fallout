@@ -179,7 +179,10 @@ pub(in crate::world) struct Fixture {
     pub root: tempfile::TempDir,
     pub cache: tempfile::TempDir,
     pub models: Vec<Vec<u8>>,
+    // These source payloads are consumed by the full-tree environment and prefetch tests.
+    #[allow(dead_code)]
     pub textures: Vec<Vec<u8>>,
+    #[allow(dead_code)]
     pub noise: Vec<u8>,
     pub mounts: MountIndex,
     names: Vec<String>,
@@ -188,9 +191,12 @@ impl Fixture {
     pub fn new() -> Self {
         Self::with_scene(false, false)
     }
+    // The direct residency transport excludes the full-scene consumers of this fixture.
+    #[allow(dead_code)]
     pub fn scene() -> Self {
         Self::with_scene(true, false)
     }
+    #[allow(dead_code)]
     pub fn selected_scene() -> Self {
         Self::with_scene(true, true)
     }
@@ -372,6 +378,8 @@ impl Fixture {
         plans.extend((0..set.requests().len()).map(|i| set.plan(i).unwrap().clone()));
         plans
     }
+    // Door prefetch tests use this helper; those modules are outside the direct residency import.
+    #[allow(dead_code)]
     pub fn destination(&self, store: &mut RecordStore) -> crate::world::doors::DoorDestination {
         crate::world::doors::DoorDestination::load(
             store,

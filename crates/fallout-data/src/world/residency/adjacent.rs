@@ -241,12 +241,11 @@ impl AdjacentRegionResidency {
                 if let Some(request) = requests.iter().find(|request| {
                     request.grid == active.ticket.identity.key.grid
                         && request.cell == &active.ticket.identity.key.cell
-                }) {
-                    if request.plan.identity() != active.ticket.identity.source_identity {
-                        return Err(JobError::Invalid(
-                            "active region source changed; replace the world generation".into(),
-                        ));
-                    }
+                }) && request.plan.identity() != active.ticket.identity.source_identity
+                {
+                    return Err(JobError::Invalid(
+                        "active region source changed; replace the world generation".into(),
+                    ));
                 }
             }
         }
@@ -567,8 +566,8 @@ impl AdjacentRegionResidency {
 }
 
 fn grid_distance(left: [i32; 2], right: [i32; 2]) -> u64 {
-    let dx = (i64::from(left[0]) - i64::from(right[0])).abs() as u64;
-    let dy = (i64::from(left[1]) - i64::from(right[1])).abs() as u64;
+    let dx = (i64::from(left[0]) - i64::from(right[0])).unsigned_abs();
+    let dy = (i64::from(left[1]) - i64::from(right[1])).unsigned_abs();
     dx.max(dy)
 }
 

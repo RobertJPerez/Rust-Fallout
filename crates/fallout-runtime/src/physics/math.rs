@@ -42,6 +42,30 @@ pub(super) fn compose(a: Affine, b: Affine) -> Affine {
     }
 }
 
+/// Extra sweep certificate; existing ray/overlap composition stays unchanged.
+/// Admit only when every product and partial sum is exactly representable.
+pub(super) fn exact_compose(a: Affine, b: Affine) -> (Affine, bool) {
+    let result = compose(a, b);
+    let mut exact = true;
+    for (i, row) in result.rows.iter().enumerate() {
+        for (j, value) in row.iter().enumerate() {
+            let mut sum = 0.;
+            for k in 0..3 {
+                let product = a.rows[i][k] * b.rows[k][j];
+                exact &= super::sweep::exact_product(a.rows[i][k], b.rows[k][j], product);
+                let next = sum + product;
+                exact &= super::sweep::exact_sum(sum, product, next);
+                sum = next;
+            }
+            if j == 3 {
+                exact &= super::sweep::exact_sum(sum, a.rows[i][3], *value);
+            } else {
+                exact &= sum == *value;
+            }
+        }
+    }
+    (result, exact)
+}
 /// Binary32-authored rotations can have rounding error. This check admits only
 /// similarities within the declared engineering tolerance; it never repairs them.
 #[derive(Debug)]

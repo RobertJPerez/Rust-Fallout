@@ -46,10 +46,54 @@ fn cross_with_error(a: V, b: V) -> (V, V) {
     ];
     (components.map(|v| v.0), components.map(|v| v.1))
 }
-fn difference_error(a: f64, b: f64, difference: f64) -> f64 {
+pub(super) fn difference_error(a: f64, b: f64, difference: f64) -> f64 {
     let virtual_b = a - difference;
     let virtual_a = difference + virtual_b;
     (a - virtual_a) + (virtual_b - b)
+}
+fn sum_error(a: f64, b: f64, sum: f64) -> f64 {
+    let virtual_b = sum - a;
+    let virtual_a = sum - virtual_b;
+    (a - virtual_a) + (b - virtual_b)
+}
+
+fn sphere_overlap(p: V, query_radius: f64, source_radius: f64) -> QueryResult<bool> {
+    use super::enclosure::Interval as I;
+    let uncertain = || QueryError::Invalid("sphere overlap predicate is numerically uncertain");
+    let radius = query_radius + source_radius;
+    if p.iter().filter(|v| **v != 0.).count() <= 1 {
+        // The norm is an exact absolute component, even for subnormals. When
+        // it equals the rounded radius sum, TwoSum retains the true sum's sign
+        // relative to that component. No squared distance erases a small gap.
+        let distance = p.into_iter().map(f64::abs).fold(0., f64::max);
+        return Ok(radius > distance
+            || (radius == distance && sum_error(query_radius, source_radius, radius) >= 0.));
+    }
+    if radius == 0. {
+        // Both original nonnegative radii are zero. A nonzero source point is
+        // outside, regardless of whether its squared components underflow.
+        return Ok(false);
+    }
+    let radius_bounds =
+        predicate_sum(I::point(query_radius), I::point(source_radius)).ok_or_else(uncertain)?;
+    if p.into_iter().any(|v| v.abs() > radius_bounds.upper) {
+        return Ok(false);
+    }
+    let mut distance_squared = I::point(0.);
+    for v in p {
+        let square = predicate_product(I::point(v), I::point(v)).ok_or_else(uncertain)?;
+        distance_squared = predicate_sum(distance_squared, square).ok_or_else(uncertain)?;
+    }
+    let radius_squared = predicate_product(radius_bounds, radius_bounds).ok_or_else(uncertain)?;
+    let separation =
+        predicate_sum(radius_squared, distance_squared.negate()).ok_or_else(uncertain)?;
+    if separation.lower >= 0. {
+        Ok(true)
+    } else if separation.upper < 0. {
+        Ok(false)
+    } else {
+        Err(uncertain())
+    }
 }
 
 fn sphere_contains(p: V, radius: f64) -> QueryResult<bool> {
@@ -67,7 +111,7 @@ fn sphere_contains(p: V, radius: f64) -> QueryResult<bool> {
     Ok(distance < radius)
 }
 
-fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
+pub(super) fn sphere_ray(o: V, d: V, center: V, radius: f64) -> QueryResult<Option<f64>> {
     let relative = sub(o, center);
     if sphere_contains(relative, radius)? {
         return Ok(Some(0.));
@@ -147,6 +191,78 @@ fn segment_distance2(p: V, a: V, b: V) -> f64 {
     dot(delta, delta)
 }
 
+fn predicate_dot(a: V, b: V) -> Option<super::enclosure::Interval> {
+    use super::enclosure::Interval as I;
+    let mut sum = I::point(0.);
+    for i in 0..3 {
+        sum = predicate_sum(sum, predicate_product(I::point(a[i]), I::point(b[i]))?)?;
+    }
+    Some(sum)
+}
+
+fn capsule_overlap(p: V, a: V, b: V, query_radius: f64, source_radius: f64) -> QueryResult<bool> {
+    use super::enclosure::Interval as I;
+    let uncertain = || QueryError::Invalid("capsule overlap predicate is numerically uncertain");
+    let relative = |anchor: V| -> QueryResult<V> {
+        let delta = sub(p, anchor);
+        if (0..3).any(|i| difference_error(p[i], anchor[i], delta[i]) != 0.) {
+            return Err(uncertain());
+        }
+        Ok(delta)
+    };
+    let endpoint = |anchor: V| {
+        sphere_overlap(relative(anchor)?, query_radius, source_radius).map_err(|_| uncertain())
+    };
+    let edge = sub(b, a);
+    if edge.iter().filter(|v| **v != 0.).count() <= 1 {
+        // Clamp in the original authored axis before subtraction. A rounded
+        // projection and reconstructed closest point cannot change this line.
+        let mut closest = a;
+        if let Some(axis) = edge.iter().position(|v| *v != 0.) {
+            closest[axis] = p[axis].clamp(a[axis].min(b[axis]), a[axis].max(b[axis]));
+        }
+        return endpoint(closest);
+    }
+    if (0..3).any(|i| difference_error(b[i], a[i], edge[i]) != 0.) {
+        return Err(uncertain());
+    }
+    let w = relative(a)?;
+    let length_squared = predicate_dot(edge, edge).ok_or_else(uncertain)?;
+    let projection = predicate_dot(w, edge).ok_or_else(uncertain)?;
+    if projection.upper <= 0. {
+        return endpoint(a);
+    }
+    if projection.lower >= length_squared.upper {
+        return endpoint(b);
+    }
+    let remainder = predicate_sum(length_squared, projection.negate()).ok_or_else(uncertain)?;
+    if length_squared.lower <= 0. || projection.lower < 0. || remainder.lower < 0. {
+        return Err(uncertain());
+    }
+    // For an interior projection, distance^2 * |edge|^2 equals
+    // |w|^2 * |edge|^2 - (w.edge)^2. Compare without dividing, normalizing
+    // the axis, or rounding an interpolated closest point into the capsule.
+    let norm_squared = predicate_dot(w, w).ok_or_else(uncertain)?;
+    let norm_product = predicate_product(norm_squared, length_squared).ok_or_else(uncertain)?;
+    let projection_squared = predicate_product(projection, projection).ok_or_else(uncertain)?;
+    let distance_numerator =
+        predicate_sum(norm_product, projection_squared.negate()).ok_or_else(uncertain)?;
+    let radius =
+        predicate_sum(I::point(query_radius), I::point(source_radius)).ok_or_else(uncertain)?;
+    let radius_squared = predicate_product(radius, radius).ok_or_else(uncertain)?;
+    let radius_numerator =
+        predicate_product(radius_squared, length_squared).ok_or_else(uncertain)?;
+    let separation =
+        predicate_sum(radius_numerator, distance_numerator.negate()).ok_or_else(uncertain)?;
+    if separation.lower >= 0. {
+        Ok(true)
+    } else if separation.upper < 0. {
+        Ok(false)
+    } else {
+        Err(uncertain())
+    }
+}
+
 fn capsule_contains(p: V, a: V, b: V, radius: f64) -> QueryResult<bool> {
     let edge = sub(b, a);
     let relative = sub(p, a);
@@ -224,7 +340,7 @@ fn triangle_parallel(e1: V, e2: V, direction: V) -> bool {
     }
     false
 }
-fn triangle_product(
+pub(super) fn predicate_product(
     a: super::enclosure::Interval,
     b: super::enclosure::Interval,
 ) -> Option<super::enclosure::Interval> {
@@ -241,15 +357,13 @@ fn triangle_product(
     }
     a.multiply(b)
 }
-fn triangle_sum(
+pub(super) fn predicate_sum(
     a: super::enclosure::Interval,
     b: super::enclosure::Interval,
 ) -> Option<super::enclosure::Interval> {
     if a.lower == a.upper && b.lower == b.upper {
         let sum = a.lower + b.lower;
-        let virtual_b = sum - a.lower;
-        let virtual_a = sum - virtual_b;
-        let residual = (a.lower - virtual_a) + (b.lower - virtual_b);
+        let residual = sum_error(a.lower, b.lower, sum);
         if sum.is_finite() && residual == 0. {
             return Some(super::enclosure::Interval::point(sum));
         }
@@ -262,12 +376,12 @@ fn triangle_triple_bounds(e1: V, direction: V, e2: V) -> QueryResult<super::encl
     let mut determinant = I::point(0.);
     for (i, j, k) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)] {
         let first =
-            triangle_product(I::point(direction[j]), I::point(e2[k])).ok_or_else(uncertain)?;
+            predicate_product(I::point(direction[j]), I::point(e2[k])).ok_or_else(uncertain)?;
         let second =
-            triangle_product(I::point(direction[k]), I::point(e2[j])).ok_or_else(uncertain)?;
-        let component = triangle_sum(first, second.negate()).ok_or_else(uncertain)?;
-        let term = triangle_product(I::point(e1[i]), component).ok_or_else(uncertain)?;
-        determinant = triangle_sum(determinant, term).ok_or_else(uncertain)?;
+            predicate_product(I::point(direction[k]), I::point(e2[j])).ok_or_else(uncertain)?;
+        let component = predicate_sum(first, second.negate()).ok_or_else(uncertain)?;
+        let term = predicate_product(I::point(e1[i]), component).ok_or_else(uncertain)?;
+        determinant = predicate_sum(determinant, term).ok_or_else(uncertain)?;
     }
     Ok(determinant)
 }
@@ -319,13 +433,13 @@ fn triangle_ray(o: V, d: V, [a, b, c]: [V; 3], max: f64) -> QueryResult<Option<f
     let u_bounds = positive(triangle_triple_bounds(s, d, e2)?);
     let v_bounds = positive(triangle_triple_bounds(d, s, e1)?);
     let t_bounds = positive(triangle_triple_bounds(e2, s, e1)?);
-    let w_bounds = triangle_sum(
-        triangle_sum(den, u_bounds.negate()).ok_or_else(uncertain)?,
+    let w_bounds = predicate_sum(
+        predicate_sum(den, u_bounds.negate()).ok_or_else(uncertain)?,
         v_bounds.negate(),
     )
     .ok_or_else(uncertain)?;
-    let range_bounds = triangle_sum(
-        triangle_product(den, I::point(max)).ok_or_else(uncertain)?,
+    let range_bounds = predicate_sum(
+        predicate_product(den, I::point(max)).ok_or_else(uncertain)?,
         t_bounds.negate(),
     )
     .ok_or_else(uncertain)?;
@@ -603,6 +717,32 @@ fn cuboid_interval(
     Ok(Some((enter, exit)))
 }
 
+/// Reuse the existing directed slabs, with a separate original-line/core
+/// witness required before finite-query results can leave the scene.
+pub(super) fn finite_cuboid_span(
+    o: V,
+    d: V,
+    minimum: V,
+    maximum: V,
+    max: f64,
+) -> QueryResult<Option<super::finite::Span>> {
+    let Some((entry, exit)) = cuboid_interval(o, d, minimum, maximum, max)? else {
+        return Ok(None);
+    };
+    Ok(super::finite::Span::clip(
+        super::enclosure::Interval {
+            lower: entry.lower,
+            upper: entry.upper,
+        },
+        super::enclosure::Interval {
+            lower: exit.lower,
+            upper: exit.upper,
+        },
+        max,
+        0.5 * entry.upper + 0.5 * exit.lower,
+    ))
+}
+
 /// Culling is permitted only for a certified miss. Uncertain or overflowing
 /// enclosures keep the source primitive for its actual geometry predicate.
 pub(super) fn cuboid_may_ray(o: V, d: V, minimum: V, maximum: V, max: f64) -> bool {
@@ -669,14 +809,12 @@ impl Shape {
     }
     pub fn overlap(&self, p: V, r: f64) -> QueryResult<bool> {
         Ok(match *self {
-            Self::Sphere(radius) => dot(p, p) <= (r + radius) * (r + radius),
+            Self::Sphere(radius) => sphere_overlap(p, r, radius)?,
             Self::Box(extents) => cuboid_overlap(p, r, extents.map(|v| -v), extents)?,
             Self::ConvexCuboid {
                 minimum, maximum, ..
             } => cuboid_overlap(p, r, minimum, maximum)?,
-            Self::Capsule { a, b, radius } => {
-                segment_distance2(p, a, b) <= (r + radius) * (r + radius)
-            }
+            Self::Capsule { a, b, radius } => capsule_overlap(p, a, b, r, radius)?,
             Self::Triangle(vertices) => triangle_distance2(p, vertices) <= r * r,
         })
     }

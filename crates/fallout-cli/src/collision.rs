@@ -263,7 +263,83 @@ struct QueryRequest {
     attachment_rows: [[f64; 4]; 3],
     units: fallout_runtime::physics::EngineeringUnits,
     ray: Option<fallout_runtime::physics::Ray>,
+    segment_cast: Option<SegmentCastRequest>,
+    ray_intervals: Option<RayIntervalsRequest>,
     overlap: Option<SphereRequest>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SegmentCastRequest {
+    segment: fallout_runtime::physics::Segment,
+    limits: fallout_runtime::physics::SegmentQueryLimits,
+    output_bytes: usize,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RayIntervalsRequest {
+    ray: fallout_runtime::physics::Ray,
+    limits: fallout_runtime::physics::IntervalQueryLimits,
+    output_bytes: usize,
+}
+#[derive(Serialize)]
+struct FiniteEnvironmentInput {
+    units_binary64_hex: [String; 3],
+    attachment_binary64_hex: [[String; 4]; 3],
+}
+#[derive(Serialize)]
+struct SegmentNumericInput {
+    start_binary64_hex: [String; 3],
+    end_binary64_hex: [String; 3],
+}
+#[derive(Serialize)]
+struct SegmentCastReport {
+    numeric_input: SegmentNumericInput,
+    environment_numeric_input: FiniteEnvironmentInput,
+    limits: fallout_runtime::physics::SegmentQueryLimits,
+    output_bytes: usize,
+    query:
+        fallout_runtime::physics::FiniteQueryReport<fallout_runtime::physics::SegmentIntersection>,
+    query_semantics: &'static str,
+}
+#[derive(Serialize)]
+struct RayIntervalsReport {
+    numeric_input: RayNumericInput,
+    environment_numeric_input: FiniteEnvironmentInput,
+    limits: fallout_runtime::physics::IntervalQueryLimits,
+    output_bytes: usize,
+    query: fallout_runtime::physics::FiniteQueryReport<fallout_runtime::physics::SolidOccupancy>,
+    query_semantics: &'static str,
+}
+fn finite_environment(request: &QueryRequest) -> FiniteEnvironmentInput {
+    let units = request.units;
+    FiniteEnvironmentInput {
+        units_binary64_hex: [
+            units.havok_to_source,
+            units.source_to_query,
+            units.transform_tolerance,
+        ]
+        .map(|v| format!("{:016x}", v.to_bits())),
+        attachment_binary64_hex: request
+            .attachment_rows
+            .map(|row| row.map(|v| format!("{:016x}", v.to_bits()))),
+    }
+}
+struct FiniteReportCounter(usize);
+fn count_finite_report(report: &impl Serialize, limit: usize) -> serde_json::Result<()> {
+    // The existing common emitter appends one newline after its pretty JSON.
+    // Reserve it before serialization, including the zero-budget case.
+    serde_json::to_writer_pretty(&mut FiniteReportCounter(limit.saturating_sub(1)), report)
+}
+impl std::io::Write for FiniteReportCounter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self.0.checked_sub(bytes.len()).ok_or_else(|| {
+            std::io::Error::other("finite collision report output budget exceeded")
+        })?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -302,6 +378,10 @@ pub struct QueryReport {
     units: fallout_runtime::physics::EngineeringUnits,
     ray_numeric_input: Option<RayNumericInput>,
     overlap_numeric_input: Option<OverlapNumericInput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    segment_cast: Option<SegmentCastReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ray_intervals: Option<RayIntervalsReport>,
     primitive_count: usize,
     ray_hits: Vec<fallout_runtime::physics::Hit>,
     overlap_hits: Vec<fallout_runtime::physics::Hit>,
@@ -321,9 +401,30 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
     let request: QueryRequest = serde_json::from_slice(&request_bytes)?;
     if request.body_blocks.is_empty()
         || request.body_blocks.len() > 10_000
-        || (request.ray.is_none() && request.overlap.is_none())
+        || (request.ray.is_none()
+            && request.overlap.is_none()
+            && request.segment_cast.is_none()
+            && request.ray_intervals.is_none())
     {
-        return Err("collision request needs 1..10000 bodies and a ray or overlap".into());
+        return Err(
+            "collision request needs 1..10000 bodies and at least one query: ray, overlap, segment cast, or ray intervals".into(),
+        );
+    }
+    let finite_request = request.segment_cast.is_some() || request.ray_intervals.is_some();
+    if finite_request
+        && (request.ray.is_some()
+            || request.overlap.is_some()
+            || (request.segment_cast.is_some() && request.ray_intervals.is_some()))
+    {
+        return Err("finite collision request selects exactly one finite query form".into());
+    }
+    let output_limit = request
+        .segment_cast
+        .as_ref()
+        .map(|v| v.output_bytes)
+        .or_else(|| request.ray_intervals.as_ref().map(|v| v.output_bytes));
+    if output_limit.is_some_and(|v| v > 64 * 1024 * 1024) {
+        return Err("finite output budget must only reduce 64 MiB ceiling".into());
     }
     let digest: [u8; 32] = Sha256::digest(&bytes).into();
     let (_, collision) = nif_collision::decode(&bytes, &input.display().to_string())?;
@@ -347,6 +448,31 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
     )?;
     let ray_numeric_input = request.ray.map(ray_numeric_input);
     let overlap_numeric_input = request.overlap.as_ref().map(overlap_numeric_input);
+    let segment_cast=request.segment_cast.as_ref().map(|finite| {
+        let numeric_input=SegmentNumericInput {
+            start_binary64_hex:finite.segment.start.map(|v|format!("{:016x}",v.to_bits())),
+            end_binary64_hex:finite.segment.end.map(|v|format!("{:016x}",v.to_bits())),
+        };
+        let environment_numeric_input=finite_environment(&request);
+        let query=scene.segment_cast(finite.segment,finite.limits).map_err(|error|format!(
+            "collision finite segment refused: {error}; segment_numeric_input={}; environment_numeric_input={}",
+            serde_json::to_string(&numeric_input).expect("numeric audit"),serde_json::to_string(&environment_numeric_input).expect("numeric audit")))?;
+        Ok::<_,String>(SegmentCastReport {
+            numeric_input,environment_numeric_input,limits:finite.limits,output_bytes:finite.output_bytes,query,
+            query_semantics:"original closed endpoint segment; zero length certified point query; authored core/all filters; exact source matrix recipe and inverse enclosures; independently certified original-line/core point, occupied entry/exit enclosures and distance bounds; witness may follow entry; complete global admission/work/storage/output; uncertainty refuses; no motion or gameplay certificate",
+        })
+    }).transpose()?;
+    let ray_intervals=request.ray_intervals.as_ref().map(|finite| {
+        let numeric_input=self::ray_numeric_input(finite.ray);
+        let environment_numeric_input=finite_environment(&request);
+        let query=scene.ray_intervals(finite.ray,finite.limits).map_err(|error|format!(
+            "collision solid intervals refused: {error}; ray_numeric_input={}; environment_numeric_input={}",
+            serde_json::to_string(&numeric_input).expect("numeric audit"),serde_json::to_string(&environment_numeric_input).expect("numeric audit")))?;
+        Ok::<_,String>(RayIntervalsReport {
+            numeric_input,environment_numeric_input,limits:finite.limits,output_bytes:finite.output_bytes,query,
+            query_semantics:"closed Sphere/Box/ConvexCuboid source cores only; exact signed-axis/power-of-two source similarities; complete kind/frame admission before scan; original caller direction/range, directed clipped occupied boundaries and independently certified source-core point; all filters/shell excluded; bounded global work/storage/output; no Capsule/Triangle occupancy or material/gameplay response",
+        })
+    }).transpose()?;
     let ray_hits = request
         .ray
         .map(|ray| scene.ray_cast(ray, QueryBudget::default()))
@@ -371,18 +497,109 @@ pub fn query(input: &Path, request_path: &Path) -> Result<QueryReport> {
             )
         })?
         .unwrap_or_default();
-    Ok(QueryReport {
+    let report = QueryReport {
         source_sha256: format!("{:x}", Sha256::digest(&bytes)),
         request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
         units: request.units,
         ray_numeric_input,
         overlap_numeric_input,
+        segment_cast,
+        ray_intervals,
         primitive_count: scene.primitive_count(),
         ray_hits,
         overlap_hits,
         query_semantics: "authored core geometry; frozen bodies; all source filters included; two-sided triangles; certified convex cuboids use exact eight-corner vertex hull with source-f32 supporting-plane certificate; box/cuboid slabs include query distance range and conservative representable entry witness; uncertain cuboid predicates refuse; convex/packed shell margins excluded; source axes retained",
         faithful_ready: scene.faithful_ready(),
-    })
+    };
+    if let Some(limit) = output_limit {
+        count_finite_report(&report,limit).map_err(|error| {
+            format!("collision finite report refused: {error}; segment_numeric_input={}; ray_intervals_numeric_input={}; environment_numeric_input={}",
+                serde_json::to_string(&report.segment_cast.as_ref().map(|v|&v.numeric_input)).expect("numeric audit"),
+                serde_json::to_string(&report.ray_intervals.as_ref().map(|v|&v.numeric_input)).expect("numeric audit"),
+                serde_json::to_string(&report.segment_cast.as_ref().map(|v|&v.environment_numeric_input).or_else(||report.ray_intervals.as_ref().map(|v|&v.environment_numeric_input))).expect("numeric audit"))
+        })?;
+    }
+    Ok(report)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SweepRequest {
+    reference: std::num::NonZeroU64,
+    body_blocks: Vec<u32>,
+    attachment_rows: [[f64; 4]; 3],
+    units: fallout_runtime::physics::EngineeringUnits,
+    sweep: fallout_runtime::physics::sweep::SphereSweep,
+    limits: fallout_runtime::physics::sweep::SweepLimits,
+}
+#[derive(Serialize)]
+pub struct SweepReport {
+    schema_version: u32,
+    source_sha256: String,
+    request_sha256: String,
+    units: fallout_runtime::physics::EngineeringUnits,
+    input: fallout_runtime::physics::sweep::SphereSweep,
+    start_binary64_hex: [String; 3],
+    end_binary64_hex: [String; 3],
+    radius_binary64_hex: String,
+    tolerance_binary64_hex: String,
+    limits: fallout_runtime::physics::sweep::SweepLimits,
+    primitive_count: usize,
+    proposal: fallout_runtime::physics::sweep::SweepProposal,
+    query_semantics: &'static str,
+    faithful_ready: bool,
+}
+/// One decoder/build/query cohort, then count the complete report before emit.
+pub fn sweep_query(input: &Path, request_path: &Path) -> Result<SweepReport> {
+    use fallout_runtime::{
+        identity::ReferenceId,
+        physics::{BodyPlacement, QueryLimits, StaticScene},
+    };
+    let request_bytes = read_bounded(request_path, 1024 * 1024)?;
+    let request: SweepRequest = serde_json::from_slice(&request_bytes)?;
+    if request.body_blocks.is_empty() || request.body_blocks.len() > 10_000 {
+        return Err("sweep requires 1..10000 selected source bodies".into());
+    }
+    let bytes = read_bounded(input, 64 * 1024 * 1024)?;
+    let digest: [u8; 32] = Sha256::digest(&bytes).into();
+    let (_, collision) = nif_collision::decode(&bytes, &input.display().to_string())?;
+    let placements: Vec<_> = request
+        .body_blocks
+        .iter()
+        .map(|&body_block| BodyPlacement {
+            reference: ReferenceId(request.reference),
+            source_sha256: digest,
+            body_block,
+            attachment_to_source: fallout_data::coordinates::Affine {
+                rows: request.attachment_rows,
+            },
+        })
+        .collect();
+    let scene = StaticScene::build(
+        &collision,
+        &placements,
+        request.units,
+        QueryLimits::default(),
+    )?;
+    let proposal = scene.sweep_sphere(request.sweep, request.limits)?;
+    let report = SweepReport {
+        schema_version: 1,
+        source_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        request_sha256: format!("{:x}", Sha256::digest(&request_bytes)),
+        units: request.units,
+        input: request.sweep,
+        start_binary64_hex: request.sweep.start.map(|v| format!("{:016x}", v.to_bits())),
+        end_binary64_hex: request.sweep.end.map(|v| format!("{:016x}", v.to_bits())),
+        radius_binary64_hex: format!("{:016x}", request.sweep.radius.to_bits()),
+        tolerance_binary64_hex: format!("{:016x}", request.sweep.contact_tolerance.to_bits()),
+        limits: request.limits,
+        primitive_count: scene.primitive_count(),
+        proposal,
+        query_semantics: "explicit zero-tagged frozen sphere-core fixture profile; exact composed signed-axis/power-of-two frames; exact Minkowski sum; original endpoint segment, no normalization; outward-rounded range/contact/center certificates; every selected obstacle checked; approximate source/dynamics/filter/margin semantics refuse; immutable engineering proposal only",
+        faithful_ready: scene.faithful_ready(),
+    };
+    serde_json::to_writer_pretty(&mut ReportCounter(1), &report)?;
+    Ok(report)
 }
 
 #[derive(Deserialize)]
@@ -420,6 +637,9 @@ pub fn cell_query(
     use std::time::{Duration, Instant};
     let request_bytes = read_bounded(request_path, 1024 * 1024)?;
     let request: CellRequest = serde_json::from_slice(&request_bytes)?;
+    if request.query.segment_cast.is_some() || request.query.ray_intervals.is_some() {
+        return Err("resident cell request does not support raw-source finite query forms".into());
+    }
     if !(1..=60_000).contains(&request.io_deadline_ms)
         || request.query.body_blocks.is_empty()
         || request.query.body_blocks.len() > 10_000
@@ -1441,6 +1661,23 @@ pub fn attachment_query(input: &Path, request_path: &Path) -> Result<AttachmentR
 mod tests {
     use super::*;
     use fallout_data::nif_collision::{Block, Triangle};
+    #[test]
+    fn finite_report_budget_includes_the_existing_emitter_newline() {
+        let literal = b"{\n  \"ok\": true\n}\n";
+        let value = serde_json::json!({"ok":true});
+        count_finite_report(&value, literal.len()).unwrap();
+        assert!(count_finite_report(&value, literal.len() - 1).is_err());
+        assert!(count_finite_report(&value, 0).is_err());
+    }
+    #[test]
+    fn finite_output_counter_charges_all_writes_without_renewal() {
+        use std::io::Write;
+        let mut counter = FiniteReportCounter(4);
+        counter.write_all(b"ab").unwrap();
+        counter.write_all(b"cd").unwrap();
+        assert!(counter.write_all(b"e").is_err());
+        assert_eq!(counter.0, 0);
+    }
     #[test]
     fn reference_output_counter_rejects_the_first_excess_byte() {
         use std::io::Write;

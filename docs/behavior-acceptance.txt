@@ -66,3 +66,19 @@ canonical state, event execution and presentation acknowledgement boundaries. A
 scenario expecting quest state must include that observed field; empty or absent
 quest state cannot satisfy a non-empty expectation. Keep retail traces and raw game
 data in local private evidence, outside public Git.
+
+Repository interruption and stale-source acceptance
+----------------------------------------------------
+
+`crates/fallout-runtime/tests/route_acceptance.rs` exercises the public native
+repository and `World::restore` consumer with authored source fixtures. A dedicated
+child process exits at `PreviousPublished`; the parent proves the prior current
+generation remains strictly loadable. The same target rejects a container with a
+damaged whole-container digest, a checksum-valid foreign profile adapter, and a
+save bound to a changed source cohort. Previous-slot fallback does not repair the
+current file; explicit recovery does. This is repository and state-engineering
+acceptance only. The assigned source tree has no application Host consumer, so this
+does not prove host-level Continue, renderer behavior, retail initialization, or
+gameplay parity. Set `FALLOUT_ROUTE_ACCEPTANCE_EVIDENCE` to a private evidence
+directory to retain the child stdout/stderr and synthetic JSON receipts; without it,
+the interruption logs remain inside the temporary fixture directory.

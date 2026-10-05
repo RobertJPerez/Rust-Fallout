@@ -294,3 +294,94 @@ fn missing_deleted_wrong_kind_and_unqualified_owner_sources_remain_refusals() {
         assert_eq!(host.world().snapshot(), before);
     }
 }
+
+#[test]
+fn transfer_acknowledgements_bind_retained_receipts_and_the_current_commit() {
+    let f = fixture();
+    let (a, b, first, second) = (f.a, f.b, f.first, f.second);
+    let mut active = host(f, HostLimits::default());
+    let command = active
+        .select_transfer(a, first, b, 7)
+        .unwrap()
+        .command(id(1));
+    let accepted = active.transfer(command.clone()).unwrap();
+    let after_first = active.world().snapshot();
+    assert!(accepted.belongs_to_host(&active));
+    assert!(accepted.matches_current_boundary(&active));
+    let replay = active.transfer(command).unwrap();
+    assert!(replay.replayed);
+    assert!(Arc::ptr_eq(&accepted.receipt, &replay.receipt));
+    assert!(replay.matches_current_boundary(&active));
+
+    // A different host can issue the same numeric revision. Replacing a public
+    // observation field must not turn its receipt into this host's acceptance.
+    let f = fixture();
+    let (other_a, other_b, other_lot) = (f.a, f.b, f.first);
+    let mut other = host(f, HostLimits::default());
+    let foreign = other
+        .transfer(
+            other
+                .select_transfer(other_a, other_lot, other_b, 7)
+                .unwrap()
+                .command(id(1)),
+        )
+        .unwrap();
+    assert_eq!(foreign.receipt.after_revision(), active.world().revision());
+    let mut altered = accepted.clone();
+    altered.receipt = Arc::clone(&foreign.receipt);
+    assert!(!altered.belongs_to_host(&active));
+    assert!(!altered.matches_current_boundary(&active));
+    altered = accepted.clone();
+    altered.request = id(999);
+    assert!(!altered.belongs_to_host(&active));
+    assert!(!altered.matches_current_boundary(&active));
+    assert_eq!(active.world().snapshot(), after_first);
+
+    let second_result = active
+        .transfer(
+            active
+                .select_transfer(a, second, b, 3)
+                .unwrap()
+                .command(id(2)),
+        )
+        .unwrap();
+    let after_second = active.world().snapshot();
+    assert!(accepted.belongs_to_host(&active));
+    assert!(!accepted.matches_current_boundary(&active));
+    assert!(second_result.matches_current_boundary(&active));
+    let mut altered = accepted.clone();
+    altered.request = second_result.request;
+    assert!(!altered.belongs_to_host(&active));
+    altered = accepted.clone();
+    altered.receipt = Arc::clone(&second_result.receipt);
+    assert!(!altered.belongs_to_host(&active));
+    altered.request = second_result.request;
+    assert!(!altered.belongs_to_host(&active));
+    assert!(!altered.matches_current_boundary(&active));
+    assert_eq!(active.world().snapshot(), after_second);
+}
+
+#[test]
+fn transfer_acknowledgements_expire_after_scene_change_or_equal_revision_restore() {
+    let f = fixture();
+    let (a, b, lot) = (f.a, f.b, f.first);
+    let catalogue = Arc::clone(&f.catalogue);
+    let content = Arc::clone(&f.content);
+    let mut active = host(f, HostLimits::default());
+    let accepted = active
+        .transfer(active.select_transfer(a, lot, b, 7).unwrap().command(id(1)))
+        .unwrap();
+    let snapshot = active.world().snapshot();
+    let restored = World::restore(catalogue, snapshot.clone(), Limits::default()).unwrap();
+    let fresh = Host::new(restored, content, policy(), id(1), HostLimits::default()).unwrap();
+    assert_eq!(fresh.world().revision(), accepted.receipt.after_revision());
+    assert_eq!(fresh.scene_generation(), accepted.scene_generation());
+    assert!(!accepted.belongs_to_host(&fresh));
+    assert!(!accepted.matches_current_boundary(&fresh));
+    assert_eq!(fresh.world().snapshot(), snapshot);
+
+    active.advance_scene(id(2)).unwrap();
+    assert!(!accepted.belongs_to_host(&active));
+    assert!(!accepted.matches_current_boundary(&active));
+    assert_eq!(active.world().snapshot(), snapshot);
+}

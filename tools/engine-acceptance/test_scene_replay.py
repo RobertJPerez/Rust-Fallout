@@ -316,6 +316,43 @@ class SceneReportMutationTests(unittest.TestCase):
                 )
                 self.assertNotEqual(changed["files"], extended["files"])
 
+    def test_source_fingerprint_detects_changed_nested_local_module(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = source_fingerprint_workspace(Path(directory) / "repo")
+            module = repo / "crates/fallout-data/src/local/mod.rs"
+            module.parent.mkdir(parents=True)
+            module.write_text("pub fn local_source() -> u32 { 1 }\n", encoding="utf-8")
+            (repo / "crates/fallout-data/src/lib.rs").write_text("pub mod local;\n", encoding="utf-8")
+            private_evidence = repo / "local/v4-evidence/retail.json"
+            private_evidence.parent.mkdir(parents=True)
+            private_evidence.write_text('{"private":true}\n', encoding="utf-8")
+
+            def fixed_git(_repo: Path, *_arguments: str) -> str:
+                return "a" * 40 if _arguments[-1] == "HEAD" else "b" * 40
+
+            with patch.object(scene_replay, "_git_value", side_effect=fixed_git):
+                before = scene_replay.source_fingerprint(repo)
+                before_paths = {row["path"] for row in before["files"]}
+                self.assertIn("crates/fallout-data/src/local/mod.rs", before_paths)
+                self.assertNotIn("local/v4-evidence/retail.json", before_paths)
+
+                module.write_text("pub fn local_source() -> u32 { 2 }\n", encoding="utf-8")
+                changed = scene_replay.source_fingerprint(repo)
+
+            self.assertEqual(before["git_tree"], changed["git_tree"])
+            before_module = next(
+                row
+                for row in before["files"]
+                if row["path"] == "crates/fallout-data/src/local/mod.rs"
+            )
+            changed_module = next(
+                row
+                for row in changed["files"]
+                if row["path"] == "crates/fallout-data/src/local/mod.rs"
+            )
+            self.assertNotEqual(before_module["sha256"], changed_module["sha256"])
+            self.assertNotEqual(before["files"], changed["files"])
+
     def test_source_fingerprint_refuses_source_references_outside_roots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = source_fingerprint_workspace(Path(directory) / "repo")

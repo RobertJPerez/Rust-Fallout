@@ -25,7 +25,7 @@ import zlib
 
 
 SCHEMA_VERSION = 1
-TOOL_VERSION = "scene-replay-2"
+TOOL_VERSION = "scene-replay-3"
 MAX_JSON_BYTES = 64 * 1024 * 1024
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_ROOTS = ("crates", "tools")
@@ -34,8 +34,10 @@ SOURCE_ROOTS = ("crates", "tools")
 SOURCE_CONTROL_FILES = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
 SOURCE_OPTIONAL_ROOTS = (".cargo",)
 SOURCE_IGNORED_DIRS = frozenset(
-    {".git", "target", "target-v4", "local", "__pycache__", ".pytest_cache"}
+    {".git", "target", "target-v4", "__pycache__", ".pytest_cache"}
 )
+# Workspace-level local evidence is outside SOURCE_ROOTS. Do not exclude every
+# directory named "local": src/local/mod.rs is ordinary production source.
 MAX_SOURCE_FILES = 4096
 MAX_SOURCE_FILE_BYTES = 64 * 1024 * 1024
 MAX_SOURCE_BYTES = 256 * 1024 * 1024

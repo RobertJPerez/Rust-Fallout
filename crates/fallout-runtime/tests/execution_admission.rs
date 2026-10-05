@@ -433,6 +433,46 @@ fn cached_source_rejections_retain_the_first_exact_failure_without_reparsing() {
     }
 }
 
+#[test]
+fn byte_mutated_control_flow_is_rejected_by_vm_admission_before_any_permit() {
+    let mut conditional = instruction(0x16, &[0, 0, 1, 0, b'1']);
+    conditional.extend(instruction(0x19, &[]));
+    let valid = event(&conditional);
+    let mut bad_event_distance = valid.clone();
+    bad_event_distance[6] += 1;
+    let mut bad_conditional_distance = valid.clone();
+    bad_conditional_distance[14] = 1;
+    let mut orphan_else_if = valid.clone();
+    orphan_else_if[10] = 0x18;
+    let mut conditional_crossing = valid;
+    conditional_crossing[19] = 0x11;
+
+    for (name, source) in [
+        ("bad event distance", bad_event_distance),
+        ("bad conditional distance", bad_conditional_distance),
+        ("orphan else-if", orphan_else_if),
+        ("conditional crosses event", conditional_crossing),
+    ] {
+        let (_directory, catalogue, attachments) = fixture(&[(0x300, source, vec![])], vec![]);
+        let sources = prepared(&catalogue);
+        let roots = root_handles(&catalogue);
+        let report = check(&sources, &attachments, &roots, Limits::default())
+            .unwrap_or_else(|error| panic!("{name} produced an admission error: {error}"));
+        assert_eq!(
+            report.first_unsupported.code,
+            Code::SourcePlanUnavailable,
+            "{name}"
+        );
+        assert!(
+            report.first_unsupported.source_scda_offset.is_some(),
+            "{name}"
+        );
+        assert!(!report.faithful_execution_admitted, "{name}");
+        assert!(!report.retail_lifecycle_verified, "{name}");
+        assert!(report.dependencies.is_empty(), "{name}");
+    }
+}
+
 fn shared_graph() -> (tempfile::TempDir, Catalogue, Attachments) {
     let call = |index: u8| instruction(0x102f, &[1, 0, b'r', index, 0]);
     fixture(

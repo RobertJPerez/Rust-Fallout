@@ -1,4 +1,5 @@
 //! A small inspection host for the production decoder, not a gameplay runtime.
+mod capture;
 mod fixture;
 mod input;
 mod loading;
@@ -30,8 +31,10 @@ use bevy::{
     window::{ExitCondition, PrimaryWindow, WindowCloseRequested, WindowCreated},
     winit::WinitPlugin,
 };
+use capture::{Artifact, Writer as CaptureWriter};
 use clap::{ArgGroup, Parser};
 use fallout_data::{assets::ArchiveAssets, baseline, vfs::AssetPath};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
     fs::OpenOptions,
@@ -40,6 +43,43 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
+const MAX_CAMERA_BATCH_VIEWS: usize = 4;
+const MAX_CAMERA_BATCH_INPUT_BYTES: usize = 64 * 1024;
+const MAX_CAMERA_BATCH_PIXELS: u64 = 8 * 1024 * 1024;
+
+#[derive(Clone)]
+struct CameraBatchView {
+    camera: Arc<scene::camera::Record>,
+    capture: PathBuf,
+    receipt: PathBuf,
+}
+
+#[derive(Clone)]
+struct CameraBatchRequest {
+    views: Vec<CameraBatchView>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CameraBatchFile {
+    schema_version: u32,
+    views: Vec<CameraBatchFileView>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CameraBatchFileView {
+    camera: scene::camera::Record,
+    capture: PathBuf,
+    receipt: PathBuf,
+}
+
+struct CameraBatchState {
+    views: Vec<CameraBatchView>,
+    next_view: usize,
+    preflighted: bool,
+}
 
 #[derive(Parser, Resource, Clone)]
 #[command(about = "Inspect New Vegas models, placed interiors or authored terrain")]
@@ -54,6 +94,8 @@ struct Options {
     native_inventory_request: Option<Arc<native::inventory::Request>>,
     #[arg(skip)]
     camera_restore_request: Option<Arc<scene::camera::Record>>,
+    #[arg(skip)]
+    camera_batch_request: Option<CameraBatchRequest>,
     #[arg(skip)]
     rectangle_request: Option<Arc<ui::rectangles::Request>>,
     #[arg(skip)]
@@ -175,6 +217,9 @@ struct Options {
     /// Restore an exact source-scene-bound engineering inspection camera.
     #[arg(long, conflicts_with_all = ["camera_position", "camera_look_at", "pose_times", "native_edit", "native_save_after_ready"])]
     camera_restore: Option<PathBuf>,
+    /// Capture up to four prevalidated camera views serially in one headless scene load.
+    #[arg(long, requires = "headless", conflicts_with_all = ["capture", "camera_restore", "camera_receipt", "camera_position", "camera_look_at", "pose_times", "pose_receipt", "native_save", "native_save_after_ready", "native_edit", "native_edit_receipt", "native_inventory", "native_inventory_report", "material_fixture", "report"])]
+    camera_batch: Option<PathBuf>,
     /// Record the actual admitted perspective camera with its successful capture.
     #[arg(long, requires = "capture", conflicts_with_all = ["pose_times", "native_edit", "native_save_after_ready"])]
     camera_receipt: Option<PathBuf>,
@@ -182,7 +227,7 @@ struct Options {
     #[arg(long)]
     capture: Option<PathBuf>,
     /// Render to an image without opening a desktop window.
-    #[arg(long, requires = "capture")]
+    #[arg(long)]
     headless: bool,
     #[arg(long)]
     report: Option<PathBuf>,
@@ -297,6 +342,9 @@ struct Capture {
     target: Option<Handle<Image>>,
     frame: usize,
     started: Instant,
+    pending: bool,
+    done: bool,
+    batch: Option<CameraBatchState>,
 }
 
 #[derive(Resource)]
@@ -494,6 +542,23 @@ fn retry_outputs(options: &Options) -> Result<(), String> {
             ));
         }
     }
+    if let Some(batch) = &options.camera_batch_request {
+        for path in batch
+            .views
+            .iter()
+            .flat_map(|view| [&view.capture, &view.receipt])
+        {
+            if path
+                .try_exists()
+                .map_err(|error| format!("Retry output check failed: {error}"))?
+            {
+                return Err(format!(
+                    "Retry refused: output {} already exists; start a new run with fresh output paths",
+                    path.display()
+                ));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -528,6 +593,119 @@ fn output_path(
     Ok(result)
 }
 
+fn read_camera_batch(path: &Path, options: &Options) -> model::Result<CameraBatchRequest> {
+    let mut bytes = Vec::new();
+    OpenOptions::new()
+        .read(true)
+        .open(path)?
+        .take(MAX_CAMERA_BATCH_INPUT_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_CAMERA_BATCH_INPUT_BYTES {
+        return Err("Camera batch request exceeds its 64 KiB input bound".into());
+    }
+    let file: CameraBatchFile = serde_json::from_slice(&bytes)?;
+    if file.schema_version != 1
+        || file.views.is_empty()
+        || file.views.len() > MAX_CAMERA_BATCH_VIEWS
+    {
+        return Err("Camera batch requires schema 1 and 1..4 ordered views".into());
+    }
+
+    let manifest = path.canonicalize()?;
+    let base = manifest
+        .parent()
+        .ok_or("Camera batch request has no parent")?;
+    let expected_binding = file.views[0].camera.binding.clone();
+    let expected_viewport = file.views[0].camera.viewport.clone();
+    let expected_initial = file.views[0].camera.initial_source.clone();
+    let mut admitted = Vec::with_capacity(file.views.len());
+    let mut outputs = Vec::with_capacity(file.views.len() * 2);
+    let mut total_pixels = 0u64;
+
+    for view in file.views {
+        // Reuse the camera contract's full word, source, projection and viewport
+        // validation before admitting any output or starting the renderer.
+        scene::camera::encode(&view.camera, scene::camera::RECORD_BYTES)?;
+        if view.camera.binding != expected_binding
+            || view.camera.viewport != expected_viewport
+            || view.camera.initial_source != expected_initial
+        {
+            return Err("Camera batch views must share one source identity and viewport".into());
+        }
+        let [width, height] = view.camera.viewport.physical_pixels;
+        let pixels = u64::from(width)
+            .checked_mul(u64::from(height))
+            .filter(|pixels| *pixels <= capture::MAX_PIXELS)
+            .ok_or("Camera batch view exceeds the admitted screenshot pixel bound")?;
+        total_pixels = total_pixels
+            .checked_add(pixels)
+            .filter(|pixels| *pixels <= MAX_CAMERA_BATCH_PIXELS)
+            .ok_or("Camera batch exceeds its aggregate pixel bound")?;
+
+        let resolve = |output: &Path| {
+            if output.is_absolute() {
+                output.to_path_buf()
+            } else {
+                base.join(output)
+            }
+        };
+        let capture_path = output_path(
+            &resolve(&view.capture),
+            options.install.as_deref(),
+            options.model_file.as_deref(),
+        )?;
+        let receipt_path = output_path(
+            &resolve(&view.receipt),
+            options.install.as_deref(),
+            options.model_file.as_deref(),
+        )?;
+        if capture_path == receipt_path
+            || capture_path == manifest
+            || receipt_path == manifest
+            || outputs.contains(&capture_path)
+            || outputs.contains(&receipt_path)
+        {
+            return Err(
+                "Camera batch outputs must be fresh and pairwise distinct from the request".into(),
+            );
+        }
+        outputs.push(capture_path.clone());
+        outputs.push(receipt_path.clone());
+        admitted.push(CameraBatchView {
+            camera: Arc::new(view.camera),
+            capture: capture_path,
+            receipt: receipt_path,
+        });
+    }
+
+    Ok(CameraBatchRequest { views: admitted })
+}
+
+fn prepare_camera_batch(options: &mut Options) -> model::Result<()> {
+    let Some(path) = options.camera_batch.clone() else {
+        return Ok(());
+    };
+    if !options.headless || options.capture.is_some() {
+        return Err("Camera batch requires --headless and supplies its own PNG paths".into());
+    }
+    if options.model.is_none()
+        && options.model_file.is_none()
+        && options.cell.is_none()
+        && options.terrain.is_none()
+    {
+        return Err("Camera batches require a model, interior or terrain inspector".into());
+    }
+    let request = read_camera_batch(&path, options)?;
+    let first = request
+        .views
+        .first()
+        .ok_or("Camera batch has no admitted first view")?;
+    options.camera_restore_request = Some(Arc::clone(&first.camera));
+    options.capture = Some(first.capture.clone());
+    options.camera_batch_request = Some(request);
+    Ok(())
+}
+
 fn validate_pose_times(options: &Options) -> model::Result<()> {
     if options.pose_times.len() > 32 || options.pose_times.iter().any(|time| !time.is_finite()) {
         return Err("Explicit live pose times require 1..32 finite requested values".into());
@@ -541,8 +719,14 @@ fn validate_pose_times(options: &Options) -> model::Result<()> {
 
 fn run() -> model::Result<AppExit> {
     let mut options = Options::parse();
+    prepare_camera_batch(&mut options)?;
     validate_pose_times(&options)?;
-    if (options.camera_restore.is_some() || options.camera_receipt.is_some())
+    if options.headless && options.capture.is_none() {
+        return Err("Headless rendering requires --capture or --camera-batch".into());
+    }
+    if (options.camera_restore.is_some()
+        || options.camera_receipt.is_some()
+        || options.camera_batch_request.is_some())
         && options.model.is_none()
         && options.model_file.is_none()
         && options.cell.is_none()
@@ -905,7 +1089,9 @@ fn run() -> model::Result<AppExit> {
     if headless {
         plugins = plugins.disable::<WinitPlugin>();
     }
+    let capture_writer = CaptureWriter::default();
     let mut app = App::new();
+    app.insert_resource(capture_writer.clone());
     if let Some(request) = &options.camera_restore_request {
         app.insert_resource(CameraRestore {
             request: Arc::clone(request),
@@ -957,13 +1143,25 @@ fn run() -> model::Result<AppExit> {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (controls, drive_loading, drive_pose, drive_camera, capture).chain(),
+            (
+                controls,
+                drive_loading,
+                drive_pose,
+                drive_camera,
+                drive_capture_writer,
+                capture,
+            )
+                .chain(),
         );
     if headless {
         app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)));
     }
     let result = app.run();
+    let capture_shutdown = capture_writer
+        .finish()
+        .map_err(|error| format!("Screenshot shutdown drain failed: {error}"));
     native_shutdown.finish()?;
+    capture_shutdown?;
     Ok(result)
 }
 
@@ -1255,7 +1453,10 @@ fn prepare_scene(
         )?,
         _ => orbit.transform(),
     };
-    let camera_binding = if options.camera_restore.is_some() || options.camera_receipt.is_some() {
+    let camera_binding = if options.camera_restore.is_some()
+        || options.camera_receipt.is_some()
+        || options.camera_batch_request.is_some()
+    {
         let binding = scene::camera::bind(&report, prepared.origin, epoch)?;
         if options
             .camera_restore_request
@@ -1279,7 +1480,9 @@ fn prepare_scene(
             .and_then(|request| request.initial_source.clone()),
     };
     let navigation = Navigation {
-        fly: options.camera_position.is_some() || options.camera_restore.is_some(),
+        fly: options.camera_position.is_some()
+            || options.camera_restore.is_some()
+            || options.camera_batch_request.is_some(),
         home,
         camera_binding,
         initial_source,
@@ -1371,6 +1574,10 @@ fn drive_loading(
     let epoch = state.epoch;
     let mut phase = std::mem::replace(&mut state.phase, Phase::Cancelled);
     if closing {
+        if options.capture.is_some() && !capture.done {
+            error!("Window closed before the requested capture completed");
+            exit.write(AppExit::error());
+        }
         display.0 = None;
         state.epoch = state.epoch.saturating_add(1);
         match phase {
@@ -1892,6 +2099,16 @@ fn setup(
         target,
         frame: 0,
         started: Instant::now(),
+        pending: false,
+        done: false,
+        batch: options
+            .camera_batch_request
+            .as_ref()
+            .map(|batch| CameraBatchState {
+                views: batch.views.clone(),
+                next_view: 0,
+                preflighted: false,
+            }),
     });
 }
 
@@ -1914,7 +2131,16 @@ fn controls(
         return;
     }
     if actions.close {
-        exit.write(AppExit::Success);
+        exit.write(
+            if options.capture.is_some() && capture.as_ref().is_some_and(|capture| !capture.done) {
+                AppExit::error()
+            } else {
+                AppExit::Success
+            },
+        );
+        return;
+    }
+    if capture.as_ref().is_some_and(|capture| capture.pending) {
         return;
     }
     if options.tile_viewport().is_some()
@@ -2181,6 +2407,10 @@ fn current_camera_binding<'a>(
     Ok(binding)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Bevy separates the camera binding, viewport and restore state owners"
+)]
 fn drive_camera(
     loading: Res<Loading>,
     mut navigation: ResMut<Navigation>,
@@ -2189,6 +2419,7 @@ fn drive_camera(
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut exit: MessageWriter<AppExit>,
     options: Res<Options>,
+    mut capture: Option<ResMut<Capture>>,
 ) {
     let Some(mut restore) = restore else {
         return;
@@ -2219,11 +2450,17 @@ fn drive_camera(
                 if !matches!(*projection, Projection::Perspective(_)) {
                     return Err("Camera restore requires the admitted perspective inspector".into());
                 }
-                let (next, next_projection) = scene::camera::restore(
-                    &restore.request,
-                    binding,
-                    &scene::camera::viewport(camera)?,
-                )?;
+                let viewport = scene::camera::viewport(camera)?;
+                if let Some(batch) = capture.as_mut().and_then(|capture| capture.batch.as_mut())
+                    && !batch.preflighted
+                {
+                    for view in &batch.views {
+                        scene::camera::restore(&view.camera, binding, &viewport)?;
+                    }
+                    batch.preflighted = true;
+                }
+                let (next, next_projection) =
+                    scene::camera::restore(&restore.request, binding, &viewport)?;
                 // The complete source, viewport and all pose/projection words have
                 // passed before the first camera or reset-home mutation.
                 *transform = next;
@@ -2304,6 +2541,80 @@ struct CaptureOptions<'w, 's> {
         Query<'w, 's, (&'static Camera, &'static Transform, &'static Projection), With<Camera3d>>,
 }
 
+fn drive_capture_writer(
+    writer: ResMut<CaptureWriter>,
+    mut state: ResMut<Capture>,
+    mut exit: MessageWriter<AppExit>,
+    restore: Option<ResMut<CameraRestore>>,
+) {
+    let Some(result) = writer.poll() else {
+        return;
+    };
+    state.pending = false;
+    match result {
+        Ok(written) => {
+            let next_request = if let Some(batch) = state.batch.as_mut() {
+                let completed = batch.next_view + 1;
+                let total = batch.views.len();
+                info!(
+                    "Camera batch view {completed}/{total}: {} ({}x{}, sha256 {})",
+                    written.path.display(),
+                    written.width,
+                    written.height,
+                    written.png_sha256
+                );
+                if completed < total {
+                    batch.next_view += 1;
+                    Some(Arc::clone(&batch.views[batch.next_view].camera))
+                } else {
+                    None
+                }
+            } else {
+                info!(
+                    "Captured {} ({}x{}, sha256 {})",
+                    written.path.display(),
+                    written.width,
+                    written.height,
+                    written.png_sha256
+                );
+                None
+            };
+            if let Some(request) = next_request {
+                state.frame = 0;
+                state.started = Instant::now();
+                state.done = false;
+                if let Some(mut restore) = restore {
+                    restore.request = request;
+                    restore.attempted = false;
+                    restore.applied = false;
+                    restore.error = None;
+                    restore.ready_started = None;
+                } else {
+                    state.done = true;
+                    error!("Camera batch lost its camera restore owner");
+                    exit.write(AppExit::error());
+                }
+            } else {
+                state.done = true;
+                exit.write(AppExit::Success);
+            }
+        }
+        Err(error) => {
+            state.done = true;
+            if let Some(batch) = &state.batch {
+                error!(
+                    "Camera batch failed at view {}/{}: {error}",
+                    batch.next_view + 1,
+                    batch.views.len()
+                );
+            } else {
+                error!("Capture failed: {error}");
+            }
+            exit.write(AppExit::error());
+        }
+    }
+}
+
 fn capture(
     mut commands: Commands,
     request: CaptureOptions,
@@ -2311,12 +2622,32 @@ fn capture(
     mut state: ResMut<Capture>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    if state.pending || state.done {
+        return;
+    }
     let options = &*request.options;
+    let current_paths = match &state.batch {
+        Some(batch) => match batch.views.get(batch.next_view) {
+            Some(view) => Some((view.capture.clone(), Some(view.receipt.clone()))),
+            None => {
+                error!("Camera batch cursor escaped its admitted view list");
+                exit.write(AppExit::error());
+                return;
+            }
+        },
+        None => options
+            .capture
+            .clone()
+            .map(|path| (path, options.camera_receipt.clone())),
+    };
+    let Some((path, camera_receipt_path)) = current_paths else {
+        return;
+    };
     let live = request.live;
     let editing = request.editing;
     let inventory_run = request.inventory;
     if !matches!(loading.phase, Phase::Ready(_))
-        || (options.camera_restore.is_some()
+        || ((options.camera_restore.is_some() || options.camera_batch_request.is_some())
             && request
                 .restore
                 .as_ref()
@@ -2349,9 +2680,6 @@ fn capture(
     {
         return;
     }
-    let Some(path) = options.capture.clone() else {
-        return;
-    };
     if state.started.elapsed() > Duration::from_secs(120) {
         error!("GPU capture timed out");
         exit.write(AppExit::error());
@@ -2373,12 +2701,12 @@ fn capture(
     if state.frame != 64 {
         return;
     }
+    state.pending = true;
     let screenshot = state
         .target
         .clone()
         .map(Screenshot::image)
         .unwrap_or_else(Screenshot::primary_window);
-    let camera_receipt_path = options.camera_receipt.clone();
     let camera_record = if camera_receipt_path.is_some() {
         let result = (|| -> model::Result<scene::camera::Record> {
             let binding = current_camera_binding(&request.navigation, &loading)?;
@@ -2485,28 +2813,51 @@ fn capture(
     commands.spawn(screenshot).observe(
         move |event: On<ScreenshotCaptured>,
               mut exit: MessageWriter<AppExit>,
-              mut fixture: Option<ResMut<fixture::Report>>,
+              writer: ResMut<CaptureWriter>,
+              fixture: Option<ResMut<fixture::Report>>,
               loading: Res<Loading>,
               live: Option<Res<LivePose>>,
               editing: Option<Res<EditRun>>,
               navigation: Res<Navigation>,
               cameras: Query<(&Camera,&Transform,&Projection),With<Camera3d>>| {
-            let mut save = || -> model::Result<()> {
-                if let Some(expected) = &camera_record {
-                    let binding = current_camera_binding(&navigation,&loading)?;
-                    let (camera,transform,projection) = cameras.single()?;
-                    let actual = scene::camera::record(binding,transform,projection,scene::camera::viewport(camera)?,
-                        navigation.initial_source.clone(),scene::camera::RECORD_BYTES)?;
-                    if actual != *expected { return Err("Discarded changed inspection camera readback".into()); }
+            let (width, height) = match capture::validate_image(&event.image) {
+                Ok(size) => size,
+                Err(error) => {
+                    error!("Capture readback refused: {error}");
+                    exit.write(AppExit::error());
+                    return;
                 }
-                if let Some((epoch,sequence,revision,_))=&inventory_data
-                    && (loading.epoch!=*epoch || !matches!(&loading.phase,Phase::Ready(queue)
-                        if queue.cell.as_ref().and_then(|cell|cell.native.as_ref())
-                            .and_then(|host|host.inventory(*epoch)).is_some_and(|observation| {
-                                observation.sequence==*sequence && observation.view.revision()==*revision
-                            })))
-                    {return Err("Discarded stale inventory capture readback".into());}
-                if let Some((epoch,sequence,revision)) = edit_identity
+            };
+            let save = || -> Result<(), String> {
+                if let Some(expected) = &camera_record {
+                    let binding = current_camera_binding(&navigation, &loading)
+                        .map_err(|error| error.to_string())?;
+                    let (camera, transform, projection) =
+                        cameras.single().map_err(|error| error.to_string())?;
+                    let actual = scene::camera::record(
+                        binding,
+                        transform,
+                        projection,
+                        scene::camera::viewport(camera).map_err(|error| error.to_string())?,
+                        navigation.initial_source.clone(),
+                        scene::camera::RECORD_BYTES,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    if actual != *expected {
+                        return Err("Discarded changed inspection camera readback".into());
+                    }
+                }
+                if let Some((epoch, sequence, revision, _)) = &inventory_data
+                    && (loading.epoch != *epoch
+                        || !matches!(&loading.phase,Phase::Ready(queue)
+                            if queue.cell.as_ref().and_then(|cell|cell.native.as_ref())
+                                .and_then(|host|host.inventory(*epoch)).is_some_and(|observation| {
+                                    observation.sequence==*sequence && observation.view.revision()==*revision
+                                })))
+                {
+                    return Err("Discarded stale inventory capture readback".into());
+                }
+                if let Some((epoch, sequence, revision)) = edit_identity
                     && (loading.epoch != epoch
                         || !matches!(&loading.phase,Phase::Ready(queue) if queue.cell.as_ref()
                             .and_then(|cell|cell.native.as_ref()).is_some_and(|host| {
@@ -2514,7 +2865,9 @@ fn capture(
                             }))
                         || editing.as_ref().is_none_or(|edit|edit.error.is_some()
                             || edit.receipt.as_ref().is_none_or(|receipt|receipt.intent_sequence!=sequence)))
-                    { return Err("Discarded stale canonical edit capture readback".into()); }
+                {
+                    return Err("Discarded stale canonical edit capture readback".into());
+                }
                 if let Some((epoch, sequence, time)) = pose_identity {
                     let current = live.as_ref().and_then(|live| live.receipt.as_ref());
                     if loading.epoch != epoch
@@ -2530,66 +2883,77 @@ fn capture(
                         return Err("Discarded stale live pose capture readback".into());
                     }
                 }
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&path)?;
-                let image = event.image.clone().try_into_dynamic()?.to_rgb8();
-                image.write_to(&mut file, image::ImageFormat::Png)?;
-                file.sync_all()?;
+                let mut artifacts = Vec::new();
                 if let Some(path) = &camera_receipt_path {
-                    let bytes = scene::camera::encode(camera_record.as_ref().ok_or("Current camera record unavailable")?,scene::camera::RECORD_BYTES)?;
-                    let mut receipt = OpenOptions::new().write(true).create_new(true).open(path)?;
-                    receipt.write_all(&bytes)?;receipt.sync_all()?;
+                    let bytes = scene::camera::encode(
+                        camera_record
+                            .as_ref()
+                            .ok_or("Current camera record unavailable")?,
+                        scene::camera::RECORD_BYTES,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    artifacts.push(Artifact {
+                        path: path.clone(),
+                        bytes: Arc::from(bytes),
+                    });
                 }
-                if let Some(report_path)=&inventory_report_path {
-                    let bytes=&inventory_data.as_ref().ok_or("Current inventory observation unavailable")?.3;
-                    let mut report_file=OpenOptions::new().write(true).create_new(true).open(report_path)?;
-                    report_file.write_all(bytes)?;report_file.sync_all()?;
+                if let Some(report_path) = &inventory_report_path {
+                    let bytes = Arc::clone(
+                        &inventory_data
+                            .as_ref()
+                            .ok_or("Current inventory observation unavailable")?
+                            .3,
+                    );
+                    artifacts.push(Artifact {
+                        path: report_path.clone(),
+                        bytes,
+                    });
                 }
                 if let Some(receipt_path) = &edit_receipt_path {
                     let bytes = pose_capture_receipt(
                         edit_bytes.as_ref().ok_or("Current edit receipt unavailable")?,
-                        &path,[image.width(),image.height()],
-                    )?;
-                    let mut receipt_file = OpenOptions::new().write(true).create_new(true).open(receipt_path)?;
-                    receipt_file.write_all(&bytes)?;
-                    receipt_file.write_all(b"\n")?;
-                    receipt_file.sync_all()?;
+                        &path,
+                        [width, height],
+                    )
+                    .map_err(|error| error.to_string())?;
+                    let mut bytes = bytes;
+                    bytes.push(b'\n');
+                    artifacts.push(Artifact {
+                        path: receipt_path.clone(),
+                        bytes: Arc::from(bytes),
+                    });
                 }
                 if let Some(receipt_path) = &pose_receipt {
                     let bytes = pose_bytes
                         .as_ref()
                         .ok_or("Current pose capture receipt unavailable")?;
-                    let bytes =
-                        pose_capture_receipt(bytes, &path, [image.width(), image.height()])?;
-                    let mut receipt_file = OpenOptions::new()
-                        .write(true)
-                        .create_new(true)
-                        .open(receipt_path)?;
-                    receipt_file.write_all(&bytes)?;
-                    receipt_file.write_all(b"\n")?;
-                    receipt_file.sync_all()?;
+                    let mut bytes = pose_capture_receipt(bytes, &path, [width, height])
+                        .map_err(|error| error.to_string())?;
+                    bytes.push(b'\n');
+                    artifacts.push(Artifact {
+                        path: receipt_path.clone(),
+                        bytes: Arc::from(bytes),
+                    });
                 }
-                if let Some(report) = fixture.as_mut() {
-                    let verification = report.verify(&image);
-                    // Keep failed measurements too, so a shader failure is reviewable.
-                    let mut report_file = OpenOptions::new()
-                        .write(true)
-                        .create_new(true)
-                        .open(report_path.as_ref().expect("fixture requires report"))?;
-                    serde_json::to_writer_pretty(&mut report_file, &**report)?;
-                    report_file.write_all(b"\n")?;
-                    report_file.sync_all()?;
-                    verification?;
-                }
+                writer
+                    .start(
+                        &event.image,
+                        path.clone(),
+                        artifacts,
+                        fixture.as_ref().map(|report| {
+                            (
+                                (**report).clone(),
+                                report_path
+                                    .clone()
+                                    .expect("fixture requires a report output path"),
+                            )
+                        }),
+                    )
+                    .map_err(|error| error.to_string())?;
                 Ok(())
             };
             match save() {
-                Ok(()) => {
-                    info!("Captured {}", path.display());
-                    exit.write(AppExit::Success);
-                }
+                Ok(()) => {}
                 Err(error) => {
                     error!("Capture failed: {error}");
                     exit.write(AppExit::error());
@@ -2613,6 +2977,174 @@ fn main() -> std::process::ExitCode {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use serde_json::{Value, json};
+    use std::{fs, path::Path};
+
+    fn camera_batch_test_record(x: f32, width: u32, height: u32) -> scene::camera::Record {
+        let binding = scene::camera::Binding {
+            scene_epoch: 1,
+            source_scene_sha256: "00".repeat(32),
+            source_origin_f64_bits: [0f64.to_bits(); 3],
+            canonical_revision: None,
+        };
+        let transform =
+            Transform::from_xyz(x, 10., 65.).looking_at(Vec3::new(x - 50., 10., 65.), Vec3::Y);
+        let projection = Projection::Perspective(PerspectiveProjection {
+            fov: std::f32::consts::FRAC_PI_4,
+            aspect_ratio: width as f32 / height as f32,
+            near: 0.01,
+            far: 5000.,
+            ..default()
+        });
+        scene::camera::record(
+            &binding,
+            &transform,
+            &projection,
+            scene::camera::Viewport {
+                physical_pixels: [width, height],
+                logical_f32_bits: [(width as f32).to_bits(), (height as f32).to_bits()],
+            },
+            None,
+            scene::camera::RECORD_BYTES,
+        )
+        .unwrap()
+    }
+
+    fn camera_batch_test_dir() -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "fallout-preview-camera-batch-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(directory.join("source")).unwrap();
+        fs::create_dir_all(directory.join("install")).unwrap();
+        fs::write(
+            directory.join("source/fixture.nif"),
+            b"authored source path",
+        )
+        .unwrap();
+        directory
+    }
+
+    fn camera_batch_test_options(directory: &Path, manifest: &Path) -> Options {
+        Options::try_parse_from([
+            "fallout-preview".to_owned(),
+            "--install".to_owned(),
+            directory.join("install").to_string_lossy().into_owned(),
+            "--model-file".to_owned(),
+            directory
+                .join("source/fixture.nif")
+                .to_string_lossy()
+                .into_owned(),
+            "--camera-batch".to_owned(),
+            manifest.to_string_lossy().into_owned(),
+            "--headless".to_owned(),
+        ])
+        .unwrap()
+    }
+
+    fn camera_batch_test_manifest(directory: &Path, views: Vec<Value>) -> PathBuf {
+        let path = directory.join("views.json");
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&json!({"schema_version":1,"views":views})).unwrap(),
+        )
+        .unwrap();
+        path
+    }
+
+    fn camera_batch_test_views(count: usize, width: u32, height: u32) -> Vec<Value> {
+        (0..count)
+            .map(|index| {
+                json!({
+                    "camera": camera_batch_test_record(index as f32 + 60., width, height),
+                    "capture": format!("capture-{index}.png"),
+                    "receipt": format!("camera-{index}.json"),
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn camera_batch_admits_ordered_source_bound_views_and_resolves_each_output() {
+        let directory = camera_batch_test_dir();
+        let manifest =
+            camera_batch_test_manifest(&directory, camera_batch_test_views(3, 1280, 900));
+        let mut options = camera_batch_test_options(&directory, &manifest);
+        prepare_camera_batch(&mut options).unwrap();
+
+        let batch = options.camera_batch_request.as_ref().unwrap();
+        let canonical_directory = directory.canonicalize().unwrap();
+        assert_eq!(batch.views.len(), 3);
+        for (index, view) in batch.views.iter().enumerate() {
+            assert_eq!(
+                view.capture,
+                canonical_directory.join(format!("capture-{index}.png"))
+            );
+            assert_eq!(
+                view.receipt,
+                canonical_directory.join(format!("camera-{index}.json"))
+            );
+            assert!(!view.capture.exists());
+            assert!(!view.receipt.exists());
+        }
+        assert_eq!(
+            options.capture,
+            batch.views.first().map(|view| view.capture.clone())
+        );
+        assert_eq!(
+            options.camera_restore_request.as_ref().unwrap().as_ref(),
+            batch.views.first().unwrap().camera.as_ref()
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn camera_batch_rejects_bad_last_identity_alias_and_aggregate_before_any_capture() {
+        let directory = camera_batch_test_dir();
+        let mut views = camera_batch_test_views(3, 1280, 900);
+        views[2]["camera"]["binding"]["source_scene_sha256"] = "11".repeat(32).into();
+        let manifest = camera_batch_test_manifest(&directory, views);
+        let mut options = camera_batch_test_options(&directory, &manifest);
+        assert!(prepare_camera_batch(&mut options).is_err());
+        assert!(!directory.join("capture-0.png").exists());
+
+        let mut views = camera_batch_test_views(2, 1280, 900);
+        views[1]["capture"] = views[0]["receipt"].clone();
+        let manifest = camera_batch_test_manifest(&directory, views);
+        let mut options = camera_batch_test_options(&directory, &manifest);
+        assert!(prepare_camera_batch(&mut options).is_err());
+        assert!(!directory.join("capture-0.png").exists());
+
+        let manifest =
+            camera_batch_test_manifest(&directory, camera_batch_test_views(3, 2000, 2000));
+        let mut options = camera_batch_test_options(&directory, &manifest);
+        assert!(prepare_camera_batch(&mut options).is_err());
+        assert!(!directory.join("capture-0.png").exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn camera_batch_rejects_input_and_view_count_caps_before_admission() {
+        let directory = camera_batch_test_dir();
+        let manifest = camera_batch_test_manifest(
+            &directory,
+            camera_batch_test_views(MAX_CAMERA_BATCH_VIEWS + 1, 1280, 900),
+        );
+        let mut options = camera_batch_test_options(&directory, &manifest);
+        assert!(prepare_camera_batch(&mut options).is_err());
+        assert!(!directory.join("capture-0.png").exists());
+
+        let manifest = directory.join("oversized.json");
+        fs::write(&manifest, vec![b' '; MAX_CAMERA_BATCH_INPUT_BYTES + 1]).unwrap();
+        let mut options = camera_batch_test_options(&directory, &manifest);
+        assert!(prepare_camera_batch(&mut options).is_err());
+        assert!(!directory.join("capture-0.png").exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn actual_camera_controls_record_and_fresh_source_restore_preserve_the_moved_view() {
@@ -3180,7 +3712,11 @@ mod tests {
                 target: None,
                 frame: 63,
                 started: Instant::now(),
+                pending: false,
+                done: false,
+                batch: None,
             })
+            .insert_resource(CaptureWriter::default())
             .add_message::<AppExit>()
             .add_systems(Update, (drive_loading, drive_pose, capture).chain());
         app.world_mut().spawn((

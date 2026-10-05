@@ -174,6 +174,217 @@ fn setup() -> (Fixture, CellResidency, Ticket) {
     (fixture, owner, ticket)
 }
 
+mod upload_admission {
+    use super::*;
+    use bevy::{
+        app::SubApp,
+        asset::{Assets, RenderAssetUsages},
+        pbr::StandardMaterial,
+        prelude::{App, Handle, Image, Mesh},
+        render::{Render, RenderApp, RenderStartup, render_resource::PrimitiveTopology},
+    };
+    use engine_bridge::upload::{UploadAssets, UploadMonitor, UploadPlugin};
+
+    fn app(render_schedule: bool) -> App {
+        let mut app = App::new();
+        app.init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .init_resource::<Assets<Image>>();
+        if render_schedule {
+            app.insert_sub_app(RenderApp, SubApp::new());
+        }
+        app.add_plugins(UploadPlugin::<StandardMaterial>::default());
+        if render_schedule {
+            app.sub_app_mut(RenderApp)
+                .world_mut()
+                .run_schedule(RenderStartup);
+        }
+        app
+    }
+
+    fn draws(app: &mut App) -> UploadAssets<StandardMaterial> {
+        let mesh = Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        )
+        .with_inserted_attribute(
+            Mesh::ATTRIBUTE_POSITION,
+            vec![[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]],
+        );
+        UploadAssets {
+            meshes: vec![app.world_mut().resource_mut::<Assets<Mesh>>().add(mesh)],
+            materials: vec![
+                app.world_mut()
+                    .resource_mut::<Assets<StandardMaterial>>()
+                    .add(StandardMaterial::default()),
+            ],
+            images: vec![
+                app.world_mut()
+                    .resource_mut::<Assets<Image>>()
+                    .add(Image::default()),
+            ],
+        }
+    }
+
+    #[test]
+    fn no_renderer_never_admits_an_upload_after_elapsed_updates() {
+        let (_fixture, owner, ticket) = setup();
+        let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        scene.submission_complete(EPOCH).unwrap();
+        let mut app = app(false);
+        let monitor = app
+            .world()
+            .resource::<UploadMonitor<StandardMaterial>>()
+            .clone();
+        for _ in 0..3 {
+            app.update();
+            assert!(matches!(
+                monitor.watch(&scene, EPOCH, draws(&mut app)),
+                Err(JobError::Invalid(message)) if message.contains("not initialized")
+            ));
+        }
+        assert_eq!(scene.phase(), Phase::Submitted);
+        assert!(!scene.snapshot().source.render_published);
+    }
+
+    #[test]
+    fn weak_and_duplicate_handles_are_refused_for_each_asset_kind() {
+        let (_fixture, owner, ticket) = setup();
+        let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        scene.submission_complete(EPOCH).unwrap();
+        let mut app = app(true);
+        let monitor = app
+            .world()
+            .resource::<UploadMonitor<StandardMaterial>>()
+            .clone();
+        for kind in 0..3 {
+            for duplicate in [false, true] {
+                let mut assets = draws(&mut app);
+                match (kind, duplicate) {
+                    (0, false) => assets.meshes[0] = Handle::default(),
+                    (1, false) => assets.materials[0] = Handle::default(),
+                    (2, false) => assets.images[0] = Handle::default(),
+                    (0, true) => assets.meshes.push(assets.meshes[0].clone()),
+                    (1, true) => assets.materials.push(assets.materials[0].clone()),
+                    (2, true) => assets.images.push(assets.images[0].clone()),
+                    _ => unreachable!(),
+                }
+                assert!(matches!(
+                    monitor.watch(&scene, EPOCH, assets),
+                    Err(JobError::Invalid(message)) if message.contains("unique strong")
+                ));
+            }
+        }
+        assert!(!scene.snapshot().source.render_published);
+    }
+
+    #[test]
+    fn upload_requires_submission_and_nonempty_draw_inventory() {
+        let (_fixture, owner, ticket) = setup();
+        let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        let mut app = app(true);
+        let monitor = app
+            .world()
+            .resource::<UploadMonitor<StandardMaterial>>()
+            .clone();
+        assert!(monitor.watch(&scene, EPOCH, draws(&mut app)).is_err());
+        assert_eq!(scene.phase(), Phase::Prepared);
+        scene.submission_complete(EPOCH).unwrap();
+        for empty_meshes in [false, true] {
+            let mut assets = draws(&mut app);
+            if empty_meshes {
+                assets.meshes.clear();
+            } else {
+                assets.materials.clear();
+            }
+            assert!(monitor.watch(&scene, EPOCH, assets).is_err());
+        }
+        assert!(!scene.snapshot().source.render_published);
+    }
+
+    #[test]
+    fn actual_render_schedule_without_gpu_resources_keeps_publication_pending() {
+        let (_fixture, owner, ticket) = setup();
+        let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        scene.submission_complete(EPOCH).unwrap();
+        let mut app = app(true);
+        let monitor = app
+            .world()
+            .resource::<UploadMonitor<StandardMaterial>>()
+            .clone();
+        let upload = monitor.watch(&scene, EPOCH, draws(&mut app)).unwrap();
+        let publications = Cell::new(0);
+        // The real Bevy schedules run, but no GPU objects or queue are installed.
+        // This verifies refusal/pending behavior, never a successful frame upload.
+        for _ in 0..3 {
+            app.sub_app_mut(RenderApp).world_mut().run_schedule(Render);
+            assert!(!upload.ready_for(&scene, EPOCH).unwrap());
+            assert_eq!(
+                upload
+                    .publish_uploaded(&mut scene, EPOCH, || {
+                        publications.set(publications.get() + 1);
+                        Ok(())
+                    })
+                    .unwrap(),
+                None
+            );
+        }
+        assert_eq!(publications.get(), 0);
+        assert_eq!(scene.phase(), Phase::Submitted);
+        upload.cancel();
+        assert!(upload.ready_for(&scene, EPOCH).is_err());
+        assert!(
+            upload
+                .publish_uploaded(&mut scene, EPOCH, || Ok(()))
+                .is_err()
+        );
+        let retry = monitor.watch(&scene, EPOCH, draws(&mut app)).unwrap();
+        assert!(!retry.ready_for(&scene, EPOCH).unwrap());
+        scene.begin_retirement(EPOCH).unwrap();
+        assert!(retry.ready_for(&scene, EPOCH).is_err());
+        assert!(!scene.snapshot().source.render_published);
+    }
+
+    #[test]
+    fn upload_binds_the_exact_scene_owner_epoch_and_render_startup() {
+        let (_fixture, owner, ticket) = setup();
+        let mut scene = SceneLifetime::prepared(owner, ticket, EPOCH).unwrap();
+        scene.submission_complete(EPOCH).unwrap();
+        let (_foreign_fixture, foreign_owner, foreign_ticket) = setup();
+        let mut foreign = SceneLifetime::prepared(foreign_owner, foreign_ticket, EPOCH).unwrap();
+        foreign.submission_complete(EPOCH).unwrap();
+        let mut app = app(true);
+        let monitor = app
+            .world()
+            .resource::<UploadMonitor<StandardMaterial>>()
+            .clone();
+        let upload = monitor.watch(&scene, EPOCH, draws(&mut app)).unwrap();
+        assert!(matches!(
+            upload.ready_for(&scene, EPOCH + 1),
+            Err(JobError::Stale)
+        ));
+        assert!(matches!(
+            upload.ready_for(&foreign, EPOCH),
+            Err(JobError::Invalid(message)) if message.contains("another source owner")
+        ));
+        assert!(monitor.watch(&scene, EPOCH, draws(&mut app)).is_err());
+        app.sub_app_mut(RenderApp)
+            .world_mut()
+            .run_schedule(RenderStartup);
+        assert!(matches!(
+            upload.ready_for(&scene, EPOCH),
+            Err(JobError::Stale)
+        ));
+        let replacement = monitor.watch(&scene, EPOCH, draws(&mut app)).unwrap();
+        assert!(!replacement.ready_for(&scene, EPOCH).unwrap());
+        drop(replacement);
+        app.sub_app_mut(RenderApp).world_mut().run_schedule(Render);
+        assert!(monitor.watch(&scene, EPOCH, draws(&mut app)).is_ok());
+        assert!(!scene.snapshot().source.render_published);
+        assert!(!foreign.snapshot().source.render_published);
+    }
+}
+
 #[test]
 fn real_source_submission_upload_and_simulation_readiness_stay_separate() {
     let (fixture, owner, ticket) = setup();

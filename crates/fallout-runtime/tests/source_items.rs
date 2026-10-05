@@ -7,16 +7,23 @@ use fallout_data::{
 };
 use fallout_runtime::{
     Limits, World,
+    application::{self, ContinueBoundary, HostIdentity, ScenePublisher},
     events::{Clocks, Context, Trigger},
     foreign::Content,
     identity::{CampaignId, InstanceId, Owner, ReferenceId, ReferenceValue, Value},
     inventory::{Ammo, Condition, Facts, ItemHandle, ItemId, OpaqueExtra, Ownership, ViewLimits},
-    save::{Captured, Recovery, Repository, SaveWorker},
+    save::{
+        Captured, Recovery, Repository, RestorePoll, RestoreTask, RestoredCandidate, SaveWorker,
+    },
     snapshot::Snapshot,
     source_items::{self, Failure, Policy, Role, SourceFactsLimits, SourceInventoryLimits},
     state::initialization,
 };
-use std::num::NonZeroU32;
+use std::{
+    num::{NonZeroU32, NonZeroU64},
+    path::Path,
+    sync::Arc,
+};
 fn load_fixture() -> (tempfile::TempDir, Catalogue, Content) {
     let dir = tempfile::tempdir().unwrap();
     write_fixture(dir.path(), false);
@@ -1880,4 +1887,198 @@ fn cold_source_facts_helper() {
         serde_json::to_vec_pretty(&receipt).unwrap(),
     )
     .unwrap();
+}
+
+fn continue_id(value: u64) -> NonZeroU64 {
+    value.try_into().unwrap()
+}
+
+fn application_sources(root: &Path) -> (Arc<Catalogue>, Arc<Content>) {
+    let mut store =
+        RecordStore::open_nv_headers(root, &["FalloutNV.esm".into()], plugin::Limits::default())
+            .unwrap();
+    let catalogue =
+        Arc::new(Catalogue::load(&mut store, CatalogueLimits::default(), |_, _| Ok(())).unwrap());
+    let content = Arc::new(Content::load(&mut store, &catalogue, 100).unwrap());
+    (catalogue, content)
+}
+
+struct ContinueSourceScene {
+    host_identity: HostIdentity,
+    generation: NonZeroU64,
+    displayed: Snapshot,
+    content: Arc<Content>,
+    publishes: usize,
+}
+
+impl ContinueSourceScene {
+    fn current(host: &application::Host<'_>, content: Arc<Content>) -> Self {
+        Self {
+            host_identity: host.identity(),
+            generation: host.scene_generation(),
+            displayed: host.world().snapshot(),
+            content,
+            publishes: 0,
+        }
+    }
+}
+
+impl ScenePublisher for ContinueSourceScene {
+    type Stage = Snapshot;
+
+    fn prepare(
+        &self,
+        candidate: &World<'_>,
+        boundary: &ContinueBoundary,
+    ) -> application::Result<Snapshot> {
+        if self.host_identity != boundary.prior_host_identity()
+            || self.generation != boundary.scene_generation()
+            || self.displayed.state_revision != boundary.prior_revision()
+        {
+            return Err(application::Failure::Refused("scene boundary changed"));
+        }
+        // Revalidate through the real authored source index at the scene gate.
+        // A refusal flows back through Host::publish_continue before mutation.
+        self.content.validate_world(candidate)?;
+        Ok(candidate.snapshot())
+    }
+
+    fn publish(&mut self, stage: Snapshot, boundary: &ContinueBoundary) {
+        self.displayed = stage;
+        self.host_identity = boundary.candidate_host_identity();
+        self.publishes += 1;
+    }
+}
+
+fn application_candidate(
+    repository: &Repository,
+    catalogue: Arc<Catalogue>,
+    request: &application::ContinueRequest,
+) -> (RestoreTask, RestoredCandidate) {
+    let mut task = RestoreTask::start(
+        repository.clone(),
+        catalogue,
+        Limits::default(),
+        Recovery::Strict,
+        request.identity().clone(),
+    )
+    .unwrap();
+    task.finish().unwrap();
+    let RestorePoll::Ready(candidate) = task.try_poll() else {
+        panic!("expected native restore candidate")
+    };
+    (task, *candidate)
+}
+
+#[test]
+fn changed_authored_sources_refuse_continue_before_host_scene_and_next_save_publication() {
+    let root = tempfile::tempdir().unwrap();
+    write_fixture(root.path(), false);
+    let source_path = root.path().join("FalloutNV.esm");
+    let mut source_bytes = std::fs::read(&source_path).unwrap();
+    source_bytes.extend(record(b"REFR", 0x500, 0, &[]));
+    source_bytes.extend(record(b"REFR", 0x501, 0, &[]));
+    std::fs::write(&source_path, &source_bytes).unwrap();
+    let original_source = source_bytes;
+    let (catalogue, content) = application_sources(root.path());
+
+    let mut world = World::new(Arc::clone(&catalogue), Limits::default()).unwrap();
+    let source = world.register_reference(Some(form(0x500))).unwrap();
+    let target = world.register_reference(Some(form(0x501))).unwrap();
+    world.initialize_inventory(source).unwrap();
+    world.initialize_inventory(target).unwrap();
+    let (item, _) = world
+        .add_source_item(
+            &content,
+            &policy(),
+            source,
+            Facts::unknown(form(0x100)),
+            8.try_into().unwrap(),
+        )
+        .unwrap();
+    let saved = world.snapshot();
+    let repository =
+        Repository::create(&root.path().join("native"), &[], world.campaign()).unwrap();
+    let mut initial_worker = SaveWorker::start(repository.clone(), 1).unwrap();
+    let initial_ticket = initial_worker
+        .try_submit(Captured::at_boundary(&world))
+        .unwrap();
+    initial_worker.finish().unwrap();
+    assert_eq!(initial_ticket.wait().unwrap().metadata.generation, 1);
+
+    let mut host = application::Host::new(
+        world,
+        Arc::clone(&content),
+        policy(),
+        continue_id(7),
+        application::HostLimits::default(),
+    )
+    .unwrap();
+    let old_transfer = host
+        .select_transfer(source, item, target, 8)
+        .unwrap()
+        .command(continue_id(1));
+    host.transfer(old_transfer.clone()).unwrap();
+    let active = host.world().snapshot();
+    assert_ne!(active, saved);
+    let prior_host = host.identity();
+    let mut scene = ContinueSourceScene::current(&host, Arc::clone(&content));
+
+    let request = host.begin_continue(continue_id(1)).unwrap();
+    let (_task, candidate) = application_candidate(&repository, Arc::clone(&catalogue), &request);
+    let prepared = host.prepare_continue(request, candidate).unwrap();
+    assert_eq!(prepared.world().snapshot(), saved);
+    assert_eq!(host.world().snapshot(), active);
+
+    let mut changed_source = original_source.clone();
+    changed_source.extend(record(b"MISC", 0x114, 0, &[]));
+    std::fs::write(&source_path, &changed_source).unwrap();
+    assert_ne!(std::fs::read(&source_path).unwrap(), original_source);
+    let (_changed_catalogue, changed_content) = application_sources(root.path());
+    scene.content = changed_content;
+
+    assert!(matches!(
+        host.publish_continue(prepared, &mut scene),
+        Err(application::Failure::Source(
+            fallout_runtime::foreign::Failure::ContentChanged
+        ))
+    ));
+    assert_eq!(host.world().snapshot(), active);
+    assert_eq!(host.identity(), prior_host);
+    assert_eq!(scene.displayed, active);
+    assert_eq!(scene.publishes, 0);
+    assert!(host.transfer(old_transfer.clone()).unwrap().replayed);
+
+    // The failed scene admission consumed no save identity. The existing save
+    // worker accepts the same next request and captures the still-current host.
+    let save_request = host.select_save(continue_id(1)).unwrap();
+    let mut save_worker = SaveWorker::start(repository.clone(), 1).unwrap();
+    let submission = host.submit_save(save_request, &mut save_worker).unwrap();
+    assert_eq!(submission.boundary().request_id(), continue_id(1));
+    assert!(submission.matches_current_boundary(&host));
+    save_worker.finish().unwrap();
+    assert_eq!(submission.wait().unwrap().metadata.generation, 2);
+    assert_eq!(host.world().snapshot(), active);
+    assert!(host.select_save(continue_id(1)).is_err());
+    assert!(host.select_save(continue_id(2)).is_ok());
+
+    // With the exact original source restored, a same-revision Continue
+    // publishes once and expires the previously selected source transaction.
+    std::fs::write(&source_path, &original_source).unwrap();
+    let mut scene = ContinueSourceScene::current(&host, Arc::clone(&content));
+    let request = host.begin_continue(continue_id(2)).unwrap();
+    let (_task, candidate) = application_candidate(&repository, Arc::clone(&catalogue), &request);
+    let prepared = host.prepare_continue(request, candidate).unwrap();
+    assert_eq!(prepared.world().snapshot(), active);
+    let receipt = host.publish_continue(prepared, &mut scene).unwrap();
+    assert_eq!(receipt.boundary.prior_revision(), active.state_revision);
+    assert_eq!(receipt.boundary.candidate_revision(), active.state_revision);
+    assert_eq!(host.world().snapshot(), active);
+    assert_eq!(scene.displayed, active);
+    assert_eq!(scene.publishes, 1);
+    assert_ne!(host.identity(), prior_host);
+    assert!(matches!(
+        host.transfer(old_transfer),
+        Err(application::Failure::ExpiredSelection)
+    ));
 }

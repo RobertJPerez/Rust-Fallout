@@ -182,7 +182,7 @@ impl SaveWorker {
                 capture,
             }));
         };
-        let Some(permit) = self.admission.reserve(capture.limits.max_snapshot_bytes) else {
+        let Some(permit) = self.admission.reserve(capture.limits().max_snapshot_bytes) else {
             return Err(Box::new(SubmitFailure {
                 reason: Rejection::Capacity,
                 capture,
@@ -241,9 +241,8 @@ mod tests {
     use std::time::Duration;
 
     fn capture(revision: u64) -> Captured {
-        Captured {
-            source_validation: Default::default(),
-            snapshot: Snapshot {
+        Captured::from_parts(
+            Snapshot {
                 reference_states: Vec::new(),
                 schema_version: crate::snapshot::SCHEMA_VERSION,
                 campaign: CampaignId::from_bytes([1; 16]).unwrap(),
@@ -263,16 +262,17 @@ mod tests {
                 instances: Vec::new(),
                 pending_events: Vec::new(),
             },
-            limits: Limits::default(),
-        }
+            Limits::default(),
+            Default::default(),
+        )
     }
     fn bounded_capture(revision: u64, maximum_bytes: usize) -> Captured {
         let mut capture = capture(revision);
-        capture.limits.max_snapshot_bytes = maximum_bytes;
+        capture.limits_mut().max_snapshot_bytes = maximum_bytes;
         capture
     }
     fn repository(path: &std::path::Path) -> Repository {
-        Repository::create(path, &[], capture(1).snapshot.campaign).unwrap()
+        Repository::create(path, &[], capture(1).snapshot().clone().campaign).unwrap()
     }
     fn slot(repository: &Repository, name: &str) -> format::Decoded {
         format::decode(
@@ -317,10 +317,10 @@ mod tests {
         entered.recv_timeout(Duration::from_secs(10)).unwrap();
         let second = worker.try_submit(capture(2)).unwrap();
         let third = capture(3);
-        let expected = third.snapshot.clone();
+        let expected = third.snapshot().clone();
         let rejected = worker.try_submit(third).unwrap_err();
         assert_eq!(rejected.reason, Rejection::Capacity);
-        assert_eq!(rejected.capture.snapshot, expected);
+        assert_eq!(rejected.capture.snapshot(), &expected);
         assert!(first.try_wait().unwrap().is_none());
         release.send(()).unwrap();
         entered.recv_timeout(Duration::from_secs(10)).unwrap();
@@ -423,7 +423,7 @@ mod tests {
         assert!(matches!(queued.wait(), Err(CompletionError::WorkerStopped)));
         let rejected = worker.try_submit(capture(3)).unwrap_err();
         assert_eq!(rejected.reason, Rejection::WorkerStopped);
-        assert_eq!(rejected.capture.snapshot.state_revision, 3);
+        assert_eq!(rejected.capture.snapshot().state_revision, 3);
         assert!(matches!(worker.finish(), Err(WorkerError::Panicked)));
         assert_eq!(admission.usage(), (0, 0));
     }
@@ -452,16 +452,16 @@ mod tests {
         let second = worker.try_submit(bounded_capture(2, 2000)).unwrap();
         assert_eq!(admission.usage(), (2, 3000));
         let third = bounded_capture(3, 1000);
-        let expected = third.snapshot.clone();
-        let original_pointer = third.snapshot.catalogue_sha256.as_ptr();
+        let expected = third.snapshot().clone();
+        let original_pointer = third.snapshot().catalogue_sha256.as_ptr();
         let rejected = worker.try_submit(third).unwrap_err();
         assert_eq!(rejected.reason, Rejection::Capacity);
-        assert_eq!(rejected.capture.snapshot, expected);
+        assert_eq!(rejected.capture.snapshot(), &expected);
         assert_eq!(
-            rejected.capture.snapshot.catalogue_sha256.as_ptr(),
+            rejected.capture.snapshot().catalogue_sha256.as_ptr(),
             original_pointer
         );
-        assert_eq!(rejected.capture.limits.max_snapshot_bytes, 1000);
+        assert_eq!(rejected.capture.limits().max_snapshot_bytes, 1000);
         assert_eq!(admission.usage(), (2, 3000));
         release.send(()).unwrap();
         entered.recv_timeout(Duration::from_secs(10)).unwrap();
@@ -491,16 +491,16 @@ mod tests {
         let mut worker = SaveWorker::start_with_budget(repository.clone(), 8, 1000).unwrap();
         for maximum in [1001, usize::MAX] {
             let capture = bounded_capture(1, maximum);
-            let expected = capture.snapshot.clone();
-            let original_pointer = capture.snapshot.catalogue_sha256.as_ptr();
+            let expected = capture.snapshot().clone();
+            let original_pointer = capture.snapshot().catalogue_sha256.as_ptr();
             let rejected = worker.try_submit(capture).unwrap_err();
             assert_eq!(rejected.reason, Rejection::Capacity);
-            assert_eq!(rejected.capture.snapshot, expected);
+            assert_eq!(rejected.capture.snapshot(), &expected);
             assert_eq!(
-                rejected.capture.snapshot.catalogue_sha256.as_ptr(),
+                rejected.capture.snapshot().catalogue_sha256.as_ptr(),
                 original_pointer
             );
-            assert_eq!(rejected.capture.limits.max_snapshot_bytes, maximum);
+            assert_eq!(rejected.capture.limits().max_snapshot_bytes, maximum);
             assert_eq!(worker.admission.usage(), (0, 0));
         }
         assert!(!repository.path().join("current.frsv").exists());
@@ -559,13 +559,13 @@ mod tests {
         assert!(matches!(active.wait(), Err(CompletionError::WorkerStopped)));
         assert!(matches!(queued.wait(), Err(CompletionError::WorkerStopped)));
         let capture = bounded_capture(3, 1000);
-        let expected = capture.snapshot.clone();
-        let original_pointer = capture.snapshot.catalogue_sha256.as_ptr();
+        let expected = capture.snapshot().clone();
+        let original_pointer = capture.snapshot().catalogue_sha256.as_ptr();
         let rejected = worker.try_submit(capture).unwrap_err();
         assert_eq!(rejected.reason, Rejection::WorkerStopped);
-        assert_eq!(rejected.capture.snapshot, expected);
+        assert_eq!(rejected.capture.snapshot(), &expected);
         assert_eq!(
-            rejected.capture.snapshot.catalogue_sha256.as_ptr(),
+            rejected.capture.snapshot().catalogue_sha256.as_ptr(),
             original_pointer
         );
         assert!(matches!(worker.drain(), Err(WorkerError::Panicked)));
@@ -573,5 +573,22 @@ mod tests {
         let stopped = worker.try_submit(bounded_capture(4, 1000)).unwrap_err();
         assert_eq!(stopped.reason, Rejection::WorkerStopped);
         assert_eq!(admission.usage(), (0, 0));
+    }
+    #[test]
+    fn queued_capture_retains_one_shared_payload_until_result_delivery() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = repository(&directory.path().join("native"));
+        let (mut worker, entered, release) = gated(repository, 1);
+        let capture = bounded_capture(1, 4096);
+        let payload = Arc::downgrade(&capture.payload);
+        let ticket = worker.try_submit(capture).unwrap();
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+
+        assert_eq!(payload.strong_count(), 1);
+        assert!(payload.upgrade().is_some());
+        release.send(()).unwrap();
+        worker.finish().unwrap();
+        assert_eq!(ticket.wait().unwrap().metadata.generation, 1);
+        assert!(payload.upgrade().is_none());
     }
 }

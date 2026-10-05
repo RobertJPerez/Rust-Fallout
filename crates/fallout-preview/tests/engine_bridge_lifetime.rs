@@ -1,7 +1,3 @@
-#[path = "../src/engine_bridge/mod.rs"]
-mod engine_bridge;
-
-use engine_bridge::{Phase, SceneLifetime};
 use fallout_data::{
     archive::NvArchive,
     identity::{FormKey, ProfileId},
@@ -11,6 +7,7 @@ use fallout_data::{
     vfs::MountIndex,
     world::{preparation::CellModelPlan, residency::*},
 };
+use fallout_preview::engine_bridge::{self, Phase, SceneLifetime};
 use std::{
     cell::Cell,
     fs,

@@ -10,7 +10,7 @@ fallout-data = { path = "../fallout-data" }
 fallout-runtime = { path = "../fallout-runtime" }
 bevy = { version = "=0.19.1", default-features = false, features = [
     "std", "async_executor", "multi_threaded", "bevy_asset", "bevy_log",
-    "bevy_winit", "bevy_pbr", "bevy_core_pipeline", "bevy_gilrs", "png", "dds",
+    "bevy_winit", "bevy_pbr", "bevy_core_pipeline", "bevy_gilrs", "bevy_audio", "png", "dds",
 ] }
 clap = { version = "4", features = ["derive"] }
 serde.workspace = true

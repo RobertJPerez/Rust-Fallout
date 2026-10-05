@@ -108,8 +108,11 @@ fn exact_retained_identity_bytes_admit_owned_context_and_restore_source_bound_st
     let (world, schemas) = fixture.seed(IDENTITY_BYTES);
     let before: Vec<_> = schemas.iter().map(Weak::strong_count).collect();
     let capture = Captured::at_boundary(&world);
-    assert!(capture.source_validation.exceeded.is_none());
-    assert_eq!(capture.source_validation.definitions.len(), DEFINITIONS);
+    assert!(capture.payload.source_validation.exceeded.is_none());
+    assert_eq!(
+        capture.payload.source_validation.definitions.len(),
+        DEFINITIONS
+    );
     for (schema, owners) in schemas.iter().zip(before) {
         assert_eq!(schema.strong_count(), owners + 1);
     }
@@ -157,10 +160,10 @@ fn one_over_retained_identity_budget_owns_no_partial_context_and_preserves_curre
     let before: Vec<_> = schemas.iter().map(Weak::strong_count).collect();
     let capture = Captured::at_boundary(&world);
     assert_eq!(
-        capture.source_validation.exceeded,
+        capture.payload.source_validation.exceeded,
         Some("publication source identity bytes")
     );
-    assert!(capture.source_validation.definitions.is_empty());
+    assert!(capture.payload.source_validation.definitions.is_empty());
     for (schema, owners) in schemas.iter().zip(before) {
         assert_eq!(
             schema.strong_count(),

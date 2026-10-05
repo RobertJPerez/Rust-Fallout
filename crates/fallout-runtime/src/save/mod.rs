@@ -2,6 +2,7 @@
 //! the owned request to a worker. Container integrity and filesystem publication
 //! are separate from original `.fos` compatibility and power-loss guarantees.
 mod availability_task;
+mod fork;
 pub mod format;
 mod repository;
 mod restore;
@@ -18,6 +19,7 @@ pub use availability_task::{
     AvailabilityAdmission, AvailabilityCandidate, AvailabilityError, AvailabilityPoll,
     AvailabilityRequest, AvailabilityTask,
 };
+pub use fork::{ForkFailure, ForkLimits, ForkReceipt, ForkRequest, ForkSelection, ForkStage};
 pub use repository::{
     LoadReceipt, Recovery, Repository, Slot, SlotAvailability, SlotAvailabilityReport,
     SlotRejection, SlotRejectionCode, Stage, WriteReceipt,
@@ -26,6 +28,7 @@ pub use restore::{
     RequestIdentity, RestoreAdmission, RestoreError, RestorePoll, RestoreTask, RestoredCandidate,
 };
 pub use status::{SaveState, SaveStatus};
+use std::sync::Arc;
 pub use worker::{CompletionError, Rejection, SaveTicket, SaveWorker, SubmitFailure, WorkerError};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -57,19 +60,56 @@ fn io(path: &std::path::Path, source: std::io::Error) -> Error {
 /// snapshot. The request owns its data and can outlive the capture boundary.
 #[derive(Debug, Clone)]
 pub struct Captured {
-    pub(crate) snapshot: Snapshot,
-    pub(crate) limits: Limits,
+    payload: Arc<CapturedPayload>,
+}
+#[derive(Debug)]
+#[cfg_attr(test, derive(Clone))]
+struct CapturedPayload {
+    snapshot: Snapshot,
+    limits: Limits,
     source_validation: source_validation::SourceValidation,
 }
 impl Captured {
     pub fn at_boundary(world: &World<'_>) -> Self {
         Self {
-            snapshot: world.snapshot(),
-            limits: world.limits,
-            source_validation: source_validation::SourceValidation::capture(world),
+            payload: Arc::new(CapturedPayload {
+                snapshot: world.snapshot(),
+                limits: world.limits,
+                source_validation: source_validation::SourceValidation::capture(world),
+            }),
         }
     }
     pub fn snapshot(&self) -> &Snapshot {
-        &self.snapshot
+        &self.payload.snapshot
+    }
+    fn limits(&self) -> Limits {
+        self.payload.limits
+    }
+    fn validate(&self, snapshot: &Snapshot) -> crate::Result<()> {
+        self.payload
+            .source_validation
+            .check(snapshot, self.limits())
+    }
+    #[cfg(test)]
+    fn from_parts(
+        snapshot: Snapshot,
+        limits: Limits,
+        source_validation: source_validation::SourceValidation,
+    ) -> Self {
+        Self {
+            payload: Arc::new(CapturedPayload {
+                snapshot,
+                limits,
+                source_validation,
+            }),
+        }
+    }
+    #[cfg(test)]
+    fn snapshot_mut(&mut self) -> &mut Snapshot {
+        &mut Arc::make_mut(&mut self.payload).snapshot
+    }
+    #[cfg(test)]
+    fn limits_mut(&mut self) -> &mut Limits {
+        &mut Arc::make_mut(&mut self.payload).limits
     }
 }

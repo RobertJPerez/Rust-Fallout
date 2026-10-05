@@ -114,7 +114,7 @@ impl SlotRejection {
     pub fn truncated(&self) -> bool {
         self.truncated
     }
-    fn from_error(error: Error) -> Self {
+    pub(super) fn from_error(error: Error) -> Self {
         use crate::Error as State;
         use SlotRejectionCode as Code;
         let code = match &error {
@@ -262,6 +262,20 @@ fn outside(root: &Path, protected: &[PathBuf]) -> Result<()> {
     }
     Ok(())
 }
+pub(super) fn new_root(path: &Path, protected: &[PathBuf]) -> Result<PathBuf> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let parent = parent.canonicalize().map_err(|e| io(parent, e))?;
+    plain(&parent, true)?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| invalid("save repository needs a directory name"))?;
+    let root = parent.join(name);
+    outside(&root, protected)?;
+    Ok(root)
+}
 fn read_plain(path: &Path, maximum: usize) -> Result<Vec<u8>> {
     plain(path, false)?;
     let file = File::open(path).map_err(|e| io(path, e))?;
@@ -346,17 +360,7 @@ impl Repository {
     /// adopted or overwritten. Parents must already exist.
     pub fn create(path: &Path, protected: &[PathBuf], campaign: CampaignId) -> Result<Self> {
         CampaignId::from_bytes(campaign.bytes())?;
-        let parent = path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."));
-        let parent = parent.canonicalize().map_err(|e| io(parent, e))?;
-        plain(&parent, true)?;
-        let name = path
-            .file_name()
-            .ok_or_else(|| invalid("save repository needs a directory name"))?;
-        let root = parent.join(name);
-        outside(&root, protected)?;
+        let root = new_root(path, protected)?;
         fs::create_dir(&root).map_err(|e| io(&root, e))?;
         write_new(
             &root.join(".rust-fallout-saves"),
@@ -456,39 +460,35 @@ impl Repository {
         mut observe: impl FnMut(Stage),
     ) -> Result<WriteReceipt> {
         let _lock = self.lock()?;
-        if capture.snapshot.campaign != self.campaign {
+        if capture.snapshot().campaign != self.campaign {
             return Err(invalid(
                 "captured campaign differs from repository identity",
             ));
         }
-        capture
-            .source_validation
-            .check(&capture.snapshot, capture.limits)?;
+        capture.validate(capture.snapshot())?;
         let current = self.root.join(Slot::Current.name());
         let previous = if current.try_exists().map_err(|e| io(&current, e))? {
-            let bytes = self.slot_bytes(Slot::Current, capture.limits)?;
-            let decoded = format::decode(&bytes, capture.limits)?;
-            if decoded.snapshot.campaign != capture.snapshot.campaign
-                || decoded.snapshot.catalogue_sha256 != capture.snapshot.catalogue_sha256
+            let bytes = self.slot_bytes(Slot::Current, capture.limits())?;
+            let decoded = format::decode(&bytes, capture.limits())?;
+            if decoded.snapshot.campaign != capture.snapshot().campaign
+                || decoded.snapshot.catalogue_sha256 != capture.snapshot().catalogue_sha256
             {
                 return Err(invalid(
                     "campaign/content cohort changed; use a separate native repository",
                 ));
             }
-            capture
-                .source_validation
-                .check(&decoded.snapshot, capture.limits)?;
-            if decoded.snapshot.state_revision > capture.snapshot.state_revision
-                || (decoded.snapshot.state_revision == capture.snapshot.state_revision
-                    && decoded.snapshot != capture.snapshot)
+            capture.validate(&decoded.snapshot)?;
+            if decoded.snapshot.state_revision > capture.snapshot().state_revision
+                || (decoded.snapshot.state_revision == capture.snapshot().state_revision
+                    && &decoded.snapshot != capture.snapshot())
                 || !decoded
                     .snapshot
                     .clocks
-                    .no_later_than(capture.snapshot.clocks)
-                || decoded.snapshot.next_item > capture.snapshot.next_item
-                || decoded.snapshot.next_instance > capture.snapshot.next_instance
-                || decoded.snapshot.next_reference > capture.snapshot.next_reference
-                || decoded.snapshot.next_event_sequence > capture.snapshot.next_event_sequence
+                    .no_later_than(capture.snapshot().clocks)
+                || decoded.snapshot.next_item > capture.snapshot().next_item
+                || decoded.snapshot.next_instance > capture.snapshot().next_instance
+                || decoded.snapshot.next_reference > capture.snapshot().next_reference
+                || decoded.snapshot.next_event_sequence > capture.snapshot().next_event_sequence
             {
                 return Err(invalid(
                     "captured request would replace newer canonical state",
@@ -509,7 +509,7 @@ impl Repository {
             .map_or(Some(1), |(_, generation)| generation.checked_add(1))
             .ok_or_else(|| invalid("save generation exhausted"))?;
         let bytes = format::encode(capture, generation)?;
-        let metadata = format::decode(&bytes, capture.limits)?.metadata;
+        let metadata = format::decode(&bytes, capture.limits())?.metadata;
         let mut pending = PendingFile::prepare(&self.root, &bytes, |synced| {
             observe(if synced {
                 Stage::CurrentTempSynced
@@ -684,13 +684,8 @@ mod publication_preflight_tests {
             local_id: 0x500,
         });
         facts.ownership = Some(Ownership::Live { reference: owner });
-        Captured {
-            source_validation: Default::default(),
-            limits: Limits {
-                max_snapshot_bytes: 4096,
-                ..Default::default()
-            },
-            snapshot: Snapshot {
+        Captured::from_parts(
+            Snapshot {
                 reference_states: Vec::new(),
                 schema_version: crate::snapshot::SCHEMA_VERSION,
                 campaign: CampaignId::from_bytes([0x4c; 16]).unwrap(),
@@ -720,7 +715,12 @@ mod publication_preflight_tests {
                     }],
                 }],
             },
-        }
+            Limits {
+                max_snapshot_bytes: 4096,
+                ..Default::default()
+            },
+            Default::default(),
+        )
     }
     fn slots(repository: &Repository) -> [Vec<u8>; 2] {
         ["current.frsv", "previous.frsv"]
@@ -737,7 +737,7 @@ mod publication_preflight_tests {
         let repository = Repository::create(
             &directory.path().join("native"),
             &[],
-            first.snapshot.campaign,
+            first.snapshot().campaign,
         )
         .unwrap();
         repository.commit(&first).unwrap();
@@ -745,12 +745,14 @@ mod publication_preflight_tests {
         repository.commit(&second).unwrap();
         let original = slots(&repository);
         let mut bad = second.clone();
-        bad.snapshot.inventory_banks[0].items[0].facts.ownership = Some(Ownership::Live {
+        bad.snapshot_mut().inventory_banks[0].items[0]
+            .facts
+            .ownership = Some(Ownership::Live {
             reference: ReferenceId(99.try_into().unwrap()),
         });
         let bytes = format::encode(&bad, 2).unwrap();
         // Framing/typed DTO validation succeeds; the persistent link is invalid.
-        format::decode(&bytes, bad.limits).unwrap();
+        format::decode(&bytes, bad.limits()).unwrap();
         fs::write(repository.path().join("current.frsv"), &bytes).unwrap();
         assert!(matches!(
             repository.commit(&capture(12)),
@@ -773,14 +775,14 @@ mod publication_preflight_tests {
         let repository = Repository::create(
             &directory.path().join("native"),
             &[],
-            first.snapshot.campaign,
+            first.snapshot().campaign,
         )
         .unwrap();
         repository.commit(&first).unwrap();
         repository.commit(&capture(11)).unwrap();
         let original = slots(&repository);
         let mut bad = capture(12);
-        bad.snapshot.inventory_banks[0].items[0]
+        bad.snapshot_mut().inventory_banks[0].items[0]
             .facts
             .script_instance = Some(crate::identity::InstanceId(99.try_into().unwrap()));
         assert!(matches!(
@@ -790,7 +792,7 @@ mod publication_preflight_tests {
         assert_eq!(slots(&repository), original);
         assert_no_temporary(&repository);
         let mut bad = capture(12);
-        bad.snapshot.next_item = 0;
+        bad.snapshot_mut().next_item = 0;
         assert_eq!(
             repository.commit(&bad).unwrap_err().to_string(),
             "runtime state is invalid: snapshot allocator cannot be zero"
@@ -798,9 +800,8 @@ mod publication_preflight_tests {
         assert_eq!(slots(&repository), original);
         assert_no_temporary(&repository);
         let mut bad = capture(12);
-        bad.snapshot
-            .references
-            .push(bad.snapshot.references[0].clone());
+        let duplicate_reference = bad.snapshot_mut().references[0].clone();
+        bad.snapshot_mut().references.push(duplicate_reference);
         assert_eq!(
             repository.commit(&bad).unwrap_err().to_string(),
             "runtime state is invalid: duplicate reference or allocator would reuse an identity"
@@ -821,12 +822,12 @@ mod availability_reason_tests {
 
     #[test]
     fn actual_error_scalars_survive_bounded_utf8_and_escaped_report_text() {
-        let reason = SlotRejection::from_error(Error::Format("é🙂".repeat(256 * 1024)));
+        let reason = SlotRejection::from_error(Error::Format("\u{e9}\u{1f642}".repeat(256 * 1024)));
         assert_eq!(reason.code(), SlotRejectionCode::NativeFormat);
         assert!(reason.truncated());
         assert!(reason.message().len() <= MAX_REJECTION_MESSAGE_BYTES);
         assert!(reason.message().starts_with("native save format: "));
-        assert!(reason.message().ends_with('é') || reason.message().ends_with('🙂'));
+        assert!(reason.message().ends_with("\u{e9}") || reason.message().ends_with("\u{1f642}"));
         let local = SlotRejection::from_error(Error::State(crate::Error::IncompatibleLocal(42)));
         assert_eq!(local.code(), SlotRejectionCode::IncompatibleLocal);
         assert_eq!(local.local_index(), Some(42));

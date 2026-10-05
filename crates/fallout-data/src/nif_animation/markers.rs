@@ -11,6 +11,12 @@ pub use prepared::{
     PreparationUsage, PreparedSequence, QueryLimits, QueryUsage,
 };
 
+mod playback;
+pub use playback::{
+    AdvanceLimits, AdvanceResult, BoundaryDelivery, CancelResult, MarkerBoundary, MarkerEvent,
+    PlayRequest, PlaybackController, PlaybackState, RepeatPolicy, SourceWindow, StartResult,
+};
+
 pub const CONTRACT: &str = "engineering-source-text-key-interval-v1";
 
 #[derive(Clone, Copy, Debug)]

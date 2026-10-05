@@ -135,6 +135,55 @@ fn exact_source_words_signed_extremes_and_uninterpreted_handles_all_streams() {
         );
     }
 }
+
+#[test]
+fn multiple_compact_transforms_share_one_data_and_basis_catalogue_row() {
+    let mut blocks = blocks();
+    blocks.push(("NiBSplineCompTransformInterpolator", interpolator(2, 1)));
+    let bytes = container(&blocks, 34);
+    let (_, source) = spline::decode(&bytes, "shared-spline.kf").unwrap();
+
+    assert_eq!(
+        source
+            .splines
+            .blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>(),
+        [0, 1, 2, 7]
+    );
+    assert_eq!(
+        source
+            .splines
+            .blocks
+            .iter()
+            .filter(|block| block.block_type == "NiBSplineCompTransformInterpolator")
+            .count(),
+        2
+    );
+    assert_eq!(
+        source
+            .splines
+            .blocks
+            .iter()
+            .filter(|block| block.block_type == "NiBSplineData")
+            .count(),
+        1
+    );
+    assert_eq!(
+        source
+            .splines
+            .blocks
+            .iter()
+            .filter(|block| block.block_type == "NiBSplineBasisData")
+            .count(),
+        1
+    );
+    assert!(source.splines.dependencies.is_empty());
+    assert_eq!(source.splines.work_units, 61);
+    assert!(!source.splines.runtime_ready);
+}
+
 #[test]
 fn schema1_and_schema2_still_leave_splines_opaque_and_keys_exact() {
     let bytes = container(&blocks(), 34);

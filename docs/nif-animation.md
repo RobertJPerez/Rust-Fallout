@@ -1740,6 +1740,37 @@ strings in private evidence. Query efficiency is established by counters, not a
 wall-time claim. Text-key observation does not dispatch events or establish
 retail timing, transitions, playback or gameplay acceptance.
 
+### Explicit animation request time and marker boundaries (ASSET04)
+
+`markers::PlaybackController` consumes an existing `PreparedSequence` and an
+explicit `PlayRequest` bound to its exact source SHA256 and sequence block. The
+caller supplies the finite increasing source-time window, chooses `Once` or
+`Loop`, and explicitly chooses whether to emit text keys at the initial and each
+loop-start boundary. No extra NIF parser is introduced. The admitted
+`NiControllerSequence` frequency, cycle type and stored start/stop fields are not
+used to invent a playback clock or repeat policy.
+
+`advance_by_source_delta` advances in caller-supplied source-time units, without
+a rendering frame count. It emits keys crossed in `(previous, next]`, including a
+key exactly at the window end; duplicate-time source keys keep their physical
+ordinals and order. A loop reports end-boundary keys before the next cycle's
+optional start-boundary keys. The caller receives raw marker bytes and owns any
+sound/action vocabulary. Starting a replacement request reports the interrupted
+generation; stale advances/cancels refuse. A failed replacement, event-budget
+refusal or loop-budget refusal leaves the prior request/cursor unchanged.
+Cancellation does not synthesize later keys. Blending and transition duration
+remain unapplied.
+
+Per-call limits cap event count, loop crossings, work and combined prepared,
+output and temporary storage. Start, advance and cancel reports preserve the
+request generation and exact time bits. They explicitly retain
+`sequence_clock_fields_applied: false` and
+`retail_behavior_verified: false`. Tests use an independently authored source
+with nonzero start time, final key, request interruption/cancellation, exact loop
+crossings, frame-partition equivalence and atomic budget refusals. These checks
+establish the engineering cursor contract only; application-host wiring, retail
+marker timing, blending, actor presentation and gameplay remain open.
+
 ### Direct compact-spline source pose (ASSET36)
 
 `nif_animation::pose::spline::evaluate` is a bounded engineering consumer for

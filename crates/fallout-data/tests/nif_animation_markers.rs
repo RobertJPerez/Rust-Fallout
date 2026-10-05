@@ -379,6 +379,36 @@ fn prepared_bytes() -> Vec<u8> {
         ("NiTextKeyExtraData", text(&prepared_keys())),
     ])
 }
+fn sequence_window(link: u32, start: f32, end: f32) -> Vec<u8> {
+    let mut bytes = sequence(link);
+    bytes[28..32].copy_from_slice(&start.to_bits().to_le_bytes());
+    bytes[32..36].copy_from_slice(&end.to_bits().to_le_bytes());
+    bytes
+}
+fn playback_bytes(start: f32, end: f32) -> Vec<u8> {
+    container(&[
+        ("NiControllerSequence", sequence_window(1, start, end)),
+        (
+            "NiTextKeyExtraData",
+            text(&[(start, 4), (start + 1.0, 1), (end, 5)]),
+        ),
+    ])
+}
+fn playback_request(
+    bytes: &[u8],
+    start: f64,
+    end: f64,
+    repeat: markers::RepeatPolicy,
+) -> markers::PlayRequest {
+    markers::PlayRequest {
+        expected_sha256: Sha256::digest(bytes).into(),
+        sequence: 0,
+        window: markers::SourceWindow { start, end },
+        repeat,
+        initial_boundary: markers::BoundaryDelivery::Emit,
+        loop_start_boundary: markers::BoundaryDelivery::Emit,
+    }
+}
 fn prepare_markers(bytes: &[u8]) -> markers::PreparedSequence {
     markers::PreparedSequence::prepare(
         bytes,
@@ -800,4 +830,224 @@ fn prepared_index_small_query_visits_boundaries_without_scanning_thousands_of_ke
         .unwrap();
     assert!(value.observation.entries.is_empty());
     assert_eq!(value.usage.boundary_probes, 0);
+}
+
+#[test]
+fn playback_uses_nonzero_source_start_and_emits_final_key_once_at_window_end() {
+    let bytes = playback_bytes(100.0, 102.0);
+    let prepared = prepare_markers(&bytes);
+    let mut playback = markers::PlaybackController::new();
+    let started = playback
+        .start(
+            &prepared,
+            playback_request(&bytes, 100.0, 102.0, markers::RepeatPolicy::Once),
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(started.source_time_bits, 100.0f64.to_bits());
+    assert_eq!(started.events.len(), 1);
+    assert_eq!(started.events[0].source_key_ordinal, 0);
+    assert_eq!(started.events[0].boundary, markers::MarkerBoundary::Initial);
+    assert!(!started.retail_behavior_verified);
+
+    let middle = playback
+        .advance_by_source_delta(started.generation, &prepared, 1.0, Default::default())
+        .unwrap();
+    assert_eq!(middle.source_time_after_bits, 101.0f64.to_bits());
+    assert_eq!(middle.state, markers::PlaybackState::Playing);
+    assert_eq!(middle.events.len(), 1);
+    assert_eq!(middle.events[0].source_key_ordinal, 1);
+    assert_eq!(middle.events[0].boundary, markers::MarkerBoundary::Interval);
+    assert!(!middle.sequence_clock_fields_applied);
+
+    let no_change = playback
+        .advance_by_source_delta(started.generation, &prepared, 0.0, Default::default())
+        .unwrap();
+    assert!(no_change.events.is_empty());
+    assert_eq!(
+        no_change.source_time_before_bits,
+        no_change.source_time_after_bits
+    );
+
+    let final_key = playback
+        .advance_by_source_delta(started.generation, &prepared, 1.0, Default::default())
+        .unwrap();
+    assert_eq!(final_key.source_time_after_bits, 102.0f64.to_bits());
+    assert_eq!(final_key.state, markers::PlaybackState::Completed);
+    assert_eq!(final_key.events.len(), 1);
+    assert_eq!(final_key.events[0].source_key_ordinal, 2);
+    assert_eq!(
+        final_key.events[0].boundary,
+        markers::MarkerBoundary::WindowEnd
+    );
+    assert!(
+        playback
+            .advance_by_source_delta(started.generation, &prepared, 0.25, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("already complete")
+    );
+}
+
+#[test]
+fn playback_loop_crossings_are_partition_independent_and_emit_each_boundary_once() {
+    let bytes = playback_bytes(100.0, 102.0);
+    let prepared = prepare_markers(&bytes);
+    let request = playback_request(&bytes, 100.0, 102.0, markers::RepeatPolicy::Loop);
+    let mut one_step = markers::PlaybackController::new();
+    let started = one_step
+        .start(&prepared, request, Default::default())
+        .unwrap();
+    let mut one_step_signature = started
+        .events
+        .iter()
+        .map(|event| (event.cycle_index, event.source_key_ordinal, event.boundary))
+        .collect::<Vec<_>>();
+    let result = one_step
+        .advance_by_source_delta(started.generation, &prepared, 4.0, Default::default())
+        .unwrap();
+    assert_eq!(result.cycles_crossed, 2);
+    assert_eq!(result.cycles_completed, 2);
+    assert_eq!(result.state, markers::PlaybackState::Playing);
+    assert_eq!(result.source_time_after_bits, 100.0f64.to_bits());
+    one_step_signature.extend(
+        result
+            .events
+            .iter()
+            .map(|event| (event.cycle_index, event.source_key_ordinal, event.boundary)),
+    );
+
+    let mut split_steps = markers::PlaybackController::new();
+    let split_start = split_steps
+        .start(&prepared, request, Default::default())
+        .unwrap();
+    let mut split_signature = split_start
+        .events
+        .iter()
+        .map(|event| (event.cycle_index, event.source_key_ordinal, event.boundary))
+        .collect::<Vec<_>>();
+    for _ in 0..4 {
+        let step = split_steps
+            .advance_by_source_delta(split_start.generation, &prepared, 1.0, Default::default())
+            .unwrap();
+        split_signature.extend(
+            step.events
+                .iter()
+                .map(|event| (event.cycle_index, event.source_key_ordinal, event.boundary)),
+        );
+    }
+    assert_eq!(split_signature, one_step_signature);
+    assert_eq!(
+        split_steps
+            .advance_by_source_delta(split_start.generation, &prepared, 0.0, Default::default())
+            .unwrap()
+            .events
+            .len(),
+        0
+    );
+}
+
+#[test]
+fn playback_replacement_cancellation_and_stale_generations_are_explicit() {
+    let bytes = playback_bytes(100.0, 102.0);
+    let prepared = prepare_markers(&bytes);
+    let mut playback = markers::PlaybackController::new();
+    let request = playback_request(&bytes, 100.0, 102.0, markers::RepeatPolicy::Once);
+    let first = playback
+        .start(&prepared, request, Default::default())
+        .unwrap();
+    playback
+        .advance_by_source_delta(first.generation, &prepared, 0.5, Default::default())
+        .unwrap();
+
+    let mut wrong_identity = request;
+    wrong_identity.expected_sha256[0] ^= 1;
+    assert!(
+        playback
+            .start(&prepared, wrong_identity, Default::default())
+            .is_err()
+    );
+    assert_eq!(playback.active_generation(), Some(first.generation));
+
+    let replacement = playback
+        .start(&prepared, request, Default::default())
+        .unwrap();
+    assert_eq!(replacement.interrupted_generation, Some(first.generation));
+    assert!(
+        playback
+            .advance_by_source_delta(first.generation, &prepared, 1.0, Default::default())
+            .unwrap_err()
+            .to_string()
+            .contains("stale request generation")
+    );
+    let step = playback
+        .advance_by_source_delta(replacement.generation, &prepared, 1.5, Default::default())
+        .unwrap();
+    assert_eq!(
+        step.events
+            .iter()
+            .map(|event| event.source_key_ordinal)
+            .collect::<Vec<_>>(),
+        [1]
+    );
+    assert_eq!(step.state, markers::PlaybackState::Playing);
+    assert!(playback.cancel(first.generation).is_err());
+    assert_eq!(playback.active_generation(), Some(replacement.generation));
+    let cancelled = playback.cancel(replacement.generation).unwrap();
+    assert_eq!(cancelled.source_time_bits, 101.5f64.to_bits());
+    assert_eq!(
+        cancelled.state_before_cancel,
+        markers::PlaybackState::Playing
+    );
+    assert_eq!(playback.active_generation(), None);
+    assert!(
+        playback
+            .advance_by_source_delta(replacement.generation, &prepared, 0.5, Default::default())
+            .is_err()
+    );
+}
+
+#[test]
+fn playback_budget_refusal_does_not_advance_or_partially_publish_markers() {
+    let bytes = playback_bytes(100.0, 102.0);
+    let prepared = prepare_markers(&bytes);
+    let mut playback = markers::PlaybackController::new();
+    let mut request = playback_request(&bytes, 100.0, 102.0, markers::RepeatPolicy::Loop);
+    request.initial_boundary = markers::BoundaryDelivery::Skip;
+    request.loop_start_boundary = markers::BoundaryDelivery::Skip;
+    let started = playback
+        .start(&prepared, request, Default::default())
+        .unwrap();
+
+    let no_event_budget = markers::AdvanceLimits {
+        max_events: 0,
+        ..Default::default()
+    };
+    assert!(
+        playback
+            .advance_by_source_delta(started.generation, &prepared, 1.0, no_event_budget)
+            .unwrap_err()
+            .to_string()
+            .contains("event count budget")
+    );
+    assert_eq!(playback.active_generation(), Some(started.generation));
+
+    let one_loop = markers::AdvanceLimits {
+        max_loop_crossings: 1,
+        ..Default::default()
+    };
+    assert!(
+        playback
+            .advance_by_source_delta(started.generation, &prepared, 8.0, one_loop)
+            .unwrap_err()
+            .to_string()
+            .contains("loop crossing budget")
+    );
+    assert_eq!(playback.active_generation(), Some(started.generation));
+    let retry = playback
+        .advance_by_source_delta(started.generation, &prepared, 1.0, Default::default())
+        .unwrap();
+    assert_eq!(retry.source_time_after_bits, 101.0f64.to_bits());
+    assert_eq!(retry.events.len(), 1);
+    assert_eq!(retry.events[0].source_key_ordinal, 1);
 }

@@ -90,3 +90,38 @@ stage leaves canonical state and display stamp unchanged, including the next
 native save. Same-revision restore rejects the previous host's display stamp.
 The final display callback and upload acknowledgement are injected fixtures:
 legacy native.rs/main.rs wiring and visible/GPU acceptance remain open.
+
+Initial immutable GPU upload observation
+
+upload::UploadPlugin<M> installs the actual render-world observer for the
+consumer's existing Material type. Install it after Bevy and MaterialPlugin<M>.
+UploadMonitor<M>::watch accepts one Submitted SceneLifetime and every unique
+strong mesh/material/image handle submitted by its draw queue. It checks bounded
+counts and binds the observation to the exact retained source owner and scene
+epoch. Handles alone do not establish source coverage: presentation must supply
+the complete draw inventory produced from those admitted source leases.
+
+Keep that initial inventory immutable until acknowledgement. Cancel before
+changing a watched asset or retiring its draws. UploadTicket::ready_for checks
+the same source owner, ticket, scene epoch and render-device generation. Its
+false result leaves the scene hidden. Call UploadTicket::publish_uploaded with
+the mutable scene, epoch and visibility callback to validate the exact binding
+and recheck completion inside the scene publication boundary. It returns None
+while pending; do not cache a ready boolean across frames. Creating the ticket,
+spawning entities or waiting frames cannot make it ready. Before RenderStartup
+initializes the observer, watch refuses explicitly.
+
+In Render Cleanup, the observer checks actual RenderMesh entries and allocated
+vertex/index slices, data-bearing GpuImage entries, and prepared material slab
+bind groups. It then flushes a real queue submission and registers a short
+on_submitted_work_done callback. Only that callback can acknowledge completion;
+it mutates a private flag and never canonical state, visibility or source owners.
+Source cancellation, a dropped UploadTicket or device recovery invalidates old
+acknowledgements, including late callbacks. Callback closures hold weak state.
+
+The observer retains asset handles while its ticket is held. Drop the ticket
+during draw retirement; its render-world slot is cleared on the next observer
+poll. The consumer still owns actual bounded draw/GPU disposal and must finish
+that before calling SceneLifetime::draw_disposal_complete. Upload completion is
+not a shader/pipeline, visible-frame, collision, gameplay or disposal proof.
+Current host wiring and independent GPU acceptance remain open.

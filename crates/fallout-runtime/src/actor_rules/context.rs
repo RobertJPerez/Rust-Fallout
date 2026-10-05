@@ -41,7 +41,7 @@ pub enum Error {
     #[error(transparent)]
     Content(#[from] crate::foreign::Failure),
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct ActorSource<'a> {
     pub key: &'a FormKey,
     pub source: &'a inventory::Source,
@@ -65,7 +65,7 @@ pub struct Observation<'a> {
     pub authored_enable_evaluated: bool,
     pub scope: &'static str,
 }
-fn admit(value: usize, maximum: usize, label: &'static str) -> Result<(), Error> {
+pub(super) fn admit(value: usize, maximum: usize, label: &'static str) -> Result<(), Error> {
     if value > maximum {
         Err(Error::Capacity(label))
     } else {
@@ -84,6 +84,41 @@ struct ProjectionBudget {
     bytes: usize,
     maximum: usize,
 }
+
+pub(super) fn projection_bytes(value: &impl Serialize, maximum: usize) -> Result<usize, Error> {
+    let mut sink = ProjectionBudget { bytes: 0, maximum };
+    serde_json::to_writer(&mut sink, value).map_err(|_| Error::Capacity("projection byte"))?;
+    Ok(sink.bytes)
+}
+
+pub(super) const SCOPE: &str = "Exact authored ACHR/ACRE placement and winning NPC_/CREA base joined to one existing canonical reference; source transform/flags separate from optional current pose/enable, no registration, actor initialization, defaults, template evaluation or state mutation";
+
+/// Count-only borrowed projection of the existing canonical view. This is
+/// private byte admission, never an alternate View or mutation authority.
+#[derive(Serialize)]
+pub(super) struct BorrowedReference<'w> {
+    campaign: crate::identity::CampaignId,
+    catalogue_sha256: &'w str,
+    revision: u64,
+    reference: ReferenceId,
+    authored: Option<&'w FormKey>,
+    state: Option<&'w reference_state::State>,
+}
+pub(super) struct Admitted<'w, 'a, 'scripts, 'source> {
+    world: &'w World<'scripts>,
+    content: &'w Content,
+    placements: &'a placements::Catalogue,
+    actors: &'a actors::Catalogue<'source>,
+    pub source_visits: usize,
+}
+pub(super) struct Joined<'a> {
+    pub placement: &'a placements::Definition,
+    pub actor: ActorSource<'a>,
+    pub base_field_index: usize,
+    pub transform_field_index: usize,
+    pub fields: usize,
+    pub visits: usize,
+}
 impl Write for ProjectionBudget {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.bytes = self
@@ -98,14 +133,13 @@ impl Write for ProjectionBudget {
     }
 }
 
-pub fn observe<'a>(
-    world: &World<'_>,
-    content: &Content,
+pub(super) fn admit_sources<'w, 'a, 'scripts, 'source>(
+    world: &'w World<'scripts>,
+    content: &'w Content,
     placements: &'a placements::Catalogue,
-    actors: &'a actors::Catalogue<'_>,
-    reference: ReferenceId,
+    actors: &'a actors::Catalogue<'source>,
     limits: Limits,
-) -> Result<Observation<'a>, Error> {
+) -> Result<Admitted<'w, 'a, 'scripts, 'source>, Error> {
     content.validate_world(world)?;
     let mut visits = 0usize;
     for (sources, digest) in [
@@ -123,125 +157,169 @@ pub fn observe<'a>(
             return Err(Error::ContextChanged);
         }
     }
+    Ok(Admitted {
+        world,
+        content,
+        placements,
+        actors,
+        source_visits: visits,
+    })
+}
+impl<'w, 'a> Admitted<'w, 'a, '_, '_> {
+    pub(super) fn borrowed_reference(
+        &self,
+        reference: ReferenceId,
+    ) -> Result<BorrowedReference<'w>, Error> {
+        let authored = self.world.reference_origin(reference)?;
+        Ok(BorrowedReference {
+            campaign: self.world.campaign(),
+            catalogue_sha256: self.world.catalogue_fingerprint(),
+            revision: self.world.revision(),
+            reference,
+            authored,
+            state: self.world.reference_states.get(&reference),
+        })
+    }
+    pub(super) fn join(&self, origin: &FormKey, limits: Limits) -> Result<Joined<'a>, Error> {
+        let world = self.world;
+        let content = self.content;
+        let placements = self.placements;
+        let actors = self.actors;
+        let mut visits = self.source_visits;
+        let placed_form = content.source_form(world, origin)?;
+        let expected = match placed_form.kind {
+            kind if kind == *b"ACHR" => *b"NPC_",
+            kind if kind == *b"ACRE" => *b"CREA",
+            _ => {
+                return Err(Error::Unavailable(
+                    "authored_origin_is_not_an_actor_placement",
+                ));
+            }
+        };
+        let placement = placements
+            .get(origin)
+            .filter(|p| !p.deleted)
+            .ok_or(Error::Unavailable("placed_actor_winner_unavailable"))?;
+        if placement.header.kind != placed_form.kind || placement.header.flags != placed_form.flags
+        {
+            return Err(Error::SourceMismatch("placement_header"));
+        }
+        let core = placement
+            .core
+            .as_ref()
+            .ok_or(Error::Unavailable("placed_actor_core_unavailable"))?;
+        let binding = placement
+            .base
+            .as_ref()
+            .filter(|b| b.status == inventory::Status::Defined)
+            .ok_or(Error::Unavailable("placed_actor_base_unavailable"))?;
+        if placement.base_schema_kind_allowed != Some(true) {
+            return Err(Error::Unavailable("placed_actor_base_wrong_kind"));
+        }
+        let key = binding
+            .key
+            .as_ref()
+            .ok_or(Error::SourceMismatch("base_binding_key"))?;
+        let target = binding
+            .target
+            .as_ref()
+            .ok_or(Error::SourceMismatch("base_binding_target"))?;
+        let actor = actors
+            .get(key)
+            .filter(|a| !a.deleted)
+            .ok_or(Error::Unavailable("actor_base_winner_unavailable"))?;
+        let actor_form = content.source_form(world, key)?;
+        if actor.kind != expected || actor_form.kind != expected || target.kind != expected {
+            return Err(Error::Unavailable("actor_base_wrong_kind"));
+        }
+        if core.base.value != binding.raw_form
+            || target.source_plugin != actor.source.plugin
+            || target.record_file_offset != actor.source.record_file_offset
+            || target.record_flags != actor.source.record_flags
+            || actor_form.flags != actor.source.record_flags
+        {
+            return Err(Error::SourceMismatch("actor_base_winning_source"));
+        }
+        let version = actor
+            .record_version
+            .ok_or(Error::Unavailable("actor_base_body_unavailable"))?;
+        let fields = placement
+            .fields
+            .len()
+            .checked_add(actor.fields.len())
+            .ok_or(Error::Capacity("field"))?;
+        admit(fields, limits.max_fields, "field")?;
+        visits = visits
+            .checked_add(fields)
+            .and_then(|n| n.checked_add(7))
+            .ok_or(Error::Capacity("visit"))?;
+        admit(visits, limits.max_visits, "visit")?;
+        let mut base_field_index = None;
+        let mut transform_field_index = None;
+        let mut ambiguous = false;
+        for (index, field) in placement.fields.iter().enumerate() {
+            if field.kind == *b"NAME" && base_field_index.replace(index).is_some() {
+                ambiguous = true;
+            }
+            if field.kind == *b"DATA" && transform_field_index.replace(index).is_some() {
+                ambiguous = true;
+            }
+        }
+        if ambiguous || base_field_index.is_none() || transform_field_index.is_none() {
+            return Err(Error::Unavailable("ambiguous_placement_core_declarations"));
+        }
+        let base_field_index = base_field_index.expect("unique NAME");
+        let transform_field_index = transform_field_index.expect("unique DATA");
+        if placement.fields[base_field_index].decoded_offset as usize != core.base.decoded_offset
+            || placement.fields[transform_field_index].decoded_offset as usize
+                != core.transform_decoded_offset
+        {
+            return Err(Error::SourceMismatch("placement_core_origins"));
+        }
+        Ok(Joined {
+            placement,
+            actor: ActorSource {
+                key: actor.key,
+                source: actor.source,
+                kind: actor.kind,
+                record_version: version,
+                fields: &actor.fields,
+                findings: &actor.findings,
+            },
+            base_field_index,
+            transform_field_index,
+            fields,
+            visits,
+        })
+    }
+}
+pub fn observe<'a>(
+    world: &World<'_>,
+    content: &Content,
+    placements: &'a placements::Catalogue,
+    actors: &'a actors::Catalogue<'_>,
+    reference: ReferenceId,
+    limits: Limits,
+) -> Result<Observation<'a>, Error> {
+    let admitted = admit_sources(world, content, placements, actors, limits)?;
+    // Keep the established single-consumer order and canonical View acquisition.
     let view = world.reference_view(reference)?;
     let origin = view
         .authored()
         .ok_or(Error::Unavailable("reference_has_no_authored_origin"))?;
-    let placed_form = content.source_form(world, origin)?;
-    let expected = match placed_form.kind {
-        kind if kind == *b"ACHR" => *b"NPC_",
-        kind if kind == *b"ACRE" => *b"CREA",
-        _ => {
-            return Err(Error::Unavailable(
-                "authored_origin_is_not_an_actor_placement",
-            ));
-        }
-    };
-    let placement = placements
-        .get(origin)
-        .filter(|p| !p.deleted)
-        .ok_or(Error::Unavailable("placed_actor_winner_unavailable"))?;
-    if placement.header.kind != placed_form.kind || placement.header.flags != placed_form.flags {
-        return Err(Error::SourceMismatch("placement_header"));
-    }
-    let core = placement
-        .core
-        .as_ref()
-        .ok_or(Error::Unavailable("placed_actor_core_unavailable"))?;
-    let binding = placement
-        .base
-        .as_ref()
-        .filter(|b| b.status == inventory::Status::Defined)
-        .ok_or(Error::Unavailable("placed_actor_base_unavailable"))?;
-    if placement.base_schema_kind_allowed != Some(true) {
-        return Err(Error::Unavailable("placed_actor_base_wrong_kind"));
-    }
-    let key = binding
-        .key
-        .as_ref()
-        .ok_or(Error::SourceMismatch("base_binding_key"))?;
-    let target = binding
-        .target
-        .as_ref()
-        .ok_or(Error::SourceMismatch("base_binding_target"))?;
-    let actor = actors
-        .get(key)
-        .filter(|a| !a.deleted)
-        .ok_or(Error::Unavailable("actor_base_winner_unavailable"))?;
-    let actor_form = content.source_form(world, key)?;
-    if actor.kind != expected || actor_form.kind != expected || target.kind != expected {
-        return Err(Error::Unavailable("actor_base_wrong_kind"));
-    }
-    if core.base.value != binding.raw_form
-        || target.source_plugin != actor.source.plugin
-        || target.record_file_offset != actor.source.record_file_offset
-        || target.record_flags != actor.source.record_flags
-        || actor_form.flags != actor.source.record_flags
-    {
-        return Err(Error::SourceMismatch("actor_base_winning_source"));
-    }
-    let version = actor
-        .record_version
-        .ok_or(Error::Unavailable("actor_base_body_unavailable"))?;
-    let fields = placement
-        .fields
-        .len()
-        .checked_add(actor.fields.len())
-        .ok_or(Error::Capacity("field"))?;
-    admit(fields, limits.max_fields, "field")?;
-    visits = visits
-        .checked_add(fields)
-        .and_then(|n| n.checked_add(7))
-        .ok_or(Error::Capacity("visit"))?;
-    admit(visits, limits.max_visits, "visit")?;
-    let mut base_indices = Vec::new();
-    let mut transform_indices = Vec::new();
-    for (index, field) in placement.fields.iter().enumerate() {
-        if field.kind == *b"NAME" {
-            base_indices.push(index);
-        }
-        if field.kind == *b"DATA" {
-            transform_indices.push(index);
-        }
-    }
-    if base_indices.len() != 1 || transform_indices.len() != 1 {
-        return Err(Error::Unavailable("ambiguous_placement_core_declarations"));
-    }
-    let base_field_index = base_indices[0];
-    let transform_field_index = transform_indices[0];
-    if placement.fields[base_field_index].decoded_offset as usize != core.base.decoded_offset
-        || placement.fields[transform_field_index].decoded_offset as usize
-            != core.transform_decoded_offset
-    {
-        return Err(Error::SourceMismatch("placement_core_origins"));
-    }
-    // Source disabled flags and source DATA do not supply canonical enable/pose.
+    let joined = admitted.join(origin, limits)?;
     let result = Observation {
         reference: view,
-        placement,
-        actor: ActorSource {
-            key: actor.key,
-            source: actor.source,
-            kind: actor.kind,
-            record_version: version,
-            fields: &actor.fields,
-            findings: &actor.findings,
-        },
-        base_field_index,
-        transform_field_index,
-        fields,
-        visits,
+        placement: joined.placement,
+        actor: joined.actor,
+        base_field_index: joined.base_field_index,
+        transform_field_index: joined.transform_field_index,
+        fields: joined.fields,
+        visits: joined.visits,
         actor_initialization_supported: false,
         authored_enable_evaluated: false,
-        scope: "Exact authored ACHR/ACRE placement and winning NPC_/CREA base joined to one existing canonical reference; source transform/flags separate from optional current pose/enable, no registration, actor initialization, defaults, template evaluation or state mutation",
+        scope: SCOPE,
     };
-    serde_json::to_writer(
-        ProjectionBudget {
-            bytes: 0,
-            maximum: limits.max_projection_bytes,
-        },
-        &result,
-    )
-    .map_err(|_| Error::Capacity("projection byte"))?;
+    projection_bytes(&result, limits.max_projection_bytes)?;
     Ok(result)
 }

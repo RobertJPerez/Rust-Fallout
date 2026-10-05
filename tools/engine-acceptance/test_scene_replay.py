@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import struct
 import tempfile
+import time
 import unittest
 import zlib
 
@@ -237,6 +238,32 @@ class CompletionAndObservationTests(unittest.TestCase):
 
 
 class ImageAndFreshnessTests(unittest.TestCase):
+    def test_failed_run_keeps_fresh_artifact_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            started_ns = time.time_ns() - 1_000_000_000
+            image_path = root / "view.png"
+            report_path = root / "view.json"
+            log_path = root / "view.log"
+            pixels = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
+            image_path.write_bytes(rgb_png(2, 2, pixels))
+            report_path.write_text('{"runtime_ready":false}\n', encoding="utf-8")
+            log_path.write_bytes(b"")
+            finished_ns = time.time_ns() + 1_000_000_000
+            row = {"state": "failed", "error": "Cell model residency is incomplete"}
+            scene_replay.attach_failed_artifacts(
+                row,
+                root,
+                {"image": image_path, "report": report_path, "log": log_path},
+                started_ns,
+                finished_ns,
+            )
+            self.assertEqual(row["state"], "failed")
+            self.assertEqual(row["error"], "Cell model residency is incomplete")
+            self.assertEqual(set(row["files"]), {"image", "report", "log"}, row.get("artifact_errors"))
+            self.assertEqual(row["report_sha256"], scene_replay.sha256_file(report_path))
+            self.assertEqual(row["image"]["width"], 2)
+
     def test_verification_result_must_stay_in_private_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory) / "repo"

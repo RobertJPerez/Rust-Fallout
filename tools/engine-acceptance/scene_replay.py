@@ -200,6 +200,44 @@ def _file_record(
     }
 
 
+def attach_failed_artifacts(
+    row: dict, output: Path, files: dict[str, Path], started_ns: int, finished_ns: int
+) -> None:
+    """Pin fresh outputs from a failed run without changing its failed state."""
+    records = {}
+    errors = []
+    for kind, path in files.items():
+        if not path.is_file():
+            continue
+        try:
+            records[kind] = _file_record(
+                path,
+                output,
+                started_ns,
+                finished_ns,
+                allow_empty=kind == "log",
+            )
+        except (OSError, AcceptanceError) as error:
+            errors.append(f"{kind}: {error}")
+    if records:
+        row["files"] = records
+    if "report" in records:
+        row["report_sha256"] = records["report"]["sha256"]
+    if "image" in records:
+        try:
+            width, height, pixels = read_rgb_png(files["image"])
+            row["image"] = {
+                "width": width,
+                "height": height,
+                "sha256": records["image"]["sha256"],
+                "pixels_differing_from_first": pixels_differ_from_first(pixels),
+            }
+        except (OSError, AcceptanceError) as error:
+            errors.append(f"image decode: {error}")
+    if errors:
+        row["artifact_errors"] = errors
+
+
 def validate_file_record(root: Path, record: object, started_ns: int, finished_ns: int, name: str) -> Path:
     row = _object(record, name)
     path = _safe_child(root, row.get("path"), name)
@@ -1012,6 +1050,14 @@ def capture(args: argparse.Namespace) -> int:
             except (OSError, AcceptanceError) as exception:
                 row["state"] = "failed"
                 row["error"] = str(exception)
+        if row["state"] == "failed":
+            attach_failed_artifacts(
+                row,
+                output,
+                {"image": png, "report": report_path, "log": log_path},
+                started_ns,
+                finished_ns,
+            )
         scenario_results.append(row)
 
     finished_ns = time.time_ns()

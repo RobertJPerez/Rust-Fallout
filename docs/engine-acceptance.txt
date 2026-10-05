@@ -13,6 +13,8 @@ for each required scenario. It creates a new evidence directory and never
 replaces a report or capture. A run is complete only when every required
 scenario exits successfully and produces fresh report and image files. An
 all-skipped or partially completed matrix cannot pass.
+Failed runs retain hashes and timestamps for any fresh report, image, or log
+that was produced, while remaining failed and ineligible for replay acceptance.
 
 The scenario input is a private JSON file. Its schema is:
 

@@ -97,6 +97,43 @@ impl StagedInventoryTransfers {
     }
 }
 
+/// An explicit replacement for the supplied equipped-slot facts of one item.
+/// The runtime stores this value exactly; it does not infer equipment policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EquippedSlotsUpdate {
+    pub item: ItemId,
+    pub equipped_slots: Option<Vec<u16>>,
+}
+
+#[derive(Debug)]
+struct StagedEquippedSlotsChange {
+    original: Item,
+    facts: Facts,
+}
+
+#[derive(Debug)]
+#[must_use = "staging has no effects; commit the inventory transaction or drop it"]
+pub struct StagedInventoryTransaction {
+    transfers: StagedInventoryTransfers,
+    equipment: Vec<StagedEquippedSlotsChange>,
+    original_item_links: usize,
+    original_item_bytes: usize,
+    final_item_links: usize,
+    final_item_bytes: usize,
+    usage: TransferUsage,
+}
+impl StagedInventoryTransaction {
+    pub fn usage(&self) -> TransferUsage {
+        self.usage
+    }
+    pub fn transfer_rows(&self) -> &[TransferRow] {
+        &self.transfers.rows
+    }
+    pub fn equipped_items(&self) -> impl Iterator<Item = ItemId> + '_ {
+        self.equipment.iter().map(|change| change.original.id)
+    }
+}
+
 /// Observations only: deserialization cannot mint a stage or mutation authority.
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct TransferReceipt {
@@ -126,6 +163,27 @@ impl TransferReceipt {
     }
     pub fn count_changes(&self) -> &[TransferCountChange] {
         &self.counts
+    }
+    pub fn usage(&self) -> TransferUsage {
+        self.usage
+    }
+}
+
+/// Result of one canonical transaction. Equipment entries identify the items
+/// whose caller-supplied equipped-slot facts were applied; query the World for
+/// their resulting Facts. This observation grants no later mutation authority.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct InventoryTransactionReceipt {
+    transfer: TransferReceipt,
+    equipped_items: Vec<ItemId>,
+    usage: TransferUsage,
+}
+impl InventoryTransactionReceipt {
+    pub fn transfer(&self) -> &TransferReceipt {
+        &self.transfer
+    }
+    pub fn equipped_items(&self) -> &[ItemId] {
+        &self.equipped_items
     }
     pub fn usage(&self) -> TransferUsage {
         self.usage
@@ -172,9 +230,25 @@ fn table(
     )
 }
 fn facts_copies(facts: &Facts, usage: &mut TransferUsage, limits: TransferLimits) -> Result<()> {
+    facts_copies_with_equipped_slots(facts, &facts.equipped_slots, usage, limits)
+}
+fn facts_copies_with_equipped_slots(
+    facts: &Facts,
+    equipped_slots: &Option<Vec<u16>>,
+    usage: &mut TransferUsage,
+    limits: TransferLimits,
+) -> Result<()> {
+    let old_slots = facts.equipped_slots.as_ref().map_or(0, Vec::len);
+    let new_slots = equipped_slots.as_ref().map_or(0, Vec::len);
     usage.links = usage
         .links
-        .checked_add(facts.links())
+        .checked_add(
+            facts
+                .links()
+                .checked_sub(old_slots)
+                .and_then(|links| links.checked_add(new_slots))
+                .ok_or(Error::Capacity("inventory transfer links"))?,
+        )
         .ok_or(Error::Capacity("inventory transfer links"))?;
     if usage.links > limits.max_links {
         return Err(Error::Capacity("inventory transfer links"));
@@ -186,7 +260,7 @@ fn facts_copies(facts: &Facts, usage: &mut TransferUsage, limits: TransferLimits
     if let Some(ammo) = &facts.ammo {
         charge(usage, ammo.base.origin_plugin.len(), limits)?;
     }
-    if let Some(slots) = &facts.equipped_slots {
+    if let Some(slots) = equipped_slots {
         table(usage, slots.len(), size_of::<u16>(), limits)?;
     }
     if let Some(modifications) = &facts.modifications {
@@ -220,6 +294,121 @@ impl World<'_> {
         }
         Ok(())
     }
+    /// Stage whole-lot ownership changes together with caller-supplied
+    /// `equipped_slots` replacements. All revision, row, copy, link, count and
+    /// item-capacity checks complete before commit; no equipment eligibility or
+    /// slot compatibility rule is inferred here.
+    pub fn stage_inventory_transaction(
+        &self,
+        transfers: &[(ItemId, ReferenceId)],
+        equipment: &[EquippedSlotsUpdate],
+        limits: TransferLimits,
+    ) -> Result<StagedInventoryTransaction> {
+        if transfers.is_empty() && equipment.is_empty() {
+            return Err(Error::Invalid("empty inventory transaction".into()));
+        }
+        let rows = transfers
+            .len()
+            .checked_add(equipment.len())
+            .ok_or(Error::Capacity("inventory transfer rows"))?;
+        if rows > limits.max_rows {
+            return Err(Error::Capacity("inventory transfer rows"));
+        }
+
+        let mut transfers = self.stage_inventory_transfers_inner(transfers, limits, true)?;
+        let mut usage = transfers.usage;
+        usage.rows = rows;
+        charge(
+            &mut usage,
+            size_of::<StagedInventoryTransaction>()
+                .checked_add(size_of::<InventoryTransactionReceipt>())
+                .ok_or(Error::Capacity("inventory transfer copied bytes"))?,
+            limits,
+        )?;
+        table(
+            &mut usage,
+            equipment.len(),
+            size_of::<ItemId>(),
+            limits,
+        )?;
+        table(
+            &mut usage,
+            equipment.len(),
+            size_of::<ItemId>(),
+            limits,
+        )?;
+
+        let mut unique = BTreeSet::new();
+        let mut staged_equipment = Vec::with_capacity(equipment.len());
+        let mut removed_links = 0_usize;
+        let mut added_links = 0_usize;
+        let mut removed_bytes = 0_usize;
+        let mut added_bytes = 0_usize;
+        for update in equipment {
+            if !unique.insert(update.item) {
+                return Err(Error::Invalid(
+                    "duplicate equipped-slots item in inventory transaction".into(),
+                ));
+            }
+            let original = self.item(update.item)?;
+            self.transfer_membership(original, original.owner)?;
+            charge(&mut usage, size_of::<StagedEquippedSlotsChange>(), limits)?;
+            facts_copies(&original.facts, &mut usage, limits)?;
+            facts_copies_with_equipped_slots(
+                &original.facts,
+                &update.equipped_slots,
+                &mut usage,
+                limits,
+            )?;
+
+            let facts = Facts {
+                base: original.facts.base.clone(),
+                condition: original.facts.condition.clone(),
+                ownership: original.facts.ownership.clone(),
+                equipped_slots: update.equipped_slots.clone(),
+                ammo: original.facts.ammo.clone(),
+                modifications: original.facts.modifications.clone(),
+                quest_item: original.facts.quest_item,
+                script_instance: original.facts.script_instance,
+                extra_fields: original.facts.extra_fields.clone(),
+            };
+            self.validate_item_facts(&facts)?;
+            removed_links = removed_links
+                .checked_add(original.facts.links())
+                .ok_or(Error::Capacity("total item links"))?;
+            added_links = added_links
+                .checked_add(facts.links())
+                .ok_or(Error::Capacity("total item links"))?;
+            removed_bytes = removed_bytes
+                .checked_add(original.facts.extra_bytes()?)
+                .ok_or(Error::Capacity("total item extra bytes"))?;
+            added_bytes = added_bytes
+                .checked_add(facts.extra_bytes()?)
+                .ok_or(Error::Capacity("total item extra bytes"))?;
+            staged_equipment.push(StagedEquippedSlotsChange {
+                original: original.clone(),
+                facts,
+            });
+        }
+        let (final_item_links, final_item_bytes) = self.item_capacity_changes(
+            added_links,
+            added_bytes,
+            removed_links,
+            removed_bytes,
+        )?;
+        // The transfer stage keeps its own accounting; the outer view adds
+        // staged equipment Facts copies and total action rows.
+        Ok(StagedInventoryTransaction {
+            transfers,
+            equipment: staged_equipment,
+            original_item_links: self.item_links,
+            original_item_bytes: self.item_bytes,
+            final_item_links,
+            final_item_bytes,
+            usage,
+        })
+    }
+
     /// Empty groups and repeated lot IDs refuse. Same-target rows follow the
     /// existing single-transfer no-op behavior while still consuming copy/row
     /// bounds. A group with any actual move publishes one global revision.
@@ -228,7 +417,16 @@ impl World<'_> {
         transfers: &[(ItemId, ReferenceId)],
         limits: TransferLimits,
     ) -> Result<StagedInventoryTransfers> {
-        if transfers.is_empty() {
+        self.stage_inventory_transfers_inner(transfers, limits, false)
+    }
+
+    fn stage_inventory_transfers_inner(
+        &self,
+        transfers: &[(ItemId, ReferenceId)],
+        limits: TransferLimits,
+        allow_empty: bool,
+    ) -> Result<StagedInventoryTransfers> {
+        if transfers.is_empty() && !allow_empty {
             return Err(Error::Invalid("empty inventory transfers".into()));
         }
         if transfers.len() > limits.max_rows {
@@ -336,6 +534,87 @@ impl World<'_> {
         &mut self,
         stage: StagedInventoryTransfers,
     ) -> Result<TransferReceipt> {
+        self.validate_inventory_transfer_stage(&stage)?;
+        let revision = if stage.usage.moved_rows == 0 {
+            self.revision
+        } else {
+            self.next_revision()?
+        };
+        let before_revision = self.revision;
+        self.apply_inventory_transfer_stage(&stage);
+        self.revision = revision;
+        Ok(TransferReceipt {
+            campaign: stage.campaign,
+            catalogue_sha256: stage.catalogue_sha256,
+            before_revision,
+            after_revision: revision,
+            changes: stage.rows,
+            counts: stage.counts,
+            usage: stage.usage,
+        })
+    }
+
+    pub fn commit_inventory_transaction(
+        &mut self,
+        stage: StagedInventoryTransaction,
+    ) -> Result<InventoryTransactionReceipt> {
+        self.validate_inventory_transfer_stage(&stage.transfers)?;
+        if self.item_links != stage.original_item_links
+            || self.item_bytes != stage.original_item_bytes
+        {
+            return Err(Error::Invalid(
+                "inventory transaction capacity observation changed".into(),
+            ));
+        }
+        for change in &stage.equipment {
+            let current = self.item(change.original.id)?;
+            if current != &change.original {
+                return Err(Error::Invalid(
+                    "inventory equipped-slots item changed".into(),
+                ));
+            }
+            self.transfer_membership(current, current.owner)?;
+        }
+        let equipment_changed = stage
+            .equipment
+            .iter()
+            .any(|change| change.original.facts.equipped_slots != change.facts.equipped_slots);
+        let changed = stage.transfers.usage.moved_rows > 0 || equipment_changed;
+        let revision = if changed {
+            self.next_revision()?
+        } else {
+            self.revision
+        };
+        let before_revision = self.revision;
+        let mut equipped_items = Vec::with_capacity(stage.equipment.len());
+        self.apply_inventory_transfer_stage(&stage.transfers);
+        for change in stage.equipment {
+            let id = change.original.id;
+            self.items
+                .get_mut(&id)
+                .expect("validated inventory item")
+                .facts = change.facts;
+            equipped_items.push(id);
+        }
+        self.item_links = stage.final_item_links;
+        self.item_bytes = stage.final_item_bytes;
+        self.revision = revision;
+        Ok(InventoryTransactionReceipt {
+            transfer: TransferReceipt {
+                campaign: stage.transfers.campaign,
+                catalogue_sha256: stage.transfers.catalogue_sha256,
+                before_revision,
+                after_revision: revision,
+                changes: stage.transfers.rows,
+                counts: stage.transfers.counts,
+                usage: stage.transfers.usage,
+            },
+            equipped_items,
+            usage: stage.usage,
+        })
+    }
+
+    fn validate_inventory_transfer_stage(&self, stage: &StagedInventoryTransfers) -> Result<()> {
         if stage.epoch != self.epoch {
             return Err(Error::StaleHandle);
         }
@@ -358,12 +637,10 @@ impl World<'_> {
                 ));
             }
         }
-        let revision = if stage.usage.moved_rows == 0 {
-            self.revision
-        } else {
-            self.next_revision()?
-        };
-        let before_revision = self.revision;
+        Ok(())
+    }
+
+    fn apply_inventory_transfer_stage(&mut self, stage: &StagedInventoryTransfers) {
         // No fallible admission remains. IDs, quantities, Facts, item budgets
         // and allocators remain unchanged; only bank membership/owner/count do.
         for row in &stage.rows {
@@ -386,16 +663,6 @@ impl World<'_> {
         for count in &stage.counts {
             self.set_count_total(count.owner, count.base.clone(), count.after);
         }
-        self.revision = revision;
-        Ok(TransferReceipt {
-            campaign: stage.campaign,
-            catalogue_sha256: stage.catalogue_sha256,
-            before_revision,
-            after_revision: revision,
-            changes: stage.rows,
-            counts: stage.counts,
-            usage: stage.usage,
-        })
     }
 }
 

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 mod batch;
 mod paging;
 mod source;
+mod ticket;
 pub use batch::{BatchChange, BatchLimits, BatchReceipt, StagedReferenceBatch};
 pub use paging::{Cursor, Page, PageLimits, PageRequest, PageUsage};
 pub use source::{
@@ -19,6 +20,7 @@ pub use source::{
     SourceReferenceOutcome, SourceReferenceReceipt, SourceReferenceRequest, StagedSourceReference,
     StagedSourceReferenceGroup,
 };
+pub use ticket::StagedResidentReference;
 
 pub const COMPONENT_VERSION: u32 = 1;
 

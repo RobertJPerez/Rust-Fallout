@@ -16,6 +16,7 @@ use std::{
 #[path = "state/inventory_transfers.rs"]
 mod transfers;
 pub use transfers::{
+    EquippedSlotsUpdate, InventoryTransactionReceipt, StagedInventoryTransaction,
     StagedInventoryTransfers, TransferCountChange, TransferLimits, TransferReceipt, TransferRow,
     TransferUsage,
 };

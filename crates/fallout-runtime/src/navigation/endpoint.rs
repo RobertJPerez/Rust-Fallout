@@ -353,7 +353,7 @@ impl EndpointView<'_> {
 fn unsupported(reason: &'static str) -> Classification {
     Classification::Unsupported { reason }
 }
-fn classify(
+pub(super) fn classify(
     vertices: [[f32; 3]; 3],
     point: [f64; 3],
     plane: PlaneContract,

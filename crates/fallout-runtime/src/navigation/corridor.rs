@@ -11,6 +11,8 @@ use fallout_data::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+pub mod motion;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CorridorError {
     #[error(transparent)]

@@ -39,6 +39,26 @@ Engineering captures require a source revision, binary hash, profile identity an
 hash, content hash, and bounded process record. Expectations pin the revision,
 profile identity, and all three hashes.
 
+Frozen test-run evidence
+------------------------
+
+tools/behavior-acceptance/verify_test_run.py checks a captured Rust test run
+against the producer package, its source and binary pins, and an independently
+authored exact test-case list. It also checks the central focused-wrapper marker,
+stdout/stderr hashes and sizes, Rust harness case lines and summary counts, and
+that Cargo was not invoked for a frozen binary:
+
+    python tools/behavior-acceptance/verify_test_run.py --package package.json --receipt attempt-receipt.json --expectation frozen-tests.json --producer-root producer-worktree --evidence-root private-evidence
+
+The verifier does not launch or attest the process. It checks the bound files and
+captured record for consistency. A successful result is labeled
+frozen_test_artifact_validation and always has retail_pass=false. It does not
+establish gameplay, native presentation, or retail parity.
+
+The receipt must include the wrapper's terminal exit code. A missing or malformed
+exit code makes the receipt invalid, and any nonzero exit is rejected even when
+the captured test lines appear to pass.
+
 Each state observation carries source-qualified inventory lots, exact quest fields,
 pending and acknowledged event identities, canonical and visible revisions, and a
 snapshot digest. Quest facts are generic observed fields: v1 assigns no meaning to

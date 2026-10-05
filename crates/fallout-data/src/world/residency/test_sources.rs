@@ -4,6 +4,7 @@ use crate::{archive::NvArchive, identity::ProfileId, plugin, store::RecordStore,
 use std::{
     fs,
     io::Write,
+    path::Path,
     thread,
     time::{Duration, Instant},
 };
@@ -164,6 +165,16 @@ fn archive(path: &Path, folder: &[u8], names: &[&[u8]], payloads: &[Vec<u8>]) {
     }
     fs::write(path, out).unwrap();
 }
+
+fn corrupt_first_archive_member(path: &Path, folder: &[u8]) {
+    let mut bytes = fs::read(path).unwrap();
+    let table = 54 + folder.len();
+    let offset = u32::from_le_bytes(bytes[table + 12..table + 16].try_into().unwrap()) as usize;
+    let compressed = offset + 4;
+    bytes[compressed..compressed + 2].copy_from_slice(&[0, 0]);
+    fs::write(path, bytes).unwrap();
+}
+
 pub(in crate::world) struct Fixture {
     pub root: tempfile::TempDir,
     pub cache: tempfile::TempDir,
@@ -184,6 +195,12 @@ impl Fixture {
         Self::with_scene(true, true)
     }
     fn with_scene(scene: bool, selection: bool) -> Self {
+        Self::with_source_error(scene, selection, false)
+    }
+    pub fn with_corrupt_model_archive() -> Self {
+        Self::with_source_error(false, false, true)
+    }
+    fn with_source_error(scene: bool, selection: bool, corrupt_model_archive: bool) -> Self {
         let root = tempfile::tempdir().unwrap();
         let cache = tempfile::tempdir().unwrap();
         let data = root.path().join("Data");
@@ -203,6 +220,9 @@ impl Fixture {
             &[b"p.nif", b"w.nif", b"e.nif"],
             &models,
         );
+        if corrupt_model_archive {
+            corrupt_first_archive_member(&data.join("models.bsa"), b"meshes");
+        }
         let noise = b"authored noise source".to_vec();
         let mut texture_names: Vec<&[u8]> = vec![b"a.dds", b"b.dds", b"c.dds"];
         let mut texture_payloads = textures.clone();

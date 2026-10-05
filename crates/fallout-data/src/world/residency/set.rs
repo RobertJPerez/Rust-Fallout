@@ -93,6 +93,7 @@ pub struct CellResidencySet {
     limits: SetLimits,
     slots: Vec<Slot>,
     cursor: usize,
+    poll_wait_age: Vec<u64>,
     last_polled: Vec<usize>,
     base_metadata: usize,
 }
@@ -181,6 +182,7 @@ impl CellResidencySet {
             limits,
             slots,
             cursor: 0,
+            poll_wait_age: vec![0; limits.slots],
             last_polled: Vec::with_capacity(limits.slots),
             base_metadata: path_bytes,
         })
@@ -242,6 +244,7 @@ impl CellResidencySet {
         })
     }
     fn commit(&mut self, candidate: Candidate) {
+        self.poll_wait_age[candidate.slot] = 0;
         let slot = &mut self.slots[candidate.slot];
         debug_assert!(slot.host.is_none());
         slot.root = Some(candidate.root);
@@ -445,9 +448,9 @@ impl CellResidencySet {
     pub fn poll(&mut self, slot_budget: usize) -> JobResult<SetSnapshot> {
         self.poll_ordered(&[], slot_budget)
     }
-    /// Visits preferred current hosts first, then remaining slots from the
-    /// round-robin cursor. All selected hosts still use their existing bounded
-    /// poll and ResourceJobs queues.
+    /// Ages every occupied slot so active preferences cannot starve retired
+    /// hosts. Preference order breaks equal-age ties; each visit still uses the
+    /// existing bounded poll and ResourceJobs queues.
     pub fn poll_ordered(
         &mut self,
         preferred: &[Ticket],
@@ -456,27 +459,41 @@ impl CellResidencySet {
         if slot_budget == 0 || slot_budget > self.limits.slots {
             return Err(invalid("residency set poll slot bound"));
         }
-        let mut order = Vec::with_capacity(self.slots.len());
-        for ticket in preferred {
+        let mut preferred_rank = vec![usize::MAX; self.slots.len()];
+        for (rank, ticket) in preferred.iter().enumerate() {
             let index = self.current_slot(ticket)?;
-            if !order.contains(&index) {
-                order.push(index);
+            if preferred_rank[index] == usize::MAX {
+                preferred_rank[index] = rank;
             }
         }
-        let mut fallback = self.cursor;
-        for _ in 0..self.slots.len() {
-            if !order.contains(&fallback) {
-                order.push(fallback);
-            }
-            fallback = (fallback + 1) % self.slots.len();
-        }
-        let order: Vec<_> = order.into_iter().take(slot_budget).collect();
-        self.last_polled.clear();
+        let preference_scale = preferred.len() as u64 + 1;
+        let slot_count = self.slots.len();
+        let mut order: Vec<_> = (0..slot_count)
+            .filter(|index| self.slots[*index].host.is_some())
+            .collect();
+        order.sort_by(|left, right| {
+            let score = |index: usize| {
+                let rank = preferred_rank[index];
+                let preference_bonus = if rank == usize::MAX {
+                    0
+                } else {
+                    (preferred.len() - rank) as u64
+                };
+                self.poll_wait_age[index]
+                    .saturating_mul(preference_scale)
+                    .saturating_add(preference_bonus)
+            };
+            let cursor_distance = |index: usize| (index + slot_count - self.cursor) % slot_count;
+            score(*right)
+                .cmp(&score(*left))
+                .then_with(|| cursor_distance(*left).cmp(&cursor_distance(*right)))
+        });
+        order.truncate(slot_budget);
+        self.last_polled.clone_from(&order);
         if let Some(last) = order.last() {
             self.cursor = (last + 1) % self.slots.len();
         }
-        for index in order {
-            self.last_polled.push(index);
+        for &index in &order {
             let slot = &mut self.slots[index];
             if let Some(host) = &mut slot.host {
                 // A host retains its own Failed/error snapshot; other cells still advance.
@@ -495,6 +512,13 @@ impl CellResidencySet {
                     slot.root = None;
                     slot.key_bytes = 0;
                 }
+            }
+        }
+        for index in 0..self.slots.len() {
+            if self.slots[index].host.is_none() || order.contains(&index) {
+                self.poll_wait_age[index] = 0;
+            } else {
+                self.poll_wait_age[index] = self.poll_wait_age[index].saturating_add(1);
             }
         }
         Ok(self.snapshot())

@@ -427,8 +427,10 @@ impl AdjacentRegionResidency {
         Ok(retired)
     }
 
-    fn validate(&self, ticket: &RegionTicket) -> JobResult<Ticket> {
-        ticket.check()?;
+    fn validate_owner(&self, ticket: &RegionTicket) -> JobResult<Ticket> {
+        if !Arc::ptr_eq(&self.generation_gate, &ticket.world_generation) {
+            return Err(JobError::Invalid("foreign adjacent-region owner".into()));
+        }
         if ticket.identity.world_generation != self.world_generation
             || self.current_worldspace.as_ref() != Some(&ticket.identity.key.worldspace)
         {
@@ -439,10 +441,18 @@ impl AdjacentRegionResidency {
             .iter()
             .find(|active| active.ticket.identity.key == ticket.identity.key)
             .ok_or(JobError::Stale)?;
-        if active.ticket.identity != ticket.identity {
+        if active.ticket.identity != ticket.identity
+            || active.ticket.source.identity() != ticket.source.identity()
+            || active.ticket.source.generation() != ticket.source.generation()
+        {
             return Err(JobError::Stale);
         }
         Ok(ticket.source.clone())
+    }
+    fn validate(&self, ticket: &RegionTicket) -> JobResult<Ticket> {
+        let source = self.validate_owner(ticket)?;
+        ticket.check()?;
+        Ok(source)
     }
 
     pub fn active_tickets(&self) -> Vec<RegionTicket> {
@@ -499,7 +509,9 @@ impl AdjacentRegionResidency {
         self.owner.publish_render(&source, publish)
     }
     pub fn remove(&mut self, ticket: &RegionTicket) -> JobResult<()> {
-        let source = self.validate(ticket)?;
+        // Failed extraction cancels the source token, but its exact current
+        // manager ticket must still be able to retire the owned failed host.
+        let source = self.validate_owner(ticket)?;
         self.owner.remove(&source)?;
         let index = self
             .active

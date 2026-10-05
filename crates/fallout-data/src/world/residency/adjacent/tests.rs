@@ -190,3 +190,94 @@ fn world_instance_replacement_rejects_a_late_reused_cell_and_block_completion() 
     );
     assert!(regions.is_current(&new_ticket));
 }
+
+#[test]
+fn foreign_manager_ticket_with_identical_identity_is_rejected() {
+    let fixture = Fixture::new();
+    let plans = fixture.plans();
+    let worldspace = key(0x1000);
+    let requests = [request(&worldspace, [0, 0], &plans[0], 9)];
+    let mut left = manager(&fixture, &plans, 1);
+    let mut right = manager(&fixture, &plans, 1);
+    left.reconcile(&worldspace, [0, 0], &requests).unwrap();
+    right.reconcile(&worldspace, [0, 0], &requests).unwrap();
+    let foreign = right.active_tickets().pop().unwrap();
+    let own = left.active_tickets().pop().unwrap();
+
+    assert_eq!(foreign.identity(), own.identity());
+    assert!(foreign.check().is_ok());
+    assert!(!left.is_current(&foreign));
+    assert!(left.sources(&foreign).is_err());
+    let mut published = false;
+    assert!(
+        left.publish_render(&foreign, || {
+            published = true;
+            Ok(())
+        })
+        .is_err()
+    );
+    assert!(!published);
+}
+
+#[test]
+fn retired_owner_drains_while_active_region_is_preferred() {
+    let fixture = Fixture::new();
+    let plans = fixture.plans();
+    let worldspace = key(0x1000);
+    let mut regions = manager(&fixture, &plans, 2);
+    let requests = [
+        request(&worldspace, [0, 0], &plans[0], 9),
+        request(&worldspace, [1, 0], &plans[1], 1),
+    ];
+    regions.reconcile(&worldspace, [0, 0], &requests).unwrap();
+    let old = regions
+        .active_tickets()
+        .into_iter()
+        .find(|ticket| ticket.identity().key.cell == *plans[0].root())
+        .unwrap();
+    let pause = Pause::new(true);
+    regions
+        .owner
+        .pause_test_work(&old.source, pause.clone())
+        .unwrap();
+    let _release = Release(pause.clone());
+    regions.poll(1).unwrap();
+    pause.reached();
+
+    let keep = [request(&worldspace, [1, 0], &plans[1], 1)];
+    let crossed = regions.reconcile(&worldspace, [2, 0], &keep).unwrap();
+    assert_eq!(crossed.retired, 1);
+    assert_eq!(crossed.active_regions, 1);
+    pause.release();
+    pause.completed();
+    for _ in 0..32 {
+        regions.poll(1).unwrap();
+    }
+    assert_eq!(regions.snapshot().usage.retired_slots, 0);
+}
+
+#[test]
+fn failed_source_ticket_can_be_removed_and_drained() {
+    let fixture = Fixture::with_corrupt_model_archive();
+    let plans = fixture.plans();
+    let worldspace = key(0x1000);
+    let mut regions = manager(&fixture, &plans, 1);
+    let requests = [request(&worldspace, [0, 0], &plans[0], 9)];
+    regions.reconcile(&worldspace, [0, 0], &requests).unwrap();
+    let ticket = regions.active_tickets().pop().unwrap();
+
+    until(|| {
+        regions.poll(1).unwrap().slots.iter().any(|slot| {
+            slot.source
+                .as_ref()
+                .is_some_and(|source| source.stage == Stage::Failed)
+        })
+    });
+    assert!(ticket.check().is_err());
+    regions.remove(&ticket).unwrap();
+    assert!(regions.active_tickets().is_empty());
+    assert_eq!(regions.snapshot().usage.active_slots, 0);
+    assert_eq!(regions.snapshot().usage.retired_slots, 1);
+    until(|| regions.poll(1).unwrap().usage.retired_slots == 0);
+    assert_eq!(regions.snapshot().usage.outstanding, 0);
+}

@@ -178,6 +178,32 @@ def write_complete_manifest(root: Path) -> Path:
     return manifest_path
 
 
+def source_fingerprint_workspace(root: Path) -> Path:
+    files = {
+        "Cargo.toml": '[workspace]\nmembers = ["crates/fallout-preview", "crates/fallout-data", "crates/fallout-runtime", "crates/fallout-math"]\n',
+        "Cargo.lock": "version = 4\n",
+        "rust-toolchain.toml": '[toolchain]\nchannel = "stable"\n',
+        ".cargo/config.toml": "[build]\njobs = 1\n",
+        "crates/fallout-preview/Cargo.toml": '[package]\nname = "fallout-preview"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\nfallout-data = { path = "../fallout-data" }\nfallout-runtime = { path = "../fallout-runtime" }\n',
+        "crates/fallout-preview/src/main.rs": '#[path = "lib.rs"] mod engine_bridge;\n',
+        "crates/fallout-preview/src/lib.rs": 'pub const INSPECTION_SHADER: &str = include_str!("inspection.wgsl");\n',
+        "crates/fallout-preview/src/inspection.wgsl": "@fragment fn inspect() {}\n",
+        "crates/fallout-data/Cargo.toml": '[package]\nname = "fallout-data"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\nfallout-math = { path = "../fallout-math" }\n',
+        "crates/fallout-data/src/lib.rs": '#[path = "world/preparation/plan.rs"] mod preparation_plan;\n',
+        "crates/fallout-data/src/world/preparation/plan.rs": "pub fn load_cell_model_plan() -> usize { 1 }\n",
+        "crates/fallout-runtime/Cargo.toml": '[package]\nname = "fallout-runtime"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\nfallout-data = { path = "../fallout-data" }\n',
+        "crates/fallout-runtime/src/lib.rs": "pub fn source_runtime() {}\n",
+        "crates/fallout-math/Cargo.toml": '[package]\nname = "fallout-math"\nversion = "0.1.0"\nedition = "2024"\n',
+        "crates/fallout-math/src/lib.rs": "pub fn source_math() {}\n",
+        "tools/build-helper.rs": "fn main() {}\n",
+    }
+    for relative, contents in files.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents, encoding="utf-8")
+    return root
+
+
 class SceneReportMutationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.expected = scene_replay.scene_evidence(sample_report(), "GSDocMitchellHouse", "a" * 64)
@@ -240,10 +266,97 @@ class SceneReportMutationTests(unittest.TestCase):
         for path in (
             "crates/fallout-preview/src/native.rs",
             "crates/fallout-preview/src/material.rs",
+            "crates/fallout-preview/src/inspection.wgsl",
             "crates/fallout-data/src/nif_scene/material.rs",
+            "crates/fallout-data/src/world/preparation/plan.rs",
             "crates/fallout-data/src/world/residency/textures.rs",
+            "crates/fallout-runtime/src/lib.rs",
+            "Cargo.lock",
+            "crates/fallout-preview/Cargo.toml",
+            "tools/team-build.py",
         ):
             self.assertIn(path, paths)
+        self.assertEqual(fingerprint["source_roots"], ["crates", "tools"])
+        self.assertEqual(fingerprint["source_file_count"], len(paths))
+        self.assertGreater(fingerprint["source_total_bytes"], 0)
+        self.assertEqual(
+            [row["path"] for row in fingerprint["files"]],
+            sorted(paths, key=lambda item: (item.casefold(), item)),
+        )
+
+    def test_source_fingerprint_detects_changed_transitive_and_new_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = source_fingerprint_workspace(Path(directory) / "repo")
+
+            def fixed_git(_repo: Path, *_arguments: str) -> str:
+                return "a" * 40 if _arguments[-1] == "HEAD" else "b" * 40
+
+            with patch.object(scene_replay, "_git_value", side_effect=fixed_git):
+                before = scene_replay.source_fingerprint(repo)
+                self.assertIn(
+                    "crates/fallout-math/src/lib.rs",
+                    {row["path"] for row in before["files"]},
+                )
+                plan_path = repo / "crates/fallout-data/src/world/preparation/plan.rs"
+                plan_path.write_text("pub fn load_cell_model_plan() -> usize { 2 }\n", encoding="utf-8")
+                changed = scene_replay.source_fingerprint(repo)
+                self.assertEqual(before["git_tree"], changed["git_tree"])
+                before_plan = next(row for row in before["files"] if row["path"].endswith("/world/preparation/plan.rs"))
+                changed_plan = next(row for row in changed["files"] if row["path"] == before_plan["path"])
+                self.assertNotEqual(before_plan["sha256"], changed_plan["sha256"])
+                self.assertNotEqual(before["files"], changed["files"])
+
+                new_module = repo / "crates/fallout-preview/src/engine_bridge/upload.rs"
+                new_module.parent.mkdir(parents=True, exist_ok=True)
+                new_module.write_text("pub fn upload_observer() {}\n", encoding="utf-8")
+                extended = scene_replay.source_fingerprint(repo)
+                self.assertIn(
+                    "crates/fallout-preview/src/engine_bridge/upload.rs",
+                    {row["path"] for row in extended["files"]},
+                )
+                self.assertNotEqual(changed["files"], extended["files"])
+
+    def test_source_fingerprint_refuses_source_references_outside_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = source_fingerprint_workspace(Path(directory) / "repo")
+            outside = Path(directory) / "outside.rs"
+            outside.write_text("pub fn escape() {}\n", encoding="utf-8")
+            source = repo / "crates/fallout-preview/src/main.rs"
+            relative = os.path.relpath(outside, source.parent).replace("\\", "/")
+            source.write_text(f'#[path = "{relative}"] mod outside;\n', encoding="utf-8")
+            with patch.object(scene_replay, "_git_value", return_value="a" * 40):
+                with self.assertRaisesRegex(scene_replay.AcceptanceError, "escapes the pinned source roots"):
+                    scene_replay.source_fingerprint(repo)
+
+    def test_source_fingerprint_refuses_cargo_path_dependencies_outside_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = source_fingerprint_workspace(Path(directory) / "repo")
+            outside = Path(directory) / "outside-package"
+            outside.mkdir()
+            (outside / "Cargo.toml").write_text(
+                '[package]\nname = "outside-package"\nversion = "0.1.0"\nedition = "2024"\n',
+                encoding="utf-8",
+            )
+            manifest = repo / "crates/fallout-preview/Cargo.toml"
+            manifest.write_text(
+                manifest.read_text(encoding="utf-8")
+                + 'fallout-unlisted = { path = "../../../outside-package" }\n',
+                encoding="utf-8",
+            )
+            with patch.object(scene_replay, "_git_value", return_value="a" * 40):
+                with self.assertRaisesRegex(scene_replay.AcceptanceError, "Cargo source path escapes"):
+                    scene_replay.source_fingerprint(repo)
+
+    def test_source_fingerprint_enforces_inventory_budgets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = source_fingerprint_workspace(Path(directory) / "repo")
+            with patch.object(scene_replay, "_git_value", return_value="a" * 40):
+                with patch.object(scene_replay, "MAX_SOURCE_FILES", 3):
+                    with self.assertRaisesRegex(scene_replay.AcceptanceError, "file inventory budget"):
+                        scene_replay.source_fingerprint(repo)
+                with patch.object(scene_replay, "MAX_SOURCE_BYTES", 8):
+                    with self.assertRaisesRegex(scene_replay.AcceptanceError, "byte inventory budget"):
+                        scene_replay.source_fingerprint(repo)
 
 
 class CompletionAndObservationTests(unittest.TestCase):

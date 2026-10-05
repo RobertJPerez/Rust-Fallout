@@ -15,55 +15,36 @@ import math
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import time
+import tomllib
 import uuid
 import zlib
 
 
 SCHEMA_VERSION = 1
-TOOL_VERSION = "scene-replay-1"
+TOOL_VERSION = "scene-replay-2"
 MAX_JSON_BYTES = 64 * 1024 * 1024
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-SOURCE_FILES = (
-    "Cargo.toml",
-    "Cargo.lock",
-    "rust-toolchain.toml",
-    "crates/fallout-preview/Cargo.toml",
-    "crates/fallout-data/Cargo.toml",
-    "crates/fallout-runtime/Cargo.toml",
-    "crates/fallout-preview/src/main.rs",
-    "crates/fallout-preview/src/scene.rs",
-    "crates/fallout-preview/src/model.rs",
-    "crates/fallout-preview/src/material.rs",
-    "crates/fallout-preview/src/pose.rs",
-    "crates/fallout-preview/src/upload.rs",
-    "crates/fallout-preview/src/input.rs",
-    "crates/fallout-preview/src/loading.rs",
-    "crates/fallout-preview/src/native.rs",
-    "crates/fallout-preview/src/inspection.wgsl",
-    "crates/fallout-data/src/lib.rs",
-    "crates/fallout-data/src/archive.rs",
-    "crates/fallout-data/src/assets.rs",
-    "crates/fallout-data/src/baseline.rs",
-    "crates/fallout-data/src/coordinates.rs",
-    "crates/fallout-data/src/nif.rs",
-    "crates/fallout-data/src/nif_scene/mod.rs",
-    "crates/fallout-data/src/nif_scene/graph.rs",
-    "crates/fallout-data/src/nif_scene/material.rs",
-    "crates/fallout-data/src/nif_scene/mesh.rs",
-    "crates/fallout-data/src/plugin.rs",
-    "crates/fallout-data/src/store.rs",
-    "crates/fallout-data/src/vfs.rs",
-    "crates/fallout-data/src/world.rs",
-    "crates/fallout-data/src/world/cells.rs",
-    "crates/fallout-data/src/world/activation.rs",
-    "crates/fallout-data/src/world/preparation.rs",
-    "crates/fallout-data/src/world/dependencies.rs",
-    "crates/fallout-data/src/world/residency.rs",
-    "crates/fallout-data/src/world/residency/textures.rs",
-    "crates/fallout-runtime/src/reference_state/mod.rs",
+SOURCE_ROOTS = ("crates", "tools")
+# Inventory a conservative superset so new modules, local crates and shaders
+# cannot escape a hand-maintained transitive-source list.
+SOURCE_CONTROL_FILES = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
+SOURCE_OPTIONAL_ROOTS = (".cargo",)
+SOURCE_IGNORED_DIRS = frozenset(
+    {".git", "target", "target-v4", "local", "__pycache__", ".pytest_cache"}
+)
+MAX_SOURCE_FILES = 4096
+MAX_SOURCE_FILE_BYTES = 64 * 1024 * 1024
+MAX_SOURCE_BYTES = 256 * 1024 * 1024
+MAX_SOURCE_PATH_CHARS = 1024
+RUST_PATH_ATTRIBUTE_CALL = re.compile(r"#\s*\[\s*path\b")
+RUST_PATH_ATTRIBUTE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"]+)"\s*\]')
+RUST_INCLUDE_CALL = re.compile(r"\binclude(?:_str|_bytes)?\s*!\s*\(")
+RUST_INCLUDE_LITERAL = re.compile(
+    r'\binclude(?:_str|_bytes)?\s*!\s*\(\s*"([^"]+)"\s*\)'
 )
 ABSENT_OBSERVATIONS = {
     "actual_camera_transform": "The preview report records camera inputs, not the applied Transform.",
@@ -607,18 +588,252 @@ def _git_value(repo: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
+def _is_reparse_path(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
+
+
+def _source_relative_path(repo: Path, path: Path) -> str:
+    try:
+        relative = path.absolute().relative_to(repo.resolve()).as_posix()
+    except ValueError as error:
+        raise AcceptanceError(f"Production source escapes repository: {path}") from error
+    if not relative or len(relative) > MAX_SOURCE_PATH_CHARS:
+        raise AcceptanceError(f"Production source path is empty or too long: {path}")
+    return relative
+
+
+def _walk_source_root(repo: Path, relative_root: str, required: bool = True) -> list[Path]:
+    raw_root = repo / relative_root
+    if not raw_root.exists():
+        if required:
+            raise AcceptanceError(f"Production source root is missing: {relative_root}")
+        return []
+    if _is_reparse_path(raw_root):
+        raise AcceptanceError(f"Production source root cannot be a symlink or junction: {relative_root}")
+    root = _safe_child(repo, relative_root, "source")
+    if not root.is_dir():
+        raise AcceptanceError(f"Production source root is not a directory: {relative_root}")
+
+    files: list[Path] = []
+
+    def visit(directory: Path) -> None:
+        try:
+            with os.scandir(directory) as stream:
+                entries = sorted(stream, key=lambda entry: (entry.name.casefold(), entry.name))
+        except OSError as error:
+            raise AcceptanceError(f"Cannot enumerate production source directory {directory}: {error}") from error
+        for entry in entries:
+            if entry.name.casefold() in SOURCE_IGNORED_DIRS and entry.is_dir(follow_symlinks=False):
+                continue
+            path = Path(entry.path)
+            if _is_reparse_path(path):
+                raise AcceptanceError(f"Production source cannot contain symlinks or junctions: {path}")
+            if entry.is_dir(follow_symlinks=False):
+                visit(path)
+            elif entry.is_file(follow_symlinks=False):
+                if path.suffix.casefold() != ".pyc":
+                    files.append(path)
+                    if len(files) > MAX_SOURCE_FILES:
+                        raise AcceptanceError(
+                            f"Production source exceeds the {MAX_SOURCE_FILES}-file inventory budget"
+                        )
+            else:
+                raise AcceptanceError(f"Production source contains a non-regular input: {path}")
+
+    visit(root)
+    return files
+
+
+def _read_source_toml(path: Path) -> dict:
+    try:
+        stat_before = path.stat()
+        if stat_before.st_size > MAX_SOURCE_FILE_BYTES:
+            raise AcceptanceError(f"Cargo manifest exceeds the source file budget: {path}")
+        data = path.read_bytes()
+        if len(data) > MAX_SOURCE_FILE_BYTES or len(data) != stat_before.st_size:
+            raise AcceptanceError(f"Cargo manifest changed or exceeds the source file budget: {path}")
+        return tomllib.loads(data.decode("utf-8"))
+    except AcceptanceError:
+        raise
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise AcceptanceError(f"Cannot read Cargo manifest {path}: {error}") from error
+
+
+def _cargo_path_values(value: object):
+    if isinstance(value, dict):
+        path = value.get("path")
+        if path is not None:
+            yield path
+        for child in value.values():
+            yield from _cargo_path_values(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _cargo_path_values(child)
+
+
+def _validate_source_references(repo: Path, files: list[Path], source_roots: list[Path]) -> None:
+    file_paths = {_source_relative_path(repo, path) for path in files}
+    for path in files:
+        if path.suffix.casefold() != ".rs":
+            continue
+        try:
+            if path.stat().st_size > MAX_SOURCE_FILE_BYTES:
+                raise AcceptanceError(f"Rust source exceeds the source file budget: {path}")
+            text = path.read_text(encoding="utf-8")
+        except AcceptanceError:
+            raise
+        except (OSError, UnicodeError) as error:
+            raise AcceptanceError(f"Cannot inspect Rust source references in {path}: {error}") from error
+
+        path_calls = len(RUST_PATH_ATTRIBUTE_CALL.findall(text))
+        path_matches = RUST_PATH_ATTRIBUTE.findall(text)
+        include_calls = len(RUST_INCLUDE_CALL.findall(text))
+        include_matches = RUST_INCLUDE_LITERAL.findall(text)
+        if path_calls != len(path_matches) or include_calls != len(include_matches):
+            raise AcceptanceError(f"Non-literal Rust source reference is outside the pinned closure: {path}")
+        for reference in (*path_matches, *include_matches):
+            requested = Path(reference)
+            if requested.is_absolute():
+                raise AcceptanceError(f"Rust source reference must be repository-relative: {path}: {reference}")
+            raw_target = path.parent / requested
+            try:
+                if _is_reparse_path(raw_target):
+                    raise AcceptanceError(f"Rust source reference cannot use a symlink or junction: {raw_target}")
+                target = raw_target.resolve(strict=True)
+            except AcceptanceError:
+                raise
+            except (OSError, RuntimeError) as error:
+                raise AcceptanceError(f"Rust source reference is missing or invalid: {path}: {reference}") from error
+            if not any(target == root or root in target.parents for root in source_roots):
+                raise AcceptanceError(f"Rust source reference escapes the pinned source roots: {path}: {reference}")
+            if not target.is_file():
+                raise AcceptanceError(f"Rust source reference is not a file: {path}: {reference}")
+            relative = _source_relative_path(repo, target)
+            if relative not in file_paths:
+                raise AcceptanceError(f"Rust source reference is absent from the inventory: {relative}")
+
+
+def _source_file_record(path: Path, repo: Path, total_bytes: int) -> tuple[dict, int]:
+    relative = _source_relative_path(repo, path)
+    raw_path = repo / Path(relative)
+    if _is_reparse_path(raw_path):
+        raise AcceptanceError(f"Production source cannot be a symlink or junction: {relative}")
+    safe_path = _safe_child(repo, relative, "source")
+    try:
+        before = safe_path.stat()
+        if not stat.S_ISREG(before.st_mode):
+            raise AcceptanceError(f"Production source is not a regular file: {relative}")
+        if before.st_size > MAX_SOURCE_FILE_BYTES:
+            raise AcceptanceError(f"Production source exceeds the per-file byte budget: {relative}")
+        if total_bytes + before.st_size > MAX_SOURCE_BYTES:
+            raise AcceptanceError(f"Production source exceeds the {MAX_SOURCE_BYTES}-byte inventory budget")
+        digest = hashlib.sha256()
+        read_bytes = 0
+        with safe_path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                read_bytes += len(block)
+                if read_bytes > MAX_SOURCE_FILE_BYTES or total_bytes + read_bytes > MAX_SOURCE_BYTES:
+                    raise AcceptanceError(f"Production source grew beyond its byte budget: {relative}")
+                digest.update(block)
+        after = safe_path.stat()
+    except AcceptanceError:
+        raise
+    except OSError as error:
+        raise AcceptanceError(f"Cannot hash production source {relative}: {error}") from error
+    if (
+        read_bytes != before.st_size
+        or after.st_size != before.st_size
+        or after.st_mtime_ns != before.st_mtime_ns
+        or after.st_ino != before.st_ino
+    ):
+        raise AcceptanceError(f"Production source changed while being fingerprinted: {relative}")
+    return {"path": relative, "bytes": read_bytes, "sha256": digest.hexdigest()}, total_bytes + read_bytes
+
+
 def source_fingerprint(repo: Path) -> dict:
-    files = []
-    for relative in SOURCE_FILES:
+    repo = repo.resolve()
+    source_roots: list[Path] = []
+    source_paths: list[Path] = []
+    for relative_root in SOURCE_ROOTS:
+        root = _safe_child(repo, relative_root, "source")
+        source_roots.append(root)
+        source_paths.extend(_walk_source_root(repo, relative_root))
+    for relative_root in SOURCE_OPTIONAL_ROOTS:
+        source_paths.extend(_walk_source_root(repo, relative_root, required=False))
+        optional_root = repo / relative_root
+        if optional_root.is_dir():
+            source_roots.append(_safe_child(repo, relative_root, "source"))
+    for relative in SOURCE_CONTROL_FILES:
+        raw_path = repo / relative
+        if _is_reparse_path(raw_path):
+            raise AcceptanceError(f"Source control input cannot be a symlink or junction: {relative}")
         path = _safe_child(repo, relative, "source")
         if not path.is_file():
-            raise AcceptanceError(f"Pinned production source is missing: {relative}")
-        stat = path.stat()
-        files.append({"path": relative, "bytes": stat.st_size, "sha256": sha256_file(path)})
+            raise AcceptanceError(f"Source control input is missing: {relative}")
+        source_paths.append(path)
+
+    unique_paths: dict[str, Path] = {}
+    for path in source_paths:
+        relative = _source_relative_path(repo, path)
+        folded = relative.casefold()
+        if folded in unique_paths and unique_paths[folded] != path:
+            raise AcceptanceError(f"Production source paths collide by case: {relative}")
+        unique_paths[folded] = path
+    ordered = sorted(
+        unique_paths.values(),
+        key=lambda path: (
+            _source_relative_path(repo, path).casefold(),
+            _source_relative_path(repo, path),
+        ),
+    )
+    if len(ordered) > MAX_SOURCE_FILES:
+        raise AcceptanceError(f"Production source exceeds the {MAX_SOURCE_FILES}-file inventory budget")
+
+    file_names = {_source_relative_path(repo, path) for path in ordered}
+    for manifest in (path for path in ordered if path.name == "Cargo.toml"):
+        document = _read_source_toml(manifest)
+        for value in _cargo_path_values(document):
+            if not isinstance(value, str) or not value:
+                raise AcceptanceError(f"Cargo path must be a non-empty string: {manifest}")
+            requested = Path(value)
+            if requested.is_absolute():
+                raise AcceptanceError(f"Cargo source path must be repository-relative: {manifest}: {value}")
+            raw_target = manifest.parent / requested
+            try:
+                if _is_reparse_path(raw_target):
+                    raise AcceptanceError(f"Cargo source path cannot use a symlink or junction: {raw_target}")
+                target = raw_target.resolve(strict=True)
+            except AcceptanceError:
+                raise
+            except (OSError, RuntimeError) as error:
+                raise AcceptanceError(f"Cargo source path is missing or invalid: {manifest}: {value}") from error
+            if not any(target == root or root in target.parents for root in source_roots):
+                raise AcceptanceError(f"Cargo source path escapes the pinned source roots: {manifest}: {value}")
+            if target.is_file() and _source_relative_path(repo, target) not in file_names:
+                raise AcceptanceError(f"Cargo source path is absent from the inventory: {target}")
+            if target.is_dir():
+                dependency_manifest = target / "Cargo.toml"
+                if not dependency_manifest.is_file():
+                    raise AcceptanceError(f"Cargo package path has no manifest: {target}")
+                if _source_relative_path(repo, dependency_manifest) not in file_names:
+                    raise AcceptanceError(f"Cargo package manifest is absent from the inventory: {target}")
+
+    _validate_source_references(repo, ordered, source_roots)
+    files = []
+    total_bytes = 0
+    for path in ordered:
+        record, total_bytes = _source_file_record(path, repo, total_bytes)
+        files.append(record)
     script_path = Path(__file__).resolve()
     return {
         "git_revision": _git_value(repo, "rev-parse", "HEAD"),
         "git_tree": _git_value(repo, "rev-parse", "HEAD^{tree}"),
+        "source_roots": sorted(_source_relative_path(repo, path) for path in source_roots),
+        "source_file_count": len(files),
+        "source_total_bytes": total_bytes,
         "files": files,
         "harness_sha256": sha256_file(script_path),
     }

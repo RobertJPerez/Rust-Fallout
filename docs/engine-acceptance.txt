@@ -7,6 +7,14 @@ plugin hashes from the scene report, requested camera inputs, source origin,
 placement transforms, model and texture digests, residency identities, and PNG
 pixels.
 
+The source fingerprint is a sorted inventory of files under crates/ and tools/,
+plus Cargo.toml, Cargo.lock, rust-toolchain.toml, and any .cargo configuration.
+It covers newly added modules, local crate sources, shaders, and build inputs,
+so a changed or added transitive source file changes the pin. Cargo path
+dependencies and Rust path/include references outside these roots are refused.
+The inventory is capped at 4096 files, 64 MiB per file, and 256 MiB total; VCS,
+local evidence, build/cache directories, and Python bytecode are excluded.
+
 The harness uses the existing preview command with explicit source-space camera
 position and target, headless 1280 by 900 output, and a separate report and PNG
 for each required scenario. It creates a new evidence directory and never

@@ -550,6 +550,140 @@ fn ordered_owner_batch_refuses_a_later_unsupported_quest_operand_without_a_candi
 }
 
 #[test]
+fn later_unselected_compiled_source_discards_a_private_ordered_prefix() {
+    let (directory, _, _) = fixture(false);
+    let path = directory.path().join("FalloutNV.esm");
+    let mut plugin = fs::read(&path).unwrap();
+    plugin.extend(record(b"SCPT", 0x301, 0, &unit(&[(1, 1)], &[])));
+    fs::write(&path, plugin).unwrap();
+    let (catalogue, content) = loaded(directory.path());
+    let first_definition = definition(&catalogue);
+    let second_definition = catalogue
+        .record_scripts(&form(0x301))
+        .next()
+        .unwrap()
+        .handle()
+        .clone();
+    let operators = Operators::new(
+        [
+            "(", ")", "&&", "||", "<=", "<", ">=", ">", "==", "!=", "-", "+", "*", "/", "%", "~",
+        ]
+        .iter()
+        .enumerate()
+        .map(|(i, text)| Operator {
+            code: i as u32,
+            precedence: i as u8,
+            spelling: text.as_bytes().to_vec(),
+        })
+        .collect(),
+    )
+    .unwrap();
+    let model = Model::vanilla(&operators).unwrap();
+    let selected = PreparedSources::load_selected(
+        &catalogue,
+        &model,
+        &Signatures::new(),
+        std::slice::from_ref(&first_definition),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(selected.counts().definitions, 2);
+    assert_eq!(selected.counts().prepared, 1);
+
+    let mut world = World::with_campaign(
+        Arc::clone(&catalogue),
+        Default::default(),
+        CampaignId::from_bytes([0x75; 16]).unwrap(),
+    )
+    .unwrap();
+    let first_owner = Owner::Fragment {
+        activation: 1.try_into().unwrap(),
+    };
+    let first_instance = world
+        .create_instance(&first_definition, first_owner.clone(), Context::default())
+        .unwrap();
+    world
+        .assign(
+            first_instance,
+            &[(
+                1,
+                Value::Number {
+                    bits: 17.0_f64.to_bits(),
+                },
+            )],
+        )
+        .unwrap();
+    let first_sequence = world
+        .enqueue(
+            first_instance,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let second_owner = Owner::Fragment {
+        activation: 2.try_into().unwrap(),
+    };
+    let second_instance = world
+        .create_instance(&second_definition, second_owner.clone(), Context::default())
+        .unwrap();
+    let second_sequence = world
+        .enqueue(
+            second_instance,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let before = world.snapshot();
+    let input = before.encode(64 * 1024 * 1024).unwrap();
+    let requests = [
+        OwnerRequest {
+            sequence: first_sequence.try_into().unwrap(),
+            expected_owner: first_owner,
+        },
+        OwnerRequest {
+            sequence: second_sequence.try_into().unwrap(),
+            expected_owner: second_owner,
+        },
+    ];
+    let mut job = Job::new_ordered(
+        world,
+        &selected,
+        &content,
+        &requests,
+        Intent::Engineering,
+        Default::default(),
+    )
+    .unwrap();
+
+    let first = job.advance(1).unwrap();
+    assert_eq!(first.status, Status::Pending);
+    assert_eq!(first.counts.events, 1);
+    assert_eq!(first.counts.source_instructions, 3);
+    assert_eq!(first.work.source_frame_attempts, 1);
+    assert!(matches!(
+        job.advance(1),
+        Err(pending_batch::Error::Preparation(
+            fallout_runtime::preparation::Error::CachedSource(
+                fallout_runtime::programs::LookupError::NotSelected
+            )
+        ))
+    ));
+    assert!(matches!(
+        job.finish(),
+        Err(pending_batch::Error::Input(
+            "the private job has already failed"
+        ))
+    ));
+    assert_eq!(before.encode(64 * 1024 * 1024).unwrap(), input);
+}
+
+#[test]
 fn saved_prefix_has_literal_whole_state_expected_locals_revisions_receipts_and_untouched_tail() {
     let (_directory, catalogue, content) = fixture(false);
     let prepared = sources(&catalogue);

@@ -410,8 +410,11 @@ enum Command {
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_batch_request: Option<PathBuf>,
         /// Advance a saved copy prefix by this many complete events per slice (1..64).
-        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=64), requires = "snapshot_copy_batch_request")]
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=64), requires = "snapshot_copy_batch_request", conflicts_with = "snapshot_multi_copy_request")]
         snapshot_copy_batch_slice_events: Option<u8>,
+        /// Consume one complete saved numeric copy event for an exact Quest/Placed owner.
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_multi_copy_request: Option<Box<PathBuf>>,
         /// Copy one explicitly qualified foreign numeric local into the own saved head.
         #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_foreign_copy_request: Option<Box<PathBuf>>,
@@ -457,8 +460,8 @@ enum Command {
         #[arg(long, requires = "saved_snapshot_request")]
         snapshot_input: Option<PathBuf>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
-        #[arg(long, requires = "saved_snapshot_request")]
-        snapshot_output: Option<PathBuf>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), requires = "saved_snapshot_request")]
+        snapshot_output: Option<Box<PathBuf>>,
     },
     /// Exercise shared source ownership and canonical state across a worker.
     SharedRuntime {
@@ -1269,6 +1272,7 @@ fn run(args: Args) -> Result<()> {
             snapshot_copy_request,
             snapshot_copy_batch_request,
             snapshot_copy_batch_slice_events,
+            snapshot_multi_copy_request,
             snapshot_foreign_copy_request,
             snapshot_reference_copy_request,
             snapshot_reference_literal_request,
@@ -1484,6 +1488,26 @@ fn run(args: Args) -> Result<()> {
                 if report["outcome"]["status"] != "engineering_observation" {
                     return Err(
                         "Saved native plan retains unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
+            if let Some(request) = snapshot_multi_copy_request {
+                let report = event_operand_inspection::copy_saved_multi_owned(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_multi_copy"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved named multi-copy remains unsupported; see engineering report".into(),
                     );
                 }
                 return Ok(());

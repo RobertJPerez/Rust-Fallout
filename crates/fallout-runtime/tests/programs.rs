@@ -413,7 +413,9 @@ fn exact_candidate_source_and_aggregate_budgets_abort_instead_of_returning_parti
 fn depth_and_inner_expression_exhaustion_are_resource_errors_after_earlier_successes() {
     let first = event(&[]);
     let mut nested = Vec::new();
+    instruction(&mut nested, 0x16, &[2, 0, 1, 0, b'1']);
     instruction(&mut nested, 0x16, &[0, 0, 1, 0, b'1']);
+    instruction(&mut nested, 0x19, &[]);
     instruction(&mut nested, 0x19, &[]);
     let extra = record(
         b"SCPT",
@@ -423,7 +425,18 @@ fn depth_and_inner_expression_exhaustion_are_resource_errors_after_earlier_succe
     );
     let (_directory, catalogue) = fixture(&first, &extra);
     let mut limits = programs::Limits::default();
-    limits.source.control.maximum_depth = 0;
+    limits.source.control.maximum_depth = 2;
+    let sources = cache(&catalogue, limits).expect("the configured depth limit is inclusive");
+    let handle = catalogue
+        .record_scripts(&form(0x301))
+        .next()
+        .unwrap()
+        .handle()
+        .clone();
+    let prepared = sources.get(&handle).unwrap();
+    assert_eq!(prepared.plan().control().maximum_depth(), 2);
+
+    limits.source.control.maximum_depth = 1;
     assert!(matches!(
         cache(&catalogue, limits),
         Err(programs::Error::Capacity(_))

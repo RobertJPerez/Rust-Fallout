@@ -465,6 +465,16 @@ subject is supplied, its current private view must have an existing component;
 canonical staging validates its epoch and exact state, then the proposal is
 immediately dropped. This validation never commits state. No caller component
 means a refusal. Omitting the optional subject records no actor reference binding.
+
+`actor_rules::package_lifecycle::observe` consumes one explicit physical PKID
+occurrence, its exact PACK source, and a caller-supplied route request. It returns
+a candidate only for raw PKDT type 6, an admitted literal CELL destination, and a
+found source route. POBA, POCA and POEA declarations and embedded script/compiled
+source identities retain physical source order and coordinates. That order is not
+runtime dispatch order: eligibility, scheduling, event dispatch, embedded script
+ownership/execution and actor movement remain unsupported. The result cannot
+mutate canonical actor state, and unsupported types or unavailable routes return
+errors instead of a successful no-op.
 Saved snapshots remain unchanged, and `require_execution()` always refuses
 faithful AI even when the engineering path is found.
 

@@ -1,13 +1,23 @@
 mod common;
 use common::*;
 use fallout_data::{
-    actors::packages, loaded_scripts::Catalogue, navigation, store::RecordStore, world::Transform,
+    actors::{self, associations, package_dependencies, packages},
+    condition_operands::Signatures,
+    inventory,
+    loaded_scripts::Catalogue,
+    navigation,
+    store::RecordStore,
+    world::Transform,
 };
 use fallout_runtime::{
     Limits as WorldLimits, World,
-    actor_rules::route_requests::{
-        self, Decision, DoorPolicy, Endpoint, Error, ExternalDecision, Limits, Outcome, Policy,
-        Query,
+    actor_rules::{
+        package_lifecycle,
+        packages::{Operation, Requests},
+        route_requests::{
+            self, Decision, DoorPolicy, Endpoint, Error, ExternalDecision, Limits, Outcome, Policy,
+            Query,
+        },
     },
     foreign::Content,
     identity::CampaignId,
@@ -29,9 +39,9 @@ fn words(values: &[u32]) -> Vec<u8> {
 fn operand(kind: &[u8; 4], discriminant: u32, target: u32) -> Vec<u8> {
     field(kind, &words(&[discriminant, target, (-100i32) as u32]))
 }
-fn package(extra: &[u8]) -> Vec<u8> {
+fn package(package_type: u8, extra: &[u8]) -> Vec<u8> {
     [
-        field(b"PKDT", &[0, 0, 0, 0, 6, 0, 0, 0]),
+        field(b"PKDT", &[0, 0, 0, 0, package_type, 0, 0, 0]),
         field(b"PSDT", &[255, 255, 255, 255, 0, 0, 0, 0]),
         extra.to_vec(),
     ]
@@ -141,6 +151,8 @@ fn fixture(path: &Path, marker: u8) -> Value {
                 field(b"ACBS", &[0; 24]),
                 field(b"DATA", &[marker; 17]),
                 field(b"PKID", &0x100u32.to_le_bytes()),
+                field(b"PKID", &0x104u32.to_le_bytes()),
+                field(b"PKID", &0x101u32.to_le_bytes()),
             ]
             .concat(),
         ),
@@ -156,17 +168,30 @@ fn fixture(path: &Path, marker: u8) -> Value {
     ]
     .concat();
     let mut package_offsets = Vec::new();
-    for (id, extra) in [
-        (0x100, operand(b"PLDT", 1, 0x400)),
-        (0x101, operand(b"PTDT", 0, 0x600)),
+    for (id, package_type, extra) in [
+        (
+            0x100,
+            6,
+            [
+                operand(b"PLDT", 1, 0x400),
+                field(b"POBA", &[]),
+                unit(&[], &[]),
+                field(b"POCA", &[]),
+                field(b"POEA", &[]),
+            ]
+            .concat(),
+        ),
+        (0x101, 6, operand(b"PTDT", 0, 0x600)),
         (
             0x102,
+            6,
             [operand(b"PLDT", 1, 0x400), operand(b"PLDT", 1, 0x401)].concat(),
         ),
-        (0x103, operand(b"PLDT", 5, 28)),
+        (0x103, 6, operand(b"PLDT", 5, 28)),
+        (0x104, 5, operand(b"PLDT", 1, 0x400)),
     ] {
         package_offsets.push(json!({"id":id,"offset":raw.len()}));
-        raw.extend(disk(b"PACK", id, &package(&extra)));
+        raw.extend(disk(b"PACK", id, &package(package_type, &extra)));
     }
     let mut meshes = Vec::new();
     for (cell, id, secondary) in [(0x400, 0x500, false), (0x401, 0x501, true)] {
@@ -289,6 +314,136 @@ fn cases(spec: &Value) -> Vec<(&'static str, Query)> {
         ("object-type", chosen(spec, 3)),
         ("zero-cost-cycle", zero),
     ]
+}
+
+#[test]
+fn travel_candidate_binds_one_pkid_route_and_physical_event_sources_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let spec = fixture(temp.path(), 0);
+    with_sources(temp.path(), |scripts, content, store, packages| {
+        let inventory = inventory::Catalogue::load(store, Default::default()).unwrap();
+        let actors = actors::Catalogue::load(&inventory, Default::default()).unwrap();
+        let associations =
+            associations::Catalogue::load(store, &actors, Default::default()).unwrap();
+        let signatures = Signatures::default();
+        let dependencies = package_dependencies::Catalogue::load(
+            store,
+            packages,
+            scripts,
+            &signatures,
+            Default::default(),
+        )
+        .unwrap();
+        let world = world(scripts);
+        let before = world.snapshot();
+        let requests = Requests::prepare(
+            &world,
+            &actors,
+            &associations,
+            &dependencies,
+            &form(0x200),
+            Default::default(),
+        )
+        .unwrap();
+        let capability = requests
+            .capability(
+                &world,
+                content,
+                None,
+                Operation::Scheduling,
+                Default::default(),
+            )
+            .unwrap();
+
+        let query = chosen(&spec, 0);
+        let candidate = package_lifecycle::observe(
+            &world,
+            content,
+            store,
+            packages,
+            package_lifecycle::Request {
+                capability: &capability,
+                occurrence_index: 0,
+                query: &query,
+            },
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(candidate.occurrence.occurrence_index, 0);
+        assert_eq!(candidate.occurrence.actor_field_index, 2);
+        assert_eq!(candidate.package.key, form(0x100));
+        assert_eq!(candidate.destination_cell, form(0x400));
+        assert_eq!(candidate.event_declarations.len(), 3);
+        assert_eq!(
+            candidate
+                .event_declarations
+                .iter()
+                .map(|event| event.marker.kind)
+                .collect::<Vec<_>>(),
+            vec![*b"POBA", *b"POCA", *b"POEA"]
+        );
+        assert!(
+            candidate
+                .event_declarations
+                .windows(2)
+                .all(|events| events[0].marker.field_index < events[1].marker.field_index)
+        );
+        let script = &candidate.event_declarations[0].scripts[0];
+        assert_eq!(script.physical_marker.as_ref().unwrap().kind, *b"POBA");
+        assert_eq!(script.source_sha256, candidate.package.source_sha256);
+        assert_eq!(
+            script.record_file_offset,
+            candidate.package.record_file_offset
+        );
+        assert!(script.compiled_source.as_ref().unwrap().sha256.len() == 64);
+        assert_eq!(candidate.event_declarations[1].scripts.len(), 0);
+        assert_eq!(candidate.event_declarations[2].scripts.len(), 0);
+        assert!(!candidate.lifecycle_dispatch_order_verified);
+        assert!(!candidate.schedule_supported);
+        assert!(!candidate.script_execution_supported);
+        assert!(!candidate.movement_supported);
+        assert!(!candidate.execution_supported);
+        assert!(!candidate.state_changed);
+        assert!(candidate.require_execution().is_err());
+        assert!(matches!(candidate.route.route(), Some(Route::Found { .. })));
+
+        let mut unsupported = query.clone();
+        unsupported.package = form(0x104);
+        unsupported.record_file_offset = spec["package_offsets"][4]["offset"].as_u64().unwrap();
+        assert!(matches!(
+            package_lifecycle::observe(
+                &world,
+                content,
+                store,
+                packages,
+                package_lifecycle::Request {
+                    capability: &capability,
+                    occurrence_index: 1,
+                    query: &unsupported,
+                },
+                Default::default(),
+            ),
+            Err(package_lifecycle::Error::UnsupportedPackageType(5))
+        ));
+
+        let reference_destination = chosen(&spec, 1);
+        assert!(matches!(
+            package_lifecycle::observe(
+                &world,
+                content,
+                store,
+                packages,
+                package_lifecycle::Request {
+                    capability: &capability,
+                    occurrence_index: 2,
+                    query: &reference_destination,
+                },
+                Default::default(),
+            ),
+            Err(package_lifecycle::Error::DestinationUnavailable)
+        ));
+        assert_eq!(world.snapshot(), before);
+    });
 }
 
 #[test]

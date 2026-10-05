@@ -10,6 +10,7 @@ pub mod factions;
 pub mod initialization_inputs;
 pub mod inventory_boot;
 pub mod inventory_transfer;
+pub mod package_lifecycle;
 pub mod packages;
 pub mod reference_intent;
 pub mod render_context;

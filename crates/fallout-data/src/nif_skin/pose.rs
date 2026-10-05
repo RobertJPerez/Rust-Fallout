@@ -7,6 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 mod batch;
+pub mod palette_packet;
 pub mod partition;
 mod set;
 pub use batch::{

@@ -1,0 +1,127 @@
+Scene lifetime adapter
+
+engine_bridge::SceneLifetime composes the existing CellResidency owner, its
+unforgeable Ticket and retained model/texture leases. It does not create another
+canonical World, resource loader or save repository. Construct it on the existing
+source worker after model and texture preparation and report_dependencies(Ready).
+Empty model sets and already-published/foreign owner tickets are refused.
+
+Prepared means CPU source dependencies are available. submission_complete(epoch)
+records completion of bounded CPU/ECS submission only. publish_uploaded(epoch,
+uploaded, publish) calls the renderer's actual GPU readiness observation and then
+uses CellResidency::publish_render for final visibility admission. False or an
+error leaves the phase Submitted; publication runs once. The visibility callback
+must preflight its external effects before returning success. Source cancellation
+and scene-epoch mismatch refuse before it runs.
+
+The adapter's simulation_ready additionally requires uploaded and published draws,
+the owner's complete model/texture coverage, and explicit collision and behavior
+readiness. An inspection scene can be uploaded while simulation remains unavailable.
+Call report_collision/report_behavior with the actual producer results. No bounds,
+source decode or elapsed-frame fallback establishes those capabilities.
+
+On unload, call begin_retirement with the scene's original epoch, close its native
+command owner and retire its draw queue. Admission closes immediately. Model and
+texture pins remain owned through the queue's bounded disposal. Only after that
+disposal completes call draw_disposal_complete, then poll_retirement until Released.
+External leases remain charged and can postpone Released; all source, metadata,
+mapped-byte and job counters must drain. These polls do not join a foreign worker.
+
+The focused source fixture exercises production ESM/BSA plans and ResourceJobs;
+it independently asserts stale/foreign refusal, failed-publication preservation,
+once-only visibility, and retained-pin draining. Its authored empty NIF has no
+visible geometry and is not a rendered scene or retail-parity proof.
+
+The coordinator has published pub mod engine_bridge in the preview library;
+presentation transfers its existing scene.rs CellSources owner into SceneLifetime
+and joins main.rs DrawScene with actual renderer upload observation and disposal.
+The current CLI/native host has not yet been wired by this adapter slice. Visible
+scene boot and shutdown acceptance remain open until that consumer is connected
+and engine acceptance captures actual content and complete resource drain.
+
+Continue must remain prepared in the canonical application until full active-scene
+membership admission passes. A late rejection must preserve both canonical and
+displayed revision; this adapter's resource readiness does not repair native.rs's
+existing eager World replacement by itself.
+
+admit_references(epoch, expected_prior_revision, current_revision, active, observed)
+preflights sorted unique key sets (at most 10000 each) against the retained
+protected CELL member edges. Every active key needs an explicit projected entry;
+an unavailable pose can remain hidden. A base record elsewhere in the graph is
+not a CELL member. Run this graph preflight outside render/input updates.
+
+The returned ReferenceAdmission borrows its SceneLifetime and key sets, so this
+owner cannot retire or change during the synchronous acknowledgement. publish
+consumes that admission, checks the current epoch/revision again, and invokes
+one callback with the admitted active keys. The callback has no failure result:
+the application and renderer must have completed every fallible candidate, pose,
+membership and resource check before publishing canonical/display state together.
+There is no post-publication validation step. Dropping admission has no effect.
+
+This is a scoped presentation gate, not a transferable off-thread restore token.
+The application still checks the real request identity, campaign, catalogue and
+prepared canonical candidate. Key equality alone does not authorize that candidate.
+The focused tests use injected upload acknowledgement and an unavailable projected
+pose to exercise this gate; they do not reproduce or repair the actual native
+host's late refusal. Presentation/acceptance must run that consumer regression and
+wire the prepared Continue protocol before reporting the feature accepted.
+
+ContinueDisplay implements the canonical application's ScenePublisher over a
+borrowed SceneLifetime, immutable active keys and an exclusively borrowed
+DisplayStamp. Capture the initial stamp from the real application Host after the
+initial display is acknowledged. It includes HostIdentity because restoring the
+same saved numeric revision still creates a new canonical host boundary.
+
+The renderer supplies a prepare callback returning sorted projected keys plus
+an owned bounded stage. That callback prepares finite transforms, exact entity
+updates and actual resource/GPU admission without changing the current display.
+ContinueDisplay validates source membership and the candidate's stamped identity
+before returning PreparedDisplay. The source owner stays borrowed through the
+entire application Host::publish_continue call, preventing unload during that join.
+
+Final publication consumes only that prepared renderer stage and its admitted
+boundary, then advances the display stamp. It has no further fallible check;
+ReferenceAdmission::publish must not run after the application replaced World.
+There is no asynchronous canonical write or second save implementation here.
+
+The focused join fixtures use actual canonical reference state, SaveWorker,
+RestoreTask, Repository and retained residency. A missing member/refused renderer
+stage leaves canonical state and display stamp unchanged, including the next
+native save. Same-revision restore rejects the previous host's display stamp.
+The final display callback and upload acknowledgement are injected fixtures:
+legacy native.rs/main.rs wiring and visible/GPU acceptance remain open.
+
+Initial immutable GPU upload observation
+
+upload::UploadPlugin<M> installs the actual render-world observer for the
+consumer's existing Material type. Install it after Bevy and MaterialPlugin<M>.
+UploadMonitor<M>::watch accepts one Submitted SceneLifetime and every unique
+strong mesh/material/image handle submitted by its draw queue. It checks bounded
+counts and binds the observation to the exact retained source owner and scene
+epoch. Handles alone do not establish source coverage: presentation must supply
+the complete draw inventory produced from those admitted source leases.
+
+Keep that initial inventory immutable until acknowledgement. Cancel before
+changing a watched asset or retiring its draws. UploadTicket::ready_for checks
+the same source owner, ticket, scene epoch and render-device generation. Its
+false result leaves the scene hidden. Call UploadTicket::publish_uploaded with
+the mutable scene, epoch and visibility callback to validate the exact binding
+and recheck completion inside the scene publication boundary. It returns None
+while pending; do not cache a ready boolean across frames. Creating the ticket,
+spawning entities or waiting frames cannot make it ready. Before RenderStartup
+initializes the observer, watch refuses explicitly.
+
+In Render Cleanup, the observer checks actual RenderMesh entries and allocated
+vertex/index slices, data-bearing GpuImage entries, and prepared material slab
+bind groups. It then flushes a real queue submission and registers a short
+on_submitted_work_done callback. Only that callback can acknowledge completion;
+it mutates a private flag and never canonical state, visibility or source owners.
+Source cancellation, a dropped UploadTicket or device recovery invalidates old
+acknowledgements, including late callbacks. Callback closures hold weak state.
+
+The observer retains asset handles while its ticket is held. Drop the ticket
+during draw retirement; its render-world slot is cleared on the next observer
+poll. The consumer still owns actual bounded draw/GPU disposal and must finish
+that before calling SceneLifetime::draw_disposal_complete. Upload completion is
+not a shader/pipeline, visible-frame, collision, gameplay or disposal proof.
+Current host wiring and independent GPU acceptance remain open.

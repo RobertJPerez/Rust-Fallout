@@ -1,0 +1,222 @@
+{
+    "schema_version":  1,
+    "checkpoint":  17,
+    "research_date":  "2026-10-04",
+    "status":  "bounded source-preserving CELL XCLW decoding with physical candidate bit-pattern comparisons; no load-order winner or runtime water behavior claimed",
+    "game_profile":  {
+                         "edition_install":  "Skyrim Special Edition updated Steam runtime",
+                         "steam_build":  "24914197",
+                         "executable_version":  "1.7.104.0",
+                         "executable_sha256":  "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+                         "plugin_files_scanned":  10,
+                         "indexed_archive_files":  23,
+                         "installed_creation_pairs":  4,
+                         "paid_anniversary_coverage":  "incomplete; installed Creation pairs do not establish the full paid content set",
+                         "census_blocking_findings":  8,
+                         "reader_failures":  0,
+                         "original_game_data_modified":  false
+                     },
+    "implementation":  {
+                           "command":  "trace-landscape-links --data \u003cData\u003e --plugin \u003cplugin path\u003e [--plugin \u003canother plugin path\u003e ...] [--output \u003cnew JSONL path\u003e]",
+                           "source":  "src/landscape_links.rs",
+                           "shared_context_helper":  "src/trace.rs group-label extraction and SourceKey resolver",
+                           "record_scope":  [
+                                                "LAND",
+                                                "LTEX",
+                                                "TXST",
+                                                "MATT",
+                                                "GRAS",
+                                                "CELL",
+                                                "WRLD"
+                                            ],
+                           "xclw_adapter":  "CELL XCLW reads four-byte IEEE 754 single precision; every supported field retains exact bits, hex bits, SHA-256, and bounded raw bytes; non-finite values have no JSON number; unsupported sizes stay raw",
+                           "candidate_join":  "LAND kind-6 labels map through declared masters to physical CELL candidates; each candidate remains separate; no active order or winner is chosen",
+                           "absent_xclw_default_synthesized":  false,
+                           "full_cell_bodies_decoded":  false,
+                           "runtime_water_selection_claimed":  false,
+                           "record_framing_decompression_path_normalization_or_hashing_duplicated":  false
+                       },
+    "scan":  {
+                 "selected_records":  132570,
+                 "land_records":  54079,
+                 "cell_records":  77337,
+                 "world_records":  94,
+                 "ltex_records":  130,
+                 "txst_records":  790,
+                 "matt_records":  80,
+                 "gras_records":  60,
+                 "cell_subrecords_scanned":  400969,
+                 "cell_subrecord_shape_tag_count":  25,
+                 "cell_records_with_xclw":  77337,
+                 "cell_records_without_xclw":  0,
+                 "cell_records_with_multiple_xclw":  0,
+                 "malformed_xclw_fields":  0,
+                 "xclw_payload_length_counts":  {
+                                                    "4":  77337
+                                                },
+                 "xclw_value_class_counts":  {
+                                                 "finite":  77337
+                                             },
+                 "distinct_xclw_raw_bit_patterns":  124,
+                 "most_frequent_xclw_raw_bit_patterns":  [
+                                                             {
+                                                                 "raw_bits":  "0x7F7FFFFF",
+                                                                 "occurrences":  74638
+                                                             },
+                                                             {
+                                                                 "raw_bits":  "0xCF000000",
+                                                                 "occurrences":  578
+                                                             },
+                                                             {
+                                                                 "raw_bits":  "0x00000000",
+                                                                 "occurrences":  556
+                                                             },
+                                                             {
+                                                                 "raw_bits":  "0x46260000",
+                                                                 "occurrences":  246
+                                                             },
+                                                             {
+                                                                 "raw_bits":  "0x44160000",
+                                                                 "occurrences":  140
+                                                             }
+                                                         ],
+                 "xclw_raw_bits_ff7fffff_occurrences":  28,
+                 "land_records_with_cell_group_label":  54079,
+                 "land_cell_groups_with_candidates":  54079,
+                 "land_cell_groups_without_candidates":  0,
+                 "distinct_land_containing_cell_source_keys":  52181,
+                 "distinct_world_cell_source_key_pairs":  52181,
+                 "xclw_candidate_bit_agreement":  {
+                                                      "distinct_cell_keys_with_candidates":  52181,
+                                                      "keys_where_all_candidate_raw_bits_agree":  52148,
+                                                      "keys_where_candidates_have_multiple_raw_bit_patterns":  33,
+                                                      "land_rows_with_candidate_raw_bit_agreement":  54025,
+                                                      "land_rows_with_candidate_raw_bit_disagreement":  54,
+                                                      "referenced_cell_keys_with_missing_or_unsupported_candidate_xclw":  0
+                                                  },
+                 "links_resolved_to_source_keys":  187175,
+                 "links_with_scanned_target_candidates":  187074,
+                 "links_without_scanned_target_candidates":  101,
+                 "unmatched_land_layer_target":  "Skyrim.esm LTEX local ID 0x00000844: 74 BTXT and 27 ATXT fields; absence is only within supplied files",
+                 "xclw_conflict_plugin_groups":  [
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "Skyrim.esm",
+                                                                                   "Update.esm"
+                                                                               ],
+                                                         "cell_keys":  10,
+                                                         "land_rows":  18,
+                                                         "candidate_records":  20
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "ccBGSSSE001-Fish.esm",
+                                                                                   "Skyrim.esm"
+                                                                               ],
+                                                         "cell_keys":  2,
+                                                         "land_rows":  2,
+                                                         "candidate_records":  4
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "ccBGSSSE001-Fish.esm",
+                                                                                   "Skyrim.esm",
+                                                                                   "Update.esm"
+                                                                               ],
+                                                         "cell_keys":  6,
+                                                         "land_rows":  11,
+                                                         "candidate_records":  18
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "ccBGSSSE001-Fish.esm",
+                                                                                   "HearthFires.esm",
+                                                                                   "Skyrim.esm",
+                                                                                   "Update.esm"
+                                                                               ],
+                                                         "cell_keys":  1,
+                                                         "land_rows":  2,
+                                                         "candidate_records":  4
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "Dawnguard.esm",
+                                                                                   "Skyrim.esm",
+                                                                                   "Update.esm"
+                                                                               ],
+                                                         "cell_keys":  2,
+                                                         "land_rows":  3,
+                                                         "candidate_records":  6
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "Dragonborn.esm",
+                                                                                   "Skyrim.esm"
+                                                                               ],
+                                                         "cell_keys":  3,
+                                                         "land_rows":  3,
+                                                         "candidate_records":  6
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "Dragonborn.esm",
+                                                                                   "Skyrim.esm",
+                                                                                   "Update.esm"
+                                                                               ],
+                                                         "cell_keys":  5,
+                                                         "land_rows":  10,
+                                                         "candidate_records":  15
+                                                     },
+                                                     {
+                                                         "candidate_plugins":  [
+                                                                                   "HearthFires.esm",
+                                                                                   "Skyrim.esm",
+                                                                                   "Update.esm"
+                                                                               ],
+                                                         "cell_keys":  4,
+                                                         "land_rows":  5,
+                                                         "candidate_records":  12
+                                                     }
+                                                 ]
+             },
+    "validation":  {
+                       "rust_tests_passed":  68,
+                       "rust_tests_failed":  0,
+                       "format_check":  "passed",
+                       "clippy":  "passed with warnings denied",
+                       "build":  "passed with one build job",
+                       "installed_trace_exit_status":  2,
+                       "installed_trace_exit_reason":  "101 resolved layer links had no scanned LTEX candidate; XCLW records are structurally complete",
+                       "all_ten_source_plugin_fingerprints_match_current_install_census":  true,
+                       "original_game_data_read_only":  true
+                   },
+    "local_evidence":  {
+                           "landscape_water_height_report":  {
+                                                                 "path":  "local/landscape-water-height-17a.jsonl",
+                                                                 "bytes":  375487663,
+                                                                 "sha256":  "3c9b298a588aeb5f68e0e433779a094e769e66d25aa374a94653c7b774e0b6b3"
+                                                             },
+                           "xclw_conflict_ledger":  {
+                                                        "path":  "local/cell-water-candidate-conflicts-17a.json",
+                                                        "bytes":  30853,
+                                                        "sha256":  "5d84f17c64f925b98d6174b4d80b8fe8d3d9051fe38ca9d70d6a5c3ca608b8b9"
+                                                    },
+                           "current_install_census":  {
+                                                          "path":  "local/census-20261004T222237Z-6a88a6f8.json",
+                                                          "bytes":  37414379,
+                                                          "sha256":  "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+                                                      },
+                           "install_receipt":  {
+                                                   "path":  "local/install-20261004T222237Z-6a88a6f8.json",
+                                                   "bytes":  634,
+                                                   "sha256":  "c63163e07d1f29a6bed9c57e6a6cf15efead372718f5159e6fb737069f564daf"
+                                               },
+                           "source_manifest":  {
+                                                   "path":  "reports/source-manifest-17.json",
+                                                   "files":  68,
+                                                   "source_bytes":  582762,
+                                                   "bytes":  16703,
+                                                   "sha256":  "a18c867f5edb68a60fc431ec546d2f09f32b91f63ceace5e465c50802b83f6e4"
+                                               }
+                       }
+}

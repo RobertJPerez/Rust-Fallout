@@ -1,0 +1,32 @@
+[package]
+name = "fallout4-prep"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+default-run = "fallout4-prep"
+
+[dependencies]
+# Checkpoint 45, isolated from the six active NV working trees. No copied parser.
+fallout-data = { path = "../../crates/fallout-data" }
+dream_archive = { git = "https://github.com/DreamWeave-MP/dream_archive", rev = "a6ba4c9416e5c7bc211e7a3762420e5bf5c9c049", default-features = false, features = ["ba2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10.9"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+# Integrated companion adapter; keep its dependency graph separate from the NV runtime.
+[workspace]

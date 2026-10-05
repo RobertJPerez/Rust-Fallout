@@ -71,6 +71,17 @@ pub(crate) enum WorldCommand {
         #[arg(long)]
         include_terrain: bool,
     },
+    /// Preserve exact placed activation parents, raw delay words and prompt bytes.
+    PlacedActivationSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        reference: String,
+    },
     /// Preserve exact placed linked-reference and raw source color inputs.
     PlacedLinkedSources {
         #[arg(long)]
@@ -165,6 +176,22 @@ pub(crate) enum WorldCommand {
         /// Repeat for each explicit signed i32 pair, in the requested order.
         #[arg(long, required = true, allow_hyphen_values = true)]
         grid: Vec<String>,
+    },
+    /// Consume immutable CPU terrain patches for an explicit ordered grid set.
+    TerrainPatchSources {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        world: String,
+        #[arg(long, required = true, allow_hyphen_values = true)]
+        grid: Vec<String>,
+        /// Explicit zero-based patch indices, repeated in comparison order.
+        #[arg(long)]
+        seam: Vec<String>,
     },
     /// Inspect an explicit WRLD/XCLC CELL's strict terrain texture source jobs.
     GridTerrainSources {

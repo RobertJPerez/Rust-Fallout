@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "run_id": "team-v4-20261004-20261004T222612Z-0f8c3e22",
+  "status": "tested_retained_profile_verifier_dependency",
+  "base": "2383851c6d7d0ea2594185a27388808f82dedc2c",
+  "consumer": "Independent behavior and engine acceptance can validate the pinned retained profile and explicitly require original process evidence.",
+  "command": "fallout retail-profile-verify --package <private-capture> --receipt-sha256 <retained-pin> [--require-process]",
+  "focused_profile_tests": {
+    "passed": 15,
+    "failed": 0,
+    "ignored": 0
+  },
+  "complete_cli_tests": {
+    "passed": 108,
+    "failed": 0,
+    "ignored": 0
+  },
+  "cli_all_targets_clippy": "passed with -D warnings",
+  "cli_build": "passed --locked --jobs 1",
+  "fmt_and_diff": "passed",
+  "actual_cli_cases": 4,
+  "actual_cli_assertions": [
+    "Retained capture and source/report/configuration bindings verify",
+    "Required original process evidence refuses",
+    "Wrong receipt SHA-256 refuses",
+    "Output inside the evidence package refuses without writes"
+  ],
+  "capture_receipt_sha256": "f5a55cbc034f910d237572dc49fab099080b0d75c850a70e80bafe82956ad5cd",
+  "retained_package_unchanged": true,
+  "preserved_tested_producer_sha256": "5d4b884eb79c9d73034acfed2bf071693f114bd8a4f75596145b60933983a3da",
+  "private_sealed_receipt_sha256": "e75df7f5af83c864f67ea92d8ff57b8c88dd4797b29402e365f2d90255a0ffe5",
+  "private_actual_cli_proof_sha256": "72032646173b64c50bb043b860570f3b5ab8bf8dff9f3206d8f503b0f04c248f",
+  "check_log_sha256": {
+    "test-01.log": "590393bb4a48cc84e138336f18412fd89993dcc250b93f8e61241b59eaab0fe0",
+    "test-02.log": "ab2341b79b95b2908b54619029fbf0bb8cf2da2d3fab733a320fde97d65dc124",
+    "clippy-01.log": "c7d07a9ecbf1fc5cc91bafb47573c5f59a7bda8ff0eea89d519bfed8c1137fcf",
+    "cli-tests-03.log": "d13d1eb2d4057d4386f67717734ec679e9d39f97a45eaec17b31d2f50fe6fb83",
+    "cli-clippy-02.log": "59f2b7631f4c640894c630ab95d99d2475b7a41c2dec1eeea34d15d198ae9d16",
+    "cli-build-01.log": "b7c05431f5c13c1f1aad757511208e588b4ba8a6e21da1e05cb410eba15c437a",
+    "proof-wrapper-01.log": "b3f2589159ffb32141437eae3bc5652adae1244a1ea91863e7b2351e7215ebc1"
+  },
+  "prior_failures_preserved": [
+    "Initial CLI test build exposed the stale World command match; preserved shared test wiring correction 2383851 fixed it",
+    "First Clippy admission was busy exit75 and launched no command"
+  ],
+  "acceptance_boundary": "Retained evidence only. No fresh original-input measurement, original process or demonstrated process isolation. Coordinator-04 full execution transport remains open.",
+  "last_verified_checkpoint": 45,
+  "M1_met": false,
+  "gameplay_accepted": false,
+  "original_process_started": false,
+  "runtime_ready": false,
+  "faithful_scenario_accepted": false
+}

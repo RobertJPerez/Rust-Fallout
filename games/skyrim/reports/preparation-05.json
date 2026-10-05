@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "checkpoint": 5,
+  "verified_date": "2026-10-04",
+  "status": "Skyrim source tracing and explicit full/light profile mapping preparation; no gameplay accepted",
+  "upstream": {
+    "shared_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+    "nv_main_observed": "84a6e582116c5b40abdaba462dbf85d43c6f3519",
+    "nv_checkpoint": 45,
+    "nv_handoff_scope": "NEXT_STEPS documents the eight-agent workflow, batch 10 and separate boot/render/save supplement; checkpoint 45 remains frozen",
+    "fo4_main_observed": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+    "shared_dependency_changed": false,
+    "other_project_worktrees_modified": false
+  },
+  "installation": {
+    "path": "G:/SteamLibrary/steamapps/common/Skyrim Special Edition",
+    "runtime_version": "1.7.104.0",
+    "steam_build_id": "24914197",
+    "steam_manifest_sha256": "dcda6d91d93bf9ca33c8f488478a765910d82b3964be97ff8bcb720561e30da5",
+    "steam_state_flags": 4,
+    "plugins": 10,
+    "archives": 23,
+    "archive_versions": [105],
+    "light_flag_plugins": [
+      "_ResourcePack.esl",
+      "ccBGSSSE037-Curios.esl",
+      "ccQDRSSE001-SurvivalMode.esl"
+    ],
+    "light_flag_count": 3,
+    "esl_suffix_without_light_flag_count": 0,
+    "hedr_1_70_plugins": 8,
+    "hedr_1_71_plugins": 2,
+    "creation_plugins_observed": [
+      "ccBGSSSE001-Fish.esm",
+      "ccBGSSSE025-AdvDSGS.esm",
+      "ccBGSSSE037-Curios.esl",
+      "ccQDRSSE001-SurvivalMode.esl"
+    ],
+    "resource_pack_plugin": "_ResourcePack.esl",
+    "paid_anniversary_corpus_complete": false,
+    "input_findings": 8,
+    "original_files_modified": false
+  },
+  "profile_mapping": {
+    "command": "map-profile",
+    "explicit_order_schema": 1,
+    "separate_full_and_light_slots": true,
+    "validates_master_presence_and_order": true,
+    "uses_header_light_flag_not_suffix": true,
+    "se_light_local_range": "0x800..=0xFFF for HEDR 1.70",
+    "ae_light_local_range": "0x000..=0xFFF for HEDR 1.71",
+    "synthetic_cli_end_to_end_passed": true,
+    "synthetic_plugins": ["Skyrim.esm", "Light.esp", "SuffixOnly.esl", "Patch.esp"],
+    "active_profile_files_found": false,
+    "paths_checked": [
+      "Windows Known Folder My Documents game profile",
+      "Windows LocalAppData game profile",
+      "expected Vortex Skyrim profile directory"
+    ],
+    "retail_mapping_generated": false,
+    "live_order_or_winner_certified": false,
+    "cross_file_plugin_context_fe_resolution_integrated": false
+  },
+  "census": {
+    "path": "local/census-20261004T152438Z-cc019ca4.json",
+    "bytes": 37414379,
+    "sha256": "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0",
+    "exit_code": 2,
+    "blocking_findings": 8,
+    "install_receipt": {
+      "path": "local/install-20261004T152438Z-cc019ca4.json",
+      "bytes": 634,
+      "sha256": "2bec19e43ec7f1d204a9ed358e58f5c8797c308026fabe7a08e11dd0c4bb4ff7"
+    }
+  },
+  "trace": {
+    "path": "local/missing-trace-05.json",
+    "bytes": 49026,
+    "sha256": "59778a52fee488fd8c738ed498563695cd53687610b264229f5ec36b09c3762f",
+    "schema_version": 2,
+    "exit_code": 0,
+    "missing_script_paths": 7,
+    "attachments": 9,
+    "definition_candidates": 9,
+    "direct_references": 4,
+    "containing_cells": 3,
+    "missing_script_effects": 2,
+    "spell_candidates": 2,
+    "actor_path_definitions": 0,
+    "actor_path_links": 0,
+    "unresolved_actor_links": 0,
+    "unresolved_actor_source_identities": 0
+  },
+  "independent_trace_oracle": {
+    "implementation": "Mutagen.Bethesda.Skyrim",
+    "version": "0.54.4",
+    "revision": "0188012c607ce8bb283d2704400d37737f089134",
+    "control_path": "local/negative-trace-20261004T152654Z-bfab6741/control-result.json",
+    "control_sha256": "1db6299e1c6669a14bc75e04710772eab73455fd5add46daec1f60f243bc0300",
+    "passed": true,
+    "distinct_records": 16,
+    "comparisons": 177,
+    "mismatches": 0,
+    "expected_direct_edges": 4,
+    "independent_direct_edges": 4,
+    "expected_actor_edges": 0,
+    "independent_actor_edges": 0,
+    "expected_actor_definitions": 0,
+    "independent_actor_definitions": 0
+  },
+  "mutation_control": {
+    "receipt_path": "local/negative-trace-20261004T152654Z-bfab6741/receipt.json",
+    "receipt_sha256": "2e28f0e735db75e7156204526320c89c3605b91b6ee856fc4b4e4233f90db0a1",
+    "passed": true,
+    "mutation": "Flip one direct target FormID bit with unchanged record/edge counts",
+    "altered_exit_code": 2,
+    "mismatches": 2
+  },
+  "validation": {
+    "rust_tests_passed": 39,
+    "rust_tests_failed": 0,
+    "formatting": "passed",
+    "clippy_warnings_denied": "passed",
+    "binary_build": "passed",
+    "synthetic_map_profile_cli": "passed",
+    "dotnet_oracle_build_warnings": 0,
+    "gameplay_scenarios_accepted": 0
+  },
+  "source_manifest": {
+    "path": "reports/source-manifest-05.json",
+    "bytes": 12590,
+    "sha256": "68deed2e3775b68fa355066ea9f94bcd16611952306dbd786b786a890ce0e420"
+  }
+}

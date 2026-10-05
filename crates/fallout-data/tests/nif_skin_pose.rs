@@ -3744,6 +3744,185 @@ fn complete_pose_set_skin_has_literal_noncommuting_parent_child_palette_and_vert
     assert!(!result.retail_behavior_verified);
 }
 #[test]
+fn sampled_palette_packet_keeps_source_binding_joint_order_and_literal_f32_rows() {
+    use pose::palette_packet as transport;
+
+    let bytes = container(&set_skin_fixture(2.), &[14]);
+    let before = bytes.clone();
+    let channels = set_channels();
+    let request = transport::SampledRequest {
+        pose: pose::SetRequest {
+            expected_source_sha256: source_digest(&bytes),
+            skin: request(),
+        },
+        precision: transport::Precision::FiniteNearestF32 {
+            maximum_absolute_error: 0.,
+        },
+    };
+    let packet = transport::prepare_sampled_set(
+        &bytes,
+        "complete sampled palette",
+        request,
+        &channels,
+        Default::default(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        packet.source_sha256(),
+        format!("{:x}", sha2::Sha256::digest(&bytes))
+    );
+    assert_eq!(packet.skin_binding(), (3, 1, 4, 2, 11));
+    assert_eq!(
+        packet.channels(),
+        &[
+            transport::SampledChannelBinding {
+                object: 0,
+                controller: 8,
+                requested_time_f64_bits: 0.5f64.to_bits(),
+            },
+            transport::SampledChannelBinding {
+                object: 11,
+                controller: 13,
+                requested_time_f64_bits: 0.5f64.to_bits(),
+            },
+            transport::SampledChannelBinding {
+                object: 7,
+                controller: 9,
+                requested_time_f64_bits: 0.5f64.to_bits(),
+            },
+        ]
+    );
+    assert_eq!(
+        packet
+            .palette()
+            .iter()
+            .map(|bone| (bone.ordinal, bone.node))
+            .collect::<Vec<_>>(),
+        [(0, 7), (1, 0)]
+    );
+    let expected = [
+        [[0f32, 1., 0., -0.5], [-1., 0., 0., 3.], [0., 0., 1., 0.5]],
+        [[0., 1.5, 0., -1.], [-1.5, 0., 0., 6.], [0., 0., 1.5, 2.5]],
+    ];
+    for (bone, matrix) in packet.palette().iter().zip(expected) {
+        assert_eq!(
+            bone.matrix.row_major_3x4_bits,
+            matrix.map(|row| row.map(f32::to_bits))
+        );
+        assert_eq!(bone.matrix.maximum_absolute_error_bound, 0.);
+    }
+    assert_eq!(
+        packet.skin_to_source_world().row_major_3x4_bits,
+        [[2f32, 0., 0., -7.5], [0., 2., 0., 6.5], [0., 0., 2., 11.5],]
+            .map(|row| row.map(f32::to_bits))
+    );
+    assert_eq!(packet.usage().skin_scene_decodes, 1);
+    assert_eq!(packet.usage().scalar_conversions, 36);
+    assert_eq!(bytes, before);
+    let json = serde_json::to_value(&packet).unwrap();
+    assert_eq!(
+        json["contract"],
+        "engineering-finite-nearest-f32-sampled-skin-palette-set-v1"
+    );
+    assert_eq!(json["retail_behavior_verified"], false);
+    assert_eq!(json["source_sha256"], packet.source_sha256());
+}
+
+#[test]
+fn sampled_palette_packet_refuses_stale_missing_or_unadmitted_bindings() {
+    use pose::palette_packet as transport;
+
+    let bytes = container(&set_skin_fixture(2.), &[14]);
+    let channels = set_channels();
+    let request = transport::SampledRequest {
+        pose: pose::SetRequest {
+            expected_source_sha256: source_digest(&bytes),
+            skin: request(),
+        },
+        precision: transport::Precision::FiniteNearestF32 {
+            maximum_absolute_error: 0.,
+        },
+    };
+    let stale = transport::SampledRequest {
+        pose: pose::SetRequest {
+            expected_source_sha256: [0; 32],
+            ..request.pose
+        },
+        ..request
+    };
+    let error = transport::prepare_sampled_set(
+        &bytes,
+        "stale sampled palette",
+        stale,
+        &channels,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("SHA256 differs"), "{error}");
+
+    let error = transport::prepare_sampled_set(
+        &bytes,
+        "omitted required channel",
+        request,
+        &channels[..2],
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("not explicitly selected"),
+        "{error}"
+    );
+
+    let mut blocks = set_skin_fixture(2.);
+    blocks[4].1[20..24].copy_from_slice(&NULL.to_le_bytes());
+    let missing_bone = container(&blocks, &[14]);
+    let missing_request = transport::SampledRequest {
+        pose: pose::SetRequest {
+            expected_source_sha256: source_digest(&missing_bone),
+            ..request.pose
+        },
+        ..request
+    };
+    let error = transport::prepare_sampled_set(
+        &missing_bone,
+        "missing palette joint",
+        missing_request,
+        &channels,
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("missing bone"), "{error}");
+
+    let limits = transport::SampledLimits {
+        channels: channels.len() - 1,
+        ..Default::default()
+    };
+    let error = transport::prepare_sampled_set(&bytes, "channel bound", request, &channels, limits)
+        .unwrap_err();
+    assert!(error.to_string().contains("channel limit"), "{error}");
+
+    let limits = transport::SampledLimits {
+        palette_entries: 1,
+        ..Default::default()
+    };
+    let error = transport::prepare_sampled_set(&bytes, "palette bound", request, &channels, limits)
+        .unwrap_err();
+    assert!(error.to_string().contains("palette entry limit"), "{error}");
+
+    let limits = transport::SampledLimits {
+        max_combined_retained_bytes: 1,
+        ..Default::default()
+    };
+    let error =
+        transport::prepare_sampled_set(&bytes, "combined bound", request, &channels, limits)
+            .unwrap_err();
+    assert!(
+        error.to_string().contains("concurrent retention"),
+        "{error}"
+    );
+}
+#[test]
 fn complete_skin_set_permutation_preserves_skin_and_existing_channel_observations() {
     let bytes = container(&set_skin_fixture(2.), &[14]);
     let channels = set_channels();

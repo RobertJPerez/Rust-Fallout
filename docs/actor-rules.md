@@ -293,6 +293,31 @@ the full independent reader and refuse execution. They retain 230 fields,
 original plugin/descriptor inputs and eight private tool/snapshot/order inputs
 keep their hashes. Evidence and earlier harness/oracle failures remain under
 `local/v3-act13-capability-20261004-01`; no gameplay behavior is accepted.
+
+# Source-backed placed actor spawn inputs
+
+`actor_rules::spawn_state::Requests::prepare` joins one existing canonical
+reference through the actor context consumer, resolves its authored ACHR/ACRE
+placement to the winning NPC_/CREA base, and combines the existing race/class
+initialization-input and template/stat requests. It also publishes every
+physical CNTO occurrence with its signed source count, attached COED fields,
+binding status and winning item identity when that identity is available.
+
+Direct item definitions are reported as source resolution only. LVLI/LVLC/LVLN
+entries retain `leveled_selection_required`; missing, deleted, null and
+wrong-kind entries keep explicit reasons. ARMO/ARMA/WEAP kinds are exposed as
+possible equipment candidates when their direct winner is resolved. This does
+not select an item count, interpret COED, create inventory, choose equipped
+state, or evaluate template inheritance and current actor values. The aggregate
+keeps actor initialization, inventory initialization and equipment selection
+unsupported until their source behavior is admitted. All subrequests remain
+campaign/cohort-bound and the complete projection is byte-bounded.
+
+The authored fixture verifies the placement-to-base join, race/class links,
+direct armor and leveled-list inventory entries, exact signed counts and COED
+retention. It confirms that host state is unchanged and that an undersized item
+budget refuses before an observation is published.
+
 # Private engineering actor inventory boot
 
 `actor_rules::inventory_boot::prepare` admits a current source-bound World,
@@ -333,3 +358,85 @@ identical. It exposes source input completeness, campaign and revision only;
 current actor values remain unavailable, actor reference binding is false, and
 initialization remains unsupported. No race/class formula, default, state write
 or snapshot schema is introduced.
+
+## Canonical item lot to explicit model role
+
+`actor_rules::equipment_render::Requests::prepare(&World, &Content, Choice,
+Limits)` admits an explicit owner, current `ItemHandle`, source actor and ACT08
+model role. The private request seals campaign, source cohort and canonical
+revision. It cannot be deserialized or constructed from an inspector report.
+`observe(&World, &Content, &mut RecordStore, &actors::Catalogue, &ArchiveAssets,
+Limits)` reacquires the exact ACT16 lot and passes only that selected lot's base
+to the existing equipment source producer. Immutable observation getters expose
+`selection()` and `model()`; no caller-supplied base is admitted.
+
+Retained intent refuses after cold restore even when campaign, saved IDs, facts
+and revision match, because the item handle's World epoch is stale. Another
+campaign, removal, transfer or changed canonical revision also refuses before a
+joined observation escapes. Prepare a fresh current handle to observe a restored
+lot. Content, actor catalogue and fresh store must match the complete canonical
+source cohort, including source bytes/hashes and winning headers. Nested ACT16
+inventory/selection and ACT08 model budgets remain in force; additional limits
+bound source count and the complete joined serialized projection.
+
+`actor-package-context --equipment-item ID --equipment-model-role ROLE` uses
+the strict native snapshot restore, explicit subject owner and source actor.
+The existing role parser requires caller-supplied armor sex/world/biped choice
+or weapon role and mod mask. `None`, `Some(empty)` and supplied slot/modification
+metadata remain distinct canonical facts. They do not establish equipped state,
+choose a role or derive the mask. Actor origin is not inferred from the owner;
+the separate optional actor-context request provides that source join.
+
+The CLI emits `equipment_model` beside the unchanged standalone `equipment_item`
+and checks that the authoritative snapshot stays identical. Model requests can
+remain missing, ambiguous or unsupported as reported by ACT08. No equip rule,
+slot conflict, automatic texture/attachment choice, NIF decoder, live mutation
+or save format change is introduced. Equipped state and original behavior remain
+unverified.
+
+## Current canonical placement and explicit actor model occurrences
+
+`actor_rules::render_context::observe(&World, &Content, Sources, &View,
+&[Occurrence], Limits)` joins the existing ACT15 placement/base observation with
+an internally constructed actor `RenderManifest`. `Sources` borrows the existing
+placement, actor and dependency catalogues and archive index. The caller supplies
+an existing private canonical reference `View`; an actor base is derived solely
+from the validated ACHR/ACRE binding. Complete ordered source receipts, winning
+cohort and canonical actor/model header facts are checked before output.
+
+The supplied view must match campaign, cohort, revision, authored origin and
+current component. For an existing component the existing canonical staging
+validator checks its private World epoch and exact state. The private proposal
+is immediately dropped; no commit occurs. An unavailable component always gives
+an explicit no-mesh outcome, including an equal-state restored unavailable view.
+Fresh views can qualify their current saved pose after strict cold restoration;
+old views with a component refuse after restoration or state changes.
+
+Each occurrence specifies source FormKey, whole-plugin SHA-256, record file
+offset, physical field index/decoded offset/string-frame offset and existing
+`RenderRole`. Exact source identity and role must match one existing producer
+request. Selection order and repeated choices remain explicit indices into the
+single manifest. Unrelated source paths remain diagnostics and do not become
+implicit mesh requests. Strict request JSON rejects extra fields, including
+inside a role object; the source-role API and raw decoders are unchanged.
+
+The typed outcome distinguishes unavailable component, disabled state,
+unavailable scale, unavailable source, empty selection, selected non-mesh paths
+and admission. Every selected request is withheld unless the existing canonical
+component is explicitly enabled, its scale is available and positive, the
+existing render producer admits its source requests and all explicitly selected
+paths are model paths. Role collisions, selected HDPT cycles and unavailable or
+colliding archives preserve their existing diagnostics. Admission is atomic.
+
+`actor-package-context --include-actor-context --render-path-selection file.json`
+uses its strict snapshot and explicit subject, requires the caller's actor root
+to agree with the placement join, and emits `actor_render_context`. The result
+keeps authored `DATA` and current saved pose/enable separate and confirms that
+the authoritative snapshot is unchanged. `admitted_paths()` yields only the
+explicit admitted source requests. Output remains in canonical source units;
+GPU readiness is false. Transform conversion, NIF/rig/animation selection,
+effective equipment and live state mutation remain separate consumers.
+
+Nested context/render/structural limits remain in force. Additional bounds cover
+source count, selected occurrences, input identity bytes, logical visits, supplied
+view and complete serialized output. Index retention avoids repeated path clones.

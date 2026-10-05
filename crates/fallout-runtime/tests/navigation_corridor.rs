@@ -1,7 +1,11 @@
 mod common;
 use common::{field, form, header, record};
 use fallout_data::{plugin, store::RecordStore};
-use fallout_runtime::navigation::{Route, RouteLimits, TriangleId, corridor::*};
+use fallout_runtime::navigation::{
+    Route, RouteLimits, TriangleId,
+    corridor::{motion::*, *},
+    endpoint::EndpointRequest,
+};
 use std::fs;
 fn group(body: &[u8]) -> Vec<u8> {
     [
@@ -198,6 +202,186 @@ fn request(query: &CorridorQuery, limits: CorridorLimits) -> CorridorOutcome {
             |_, _, _| Ok(Some(1.)),
         )
         .unwrap()
+}
+
+fn endpoint(triangle: usize, point: [f64; 3]) -> EndpointRequest {
+    EndpointRequest {
+        triangle: id(triangle),
+        point,
+        plane: plane(),
+    }
+}
+
+fn motion_options(planar_radius: f64, motion_limits: LocalMotionLimits) -> LocalMotionOptions {
+    LocalMotionOptions {
+        route_limits: RouteLimits::default(),
+        corridor_limits: CorridorLimits::default(),
+        footprint: LocalFootprint { planar_radius },
+        motion_limits,
+    }
+}
+
+#[test]
+fn actor_route_produces_bounded_source_tagged_local_motion_segments() {
+    let query = Fixture::new(0).query();
+    let start = endpoint(4, [0.2, 0.2, 0.]);
+    let goal = endpoint(2, [1.75, 0.5, 0.]);
+    let outcome = query
+        .route_local_motion_requests(
+            &start,
+            &goal,
+            motion_options(0.05, LocalMotionLimits::default()),
+            |_, _, _| Ok(Some(1.)),
+        )
+        .unwrap();
+    let Route::Found { nodes, .. } = &outcome.route else {
+        panic!("source route missing")
+    };
+    assert_eq!(nodes.as_slice(), &[id(4), id(1), id(5), id(2)]);
+    assert!(matches!(&outcome.motion.state, LocalMotionState::Ready));
+    assert!(outcome.corridor_refusal.is_none());
+    assert!(outcome.motion.collision_sweep_required);
+    assert_eq!(outcome.motion.requests.len(), nodes.len());
+    assert_eq!(outcome.motion.usage.segments, nodes.len());
+    assert_eq!(outcome.motion.usage.portal_visits, nodes.len() - 1);
+    assert_eq!(outcome.motion.requests[0].segment.start, start.point);
+    assert_eq!(
+        outcome.motion.requests.last().unwrap().segment.end,
+        goal.point
+    );
+    for (request, node) in outcome.motion.requests.iter().zip(nodes) {
+        assert_eq!(&request.triangle, node);
+        assert_eq!(request.cell, form(0x10));
+        assert_eq!(request.planar_radius, 0.05);
+        assert!(request.collision_sweep_required);
+        assert_eq!(request.source_sha256.len(), 64);
+        assert_eq!(request.decoded_navmesh_sha256.len(), 64);
+    }
+    for pair in outcome.motion.requests.windows(2) {
+        assert_eq!(pair[0].segment.end, pair[1].segment.start);
+    }
+}
+
+#[test]
+fn actor_route_refuses_unreachable_endpoints_bad_clearance_and_points_outside_source() {
+    let query = Fixture::new(0).query();
+    let start = endpoint(4, [0.2, 0.2, 0.]);
+    let unreachable = query
+        .route_local_motion_requests(
+            &start,
+            &endpoint(3, [20.2, 0.2, 0.]),
+            motion_options(0.05, LocalMotionLimits::default()),
+            |_, _, _| Ok(Some(1.)),
+        )
+        .unwrap();
+    assert!(matches!(unreachable.route, Route::Unreachable));
+    assert!(unreachable.motion.requests.is_empty());
+    assert!(!unreachable.motion.collision_sweep_required);
+    assert!(matches!(
+        &unreachable.motion.state,
+        LocalMotionState::Refused {
+            reason: "route is unreachable"
+        }
+    ));
+
+    let narrow = query
+        .route_local_motion_requests(
+            &start,
+            &endpoint(2, [1.75, 0.5, 0.]),
+            motion_options(0.6, LocalMotionLimits::default()),
+            |_, _, _| Ok(Some(1.)),
+        )
+        .unwrap();
+    assert!(narrow.motion.requests.is_empty());
+    assert!(!narrow.motion.collision_sweep_required);
+    assert!(matches!(
+        &narrow.motion.state,
+        LocalMotionState::Refused {
+            reason: "source portal is narrower than the explicit collision footprint"
+        }
+    ));
+
+    let outside = query
+        .route_local_motion_requests(
+            &endpoint(4, [0.8, 0.8, 0.]),
+            &endpoint(2, [1.75, 0.5, 0.]),
+            motion_options(0.05, LocalMotionLimits::default()),
+            |_, _, _| Ok(Some(1.)),
+        )
+        .unwrap();
+    assert!(outside.motion.requests.is_empty());
+    assert!(matches!(
+        &outside.motion.state,
+        LocalMotionState::Refused {
+            reason: "start is outside or unsupported by its source triangle"
+        }
+    ));
+    assert!(!outside.motion.collision_sweep_required);
+}
+
+#[test]
+fn actor_route_reports_at_goal_and_respects_motion_budgets() {
+    let query = Fixture::new(0).query();
+    let point = [0.25, 0.25, 0.];
+    let at_goal = query
+        .route_local_motion_requests(
+            &endpoint(4, point),
+            &endpoint(4, point),
+            motion_options(
+                0.05,
+                LocalMotionLimits {
+                    segments: 0,
+                    portal_visits: 0,
+                    retained_bytes: 0,
+                    ..LocalMotionLimits::default()
+                },
+            ),
+            |_, _, _| Ok(Some(1.)),
+        )
+        .unwrap();
+    assert!(matches!(
+        &at_goal.motion.state,
+        LocalMotionState::AlreadyAtGoal
+    ));
+    assert!(at_goal.motion.requests.is_empty());
+    assert!(!at_goal.motion.collision_sweep_required);
+
+    let attempt = |limits: LocalMotionLimits| {
+        query.route_local_motion_requests(
+            &endpoint(4, [0.2, 0.2, 0.]),
+            &endpoint(2, [1.75, 0.5, 0.]),
+            motion_options(0.05, limits),
+            |_, _, _| Ok(Some(1.)),
+        )
+    };
+    assert!(matches!(
+        attempt(LocalMotionLimits {
+            segments: 3,
+            ..LocalMotionLimits::default()
+        }),
+        Err(CorridorError::Budget("local motion segments"))
+    ));
+    assert!(matches!(
+        attempt(LocalMotionLimits {
+            portal_visits: 2,
+            ..LocalMotionLimits::default()
+        }),
+        Err(CorridorError::Budget("local motion portal visits"))
+    ));
+    assert!(matches!(
+        attempt(LocalMotionLimits {
+            endpoint_predicates: 0,
+            ..LocalMotionLimits::default()
+        }),
+        Err(CorridorError::Budget("local endpoint predicates"))
+    ));
+    assert!(matches!(
+        attempt(LocalMotionLimits {
+            retained_bytes: 0,
+            ..LocalMotionLimits::default()
+        }),
+        Err(CorridorError::Budget("local motion retained bytes"))
+    ));
 }
 #[test]
 fn literal_zigzag_retains_exact_source_words_nonsequential_ids_and_reciprocal_portals() {

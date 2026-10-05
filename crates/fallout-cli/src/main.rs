@@ -1227,10 +1227,13 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             engineering_local_copy,
             snapshot_copy_request,
             snapshot_copy_batch_request,
+            snapshot_multi_copy_request,
             snapshot_foreign_copy_request,
             snapshot_reference_copy_request,
             reference_boot_request,
             snapshot_event_request,
+            snapshot_literal_assignment_request,
+            snapshot_native_assignment_request,
             snapshot_native_request,
             snapshot_native_plan_request,
             snapshot_native_current,
@@ -1239,6 +1242,49 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
             snapshot_input,
             snapshot_output,
         } => {
+            let snapshot_input = snapshot_input.map(|path| *path);
+            if let Some(request) = snapshot_native_assignment_request {
+                let report = event_operand_inspection::assign_saved_native(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_native_assignment"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved native assignment remains unsupported; see engineering report"
+                            .into(),
+                    );
+                }
+                return Ok(());
+            }
+            if let Some(request) = snapshot_literal_assignment_request {
+                let report = event_operand_inspection::assign_saved_literal(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_literal_assignment"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved literal assignment remains unsupported; see engineering report"
+                            .into(),
+                    );
+                }
+                return Ok(());
+            }
             if let Some(request) = snapshot_event_request {
                 let report = event_operand_inspection::enqueue_saved_event(
                     &install,
@@ -1335,6 +1381,26 @@ fn run_runtime(command: RuntimeCommand, output: Option<&Path>) -> Result<()> {
                 if report["outcome"]["status"] != "engineering_observation" {
                     return Err(
                         "Saved native plan retains unsupported semantics; see report".into(),
+                    );
+                }
+                return Ok(());
+            }
+            if let Some(request) = snapshot_multi_copy_request {
+                let report = event_operand_inspection::copy_saved_multi_owned(
+                    &install,
+                    &load_order,
+                    index_cache.as_deref(),
+                    &request,
+                    snapshot_input.as_deref().ok_or("Missing snapshot input")?,
+                    snapshot_output
+                        .as_deref()
+                        .ok_or("Missing snapshot output")?,
+                    output,
+                )?;
+                emit(&report, output, &protected_tree(&install)?)?;
+                if report["snapshot_multi_copy"]["status"] != "engineering_committed" {
+                    return Err(
+                        "Saved named multi-copy remains unsupported; see engineering report".into(),
                     );
                 }
                 return Ok(());
@@ -1474,6 +1540,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             include_template_dependencies,
             equipment_source,
             equipment_role,
+            include_material_overrides,
             voice_root,
             script_root,
             ai_root,
@@ -1484,6 +1551,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             ammo_root,
             death_item_root,
             death_item_field,
+            body_part_root,
             creature_model_directory,
         } => {
             let mut report = actor_inspection::inspect(
@@ -1505,6 +1573,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     include_template_dependencies,
                     equipment_source,
                     equipment_role,
+                    include_material_overrides,
                     voice_root,
                     script_root,
                     ai_root,
@@ -1515,6 +1584,7 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     ammo_root: ammo_root.map(|key| *key),
                     death_item_root: death_item_root.map(|key| *key),
                     death_item_field,
+                    body_part_root: body_part_root.map(|key| *key),
                     creature_model_directory,
                 },
             )?;
@@ -1574,7 +1644,15 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
             package_capability,
             include_actor_context,
             equipment_item,
+            equipment_model_role,
+            render_path_selection,
             inventory_boot_request,
+            package_route_request,
+            actor_reference_intent,
+            actor_inventory_transfer,
+            actor_equipment_intent,
+            actor_context_batch,
+            actor_faction_pair,
         } => {
             let report = actor_inspection::package_context(
                 &install,
@@ -1592,7 +1670,17 @@ fn run_actors(command: ActorsCommand, output: Option<&Path>) -> Result<()> {
                     package_capability,
                     include_actor_context,
                     equipment_item,
+                    equipment_model_role,
+                    render_path_selection: render_path_selection.as_deref(),
                     inventory_boot_request: inventory_boot_request.as_deref(),
+                    package_route_request: package_route_request.as_deref().map(PathBuf::as_path),
+                    actor_reference_intent: actor_reference_intent.as_deref().map(PathBuf::as_path),
+                    actor_inventory_transfer: actor_inventory_transfer
+                        .as_deref()
+                        .map(PathBuf::as_path),
+                    actor_equipment_intent: actor_equipment_intent.as_deref().map(PathBuf::as_path),
+                    actor_context_batch: actor_context_batch.as_deref().map(PathBuf::as_path),
+                    actor_faction_pair: actor_faction_pair.as_deref().map(PathBuf::as_path),
                 },
             )?;
             emit(&report, output, &protected_tree(&install)?)?;
@@ -2210,6 +2298,24 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
                 return Err("grid CELL source dependencies are unavailable; see report".into());
             }
         }
+        WorldCommand::PlacedActivationSources {
+            install,
+            load_order,
+            index_cache,
+            reference,
+        } => {
+            let report = world_preparation_inspection::activation(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                parse_cell_key(&reference)?,
+            )?;
+            let prepared = report["source_request_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("Placed activation source request refused; see report".into());
+            }
+        }
         WorldCommand::PlacedLinkedSources {
             install,
             load_order,
@@ -2362,6 +2468,30 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
             emit(&report, output, &install)?;
             if !prepared {
                 return Err("explicit CELL source-plan set refused; see report".into());
+            }
+        }
+        WorldCommand::TerrainPatchSources {
+            install,
+            load_order,
+            index_cache,
+            world,
+            grid,
+            seam,
+        } => {
+            let report = world_preparation_inspection::terrain_patches(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                world_preparation_inspection::GridPatchInput {
+                    world: parse_cell_key(&world)?,
+                    grids: world_preparation_inspection::parse_grid_set(&grid)?,
+                    seams: world_preparation_inspection::parse_seam_set(&seam)?,
+                },
+            )?;
+            let prepared = report["cpu_bundle_prepared"].as_bool() == Some(true);
+            emit(&report, output, &install)?;
+            if !prepared {
+                return Err("source CPU terrain patch bundle refused; see report".into());
             }
         }
         WorldCommand::GridTerrainSources {
@@ -2768,6 +2898,20 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
 
 fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        PhysicsCommand::NavigationSearch {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect_search(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
         PhysicsCommand::NavigationEndpoints {
             install,
             load_order,
@@ -2887,6 +3031,10 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
             let report = collision::attachment_query(&input, &request)?;
             emit(&report, output, &input)?;
         }
+        PhysicsCommand::CollisionSweep { input, request } => {
+            let report = collision::sweep_query(&input, &request)?;
+            emit(&report, output, &input)?;
+        }
         PhysicsCommand::NifCollision {
             input,
             oracle_report,
@@ -2963,6 +3111,14 @@ fn run_sources(command: SourcesCommand, output: Option<&Path>) -> Result<()> {
                 local_appdata.as_deref(),
                 &package,
             )?;
+        }
+        SourcesCommand::RetailProfileVerify {
+            package,
+            receipt_sha256,
+            require_process,
+        } => {
+            let report = retail_profile::verify(&package, &receipt_sha256, require_process)?;
+            emit(&report, output, &package)?;
         }
         SourcesCommand::Census {
             install,

@@ -1,0 +1,312 @@
+{
+    "schema_version":  1,
+    "generated_date":  "2026-10-04",
+    "scope":  "Rust source, tests, project configuration and documentation; excludes ignored local evidence, build targets, VCS metadata and reports to avoid a hash cycle",
+    "files":  [
+                  {
+                      "path":  ".gitignore",
+                      "bytes":  60,
+                      "sha256":  "79ca89953b593fae06dc8082bbc51554f31608b5af1357841d8dcf7465999e4c"
+                  },
+                  {
+                      "path":  "AGENTS.md",
+                      "bytes":  1282,
+                      "sha256":  "6f925f7ace53ca6fe7ac73a9b1c43f87af3fe78bf82c4efca42d61f3d1f8233b"
+                  },
+                  {
+                      "path":  "Cargo.lock",
+                      "bytes":  11911,
+                      "sha256":  "67811f9c2d4e6becfcc284c966bfce368ccb7753a81f1d06d64c99eddb0cb167"
+                  },
+                  {
+                      "path":  "Cargo.toml",
+                      "bytes":  679,
+                      "sha256":  "0b3fa68e04325b65aae700b88fdbd2434d26cfcf219e677dc127bc0ecf8d9acf"
+                  },
+                  {
+                      "path":  "docs/binding-contract.md",
+                      "bytes":  3956,
+                      "sha256":  "9cc044ca47998e1f1da6701e35afb128788a6cc8d3851a45dba99ad39b03b534"
+                  },
+                  {
+                      "path":  "docs/generic-model-assets.md",
+                      "bytes":  4873,
+                      "sha256":  "b70791ea1284450c2c091be9020bed735d39f8d8208ba195b6951f0136c3a7fe"
+                  },
+                  {
+                      "path":  "docs/nif-header-probe.md",
+                      "bytes":  5358,
+                      "sha256":  "8ee1cd5601c2108da459d7ec4ea01b2ab17dd206cc87cbfbe506465dc6a4a6eb"
+                  },
+                  {
+                      "path":  "docs/profile-mapping.md",
+                      "bytes":  2388,
+                      "sha256":  "e88cdba5a7d06eef0dae4e02d98a0bc255eedfcfe3dc5003136a1f9817635aee"
+                  },
+                  {
+                      "path":  "docs/script-provenance.md",
+                      "bytes":  4594,
+                      "sha256":  "465daa59439a5495e6b756b0f36b076496c78d5702e16e360196f49410882458"
+                  },
+                  {
+                      "path":  "docs/shared-integration.md",
+                      "bytes":  5970,
+                      "sha256":  "5215ec6fecbfe4802e0b127594cba31b5f0b5fc3ed02b318b1f563f29f266667"
+                  },
+                  {
+                      "path":  "docs/static-model-assets.md",
+                      "bytes":  4595,
+                      "sha256":  "7f1bc1769e4baf630f3a9242eb199adb4fa7a44fcca3ffbcca8bf7ab0a5483a7"
+                  },
+                  {
+                      "path":  "global.json",
+                      "bytes":  75,
+                      "sha256":  "a97385ba41542256aadfcc3a7f6ba18689347abc45e61d1a19980583f8c502a2"
+                  },
+                  {
+                      "path":  "NEXT_STEPS.md",
+                      "bytes":  6661,
+                      "sha256":  "de14c7041747084538c2688843bdafb27077c31266fe59705fe0399f80342971"
+                  },
+                  {
+                      "path":  "parity/requirements.json",
+                      "bytes":  7553,
+                      "sha256":  "3c5492cde26387765a0d321fd820806cee89ddb673a77fd76fb15e55ed037fd7"
+                  },
+                  {
+                      "path":  "README.md",
+                      "bytes":  10846,
+                      "sha256":  "dee18287cdcd572ec6d858f724d930662d51a33207bee21aa225b8dfea6edd7e"
+                  },
+                  {
+                      "path":  "rust-toolchain.toml",
+                      "bytes":  86,
+                      "sha256":  "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e"
+                  },
+                  {
+                      "path":  "sources.lock.json",
+                      "bytes":  10524,
+                      "sha256":  "27194f904ba987f80b73f811bd97880dac3afa754710b38a8eec808a6ea450ee"
+                  },
+                  {
+                      "path":  "src/archive.rs",
+                      "bytes":  14702,
+                      "sha256":  "ed72c099b26260067b03a3260b90d23732e67e9a04e39c797b56e8d69dafc6d5"
+                  },
+                  {
+                      "path":  "src/bindings.rs",
+                      "bytes":  3992,
+                      "sha256":  "8da1f6fc64100ab79a02e068d5df94fa418d2f7edcbabf159b173a0f62621119"
+                  },
+                  {
+                      "path":  "src/census.rs",
+                      "bytes":  8992,
+                      "sha256":  "cfd8c02b8000cdeac8b8bceb260bb6a3ba915884cf389e621473df7fa6e9d9ea"
+                  },
+                  {
+                      "path":  "src/generic_models.rs",
+                      "bytes":  13618,
+                      "sha256":  "80e2f65bd24df78a544d1d197e6856d7771b7fa5ebddc742e0ab9ce7943435a9"
+                  },
+                  {
+                      "path":  "src/lib.rs",
+                      "bytes":  1080,
+                      "sha256":  "f26db23051fcc0df6f7747c7a0b2157da3868155408a7a4fe52fb0ad66e27dfe"
+                  },
+                  {
+                      "path":  "src/main.rs",
+                      "bytes":  25816,
+                      "sha256":  "0d3e42ce5b8f32d1cfcf5f3d85e1326f8d50a1fec6af21b2ceebc77f0e022045"
+                  },
+                  {
+                      "path":  "src/nif_header.rs",
+                      "bytes":  7902,
+                      "sha256":  "57c81fcec503c4e0d495e9c4226c7d51ceae931e8166779ea42208e3578f605e"
+                  },
+                  {
+                      "path":  "src/nif_index.rs",
+                      "bytes":  15361,
+                      "sha256":  "819a7228649639d05273dcd3b87967a18116a755121030362d3d0e24f3a5fbe7"
+                  },
+                  {
+                      "path":  "src/plugin.rs",
+                      "bytes":  17227,
+                      "sha256":  "5d9e099909040d1d8eecacb33ad8b5e02debc762121ab6c6773a89c751023be8"
+                  },
+                  {
+                      "path":  "src/profile.rs",
+                      "bytes":  17337,
+                      "sha256":  "968224141f9289be411f826c799e74615f91eed8e9f0f30c09bfd2235e04c08d"
+                  },
+                  {
+                      "path":  "src/static_asset_trace.rs",
+                      "bytes":  18211,
+                      "sha256":  "a387862639269b02109a0c318ba736a3462d675cb6925d3d6294aa7b814f8898"
+                  },
+                  {
+                      "path":  "src/static_models.rs",
+                      "bytes":  20449,
+                      "sha256":  "6e1acb40ba1d88467c075f6ce8b8bc4121a5b25dad7a1bb20a7c094b9f0601ad"
+                  },
+                  {
+                      "path":  "src/trace.rs",
+                      "bytes":  30593,
+                      "sha256":  "ec58406c1f9321f37d9308747151d75efbe20667dd19ab9ef25fb115efabb722"
+                  },
+                  {
+                      "path":  "src/vmad.rs",
+                      "bytes":  12150,
+                      "sha256":  "e80a4807abe696815352b5f368c296f1f4faf68be051cda5a58f6244f94d08f4"
+                  },
+                  {
+                      "path":  "src/vmad/fragments.rs",
+                      "bytes":  4883,
+                      "sha256":  "2841cd9de48ee9d136f3ce470b929927eb4d2a7428c6251ae3723eaa0b37a190"
+                  },
+                  {
+                      "path":  "tests/fragments.rs",
+                      "bytes":  5997,
+                      "sha256":  "6cd073cd3ac8584a80e2738ee1e30ed36ee07f8cdd7323b7dbc9582363b393dc"
+                  },
+                  {
+                      "path":  "tests/nif_header.rs",
+                      "bytes":  8452,
+                      "sha256":  "25cf6036078b6e38556d0ad81a13817fe0c4cb70411b047e529950790ff821ec"
+                  },
+                  {
+                      "path":  "tests/preparation.rs",
+                      "bytes":  11412,
+                      "sha256":  "d7d88189c19930747e288df572cb5f1ca9ada715ebad65a34899b07bdde19acb"
+                  },
+                  {
+                      "path":  "tests/profile.rs",
+                      "bytes":  2873,
+                      "sha256":  "7fc3a52da67c23fcc57034b261fde8784d7313ef8ac192babb9509aa3344c100"
+                  },
+                  {
+                      "path":  "tests/static_models.rs",
+                      "bytes":  5527,
+                      "sha256":  "6f76a1813c34d857b0f2699f4db41663bf7caa6ae800e9154174133e8c077e72"
+                  },
+                  {
+                      "path":  "tests/trace.rs",
+                      "bytes":  15048,
+                      "sha256":  "1a8ad08e6cb51e9e4916ff37cca530552a6372ffe1ad73819c7daea3014e8479"
+                  },
+                  {
+                      "path":  "THIRD_PARTY_NOTICES.md",
+                      "bytes":  1944,
+                      "sha256":  "3f907d8c2e22f8f75cb84f49ea255872162954358981addd5f946766fe1dc688"
+                  },
+                  {
+                      "path":  "tools/archive-oracle/archive-oracle.csproj",
+                      "bytes":  466,
+                      "sha256":  "080b3f7ac0b47c32b2cc7786b62bcebf28827ba6190f01b5febcd7b6503b93f9"
+                  },
+                  {
+                      "path":  "tools/archive-oracle/Directory.Build.props",
+                      "bytes":  274,
+                      "sha256":  "3280951ff45c03d1251d7e3c7bcb045cedb28f06958a40c8fb64bbecc6a65fb6"
+                  },
+                  {
+                      "path":  "tools/archive-oracle/packages.lock.json",
+                      "bytes":  12894,
+                      "sha256":  "03b489bcfbdda9b62db81d290e22efd00ca64fb00007ed44c0a8ba0cfbe4b244"
+                  },
+                  {
+                      "path":  "tools/archive-oracle/Program.cs",
+                      "bytes":  5409,
+                      "sha256":  "6ceb80f5341bf82cbad0a273073fb26e1dad0adb3bed47d6bf422f056110a19c"
+                  },
+                  {
+                      "path":  "tools/cargo.ps1",
+                      "bytes":  717,
+                      "sha256":  "7c15a19f4b845bad384917f02c7c68d7df7c722133bb1c187a258be0a7694684"
+                  },
+                  {
+                      "path":  "tools/dotnet.ps1",
+                      "bytes":  375,
+                      "sha256":  "f283e5f1e2509aea52a917ae046915d8da44eea91df81f5a21992923541599f4"
+                  },
+                  {
+                      "path":  "tools/inspect-install.ps1",
+                      "bytes":  3447,
+                      "sha256":  "bcffacbe96bb4f325f6dfee23551d38243d4f238b0b796d14e29ca3287813f0a"
+                  },
+                  {
+                      "path":  "tools/plugin-oracle/Cargo.lock",
+                      "bytes":  4808,
+                      "sha256":  "9b6baa172cf5909570f6c6f0c9c2009ab72435d2649622f9a3c30a916c9bf62d"
+                  },
+                  {
+                      "path":  "tools/plugin-oracle/Cargo.toml",
+                      "bytes":  336,
+                      "sha256":  "a30d8de7d3843863317f80fb675248cb0738793697774b1ba1c1fd846f4dc224"
+                  },
+                  {
+                      "path":  "tools/plugin-oracle/src/main.rs",
+                      "bytes":  2724,
+                      "sha256":  "3cc6f4fceba3deeac93e5a50e3f379d2ccd4da91271440fabb718204ce46c29f"
+                  },
+                  {
+                      "path":  "tools/test-archive-oracle.ps1",
+                      "bytes":  2543,
+                      "sha256":  "8bba3d8d56b17c095d0eecae0da293b8d468f0b9afc78ece44242310b0ac0f0d"
+                  },
+                  {
+                      "path":  "tools/test-trace-oracle.ps1",
+                      "bytes":  2251,
+                      "sha256":  "cf76a8311fb09d9ac6af416e6561e0c32393c155f3d7df49e71f35cb234f481d"
+                  },
+                  {
+                      "path":  "tools/test-vmad-oracle.ps1",
+                      "bytes":  2766,
+                      "sha256":  "2da6a301e981bf77219d61b7a6deb580d58b01e758c2ee86b743b999e66f4457"
+                  },
+                  {
+                      "path":  "tools/trace-oracle/Directory.Build.props",
+                      "bytes":  270,
+                      "sha256":  "25cdf54f955fd66185e5186e087984f568c9c20e0f4705991245d0440bebab22"
+                  },
+                  {
+                      "path":  "tools/trace-oracle/packages.lock.json",
+                      "bytes":  13270,
+                      "sha256":  "e59e6a00939ec87e08447724562371913590055d37b887c1654e6b2e35a02ee1"
+                  },
+                  {
+                      "path":  "tools/trace-oracle/Program.cs",
+                      "bytes":  15764,
+                      "sha256":  "4d49ac0b82e0b4bb248ededafd08eac7708c0a1edc0a1c61085542e4b4b8fe2f"
+                  },
+                  {
+                      "path":  "tools/trace-oracle/trace-oracle.csproj",
+                      "bytes":  468,
+                      "sha256":  "6d230d328ecab8bddae8ac35086c5fb5fbaddde145c0e9bc959a58bd6a1b3a45"
+                  },
+                  {
+                      "path":  "tools/verify-bindings.ps1",
+                      "bytes":  3392,
+                      "sha256":  "0c7b913e03ad06da7bea0dc83c65157ee7ee132318323f1b2abafdf360ab77a5"
+                  },
+                  {
+                      "path":  "tools/vmad-oracle/Directory.Build.props",
+                      "bytes":  268,
+                      "sha256":  "c439ff6ee4f0056e0602ca73d93e064a69d434829effb67130ee36de86f7ffde"
+                  },
+                  {
+                      "path":  "tools/vmad-oracle/packages.lock.json",
+                      "bytes":  13270,
+                      "sha256":  "e59e6a00939ec87e08447724562371913590055d37b887c1654e6b2e35a02ee1"
+                  },
+                  {
+                      "path":  "tools/vmad-oracle/Program.cs",
+                      "bytes":  13295,
+                      "sha256":  "aafcaff5b08d552a9f940744c7c71a6e2bf94397b79c2e3bcbed66f6c2f10a02"
+                  },
+                  {
+                      "path":  "tools/vmad-oracle/vmad-oracle.csproj",
+                      "bytes":  468,
+                      "sha256":  "6d230d328ecab8bddae8ac35086c5fb5fbaddde145c0e9bc959a58bd6a1b3a45"
+                  }
+              ]
+}

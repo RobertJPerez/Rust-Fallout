@@ -1,0 +1,118 @@
+{
+    "schema_version":  1,
+    "game":  "skyrim-se-ae",
+    "accepted_gameplay_scenarios":  0,
+    "requirements":  [
+                         {
+                             "id":  "SKY-DATA-01",
+                             "requirement":  "Reuse bounded shared ESM/ESP framing and checksums",
+                             "status":  "retail-metadata-compared",
+                             "tests":  [
+                                           "installed_corpus_reaches_shared_plugin_reader_vmad_and_lz4_archive"
+                                       ]
+                         },
+                         {
+                             "id":  "SKY-DATA-02",
+                             "requirement":  "Read BSA 105 index and bounded LZ4 script payloads",
+                             "status":  "retail-script-payloads-independently-compared",
+                             "tests":  [
+                                           "se_lz4_script_payload_is_bounded_and_round_trips"
+                                       ],
+                             "gaps":  [
+                                          "Non-PEX archive payload coverage",
+                                          "Runtime archive mounting precedence"
+                                      ]
+                         },
+                         {
+                             "id":  "SKY-AE-01",
+                             "requirement":  "Separate runtime build, content inventory, and expanded ESL local IDs",
+                             "status":  "unit-tested",
+                             "tests":  [
+                                           "anniversary_extended_esl_range_does_not_truncate_full_ids",
+                                           "light_header_version_and_master_override_are_distinguished"
+                                       ],
+                             "gaps":  [
+                                          "Paid Anniversary content not presumed installed",
+                                          "Runtime FE load-order slot resolution"
+                                      ]
+                         },
+                         {
+                             "id":  "SKY-SCRIPT-01",
+                             "requirement":  "Preserve VMAD v4/v5 primary/alias properties, INFO/PACK/PERK/QUST/SCEN fragments, raw bits and source offsets",
+                             "status":  "retail-compared-with-one-explicit-reference-discrepancy",
+                             "tests":  [
+                                           "object_format_two_preserves_alias_form_and_padding",
+                                           "object_format_one_and_fragment_tail",
+                                           "all_truncations_fail",
+                                           "version_four_supports_scalar_properties_but_refuses_version_five_arrays",
+                                           "quest_stage_log_alias_and_exact_property_bits_survive",
+                                           "tail_truncations_and_leftovers_preserve_raw_failure",
+                                           "aggregate_budget_spans_primary_fragment_and_alias_sections",
+                                           "binding_export_retains_identity_order_and_visible_tail_failure",
+                                           "invalid_object_master_index_is_reported_without_rewriting_raw_value"
+                                       ],
+                             "gaps":  [
+                                          "Dawnguard source FormID normalization/runtime behavior",
+                                          "VMAD versions other than 4/5 and mixed alias object formats",
+                                          "Runtime script/property/function binding"
+                                      ]
+                         },
+                         {
+                             "id":  "SKY-SCRIPT-02",
+                             "requirement":  "Expose missing/ambiguous archived and loose attachment script candidates",
+                             "status":  "retail-scanned",
+                             "tests":  [
+                                           "missing_and_duplicate_script_candidates_stay_explicit",
+                                           "fragment_filename_without_executable_fragment_is_metadata_only"
+                                       ],
+                             "gaps":  [
+                                          "Active plugin order",
+                                          "Archive mount precedence",
+                                          "PEX class/import/function/property linkage"
+                                      ]
+                         },
+                         {
+                             "id":  "SKY-RUNTIME-01",
+                             "requirement":  "Original new-game route, quests, actors and combat with cold Continue",
+                             "status":  "unknown",
+                             "tests":  [
+
+                                       ],
+                             "gaps":  [
+                                          "Shared Papyrus VM/native host",
+                                          "Skyrim rules and aliases",
+                                          "Havok behavior/physics",
+                                          "Menus/audio/animation",
+                                          "Persistent Skyrim world state"
+                                      ]
+                         },
+                         {
+                             "id":  "SKY-ECOSYSTEM-01",
+                             "requirement":  "Data mods, native SKSE plugins and retail ESS saves",
+                             "status":  "unknown",
+                             "tests":  [
+
+                                       ],
+                             "gaps":  [
+                                          "Each compatibility surface needs separate implementation and evidence"
+                                      ]
+                         },
+                         {
+                             "tests":  [
+                                           "source_identity_joins_master_overrides_but_does_not_adopt_noncanonical_fallback",
+                                           "trace_preserves_all_candidates_and_distinguishes_source_flags_from_activation",
+                                           "noncanonical_record_and_link_indices_stay_unresolved",
+                                           "incomplete_vmad_and_unsafe_census_inputs_cannot_silently_pass",
+                                           "effect_edges_keep_multiplicity_and_enable_parent_bytes_are_preserved"
+                                       ],
+                             "status":  "retail-independently-compared",
+                             "requirement":  "Trace absent script attachments to physical owners, same-origin definitions, direct links and containing cells",
+                             "id":  "SKY-SCRIPT-03",
+                             "gaps":  [
+                                          "NPC SPLO/template and leveled-list dependency closure",
+                                          "Active plugin order and winning definitions",
+                                          "Runtime enable state, script instantiation and route reachability"
+                                      ]
+                         }
+                     ]
+}

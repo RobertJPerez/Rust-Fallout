@@ -37,4 +37,25 @@ and writes. File observations alone do not determine effective settings, plugin
 order, duplicate-key precedence or retail behavior. Trace importers can bind the
 completed receipt's SHA-256 while retail execution remains unavailable.
 
+`fallout retail-profile-verify` checks an existing package against an expected
+receipt SHA-256 without reopening the original installation or user-data roots:
+
+```powershell
+fallout.exe retail-profile-verify --package "G:\Rust-Fallout-worktrees\integration\local\retail-profile-01" --receipt-sha256 <capture-json-sha256>
+```
+
+It checks report hashes, manifest digest recipes, the executable identity and
+configuration copies. It reparses retained and staged configuration through the
+production profile parser, including missing files, raw bytes, duplicates and
+offsets. Package-relative evidence paths cannot escape the package or traverse
+links, and staged saves must remain empty. Receipt reads are bounded to 1MiB and
+each report to 32MiB. The result verifies retained profile evidence; it does not
+remeasure current original inputs or authenticate an untrusted producer.
+
+Use `--require-process` when consuming original execution evidence. Existing
+profile-only captures always refuse that requirement, and altered receipts cannot
+turn their process, isolation or gameplay flags into accepted evidence. An actual
+isolated process capture needs its own demonstrated transport before these
+requirements can pass.
+
 Cloud-tag classification follows Microsoft's [reparse tag specification](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/c8e77b37-3909-4fe6-a4ea-2b9d423b1ee4).

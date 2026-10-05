@@ -1,0 +1,68 @@
+Gameplay replay and persistence acceptance
+==========================================
+
+Purpose
+-------
+
+`tools/behavior-acceptance/replay.py` packs a host-produced JSONL timeline into a
+bounded receipt and compares that receipt to a separate, independently authored
+expectation. Input, state, script-event, acknowledgement and save records share
+one ordered timeline so missing, duplicate, or reordered observations are visible.
+The comparison uses exact values; it does not infer quest rules or fill absent
+fields with defaults. JSON scalar types compare strictly, so `true` is not `1`.
+
+Capture and replay
+------------------
+
+The run manifest follows `tools/behavior-acceptance/schemas/capture-v1.schema.json`.
+The expectation follows `tools/behavior-acceptance/schemas/expectations-v1.schema.json`.
+The Python reader applies the same v1 contract with the standard library, rejects
+duplicate JSON keys, non-finite numbers, unknown fields, incomplete timelines,
+sequence gaps, stale source/profile pins, wrong-typed enum fields, and oversized
+receipts. Capture and JSONL readers stop after 8 MiB plus one byte to reject an
+oversized artifact before loading its full contents. Integer tokens beyond the
+runtime decoder's conversion limit are reported as structured invalid receipts.
+
+Pack a host-produced manifest and JSONL records without overwriting old evidence:
+
+    python tools/behavior-acceptance/replay.py capture --manifest run.json --timeline timeline.jsonl --output capture.json
+
+Compare the capture with an independent expectation:
+
+    python tools/behavior-acceptance/replay.py replay capture.json expectations.json
+
+The process exits 0 for a matching receipt, 1 for behavioral/provenance mismatch,
+and 2 for malformed or unsupported inputs. A fixture result is labeled
+`synthetic_fixture_validation`; a frozen host result is labeled
+`engineering_replay_validation`. This v1 tool never emits a retail-pass result.
+Engineering captures require a source revision, binary hash, profile identity and
+hash, content hash, and bounded process record. Expectations pin the revision,
+profile identity, and all three hashes.
+
+Each state observation carries source-qualified inventory lots, exact quest fields,
+pending and acknowledged event identities, canonical and visible revisions, and a
+snapshot digest. Quest facts are generic observed fields: v1 assigns no meaning to
+them. Expectations compare the complete ordered timeline, including field values,
+so a missing quest field, wrong lot owner/count, missing, duplicated or reordered
+event effect, wrong event owner, unsupported event reported as dispatched, missing
+acknowledgement, or reordered action fails.
+
+Frozen consumer limits
+----------------------
+
+The source51 native host available at `d622128fb3fca1c67a1285dec85fd48c7526031f`
+provides canonical reference observations and native Save/Continue. Its current
+preview input path maps F5/F9 to inspection Save/Continue; those keys are not
+gameplay actions. The CLI/native save reports mark original live-state capture and
+retail parity false. Runtime event commit receipts acknowledge explicit host
+transactions but do not execute bytecode or establish retail dispatch order.
+The source51 snapshot stores source-qualified inventory, references, script locals,
+clocks, and pending events; it has no canonical quest-stage field yet.
+
+Therefore v1 is the independent parser/expectation consumer for the frozen batch,
+with synthetic fault cases. It is not a playable-route capture or an original-game
+comparison. A future gameplay host must emit these records from its actual input,
+canonical state, event execution and presentation acknowledgement boundaries. A
+scenario expecting quest state must include that observed field; empty or absent
+quest state cannot satisfy a non-empty expectation. Keep retail traces and raw game
+data in local private evidence, outside public Git.

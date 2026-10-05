@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "verified-fo4-major-record-count-match-hedr-group-count-unresolved",
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "source_plugin": {
+    "name": "Fallout4.esm",
+    "version": "1.11.240.0 installation corpus",
+    "bytes": 330776576,
+    "sha256": "a3fa1e66d75f80f33f864bf471d25b27f48c1cdbb97acb55c4df83b64ccee1d9",
+    "frozen_census": "local/proof-fo4-002/census.json",
+    "frozen_census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "source_rechecked_after_both_walks": true,
+    "source_modified": false
+  },
+  "counts": {
+    "hedr_declared_records_and_groups": 1741853,
+    "rust_records_including_tes4": 1549277,
+    "rust_major_records_excluding_tes4": 1549276,
+    "mutagen_enumerated_major_records": 1549276,
+    "major_record_counts_match": true,
+    "rust_physical_group_headers": 112381,
+    "rust_empty_24_byte_group_headers": 728,
+    "rust_group_nesting_depths": {
+      "0": 140,
+      "1": 1016,
+      "2": 33510,
+      "3": 1830,
+      "4": 38798,
+      "5": 37087
+    },
+    "rust_max_group_nesting_depth": 5,
+    "rust_records_plus_groups_excluding_tes4": 1661657,
+    "mutagen_calculated_record_count": 1661201,
+    "mutagen_group_count_contribution": 111925,
+    "mutagen_calculated_minus_hedr": -80652,
+    "rust_physical_count_minus_hedr": -80196,
+    "mutagen_group_contribution_minus_physical_group_headers": -456
+  },
+  "rust_group_census": {
+    "private_directory": "local/group-count-001",
+    "complete": true,
+    "manifest_sha256": "d21be074dc099f5ee932db14e033ae0285c95a012e1aefd0b58a7cab47a8190d",
+    "completion_sha256": "ebf8b9570a6b1ec659912362958f3fc65b6d445d11878770228685c540bf2af9",
+    "implementation_sha256": "347bc0b9779fb1e1a3b8cfc5a059eeb1189939ece1726a713683db94be78e16e"
+  },
+  "independent_record_count_comparison": {
+    "private_directory": "local/header-count-001",
+    "complete": true,
+    "manifest_sha256": "928708d863a77b58d65bbdc44607c74806a0a410287dc8fabd87ef627c44dea4",
+    "completion_sha256": "8ae998b95b1f93c282d5d828e6930a272896f07cdc79e5dbcd4274f592635ed4",
+    "oracle_binary_sha256": "2f3e918e282373e651461670427ac5b11501b572f3c4e84f2883aa6507fbc71a",
+    "rust_and_mutagen_major_record_counts_match": true,
+    "mutagen_writer_count_matches_hedr": false,
+    "runtime_ready": false
+  },
+  "implementation_source_sha256": {
+    "src/bin/audit-groups.rs": "347bc0b9779fb1e1a3b8cfc5a059eeb1189939ece1726a713683db94be78e16e",
+    "tools/record-count-oracle/Program.cs": "42f4cfba7a0dbcb4b5aaeb7f224421787c45417d86413a02b1081f5e31a03970",
+    "tools/record-count-oracle/record-count-oracle.csproj": "50d5e9e874213b57b2b6f1820e2d458fb61d991949c28a3888df3aa2ff8f5052",
+    "tools/build-record-count-oracle.ps1": "ae0fd469693b7ae58d9f7aefa699b69f0806c2fc925adf3edd815cce9b27a72a",
+    "docs/header-count.md": "7dde2d51751524ca295221e0b770f338a7cf813470e6bca0ff0548e010e193a5",
+    "docs/baseline.md": "b6aa834b64c92f012b60784e80932039673549161db866d1cdc109867c50e9f6",
+    "README.md": "41cce7346e5772766883ed674904974ab061f490479999da002c53238247b6a3",
+    "NEXT_STEPS.md": "1438d7bb08615172055715562693c19961cf7bb37e85f8167c4823abc029a089",
+    "sources.lock.json": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb"
+  },
+  "reference": {
+    "id": "mutagen-fallout4-header-count-oracle",
+    "revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+    "checkout_clean": true,
+    "source_sha256": {
+      "local/research/Mutagen/Mutagen.Bethesda.Fallout4/Records/Fallout4Mod.cs": "cbb87cf00aad71d5a570e56fb9ec0f72fb26809687b162e08e657e13750b25bc",
+      "local/research/Mutagen/Mutagen.Bethesda.Fallout4/Records/Fallout4Mod_Generated.cs": "268f67efa04db17da7b14652af7c352b38b76037dda2fb3d5e877f5b42560683",
+      "local/research/Mutagen/Mutagen.Bethesda.Core/Plugins/Binary/Translations/ModHeaderWriteLogic.cs": "5b83ede36fb2c1d3b583a855ed52562e6f53876031f4ae815860fda4943a5973",
+      "local/research/Mutagen/Mutagen.Bethesda.Core/Plugins/Records/IMod.cs": "6d1759758c7ed202051a8a484403df8bcbcd8d2a8774293c3114ec82c65fd970"
+    },
+    "usage": "isolated overlay enumeration and Fallout4Mod.GetRecordCount comparison; GPL reference remains outside production binaries",
+    "source_tree_modified": false,
+    "build": "passed with one job and 0 errors; upstream NU1902/analyzer/XML documentation warnings"
+  },
+  "validation": {
+    "rust_group_unit_tests": "passed (2 tests: nesting/empty groups, extent overflow)",
+    "rust_all_target_tests": "passed (84 total across all test targets; local/header-count-validation-001/all-targets.log)",
+    "rust_clippy_warnings_denied": "passed for all targets",
+    "rust_formatting": "passed",
+    "rust_retail_group_walk": "passed; 1,549,277 records, 112,381 GRUP headers; source hash stable",
+    "mutagen_retail_count": "passed; independent major-record walk matched Rust; Mutagen calculated count remained below HEDR",
+    "retail_command_group_walk": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/cargo.ps1 run --locked --jobs 1 --bin audit-groups -- 'G:\\SteamLibrary\\steamapps\\common\\Fallout 4' 'local/proof-fo4-002' 'local/group-count-NNN'",
+    "build_command_mutagen_oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-record-count-oracle.ps1",
+    "retail_command_mutagen_oracle": "dotnet local/dotnet-artifacts/record-count-oracle/bin/record-count-oracle/release/fo4-record-count-oracle.dll 'G:\\SteamLibrary\\steamapps\\common\\Fallout 4' 'local/proof-fo4-002' 'local/header-count-NNN'"
+  },
+  "interpretation": "Major-record enumeration agrees across readers, but stored HEDR exceeds both the pinned Mutagen writer count and the physical records-plus-GRUP count. The discrepancy is retained as unknown header semantics or stale header data; no engine interpretation is claimed.",
+  "limits": [
+    "Neither Mutagen nor the structural parser is the retail engine; no xEdit or in-game HEDR behavior comparison was run.",
+    "The physical GRUP count and Mutagen writer count use different group models; the 456 difference is not explained by merely counting empty group headers.",
+    "The source plugin is unmodified and HEDR does not limit parsing.",
+    "This structural count work does not establish gameplay, native API or save compatibility."
+  ]
+}

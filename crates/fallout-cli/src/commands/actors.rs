@@ -44,6 +44,8 @@ pub(crate) enum ActorsCommand {
         equipment_source: Option<identity::FormKey>,
         #[arg(long, requires = "equipment_source", value_parser = actor_inspection::parse_equipment_role)]
         equipment_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, requires_all = ["equipment_source", "equipment_role", "include_dependencies", "dependency_roots"])]
+        include_material_overrides: bool,
         #[arg(long, value_parser = actor_inspection::parse_root)]
         voice_root: Option<identity::FormKey>,
         #[arg(long, value_parser = actor_inspection::parse_root)]
@@ -64,6 +66,8 @@ pub(crate) enum ActorsCommand {
         death_item_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires = "death_item_root")]
         death_item_field: Option<usize>,
+        #[arg(long, value_parser = actor_inspection::parse_boxed_root)]
+        body_part_root: Option<Box<identity::FormKey>>,
         #[arg(long, requires_all = ["include_dependencies", "dependency_roots"], value_parser = actor_inspection::parse_creature_directory)]
         creature_model_directory: Option<fallout_data::vfs::AssetPath>,
     },
@@ -101,8 +105,24 @@ pub(crate) enum ActorsCommand {
         include_actor_context: bool,
         #[arg(long, requires = "explicit_subject")]
         equipment_item: Option<std::num::NonZeroU64>,
+        #[arg(long, requires = "equipment_item", value_parser = actor_inspection::parse_equipment_role)]
+        equipment_model_role: Option<fallout_data::actors::dependencies::equipment::Role>,
+        #[arg(long, requires = "include_actor_context")]
+        render_path_selection: Option<PathBuf>,
         #[arg(long, requires = "explicit_subject")]
         inventory_boot_request: Option<PathBuf>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        package_route_request: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_reference_intent: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_inventory_transfer: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_equipment_intent: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_context_batch: Option<Box<PathBuf>>,
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        actor_faction_pair: Option<Box<PathBuf>>,
     },
     /// Preserve winning base inventory entries, ownership words and template inputs.
     BaseInventory {

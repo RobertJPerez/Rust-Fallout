@@ -9,6 +9,7 @@ use fallout_data::{
     terrain::preparation::{Receipt as TerrainReceipt, TexturePreparation, TextureSourcePlan},
     vfs::MountIndex,
     world::{
+        activation::PlacedActivationSources,
         cells::CellGridSources,
         conversation::{DialogueSources, Limits},
         doors::DoorDestination,
@@ -81,6 +82,94 @@ pub(super) fn parse_grid_set(values: &[String]) -> Result<Vec<[i32; 2]>> {
             Ok([x.parse::<i32>()?, y.parse::<i32>()?])
         })
         .collect()
+}
+
+pub(super) struct GridPatchInput {
+    pub world: FormKey,
+    pub grids: Vec<[i32; 2]>,
+    pub seams: Vec<[usize; 2]>,
+}
+pub(super) fn parse_seam_set(values: &[String]) -> Result<Vec<[usize; 2]>> {
+    if values.len() > 8 {
+        return Err("explicit seam set permits at most 8 pairs".into());
+    }
+    values
+        .iter()
+        .map(|value| {
+            let (first, second) = value
+                .split_once(',')
+                .ok_or("seam must be two unsigned patch indices")?;
+            Ok([first.parse::<usize>()?, second.parse::<usize>()?])
+        })
+        .collect()
+}
+/// Consumes the same private immutable CPU bundle that a future upload caller borrows.
+pub(super) fn terrain_patches(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    input: GridPatchInput,
+) -> Result<Value> {
+    if input.grids.is_empty() || input.grids.len() > 8 || input.seams.len() > 8 {
+        return Err("explicit terrain bundle requires 1..=8 grids and at most 8 seams".into());
+    }
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Explicit private grid requests consume an immutable source CPU terrain patch bundle",
+        "requested_world":input.world,"explicit_grids":input.grids,"explicit_seams":input.seams,
+        "grid_directory":null,"cell_grid_requests":null,"terrain_patch_bundle":null,
+        "patch_hashes":[],"source_error":null,"cpu_bundle_prepared":false,
+        "source_materials_prepared":false,"texture_images_decoded":false,
+        "seams_repaired":false,"rendering_admitted":false,"collision_admitted":false,
+        "current_cell_changed":false,"activation_applied":false,"runtime_ready":false,
+        "lookup_precedence_verified":false,"retail_parity_accepted":false});
+    let consumed = (|| -> Result<()> {
+        let directory = CellGridSources::load(&mut store, &input.world, Default::default())?;
+        let metadata = directory.metadata();
+        report["grid_directory"] = json!({"world":metadata.world,
+            "world_source_ordinal":metadata.world_source_ordinal,"world_header":metadata.world_header,
+            "source_cohort_sha256":metadata.source_cohort_sha256,"usage":metadata.usage});
+        let requests = input
+            .grids
+            .iter()
+            .map(|grid| directory.request(*grid))
+            .collect::<fallout_data::Result<Vec<_>>>()?;
+        report["cell_grid_requests"] = serde_json::to_value(&requests)?;
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(install)?;
+        let bundle = fallout_data::terrain::patches::TerrainPatchBundle::load(
+            &directory,
+            &mut store,
+            &requests,
+            assets.mounts(),
+            &input.seams,
+            Default::default(),
+        )?;
+        bundle.validate_sources(&mut store)?;
+        // These bytes hash actual borrowed outputs, never a second terrain evaluator.
+        let mut hashes = Vec::with_capacity(bundle.patches().len());
+        for patch in bundle.patches() {
+            let surface = serde_json::to_vec(&patch.surface)?;
+            let geometry = serde_json::to_vec(&patch.mesh)?;
+            let blend = serde_json::to_vec(&patch.blends)?;
+            hashes.push(json!({"patch_identity":patch.identity,
+                "source_plan_identity":patch.source().identity,"cell":patch.source().root,
+                "surface_sha256":format!("{:x}",Sha256::digest(&surface)),"surface_json_bytes":surface.len(),
+                "geometry_sha256":format!("{:x}",Sha256::digest(&geometry)),"geometry_json_bytes":geometry.len(),
+                "blend_sha256":format!("{:x}",Sha256::digest(&blend)),"blend_json_bytes":blend.len()}));
+        }
+        // Publish together only after source validation, all builders, seams and hashes succeed.
+        let receipt = serde_json::to_value(bundle.receipt())?;
+        report["terrain_patch_bundle"] = receipt;
+        report["patch_hashes"] = json!(hashes);
+        report["cpu_bundle_prepared"] = json!(true);
+        Ok(())
+    })();
+    if let Err(error) = consumed {
+        report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
 }
 
 pub(super) fn water(
@@ -176,6 +265,47 @@ pub(super) fn water(
     })();
     if let Err(error) = consumed {
         report["source_error"] = json!(error.to_string());
+    }
+    provenance(&mut report, &order, &mut store)?;
+    Ok(report)
+}
+
+pub(super) fn activation(
+    install: &Path,
+    order_path: &Path,
+    index_cache: Option<&Path>,
+    reference: FormKey,
+) -> Result<Value> {
+    let order = Order::read(order_path)?;
+    let mut store = order.store(install, index_cache)?;
+    let prepared = PlacedActivationSources::load(&mut store, &reference, Default::default());
+    let mut report = json!({"schema_version":1,"profile":"nv-original",
+        "scope":"Exact placed activation-parent, raw delay word and prompt source declarations",
+        "requested_reference":reference,"activation_sources":null,"source_request_prepared":false,"source_error":null,
+        "activation_flags_declared":false,"parent_count":0,"parent_resolution_statuses":[],
+        "parent_header_sources_available":false,"prompt_declared":false,
+        "target_bodies_decoded":false,"parent_graph_walked":false,"delay_interpreted":false,"timer_scheduled":false,
+        "native_activation_executed":false,"condition_truth_evaluated":false,"actor_item_state_mutated":false,
+        "current_cell_mutated":false,"prompt_decoded":false,"default_prompt_selected":false,
+        "runtime_ready":false,"retail_parity_accepted":false});
+    match prepared {
+        Ok(sources) => {
+            let r = sources.receipt();
+            report["activation_flags_declared"] = json!(r.activation_flags.is_some());
+            report["parent_count"] = json!(r.parents.len());
+            report["parent_resolution_statuses"] = json!(
+                r.parents
+                    .iter()
+                    .map(|p| p.target.status)
+                    .collect::<Vec<_>>()
+            );
+            report["parent_header_sources_available"] =
+                json!(!r.parents.is_empty() && r.parents.iter().all(|p| p.header_source_available));
+            report["prompt_declared"] = json!(r.prompt.is_some());
+            report["activation_sources"] = serde_json::to_value(&sources)?;
+            report["source_request_prepared"] = json!(true);
+        }
+        Err(error) => report["source_error"] = json!(error.to_string()),
     }
     provenance(&mut report, &order, &mut store)?;
     Ok(report)
@@ -1235,6 +1365,429 @@ mod tests {
             source_timeout_ms: 10_000,
         }
     }
+
+    fn patch_pair_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let group = |label: u32, kind: i32, body: &[u8]| {
+            [
+                b"GRUP".as_slice(),
+                &(body.len() as u32 + 24).to_le_bytes(),
+                &label.to_le_bytes(),
+                &kind.to_le_bytes(),
+                &[0; 8],
+                body,
+            ]
+            .concat()
+        };
+        let layer = |tag: &[u8; 4], quad: u8, index: i16| {
+            field(
+                tag,
+                &[
+                    if mode == "default-material" {
+                        0_u32
+                    } else {
+                        0x400_u32
+                    }
+                    .to_le_bytes()
+                    .as_slice(),
+                    &[quad, 77],
+                    &index.to_le_bytes(),
+                ]
+                .concat(),
+            )
+        };
+        let mut cells = Vec::new();
+        for i in 0..2_u32 {
+            let hidden = if mode == "hide" && i == 1 { 16 } else { 1 << i };
+            let x = if mode == "noncardinal" && i == 1 {
+                2_i32
+            } else {
+                i as i32
+            };
+            let grid = [
+                x.to_le_bytes(),
+                0_i32.to_le_bytes(),
+                (0xaabbcc00_u32 | hidden).to_le_bytes(),
+            ]
+            .concat();
+            let cell = record(
+                b"CELL",
+                0x200 + i,
+                &[field(b"DATA", &[0]), field(b"XCLC", &grid)].concat(),
+            );
+            let mut land = field(b"DATA", &[7, 0, 0, 0]);
+            let mut normals = [255_u8, 0, 0].repeat(1089);
+            normals[3..6].copy_from_slice(&[0, 0, 127]);
+            if i == 1 && mode == "zero-normal" {
+                normals[..3].fill(0);
+            }
+            if i == 1 && mode == "short-normal" {
+                normals.pop();
+            }
+            land.extend(field(b"VNML", &normals));
+            let mut heights = if i == 0 {
+                0x3fa00000_u32
+            } else {
+                0x40100000_u32
+            }
+            .to_le_bytes()
+            .to_vec();
+            let mut deltas = vec![0; 1089];
+            deltas[..3].copy_from_slice(&[2, 3, 255]);
+            deltas[33..35].copy_from_slice(&[252, 5]);
+            heights.extend(deltas);
+            heights.extend([7, 11, 13]);
+            if !(i == 1 && mode == "missing-height") {
+                land.extend(field(b"VHGT", &heights));
+            }
+            let colors: Vec<u8> = (0..1089)
+                .flat_map(|j| {
+                    [
+                        (j % 256) as u8,
+                        ((3 * j) % 256) as u8,
+                        (255 - j % 256) as u8,
+                    ]
+                })
+                .collect();
+            land.extend(field(b"VCLR", &colors));
+            for q in 0..4 {
+                land.extend(layer(b"BTXT", q, -1));
+            }
+            land.extend(layer(
+                b"ATXT",
+                0,
+                if i == 1 && mode == "layer-order" {
+                    1
+                } else {
+                    0
+                },
+            ));
+            let alpha: Vec<u8> = [
+                (0_u16, 0x3f000000_u32),
+                (1, 0x3fa00000),
+                (2, 0xbe800000),
+                (288, 0x3e800000),
+            ]
+            .into_iter()
+            .flat_map(|(at, bits)| {
+                [at.to_le_bytes().as_slice(), &[13, 29], &bits.to_le_bytes()].concat()
+            })
+            .collect();
+            land.extend(field(b"VTXT", &alpha));
+            land.extend(layer(b"ATXT", 0, 1));
+            land.extend(field(
+                b"VTXT",
+                &[
+                    0_u16.to_le_bytes().as_slice(),
+                    &[17, 19],
+                    &0x3f400000_u32.to_le_bytes(),
+                ]
+                .concat(),
+            ));
+            let mut lands = record(b"LAND", 0x300 + i, &land);
+            if i == 1 && mode == "missing-land" {
+                lands.clear();
+            }
+            if i == 1 && mode == "multiple-land" {
+                lands.extend(record(b"LAND", 0x399, &land));
+            }
+            if i == 1 && mode == "deleted-land" {
+                lands[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+            }
+            cells.extend([cell, group(0x200 + i, 6, &group(0x200 + i, 9, &lands))].concat());
+        }
+        let header = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let texture = if mode == "missing-material" {
+            b"missing.dds\0".as_slice()
+        } else {
+            b"land/a.dds\0"
+        };
+        fs::write(
+            root.join("Data/Base.esm"),
+            [
+                record(b"TES4", 0, &header),
+                record(b"WRLD", 0x100, &field(b"DATA", &[0])),
+                group(0x100, 1, &cells),
+                record(b"LTEX", 0x400, &field(b"TNAM", &0x500_u32.to_le_bytes())),
+                record(b"TXST", 0x500, &field(b"TX00", texture)),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        archive(root, "terrain", b"textures\\land", b"a.dds", &[31, 47, 63]);
+        if mode == "ambiguous-material" {
+            archive(
+                root,
+                "other-terrain",
+                b"textures\\land",
+                b"a.dds",
+                &[79, 83],
+            );
+        }
+        fs::write(root.join("order.json"), r#"["Base.esm"]"#).unwrap();
+        fs::write(
+            root.join("terrain-patch-case.json"),
+            serde_json::to_vec(&json!({"mode":mode})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_TERRAIN_PATCH_FIXTURE={}", root.display());
+    }
+    fn patch_input(grids: Vec<[i32; 2]>, seams: Vec<[usize; 2]>) -> GridPatchInput {
+        GridPatchInput {
+            world: crate::parse_cell_key("Base.esm:100").unwrap(),
+            grids,
+            seams,
+        }
+    }
+    #[test]
+    fn cli_patch_pair_consumes_literal_geometry_weights_source_spans_and_actual_hashes() {
+        let root = directory();
+        patch_pair_fixture(&root, "valid");
+        let before = Sha256::digest(fs::read(root.join("Data/Base.esm")).unwrap());
+        let report = terrain_patches(
+            &root,
+            &root.join("order.json"),
+            None,
+            patch_input(vec![[0, 0], [1, 0]], vec![[0, 1]]),
+        )
+        .unwrap();
+        assert_eq!(report["cpu_bundle_prepared"], true);
+        let bundle = &report["terrain_patch_bundle"];
+        assert_eq!(bundle["usage"]["vertices"], 2178);
+        assert_eq!(bundle["usage"]["indices"], 9216);
+        assert_eq!(bundle["usage"]["weights"], 3468);
+        assert_eq!(bundle["usage"]["source_read_bytes"], 15706);
+        let first = &bundle["patches"][0];
+        let second = &bundle["patches"][1];
+        assert_eq!(
+            first["source_plan"]["terrain"]["cell"]["header"]["offset"],
+            97
+        );
+        assert_eq!(
+            first["source_plan"]["terrain"]["landscapes"][0]["header"]["offset"],
+            194
+        );
+        assert_eq!(first["mesh"]["local_positions"][0], json!([0., 0., 26.]));
+        assert_eq!(first["mesh"]["local_positions"][1], json!([128., 0., 50.]));
+        assert_eq!(first["mesh"]["local_positions"][33], json!([0., 128., -6.]));
+        assert_eq!(
+            first["mesh"]["indices"].as_array().unwrap()[..6],
+            json!([16, 17, 50, 16, 50, 49]).as_array().unwrap()[..]
+        );
+        assert_eq!(second["mesh"]["local_positions"][0], json!([0., 0., 34.]));
+        assert_eq!(
+            first["mesh"]["normal_bits"][0],
+            json!([0xbf800000_u32, 0, 0])
+        );
+        assert_eq!(first["mesh"]["colors"][1088], json!([64, 192, 191]));
+        assert_eq!(
+            first["blends"]["quadrants"][0]["overlays"][0]["weights"][0],
+            127
+        );
+        assert_eq!(
+            first["blends"]["quadrants"][0]["overlays"][1]["weights"][0],
+            191
+        );
+        assert_eq!(first["blends"]["quadrants"][0]["base"]["weights"][288], 192);
+        assert_eq!(
+            bundle["seams"][0]["comparison"]["mismatches"]
+                .as_array()
+                .unwrap()
+                .len(),
+            33
+        );
+        for (index, patch) in bundle["patches"].as_array().unwrap().iter().enumerate() {
+            for (object, key) in [
+                ("surface", "surface_sha256"),
+                ("mesh", "geometry_sha256"),
+                ("blends", "blend_sha256"),
+            ] {
+                // JSON Value object order differs from the typed serialization; compare an independent
+                // fresh factory's borrowed typed outputs below instead of treating a report as authority.
+                assert!(patch[object].is_object());
+                assert_eq!(
+                    report["patch_hashes"][index][key].as_str().unwrap().len(),
+                    64
+                );
+            }
+        }
+        let order = Order::read(&root.join("order.json")).unwrap();
+        let mut store = order.store(&root, None).unwrap();
+        let dir = CellGridSources::load(
+            &mut store,
+            &crate::parse_cell_key("Base.esm:100").unwrap(),
+            Default::default(),
+        )
+        .unwrap();
+        let requests = [dir.request([0, 0]).unwrap(), dir.request([1, 0]).unwrap()];
+        let assets = fallout_data::assets::ArchiveAssets::open_nv(&root).unwrap();
+        let actual = fallout_data::terrain::patches::TerrainPatchBundle::load(
+            &dir,
+            &mut store,
+            &requests,
+            assets.mounts(),
+            &[[0, 1]],
+            Default::default(),
+        )
+        .unwrap();
+        for (i, patch) in actual.patches().iter().enumerate() {
+            for (key, bytes) in [
+                (
+                    "surface_sha256",
+                    serde_json::to_vec(&patch.surface).unwrap(),
+                ),
+                ("geometry_sha256", serde_json::to_vec(&patch.mesh).unwrap()),
+                ("blend_sha256", serde_json::to_vec(&patch.blends).unwrap()),
+            ] {
+                assert_eq!(
+                    report["patch_hashes"][i][key],
+                    format!("{:x}", Sha256::digest(bytes))
+                );
+            }
+        }
+        assert_eq!(
+            report["terrain_patch_bundle"]["identity"],
+            actual.identity()
+        );
+        assert_eq!(
+            Sha256::digest(fs::read(root.join("Data/Base.esm")).unwrap()),
+            before
+        );
+        for flag in [
+            "source_materials_prepared",
+            "texture_images_decoded",
+            "seams_repaired",
+            "rendering_admitted",
+            "collision_admitted",
+            "current_cell_changed",
+            "activation_applied",
+            "runtime_ready",
+            "lookup_precedence_verified",
+            "retail_parity_accepted",
+        ] {
+            assert_eq!(report[flag], false);
+        }
+    }
+    #[test]
+    fn cli_patch_refusals_publish_no_partial_bundle_and_material_coverage_stays_separate() {
+        for mode in [
+            "missing-land",
+            "multiple-land",
+            "deleted-land",
+            "missing-height",
+            "short-normal",
+            "zero-normal",
+            "hide",
+            "layer-order",
+            "noncardinal",
+        ] {
+            let root = directory();
+            patch_pair_fixture(&root, mode);
+            let grids = if mode == "noncardinal" {
+                vec![[0, 0], [2, 0]]
+            } else {
+                vec![[0, 0], [1, 0]]
+            };
+            let report = terrain_patches(
+                &root,
+                &root.join("order.json"),
+                None,
+                patch_input(grids, vec![[0, 1]]),
+            )
+            .unwrap();
+            assert_eq!(report["cpu_bundle_prepared"], false, "{mode}");
+            assert!(report["terrain_patch_bundle"].is_null(), "{mode}");
+            assert_eq!(report["patch_hashes"], json!([]), "{mode}");
+            assert!(report["source_error"].is_string(), "{mode}");
+        }
+        let root = directory();
+        patch_pair_fixture(&root, "valid");
+        for (grids, seams) in [
+            (vec![[0, 0], [0, 0]], vec![]),
+            (vec![[2, 0]], vec![]),
+            (vec![[0, 0], [1, 0]], vec![[0, 2]]),
+        ] {
+            let report = terrain_patches(
+                &root,
+                &root.join("order.json"),
+                None,
+                patch_input(grids, seams),
+            )
+            .unwrap();
+            assert_eq!(report["cpu_bundle_prepared"], false);
+            assert!(report["terrain_patch_bundle"].is_null());
+        }
+        for mode in ["missing-material", "ambiguous-material", "default-material"] {
+            let root = directory();
+            patch_pair_fixture(&root, mode);
+            let report = terrain_patches(
+                &root,
+                &root.join("order.json"),
+                None,
+                patch_input(vec![[0, 0], [1, 0]], vec![]),
+            )
+            .unwrap();
+            assert_eq!(report["cpu_bundle_prepared"], true, "{mode}");
+            assert_eq!(report["source_materials_prepared"], false);
+            assert_eq!(report["texture_images_decoded"], false);
+            assert_eq!(report["runtime_ready"], false);
+        }
+    }
+    #[test]
+    fn cli_patch_grid_and_seam_flags_preserve_explicit_order_and_bounds() {
+        use clap::Parser;
+        let args = [
+            "fallout-cli",
+            "terrain-patch-sources",
+            "--install",
+            "absent",
+            "--load-order",
+            "absent",
+            "--world",
+            "Base.esm:100",
+        ];
+        assert!(crate::Args::try_parse_from(args).is_err());
+        let parsed = crate::Args::try_parse_from(args.into_iter().chain([
+            "--grid=-18,0",
+            "--grid=1,0",
+            "--seam=1,0",
+            "--seam=0,1",
+        ]))
+        .unwrap();
+        match parsed.command {
+            crate::Command::World(crate::WorldCommand::TerrainPatchSources {
+                grid, seam, ..
+            }) => {
+                assert_eq!(parse_grid_set(&grid).unwrap(), [[-18, 0], [1, 0]]);
+                assert_eq!(parse_seam_set(&seam).unwrap(), [[1, 0], [0, 1]]);
+            }
+            _ => panic!("terrain patch command changed"),
+        }
+        for value in ["0", "0,1,2", "-1,0", ",", "18446744073709551616,0"] {
+            assert!(parse_seam_set(&[value.into()]).is_err());
+        }
+        assert!(parse_seam_set(&vec!["0,1".into(); 9]).is_err());
+        assert!(parse_seam_set(&[]).unwrap().is_empty());
+        for (grids, seams) in [
+            (vec![], vec![]),
+            (vec![[0, 0]; 9], vec![]),
+            (vec![[0, 0]], vec![[0, 1]; 9]),
+        ] {
+            assert!(
+                terrain_patches(
+                    Path::new("absent"),
+                    Path::new("absent"),
+                    None,
+                    patch_input(grids, seams)
+                )
+                .is_err()
+            );
+        }
+    }
+
     fn grid_fixture(root: &Path, duplicate: bool) {
         cell_fixture(root, b"m.nif", b"t.dds");
         let group = |label: u32, kind: i32, body: &[u8]| {
@@ -2573,6 +3126,345 @@ mod tests {
                 residency(&directory, &directory.join("order.json"), None, None, input).is_err()
             );
         }
+    }
+
+    fn activation_fixture(root: &Path, mode: &str) {
+        fs::create_dir(root.join("Data")).unwrap();
+        let origin = if mode == "player" {
+            "FalloutNV.esm"
+        } else {
+            "Base.esm"
+        };
+        let has_parents = !["absent", "flags-only", "prompt-only"].contains(&mode);
+        let mut body = field(b"NAME", &[0, 5, 0, 0]);
+        if has_parents {
+            let raw = match mode {
+                "null" => 0_u32,
+                "missing" => 0x999,
+                "player" => 0x14,
+                _ => 0x201,
+            };
+            let parent = [raw.to_le_bytes(), 0x80000000_u32.to_le_bytes()].concat();
+            {
+                body.extend(field(
+                    b"XAPR",
+                    if mode == "bad-parent-width" {
+                        &parent[..7]
+                    } else {
+                        &parent
+                    },
+                ));
+            }
+        }
+        if !["absent", "prompt-only"].contains(&mode) {
+            body.extend(field(
+                b"XAPD",
+                if mode == "bad-flags-width" {
+                    &[254, 0]
+                } else {
+                    &[254]
+                },
+            ));
+        }
+        if has_parents {
+            body.extend(field(b"XAPR", &[0, 2, 0, 0, 1, 0, 0, 0]));
+        }
+        if !["absent", "flags-only"].contains(&mode) {
+            body.extend(field(
+                b"XATO",
+                if mode == "bad-prompt-nul" {
+                    &[255, 128, b'O']
+                } else {
+                    &[255, 128, b'O', 0]
+                },
+            ));
+        }
+        if has_parents {
+            body.extend(field(b"ZZZZ", &[91, 92]));
+            body.extend(field(b"XAPR", &[1, 2, 0, 0, 0, 0, 128, 191]));
+            body.extend(field(b"XAPR", &[2, 2, 0, 0, 69, 35, 193, 127]));
+        }
+        if mode != "bad-core" {
+            body.extend(field(b"DATA", &[0; 24]));
+        }
+        if mode == "duplicate-flags" {
+            body.extend(field(b"XAPD", &[1]));
+        }
+        if mode == "duplicate-prompt" {
+            body.extend(field(b"XATO", &[0]));
+        }
+        if mode == "truncated" {
+            // Terminal framing prevents another field from filling its payload.
+            body.extend(b"XAPR\x08\0\0");
+        }
+        let hedr = field(
+            b"HEDR",
+            &[1.34_f32.to_le_bytes().as_slice(), &[0; 8]].concat(),
+        );
+        let kind = match mode {
+            "root-achr" => b"ACHR",
+            "root-acre" => b"ACRE",
+            _ => b"REFR",
+        };
+        fs::write(
+            root.join("Data").join(origin),
+            [
+                record(b"TES4", 0, &hedr),
+                record(kind, 0x100, &body),
+                record(b"PGRE", 0x200, &field(b"ZZZZ", &[1])),
+                record(b"PMIS", 0x201, &field(b"ZZZZ", &[2])),
+                record(b"PBEA", 0x202, &field(b"ZZZZ", &[3])),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let master = if mode == "missing-master" {
+            "Missing.esm"
+        } else {
+            origin
+        };
+        let patch_header = [
+            hedr,
+            field(b"MAST", &[master.as_bytes(), &[0]].concat()),
+            field(b"DATA", &[0; 8]),
+        ]
+        .concat();
+        let mut target = record(
+            if mode == "wrong-record-kind" {
+                b"STAT"
+            } else {
+                b"PBEA"
+            },
+            0x201,
+            &[1, 2, 3],
+        );
+        if mode == "deleted" {
+            target[8..12].copy_from_slice(&fallout_data::plugin::DELETED.to_le_bytes());
+        }
+        fs::write(
+            root.join("Data/Patch.esp"),
+            [record(b"TES4", 0, &patch_header), target].concat(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("order.json"),
+            serde_json::to_vec(&json!([origin, "Patch.esp"])).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("activation-case.json"),
+            serde_json::to_vec(&json!({"mode":mode,"origin":origin})).unwrap(),
+        )
+        .unwrap();
+        println!("WORLD_ACTIVATION_FIXTURE={}", root.display());
+    }
+    fn activation_report(root: &Path, mode: &str) -> Value {
+        activation(
+            root,
+            &root.join("order.json"),
+            None,
+            crate::parse_cell_key(if mode == "player" {
+                "FalloutNV.esm:100"
+            } else {
+                "Base.esm:100"
+            })
+            .unwrap(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn cli_activation_keeps_literal_unsorted_repeats_delay_words_prompt_and_actual_target_source() {
+        for mode in ["valid", "root-achr", "root-acre"] {
+            let root = directory();
+            activation_fixture(&root, mode);
+            let report = activation_report(&root, mode);
+            assert_eq!(report["source_request_prepared"], true);
+            assert!(report["source_error"].is_null());
+            assert_eq!(report["activation_flags_declared"], true);
+            assert_eq!(report["parent_count"], 4);
+            assert_eq!(report["parent_header_sources_available"], true);
+            assert_eq!(report["prompt_declared"], true);
+            let s = &report["activation_sources"];
+            assert_eq!(s["placed"]["header"]["offset"], 42);
+            assert_eq!(s["placed"]["header"]["stored_size"], 121);
+            assert_eq!(s["placement"]["unhandled_fields"]["XAPR"], 4);
+            assert_eq!(s["activation_flags"]["raw"], 254);
+            assert_eq!(s["prompt"]["raw"], json!([255, 128, 79, 0]));
+            assert_eq!(s["prompt"]["field"]["site"]["decoded_header_offset"], 45);
+            assert_eq!(s["prompt"]["field"]["site"]["span"]["decoded_offset"], 51);
+            assert_eq!(s["prompt"]["field"]["physical_framing_offset"], 111);
+            let prompt_sha = format!("{:x}", Sha256::digest([255, 128, b'O', 0]));
+            assert_eq!(s["prompt"]["sha256"], prompt_sha);
+            for (index, (raw, bits, ordinal, offset)) in [
+                (0x201, 0x80000000_u32, 1, 10),
+                (0x200, 1, 3, 31),
+                (0x201, 0xbf800000, 6, 63),
+                (0x202, 0x7fc12345, 7, 77),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let p = &s["parents"][index];
+                assert_eq!(p["parent_raw"], raw);
+                assert_eq!(p["delay_bits"], bits);
+                assert_eq!(p["field"]["physical_field_ordinal"], ordinal);
+                assert_eq!(p["field"]["logical_field_ordinal"], ordinal);
+                assert_eq!(p["field"]["site"]["decoded_header_offset"], offset);
+                assert_eq!(p["field"]["site"]["span"]["decoded_offset"], offset + 6);
+                assert_eq!(p["field"]["physical_framing_offset"], 66 + offset);
+                assert_eq!(p["target"]["status"], "resolved");
+            }
+            assert_eq!(s["parents"][0]["target"]["key"]["local_id"], 0x201);
+            assert_eq!(s["parents"][0]["source"]["source_ordinal"], 1);
+            assert_eq!(s["parents"][0]["source"]["source_plugin"], "Patch.esp");
+            assert_eq!(s["parents"][0]["source"]["header"]["offset"], 71);
+            assert_eq!(
+                s["parents"][0]["source"]["header"]["kind"],
+                json!([80, 66, 69, 65])
+            );
+            assert_eq!(s["usage"]["read_bytes"], 121);
+            assert_eq!(s["usage"]["records"], 5);
+            assert_eq!(s["usage"]["raw_bytes"], 73);
+            for field in [
+                "target_bodies_decoded",
+                "parent_graph_walked",
+                "delay_interpreted",
+                "timer_scheduled",
+                "native_activation_executed",
+                "condition_truth_evaluated",
+                "actor_item_state_mutated",
+                "current_cell_mutated",
+                "prompt_decoded",
+                "default_prompt_selected",
+                "runtime_ready",
+                "retail_parity_accepted",
+            ] {
+                assert_eq!(report[field], false, "{field}");
+            }
+        }
+    }
+    #[test]
+    fn cli_activation_absence_unavailable_and_strict_refusals_never_produce_a_timer_or_prompt_default()
+     {
+        for (mode, refused) in [
+            ("absent", false),
+            ("flags-only", false),
+            ("prompt-only", false),
+            ("null", false),
+            ("missing", false),
+            ("deleted", false),
+            ("wrong-record-kind", false),
+            ("player", false),
+            ("duplicate-flags", true),
+            ("duplicate-prompt", true),
+            ("bad-parent-width", true),
+            ("bad-flags-width", true),
+            ("bad-prompt-nul", true),
+            ("truncated", true),
+            ("bad-core", true),
+            ("missing-master", true),
+        ] {
+            let root = directory();
+            activation_fixture(&root, mode);
+            if mode == "missing-master" {
+                assert!(
+                    activation(
+                        &root,
+                        &root.join("order.json"),
+                        None,
+                        crate::parse_cell_key("Base.esm:100").unwrap()
+                    )
+                    .is_err()
+                );
+                continue;
+            }
+            let r = activation_report(&root, mode);
+            assert_eq!(r["source_request_prepared"], !refused, "{mode}");
+            assert_eq!(r["activation_sources"].is_null(), refused, "{mode}");
+            if refused {
+                assert!(!r["source_error"].is_null(), "{mode}");
+            } else {
+                assert!(r["source_error"].is_null());
+                assert_eq!(
+                    r["parent_count"],
+                    if ["absent", "flags-only", "prompt-only"].contains(&mode) {
+                        0
+                    } else {
+                        4
+                    }
+                );
+                let expected = match mode {
+                    "null" => Some("null"),
+                    "missing" => Some("missing"),
+                    "deleted" => Some("deleted"),
+                    "wrong-record-kind" => Some("wrong-record-kind"),
+                    "player" => Some("runtime-player-binding-unimplemented"),
+                    _ => None,
+                };
+                if let Some(status) = expected {
+                    assert_eq!(r["parent_resolution_statuses"][0], status);
+                    assert_eq!(
+                        r["activation_sources"]["parents"][0]["header_source_available"],
+                        false
+                    );
+                    assert_eq!(r["parent_header_sources_available"], false);
+                }
+            }
+            for field in [
+                "delay_interpreted",
+                "timer_scheduled",
+                "native_activation_executed",
+                "prompt_decoded",
+                "default_prompt_selected",
+                "runtime_ready",
+            ] {
+                assert_eq!(r[field], false, "{mode} {field}");
+            }
+        }
+        let root = directory();
+        activation_fixture(&root, "valid");
+        for key in ["Base.esm:999", "Base.esm:201"] {
+            let r = activation(
+                &root,
+                &root.join("order.json"),
+                None,
+                crate::parse_cell_key(key).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(r["source_request_prepared"], false);
+            assert!(r["activation_sources"].is_null());
+            assert!(!r["source_error"].is_null());
+        }
+    }
+    #[test]
+    fn cli_activation_requires_an_explicit_canonical_reference() {
+        use clap::Parser;
+        assert!(
+            crate::Args::try_parse_from([
+                "fallout",
+                "placed-activation-sources",
+                "--install",
+                "x",
+                "--load-order",
+                "o"
+            ])
+            .is_err()
+        );
+        let args = crate::Args::try_parse_from([
+            "fallout",
+            "placed-activation-sources",
+            "--install",
+            "x",
+            "--load-order",
+            "o",
+            "--reference",
+            "Base.esm:100",
+        ])
+        .unwrap();
+        assert!(matches!(
+            args.command,
+            crate::Command::World(crate::WorldCommand::PlacedActivationSources { .. })
+        ));
     }
 
     fn linked_fixture(root: &Path, mode: &str) {

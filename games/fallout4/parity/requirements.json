@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "profile": "fo4-original",
+  "accepted_gameplay_scenarios": 0,
+  "milestones": {"F4-0": "partial", "F4-1": "unknown", "F4-2": "unknown", "F4-3": "unknown", "F4-4": "unknown", "F4-5": "unknown", "F4-6": "unknown", "F4-7": "unknown"},
+  "requirements": [
+    {"id":"fo4.baseline.selected-corpus","status":"implemented","scope":"Fallout4.exe and top-level Data files, full SHA-256 option","gaps":["recursive loose files","active profile/load order","settings/language/difficulty","retail gameplay captures"]},
+    {"id":"fo4.plugin.framing","status":"unit-tested","scope":"existing shared bounded framing, XXXX and strict zlib; FO4 header/VMAD-header census","gaps":["independent semantic audit beyond VMAD","ESL identities and overrides"]},
+    {"id":"fo4.vmad.attachments","status":"oracle-tested","scope":"20374 fields and 726906 semantic tokens; properties, recursive structs, aliases and fragments independently matched","gaps":["variable types 6/16","packed index high-half semantics","master-slot normalization discrepancies","executable PEX linking and runtime behavior"]},
+    {"id":"fo4.ba2.access","status":"oracle-tested","scope":"79 archive indices and 9363 selected payloads; versions 1/7/8, GNRL/DX10, bounded member reads","gaps":["three non-ASCII path-hash discrepancies","all-payload comparison outside base Misc archive","active archive precedence","material/mesh semantic validation"]},
+    {"id":"fo4.pex.structure","status":"oracle-tested","scope":"10342 PEX files: structural counts, 891 native signatures and 4067308 definition/operand tokens independently matched; typed members/defaults/properties/accessors/states retain source ranges","gaps":["independent header/debug-value comparison","operand type constraints and executable linking","VM semantics","native behavior"]},
+    {"id":"fo4.papyrus.static-binding","status":"corpus-audited","scope":"27618 unique VMAD script candidates, 68614 property declarations and 15615 default-state fragment/phase function declarations found with provenance","gaps":["34 missing named script entries","305 missing property declarations plus 14 on missing scripts","20 missing fragment functions plus 32 on missing scripts","active precedence and override/removal rules","value assignment and runtime dispatch"]},
+    {"id":"fo4.material-gallery","status":"unknown","gaps":["BGSM/BGEM decoder","shader families","retail visual comparison"]},
+    {"id":"fo4.papyrus.runtime","status":"unknown","gaps":["values/dispatch","native API implementations","continuations/events","VM persistence"]},
+    {"id":"fo4.gameplay","status":"unknown","gaps":["all original gameplay acceptance routes","rendering/physics/animation","quests/scenes","settlements/power armor","cold Continue"]}
+  ],
+  "evidence": "reports/checkpoint.json; private local proof referenced there",
+  "policy": "Source decoding and reference-reader agreement do not advance gameplay acceptance. Update only scopes actually verified."
+}

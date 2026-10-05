@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "date": "2026-10-05",
+  "status": "verified-content-preparation",
+  "later_verified_slices": [
+    "reports/vmad-checkpoint.json",
+    "reports/papyrus-checkpoint.json",
+    "reports/executable-checkpoint.json",
+    "reports/formid-checkpoint.json",
+    "reports/plugin-dependency-checkpoint.json",
+    "reports/profile-checkpoint.json",
+    "reports/deployment-checkpoint.json",
+    "reports/material-checkpoint.json",
+    "reports/workshop-checkpoint.json",
+    "reports/localization-checkpoint.json",
+    "reports/data-tree-checkpoint.json",
+    "reports/configuration-checkpoint.json",
+    "reports/header-count-checkpoint.json",
+    "reports/profile-recheck-checkpoint.json",
+    "reports/nv-compatibility-checkpoint.json",
+    "reports/papyrus-compiler-checkpoint.json"
+  ],
+  "implementation_revision": "2306499f354eefdd51b2ba854605152bc68012d2",
+  "shared_nv_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "executable_version": "1.11.240.0",
+  "executable_sha256": "fdcef37ac1230af6d0b0050eb2142b139ef3a867b37b9211fb6edfcc646072f8",
+  "baseline": {
+    "scope": "Fallout4.exe and top-level Data files; see recursive_data for the later full Data-tree inventory",
+    "files": 108,
+    "bytes": 34068749708,
+    "all_selected_file_fingerprints_unchanged_between_initial_and_final_census": true,
+    "plugins": 16,
+    "physical_records_including_TES4": 2197919,
+    "groups": 139558,
+    "vmad_headers_observed": 20374,
+    "archives": 79,
+    "physical_archive_members": 507570
+  },
+  "recursive_data": {
+    "scope": "physical Data directory only",
+    "report": "reports/data-tree-checkpoint.json",
+    "files": 121,
+    "direct_files": 107,
+    "nested_files": 14,
+    "bytes": 38242910044,
+    "nested_bytes": 4229503352,
+    "prior_top_level_data_files_matched": 107,
+    "nested_files_rehashed_after_scan": 14,
+    "fingerprints_stable": true,
+    "active_profile_or_vfs_established": false,
+    "runtime_ready": false
+  },
+  "profile_recheck": {
+    "report": "reports/profile-recheck-checkpoint.json",
+    "known_vortex_profile_directories": 2,
+    "profile_and_deployment_hashes_match_previous_observation": true,
+    "current_activation_or_vfs_established": false,
+    "runtime_ready": false
+  },
+  "independent_comparison": {
+    "archives_compared": 79,
+    "members_matched_by_stored_hash_and_exact_name_bytes": 507570,
+    "payloads_compared": 9363,
+    "decoded_bytes_compared": 273635398,
+    "payload_selection": "all 8570 base Misc members; first four and every 997th member of other archives; all path-hash discrepancies",
+    "non_volume_dds_unused_depth_normalizations": 181,
+    "pex_files_compared": 10342,
+    "instructions_counted": 269294,
+    "native_declarations_compared": 891,
+    "native_classes": 52,
+    "pex_scope": "per-file structural counts, opcode histograms, native class/parent/state/function/flags/return/parameter signatures",
+    "operand_values_independently_compared": false,
+    "native_implementations": 0,
+    "gameplay_scenarios_accepted": 0
+  },
+  "validation": {
+    "rust_toolchain": "1.99.0-x86_64-pc-windows-msvc",
+    "main_tests_passed": 13,
+    "offline_archive_oracle_tests_passed": 1,
+    "formatting": "passed in both Cargo workspaces",
+    "clippy_warnings_denied": "passed for all targets in both Cargo workspaces",
+    "production_and_research_builds": "passed",
+    "independent_pex_reader": "Champollion bc961a0bdfb4831f8240e6dacee0818b4bf81e00; MSVC 19.50.35723.0",
+    "retail_command": ".\\local\\target\\debug\\verify-retail.exe 'G:\\SteamLibrary\\steamapps\\common\\Fallout 4' local/proof-fo4-002 .\\local\\pex-oracle-build\\Release\\fo4-pex-oracle.exe .\\local\\target\\debug\\fo4-ba2-oracle.exe",
+    "retail_exit_code": 0,
+    "executable_fingerprints_before_and_after": "matched",
+    "latest_workspace_validation": "2026-10-05: pinned Mutagen Fallout 4 writer emitted a minimal COBJ with float-comparison and global-FormLink CTDA conditions; Mutagen read both back and Rust decoded both exact 32-byte payloads. Cargo fmt check passed; 94 locked all-target tests passed; warnings-denied all-target Clippy passed. The reproducible plugin and receipt are under ignored local/workshop-condition-fixture-002, with in-workspace decoder inputs tests/fixtures/condition/mutagen-ctda-v1.bin and tests/fixtures/condition/mutagen-global-ctda-v1.bin. Condition evaluation and runtime FormID identity remain open; Cargo.lock, sources.lock.json, and the shared-data checkpoint-45 pin are unchanged.",
+    "previous_workspace_validation": "2026-10-04: Rust fmt passed; 92 locked all-target tests passed; Clippy warnings-denied passed for all targets; audit-workshop and audit-strings builds passed; workshop census local/workshop-recipe-018 emitted 50,303 raw slots; local/workshop-oracle-027 matched 37,699 non-null local-ID candidates across 8,296 COBJ/CMPO/MISC records, retained 2,365 zero slots, and matched the full CTDA table (479 names, 220 explicit maps, 259 defaulted unresolved) and all parameter types/categories; the two-parameter FormLink offset regression passed; localization audit local/strings-audit-002 found 987 tables and 1,893,083 keys across 28 source-hash-stable BA2s; local/strings-oracle-001 matched every key, offset and raw value-byte hash; the second BA2 reader matched all 85,632 members and 4,236,548,717 decoded bytes; four locale table families have key-set differences from en; recursive Data scan local/recursive-data-002 fingerprinted all 121 files, matched all 107 frozen top-level Data files and rehashed 14 nested videos; redirected Documents profile capture local/user-config-001 preserved three INIs with matching hashes, including Fallout4Prefs.ini modified October 4, without publishing settings; October 5 profile metadata recheck local/profile-recheck-002 confirmed all seven known files still match the April/May hashes, with no profile contents or mod names published; the Fallout4.esm audit matched both major-record walks at 1,549,276 excluding TES4 and retained the HEDR mismatch; latest material differential compared 643,587 typed binary field values and 32,293 texture slots across 9,638 materials with zero mismatches; format, 86 tests and warnings-denied Clippy passed; active profile, loaded settings, VFS and runtime behavior remain open; shared-data pin remains unchanged. FO4 material texture preparation extracted 24 unique DDS candidates (35,758,856 bytes) from four source-hash-stable BA2s and produced 24/24 bounded ImageMagick inspection previews with zero decode refusals; pixel parity, shader semantics, active VFS winner and runtime rendering remain unverified. An isolated DirectXTex texconv 2026.5.8.1 decoder comparison checked all 24 sampled DDS top mips against ImageMagick at native dimensions: five byte-exact, all 24 within one 8-bit code value, zero decode failures; game-renderer and shader/color-space semantics remain unverified. Compiler-authored Fallout 4 Papyrus fixtures local/papyrus-compiler-fixtures-017 compiled with pinned Caprica e4dee0860914d75e770d3f9ab374f7aba474b701 and parsed by the Rust PEX CLI; five CALLSTATIC/CALLMETHOD/CALLPARENT argument type lists matched their compiled target parameter declarations; relative branch targets 1-to-4 and 3-to-end verified; STRUCTGET/STRUCTSET and ARRAYLENGTH/ARRAYGETELEMENT/ARRAYSETELEMENT operand layouts checked; 14 malformed/valid fixture-validator tests passed; compiler rejection rules and VM behavior remain open. Frozen physical PEX opcode census local/pex-executable-003 rechecked all source hashes and found 1,091 ARRAYLENGTH, 2,503 ARRAYGETELEMENT, 238 ARRAYSETELEMENT, 1,455 STRUCTGET and 181 STRUCTSET instructions; these are corpus counts, not VM behavior."
+  },
+  "evidence": {
+    "private_directory": "G:/Rust-Fallout4/local/proof-fo4-002",
+    "census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "completion_report_sha256": "f2c8f0e93be29a21b18f4a47f78a047c1b3caf94ddb108c4affdeba22c5484d7",
+    "inputs_report_sha256": "00fb56afdb9da16a2d83c01d6a7111187a237f33acfa6b4364a8c50ff046620e",
+    "earlier_incomplete_proof": "local/proof-fo4-001 retained without completion marker; stopped at a recomputed voice-name hash discrepancy"
+  },
+  "retained_findings": [
+    "Fallout4.esm HEDR declares 1741853 records/groups; physical walk finds 1661657 excluding TES4. Original count retained.",
+    "Pinned Mutagen and Rust major-record walks match at 1549276; its typed-cache and Fallout 4-specific group writer count is 1661201, physical records plus GRUP headers total 1661657, and HEDR semantics remain unresolved.",
+    "Three base voice entries have non-ASCII filenames whose recomputed hashes differ from stored hashes. Both readers agree on stored hashes, exact names and payload bytes. Retail name lookup remains unverified.",
+    "DDS comparison permits only the documented unused non-volume depth field 0/1 difference; all other selected header/payload bytes match. Production data is unchanged."
+  ],
+  "remaining_gates": [
+    "F4-0 remains partial: independent semantic record/asset audit and material pixel/renderer audit remain open",
+    "Papyrus execution, host native APIs, operand/type/value semantics, scheduling and persistence",
+    "ESL runtime identity/load order, verified active plugin profile and VFS deployment/archive precedence, loaded-config semantics/settings",
+    "Active localization language, locale lookup precedence and runtime fallback",
+    "CTDA parameter typing/function semantics and recipe eligibility",
+    "Rendering, animation, collision, combat, quests, power armor, settlements and cold Continue"
+  ],
+  "nv_team": "This Fallout 4 audit made no New Vegas source, control, worktree or branch changes. Latest read-only observation at 2026-10-05T01:10:32Z: NV main 5a89c33bee93ccf6f6ff0cb489881ff9953a6c5b is clean. Its Rust source matches the tested committed source 486355d67407080d0e2c2483555518c0fb798670; the later commit changes handoff documents only. A disposable Fallout 4 copy passed all 86 all-target tests against that Rust source. The latest handoff reports 21 receipt tests and four upload-observer protocol tests passed, while the actual GPU consumer remains unverified. Fallout 4 remains pinned to shared-data checkpoint 45."
+}

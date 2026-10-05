@@ -1,0 +1,137 @@
+{
+    "schema_version":  1,
+    "checkpoint":  22,
+    "research_date":  "2026-10-04",
+    "status":  "Skyrim Player-to-race movement source profile with raw movement values and all scanned physical candidates",
+    "game_profile":  {
+                         "edition_install":  "Skyrim Special Edition updated Steam runtime",
+                         "steam_build":  "24914197",
+                         "executable_version":  "1.7.104.0",
+                         "executable_sha256":  "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+                         "plugin_files_scanned":  10,
+                         "installed_creation_plugins":  [
+                                                            "ccBGSSSE001-Fish.esm",
+                                                            "ccBGSSSE025-AdvDSGS.esm",
+                                                            "ccBGSSSE037-Curios.esl",
+                                                            "ccQDRSSE001-SurvivalMode.esl"
+                                                        ],
+                         "paid_anniversary_coverage":  "incomplete; installed Creation files do not establish the full paid content set",
+                         "anniversary_content_verified":  false,
+                         "original_game_data_modified":  false
+                     },
+    "implementation":  {
+                           "command":  "trace-movement-profile --data \u003cData\u003e --plugin \u003cESM/ESP/ESL path\u003e [--plugin \u003canother path\u003e ...] [--output \u003cnew JSONL path\u003e]",
+                           "source_files":  [
+                                                "src/movement_profile.rs",
+                                                "src/main.rs",
+                                                "src/lib.rs",
+                                                "tests/movement_profile.rs",
+                                                "docs/movement-profile.md",
+                                                "docs/shared-integration.md",
+                                                "sources.lock.json",
+                                                "NEXT_STEPS.md"
+                                            ],
+                           "record_reader":  "pinned fallout-data visitor and shared source-key/hash logic; framing, archive handling, source locking and digest implementations are not duplicated",
+                           "player_selector":  "exact NUL-terminated NPC_ EDID Player; same-source-key physical NPC_ versions are retained",
+                           "link_scope":  "NPC_ RNAM to RACE; RACE WKMV/RNMV/SWMV/FLMV/SNMV/SPMV and MTYP to MOVT",
+                           "float_scope":  "MOVT SPED has ten slots below record version 28 and eleven from version 28; MOVT INAM has three; RACE SPED has eleven; exact IEEE-754 bits are retained",
+                           "winner_override_selection":  false,
+                           "movement_behavior_or_unit_conversion_inferred":  false,
+                           "record_framing_decompression_path_normalization_or_hashing_duplicated":  false
+                       },
+    "scan":  {
+                 "plugin_files_scanned":  10,
+                 "npc_records_scanned":  6626,
+                 "explicit_player_records":  1,
+                 "race_records":  214,
+                 "movement_records":  107,
+                 "subrecords_scanned":  572525,
+                 "player_race_links":  1,
+                 "race_movement_links":  239,
+                 "links_with_scanned_target_candidates":  240,
+                 "links_without_scanned_target_candidates":  0,
+                 "links_unresolved_without_profile":  0,
+                 "links_with_multiple_candidates":  1,
+                 "malformed_link_fields":  0,
+                 "malformed_float_fields":  0,
+                 "player":  {
+                                "plugin":  "Skyrim.esm",
+                                "form_id":  "0x00000007",
+                                "editor_id":  "Player",
+                                "race_source_key":  "skyrim.esm:0x00013746",
+                                "race_candidate_count":  2,
+                                "race_candidates":  [
+                                                        {
+                                                            "plugin":  "Skyrim.esm",
+                                                            "form_id":  "0x00013746",
+                                                            "editor_id":  "NordRace"
+                                                        },
+                                                        {
+                                                            "plugin":  "Update.esm",
+                                                            "form_id":  "0x00013746",
+                                                            "editor_id":  "NordRace"
+                                                        }
+                                                    ],
+                                "override_selected":  false,
+                                "candidate_race_rows_have_movement_links_or_race_speed_override":  false
+                            },
+                 "race_movement_link_candidate_multiplicity":  {
+                                                                   "one_candidate":  239,
+                                                                   "multiple_candidates":  0,
+                                                                   "without_candidate":  0
+                                                               },
+                 "movement_speed_fields":  107,
+                 "race_movement_speed_override_fields":  11,
+                 "animation_threshold_fields":  95,
+                 "movement_record_versions":  {
+                                                  "19":  1,
+                                                  "20":  1,
+                                                  "23":  3,
+                                                  "24":  1,
+                                                  "26":  6,
+                                                  "27":  3,
+                                                  "28":  2,
+                                                  "29":  1,
+                                                  "30":  2,
+                                                  "31":  16,
+                                                  "33":  1,
+                                                  "34":  13,
+                                                  "35":  10,
+                                                  "36":  3,
+                                                  "37":  19,
+                                                  "39":  9,
+                                                  "40":  1,
+                                                  "43":  15
+                                              },
+                 "movt_records_below_version_28":  15,
+                 "movt_records_version_28_or_later":  92,
+                 "all_source_float_values_preserved_as_raw_bits":  true,
+                 "runtime_movement_or_gameplay_acceptance":  false
+             },
+    "validation":  {
+                       "rust_tests_passed":  74,
+                       "rust_tests_failed":  0,
+                       "format":  "passed",
+                       "clippy":  "passed with warnings denied",
+                       "build":  "passed with one build job after the final Rust source changes",
+                       "trace_completion_trailer_present":  true,
+                       "original_game_data_read_only":  true,
+                       "gameplay_or_runtime_acceptance":  false
+                   },
+    "local_evidence":  {
+                           "installed_trace":  {
+                                                   "path":  "local/movement-profile-22b.jsonl",
+                                                   "bytes":  46630517,
+                                                   "sha256":  "14A0BEE11E0A1D3B3C29562F2681D231B5A3CDD343F79E9B47058F326E86AA0B",
+                                                   "completion_trailer":  true
+                                               },
+                           "source_manifest":  {
+                                                   "path":  "reports/source-manifest-22.json",
+                                                   "scope":  "source, tests, project configuration and documentation; excludes local evidence, build targets, VCS metadata and reports",
+                                                   "files":  72,
+                                                   "source_bytes":  683127,
+                                                   "bytes":  17629,
+                                                   "sha256":  "BADA614C32628329E820C465AA0E402FE1A261456F5944A879E04AA8F3680310"
+                                               }
+                       }
+}

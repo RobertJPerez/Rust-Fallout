@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "verified-physical-recursive-data-tree-not-active-profile",
+  "workspace_base_revision": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "shared_nv_checkout_head_observed_read_only": "ea696e09f2b2297a34d4dd419d5fc12007746cce",
+  "shared_nv_checkout_clean_observed": true,
+  "shared_nv_checkout_observed_at_utc": "2026-10-04T23:41:55Z",
+  "shared_nv_commits_since_compatibility_probe": [
+    {
+      "revision": "fa27e5e3c979b8a9e58023becb012fe84bc77c7b",
+      "summary": "coordination and central team-build routing"
+    },
+    {
+      "revision": "f8c40c28ebc018d5af6e75022de7c999126d4f7f",
+      "summary": "activation reconciliation and bootstrap/backlog documents"
+    },
+    {
+      "revision": "c9831c2919800e5ca698f86ea811a773822fb162",
+      "summary": "ignore assigned private v4 build targets; .gitignore only"
+    },
+    {
+      "revision": "a08d7a92e655b7d6535a7ca4f0b700fabd6d278f",
+      "summary": "correct stopped handoff reconciliation; team-v4 bootstrap document only"
+    },
+    {
+      "revision": "ea696e09f2b2297a34d4dd419d5fc12007746cce",
+      "summary": "publish scoped v4 gameplay and scene development dependency handoff"
+    }
+  ],
+  "shared_nv_compatibility_probe_against_observed_head": false,
+  "shared_nv_changes_made_by_this_audit": false,
+  "installation": {
+    "root": "G:/SteamLibrary/steamapps/common/Fallout 4",
+    "executable_version": "1.11.240.0",
+    "executable_sha256": "fdcef37ac1230af6d0b0050eb2142b139ef3a867b37b9211fb6edfcc646072f8",
+    "frozen_source_census": "local/proof-fo4-002/census.json",
+    "frozen_source_census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "retail_files_modified": false
+  },
+  "implementation": {
+    "source_sha256": {
+      "tools/audit-recursive-data.ps1": "b344d95840a402ebef932a2ca25037fece5b209c3f14193815e571c821cddbf7",
+      "tools/finalize_recursive_data.py": "7995b22dc37844f7041fe7fcc8cbf6e6063b940a1b122d0d3af69796ef35a292",
+      "docs/data-tree.md": "dfd794cc11770fcb9a0999bf081b91b6153c1d775ffa3e1ecf6e1215a6c49312",
+      "docs/baseline.md": "b6aa834b64c92f012b60784e80932039673549161db866d1cdc109867c50e9f6",
+      "docs/architecture.md": "b8265674382c068530f702b3c11e8c1038eec687da870a28f607aa588967a667",
+      "README.md": "41cce7346e5772766883ed674904974ab061f490479999da002c53238247b6a3",
+      "NEXT_STEPS.md": "1438d7bb08615172055715562693c19961cf7bb37e85f8167c4823abc029a089"
+    },
+    "cargo_toml_sha256": "f87bfbdb08826797fc27cb24a0893a5cd641b23dcaf7698ddec8cd11eef6204c",
+    "cargo_lock_updated": false,
+    "cargo_target_and_caches": "local/"
+  },
+  "evidence": {
+    "private_directory": "local/recursive-data-002",
+    "complete": true,
+    "runtime_ready": false,
+    "manifest_sha256": "fed7abc7f1b5c47fdeefb61d2bd24ea5afdc820573818fffebe938790b0f1ebd",
+    "completion_sha256": "4024944de31cc81c4a8073db75418905211fc3d3ea7379d02493ca4d6f39f372",
+    "file_ledger_sha256": "0d19ef7351df13207b189e57985af4148553fd0926398b905531019a969ec782",
+    "files": 121,
+    "direct_files": 107,
+    "nested_files": 14,
+    "total_bytes": 38242910044,
+    "nested_bytes": 4229503352,
+    "prior_top_level_census_files_matched": 107,
+    "nested_files_rehashed_after_scan": 14,
+    "extension_counts": {
+      ".ba2": 79,
+      ".bk2": 14,
+      ".cdx": 6,
+      ".csg": 6,
+      ".esl": 9,
+      ".esm": 7
+    },
+    "all_file_fingerprints_stable": true,
+    "retail_files_modified": false
+  },
+  "validation": {
+    "powershell_script_parse": "passed",
+    "full_retail_scan": "passed; all 121 files fingerprinted before and after; all 107 direct files matched the frozen census",
+    "finalization": "passed; current path set and sizes matched; 14 nested files rehashed before completion marker",
+    "reproduction_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/audit-recursive-data.ps1 -InstallationRoot 'G:\\SteamLibrary\\steamapps\\common\\Fallout 4' -CensusPath 'local\\proof-fo4-002\\census.json' -OutputDirectory 'local\\recursive-data-NNN'; py -3.13 tools/finalize_recursive_data.py 'G:\\SteamLibrary\\steamapps\\common\\Fallout 4' 'local/proof-fo4-002/census.json' 'local/recursive-data-NNN'"
+  },
+  "limits": [
+    "This inventories the physical Data directory only; it does not observe virtual file system deployment, an active profile, or files outside the installation.",
+    "File presence does not establish plugin activation, asset use, archive precedence or gameplay compatibility.",
+    "Successful structural inventory does not establish native API or save compatibility."
+  ]
+}

@@ -1,0 +1,9 @@
+/target/
+/local/
+*.esm
+*.esp
+*.esl
+*.bsa
+*.pex
+*.ess
+*.skse

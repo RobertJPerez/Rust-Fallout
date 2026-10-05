@@ -1,0 +1,119 @@
+{
+    "schema_version":  1,
+    "verified_date":  "2026-10-03",
+    "timezone":  "America/New_York",
+    "status":  "source-provenance checkpoint; gameplay unimplemented",
+    "work_window":  {
+                        "requested_seconds":  1200,
+                        "started_utc":  "2026-10-04T02:00:39Z",
+                        "deadline_utc":  "2026-10-04T02:20:39Z",
+                        "ended_utc":  "2026-10-04T02:20:39.1824607+00:00",
+                        "elapsed_seconds":  1200.18
+                    },
+    "shared_revision":  "9265ef63f714cdf01ff02028640a582be9639c7a",
+    "reviewed_fo4_revision":  "35ddf34",
+    "source_manifest":  {
+                            "path":  "reports/source-manifest-03.json",
+                            "bytes":  8239,
+                            "sha256":  "40a63c5a1831f2645923f9b19b5cb91e4d0efd3c2df861db503294096e087a3c"
+                        },
+    "inspector":  {
+                      "path":  "target/debug/skyrim-prep.exe",
+                      "bytes":  1106944,
+                      "sha256":  "82926d65ae3734072f4bfd8725abdd6edefa7bb80d5709e820a0cbe903bbb11e"
+                  },
+    "trace":  {
+                  "evidence":  {
+                                   "path":  "local/missing-trace-03-final.json",
+                                   "bytes":  43079,
+                                   "sha256":  "6136380c754310490ae2499b8f21d49ecb5161f8da1fdeaf71d0d712a6f0d769"
+                               },
+                  "exit_code":  0,
+                  "plugins":  10,
+                  "missing_script_paths":  7,
+                  "attachments":  9,
+                  "definition_candidates":  9,
+                  "direct_references":  4,
+                  "containing_cells":  3,
+                  "containing_worlds":  0,
+                  "unlocated_targets":  0,
+                  "unresolved_record_keys":  0,
+                  "unresolved_link_indices":  0,
+                  "vmad_failures":  0,
+                  "limitations":  [
+                                      "Physical source occurrences and same-origin definition candidates; no active load order, winners or runtime slot mapping",
+                                      "Strict source master indices; noncanonical IDs stay unresolved and retain their raw bits",
+                                      "Direct edges only: REFR/ACHR NAME and XESP, plus SPEL/SCRL/ALCH/INGR/ENCH EFID; no recursive reachability proof",
+                                      "Missing script targets inherit the census asset inventory; archives are not rescanned by this command",
+                                      "Deleted and initially-disabled flags are source observations; scripts or enable parents can change runtime state",
+                                      "Cell/editor names, including names containing Test, do not prove a record is unreachable"
+                                  ]
+              },
+    "validation":  {
+                       "rust_tests_passed":  32,
+                       "rust_tests_failed":  0,
+                       "formatting":  "passed",
+                       "clippy_warnings_denied":  "passed",
+                       "dotnet_locked_restore":  "passed",
+                       "dotnet_build_warnings_as_errors":  "passed",
+                       "independent_trace":  {
+                                                 "evidence":  {
+                                                                  "path":  "local/trace-oracle-03-final.json",
+                                                                  "bytes":  2552,
+                                                                  "sha256":  "556b3fd1761f5820c93cba32c39cdb3a8a8963f38f26fc702624ea6c312850a6"
+                                                              },
+                                                 "assembly":  {
+                                                                  "path":  "local/trace-oracle/bin/Debug/net9.0/trace-oracle.dll",
+                                                                  "bytes":  26624,
+                                                                  "sha256":  "f897b618c9cf173b62c8b8947cc66e324033f2205100bdb8db802678dd2668e1"
+                                                              },
+                                                 "passed":  true,
+                                                 "records":  16,
+                                                 "comparisons":  156,
+                                                 "mismatches":  0,
+                                                 "direct_edges":  4,
+                                                 "scope":  "Requested record identities/editor IDs/flags/VMAD presence, CELL flags, placed-reference containing cells, and complete direct NAME/XESP/EFID edge multiset to selected targets. World ancestry, raw offsets, recursive reachability and runtime activation are not certified.",
+                                                 "definition_candidate_completeness":  "Rust source scan and synthetic override tests; independent oracle validates returned candidates but does not search for omitted candidates"
+                                             },
+                       "mutated_target":  {
+                                              "evidence":  {
+                                                               "path":  "local/negative-trace-20261004T021214Z-be59fb7e/receipt.json",
+                                                               "bytes":  384,
+                                                               "sha256":  "681b86e37acb11872d191ed3e617eee3681c15bb545da85c3e2feeb5654e523e"
+                                                           },
+                                              "control_trace":  {
+                                                                    "path":  "local/missing-trace-03.json",
+                                                                    "bytes":  43047,
+                                                                    "sha256":  "3b111971110a96daacfacf37add30a288ab242bddcbb31adf889bb35aed8551c"
+                                                                },
+                                              "passed":  true,
+                                              "expected_exit_code":  2,
+                                              "actual_exit_code":  2,
+                                              "mismatches":  2,
+                                              "count_unchanged":  true,
+                                              "final_trace_comparison_fields_equal_control":  true
+                                          },
+                       "census_regression":  {
+                                                 "before":  {
+                                                                "path":  "local/census-20261004T015436Z-fb0e2b91.json",
+                                                                "bytes":  37414082,
+                                                                "sha256":  "8b23cf0b6839133b7d294cbbdd32cd2c03500b9c57e0d697192df6dd1cd209e8"
+                                                            },
+                                                 "after":  {
+                                                               "path":  "local/census-20261004T021142Z-e07f5111.json",
+                                                               "bytes":  37414082,
+                                                               "sha256":  "8b23cf0b6839133b7d294cbbdd32cd2c03500b9c57e0d697192df6dd1cd209e8"
+                                                           },
+                                                 "byte_identical":  true,
+                                                 "input_findings":  8,
+                                                 "receipt":  {
+                                                                 "path":  "local/install-20261004T021142Z-e07f5111.json",
+                                                                 "bytes":  634,
+                                                                 "sha256":  "88d79bb071200853e09738bfd5ac8d8967c89bb03bd2281604a570f52e752195"
+                                                             }
+                                             }
+                   },
+    "accepted_gameplay_scenarios":  0,
+    "paid_anniversary_content_validation":  "complete paid corpus unavailable; not tested",
+    "next_gate":  "Trace DLC2AbFXLurker through NPC SPLO/template inheritance and leveled-list/placement usage; integrate through the existing shared Papyrus work"
+}

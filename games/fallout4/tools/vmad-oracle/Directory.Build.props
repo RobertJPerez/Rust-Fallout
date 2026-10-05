@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>../../local/vmad-oracle-obj/</BaseIntermediateOutputPath>
+    <BaseOutputPath>../../local/vmad-oracle-bin/</BaseOutputPath>
+    <RestorePackagesPath>../../local/nuget/</RestorePackagesPath>
+  </PropertyGroup>
+</Project>

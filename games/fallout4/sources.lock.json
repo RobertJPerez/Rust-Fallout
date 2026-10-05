@@ -1,0 +1,198 @@
+{
+    "schema": 1,
+    "sources": [
+        {
+            "id": "shared-fallout-data",
+            "url": "file:///G:/Rust-Fallout",
+            "revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+            "use": "direct Cargo dependency, checkpoint 45",
+            "paths": [
+                "crates/fallout-data/src/plugin.rs",
+                "crates/fallout-data/src/vfs.rs",
+                "crates/fallout-data/src/identity.rs",
+                "reports/checkpoint.md"
+            ],
+            "license": "user-owned local project; no new distribution license asserted"
+        },
+        {
+            "id": "dream-archive",
+            "url": "https://github.com/DreamWeave-MP/dream_archive",
+            "revision": "a6ba4c9416e5c7bc211e7a3762420e5bf5c9c049",
+            "use": "shared production archive backend, BA2 feature",
+            "paths": [
+                "src/ba2/archive.rs",
+                "src/ba2/parser.rs",
+                "src/ba2/chunk.rs",
+                "src/storage.rs",
+                "LICENSE-MIT"
+            ],
+            "license": "MIT OR Apache-2.0"
+        },
+        {
+            "id": "ba2-oracle",
+            "url": "https://github.com/Ryan-rsm-McKenzie/bsa-rs",
+            "revision": "7b90ce145d5de8e1dda280f10b2b0e0b5aa067f9",
+            "use": "offline second BA2 backend only, matching the NV team's existing oracle pin",
+            "paths": [
+                "src/fo4/archive.rs",
+                "src/fo4/file.rs",
+                "src/fo4/hashing.rs",
+                "src/derive.rs",
+                "LICENSE"
+            ],
+            "license": "0BSD"
+        },
+        {
+            "id": "champollion",
+            "url": "https://github.com/Orvid/Champollion",
+            "revision": "bc961a0bdfb4831f8240e6dacee0818b4bf81e00",
+            "use": "offline independent structural oracle; format research; no runtime linkage",
+            "paths": [
+                "Pex/FileReader.cpp",
+                "Pex/FileReader.hpp",
+                "Pex/Instruction.cpp",
+                "Pex/Instruction.hpp",
+                "Pex/Value.hpp",
+                "Pex/Function.cpp",
+                "Pex/Property.hpp",
+                "LICENSE"
+            ],
+            "license": "LGPL-3.0; reference tool only"
+        },
+        {
+            "id": "caprica",
+            "url": "https://github.com/Orvid/Caprica",
+            "revision": "e4dee0860914d75e770d3f9ab374f7aba474b701",
+            "use": "PEX dialect/object-size/opcodes, call operand order, relative branch destinations and derived-first Papyrus declaration lookup reference; compiler-authored Fallout 4 call/branch/struct/array fixture; not linked",
+            "paths": [
+                "CMakeLists.txt",
+                "Caprica/CMakeLists.txt",
+                "vcpkg.json",
+                "Caprica/main.cpp",
+                "Caprica/main_options.cpp",
+                "Caprica/pex/PexFile.cpp",
+                "Caprica/pex/PexObject.cpp",
+                "Caprica/pex/PexWriter.h",
+                "Caprica/pex/PexInstruction.cpp",
+                "Caprica/pex/PexInstruction.h",
+                "Caprica/pex/PexFunctionBuilder.h",
+                "Caprica/pex/PexFunction.cpp",
+                "Caprica/pex/PexReader.h",
+                "Caprica/papyrus/PapyrusCFG.cpp",
+                "Caprica/papyrus/PapyrusCompilationContext.cpp",
+                "Caprica/papyrus/PapyrusIdentifier.cpp",
+                "Caprica/papyrus/PapyrusResolutionContext.cpp",
+                "Caprica/papyrus/expressions/PapyrusArrayIndexExpression.h",
+                "Caprica/papyrus/expressions/PapyrusArrayLengthExpression.h",
+                "Caprica/papyrus/expressions/PapyrusFunctionCallExpression.cpp",
+                "Caprica/papyrus/expressions/PapyrusMemberAccessExpression.h",
+                "Caprica/papyrus/parser/PapyrusParser.cpp",
+                "Caprica/common/identifier_ref.cpp",
+                "Caprica/common/CaselessStringComparer.cpp",
+                "LICENSE"
+            ],
+            "license": "MIT"
+        },
+        {
+            "id": "dds-header-contract",
+            "url": "https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dds-header",
+            "revision": "documentation updated 2021-03-15; inspected 2026-10-03",
+            "use": "offline oracle comparison rule: dwDepth unused outside volume textures",
+            "paths": [
+                "DDS_HEADER.dwFlags",
+                "DDS_HEADER.dwDepth",
+                "DDS_HEADER.dwCaps2"
+            ],
+            "license": "documentation reference only; no implementation copied"
+        },
+        {
+            "id": "xedit",
+            "url": "https://github.com/TES5Edit/TES5Edit",
+            "revision": "9fb016884bec138ea6c7b872cec831537d464c3e",
+            "use": "FO4 VMAD attachment/property/fragment layouts and HEDR reference, not linked",
+            "paths": [
+                "Core/wbDefinitionsFO4.pas",
+                "Core/wbDefinitionsCommon.pas"
+            ],
+            "license": "MPL-2.0 file notice"
+        },
+        {
+            "id": "material-editor-reference",
+            "url": "https://github.com/ousnius/Material-Editor",
+            "revision": "21411873f17454a2442d6785d533499e14c63adb",
+            "use": "isolated BGSM/BGEM field-order/version-gate and typed binary-v2 field-value oracle; reference color packing and field values compared, no Rust code copied",
+            "paths": [
+                "MaterialLib/BaseMaterialFile.cs",
+                "MaterialLib/BGSM.cs",
+                "MaterialLib/BGEM.cs",
+                "MaterialLib.Tests/MaterialTests.cs",
+                "LICENSE"
+            ],
+            "license": "MIT; reference implementation remains isolated under ignored local/research"
+        },
+        {
+            "id": "mutagen-vmad-oracle",
+            "url": "https://github.com/Mutagen-Modding/Mutagen",
+            "revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+            "use": "isolated C# VMAD semantic comparison, FO4 small-FormID layout research, COBJ/CMPO/MISC/GLOB workshop schema, full Fallout 4 CTDA function/parameter metadata and all-entry differential comparison, raw FormLink oracle, BA2 localization-table key/offset/value-byte comparison, and FO4 HEDR/GetRecordCount comparison; never linked into Rust runtime",
+            "paths": [
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/AVirtualMachineAdapter.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/VirtualMachineAdapter.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/QuestAdapter.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/QuestFragmentAlias.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/Scene.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/ConstructibleObject.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/ConstructibleObject_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/ConstructibleObjectComponent_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/ConstructibleCreatedObjectCount_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/Condition.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/Condition.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/Condition_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/ConditionData_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/ConditionGlobal_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Common Subrecords/FunctionConditionData_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Enums/CompareOperator.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Fallout4ModHeader.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Fallout4Mod.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Fallout4Mod_Generated.cs",
+                "Mutagen.Bethesda.Core/Plugins/Binary/Translations/ModHeaderWriteLogic.cs",
+                "Mutagen.Bethesda.Core/Plugins/Records/IMod.cs",
+                "Mutagen.Bethesda.Core/Plugins/FormID.cs",
+                "Mutagen.Bethesda.Core/Plugins/Masters/SeparatedMasterPackage.cs",
+                "Mutagen.Bethesda.Core/Plugins/Masters/MasterStyle.cs",
+                "Mutagen.Bethesda.Core/Plugins/Meta/GameConstants.cs",
+                "LICENSE.txt",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/Component.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/Component_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/MiscItem.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/MiscItem_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/MiscItemComponent_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/Global.xml",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/Global.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Interfaces/Link/IItem_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/Global_Generated.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/GlobalFloat.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/GlobalInt.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/GlobalShort.cs",
+                "Mutagen.Bethesda.Fallout4/Records/Major Records/GlobalBool.cs",
+                "Mutagen.Bethesda.Core/Strings/StringsLookupOverlay.cs",
+                "Mutagen.Bethesda.Core/Strings/StringsFileFormat.cs",
+                "Mutagen.Bethesda.Core/Plugins/Binary/Translations/BinaryStringUtility.cs"
+            ],
+            "license": "GPL-3.0-only; upstream code unmodified in private research checkout"
+        },
+        {
+            "id": "directxtex-pixel-oracle",
+            "url": "https://github.com/microsoft/DirectXTex",
+            "revision": "4feb3e11a020f35b796fc769a74216a555d4f5ef",
+            "use": "isolated offline DirectXTex texconv 2026.5.8.1 second DDS decoder for bounded top-mip pixel comparison; portable release binary SHA-256 dcfdec10244e02cf5037fba089c55fb7e1326b1c8181742d77d15fa5cb5eef06; never linked to Rust runtime",
+            "paths": [
+                "Texconv/texconv.cpp",
+                "DirectXTex/DirectXTexDDS.cpp",
+                "DirectXTex/DirectXTexConvert.cpp",
+                "LICENSE"
+            ],
+            "license": "MIT; source checkout and portable decoder remain isolated under ignored local/research"
+        }
+    ]
+}

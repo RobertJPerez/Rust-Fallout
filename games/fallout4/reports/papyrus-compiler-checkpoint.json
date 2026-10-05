@@ -1,0 +1,267 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "compiler-authored-fo4-pex-calls-branches-structs-and-arrays-verified",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "caprica": {
+    "source_revision": "e4dee0860914d75e770d3f9ab374f7aba474b701",
+    "source_checkout_clean": true,
+    "release_binary": "local/caprica-build-001/Caprica/Caprica.exe",
+    "release_binary_sha256": "2d1548f7d305c7d9af165e0e2c5443e83303955800718d1962bf57e0ac581a2a",
+    "relevant_source_sha256": {
+      "CMakeLists.txt": "58d4eebfdb3a0086eea0f9fcce16eed2cd4e23354e21ffb7fb06afbbca2d826c",
+      "Caprica/CMakeLists.txt": "ee599cdb442733dbe693e2a619b748ab04ea7aeb25050e494e96dec68d03396a",
+      "vcpkg.json": "edeadf1009d31ad0d21c3b5a528ae8175e878149ab62a9cbedf1b400a431f284",
+      "Caprica/main.cpp": "cea97c262a35bc2ec4a6afa1179176585b43afb0328851ee4abc24d10d46adab",
+      "Caprica/main_options.cpp": "b8fffa48dac549a23b409ad3c6be1397e5c9a18b544f7adc9f1542541d2e3a66",
+      "Caprica/pex/PexFile.cpp": "0d23ae685f48a1101c994e7c6b23758f623d53a3da98b0be4a78f0212e2ebcf1",
+      "Caprica/pex/PexFunction.cpp": "00c50225f74277ff4cd994e2fd68cb71019ccbf7c6fa1719759f2747ee102ab1",
+      "Caprica/pex/PexFunctionBuilder.h": "7278de5fb1771e37130de3974bf28d3c3417f800c1befbdc6daaab82564e2532",
+      "Caprica/pex/PexInstruction.cpp": "6652941c9e8a47fc53c1f9202067422224f9236dc0547ac8137e2578541243b1",
+      "Caprica/pex/PexInstruction.h": "5e968dd22d70ff16016e64246bca6018f1d84849e9ec51f7b6abdec3420436a7",
+      "Caprica/pex/PexWriter.h": "5f7e69e2c573c0d837c1ad4a3d7fa243f92ac50434ba397928f02b694e927892",
+      "Caprica/papyrus/PapyrusCFG.cpp": "f88c85ffeb2c74a4ae382efa27b7959b9db2e34be823e8d19f811b77d9b8a1a6",
+      "Caprica/papyrus/PapyrusCompilationContext.cpp": "624d0beb6ce4d1c6cc3c8bee7a7dc84f2337999cc88d0fa944f80e1d46ad8867",
+      "Caprica/papyrus/PapyrusIdentifier.cpp": "d9b3a5f000ffa5a3238ba822c89106cc5e879cc3cccd691bd28165b161ab898c",
+      "Caprica/papyrus/PapyrusResolutionContext.cpp": "44e9522913ada61a28757b01ceedf45b85ef936f43541dba13cd18a8baf6dd97",
+      "Caprica/papyrus/expressions/PapyrusArrayIndexExpression.h": "abf3317b0e35b310c1efbc6cb83f855e4bb8b33fea64a00cb8c3a08e526870fe",
+      "Caprica/papyrus/expressions/PapyrusArrayLengthExpression.h": "9224605c468e43fcdb786b984130316bd4caa804f153bfc6952d5f0717f0127a",
+      "Caprica/papyrus/expressions/PapyrusFunctionCallExpression.cpp": "832472b7720bc784ca0d9fc7b8f46bcd0bf463c560f4d17b0150f74d80d22bd9",
+      "Caprica/papyrus/expressions/PapyrusMemberAccessExpression.h": "7a24594d6aa67d2af8faead8ca069dceb6e6b75b31619010e69740ac75c49299",
+      "Caprica/papyrus/parser/PapyrusParser.cpp": "35ff2456ee5bc9b19d843e2d0a72dcedccb46cfadd650f798a63d9b4aa767418"
+    },
+    "cmake_compatibility_hook": {
+      "path": "tools/cmake/caprica-pugixml-compat.cmake",
+      "sha256": "07a6c7a75d2acdfb872f7f33a8397548c89c8157933182de99642299e3e126ed"
+    }
+  },
+  "rust_parser": {
+    "workspace_head": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+    "binary": "local/target/debug/fallout4-prep.exe",
+    "binary_sha256": "7740d5c5393d8f6f879e1e642f6d50c33e97562febbf880a6d3dd0a0a34d7333",
+    "source_sha256": {
+      "src/main.rs": "34cb3d70e890e517b44c78429dc8049f8405444260bef2c36614d162eec9ce39",
+      "src/pex.rs": "9c49dfe64072ee81374484f5872982f23dfab72b62db5f4c9279e1f106192422"
+    }
+  },
+  "fixture_sources": {
+    "CodexOperandParent.psc": "48085e71ca20cb4ba29f924eca0e987bc6e6baef3c2e2fb3a72238288caedaba",
+    "CodexOperandChild.psc": "096ae94f095d8082206de57e83fc65dba781beabdf17c56b7b0d3ea9af5131ef",
+    "CodexStructFixture.psc": "7d19030b77c6f97d48065ebcd015be5cdd338f7aaf43fc42951d2b0e162e9426",
+    "ScriptObject.psc": "a9229ab2e0c20539054b9a08b196de6bc69188d3ad24a2e2e413a587e6c692c3"
+  },
+  "generated_pex": {
+    "CodexOperandParent": {
+      "sha256": "aaef68f13c6db13cdc68df0aec9b8652a67517e357ed1025d22b27863dd3b661",
+      "bytes": 404
+    },
+    "CodexOperandChild": {
+      "sha256": "2b0182e365f0ce6feaa7b4d8dc347a26be7a8db6b601fa0d34641a594d34be2c",
+      "bytes": 670
+    },
+    "CodexStructFixture": {
+      "sha256": "efb957d7b1f2143288a131b7d2f239607adefa5fe878fbaa8a5a8bcf0b585ded",
+      "bytes": 587
+    }
+  },
+  "compiler_fixture_validator_sha256": "538f5ba916a4a21aa331fe13bdcac88d54d119be780b7e0f0aed375927798873",
+  "compiler_fixture_validator_test_sha256": "e6836f61d56596292bdd6fc29cd01eda8b5dc6bb4ab0928d4f3944a8e219f6b8",
+  "offline_compiler_build_script_sha256": "e07bffa3ba5e33e9000004d7e9a7aab8688e8a976562dad57ddb511fd0ed3d37",
+  "private_evidence": {
+    "directory": "local/papyrus-compiler-fixtures-017",
+    "verification_sha256": "cbb617455ffac2e50bc9d7c59fa050164cf20bd3110d5c861ca368c43814c205",
+    "completion_sha256": "c4f7af4a3725006093305e0e8663c8e93e1fb9753580997c6736611746426883"
+  },
+  "observed_wire_layout": {
+    "calls_and_branches": {
+      "object": "CodexOperandChild",
+      "calls": {
+        "CALLMETHOD": {
+          "opcode": 23,
+          "arguments": [
+            "MethodTarget",
+            "receiver",
+            "::nonevar"
+          ],
+          "varargs": [
+            17,
+            "2.5(float bits 0x40200000)"
+          ]
+        },
+        "CALLPARENT": {
+          "opcode": 24,
+          "arguments": [
+            "ParentTarget",
+            "::nonevar"
+          ],
+          "varargs": [
+            "value"
+          ]
+        },
+        "CALLSTATIC": {
+          "opcode": 25,
+          "arguments": [
+            "codexOperandParent",
+            "StaticTarget",
+            "::nonevar"
+          ],
+          "varargs": [
+            "value",
+            "static"
+          ]
+        }
+      },
+      "branch_targets": [
+        {
+          "pc": 1,
+          "opcode": 22,
+          "target_instruction_or_end": 4
+        },
+        {
+          "pc": 3,
+          "opcode": 20,
+          "target_instruction_or_end": 5
+        }
+      ],
+      "scope": "Compiler-authored FO4 PEX operand positions and relative branch targets; no VM dispatch or continuation behavior asserted"
+    },
+    "structs_and_arrays": {
+      "object": "CodexStructFixture",
+      "struct": {
+        "name": "Payload",
+        "members": [
+          [
+            "identifier",
+            "Int"
+          ],
+          [
+            "label",
+            "String"
+          ]
+        ]
+      },
+      "struct_opcodes": {
+        "STRUCTGET": {
+          "opcode": 38,
+          "operands": [
+            "destination",
+            "struct value",
+            "member"
+          ]
+        },
+        "STRUCTSET": {
+          "opcode": 39,
+          "operands": [
+            "struct value",
+            "member",
+            "assigned value"
+          ]
+        }
+      },
+      "array_opcodes": {
+        "ARRAYLENGTH": {
+          "opcode": 31,
+          "operands": [
+            "destination",
+            "array"
+          ]
+        },
+        "ARRAYGETELEMENT": {
+          "opcode": 32,
+          "operands": [
+            "destination",
+            "array",
+            "index"
+          ]
+        },
+        "ARRAYSETELEMENT": {
+          "opcode": 33,
+          "operands": [
+            "array",
+            "index",
+            "value"
+          ]
+        }
+      },
+      "scope": "Compiler-authored FO4 PEX struct/array wire operands only; no mutation, aliasing or VM execution semantics asserted"
+    },
+    "call_signature_consistency": {
+      "calls_checked": [
+        {
+          "kind": "CALLSTATIC",
+          "caller": "CallStatic",
+          "target": "CodexOperandParent.StaticTarget",
+          "argument_types": [
+            "Int",
+            "String"
+          ],
+          "declared_parameter_types": [
+            "Int",
+            "String"
+          ]
+        },
+        {
+          "kind": "CALLMETHOD",
+          "caller": "CallMethod",
+          "target": "CodexOperandParent.MethodTarget",
+          "argument_types": [
+            "Int",
+            "Float"
+          ],
+          "declared_parameter_types": [
+            "Int",
+            "Float"
+          ]
+        },
+        {
+          "kind": "CALLPARENT",
+          "caller": "ParentTarget",
+          "target": "CodexOperandParent.ParentTarget",
+          "argument_types": [
+            "Int"
+          ],
+          "declared_parameter_types": [
+            "Int"
+          ]
+        },
+        {
+          "kind": "CALLSTATIC",
+          "caller": "CallBranch",
+          "target": "CodexOperandParent.StaticTarget",
+          "argument_types": [
+            "Int",
+            "String"
+          ],
+          "declared_parameter_types": [
+            "Int",
+            "String"
+          ]
+        },
+        {
+          "kind": "CALLSTATIC",
+          "caller": "CallBranch",
+          "target": "CodexOperandParent.StaticTarget",
+          "argument_types": [
+            "Int",
+            "String"
+          ],
+          "declared_parameter_types": [
+            "Int",
+            "String"
+          ]
+        }
+      ],
+      "scope": "Compiler-emitted argument value/type tags and caller variable declarations agree with target PEX parameter types for these fixtures; no rejection policy or VM dispatch is asserted"
+    }
+  },
+  "validation": {
+    "caprica_configure_and_build": "passed; one compiler job; vcpkg downloads, dependency installs, registries and build products are under local/",
+    "compiler_exit_code": 0,
+    "rust_parser_accepted_generated_pex_files": 3,
+    "validator_unit_tests_passed": 14,
+    "rust_locked_all_target_tests_passed": 92,
+    "retail_files_read_or_modified": false,
+    "runtime_ready": false
+  },
+  "scope": "Compiler-authored Fallout 4 PEX call operands, relative branch destinations, struct-member and array opcode operands; five emitted call argument types agree with their compiled target parameter declarations. No compiler rejection policy, VM dispatch, continuation, mutation/aliasing, native API or runtime behavior is established."
+}

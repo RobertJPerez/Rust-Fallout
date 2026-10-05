@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "checkpoint": 19,
+  "research_date": "2026-10-04",
+  "status": "bounded physical CELL XCLR to REGN source-key graph; 30 references remain without a scanned REGN candidate and are retained as unresolved evidence",
+  "game_profile": {
+    "edition_install": "Skyrim Special Edition updated Steam runtime",
+    "steam_build": "24914197",
+    "executable_version": "1.7.104.0",
+    "executable_sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+    "plugin_files_scanned": 10,
+    "indexed_archive_files": 23,
+    "installed_creation_pairs": 4,
+    "paid_anniversary_coverage": "incomplete; installed Creation pairs do not establish the full paid content set",
+    "census_blocking_findings": 8,
+    "reader_failures": 0,
+    "original_game_data_modified": false
+  },
+  "implementation": {
+    "command": "trace-landscape-links --data <Data> --plugin <plugin path> [--plugin <another plugin path> ...] [--output <new JSONL path>]",
+    "source": "src/landscape_links.rs",
+    "shared_record_reader": "pinned fallout-data visitor and archive backend; no new record framing",
+    "region_linking": "CELL XCLR is retained as whole-field raw evidence; complete four-byte entries use the existing owner-aware FormID resolver against physical REGN rows",
+    "raw_evidence": "whole-field SHA-256, exact payload length, bounded raw preview, per-entry offsets and hashes, explicit 1-3 byte trailing-field evidence",
+    "region_runtime_behavior_decoded": false,
+    "load_order_winner_selected": false,
+    "record_framing_decompression_path_normalization_or_hashing_duplicated": false
+  },
+  "scan": {
+    "selected_records": 132959,
+    "land_records": 54079,
+    "cell_records": 77337,
+    "regn_records": 389,
+    "cell_subrecords_scanned": 400969,
+    "cell_subrecord_shape_tag_count": 25,
+    "cell_records_with_xclr": 34008,
+    "cell_records_without_xclr": 43329,
+    "cell_records_with_multiple_xclr": 0,
+    "xclr_fields": 34008,
+    "xclr_payload_length_counts": {
+      "4": 22722,
+      "8": 1145,
+      "12": 897,
+      "16": 1595,
+      "20": 2260,
+      "24": 2390,
+      "28": 1498,
+      "32": 775,
+      "36": 394,
+      "40": 174,
+      "44": 90,
+      "48": 53,
+      "52": 15
+    },
+    "all_xclr_lengths_multiple_of_four": true,
+    "malformed_xclr_fields": 0,
+    "cell_region_links": 83516,
+    "cell_region_links_with_scanned_target_candidates": 83486,
+    "cell_region_links_without_scanned_target_candidates": 30,
+    "cell_region_links_unresolved_without_profile": 0,
+    "region_candidate_coverage_fraction": 0.9996407873940323,
+    "xclr_by_plugin": [
+      {
+        "plugin": "_ResourcePack.esl",
+        "cell_records": 0,
+        "regn_records": 0,
+        "xclr_fields": 0,
+        "region_links": 0,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "ccBGSSSE001-Fish.esm",
+        "cell_records": 610,
+        "regn_records": 0,
+        "xclr_fields": 551,
+        "region_links": 3072,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "ccBGSSSE025-AdvDSGS.esm",
+        "cell_records": 21,
+        "regn_records": 0,
+        "xclr_fields": 16,
+        "region_links": 89,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "ccBGSSSE037-Curios.esl",
+        "cell_records": 0,
+        "regn_records": 0,
+        "xclr_fields": 0,
+        "region_links": 0,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "ccQDRSSE001-SurvivalMode.esl",
+        "cell_records": 1,
+        "regn_records": 0,
+        "xclr_fields": 0,
+        "region_links": 0,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "Dawnguard.esm",
+        "cell_records": 11334,
+        "regn_records": 50,
+        "xclr_fields": 10645,
+        "region_links": 13640,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "Dragonborn.esm",
+        "cell_records": 45237,
+        "regn_records": 20,
+        "xclr_fields": 12031,
+        "region_links": 15194,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "HearthFires.esm",
+        "cell_records": 247,
+        "regn_records": 0,
+        "xclr_fields": 195,
+        "region_links": 1171,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "Skyrim.esm",
+        "cell_records": 17568,
+        "regn_records": 317,
+        "xclr_fields": 8441,
+        "region_links": 37346,
+        "malformed_xclr_fields": 0
+      },
+      {
+        "plugin": "Update.esm",
+        "cell_records": 2319,
+        "regn_records": 2,
+        "xclr_fields": 2129,
+        "region_links": 13004,
+        "malformed_xclr_fields": 0
+      }
+    ],
+    "unmatched_target": {
+      "raw_form_id": "0x00106633",
+      "source_key": {
+        "origin_plugin": "skyrim.esm",
+        "local_id": 1074739
+      },
+      "references": 30,
+      "scanned_regn_candidates": 0,
+      "source_plugins": [
+        "Skyrim.esm"
+      ],
+      "interpretation": "candidate gap within the supplied ten physical plugins only; no invalid/deleted/runtime classification"
+    },
+    "world_records": 94,
+    "ltex_records": 130,
+    "txst_records": 790,
+    "matt_records": 80,
+    "gras_records": 60,
+    "links_resolved_to_source_keys": 270691,
+    "links_with_scanned_target_candidates": 270560,
+    "links_without_scanned_target_candidates": 131,
+    "unmatched_land_layer_target": "Skyrim.esm LTEX local ID 0x00000844: 74 BTXT and 27 ATXT fields; absence is only within supplied files"
+  },
+  "validation": {
+    "rust_tests_passed": 68,
+    "rust_tests_failed": 0,
+    "format_check": "passed",
+    "clippy": "passed with warnings denied",
+    "build": "passed with one build job",
+    "installed_trace_exit_status": 2,
+    "installed_trace_exit_reason": "101 resolved LAND layer links lack a scanned LTEX candidate and 30 CELL XCLR links lack a scanned REGN candidate; no malformed XCLR fields",
+    "all_ten_source_plugin_fingerprints_match_current_install_census": true,
+    "trace_completion_trailer_present": true,
+    "original_game_data_read_only": true
+  },
+  "local_evidence": {
+    "cell_region_trace": {
+      "path": "local/cell-region-links-19b.jsonl",
+      "bytes": 418630194,
+      "sha256": "1efe13fd5ed86fb446b0d950a7d64479fa521cac8eca583dbe9b197db2deac02",
+      "complete_trailer": true
+    },
+    "current_install_census": {
+      "path": "local/census-20261004T222237Z-6a88a6f8.json",
+      "bytes": 37414379,
+      "sha256": "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+    },
+    "install_receipt": {
+      "path": "local/install-20261004T222237Z-6a88a6f8.json",
+      "bytes": 634,
+      "sha256": "c63163e07d1f29a6bed9c57e6a6cf15efead372718f5159e6fb737069f564daf"
+    },
+    "unmatched_region_ledger": {
+      "path": "local/cell-region-unmatched-19b.json",
+      "bytes": 23237,
+      "sha256": "70693a0214c07df1a95e42b1d8d58de9d2dba56313f160449558f1cc5baeac01"
+    },
+    "source_manifest": {
+      "path": "reports/source-manifest-19.json",
+      "files": 68,
+      "source_bytes": 600395,
+      "bytes": 10963,
+      "sha256": "bc2c3941d40dfe3955325defdeef8ab2b247539b82014f38e0f3ac8a55fe1de3"
+    }
+  }
+}

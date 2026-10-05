@@ -540,6 +540,225 @@ fn bounded_store(
     })
 }
 
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SearchWork {
+    heap_pops: usize,
+    retained_bytes: usize,
+    admission_visits: usize,
+    identity_bytes: usize,
+}
+impl Default for SearchWork {
+    fn default() -> Self {
+        let v = route::search::SearchLimits::default();
+        Self {
+            heap_pops: v.heap_pops,
+            retained_bytes: v.retained_bytes,
+            admission_visits: v.admission_visits,
+            identity_bytes: v.identity_bytes,
+        }
+    }
+}
+impl SearchWork {
+    fn limits(self, route: route::RouteLimits) -> Result<route::search::SearchLimits> {
+        let max = Self::default();
+        if self.heap_pops > max.heap_pops
+            || self.retained_bytes > max.retained_bytes
+            || self.admission_visits > max.admission_visits
+            || self.identity_bytes > max.identity_bytes
+        {
+            return Err("cooperative search limits exceed engineering ceiling".into());
+        }
+        Ok(route::search::SearchLimits {
+            route,
+            heap_pops: self.heap_pops,
+            retained_bytes: self.retained_bytes,
+            admission_visits: self.admission_visits,
+            identity_bytes: self.identity_bytes,
+        })
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SearchRequest {
+    cells: Vec<FormKey>,
+    route: CellRouteRequest,
+    #[serde(default)]
+    source_limits: SourceWork,
+    #[serde(default)]
+    graph_limits: GraphWork,
+    #[serde(default)]
+    route_limits: RouteWork,
+    #[serde(default)]
+    search_limits: SearchWork,
+    step_budget: route::search::StepBudget,
+    max_advances: usize,
+    trace_limit: usize,
+    cancel_after: Option<usize>,
+}
+#[derive(Serialize)]
+pub struct SearchReport {
+    schema_version: u32,
+    load_order_sha256: String,
+    request_sha256: String,
+    sources: Vec<fallout_data::store::SourceReceipt>,
+    cell_set: navigation::CellSet,
+    #[serde(rename = "nodes", serialize_with = "serialize_nodes")]
+    graph: RouteGraph,
+    source_limits: SourceWork,
+    graph_limits: GraphWork,
+    route_limits: RouteWork,
+    search_limits: SearchWork,
+    graph_admission: GraphAdmission,
+    search_admission: route::search::SearchAdmission,
+    job_retained_ceiling: usize,
+    retained_metadata_reservation_bytes: usize,
+    step_budget: route::search::StepBudget,
+    advances: usize,
+    search_state: &'static str,
+    trace: Vec<route::search::SearchProgress>,
+    final_progress: Option<route::search::SearchProgress>,
+    route: Option<route::Route>,
+    faithful_ready: bool,
+    semantics: &'static str,
+}
+/// A real protected source graph, borrowed policy and one frontier across advances.
+pub fn inspect_search(
+    install: &Path,
+    order_path: &Path,
+    cache: Option<&Path>,
+    request_path: &Path,
+) -> Result<SearchReport> {
+    use route::search::{SearchProgress, SearchState};
+    let mut bytes = Vec::new();
+    baseline::open_source(request_path)?
+        .take(1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 1024 * 1024 {
+        return Err("cooperative search request exceeds 1 MiB".into());
+    }
+    let request: SearchRequest = serde_json::from_slice(&bytes)?;
+    let source_limits = request.source_limits.limits()?;
+    let graph_limits = request.graph_limits.limits()?;
+    let route_limits = request.route_limits.limits()?;
+    let mut job_limits = request.search_limits.limits(route_limits)?;
+    let step = request.step_budget;
+    let cap = route::search::StepBudget::default();
+    if request.cells.is_empty()
+        || request.cells.len() > source_limits.cells
+        || request.max_advances == 0
+        || request.max_advances > 1_000_000
+        || request.trace_limit > 64
+        || request
+            .cancel_after
+            .is_some_and(|n| n > request.max_advances)
+        || step.heap_pops == 0
+        || step.heap_pops > cap.heap_pops
+        || step.expansions == 0
+        || step.expansions > cap.expansions
+        || step.edge_tests == 0
+        || step.edge_tests > cap.edge_tests
+        || step.path_nodes == 0
+        || step.path_nodes > cap.path_nodes
+        || step.copies == 0
+        || step.copies > cap.copies
+        || step.reverse_swaps == 0
+        || step.reverse_swaps > cap.reverse_swaps
+    {
+        return Err("cooperative source/advance/trace/step budget is invalid".into());
+    }
+    let policy_request: Request = request.route.into();
+    validate_request(&policy_request)?;
+    let order = Order::read(order_path)?;
+    let mut store = bounded_store(install, &order, cache, source_limits)?;
+    let sources = store.source_receipts()?;
+    let set = navigation::load_cells(&mut store, &request.cells, source_limits)?;
+    let graph_admission = graph_admission(&set, request.source_limits, request.graph_limits)?;
+    // One metadata ledger: charge the prior conservative source graph reservation,
+    // fixed overhead and bounded trace before creating the graph or search buffers.
+    let trace_bytes = (request.trace_limit + 1)
+        .checked_mul(std::mem::size_of::<SearchProgress>())
+        .ok_or("search trace byte overflow")?;
+    let base = set
+        .usage
+        .identity_metadata_bytes
+        .checked_add(graph_admission.identity_reservation_bytes)
+        .and_then(|n| n.checked_add(4096))
+        .and_then(|n| n.checked_add(trace_bytes))
+        .ok_or("search metadata overflow")?;
+    let remaining = request
+        .source_limits
+        .identity_metadata_bytes
+        .checked_sub(base)
+        .ok_or("search global identity metadata exhausted")?;
+    job_limits.retained_bytes = job_limits.retained_bytes.min(remaining);
+    let job_retained_ceiling = job_limits.retained_bytes;
+    let graph = RouteGraph::build(&set.meshes, graph_limits)?;
+    for endpoint in [&policy_request.start, &policy_request.goal] {
+        validate_endpoint(&policy_request, endpoint, graph.node(endpoint))?;
+    }
+    let policy = |a: &route::Node, b: &route::Link, c: Option<&route::Node>| {
+        route_cost(&policy_request, a, b, c)
+    };
+    let mut job = graph.start_search(
+        &policy_request.start,
+        &policy_request.goal,
+        job_limits,
+        &policy,
+    )?;
+    let search_admission = job.admission();
+    let retained_metadata_reservation_bytes = base
+        .checked_add(search_admission.reserved_bytes)
+        .ok_or("search metadata total overflow")?;
+    let mut trace = Vec::with_capacity(request.trace_limit);
+    let mut final_progress = None;
+    let mut advances = 0;
+    let (search_state, result) = loop {
+        if request.cancel_after == Some(advances) {
+            job.cancel();
+            break ("cancelled", None);
+        }
+        if advances == request.max_advances {
+            return Err("cooperative search advance budget exhausted; no complete route".into());
+        }
+        let progress = job.advance(step)?;
+        advances += 1;
+        if trace.len() < request.trace_limit {
+            trace.push(progress);
+        }
+        final_progress = Some(progress);
+        if progress.state == SearchState::Complete {
+            break ("complete", Some(job.finish()?));
+        }
+    };
+    let report = SearchReport {
+        schema_version: 1,
+        load_order_sha256: order.sha256,
+        request_sha256: format!("{:x}", Sha256::digest(&bytes)),
+        sources,
+        cell_set: set,
+        graph,
+        source_limits: request.source_limits,
+        graph_limits: request.graph_limits,
+        route_limits: request.route_limits,
+        search_limits: request.search_limits,
+        graph_admission,
+        search_admission,
+        job_retained_ceiling,
+        retained_metadata_reservation_bytes,
+        step_budget: step,
+        advances,
+        search_state,
+        trace,
+        final_progress,
+        route: result,
+        faithful_ready: false,
+        semantics: "explicit source CELL set and unchanged nonnegative cost/eligibility policy; one borrowed immutable graph/policy frontier; bounded stale pops, edges, copies, reconstruction and reversals across advances; cancellation yields no route; one global source/graph/job/trace metadata reservation; no actor movement, save continuation or original scheduler semantics",
+    };
+    serde_json::to_writer_pretty(&mut crate::collision::ReportCounter(1), &report)?;
+    Ok(report)
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CorridorRequest {

@@ -1,0 +1,162 @@
+{
+    "schema_version":  1,
+    "checkpoint":  18,
+    "research_date":  "2026-10-04",
+    "status":  "bounded source-addressed raw CELL XCLL evidence for the two observed payload sizes; no lighting member or renderer behavior decoded",
+    "game_profile":  {
+                         "edition_install":  "Skyrim Special Edition updated Steam runtime",
+                         "steam_build":  "24914197",
+                         "executable_version":  "1.7.104.0",
+                         "executable_sha256":  "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+                         "plugin_files_scanned":  10,
+                         "indexed_archive_files":  23,
+                         "installed_creation_pairs":  4,
+                         "paid_anniversary_coverage":  "incomplete; installed Creation pairs do not establish the full paid content set",
+                         "census_blocking_findings":  8,
+                         "reader_failures":  0,
+                         "original_game_data_modified":  false
+                     },
+    "implementation":  {
+                           "command":  "trace-landscape-links --data \u003cData\u003e --plugin \u003cplugin path\u003e [--plugin \u003canother plugin path\u003e ...] [--output \u003cnew JSONL path\u003e]",
+                           "source":  "src/landscape_links.rs",
+                           "shared_record_reader":  "pinned fallout-data visitor and archive backend; no new record framing",
+                           "cell_lighting_evidence":  "XCLL is attached to each physical CELL row with tag, decoded-record payload offset, length, full SHA-256, and a 32-byte raw preview",
+                           "observed_size_classification":  "64- and 92-byte corpus sizes are tagged known-corpus-size-unparsed; other sizes stay unprofiled-size-unparsed",
+                           "lighting_member_decoding":  false,
+                           "load_order_winner_selected":  false,
+                           "record_framing_decompression_path_normalization_or_hashing_duplicated":  false
+                       },
+    "scan":  {
+                 "selected_records":  132570,
+                 "land_records":  54079,
+                 "cell_records":  77337,
+                 "cell_subrecords_scanned":  400969,
+                 "cell_subrecord_shape_tag_count":  25,
+                 "cell_records_with_xcll":  981,
+                 "cell_records_without_xcll":  76356,
+                 "cell_records_with_multiple_xcll":  0,
+                 "unprofiled_xcll_fields":  0,
+                 "xcll_payload_length_counts":  {
+                                                    "64":  1,
+                                                    "92":  980
+                                                },
+                 "xcll_by_plugin":  [
+                                        {
+                                            "plugin":  "_ResourcePack.esl",
+                                            "cell_records":  0,
+                                            "xcll_fields":  0
+                                        },
+                                        {
+                                            "plugin":  "ccBGSSSE001-Fish.esm",
+                                            "cell_records":  610,
+                                            "xcll_fields":  46,
+                                            "length_92":  46
+                                        },
+                                        {
+                                            "plugin":  "ccBGSSSE025-AdvDSGS.esm",
+                                            "cell_records":  21,
+                                            "xcll_fields":  5,
+                                            "length_92":  5
+                                        },
+                                        {
+                                            "plugin":  "ccBGSSSE037-Curios.esl",
+                                            "cell_records":  0,
+                                            "xcll_fields":  0
+                                        },
+                                        {
+                                            "plugin":  "ccQDRSSE001-SurvivalMode.esl",
+                                            "cell_records":  1,
+                                            "xcll_fields":  1,
+                                            "length_92":  1
+                                        },
+                                        {
+                                            "plugin":  "Dawnguard.esm",
+                                            "cell_records":  11334,
+                                            "xcll_fields":  114,
+                                            "length_92":  114
+                                        },
+                                        {
+                                            "plugin":  "Dragonborn.esm",
+                                            "cell_records":  45237,
+                                            "xcll_fields":  88,
+                                            "length_92":  88
+                                        },
+                                        {
+                                            "plugin":  "HearthFires.esm",
+                                            "cell_records":  247,
+                                            "xcll_fields":  46,
+                                            "length_92":  46
+                                        },
+                                        {
+                                            "plugin":  "Skyrim.esm",
+                                            "cell_records":  17568,
+                                            "xcll_fields":  590,
+                                            "length_64":  1,
+                                            "length_92":  589
+                                        },
+                                        {
+                                            "plugin":  "Update.esm",
+                                            "cell_records":  2319,
+                                            "xcll_fields":  91,
+                                            "length_92":  91
+                                        }
+                                    ],
+                 "land_rows_with_cell_group_label":  54079,
+                 "distinct_land_containing_cell_source_keys":  52181,
+                 "distinct_world_cell_source_key_pairs":  52181,
+                 "land_cell_candidate_count_distribution":  {
+                                                                "1":  49483,
+                                                                "2":  3571,
+                                                                "3":  861,
+                                                                "4":  151,
+                                                                "5":  12,
+                                                                "6":  1
+                                                            },
+                 "land_referenced_cell_keys_with_any_xcll_candidate":  0,
+                 "land_rows_whose_cell_candidates_have_xcll":  0,
+                 "world_records":  94,
+                 "ltex_records":  130,
+                 "txst_records":  790,
+                 "matt_records":  80,
+                 "gras_records":  60,
+                 "links_resolved_to_source_keys":  187175,
+                 "links_with_scanned_target_candidates":  187074,
+                 "links_without_scanned_target_candidates":  101,
+                 "unmatched_land_layer_target":  "Skyrim.esm LTEX local ID 0x00000844: 74 BTXT and 27 ATXT fields; absence is only within supplied files"
+             },
+    "validation":  {
+                       "rust_tests_passed":  68,
+                       "rust_tests_failed":  0,
+                       "format_check":  "passed",
+                       "clippy":  "passed with warnings denied",
+                       "build":  "passed with one build job",
+                       "installed_trace_exit_status":  2,
+                       "installed_trace_exit_reason":  "101 resolved layer links had no scanned LTEX candidate; all XCLL fields use one of the two observed sizes",
+                       "all_ten_source_plugin_fingerprints_match_current_install_census":  true,
+                       "original_game_data_read_only":  true
+                   },
+    "local_evidence":  {
+                           "cell_lighting_report":  {
+                                                        "path":  "local/cell-lighting-18a.jsonl",
+                                                        "bytes":  379239565,
+                                                        "sha256":  "c3a2285da9656ead44ecba5cc837ca46b09e63ec96e0162b0d6f67974d5743c9"
+                                                    },
+                           "current_install_census":  {
+                                                          "path":  "local/census-20261004T222237Z-6a88a6f8.json",
+                                                          "bytes":  37414379,
+                                                          "sha256":  "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+                                                      },
+                           "install_receipt":  {
+                                                   "path":  "local/install-20261004T222237Z-6a88a6f8.json",
+                                                   "bytes":  634,
+                                                   "sha256":  "c63163e07d1f29a6bed9c57e6a6cf15efead372718f5159e6fb737069f564daf"
+                                               },
+                           "source_manifest":  {
+                                                   "path":  "reports/source-manifest-18.json",
+                                                   "files":  68,
+                                                   "source_bytes":  588119,
+                                                   "bytes":  16703,
+                                                   "sha256":  "364d855af3ab488e81e46574fec2c33a7eb6475fb8d8105ab8c36b34dc87ee8c"
+                                               }
+                       }
+}

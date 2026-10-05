@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "observed_utc": "2026-10-05T01:10:32Z",
+  "status": "fo4-all-targets-pass-against-current-nv-runtime-source",
+  "fallout4_shared_data_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "fallout4_dependency_or_canonical_lock_changed": false,
+  "fallout4_cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "new_vegas": {
+    "observed_head": "5a89c33bee93ccf6f6ff0cb489881ff9953a6c5b",
+    "worktree_clean": true,
+    "latest_head_changes_after_tested_source": [
+      "NEXT_STEPS.md",
+      "docs/integration/team-v4-development-dependencies-04.json"
+    ],
+    "latest_head_contains_rust_source_changes_after_tested_source": false,
+    "tested_runtime_source_revision": "486355d67407080d0e2c2483555518c0fb798670",
+    "tested_source_was_committed_and_clean": true,
+    "current_dependency_handoff": "docs/integration/team-v4-development-dependencies-04.json",
+    "reported_handoff_scope": "21 receipt tests and four upload-observer protocol tests pass; actual GPU consumer remains unverified"
+  },
+  "disposable_compatibility_check": {
+    "directory": "local/compat-head-486355d",
+    "dependency_revision": "486355d67407080d0e2c2483555518c0fb798670",
+    "private_cargo_lock_updated_only_for_this_check": true,
+    "command": "cargo test --locked --all-targets --jobs 1",
+    "result": "passed",
+    "tests_passed": 86,
+    "tests_failed": 0,
+    "log": "local/compat-head-486355d/all-targets.log",
+    "log_bytes": 25074,
+    "log_sha256": "2a7142a581fafc5e8af1d0d281650fa04cb5c1ac8b175430575a0a751e71795f",
+    "private_target": "local/compat-target-486355d",
+    "private_cargo_home": "local/cargo-home"
+  },
+  "interpretation": "The complete Fallout 4 test targets compile and pass with the committed shared Rust source from New Vegas revision 486355d. The latest New Vegas commit observed at 5a89c33 changes only handoff documentation, so no shared Rust API change occurred after the tested source revision. This check does not update Fallout 4's dependency from checkpoint 45.",
+  "limits": [
+    "Build and unit-test compatibility does not establish cross-game semantic equivalence or gameplay behavior.",
+    "No New Vegas source, control file, worktree or branch was changed.",
+    "The check does not verify Fallout 4 native APIs, saves, rendering, asset winners, or gameplay acceptance."
+  ]
+}

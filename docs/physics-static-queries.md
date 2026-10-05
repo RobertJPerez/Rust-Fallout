@@ -95,6 +95,25 @@ subtraction residuals, refusing uncertain contact comparisons. These local
 predicates retain the declared engineering transform scope; they do not certify
 retail units or arbitrary approximately similar transforms.
 
+Sphere overlap compares the original local center against the sum of the original
+local query radius and authored sphere radius. One-component norms use exact
+absolute values and a recovered addition residual, including subnormal gaps and
+closed axis contacts. Other centers use directed squared-distance/radius-sum
+intervals with guarded exact sum/product point operations. Unresolved comparisons
+refuse the whole query, including earlier hits. Squaring a tiny point offset never
+turns a zero-radius source point into an overlap. Source radii, centers, flags and
+units are retained; no tolerance or extra radius is inserted. This local predicate
+keeps the declared upstream transform/radius-conversion engineering scope.
+
+Capsule overlap clamps an authored axis exactly before subtraction and retains
+both original radii through the sphere predicate. Skew axes require exact source
+edge and center-to-endpoint differences, then directed projection classification
+and a division-free squared-distance numerator. Uncertain differences, projection
+regions or contact signs refuse the whole query. Endpoints, zero-length cores,
+ordinary exact contacts and source metadata remain available without normalizing
+the axis or reconstructing a rounded closest point. The upstream engineering
+transform/radius-conversion scope remains; triangle overlap is separate.
+
 Triangle rays guard the determinant, three closed barycentric comparisons and
 the complete `[0,max_distance]` range using constant-size directed intervals.
 Exact sum residuals and guarded normal-range FMA product residuals retain point

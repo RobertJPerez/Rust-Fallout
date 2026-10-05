@@ -1,0 +1,13 @@
+[package]
+name = "skyrim-plugin-oracle"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Independent offline validation tool, never a runtime dependency.
+[dependencies]
+esplugin = { git = "file:///G:/Rust-Fallout/.research/esplugin", rev = "b33bd81aae02dd5cc797769705b093e407cd4a66" }
+serde_json = "1"
+
+[profile.dev]
+opt-level = 1

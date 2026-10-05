@@ -1337,3 +1337,102 @@ header requests, raw bytes and serialized projection. Exact boundary fixtures
 exercise each. Requests establish source candidates only: no RNG, probability
 roll, level threshold, respawn, inherited selection, death event or item creation.
 The canonical runtime and direct inventory initialization remain unchanged.
+
+## Selected equipment alternate-texture declarations (ACT25)
+
+`actor-sources --include-material-overrides` extends an explicit equipment source,
+role and single dependency root with `actor_material_overrides`. The private,
+non-deserializable `actors::dependencies::material_overrides::Manifest` comes from
+`request(&mut RecordStore, &actors::Catalogue, &FormKey, equipment::Choice,
+&ArchiveAssets, Limits)`. It constructs the existing equipment producer internally
+and exposes only immutable `equipment()` and `arrays()` views. A caller-supplied
+mutable equipment report cannot select the source. Without the new flag, the
+existing equipment and default actor reports remain byte-identical.
+
+Pinned xEdit FNV generic model (1069-1086), alternate arrays (2911-2914), ARMO/ARMA
+(3934-4031), WEAP (8625-8892) and STAT (7990-8025), together with Common alternate
+texture (8457-8472), textured model (9508-9545) and Interface string/array prefix
+implementations, ground the layout. Each array has an unsigned 32-bit count;
+each entry has an unsigned 32-bit name length, exact raw name bytes, TXST FormID
+and signed 32-bit mesh index. Empty, embedded-NUL and non-UTF8 names remain exact
+frames. The index also retains its original unsigned word and every physical
+byte offset. Editor sorting, name decoding and string trimming are not applied.
+
+Unordered model structures associate alternate arrays by exact role tags:
+male biped MODL/MODS, female biped MOD3/MO3S, male world or weapon shell MOD2/MO2S,
+female world or weapon world MOD4/MO4S, and weapon scope MOD3/MO3S. A base weapon
+uses MODL/MODS. Modded MWD roles have no pinned alternate-array association and
+cannot borrow the base palette. A first-person role uses only the existing unique
+WNAM/WNM-selected STAT source and its MODL/MODS declarations.
+
+All selected field occurrences and array entries retain physical order. Missing
+or repeated model fields, repeated alternate arrays, and duplicate exact raw
+name/index pairs withhold declaration admission. Null, missing, deleted and
+wrong-kind texture bindings stay explicit. TXST requests retain complete winning
+source headers and source hashes; their bodies remain unread. Malformed count,
+name, word and trailing extents refuse atomically. Twelve independent limits
+bound source count, record/decoded bytes, fields/work visits, arrays, entries,
+name/raw bytes, bindings, headers and serialized projection.
+
+These requests preserve material source declarations. They do not choose a mesh,
+import texture sets, apply archive precedence or shaders, mutate materials,
+select equipped inventory or establish original rendering behavior.
+
+## Creature body-part source requests (ACT26)
+
+`actor-sources --body-part-root PLUGIN:HEX` adds `actor_body_part_inputs` for one
+live CREA. The private, non-deserializable manifest is constructed by
+`actors::body_part_inputs::request(&mut RecordStore, &actors::Catalogue,
+&FormKey, Limits)` and exposes an immutable `declaration()` view. It verifies
+the complete fresh source cohort, winner, retained actor header/body and every
+physical field before binding a PNAM declaration. Default actor and association
+decoding remain unchanged. Existing ACT22 `SourceRequest` supplies the header
+projection; the plugin visitor and FormID binder remain the only framing and
+identity decoders.
+
+Pinned FNV CREA (4276-4429) declares PNAM/BPTD under ModelAnimation template bit
+64. Only one live, uniquely bound BPTD source is read. Repeated, absent, null,
+missing, deleted, wrong-kind or unsupported PNAM inputs preserve their exact
+physical bytes/header requests without choosing a body. Missing or repeated
+ACBS and template inheritance withhold direct declaration admission. Structural
+source evidence remains separate from an effective inherited actor body.
+
+Pinned BPTD (5954-6010), Common body-location enum and position/rotation structs,
+and FNV actor-value enum ground the 84-byte BPND view. Version 15 admits raw
+damage/scale/vector float bits, flags, signed i8 part type and actor value,
+unsigned hit/chance/health/decal bytes, unsigned u16 explosion debris count,
+signed i32 severable debris count, and unused bytes. Six embedded FormIDs at
+offsets 12, 16, 32, 36, 68 and 72 retain exact DEBR/EXPL/IPDS winning headers.
+RAGA retains RGDL header requests. Leaf bodies stay unread. Other record versions
+or BPND layouts retain complete raw fields with typed values and embedded links
+withheld; unknown enum and flag values remain explicit.
+
+Every named/model field and BPND occurrence retains physical order. Optional
+first names and any-member editor grouping do not justify assigning the nearest
+name to a part. Editor sorting, name decoding, inferred part groups and first
+duplicate winners are not applied. Repeated signed part types are marked and
+all raw name frames, replacement-model bytes and opaque NAM5 metadata remain
+available independently. Twelve limits bound sources, individual/decoded bytes,
+fields/work visits, parts/names, name/raw bytes, bindings/headers and projection.
+
+The request cannot map a contact to a limb, choose a model, evaluate damage or
+limb health, perform gore/dismemberment, or mutate canonical actor state.
+
+## Equipment model requests from canonical item selections
+
+The optional `actor-package-context --equipment-item ID --equipment-model-role
+ROLE` consumer joins an exact current canonical inventory lot to the existing
+equipment source producer. It obtains the model choice's source key from the
+private ACT16 selection, with caller-supplied actor context, role and weapon mod
+mask. Complete lot facts and exact source/model provenance remain separate in
+`equipment_model.selection` and `equipment_model.model`. The model decoder and
+standalone source producer are reused unchanged.
+
+The runtime request seals the current item handle, campaign/source cohort and
+canonical revision. Cold-restored or foreign handles, missing/transferred lots,
+changed state and changed source cohorts refuse. A fresh request can admit a
+specific persistent lot after strict cold restore. Inventory presence, unknown
+equipped slots or raw modification keys never infer an equipped model. This
+request does not render, attach, equip or mutate anything; original behavior and
+equipped-state verification remain false. See `docs/actor-rules.md` for the
+exact producer boundary and limits.

@@ -1,0 +1,28 @@
+[package]
+name = "skyrim-prep"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[dependencies]
+# Frozen shared implementation; active NV worktrees are never build inputs.
+fallout-data = { path = "../../crates/fallout-data" }
+dream_archive = { git = "https://github.com/DreamWeave-MP/dream_archive", rev = "a6ba4c9416e5c7bc211e7a3762420e5bf5c9c049", default-features = false, features = ["bsa-tes4"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.sha2]
+opt-level = 3
+
+
+# Integrated companion adapter; keep its dependency graph separate from the NV runtime.
+[workspace]

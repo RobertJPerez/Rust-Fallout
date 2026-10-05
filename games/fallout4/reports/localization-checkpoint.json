@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "verified-physical-ba2-localization-indices-not-runtime-language",
+  "workspace_base_revision": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "shared_nv_checkout_head_observed_read_only": "f8c40c28ebc018d5af6e75022de7c999126d4f7f",
+  "shared_nv_changes_made_by_this_audit": false,
+  "installation": {
+    "root": "G:/SteamLibrary/steamapps/common/Fallout 4",
+    "executable_version": "1.11.240.0",
+    "executable_sha256": "fdcef37ac1230af6d0b0050eb2142b139ef3a867b37b9211fb6edfcc646072f8",
+    "frozen_source_census": "local/proof-fo4-002/census.json",
+    "frozen_source_census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "retail_archives_modified": false
+  },
+  "implementation": {
+    "audit_binary": "local/target/debug/audit-strings.exe",
+    "audit_binary_sha256": "06fcf7eff508b9f7b1dfae904ffb5f9aebdbf4f380339d303aa8414a4bb9c0e1",
+    "oracle_binary": "local/strings-oracle-bin/strings-oracle.dll",
+    "oracle_binary_sha256": "dd0394e981e49eb998268a89378b598e97fd9704a32c49b97e68a445a948b6fe",
+    "source_sha256": {
+      "src/bin/audit-strings.rs": "5873681282e30301eaafb1aabc55756e3538cefc4b2f2cee46fcc27935611a47",
+      "tools/summarize_localization.py": "075b7044da381b0a949527a9063ec5a2c3bf66c69b4b794195e2dc5a838a84b7",
+      "tools/strings-oracle/Program.cs": "935d828dd723d965fda05d4d00a66e5367430c5663cf50d95186eb51ed10a468",
+      "tools/strings-oracle/strings-oracle.csproj": "063b8631910eb1563f80ced26c5624a0dc43a3fbbc8b327ee20d0fc9a85d5a28",
+      "tools/build-strings-oracle.ps1": "d166344854d283fa18a133d33e4552762e2d6d1bf1a480284109d1a13c54fadb",
+      "docs/localization.md": "c91b9715701c225ba6909125643a27c0a836cef951063a2ea0c6837ee6a67fa7",
+      "README.md": "41cce7346e5772766883ed674904974ab061f490479999da002c53238247b6a3",
+      "NEXT_STEPS.md": "1438d7bb08615172055715562693c19961cf7bb37e85f8167c4823abc029a089",
+      "docs/architecture.md": "b8265674382c068530f702b3c11e8c1038eec687da870a28f607aa588967a667",
+      "sources.lock.json": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+      "tools/verify-localization-archives.ps1": "d92d29b1aea15140194f711ecf08fe274bec67ce2aca5ab0220e474561f5aafe"
+    },
+    "cargo_target_and_caches": "local/",
+    "ba2_oracle_binary": "local/target/debug/fo4-ba2-oracle.exe",
+    "ba2_oracle_binary_sha256": "5a184e214812042b1f4af302a27275ea59056c2d7de1a0139ce12cdce6362462"
+  },
+  "reference": {
+    "id": "mutagen-fo4-strings-oracle",
+    "revision": "4f533562ee0c70347d47c1979d5464d42b06ee6b",
+    "checkout_revision_verified": true,
+    "checkout_clean": true,
+    "source_sha256": {
+      "Mutagen.Bethesda.Core/Strings/StringsLookupOverlay.cs": "d6a41e543f43b7f10cd4cb122a573bd3f3935605302598b69492e033ae67ad05",
+      "Mutagen.Bethesda.Core/Strings/StringsFileFormat.cs": "5681463cb5d8a0414cbc2c225c07eb6282ba01ad851c9a22bc25fb8b5346948a",
+      "Mutagen.Bethesda.Core/Plugins/Binary/Translations/BinaryStringUtility.cs": "a05ad1ef2a67fc750c80630e5dd964a1098b53b99ea2de5156d79cc051b44aeb"
+    },
+    "use": "isolated Mutagen StringsLookupOverlay comparison; not linked into Rust library or application",
+    "source_tree_modified": false,
+    "build_result": "passed; upstream NuGet NU1902 advisory for Microsoft.Build.Tasks.Git 10.0.300 and upstream documentation/analyzer warnings; no errors"
+  },
+  "rust_audit": {
+    "private_directory": "local/strings-audit-002",
+    "complete": true,
+    "runtime_ready": false,
+    "manifest_sha256": "35c934e8bc51ef6697052b2c4af7bcda25e86c75e265a419de6aa9f40ef410be",
+    "completion_sha256": "3fbf287b5b06c1c9b8dca2857b02a53daf6d2361fd0da14e8c82a9e87a22062c",
+    "table_rows_sha256": "2a12608a114dd3ceff96b190ade3477b3ea0de462309a8502142039dcd564e14",
+    "key_rows_sha256": "0dcb113043d03bfad9eb2dcd9a01c02e8309b7875a069f07683549ea18c4eab6",
+    "tables": 987,
+    "archives": 28,
+    "archive_entries_scanned": 507570,
+    "keys": 1893083,
+    "extensions": {
+      "strings": 329,
+      "dlstrings": 329,
+      "ilstrings": 329
+    },
+    "selected_source_archives_rehashed_before_and_after": 28,
+    "all_selected_archive_hashes_match_frozen_census": true
+  },
+  "independent_comparison": {
+    "private_directory": "local/strings-oracle-001",
+    "comparison_sha256": "d4e2e76d92e0cd0925a0992b40adf3df965c4d3244f8f8202d3ab506198cd1d2",
+    "status": "matched",
+    "tables_compared": 987,
+    "keys_compared": 1893083,
+    "missing_keys": 0,
+    "offset_mismatches": 0,
+    "value_mismatches": 0,
+    "exceptions": 0,
+    "all_rows_match": true,
+    "runtime_ready": false
+  },
+  "locale_coverage": {
+    "private_report": "local/strings-audit-002/locale-coverage.json",
+    "report_sha256": "e6cc232076585120d87d6e5db6c53543aec78b0a1f7ea32aa7ba5fdb4aad374c",
+    "logical_table_groups": 84,
+    "groups_with_11_suffixes": 21,
+    "groups_with_12_suffixes": 63,
+    "groups_without_en": 0,
+    "groups_with_key_set_differences_from_en": 4,
+    "locale_suffixes_are_path_labels_only": true,
+    "decoded_localized_text_reported": false
+  },
+  "validation": {
+    "rust_toolchain": "1.99.0-x86_64-pc-windows-msvc",
+    "rust_formatting": "passed",
+    "all_target_locked_tests": "passed (82 tests total; three new malformed-table regression tests)",
+    "clippy_warnings_denied": "passed for all targets",
+    "rust_localization_retail_command": ".\\local\\target\\debug\\audit-strings.exe 'G:\\SteamLibrary\\steamapps\\common\\Fallout 4' 'local\\proof-fo4-002\\census.json' 'local\\strings-audit-NNN'",
+    "mutagen_comparison_command": "dotnet 'local\\strings-oracle-bin\\strings-oracle.dll' 'local\\strings-audit-NNN' 'local\\strings-oracle-NNN'",
+    "ba2_oracle_build": "passed with one compiler job; locked source revisions unchanged",
+    "all_localization_archive_members": "passed; all 85,632 payloads matched the second BA2 backend"
+  },
+  "retained_incomplete_runs": [
+    {
+      "path": "local/strings-audit-001",
+      "reason": "initial scan completed table extraction but failed an implementation-only hard-coded archive-count check; superseded and excluded from all reported evidence"
+    }
+  ],
+  "remaining_gates": [
+    "Active profile and language selection, loose/VFS deployment and archive precedence",
+    "Localized plugin fields, game-specific encoding choices and text interpretation",
+    "Runtime language fallback and gameplay/UI behavior",
+    "Verified active plugin profile, VFS-deployed loose assets and effective configuration semantics; independent semantic/pixel audit",
+    "Gameplay, native APIs and save compatibility remain unverified"
+  ],
+  "limitations": [
+    "physical archive presence is not plugin activation or effective content",
+    "suffixes are path-derived labels only, not active-language selection",
+    "raw value bytes are compared without decoding, translation-quality judgments or lookup precedence",
+    "successful table structure comparison does not establish gameplay, native API or save compatibility"
+  ],
+  "shared_nv_checkout_clean_observed": true,
+  "shared_nv_checkout_observed_at_utc": "2026-10-04T22:52:58Z",
+  "independent_archive_comparison": {
+    "private_directory": "local/strings-ba2-oracle-001",
+    "manifest_sha256": "3e724741dfaa4525e79612c5960feb6be6778ccee6baba9a01864d950c7d43b9",
+    "completion_sha256": "74f3ba7038fb94514c552fec7a5c1bc4dd07dc046a695fb0e5a2541dba04c5f7",
+    "results_jsonl_sha256": "c131437e10aa71c32b53f1980bae1f5280e6721f32b2a8884ab5cc81096a4c77",
+    "status": "matched-all-members-in-physical-localization-archives",
+    "ba2_oracle_revision": "7b90ce145d5de8e1dda280f10b2b0e0b5aa067f9",
+    "shared_archive_backend_revision": "a6ba4c9416e5c7bc211e7a3762420e5bf5c9c049",
+    "archives": 28,
+    "entries_matched_by_stored_hash_and_name": 85632,
+    "payloads_compared": 85632,
+    "decoded_bytes_compared": 4236548717,
+    "path_hash_findings": 0,
+    "all_payloads": true,
+    "archive_fingerprints_stable": true,
+    "runtime_ready": false
+  },
+  "shared_nv_commits_since_compatibility_probe": [
+    {
+      "revision": "fa27e5e3c979b8a9e58023becb012fe84bc77c7b",
+      "summary": "coordination documents and team-build wrapper/tests"
+    },
+    {
+      "revision": "f8c40c28ebc018d5af6e75022de7c999126d4f7f",
+      "summary": "coordination, backlog and bootstrap documents"
+    }
+  ],
+  "shared_nv_compatibility_probe_against_observed_head": false
+}

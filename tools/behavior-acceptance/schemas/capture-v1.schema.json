@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rust-fallout.behavior-capture.v1",
+  "title": "Rust Fallout behavior capture v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schema_version", "scenario_id", "evidence_class", "complete", "skipped_steps", "dropped_records", "provenance", "trace_sha256", "timeline"],
+  "properties": {
+    "format": {"const": "rust-fallout.behavior-capture"},
+    "schema_version": {"const": 1},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "evidence_class": {"enum": ["synthetic_fixture", "engineering_capture"]},
+    "complete": {"const": true},
+    "skipped_steps": {"const": 0},
+    "dropped_records": {"const": 0},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "trace_sha256": {"$ref": "#/$defs/sha256"},
+    "timeline": {"type": "array", "minItems": 1, "items": {"oneOf": [{"$ref": "#/$defs/input"}, {"$ref": "#/$defs/state"}, {"$ref": "#/$defs/event"}, {"$ref": "#/$defs/acknowledgment"}, {"$ref": "#/$defs/save"}]}}
+  },
+  "allOf": [
+    {"if": {"properties": {"evidence_class": {"const": "synthetic_fixture"}}, "required": ["evidence_class"]}, "then": {"properties": {"provenance": {"properties": {"process": {"type": "null"}}}}}},
+    {"if": {"properties": {"evidence_class": {"const": "engineering_capture"}}, "required": ["evidence_class"]}, "then": {"properties": {"provenance": {"properties": {"binary_sha256": {"$ref": "#/$defs/sha256"}, "profile_fingerprint_sha256": {"$ref": "#/$defs/sha256"}, "content_fingerprint_sha256": {"$ref": "#/$defs/sha256"}, "process": {"$ref": "#/$defs/process"}}}}}}
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "form_key": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profile", "origin_plugin", "local_id"],
+      "properties": {"profile": {"type": "string", "minLength": 1}, "origin_plugin": {"type": "string", "minLength": 1}, "local_id": {"type": "integer", "minimum": 0, "maximum": 4294967295}}
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_revision", "binary_sha256", "profile_id", "profile_fingerprint_sha256", "content_fingerprint_sha256", "process"],
+      "properties": {
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "binary_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "profile_id": {"type": "string", "minLength": 1},
+        "profile_fingerprint_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "content_fingerprint_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "process": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/process"}]}
+      }
+    },
+    "process": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pid", "started_utc", "ended_utc", "exit_code"],
+      "properties": {"pid": {"type": "integer", "minimum": 1}, "started_utc": {"type": "string", "format": "date-time"}, "ended_utc": {"type": "string", "format": "date-time"}, "exit_code": {"const": 0}}
+    },
+    "base_record": {
+      "type": "object", "required": ["ordinal", "tick", "kind"],
+      "properties": {"ordinal": {"type": "integer", "minimum": 1}, "tick": {"type": "integer", "minimum": 0}, "kind": {"type": "string"}}
+    },
+    "input": {
+      "allOf": [{"$ref": "#/$defs/base_record"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["ordinal", "tick", "kind", "sequence", "action", "source", "context", "request_id", "outcome"],
+        "properties": {
+          "ordinal": {"type": "integer", "minimum": 1}, "tick": {"type": "integer", "minimum": 0}, "kind": {"const": "input"},
+          "sequence": {"type": "integer", "minimum": 1}, "action": {"type": "string", "minLength": 1},
+          "source": {"type": "object", "additionalProperties": false, "required": ["kind", "device", "control", "device_id"], "properties": {"kind": {"enum": ["physical", "host", "cli", "synthetic"]}, "device": {"type": ["string", "null"]}, "control": {"type": ["string", "null"]}, "device_id": {"type": ["string", "null"]}}},
+          "context": {"type": "object", "additionalProperties": false, "required": ["name", "focused", "scene_epoch", "expected_revision"], "properties": {"name": {"type": "string"}, "focused": {"type": "boolean"}, "scene_epoch": {"type": "integer", "minimum": 0}, "expected_revision": {"type": "integer", "minimum": 0}}},
+          "request_id": {"type": ["string", "null"]}, "outcome": {"enum": ["accepted", "refused", "ignored"]}
+        }
+      }]
+    },
+    "state": {
+      "allOf": [{"$ref": "#/$defs/base_record"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["ordinal", "tick", "kind", "observation_id", "revision", "visible_revision", "snapshot_sha256", "inventory", "quest_state", "pending_events", "acknowledged_events"],
+        "properties": {
+          "ordinal": {"type": "integer", "minimum": 1}, "tick": {"type": "integer", "minimum": 0}, "kind": {"const": "state"},
+          "observation_id": {"type": "string", "minLength": 1}, "revision": {"type": "integer", "minimum": 0}, "visible_revision": {"type": "integer", "minimum": 0}, "snapshot_sha256": {"$ref": "#/$defs/sha256"},
+          "inventory": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["lot_id", "owner", "base", "count", "facts"], "properties": {"lot_id": {"type": "string", "minLength": 1}, "owner": {"type": "object"}, "base": {"$ref": "#/$defs/form_key"}, "count": {"type": "integer", "minimum": 1}, "facts": {"type": "object"}}}},
+          "quest_state": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["quest", "field", "value"], "properties": {"quest": {"$ref": "#/$defs/form_key"}, "field": {"type": "string", "minLength": 1}, "value": {}}}},
+          "pending_events": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["sequence", "instance_id", "definition", "trigger"], "properties": {"sequence": {"type": "integer", "minimum": 1}, "instance_id": {"type": "string", "minLength": 1}, "definition": {"$ref": "#/$defs/form_key"}, "trigger": {"type": "object"}}}}, "acknowledged_events": {"type": "array", "items": {"type": "integer", "minimum": 1}}
+        }
+      }]
+    },
+    "event": {
+      "allOf": [{"$ref": "#/$defs/base_record"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["ordinal", "tick", "kind", "event_sequence", "owner", "definition", "event_id", "status", "effects", "error"],
+        "properties": {"ordinal": {"type": "integer", "minimum": 1}, "tick": {"type": "integer", "minimum": 0}, "kind": {"const": "event"}, "event_sequence": {"type": "integer", "minimum": 1}, "owner": {"type": "object"}, "definition": {"$ref": "#/$defs/form_key"}, "event_id": {"type": "string"}, "status": {"enum": ["dispatched", "refused", "unsupported"]}, "effects": {"type": "array", "items": {"type": "object"}}, "error": {"type": ["string", "null"]}}
+      }]
+    },
+    "acknowledgment": {
+      "allOf": [{"$ref": "#/$defs/base_record"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["ordinal", "tick", "kind", "event_sequence", "instance_id", "definition", "before_revision", "after_revision", "status", "receipt_sha256"],
+        "properties": {"ordinal": {"type": "integer", "minimum": 1}, "tick": {"type": "integer", "minimum": 0}, "kind": {"const": "acknowledgment"}, "event_sequence": {"type": "integer", "minimum": 1}, "instance_id": {"type": "string"}, "definition": {"$ref": "#/$defs/form_key"}, "before_revision": {"type": "integer", "minimum": 0}, "after_revision": {"type": "integer", "minimum": 0}, "status": {"enum": ["acknowledged", "refused"]}, "receipt_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}}
+      }]
+    },
+    "save": {
+      "allOf": [{"$ref": "#/$defs/base_record"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["ordinal", "tick", "kind", "operation", "request_id", "status", "generation", "state_revision", "receipt_sha256", "process_id"],
+        "properties": {"ordinal": {"type": "integer", "minimum": 1}, "tick": {"type": "integer", "minimum": 0}, "kind": {"const": "save"}, "operation": {"enum": ["save", "continue"]}, "request_id": {"type": "string"}, "status": {"enum": ["saved", "restored", "failed"]}, "generation": {"type": ["integer", "null"], "minimum": 1}, "state_revision": {"type": ["integer", "null"], "minimum": 0}, "receipt_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}, "process_id": {"type": "string"}}
+      }]
+    }
+  }
+}

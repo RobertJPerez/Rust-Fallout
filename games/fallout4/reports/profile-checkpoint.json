@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "verified-bounded-profile-observation-incomplete-stale-snapshot",
+  "workspace_base_revision": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+  "nv_checkout_head_observed_read_only": "b9662efc7da927e9fdbf2097661d05ccd95ef71c",
+  "nv_checkout_worktree_dirty_observed_and_preserved": true,
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "implementation": {
+    "reused_shared_fo4_profile_identity": "fallout_data::identity::ProfileId::Fo4Original",
+    "reused_shared_safe_plugin_name_normalization": "fallout_data::identity::plugin_name",
+    "new_nv_resolution_rules_copied": false,
+    "source_files": [
+      {
+        "path": "src/profile.rs",
+        "sha256": "23a961daaecf33485c345e7964d625b71e813c468bb528c96dbece6ce3d0bbc8"
+      },
+      {
+        "path": "src/main.rs",
+        "sha256": "34cb3d70e890e517b44c78429dc8049f8405444260bef2c36614d162eec9ce39"
+      },
+      {
+        "path": "src/lib.rs",
+        "sha256": "169ada293f0eb198aab0ced08728267cb80f3fc8d8ecc8e4222b675ddaa13e36"
+      },
+      {
+        "path": "docs/profile-observation.md",
+        "sha256": "49eb0cb0a7e639b05fc9616254501a361fc7dcdc091b0ee591e0bc584d2c583a"
+      },
+      {
+        "path": "NEXT_STEPS.md",
+        "sha256": "1438d7bb08615172055715562693c19961cf7bb37e85f8167c4823abc029a089"
+      },
+      {
+        "path": "README.md",
+        "sha256": "41cce7346e5772766883ed674904974ab061f490479999da002c53238247b6a3"
+      }
+    ]
+  },
+  "observation": {
+    "profile_id": "fo4-original",
+    "physical_data_plugin_files": 16,
+    "plugins_txt": {
+      "rows": 259,
+      "starred_rows": 237,
+      "unstarred_rows": 22,
+      "unique_regular_files_in_data": 0,
+      "missing_from_data": 259,
+      "sha256": "37ec327f5dfb1d6c5fa0eed09e31dc9bc2eced4817f762471af85986410f678d"
+    },
+    "loadorder_txt": {
+      "rows": 438,
+      "unique_regular_files_in_data": 16,
+      "missing_from_data": 422,
+      "names_not_in_plugins_txt": 179,
+      "sha256": "6b496133c4f3df6af50b184c5fab88a5a04f3a6ae19ef6186294e67084e1b751"
+    },
+    "observation_complete": false,
+    "runtime_ready": false,
+    "profile_source_copies_match_exactly": true,
+    "profile_source_modified_utc": "2026-04-27T03:27:23Z",
+    "fallout4_exe_modified_utc": "2026-10-03T05:14:57Z",
+    "fallout4_esm_modified_utc": "2026-10-03T05:14:57Z",
+    "interpretation": "The Vortex-generated profile snapshot is about five months older than the current install files and does not match the visible Data tree. It cannot establish the current effective profile; activation, winners, ESL rebasing and gameplay are not established. Physical Papyrus attachment findings remain corpus findings."
+  },
+  "private_evidence": {
+    "directory": "local/profile-observation-003",
+    "observation_file": "local/profile-observation-003/observation.json",
+    "observation_sha256": "4f1792a197916d6e7f7a34af63164e0faa250443f6e6043e94a9f227b42f04d9",
+    "source_context_file": "local/profile-observation-003/source-context.json",
+    "source_context_sha256": "42107710f8fa90a5cc36db25c0f143745de649c1b08256ed57689e1f578bec18",
+    "completion_marker": "local/profile-observation-003/complete.json",
+    "completion_marker_sha256": "bd583017228e19b77af7355222221030f78c58bbf945eab1cd0c25c00f1d553d",
+    "executable_sha256": "d4a77139de71f5b44ba1bb925a3b28beaef9dcb3fe313f09381cbbd01aa9a33a",
+    "latest_recheck": {
+      "observation_file": "local/profile-observation-004.json",
+      "observation_sha256": "4f1792a197916d6e7f7a34af63164e0faa250443f6e6043e94a9f227b42f04d9",
+      "executable_sha256": "046b5f6270b97f94b41bf173f233801cde17da15bea5e9971779ca05b6ff0a3b",
+      "exit_code": 2,
+      "plugins_txt_sha256": "37ec327f5dfb1d6c5fa0eed09e31dc9bc2eced4817f762471af85986410f678d",
+      "loadorder_txt_sha256": "6b496133c4f3df6af50b184c5fab88a5a04f3a6ae19ef6186294e67084e1b751",
+      "matches_previous_observation": true
+    }
+  },
+  "validation": {
+    "cargo_fmt_all": "passed",
+    "cargo_test_all_targets": "28 passed",
+    "cargo_clippy_all_targets_warnings_denied": "passed",
+    "profile_cli_build": "passed",
+    "profile_retail_observation_exit_code": 2,
+    "profile_exit_two_reason": "named profile entries lack one regular-file candidate in the visible Data directory",
+    "help_includes_profile_command": "passed",
+    "git_diff_check": "passed"
+  }
+}

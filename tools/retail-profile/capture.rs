@@ -1,7 +1,7 @@
 //! Read-only retail profile capture. Staging files does not establish launch isolation:
 //! the original executable asks Windows for user folders outside those staged roots.
 use fallout_data::{baseline, vfs::profile};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     error::Error,
@@ -12,6 +12,10 @@ use std::{
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
+#[path = "verification.rs"]
+mod verification;
+pub use verification::verify;
+
 #[derive(Serialize)]
 struct Roots {
     installation: PathBuf,
@@ -21,19 +25,21 @@ struct Roots {
     local_appdata_resolution: &'static str,
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct Tree {
-    scope: &'static str,
+    scope: String,
     present: bool,
     data: Option<TreeData>,
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct TreeData {
     root: PathBuf,
     files: Vec<baseline::Fingerprint>,
     content_fingerprint: String,
-    digest_recipe: &'static str,
+    digest_recipe: String,
     missing_required: Vec<String>,
 }
 
@@ -184,7 +190,8 @@ fn userdata(root: &Path) -> Result<TreeData> {
         root: root.to_path_buf(),
         files,
         content_fingerprint,
-        digest_recipe: "SHA256 of compact UTF-8 JSON files sorted by path; fields path,bytes,sha256",
+        digest_recipe:
+            "SHA256 of compact UTF-8 JSON files sorted by path; fields path,bytes,sha256".into(),
         missing_required: Vec::new(),
     })
 }
@@ -192,7 +199,7 @@ fn userdata(root: &Path) -> Result<TreeData> {
 fn fingerprint(scope: &'static str, root: &Path) -> Result<Tree> {
     match root.try_exists()? {
         false => Ok(Tree {
-            scope,
+            scope: scope.into(),
             present: false,
             data: None,
         }),
@@ -205,13 +212,13 @@ fn fingerprint(scope: &'static str, root: &Path) -> Result<Tree> {
                     files: original.files,
                     content_fingerprint: original.content_fingerprint,
                     missing_required: original.missing_required,
-                    digest_recipe: "fallout-content-set-v1 length-prefixed manifest",
+                    digest_recipe: "fallout-content-set-v1 length-prefixed manifest".into(),
                 }
             } else {
                 userdata(root)?
             };
             Ok(Tree {
-                scope,
+                scope: scope.into(),
                 present: true,
                 data: Some(data),
             })
@@ -761,5 +768,188 @@ mod tests {
                 sha256: format!("{:x}", Sha256::digest([])),
             });
         assert!(bind_profile(&observed, &trees).is_err());
+    }
+
+    fn captured(fixture: &Fixture) -> PathBuf {
+        let package = fixture.0.join("output/sealed");
+        fixture.capture(&package).unwrap();
+        package
+    }
+
+    fn receipt_hash(package: &Path) -> String {
+        baseline::digest_file(&package.join("capture.json"))
+            .unwrap()
+            .1
+    }
+
+    fn alter_receipt(package: &Path, change: impl FnOnce(&mut serde_json::Value)) -> String {
+        let path = package.join("capture.json");
+        let mut value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        change(&mut value);
+        fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+        receipt_hash(package)
+    }
+
+    #[test]
+    fn sealed_profile_verifies_but_cannot_satisfy_process_acceptance() {
+        let f = Fixture::new();
+        let package = captured(&f);
+        let hash = receipt_hash(&package);
+        let result = verify(&package, &hash, false).unwrap();
+        assert_eq!(result.profile_sources, 7);
+        assert_eq!(result.captured_files, 2);
+        assert!(!result.original_process_started);
+        assert!(!result.runtime_ready);
+        assert!(!result.faithful_scenario_accepted);
+        assert!(
+            verify(&package, &hash, true)
+                .unwrap_err()
+                .to_string()
+                .contains("no original process")
+        );
+        assert!(
+            verify(&package, &"0".repeat(64), false)
+                .unwrap_err()
+                .to_string()
+                .contains("expected identity")
+        );
+    }
+
+    #[test]
+    fn changed_retained_and_staged_configurations_refuse() {
+        for relative in [
+            "captured/documents/My Games/FalloutNV/Fallout.ini",
+            "staged/documents/My Games/FalloutNV/Fallout.ini",
+        ] {
+            let f = Fixture::new();
+            let package = captured(&f);
+            let hash = receipt_hash(&package);
+            fs::write(
+                package.join(relative),
+                b"[General]\nSTestFile1=another.esm\n",
+            )
+            .unwrap();
+            assert!(verify(&package, &hash, false).is_err(), "{relative}");
+            assert_eq!(
+                fs::read(f.0.join("redirected-documents/My Games/FalloutNV/Saves/private.fos"))
+                    .unwrap(),
+                b"private save content"
+            );
+        }
+    }
+
+    #[test]
+    fn staging_cannot_add_a_configuration_reported_as_missing() {
+        let f = Fixture::new();
+        let package = captured(&f);
+        let hash = receipt_hash(&package);
+        fs::write(
+            package.join("staged/local-appdata/FalloutNV/NVDLCList.txt"),
+            b"unreported.esm\n",
+        )
+        .unwrap();
+        assert!(
+            verify(&package, &hash, false)
+                .unwrap_err()
+                .to_string()
+                .contains("source presence")
+        );
+    }
+
+    #[test]
+    fn resealed_profile_offsets_cannot_replace_raw_source_evidence() {
+        let f = Fixture::new();
+        let package = captured(&f);
+        let path = package.join("profile.json");
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        value["sources"][1]["lines"][2]["content"]["duplicate_of"] = 99.into();
+        fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        let altered = baseline::digest_file(&path).unwrap().1;
+        let hash = alter_receipt(&package, |receipt| {
+            receipt["profile_report"]["sha256"] = altered.into()
+        });
+        assert!(
+            verify(&package, &hash, false)
+                .unwrap_err()
+                .to_string()
+                .contains("retained source bytes")
+        );
+    }
+
+    #[test]
+    fn resealed_manifest_file_change_cannot_hide_behind_unchanged_set_digest() {
+        let f = Fixture::new();
+        let package = captured(&f);
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(package.join("before.json")).unwrap()).unwrap();
+        value[0]["data"]["files"][0]["bytes"] = 999.into();
+        let bytes = serde_json::to_vec(&value).unwrap();
+        for name in ["before.json", "after.json"] {
+            fs::write(package.join(name), &bytes).unwrap();
+        }
+        let altered = format!("{:x}", Sha256::digest(&bytes));
+        let hash = alter_receipt(&package, |receipt| {
+            receipt["before_report"]["sha256"] = altered.clone().into();
+            receipt["after_report"]["sha256"] = altered.into();
+        });
+        assert!(
+            verify(&package, &hash, false)
+                .unwrap_err()
+                .to_string()
+                .contains("content fingerprint")
+        );
+    }
+
+    #[test]
+    fn unsupported_execution_claims_and_foreign_profile_refuse() {
+        for (field, value) in [
+            ("original_process_started", serde_json::json!(true)),
+            ("launch_admitted", serde_json::json!(true)),
+            ("runtime_ready", serde_json::json!(true)),
+            ("faithful_scenario_accepted", serde_json::json!(true)),
+            (
+                "isolation_backend",
+                serde_json::json!("environment-override"),
+            ),
+            ("profile", serde_json::json!("fo3-original")),
+            ("schema_version", serde_json::json!(2)),
+        ] {
+            let f = Fixture::new();
+            let package = captured(&f);
+            let hash = alter_receipt(&package, |receipt| receipt[field] = value);
+            assert!(verify(&package, &hash, false).is_err(), "{field}");
+        }
+    }
+
+    #[test]
+    fn missing_reports_escaping_pins_and_copied_saves_refuse() {
+        let f = Fixture::new();
+        let package = captured(&f);
+        let hash = alter_receipt(&package, |receipt| {
+            receipt["before_report"]["path"] = "../before.json".into()
+        });
+        assert!(
+            verify(&package, &hash, false)
+                .unwrap_err()
+                .to_string()
+                .contains("unexpected member")
+        );
+        let f = Fixture::new();
+        let package = captured(&f);
+        let hash = receipt_hash(&package);
+        fs::write(
+            package.join("staged/documents/My Games/FalloutNV/Saves/extra.fos"),
+            b"unexpected",
+        )
+        .unwrap();
+        assert!(
+            verify(&package, &hash, false)
+                .unwrap_err()
+                .to_string()
+                .contains("save data")
+        );
+        fs::remove_file(package.join("before.json")).unwrap();
+        assert!(verify(&package, &hash, false).is_err());
     }
 }

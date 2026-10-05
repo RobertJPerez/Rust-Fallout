@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "current-ini-candidate-historical-vortex-profile-activation-unresolved",
+  "installation": {
+    "root": "G:/SteamLibrary/steamapps/common/Fallout 4",
+    "executable_sha256": "fdcef37ac1230af6d0b0050eb2142b139ef3a867b37b9211fb6edfcc646072f8",
+    "executable_modified_utc": "2026-10-03T05:14:57Z",
+    "direct_data_plugins": 16,
+    "direct_data_archives": 79,
+    "direct_data_subdirectories": [
+      "Video"
+    ],
+    "direct_vortex_deployment_manifest_present": false,
+    "snapshot_bcr_vortex_marker_present": false,
+    "documents_my_games_fallout4_present": true,
+    "documents_path_resolution": "Windows Documents known folder; redirected to OneDrive on this workstation"
+  },
+  "profile_sources": {
+    "appdata_local_root": "AppData/Local/Fallout4",
+    "global_plugins_txt": {
+      "bytes": 7052,
+      "observed_rows": 259,
+      "starred_rows": 237,
+      "sha256": "37ec327f5dfb1d6c5fa0eed09e31dc9bc2eced4817f762471af85986410f678d",
+      "modified_utc": "2026-04-27T03:27:23Z"
+    },
+    "global_loadorder_txt": {
+      "bytes": 12022,
+      "observed_rows": 438,
+      "sha256": "6b496133c4f3df6af50b184c5fab88a5a04f3a6ae19ef6186294e67084e1b751",
+      "modified_utc": "2026-04-27T03:27:23Z"
+    },
+    "matching_vortex_profile_copy": "local-appdata plugins.txt/loadorder.txt exactly match the newer of the two observed Vortex profile folders",
+    "older_vortex_profile": {
+      "plugins_rows": 109,
+      "plugins_sha256": "7beed9fb5461944303aaaf0271d38f97679c6c921aeb98e5b6e1954c8e3f1fd5",
+      "loadorder_rows": 287,
+      "loadorder_sha256": "346f7e7584c0e8b8b62f16fac55a63178272b797af426e3a2f78e4b2738d52d8",
+      "modified_utc": "2026-04-07"
+    },
+    "additional_user_files": {
+      "DLCList.txt": {
+        "rows": 6,
+        "bytes": 103,
+        "sha256": "5703e7c770ddb90ab72e51cf8c8b9cd87d288140d381ebb136973df1d9b9d444",
+        "modified_utc": "2026-05-11T03:24:09Z"
+      },
+      "ContentCatalog.txt": {
+        "rows": 2145,
+        "bytes": 65811,
+        "sha256": "a8315c8181a00b67638d249a231bb4604a6a2da9c6eaf02001ceaf353d41292b",
+        "modified_utc": "2026-04-08T03:52:56Z"
+      },
+      "UserDownloadedContent.txt": {
+        "rows": 189,
+        "bytes": 5457,
+        "sha256": "46a9732a8ce5f320a29f8d69567f0e439245baa28052c6752bce95536ce3a05b",
+        "modified_utc": "2026-04-08T03:53:28Z"
+      }
+    }
+  },
+  "historical_vortex_deployment_snapshot": {
+    "source_path": "AppData/Roaming/Vortex/fallout4/snapshots/snapshot.json",
+    "sha256": "2a50d5288831d39270e017a7bfcab94630ed6a98315da79001034a638857f0b3",
+    "modified_utc": "2026-04-27T03:27:21Z",
+    "base_path_matches_installation": true,
+    "entries": 10181,
+    "data_texture_entries": 473,
+    "data_dds_paths": 294,
+    "unresolved_material_paths_present_in_snapshot": 0,
+    "unresolved_material_reference_slots_present_in_snapshot": 0,
+    "interpretation": "Historical deployment inventory for this install root only; it predates the October game files and does not establish today's VFS or profile."
+  },
+  "known_folder_configuration_recheck": {
+    "profile_directory": "Windows Documents known folder / My Games / Fallout4",
+    "profile_directory_present": true,
+    "evidence_directory": "local/user-config-001",
+    "evidence_manifest_sha256": "d4a97ebb4e668b348bc9f8dd2c2f9e345b1901015ccae9de0a259ce85ab3bede",
+    "preserved_ini_files": 3,
+    "source_and_copy_hashes_match": true,
+    "setting_values_published": false,
+    "files": [
+      {
+        "name": "Fallout4.ini",
+        "bytes": 2440,
+        "modified_utc": "2026-04-27T03:27:23Z"
+      },
+      {
+        "name": "Fallout4Prefs.ini",
+        "bytes": 5041,
+        "modified_utc": "2026-10-04T03:22:06Z"
+      },
+      {
+        "name": "Fallout4Custom.ini",
+        "bytes": 136,
+        "modified_utc": "2026-04-27T03:27:23Z"
+      }
+    ],
+    "interpretation": "Fallout4Prefs.ini is a current configuration candidate; file presence and timestamp do not prove the game loaded its settings."
+  },
+  "current_profile_assessment": {
+    "vortex_process_running_at_observation": false,
+    "profile_or_deployment_source_current_to_october_install": false,
+    "current_configuration_files_observed": true,
+    "active_plugins_or_archive_winners_established": false,
+    "runtime_ready": false,
+    "conclusion": "The newest observed Vortex plugin/load-order/deployment artifacts are from April/May 2026, while the executable/master files and Fallout4Prefs.ini are from October 2026. The INI is a current settings candidate, but there is no current activation or virtual-deployment evidence. Do not promote physical attachment or texture misses to active-game failures."
+  },
+  "private_source_hashes_are_preserved_in_user_profile_and_material_reports": true
+}

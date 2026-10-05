@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "completed-physical-plugin-master-dependency-audit",
+  "implementation": {
+    "binary": "local/target/debug/audit-plugin-deps.exe",
+    "binary_sha256": "33733c4c2b9b0ccc51ee18ee301883018b8c5f34648afc222fd26802f81b4ecd",
+    "source_sha256": "4284e9d9305577d42512dde09f6a84a1bb84ad04a48abe20ac8ae2921c95d073",
+    "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+    "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb"
+  },
+  "input": {
+    "private_directory": "local/proof-fo4-002",
+    "census_sha256": "187f88254181ab30bb50f2829569183199afee14d619d810211174b2b2386bf3",
+    "proof_complete_sha256": "f2c8f0e93be29a21b18f4a47f78a047c1b3caf94ddb108c4affdeba22c5484d7"
+  },
+  "results": {
+    "private_directory": "local/plugin-deps-001",
+    "complete_sha256": "51f0be1190716381fe6959106be1ab65d61bbd978659a592808f426c24a67929",
+    "graph_sha256": "e8d50ff4a56bf972833850f76db9cb2d27343ee6817f86121d91e792599c4485",
+    "physical_plugins": 16,
+    "declared_master_edges": 15,
+    "unique_physical_master_candidates": 15,
+    "missing_master_candidates": 0,
+    "ambiguous_master_candidates": 0,
+    "unsupported_master_names": 0,
+    "duplicate_physical_plugin_names": 0,
+    "declared_master_cycles": 0
+  },
+  "validation": {
+    "completed_census_hash_rechecked": true,
+    "output_confined_to_new_local_directory": true,
+    "completion_marker_written_last": true,
+    "cargo_test_locked_bin": "passed; 3 tests"
+  },
+  "limits": [
+    "Physical TES4 master declarations only; not an activation or load-order proof.",
+    "Unique bindings identify physical filename candidates, not an effective plugin winner.",
+    "No FormKey, ESL runtime slot, archive precedence or override winner is assigned."
+  ]
+}

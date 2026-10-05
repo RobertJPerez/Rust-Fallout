@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "checkpoint": 21,
+  "research_date": "2026-10-04",
+  "status": "Skyrim LCTN parent-location links with physical candidate multiplicity and opaque field evidence",
+  "game_profile": {
+    "edition_install": "Skyrim Special Edition updated Steam runtime",
+    "steam_build": "24914197",
+    "executable_version": "1.7.104.0",
+    "executable_sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f",
+    "plugin_files_scanned": 10,
+    "indexed_archive_files": 23,
+    "installed_creation_pairs": 4,
+    "paid_anniversary_coverage": "incomplete; installed Creation pairs do not establish the full paid content set",
+    "census_blocking_findings": 8,
+    "reader_failures": 0,
+    "original_game_data_modified": false
+  },
+  "implementation": {
+    "command": "trace-landscape-links --data <Data> --plugin <plugin path> [--plugin <another plugin path> ...] [--output <new JSONL path>]",
+    "source_files": [
+      "src/landscape_links.rs",
+      "src/asset_lookup.rs",
+      "src/main.rs",
+      "docs/landscape-links.md",
+      "docs/shared-integration.md",
+      "sources.lock.json",
+      "NEXT_STEPS.md"
+    ],
+    "record_reader": "pinned fallout-data visitor and archive backend; record framing, decompression and source locking are not duplicated",
+    "location_parent_link": "LCTN PNAM accepts an exact four-byte FormID to LCTN and uses the existing Skyrim source-key resolver; each physical candidate is counted without choosing an override",
+    "location_other_fields": "known and unknown LCTN fields preserve exact lengths, hashes and bounded raw previews; no field other than PNAM is decoded",
+    "location_hierarchy_or_runtime_decoded": false,
+    "record_framing_decompression_path_normalization_or_hashing_duplicated": false
+  },
+  "scan": {
+    "selected_records": 135023,
+    "land_records": 54079,
+    "cell_records": 77337,
+    "location_records": 841,
+    "location_subrecords_scanned": 7123,
+    "location_parent_form_links": 811,
+    "location_records_without_parent_field": 30,
+    "location_parent_links_with_scanned_target_candidates": 811,
+    "location_parent_links_without_scanned_target_candidates": 0,
+    "location_parent_links_unresolved_without_profile": 0,
+    "location_parent_candidate_multiplicity": {
+      "1": 383,
+      "2": 263,
+      "3": 26,
+      "4": 64,
+      "5": 75
+    },
+    "location_parent_links_with_multiple_candidates": 428,
+    "maximum_physical_candidates_per_parent_link": 5,
+    "known_opaque_location_fields": 6312,
+    "unrecognized_location_fields": 0,
+    "only_parent_field_decoded": true,
+    "cell_region_links": 83516,
+    "cell_region_links_with_scanned_target_candidates": 83486,
+    "cell_region_links_without_scanned_target_candidates": 30,
+    "cell_context_form_links": 85754,
+    "cell_context_links_with_scanned_target_candidates": 9354,
+    "cell_context_links_without_scanned_target_candidates": 0,
+    "cell_context_links_unresolved_without_profile": 0,
+    "xwem_fields": 109,
+    "xwem_malformed_fields": 0,
+    "xwem_references_with_loose_file": 0,
+    "xwem_references_with_archive_member": 106,
+    "xwem_references_without_named_candidate": 3,
+    "archive_index_failures": 0,
+    "total_opaque_subrecords": 330389,
+    "total_unknown_subrecords": 63364,
+    "plugin_location_counts": [
+      {"plugin": "Skyrim.esm", "records": 638, "parent_links": 617, "links_with_candidates": 617},
+      {"plugin": "Dawnguard.esm", "records": 62, "parent_links": 58, "links_with_candidates": 58},
+      {"plugin": "Dragonborn.esm", "records": 98, "parent_links": 94, "links_with_candidates": 94},
+      {"plugin": "HearthFires.esm", "records": 22, "parent_links": 21, "links_with_candidates": 21},
+      {"plugin": "Update.esm", "records": 11, "parent_links": 11, "links_with_candidates": 11},
+      {"plugin": "ccBGSSSE001-Fish.esm", "records": 9, "parent_links": 9, "links_with_candidates": 9},
+      {"plugin": "ccBGSSSE025-AdvDSGS.esm", "records": 1, "parent_links": 1, "links_with_candidates": 1}
+    ],
+    "source_candidate_gaps": {
+      "land_to_ltex_references_without_candidate": 101,
+      "cell_to_regn_references_without_candidate": 30,
+      "xwem_without_named_asset_candidate": 3,
+      "interpretation": "source-key or asset-name candidate gaps within the scanned install; these do not establish invalid references or absence from other profiles"
+    }
+  },
+  "validation": {
+    "rust_tests_passed": 69,
+    "rust_tests_failed": 0,
+    "format": "passed",
+    "clippy": "passed with warnings denied",
+    "build": "passed with one build job after the final Rust source changes",
+    "trace_completion_trailer_present": true,
+    "original_game_data_read_only": true,
+    "gameplay_or_runtime_acceptance": false
+  },
+  "handoff_review": {
+    "new_vegas_main_revision": "5a89c33bee93ccf6f6ff0cb489881ff9953a6c5b",
+    "new_vegas_worktree_clean_at_review": true,
+    "accepted_shared_data_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+    "fallout4_main_revision": "69f12091aa8b1b22530a8e203bdfbafc71c72a71",
+    "fallout4_worktree_has_active_uncommitted_changes": true,
+    "papyrus_runtime_or_agreed_shared_dialect_found": false,
+    "new_pex_decoder_or_vm_added": false,
+    "external_worktrees_modified": false
+  },
+  "local_evidence": {
+    "installed_trace": {
+      "path": "local/location-parent-links-21b.jsonl",
+      "bytes": 451019680,
+      "sha256": "448C08447E32087B6F44C26EB874E85F21F22E5EDE459A02DE77B02F821B8FB1",
+      "completion_trailer": true
+    },
+    "current_install_census": {
+      "path": "local/census-20261004T222237Z-6a88a6f8.json",
+      "bytes": 37414379,
+      "sha256": "dafe659c91b75e96ab0bc5abffffdcff17db56a0d6735566c224c657c91426b0"
+    },
+    "source_manifest": {
+      "path": "reports/source-manifest-21.json",
+      "files": 69,
+      "source_bytes": 635736,
+      "bytes": 16897,
+      "sha256": "E1F023E669752089194D14C4CF697743526F048B23050A6647AB59E329EF42A5",
+      "scope": "source, tests, project configuration and documentation; excludes local evidence, build targets, VCS metadata and reports"
+    }
+  }
+}

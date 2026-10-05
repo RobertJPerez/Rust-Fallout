@@ -278,6 +278,9 @@ pub(crate) enum RuntimeCommand {
         /// Consume an explicit existing saved journal prefix with engineering copies.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_native_request", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_copy_batch_request: Option<PathBuf>,
+        /// Copy the complete source event of an existing explicit Quest/Placed owner.
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_multi_copy_request: Option<Box<PathBuf>>,
         /// Copy one explicitly qualified foreign numeric local into the own saved head.
         #[arg(long, group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_foreign_copy_request: Option<PathBuf>,
@@ -290,6 +293,12 @@ pub(crate) enum RuntimeCommand {
         /// Queue one explicitly selected source block on an existing saved instance.
         #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "reference_boot_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_event_request: Option<Box<PathBuf>>,
+        /// Assign one exactly representable integral source token at the saved head.
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "reference_boot_request", "snapshot_event_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_literal_assignment_request: Option<Box<PathBuf>>,
+        /// Explicit source-native GetItemCount assignment through canonical state.
+        #[arg(long, value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))), group = "saved_snapshot_request", requires_all = ["snapshot_input", "snapshot_output"], conflicts_with_all = ["snapshot_copy_request", "snapshot_copy_batch_request", "snapshot_foreign_copy_request", "snapshot_reference_copy_request", "reference_boot_request", "snapshot_event_request", "snapshot_literal_assignment_request", "snapshot_native_request", "snapshot_native_plan_request", "snapshot_native_current", "quest_boot_request", "quest_boot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
+        snapshot_native_assignment_request: Option<Box<PathBuf>>,
         /// Observe explicitly selected native occurrences from saved state.
         #[arg(long, group = "saved_snapshot_request", requires = "snapshot_input", conflicts_with_all = ["quest_boot_request", "quest_boot_output", "snapshot_copy_request", "snapshot_output", "engineering_local_copy", "native_capabilities", "player_id", "prepared_sources"])]
         snapshot_native_request: Option<PathBuf>,
@@ -305,8 +314,8 @@ pub(crate) enum RuntimeCommand {
         #[arg(long, requires = "quest_boot_request")]
         quest_boot_output: Option<PathBuf>,
         /// Strict current canonical snapshot; no migration or engineering seeding.
-        #[arg(long, requires = "saved_snapshot_request")]
-        snapshot_input: Option<PathBuf>,
+        #[arg(long, requires = "saved_snapshot_request", value_parser = clap::builder::TypedValueParser::map(clap::builder::PathBufValueParser::new(), Box::new))]
+        snapshot_input: Option<Box<PathBuf>>,
         /// Fresh snapshot artifact, written only after canonical copy commit.
         #[arg(long, requires = "saved_snapshot_request", value_parser = clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), |value| Box::new(PathBuf::from(value))))]
         snapshot_output: Option<Box<PathBuf>>,

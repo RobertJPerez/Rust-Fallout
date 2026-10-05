@@ -1,5 +1,5 @@
 use crate::{Error, Result, io};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
@@ -34,7 +34,8 @@ pub fn open_source(path: &Path) -> Result<File> {
     options.open(path).map_err(|e| io(path, e))
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Fingerprint {
     pub path: String,
     pub bytes: u64,

@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "status": "verified-bounded-current-configuration-candidate-not-effective-runtime-settings",
+  "shared_data_dependency_revision": "9265ef63f714cdf01ff02028640a582be9639c7a",
+  "dependency_updated": false,
+  "cargo_lock_updated": false,
+  "cargo_lock_sha256": "04b9e6d69cf5ffdbaac722ebc780184a232de20d8f5fe5c42a1ec62d708ee4c1",
+  "sources_lock_sha256": "2f762a15b6f6fdfd3157c0d17d12ce34afb176d1286f0fe1ccc6e7584f5753eb",
+  "shared_nv_checkout_head_observed_read_only": "ea696e09f2b2297a34d4dd419d5fc12007746cce",
+  "shared_nv_checkout_clean_observed": true,
+  "shared_nv_checkout_observed_at_utc": "2026-10-04T23:41:55Z",
+  "shared_nv_compatibility_probe_against_observed_head": false,
+  "shared_nv_changes_made_by_this_audit": false,
+  "documents_resolution": {
+    "api": "Windows Documents known folder",
+    "redirected_to_onedrive": true,
+    "fallout4_profile_directory_present": true,
+    "absolute_user_path_published": false
+  },
+  "configuration_inputs": {
+    "allowed_names": [
+      "Fallout4.ini",
+      "Fallout4Prefs.ini",
+      "Fallout4Custom.ini"
+    ],
+    "captured_files": 3,
+    "settings_values_published": false,
+    "individual_user_file_hashes_published": false,
+    "source_and_preserved_copy_hashes_match": true,
+    "files": [
+      {
+        "name": "Fallout4.ini",
+        "bytes": 2440,
+        "modified_utc": "2026-04-27T03:27:23Z"
+      },
+      {
+        "name": "Fallout4Prefs.ini",
+        "bytes": 5041,
+        "modified_utc": "2026-10-04T03:22:06Z"
+      },
+      {
+        "name": "Fallout4Custom.ini",
+        "bytes": 136,
+        "modified_utc": "2026-04-27T03:27:23Z"
+      }
+    ],
+    "current_file_candidate": "Fallout4Prefs.ini",
+    "interpretation": "The recent timestamp makes this a current settings candidate, not proof that the game loaded its values."
+  },
+  "implementation": {
+    "source_sha256": {
+      "tools/audit-game-config.ps1": "2c1583b953bc62fe7dacb9ae4cc13e818b86d599536ddf6a80b6ba48597c30bb",
+      "docs/configuration-observation.md": "9bb24790ab2e86f0adc537129e4538b3b87cd491cc34e3b7e18205c6fd4183a0",
+      "docs/profile-observation.md": "49eb0cb0a7e639b05fc9616254501a361fc7dcdc091b0ee591e0bc584d2c583a",
+      "README.md": "41cce7346e5772766883ed674904974ab061f490479999da002c53238247b6a3",
+      "NEXT_STEPS.md": "1438d7bb08615172055715562693c19961cf7bb37e85f8167c4823abc029a089"
+    },
+    "cargo_toml_sha256": "f87bfbdb08826797fc27cb24a0893a5cd641b23dcaf7698ddec8cd11eef6204c",
+    "cargo_lock_updated": false,
+    "capture_tool_is_offline_and_not_linked_into_runtime": true
+  },
+  "evidence": {
+    "private_directory": "local/user-config-001",
+    "complete": true,
+    "manifest_sha256": "d4a97ebb4e668b348bc9f8dd2c2f9e345b1901015ccae9de0a259ce85ab3bede",
+    "completion_sha256": "bbbf385793726c9a239a2c268432d0f01fc02e3503f0ffa4c5a50a1a66f714c6",
+    "source_files_modified": false
+  },
+  "validation": {
+    "powershell_parser": "passed",
+    "capture": "passed; 3 INIs preserved byte-exactly; source and copy hashes matched",
+    "reproduction_command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/audit-game-config.ps1 -OutputDirectory 'local/user-config-NNN'"
+  },
+  "limits": [
+    "INI key/value semantics are not interpreted.",
+    "File presence and timestamps do not prove that Fallout 4 loaded the values or that any plugin/deployment profile is active.",
+    "No graphics, gameplay, native API or save behavior was tested."
+  ]
+}

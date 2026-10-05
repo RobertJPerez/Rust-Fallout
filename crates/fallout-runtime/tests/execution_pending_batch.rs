@@ -13,7 +13,7 @@ use fallout_runtime::{
     events::{Context, Trigger},
     execution::{
         local_copy::{Intent, Unsupported},
-        pending_batch::{self, Outcome, Request},
+        pending_batch::{self, CommittedAdapter, Job, Outcome, OwnerRequest, Request, Status},
     },
     foreign::Content,
     identity::{CampaignId, Owner, ReferenceValue, Value},
@@ -259,6 +259,92 @@ fn requests(count: usize) -> Vec<Request> {
         })
         .collect()
 }
+fn append_owned_events(world: &mut World<'_>) -> (Owner, Owner) {
+    let initial = world.snapshot();
+    let fragment = initial
+        .instances
+        .iter()
+        .find(|instance| {
+            matches!(
+                &instance.owner,
+                Owner::Fragment { activation } if activation.get() == 1
+            )
+        })
+        .unwrap();
+    let fragment_handle = world.handle(fragment.id).unwrap();
+    let definition = world
+        .instance(fragment_handle)
+        .unwrap()
+        .definition()
+        .clone();
+    let placed_reference = initial.references[0].id;
+    let quest_owner = Owner::Quest { key: form(0x400) };
+    let quest = world
+        .create_instance(&definition, quest_owner.clone(), Context::default())
+        .unwrap();
+    world
+        .assign(
+            quest,
+            &[(
+                1,
+                Value::Number {
+                    bits: 11.0_f64.to_bits(),
+                },
+            )],
+        )
+        .unwrap();
+    world
+        .enqueue(
+            quest,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let placed_owner = Owner::Placed {
+        reference: placed_reference,
+    };
+    let placed = world
+        .create_instance(&definition, placed_owner.clone(), Context::default())
+        .unwrap();
+    world
+        .assign(
+            placed,
+            &[(
+                1,
+                Value::Number {
+                    bits: 22.0_f64.to_bits(),
+                },
+            )],
+        )
+        .unwrap();
+    world
+        .enqueue(
+            placed,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    (quest_owner, placed_owner)
+}
+fn owner_requests(world: &World<'_>) -> Vec<OwnerRequest> {
+    world
+        .pending_events()
+        .map(|pending| OwnerRequest {
+            sequence: pending.sequence.try_into().unwrap(),
+            expected_owner: world
+                .instance(world.handle(pending.instance).unwrap())
+                .unwrap()
+                .owner()
+                .clone(),
+        })
+        .collect()
+}
 fn restored(catalogue: Arc<Catalogue>, snapshot: &Snapshot) -> World<'static> {
     World::restore(catalogue, snapshot.clone(), Default::default()).unwrap()
 }
@@ -280,6 +366,185 @@ fn expected(mut before: Snapshot, count: usize, bits: u64) -> Snapshot {
     before.state_revision += count as u64;
     before.pending_events.drain(..count);
     before
+}
+
+#[test]
+fn ordered_owner_batch_routes_mixed_activations_and_commits_the_exact_prefix_once() {
+    let (_directory, catalogue, content) = fixture(false);
+    let prepared = sources(&catalogue);
+    let mut world = saved(Arc::clone(&catalogue), Some(0x4009_21fb_5444_2d18));
+    let (quest_owner, placed_owner) = append_owned_events(&mut world);
+    let requests = owner_requests(&world);
+    assert_eq!(requests.len(), 6);
+    let before = world.snapshot();
+    let mut job = Job::new_ordered(
+        world,
+        &prepared,
+        &content,
+        &requests,
+        Intent::Engineering,
+        pending_batch::Limits {
+            maximum_source_instructions: 18,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let first = job.advance(2).unwrap();
+    assert_eq!(first.status, Status::Pending);
+    assert_eq!(first.counts.events, 2);
+    let second = job.advance(2).unwrap();
+    assert_eq!(second.status, Status::Pending);
+    assert_eq!(second.counts.events, 4);
+    let last = job.advance(2).unwrap();
+    assert_eq!(last.status, Status::Ready);
+    assert_eq!(last.counts.events, 6);
+    assert_eq!(last.counts.source_instructions, 18);
+
+    let result = complete(job.finish().unwrap());
+    assert_eq!(result.counts.events, 6);
+    assert_eq!(result.counts.source_instructions, 18);
+    assert_eq!(result.committed.len(), 4);
+    assert_eq!(result.committed_multi.len(), 2);
+    assert_eq!(result.ordered_events.len(), 6);
+    assert!(
+        result.ordered_events[..4]
+            .iter()
+            .all(|event| matches!(&event.adapter, CommittedAdapter::FragmentCopy))
+    );
+    assert!(
+        result.ordered_events[4..]
+            .iter()
+            .all(|event| matches!(&event.adapter, CommittedAdapter::OwnedMultiCopy))
+    );
+    assert_eq!(result.ordered_events[4].expected_owner, quest_owner);
+    assert_eq!(result.ordered_events[5].expected_owner, placed_owner);
+    assert_eq!(result.snapshot.state_revision, before.state_revision + 6);
+    assert!(result.snapshot.pending_events.is_empty());
+
+    let fragment_one = Owner::Fragment {
+        activation: 1.try_into().unwrap(),
+    };
+    let fragment_two = Owner::Fragment {
+        activation: 2.try_into().unwrap(),
+    };
+    for (owner, index, expected_bits) in [
+        (&fragment_one, 2, 0x4009_21fb_5444_2d18),
+        (&fragment_one, 3, 0x4009_21fb_5444_2d18),
+        (&fragment_one, 4, 0x4009_21fb_5444_2d18),
+        (&fragment_two, 2, 999),
+        (&quest_owner, 2, 11.0_f64.to_bits()),
+        (&placed_owner, 2, 22.0_f64.to_bits()),
+    ] {
+        let instance = result
+            .snapshot
+            .instances
+            .iter()
+            .find(|instance| &instance.owner == owner)
+            .unwrap();
+        let local = instance
+            .locals
+            .iter()
+            .find(|local| local.index == index)
+            .unwrap();
+        assert_eq!(
+            local.value,
+            Value::Number {
+                bits: expected_bits
+            }
+        );
+    }
+
+    let mut under_world = saved(Arc::clone(&catalogue), Some(0x4009_21fb_5444_2d18));
+    append_owned_events(&mut under_world);
+    let under_requests = owner_requests(&under_world);
+    let mut under = Job::new_ordered(
+        under_world,
+        &prepared,
+        &content,
+        &under_requests,
+        Intent::Engineering,
+        pending_batch::Limits {
+            maximum_source_instructions: 17,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(under.advance(usize::MAX).is_err());
+    assert!(under.finish().is_err());
+}
+
+#[test]
+fn ordered_owner_batch_refuses_a_later_unsupported_quest_operand_without_a_candidate() {
+    let (_directory, catalogue, content) = fixture(true);
+    let prepared = sources(&catalogue);
+    let definition = definition(&catalogue);
+    let owner = Owner::Quest { key: form(0x400) };
+    let mut world = World::with_campaign(
+        Arc::clone(&catalogue),
+        Default::default(),
+        CampaignId::from_bytes([0x74; 16]).unwrap(),
+    )
+    .unwrap();
+    let handle = world
+        .create_instance(&definition, owner.clone(), Context::default())
+        .unwrap();
+    world
+        .assign(
+            handle,
+            &[(
+                1,
+                Value::Number {
+                    bits: 7.0_f64.to_bits(),
+                },
+            )],
+        )
+        .unwrap();
+    let first = world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 0,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let second = world
+        .enqueue(
+            handle,
+            Trigger::Block {
+                event_id: 0,
+                begin_byte_offset: 26,
+            },
+            Context::default(),
+        )
+        .unwrap();
+    let requests = [first, second].map(|sequence| OwnerRequest {
+        sequence: sequence.try_into().unwrap(),
+        expected_owner: owner.clone(),
+    });
+    let mut job = Job::new_ordered(
+        world,
+        &prepared,
+        &content,
+        &requests,
+        Intent::Engineering,
+        Default::default(),
+    )
+    .unwrap();
+    let progress = job.advance(2).unwrap();
+    assert_eq!(progress.status, Status::Unsupported);
+    assert_eq!(progress.counts.events, 1);
+    assert_eq!(progress.work.source_frame_attempts, 2);
+    assert!(matches!(
+        job.finish().unwrap(),
+        Outcome::Unsupported {
+            event_index: Some(1),
+            reason: Unsupported::ExpressionShape,
+            ..
+        }
+    ));
 }
 
 #[test]

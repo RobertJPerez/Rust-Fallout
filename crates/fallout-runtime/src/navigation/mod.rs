@@ -2,6 +2,7 @@
 //! explicit caller inputs; paths are proposals, never canonical actor movement.
 pub mod corridor;
 pub mod endpoint;
+pub mod search;
 mod source;
 use fallout_data::{identity::FormKey, navigation::SourceMesh};
 use serde::{Deserialize, Serialize};
@@ -324,108 +325,32 @@ impl RouteGraph {
         &self,
         start: &TriangleId,
         goal: &TriangleId,
-        mut limits: RouteLimits,
-        mut policy: impl FnMut(&Node, &Link, Option<&Node>) -> CostDecision,
+        limits: RouteLimits,
+        policy: impl FnMut(&Node, &Link, Option<&Node>) -> CostDecision,
     ) -> RouteResult<Route> {
-        let start = *self
-            .lookup
-            .get(start)
-            .ok_or(RouteError::Invalid("start triangle is unavailable"))?;
-        let goal = *self
-            .lookup
-            .get(goal)
-            .ok_or(RouteError::Invalid("goal triangle is unavailable"))?;
-        let mut distances = vec![f64::INFINITY; self.nodes.len()];
-        let mut previous: Vec<Option<(usize, usize)>> = vec![None; self.nodes.len()];
-        let mut pending = BinaryHeap::new();
-        distances[start] = 0.;
-        pending.push(Pending {
-            cost: 0.,
-            node: start,
-        });
-        let mut missing = Vec::new();
-        let mut unsupported = Vec::new();
-        while let Some(Pending { cost, node }) = pending.pop() {
-            if cost != distances[node] {
-                continue;
-            }
-            charge(&mut limits.expansions, 1, "route expansions")?;
-            if node == goal {
-                let mut ids = Vec::new();
-                let mut links = Vec::new();
-                let mut at = goal;
-                loop {
-                    charge(&mut limits.path_nodes, 1, "route path nodes")?;
-                    ids.push(self.nodes[at].id.clone());
-                    let Some((from, edge)) = previous[at] else {
-                        break;
-                    };
-                    links.push(self.edges[from][edge].link.clone());
-                    at = from;
-                }
-                ids.reverse();
-                links.reverse();
-                return Ok(Route::Found {
-                    nodes: ids,
-                    links,
-                    cost,
-                });
-            }
-            for (edge_index, edge) in self.edges[node].iter().enumerate() {
-                charge(&mut limits.edge_tests, 1, "route edge tests")?;
-                let decision = policy(
-                    &self.nodes[node],
-                    &edge.link,
-                    edge.target.map(|i| &self.nodes[i]),
-                );
-                let edge_cost = match decision {
-                    Ok(None) => continue,
-                    Ok(Some(cost)) => cost,
-                    Err(reason) => {
-                        if reason.len() > 1024 {
-                            return Err(RouteError::Budget("route diagnostic bytes"));
-                        }
-                        charge(&mut limits.diagnostics, 1, "route diagnostics")?;
-                        unsupported.push(UnsupportedLink {
-                            link: edge.link.clone(),
-                            reason,
-                        });
-                        continue;
-                    }
-                };
-                if !edge_cost.is_finite() || edge_cost < 0. {
-                    return Err(RouteError::Invalid(
-                        "caller cost must be finite and nonnegative",
-                    ));
-                }
-                let Some(target) = edge.target else {
-                    charge(&mut limits.diagnostics, 1, "route diagnostics")?;
-                    missing.push(edge.link.clone());
-                    continue;
-                };
-                let total = cost + edge_cost;
-                if !total.is_finite() {
-                    return Err(RouteError::Invalid("route cost overflow"));
-                }
-                if total < distances[target] {
-                    distances[target] = total;
-                    previous[target] = Some((node, edge_index));
-                    pending.push(Pending {
-                        cost: total,
-                        node: target,
-                    });
-                }
-            }
-        }
-        Ok(if !unsupported.is_empty() {
-            Route::Unsupported {
-                links: unsupported,
-                missing_neighbors: missing,
-            }
-        } else if !missing.is_empty() {
-            Route::MissingNeighbors { links: missing }
-        } else {
-            Route::Unreachable
-        })
+        let mut job = search::RouteJob::new(
+            self,
+            start,
+            goal,
+            search::SearchLimits::legacy(limits),
+            policy,
+            false,
+        )?;
+        while job.advance(search::StepBudget::default())?.state != search::SearchState::Complete {}
+        job.finish()
+    }
+    /// An immutable source graph and captured cost policy share one frontier.
+    pub fn start_search<
+        'graph,
+        'policy,
+        F: Fn(&Node, &Link, Option<&Node>) -> CostDecision + ?Sized,
+    >(
+        &'graph self,
+        start: &TriangleId,
+        goal: &TriangleId,
+        limits: search::SearchLimits,
+        policy: &'policy F,
+    ) -> RouteResult<search::RouteJob<'graph, &'policy F>> {
+        search::RouteJob::new(self, start, goal, limits, policy, true)
     }
 }

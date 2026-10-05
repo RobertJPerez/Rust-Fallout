@@ -126,6 +126,95 @@ pub fn commit_pending(
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum PendingMultiOutcome {
+    Unsupported {
+        reason: local_copy::Unsupported,
+        detail: String,
+    },
+    EngineeringCommitted {
+        committed: Box<local_copy::CommittedMultiCopy>,
+    },
+}
+
+/// Stage only the existing head for an explicitly named current Quest/Placed
+/// owner. The caller may admit the borrowed complete trace before committing.
+/// This creates no owner, event or attachment proof and changes no defaults.
+pub fn stage_pending_multi_owned(
+    world: &World<'_>,
+    sources: &PreparedSources<'_>,
+    content: &Content,
+    sequence: u64,
+    expected_owner: &Owner,
+    intent: local_copy::Intent,
+    mut limits: local_copy::MultiLimits,
+) -> Result<local_copy::MultiPreparation, Error> {
+    let owner_bytes = match expected_owner {
+        Owner::Quest { key } => key.origin_plugin.len(),
+        Owner::Placed { .. } => 0,
+        Owner::Fragment { .. } => {
+            return Err(Error::Input(
+                "named multi-copy requires an existing Quest or Placed owner",
+            ));
+        }
+    };
+    // Canonical form validation normalizes the plugin name. Reserve the
+    // explicit owner's variable payload before that allocation or comparison;
+    // the unchanged adapter separately charges the actual frame's identities.
+    limits.observation.maximum_variable_bytes = limits
+        .observation
+        .maximum_variable_bytes
+        .checked_sub(owner_bytes)
+        .ok_or(Error::Capacity("explicit owner variable bytes"))?;
+    world.validate_owner(expected_owner)?;
+    let pending = world
+        .pending_events()
+        .next()
+        .filter(|event| event.sequence == sequence)
+        .ok_or(Error::Input(
+            "multi-copy must name the existing pending journal head",
+        ))?;
+    let instance = world.instance(world.handle(pending.instance)?)?;
+    if instance.owner() != expected_owner {
+        return Err(Error::Input(
+            "explicit named owner differs from the saved journal head",
+        ));
+    }
+    Ok(world.stage_source_multi_copy_with_sources(sequence, sources, content, intent, limits)?)
+}
+
+/// Consume one complete supported event through its existing opaque canonical
+/// transaction. No batch drain, single-copy shape change or retail claim.
+pub fn commit_pending_multi_owned(
+    world: &mut World<'_>,
+    sources: &PreparedSources<'_>,
+    content: &Content,
+    sequence: u64,
+    expected_owner: &Owner,
+    intent: local_copy::Intent,
+    limits: local_copy::MultiLimits,
+) -> Result<PendingMultiOutcome, Error> {
+    match stage_pending_multi_owned(
+        world,
+        sources,
+        content,
+        sequence,
+        expected_owner,
+        intent,
+        limits,
+    )? {
+        local_copy::MultiPreparation::Unsupported { reason, detail } => {
+            Ok(PendingMultiOutcome::Unsupported { reason, detail })
+        }
+        local_copy::MultiPreparation::Staged(stage) => {
+            Ok(PendingMultiOutcome::EngineeringCommitted {
+                committed: Box::new(stage.commit(world)?),
+            })
+        }
+    }
+}
+
 fn world_limits(limits: Limits) -> crate::Limits {
     crate::Limits {
         max_instances: 1,

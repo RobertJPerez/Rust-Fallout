@@ -1,0 +1,7 @@
+# Local navigation motion proposals
+
+An existing `CorridorQuery` is bound to a winning-source NAVM snapshot. `route_local_motion_requests` composes its bounded route search, exact local corridor checks and exact endpoint containment for one cell. It returns the route and at most one local segment request per verified source triangle. Segments connect the caller's exact start and goal positions through source portal midpoints.
+
+The caller supplies an explicit `LocalFootprint::planar_radius` in the same coordinate system as the NAVM vertices. The producer checks every traversed portal's planar width against that diameter, with a small arithmetic margin. This portal-aperture check does not prove clearance along a segment. Missing, unreachable, unsupported, out-of-triangle or too-narrow routes return no movement requests and do not request a collision sweep. Limits only lower fixed ceilings; each call performs one bounded search and does not retry a refusal.
+
+These requests are proposals. Their positions stay in the selected source plane and each request identifies its cell, NAVM triangle and source digests. A caller must derive the footprint from an admitted actor collision profile and run the matching source collision scene sweep before movement can be committed. This producer does not derive actor body bounds, map PACK destinations to NAVM triangles, cross cells or special links, handle door traversal, evaluate package conditions, or mutate actor state. Only exact axis-aligned planar corridors are supported.

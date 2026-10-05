@@ -2862,6 +2862,20 @@ fn run_world(command: WorldCommand, output: Option<&Path>) -> Result<()> {
 
 fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
     match command {
+        PhysicsCommand::NavigationSearch {
+            install,
+            load_order,
+            index_cache,
+            request,
+        } => {
+            let report = navigation_inspection::inspect_search(
+                &install,
+                &load_order,
+                index_cache.as_deref(),
+                &request,
+            )?;
+            emit(&report, output, &install)?;
+        }
         PhysicsCommand::NavigationEndpoints {
             install,
             load_order,
@@ -2979,6 +2993,10 @@ fn run_physics(command: PhysicsCommand, output: Option<&Path>) -> Result<()> {
         }
         PhysicsCommand::CollisionAttachment { input, request } => {
             let report = collision::attachment_query(&input, &request)?;
+            emit(&report, output, &input)?;
+        }
+        PhysicsCommand::CollisionSweep { input, request } => {
+            let report = collision::sweep_query(&input, &request)?;
             emit(&report, output, &input)?;
         }
         PhysicsCommand::NifCollision {

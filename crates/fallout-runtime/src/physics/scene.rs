@@ -29,6 +29,10 @@ struct Leaf {
     source: SourceId,
     body_filter: SourceFilter,
     shell: f32,
+    // Extra engineering sweep admission. No change to old query transforms.
+    sweep_frame: Option<Affine>,
+    // Exact authored matrix arithmetic, independent of sweep tag/profile rules.
+    finite_frame: Option<Affine>,
 }
 
 /// Units are immutable after construction, including the validated tolerance.
@@ -402,13 +406,25 @@ impl StaticScene {
                 havok.rows[i][i] = units.havok_to_source;
                 output.rows[i][i] = units.source_to_query;
             }
-            let frame = compose(
-                output,
-                compose(placement.attachment_to_source, compose(havok, pose)),
-            );
-            let mut stack = vec![(shape, frame, 0f32)];
+            let (inner, inner_exact) = exact_compose(havok, pose);
+            let (attached, attached_exact) = exact_compose(placement.attachment_to_source, inner);
+            let (frame, output_exact) = exact_compose(output, attached);
+            let exact = inner_exact
+                && attached_exact
+                && output_exact
+                && sweep::profile(body)
+                && (!body.transform_active
+                    || (body.rotation[..3] == [0.; 3] && body.rotation[3].abs() == 1.));
+            let finite_inner = compose(havok, pose);
+            let finite_attached = compose(placement.attachment_to_source, finite_inner);
+            let finite_exact = (!body.transform_active
+                || finite::quaternion_recipe_exact(body.rotation))
+                && finite::exact_compose(havok, pose)
+                && finite::exact_compose(placement.attachment_to_source, finite_inner)
+                && finite::exact_compose(output, finite_attached);
+            let mut stack = vec![(shape, frame, 0f32, exact, finite_exact)];
             let mut occurrence = 0;
-            while let Some((id, frame, shell)) = stack.pop() {
+            while let Some((id, frame, shell, exact, finite_exact)) = stack.pop() {
                 charge(
                     &mut visits,
                     1,
@@ -418,7 +434,12 @@ impl StaticScene {
                     .get(&id)
                     .ok_or(unsupported(id, "shape target was not decoded"))?;
                 match &block.data {
-                    Data::Transform { shape, matrix, .. } => {
+                    Data::Transform {
+                        shape,
+                        matrix,
+                        radius,
+                        ..
+                    } => {
                         if [matrix[0][3], matrix[1][3], matrix[2][3], matrix[3][3]]
                             != [0., 0., 0., 1.]
                         {
@@ -431,10 +452,13 @@ impl StaticScene {
                                 std::array::from_fn(|j| f64::from(matrix[j][i]))
                             }),
                         };
+                        let (composed, local_exact) = exact_compose(frame, local);
                         stack.push((
                             shape.ok_or(unsupported(id, "null transformed shape"))?,
-                            compose(frame, local),
+                            composed,
                             shell,
+                            exact && local_exact && *radius == 0.,
+                            finite_exact && finite::exact_compose(frame, local),
                         ));
                     }
                     Data::List {
@@ -458,6 +482,8 @@ impl StaticScene {
                                 shape.ok_or(unsupported(id, "null list child"))?,
                                 frame,
                                 shell,
+                                exact,
+                                finite_exact,
                             ));
                         }
                     }
@@ -474,6 +500,8 @@ impl StaticScene {
                             shape.ok_or(unsupported(id, "null MOPP child"))?,
                             frame,
                             shell,
+                            exact,
+                            finite_exact,
                         ));
                     }
                     Data::PackedShape {
@@ -496,6 +524,8 @@ impl StaticScene {
                             data.ok_or(unsupported(id, "null packed data"))?,
                             compose(frame, local),
                             *r,
+                            false,
+                            finite_exact && finite::exact_compose(frame, local),
                         ));
                     }
                     data => {
@@ -522,6 +552,8 @@ impl StaticScene {
                                 },
                                 body_filter: (&body.world.filter).into(),
                                 shell: if shell != 0. { shell } else { value.shell },
+                                sweep_frame: exact.then_some(frame),
+                                finite_frame: finite_exact.then_some(frame),
                             });
                         }
                         occurrence += 1;
@@ -604,6 +636,361 @@ impl StaticScene {
     }
     pub fn primitive_count(&self) -> usize {
         self.leaves.len()
+    }
+    /// Check every selected leaf. This explicit fixture scope never skips an
+    /// unsupported obstacle through the spatial index or a filter assumption.
+    pub fn sweep_sphere(
+        &self,
+        request: sweep::SphereSweep,
+        limits: sweep::SweepLimits,
+    ) -> QueryResult<sweep::SweepProposal> {
+        use sweep::{SweepContact, SweepProposal, SweepState};
+        limits.validate()?;
+        let delta = sweep::trajectory(request)?;
+        let mut left = limits;
+        let mut candidates = Vec::new();
+        for (ordinal, leaf) in self.leaves.iter().enumerate() {
+            charge(&mut left.primitive_tests, 1, "sweep primitive tests")?;
+            charge(&mut left.iterations, 1, "sweep iterations")?;
+            // A fixed reservation bounds the profile, transform, quadratic,
+            // estimate and final witness arithmetic per admitted leaf.
+            charge(
+                &mut left.predicate_tests,
+                1024,
+                "sweep predicate reservation",
+            )?;
+            let Shape::Sphere(radius) = leaf.geometry.shape else {
+                return Err(unsupported(
+                    leaf.source.shape_block,
+                    "sweep supports source sphere cores only",
+                ));
+            };
+            if leaf.shell != 0. || leaf.geometry.filter.is_some() {
+                return Err(unsupported(
+                    leaf.source.shape_block,
+                    "sweep margin/filter profile unsupported",
+                ));
+            }
+            let frame = leaf.sweep_frame.ok_or(unsupported(
+                leaf.source.body_block,
+                "sweep requires zero-tagged frozen fixture profile and exact transform composition",
+            ))?;
+            let (center, radius) = sweep::sphere_frame(frame, radius)?;
+            if let Some(crossing) = sweep::crossing(request, delta, center, radius)? {
+                charge(&mut left.contacts, 1, "sweep contact candidates")?;
+                candidates.push((ordinal, crossing, center, radius));
+            }
+        }
+        candidates.sort_by(|a, b| {
+            a.1.bounds
+                .lower
+                .total_cmp(&b.1.bounds.lower)
+                .then(self.leaves[a.0].source.cmp(&self.leaves[b.0].source))
+        });
+        let work = sweep::SweepLimits {
+            primitive_tests: limits.primitive_tests - left.primitive_tests,
+            predicate_tests: limits.predicate_tests - left.predicate_tests,
+            iterations: limits.iterations - left.iterations,
+            contacts: limits.contacts - left.contacts,
+        };
+        let Some(first) = candidates.first() else {
+            return Ok(SweepProposal {
+                state: SweepState::Clear,
+                parameter: 1.,
+                proposed_center: request.end,
+                center_error_bounds: [0.; 3],
+                contacts: Vec::new(),
+                work,
+            });
+        };
+        let bounds = first.1.bounds;
+        let first_geometry = (first.2, first.1.expanded_radius);
+        let parameter = bounds.lower + (bounds.upper - bounds.lower) * 0.5;
+        let (proposed_center, center_error_bounds) = sweep::witness(request, delta, parameter)?;
+        let mut state = first.1.state;
+        let mut contacts = Vec::new();
+        for (ordinal, crossing, center, radius) in candidates {
+            if crossing.bounds.lower > bounds.upper {
+                break;
+            }
+            // Overlapping uncertain root intervals do not identify an exact first
+            // source. Exact coincident contacts and initial overlaps are retained.
+            if crossing.bounds.lower != bounds.lower
+                || crossing.bounds.upper != bounds.upper
+                || (bounds.lower != bounds.upper
+                    && (center, crossing.expanded_radius) != first_geometry)
+            {
+                return Err(QueryError::Invalid(
+                    "sweep first-contact ordering is uncertain",
+                ));
+            }
+            if crossing.state == SweepState::StartOverlap {
+                state = SweepState::StartOverlap;
+            }
+            let mut separation =
+                sweep::separation(request, delta, parameter, center, crossing.expanded_radius)?;
+            let rounded_request = sweep::SphereSweep {
+                start: proposed_center,
+                ..request
+            };
+            let rounded_separation = sweep::separation(
+                rounded_request,
+                [0.; 3],
+                0.,
+                center,
+                crossing.expanded_radius,
+            )?;
+            separation.lower = separation.lower.min(rounded_separation.lower);
+            separation.upper = separation.upper.max(rounded_separation.upper);
+            if crossing.state == SweepState::StartOverlap && separation.upper >= 0. {
+                return Err(QueryError::Invalid(
+                    "sweep start-overlap witness is uncertain",
+                ));
+            }
+            if crossing.state != SweepState::StartOverlap
+                && (separation.lower < -request.contact_tolerance
+                    || separation.upper > request.contact_tolerance)
+            {
+                return Err(QueryError::Invalid(
+                    "sweep contact witness exceeds explicit tolerance",
+                ));
+            }
+            let distance = delta[0].hypot(delta[1]).hypot(delta[2]) * parameter;
+            let distance_bounds = sweep::distance_bounds(delta, parameter)?;
+            contacts.push(SweepContact {
+                provenance: Self::hit(&self.leaves[ordinal], distance, proposed_center),
+                parameter_bounds: [bounds.lower, bounds.upper],
+                source_center: center,
+                source_radius: radius,
+                expanded_radius: crossing.expanded_radius,
+                separation_bounds: [separation.lower, separation.upper],
+                distance_bounds: [distance_bounds.lower, distance_bounds.upper],
+            });
+        }
+        Ok(SweepProposal {
+            state,
+            parameter,
+            proposed_center,
+            center_error_bounds,
+            contacts,
+            work,
+        })
+    }
+    fn finite_prepare<T>(
+        &self,
+        limits: FiniteQueryLimits,
+        solids_only: bool,
+    ) -> QueryResult<(Vec<T>, FiniteQueryWork)> {
+        limits.validate()?;
+        let count = self.leaves.len();
+        let geometry = self.leaves.iter().try_fold(0usize, |sum, leaf| {
+            sum.checked_add(leaf.geometry.shape.cost())
+                .ok_or(QueryError::Budget("finite geometry tests"))
+        })?;
+        let predicates = count
+            .checked_mul(8192)
+            .ok_or(QueryError::Budget("finite predicate reservation"))?;
+        let capacity = count.min(limits.rows);
+        let bytes = capacity
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or(QueryError::Budget("finite retained bytes"))?;
+        for (used, limit, name) in [
+            (count, limits.admission_tests, "finite admission tests"),
+            (count, limits.primitive_tests, "finite primitive tests"),
+            (geometry, limits.geometry_tests, "finite geometry tests"),
+            (
+                predicates,
+                limits.predicate_tests,
+                "finite predicate reservation",
+            ),
+            (bytes, limits.retained_bytes, "finite retained bytes"),
+        ] {
+            if used > limit {
+                return Err(QueryError::Budget(name));
+            }
+        }
+        // Kind and original source-frame admission precede every narrow test.
+        // A far unsupported member cannot disappear behind bounds culling.
+        for leaf in &self.leaves {
+            if solids_only && !finite::solid_kind(&leaf.geometry.shape) {
+                return Err(unsupported(
+                    leaf.source.shape_block,
+                    "solid intervals support Sphere/Box/ConvexCuboid cores only",
+                ));
+            }
+            let frame = leaf.finite_frame.ok_or(unsupported(
+                leaf.source.body_block,
+                "finite queries require exact authored transform arithmetic",
+            ))?;
+            if solids_only && !finite::signed_axis_frame(frame) {
+                return Err(unsupported(
+                    leaf.source.body_block,
+                    "solid intervals require signed-axis power-of-two similarity frames",
+                ));
+            }
+            finite::inverse(frame)?;
+        }
+        Ok((
+            Vec::with_capacity(capacity),
+            FiniteQueryWork {
+                admission_tests: count,
+                primitive_tests: count,
+                geometry_tests: geometry,
+                predicate_tests: predicates,
+                rows: 0,
+                retained_bytes: bytes,
+            },
+        ))
+    }
+    fn finite_witness(
+        leaf: &Leaf,
+        span: finite::Span,
+        max: f64,
+        point: impl Fn(f64) -> QueryResult<V>,
+    ) -> QueryResult<(f64, V)> {
+        let frame = leaf.finite_frame.expect("whole-query frame admission");
+        for parameter in span.candidates(max) {
+            if parameter < span.entry.lower || parameter > span.exit.upper {
+                continue;
+            }
+            let Ok(position) = point(parameter) else {
+                continue;
+            };
+            if !finite(position) {
+                continue;
+            }
+            let Ok(local) = finite::local(frame, position, true) else {
+                continue;
+            };
+            if finite::contains(&leaf.geometry.shape, local).is_ok_and(|inside| inside) {
+                return Ok((parameter, position));
+            }
+        }
+        Err(QueryError::Invalid(
+            "original finite-line/source-core witness is numerically uncertain",
+        ))
+    }
+    /// One certified original-line point per intersected source core, accompanied
+    /// by occupied boundary enclosures. Witnesses need not equal scalar entry.
+    pub fn segment_cast(
+        &self,
+        segment: Segment,
+        limits: SegmentQueryLimits,
+    ) -> QueryResult<FiniteQueryReport<SegmentIntersection>> {
+        if !query_domain(segment.start) || !query_domain(segment.end) {
+            return Err(QueryError::Invalid(
+                "finite bounded original endpoints required",
+            ));
+        }
+        let (mut results, mut work) = self.finite_prepare::<SegmentIntersection>(limits, false)?;
+        let direction = finite::original_delta(segment)?;
+        for leaf in &self.leaves {
+            let frame = leaf.finite_frame.expect("whole-query frame admission");
+            let start = finite::local(frame, segment.start, true)?;
+            let end = finite::local(frame, segment.end, true)?;
+            let span = if finite::contains(&leaf.geometry.shape, start).is_ok_and(|v| v)
+                && finite::contains(&leaf.geometry.shape, end).is_ok_and(|v| v)
+            {
+                // All admitted cores, including closed/degenerate triangles,
+                // are convex. Both original endpoints prove complete occupancy.
+                Some(finite::Span::full(1.))
+            } else {
+                finite::span(
+                    &leaf.geometry.shape,
+                    start,
+                    finite::local_bounds(frame, direction, false)?,
+                    1.,
+                )?
+            };
+            let Some(span) = span else {
+                continue;
+            };
+            let (parameter, position) =
+                Self::finite_witness(leaf, span, 1., |t| finite::segment_point(segment, t))?;
+            if results.len() >= limits.rows {
+                return Err(QueryError::Budget("finite result rows"));
+            }
+            let distance = finite::distance_bounds(direction, parameter)?;
+            let estimate = 0.5 * distance.lower + 0.5 * distance.upper;
+            results.push(SegmentIntersection {
+                provenance: Self::hit(leaf, estimate, position),
+                parameter,
+                entry_parameter_bounds: [
+                    span.entry.lower.clamp(0., 1.),
+                    span.entry.upper.clamp(0., 1.),
+                ],
+                exit_parameter_bounds: [
+                    span.exit.lower.clamp(0., 1.),
+                    span.exit.upper.clamp(0., 1.),
+                ],
+                distance_bounds: [distance.lower, distance.upper],
+                source_core: finite::core(&leaf.geometry.shape),
+            });
+        }
+        results.sort_unstable_by(|a, b| {
+            a.entry_parameter_bounds[0]
+                .total_cmp(&b.entry_parameter_bounds[0])
+                .then(a.provenance.source.cmp(&b.provenance.source))
+        });
+        work.rows = results.len();
+        Ok(FiniteQueryReport { results, work })
+    }
+    /// Clipped closed-solid occupancy in original caller ray parameters. Every
+    /// selected kind/frame is admitted before geometry tests; no shell inflation.
+    pub fn ray_intervals(
+        &self,
+        ray: Ray,
+        limits: IntervalQueryLimits,
+    ) -> QueryResult<FiniteQueryReport<SolidOccupancy>> {
+        if !query_domain(ray.origin)
+            || !query_domain(ray.direction)
+            || !ray.max_distance.is_finite()
+            || !(0. ..=1e50).contains(&ray.max_distance)
+            || (dot(ray.direction, ray.direction) - 1.).abs() > self.units.transform_tolerance
+        {
+            return Err(QueryError::Invalid(
+                "finite unit ray and bounded distance required",
+            ));
+        }
+        let (mut results, mut work) = self.finite_prepare::<SolidOccupancy>(limits, true)?;
+        for leaf in &self.leaves {
+            let frame = leaf.finite_frame.expect("whole-query frame admission");
+            let origin = finite::local(frame, ray.origin, true)?;
+            let direction = finite::local(frame, ray.direction, false)?;
+            let Some(span) =
+                finite::span(&leaf.geometry.shape, origin, direction, ray.max_distance)?
+            else {
+                continue;
+            };
+            let (parameter, position) = Self::finite_witness(leaf, span, ray.max_distance, |t| {
+                finite::exact_point(ray.origin, ray.direction, t)
+            })?;
+            let initial_containment = finite::contains(&leaf.geometry.shape, origin)?;
+            if results.len() >= limits.rows {
+                return Err(QueryError::Budget("finite result rows"));
+            }
+            results.push(SolidOccupancy {
+                provenance: Self::hit(leaf, parameter, position),
+                witness_parameter: parameter,
+                entry_parameter_bounds: [
+                    span.entry.lower.clamp(0., ray.max_distance),
+                    span.entry.upper.clamp(0., ray.max_distance),
+                ],
+                exit_parameter_bounds: [
+                    span.exit.lower.clamp(0., ray.max_distance),
+                    span.exit.upper.clamp(0., ray.max_distance),
+                ],
+                initial_containment,
+                source_core: finite::core(&leaf.geometry.shape),
+            });
+        }
+        results.sort_unstable_by(|a, b| {
+            a.entry_parameter_bounds[0]
+                .total_cmp(&b.entry_parameter_bounds[0])
+                .then(a.provenance.source.cmp(&b.provenance.source))
+        });
+        work.rows = results.len();
+        Ok(FiniteQueryReport { results, work })
     }
     /// Shell margins, runtime filters, activation and dynamics remain unavailable.
     pub fn faithful_ready(&self) -> bool {

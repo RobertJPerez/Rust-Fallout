@@ -14,6 +14,17 @@ pub(crate) enum PhysicsCommand {
         #[arg(long)]
         request: PathBuf,
     },
+    /// Advance or cancel a bounded source navigation search without restarting.
+    NavigationSearch {
+        #[arg(long)]
+        install: PathBuf,
+        #[arg(long)]
+        load_order: PathBuf,
+        #[arg(long)]
+        index_cache: Option<PathBuf>,
+        #[arg(long)]
+        request: PathBuf,
+    },
     /// Certify an internally generated same-cell source triangle corridor.
     NavigationCorridor {
         #[arg(long)]
@@ -98,6 +109,12 @@ pub(crate) enum PhysicsCommand {
     },
     /// Derive one exact NIF collision attachment and query its source geometry.
     CollisionAttachment {
+        input: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+    },
+    /// Propose an explicitly scoped engineering source-sphere sweep.
+    CollisionSweep {
         input: PathBuf,
         #[arg(long)]
         request: PathBuf,

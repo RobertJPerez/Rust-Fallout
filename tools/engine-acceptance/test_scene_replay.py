@@ -40,6 +40,8 @@ def rgb_png(width: int, height: int, pixels: bytes) -> bytes:
 
 
 def sample_report() -> dict:
+    source_root = {"profile": "fixture", "origin_plugin": "fixture.esm", "local_id": 1}
+    camera_request = {"source_position": [1.0, 2.0, 3.0], "source_target": [4.0, 5.0, 6.0]}
     return {
         "schema_version": 3,
         "cell": {
@@ -98,6 +100,8 @@ def sample_report() -> dict:
         "runtime_ready": False,
         "retail_parity_accepted": False,
         "source_residency": {
+            "root": source_root,
+            "generation": 2,
             "identity": "model-plan-identity",
             "texture_identity": "texture-plan-identity",
             "stage": "Decoded",
@@ -119,12 +123,38 @@ def sample_report() -> dict:
             "render_published": False,
             "failure": None,
         },
+        "camera_transform": {
+            "scene_generation": 2,
+            "source_root_sha256": scene_replay.digest_json(source_root),
+            "camera_request_sha256": scene_replay.digest_json(camera_request),
+            "world_from_camera": [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        },
+        "scene_completion": {
+            "state": "complete",
+            "scene_generation": 2,
+            "source_root_sha256": scene_replay.digest_json(source_root),
+            "expected_references": 1,
+            "rendered_references": 1,
+            "resource_references": 1,
+        },
         "canonical_state": None,
     }
 
 
-def write_complete_manifest(root: Path) -> Path:
+def write_complete_manifest(
+    root: Path, *, drop_camera_transform: bool = False, drop_scene_completion: bool = False
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
     report = sample_report()
+    if drop_camera_transform:
+        report.pop("camera_transform")
+    if drop_scene_completion:
+        report.pop("scene_completion")
     report_path = root / "view.json"
     image_path = root / "view.png"
     log_path = root / "view.log"
@@ -228,6 +258,54 @@ class SceneReportMutationTests(unittest.TestCase):
         changed_report["models"][0]["error"] = "missing model bytes"
         with self.assertRaisesRegex(scene_replay.AcceptanceError, "Selected model resource"):
             scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+
+    def test_missing_expected_draw_or_resource_is_refused(self) -> None:
+        for field, value in (("model", None), ("status", "initially-disabled")):
+            with self.subTest(field=field):
+                changed_report = sample_report()
+                changed_report["placements"][0][field] = value
+                with self.assertRaisesRegex(scene_replay.AcceptanceError, "Expected draw/resource is missing"):
+                    scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+
+    def test_protected_435_reference_membership_cannot_pass_with_400_draws(self) -> None:
+        changed_report = sample_report()
+        template = changed_report["placements"][0]
+        changed_report["placements"] = [
+            {
+                **template,
+                "key": {"origin_plugin": "fixture.esm", "local_id": 10_000 + index},
+            }
+            for index in range(435)
+        ]
+        changed_report["rendered_references"] = 400
+        with self.assertRaisesRegex(
+            scene_replay.AcceptanceError,
+            "435 protected placements but only 400 rendered references",
+        ):
+            scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+
+    def test_missing_reference_from_candidate_changes_protected_membership(self) -> None:
+        expected_report = sample_report()
+        template = expected_report["placements"][0]
+        expected_report["placements"] = [
+            {**template, "key": {"origin_plugin": "fixture.esm", "local_id": index}}
+            for index in (10, 11)
+        ]
+        expected_report["rendered_references"] = 2
+        expected = scene_replay.scene_evidence(expected_report, "GSDocMitchellHouse", "a" * 64)
+        actual_report = sample_report()
+        actual_report["placements"][0]["key"] = {"origin_plugin": "fixture.esm", "local_id": 10}
+        actual = scene_replay.scene_evidence(actual_report, "GSDocMitchellHouse", "a" * 64)
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "reference_membership changed"):
+            scene_replay.compare_scene_evidence(expected, actual)
+
+    def test_source_root_and_generation_are_pinned_in_scene_evidence(self) -> None:
+        changed_report = sample_report()
+        changed_report["source_residency"]["root"]["local_id"] += 1
+        changed_report["source_residency"]["generation"] += 1
+        actual = scene_replay.scene_evidence(changed_report, "GSDocMitchellHouse", "a" * 64)
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "resources changed"):
+            scene_replay.compare_scene_evidence(self.expected, actual)
 
     def test_empty_cell_capture_is_not_scene_evidence(self) -> None:
         changed_report = sample_report()
@@ -439,18 +517,40 @@ class CompletionAndObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(scene_replay.AcceptanceError, "completion.completed must be an integer"):
             scene_replay.validate_completion(manifest)
 
+    def test_absent_aggregate_completion_is_refused(self) -> None:
+        manifest = {"scenarios": [{"id": "one", "required": True, "state": "completed"}]}
+        with self.assertRaisesRegex(scene_replay.AcceptanceError, "no aggregate completion observation"):
+            scene_replay.validate_completion(manifest)
+
     def test_absent_observations_are_not_reported_as_passes(self) -> None:
-        evidence = scene_replay.scene_evidence(sample_report(), "GSDocMitchellHouse", "a" * 64)
+        report = sample_report()
+        report.pop("camera_transform")
+        report.pop("scene_completion")
+        evidence = scene_replay.scene_evidence(report, "GSDocMitchellHouse", "a" * 64)
         observations = scene_replay.scene_observations(
             evidence,
             {"source_position": [1.0, 2.0, 3.0], "source_target": [4.0, 5.0, 6.0]},
             {"width": 1, "height": 1, "sha256": "e" * 64},
         )
         self.assertEqual(observations["camera_transform"]["status"], "absent")
+        self.assertEqual(observations["scene_completion"]["status"], "absent")
         self.assertEqual(observations["resource_drain"]["status"], "absent")
         self.assertEqual(observations["simulation_readiness"]["status"], "unsupported")
-        for name in ("camera_transform", "resource_drain", "simulation_readiness"):
+        for name in ("camera_transform", "scene_completion", "resource_drain", "simulation_readiness"):
             self.assertNotEqual(observations[name]["status"], "pass")
+
+    def test_stale_camera_generation_and_mismatched_completion_are_refused(self) -> None:
+        report = sample_report()
+        report["camera_transform"]["scene_generation"] = 1
+        report["scene_completion"]["rendered_references"] = 0
+        evidence = scene_replay.scene_evidence(report, "GSDocMitchellHouse", "a" * 64)
+        observations = scene_replay.scene_observations(
+            evidence,
+            {"source_position": [1.0, 2.0, 3.0], "source_target": [4.0, 5.0, 6.0]},
+            {"width": 1, "height": 1, "sha256": "e" * 64},
+        )
+        self.assertEqual(observations["camera_transform"]["status"], "mismatch")
+        self.assertEqual(observations["scene_completion"]["status"], "mismatch")
 
     def test_duplicate_scenario_ids_are_refused(self) -> None:
         config = {
@@ -486,6 +586,18 @@ class ImageAndFreshnessTests(unittest.TestCase):
             result = scene_replay.compare_capture_manifests(manifest, manifest)
             self.assertEqual(result["harness_status"], "pass", result["failures"])
             self.assertEqual(result["scenarios"][0]["status"], "pass")
+
+    def test_absent_camera_or_scene_completion_cannot_pass_as_partial(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = write_complete_manifest(root / "expected")
+            actual = write_complete_manifest(
+                root / "actual", drop_camera_transform=True, drop_scene_completion=True
+            )
+            result = scene_replay.compare_capture_manifests(expected, actual)
+            self.assertEqual(result["harness_status"], "fail")
+            self.assertTrue(any("camera_transform observation is absent" in row for row in result["failures"]))
+            self.assertTrue(any("scene_completion observation is absent" in row for row in result["failures"]))
 
     def test_json_size_budget_is_checked_before_read(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

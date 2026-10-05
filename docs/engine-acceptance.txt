@@ -78,15 +78,18 @@ digest, timestamp, and run interval all match the manifest.
 
 Observation states remain explicit. The current host provides a PNG, source
 placement transforms, input camera coordinates, and model/texture/residency
-reports. It does not report the applied camera transform, a canonical player
-body pose, per-frame readiness, or post-exit resource drain. Those fields are
-recorded as absent or unsupported and keep scene acceptance partial even when
-the harness comparison passes. The preview also explicitly reports that
-simulation readiness and retail parity are false.
+reports. It does not report the applied camera transform or a scene-completion
+receipt. Verification now refuses a comparison when either receipt is absent,
+mismatched to the source root or generation, or inconsistent with the requested
+camera and scene counts. A canonical player body pose, per-frame readiness, and
+post-exit resource drain remain absent. The preview also explicitly reports
+that simulation readiness and retail parity are false.
 
 The Python stdlib test suite exercises exact image comparison, tolerance
-handling, stale capture rejection, per-run completion, absent-observation
-status, and negative missing-resource and changed-pose mutations:
+handling, stale capture rejection, aggregate/per-run completion, source-root
+and generation pins, expected reference membership, camera receipt freshness,
+missing scene-completion refusal, and negative missing-resource and changed-pose
+mutations:
 
     python tools/engine-acceptance/test_scene_replay.py
 
@@ -97,6 +100,24 @@ Actor model selection is a separate unimplemented path. `initially-disabled`
 records are skipped by the non-canonical inspection path. Preserve these rows
 and the incomplete coverage flags instead of counting them as rendered or
 dropping them from the report.
+
+## Protected scene membership gate
+
+Scene evidence retains the source residency root and generation, plus a digest
+and count for the complete placement-key set. The frozen expected manifest pins
+that set; the current capture must match it exactly. Every expected placement
+must have a rendered draw and an observed model resource. Missing, disabled, or
+unsupported rows remain in the expected set and cause refusal; the acceptance
+tool does not infer an exception from their status.
+
+The protected scene review records 435 source placement keys and 400 rendered
+references. That report is diagnostic evidence for a coverage gap, not a passing
+scene. A capture or comparison must refuse incomplete membership, missing draw
+or resource rows, and absent aggregate completion data. Camera and completion
+receipts must bind the same scene root and current generation. The camera receipt
+must also bind the requested position and target before its applied transform is
+compared. These checks consume private source receipts and digests; raw game
+reference data stays in private evidence files.
 
 ## Movement acceptance gate
 

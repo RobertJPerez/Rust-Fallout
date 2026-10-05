@@ -25,7 +25,7 @@ import zlib
 
 
 SCHEMA_VERSION = 1
-TOOL_VERSION = "scene-replay-3"
+TOOL_VERSION = "scene-replay-4"
 MAX_JSON_BYTES = 64 * 1024 * 1024
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_ROOTS = ("crates", "tools")
@@ -362,6 +362,13 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
         _sha256(digest, f"plugin_sha256[{name}]")
 
     snapshot = _object(report.get("source_residency"), "source_residency")
+    source_root = _object(snapshot.get("root"), "source_residency.root")
+    _string(source_root.get("profile"), "source_residency.root.profile")
+    _string(source_root.get("origin_plugin"), "source_residency.root.origin_plugin")
+    _integer(source_root.get("local_id"), "source_residency.root.local_id", 0)
+    scene_generation = _integer(
+        snapshot.get("generation"), "source_residency.generation", 1
+    )
     model_identity = _string(snapshot.get("identity"), "source_residency.identity")
     texture_identity = _string(snapshot.get("texture_identity"), "source_residency.texture_identity")
     model_rows = report.get("models")
@@ -370,7 +377,13 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
         raise AcceptanceError("Cell report must retain all model inspections and placements")
     if not model_rows or not placements:
         raise AcceptanceError("Selected cell report contains no observed model placements")
-    for field in ("rendered_references", "rendered_mesh_instances"):
+    rendered_references = _integer(report.get("rendered_references"), "rendered_references", 1)
+    if rendered_references != len(placements):
+        raise AcceptanceError(
+            "Expected reference membership is incomplete: "
+            f"{len(placements)} protected placements but only {rendered_references} rendered references"
+        )
+    for field in ("rendered_mesh_instances",):
         count = report.get(field)
         if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
             raise AcceptanceError(f"Selected cell capture has no visible {field.replace('_', ' ')}")
@@ -442,14 +455,22 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
 
     pose_rows = []
     placement_rows = []
+    seen_reference_keys = set()
     for index, raw in enumerate(placements):
         placement = _object(raw, f"placements[{index}]")
         key = _object(placement.get("key"), f"placements[{index}].key")
+        reference_key = canonical_json(key)
+        if reference_key in seen_reference_keys:
+            raise AcceptanceError(f"Duplicate protected reference key at placements[{index}]")
+        seen_reference_keys.add(reference_key)
         model_index = placement.get("model")
-        if model_index is not None:
-            model_index = _integer(model_index, f"placements[{index}].model", 0)
-            if model_index not in model_by_index:
-                raise AcceptanceError(f"Placement references missing model index {model_index}")
+        if model_index is None:
+            raise AcceptanceError(f"Expected draw/resource is missing for placement {index}")
+        model_index = _integer(model_index, f"placements[{index}].model", 0)
+        if model_index not in model_by_index:
+            raise AcceptanceError(f"Placement references missing model index {model_index}")
+        if placement.get("status") != "rendered-static-view":
+            raise AcceptanceError(f"Expected draw/resource is missing for placement {index}")
         pose_rows.append({
             "key": key,
             "source_affine": placement.get("source_affine"),
@@ -482,21 +503,33 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
         canonical_bindings.sort(key=lambda row: canonical_json(row["key"]))
 
     residency = {
-        key: snapshot.get(key)
-        for key in (
+        "root": source_root,
+        "generation": scene_generation,
+        **{
+            key: snapshot.get(key)
+            for key in (
             "stage", "texture_state", "identity", "texture_identity",
             "completed_models", "requested_models", "complete_model_coverage",
             "completed_textures", "requested_textures", "complete_texture_coverage",
             "texture_reference_coverage_verified", "pinned_source_bytes",
             "retained_plans", "mapped_source_bytes", "dependencies", "collision",
             "behavior", "simulation_ready", "render_published", "failure",
-        )
+            )
+        },
     }
     resources = {
         "residency": residency,
         "models": models,
         "placements": placement_rows,
     }
+    reference_keys = [row["key"] for row in placement_rows]
+    reference_keys.sort(key=canonical_json)
+    camera_transform = report.get("camera_transform")
+    if camera_transform is not None:
+        camera_transform = _object(camera_transform, "camera_transform")
+    completion_receipt = report.get("scene_completion")
+    if completion_receipt is not None:
+        completion_receipt = _object(completion_receipt, "scene_completion")
     poses = {"placements": pose_rows, "canonical_bindings": canonical_bindings}
     return {
         "cell": {
@@ -517,13 +550,19 @@ def scene_evidence(report_value: object, expected_cell: str, expected_load_order
             "runtime_ready": report.get("runtime_ready"),
             "retail_parity_accepted": report.get("retail_parity_accepted"),
             "source_residency": residency,
-            "rendered_references": report.get("rendered_references"),
+            "rendered_references": rendered_references,
             "unique_render_models": report.get("unique_render_models"),
             "rendered_mesh_instances": report.get("rendered_mesh_instances"),
             "shared_geometry_vertices": report.get("shared_geometry_vertices"),
             "shared_geometry_triangles": report.get("shared_geometry_triangles"),
             "unique_texture_samplers": report.get("unique_texture_samplers"),
         },
+        "reference_membership": {
+            "count": len(reference_keys),
+            "sha256": digest_json(reference_keys),
+        },
+        "camera_transform": camera_transform,
+        "scene_completion": completion_receipt,
         "poses": poses,
         "resources": resources,
         "unsupported_placement_count": sum(
@@ -538,11 +577,90 @@ def scene_observations(evidence: dict, camera_request: dict, image: dict) -> dic
     pose_status = "observed"
     if any(row["source_affine"] is None for row in evidence["poses"]["placements"]):
         pose_status = "partial"
+    residency = evidence["resources"]["residency"]
+    root_digest = digest_json(residency["root"])
+    camera = evidence.get("camera_transform")
+    camera_observation = {
+        "status": "absent",
+        "reason": ABSENT_OBSERVATIONS["actual_camera_transform"],
+    }
+    if isinstance(camera, dict):
+        try:
+            matrix = camera.get("world_from_camera")
+            if not isinstance(matrix, list) or len(matrix) != 4:
+                raise AcceptanceError("camera_transform.world_from_camera must be a 4x4 matrix")
+            normalized_matrix = [
+                _finite_vector(row, "camera_transform.world_from_camera row", 4)
+                for row in matrix
+            ]
+            request_digest = digest_json({
+                "source_position": _finite_vector(
+                    camera_request.get("source_position"), "camera_request.source_position"
+                ),
+                "source_target": _finite_vector(
+                    camera_request.get("source_target"), "camera_request.source_target"
+                ),
+            })
+            if _integer(camera.get("scene_generation"), "camera_transform.scene_generation", 1) != residency["generation"]:
+                raise AcceptanceError("camera transform belongs to a stale scene generation")
+            if _sha256(camera.get("source_root_sha256"), "camera_transform.source_root_sha256") != root_digest:
+                raise AcceptanceError("camera transform belongs to a different scene root")
+            if _sha256(camera.get("camera_request_sha256"), "camera_transform.camera_request_sha256") != request_digest:
+                raise AcceptanceError("camera transform does not match the requested camera")
+            camera_observation = {
+                "status": "observed",
+                "scene_generation": residency["generation"],
+                "source_root_sha256": root_digest,
+                "camera_request_sha256": request_digest,
+                "world_from_camera": normalized_matrix,
+            }
+        except AcceptanceError as error:
+            camera_observation = {"status": "mismatch", "reason": str(error)}
+
+    completion = evidence.get("scene_completion")
+    completion_observation = {
+        "status": "absent",
+        "reason": "The host emitted no scene completion receipt.",
+    }
+    if isinstance(completion, dict):
+        try:
+            reference_count = evidence["reference_membership"]["count"]
+            rendered_count = evidence["scene_report"]["rendered_references"]
+            resource_count = sum(
+                row["model"] is not None for row in evidence["resources"]["placements"]
+            )
+            if completion.get("state") != "complete":
+                raise AcceptanceError("scene completion receipt is not complete")
+            if _integer(completion.get("scene_generation"), "scene_completion.scene_generation", 1) != residency["generation"]:
+                raise AcceptanceError("scene completion receipt belongs to a stale generation")
+            if _sha256(completion.get("source_root_sha256"), "scene_completion.source_root_sha256") != root_digest:
+                raise AcceptanceError("scene completion receipt belongs to a different scene root")
+            for field, expected in (
+                ("expected_references", reference_count),
+                ("rendered_references", rendered_count),
+                ("resource_references", resource_count),
+            ):
+                actual = _integer(completion.get(field), f"scene_completion.{field}", 0)
+                if actual != expected:
+                    raise AcceptanceError(f"scene completion receipt {field} does not match the scene report")
+            if reference_count != rendered_count or rendered_count != resource_count:
+                raise AcceptanceError("scene completion receipt records missing expected draws or resources")
+            completion_observation = {
+                "status": "observed",
+                "scene_generation": residency["generation"],
+                "source_root_sha256": root_digest,
+                "expected_references": reference_count,
+                "rendered_references": rendered_count,
+                "resource_references": resource_count,
+            }
+        except AcceptanceError as error:
+            completion_observation = {"status": "mismatch", "reason": str(error)}
     result = {
         "source_and_binary": {"status": "observed"},
         "input_profile": {"status": "observed"},
         "camera_request": {"status": "observed", "value": camera_request},
-        "camera_transform": {"status": "absent", "reason": ABSENT_OBSERVATIONS["actual_camera_transform"]},
+        "camera_transform": camera_observation,
+        "scene_completion": completion_observation,
         "static_placement_pose": {
             "status": pose_status,
             "sha256": digest_json(evidence["poses"]),
@@ -1043,17 +1161,18 @@ def validate_completion(manifest: object) -> dict[str, int | str]:
         raise AcceptanceError("Required scenario has an unknown completion state")
     state = "complete" if completed == len(required) else "incomplete"
     declared = doc.get("completion")
-    if declared is not None:
-        declared = _object(declared, "completion")
-        declared_required = _integer(declared.get("required"), "completion.required", 0)
-        declared_completed = _integer(declared.get("completed"), "completion.completed", 0)
-        declared_failed = _integer(declared.get("failed"), "completion.failed", 0)
-        declared_skipped = _integer(declared.get("skipped"), "completion.skipped", 0)
-        declared_state = _string(declared.get("state"), "completion.state")
-        if (declared_required, declared_completed, declared_failed, declared_skipped, declared_state) != (
-            len(required), completed, failed, skipped, state
-        ):
-            raise AcceptanceError("Aggregate completion disagrees with per-run results")
+    if declared is None:
+        raise AcceptanceError("Capture manifest has no aggregate completion observation")
+    declared = _object(declared, "completion")
+    declared_required = _integer(declared.get("required"), "completion.required", 0)
+    declared_completed = _integer(declared.get("completed"), "completion.completed", 0)
+    declared_failed = _integer(declared.get("failed"), "completion.failed", 0)
+    declared_skipped = _integer(declared.get("skipped"), "completion.skipped", 0)
+    declared_state = _string(declared.get("state"), "completion.state")
+    if (declared_required, declared_completed, declared_failed, declared_skipped, declared_state) != (
+        len(required), completed, failed, skipped, state
+    ):
+        raise AcceptanceError("Aggregate completion disagrees with per-run results")
     return {"state": state, "required": len(required), "completed": completed, "failed": failed, "skipped": skipped}
 
 
@@ -1108,7 +1227,10 @@ def validate_manifest_files(manifest_path: Path, manifest: object) -> dict[str, 
 
 
 def compare_scene_evidence(expected: dict, actual: dict) -> None:
-    for field in ("cell", "inputs", "camera_origin", "coordinates", "scene_report", "poses", "resources"):
+    for field in (
+        "cell", "inputs", "camera_origin", "coordinates", "reference_membership",
+        "camera_transform", "scene_completion", "scene_report", "poses", "resources",
+    ):
         if not _strict_json_equal(expected.get(field), actual.get(field)):
             raise AcceptanceError(f"Frozen scene {field} changed")
 
@@ -1159,8 +1281,14 @@ def compare_capture_manifests(expected_path: Path, actual_path: Path) -> dict:
         observations = new.get("observations", {})
         if isinstance(observations, dict):
             for name, observation in observations.items():
-                if isinstance(observation, dict) and observation.get("status") in ("absent", "partial", "unsupported"):
+                if isinstance(observation, dict) and observation.get("status") in (
+                    "absent", "partial", "unsupported", "mismatch"
+                ):
                     missing.append(f"{scenario_id}.{name}")
+        for name in ("camera_transform", "scene_completion"):
+            observation = observations.get(name) if isinstance(observations, dict) else None
+            if not isinstance(observation, dict) or observation.get("status") != "observed":
+                failures.append(f"{scenario_id}.{name} observation is absent, mismatched, or incomplete")
         outcomes.append({"id": scenario_id, "status": status, "checks": checks})
     required_expected = {row["id"] for row in expected.get("scenarios", []) if row.get("required") is True}
     required_actual = {row["id"] for row in actual.get("scenarios", []) if row.get("required") is True}
